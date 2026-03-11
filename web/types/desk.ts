@@ -10,12 +10,12 @@
 // =============================================================================
 
 export type DeskSurface =
-  // Deliverables (create handled by TP chat — /dashboard?create)
-  | { type: 'deliverable-review'; deliverableId: string; versionId: string }
-  | { type: 'deliverable-detail'; deliverableId: string }
-  | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
+  // Agents (create handled by TP chat — /dashboard?create)
+  | { type: 'agent-review'; agentId: string; runId: string }
+  | { type: 'agent-detail'; agentId: string }
+  | { type: 'agent-list'; status?: 'active' | 'paused' | 'archived' }
   // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
-  | { type: 'context-browser'; scope: 'user' | 'deliverable'; scopeId?: string }
+  | { type: 'context-browser'; scope: 'user' | 'agent'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
   // Documents
   | { type: 'document-viewer'; documentId: string }
@@ -31,9 +31,9 @@ export type DeskSurface =
 // =============================================================================
 
 export interface AttentionItem {
-  type: 'deliverable-staged';
-  deliverableId: string;
-  versionId: string;
+  type: 'agent-staged';
+  agentId: string;
+  runId: string;
   title: string;
   stagedAt: string;
 }
@@ -118,7 +118,7 @@ export type DeskAction =
   | { type: 'SET_SURFACE_WITH_HANDOFF'; surface: DeskSurface; handoffMessage: string }
   | { type: 'SET_ATTENTION'; items: AttentionItem[] }
   | { type: 'ADD_ATTENTION'; item: AttentionItem }
-  | { type: 'REMOVE_ATTENTION'; versionId: string }
+  | { type: 'REMOVE_ATTENTION'; runId: string }
   | { type: 'CLEAR_SURFACE' }
   | { type: 'CLEAR_HANDOFF' }
   | { type: 'NEXT_ATTENTION' }
@@ -166,18 +166,18 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
   const { surface, data } = action;
 
   switch (surface) {
-    // Deliverables (create handled by TP chat — /dashboard?create)
-    case 'deliverable':
-      return { type: 'deliverable-detail', deliverableId: data.deliverableId as string };
-    case 'deliverable-review':
+    // Agents (create handled by TP chat — /dashboard?create)
+    case 'agent':
+      return { type: 'agent-detail', agentId: data.agentId as string };
+    case 'agent-review':
       return {
-        type: 'deliverable-review',
-        deliverableId: data.deliverableId as string,
-        versionId: data.versionId as string,
+        type: 'agent-review',
+        agentId: data.agentId as string,
+        runId: data.runId as string,
       };
-    case 'deliverable-list':
+    case 'agent-list':
       return {
-        type: 'deliverable-list',
+        type: 'agent-list',
         status: data.status as 'active' | 'paused' | 'archived' | undefined,
       };
 
@@ -186,7 +186,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'memory':
       return {
         type: 'context-browser',
-        scope: (data.scope as 'user' | 'deliverable') || 'user',
+        scope: (data.scope as 'user' | 'agent') || 'user',
         scopeId: data.scopeId as string | undefined,
       };
     case 'memory-edit':
@@ -228,14 +228,14 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
   params.set('surface', surface.type);
 
   switch (surface.type) {
-    case 'deliverable-review':
-      params.set('did', surface.deliverableId);
-      params.set('vid', surface.versionId);
+    case 'agent-review':
+      params.set('did', surface.agentId);
+      params.set('vid', surface.runId);
       break;
-    case 'deliverable-detail':
-      params.set('did', surface.deliverableId);
+    case 'agent-detail':
+      params.set('did', surface.agentId);
       break;
-    case 'deliverable-list':
+    case 'agent-list':
       if (surface.status) params.set('status', surface.status);
       break;
     case 'context-browser':
@@ -263,23 +263,23 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
   const surfaceType = params.get('surface');
 
   switch (surfaceType) {
-    case 'deliverable-review': {
+    case 'agent-review': {
       const did = params.get('did');
       const vid = params.get('vid');
-      if (did && vid) return { type: 'deliverable-review', deliverableId: did, versionId: vid };
+      if (did && vid) return { type: 'agent-review', agentId: did, runId: vid };
       break;
     }
-    case 'deliverable-detail': {
+    case 'agent-detail': {
       const did = params.get('did');
-      if (did) return { type: 'deliverable-detail', deliverableId: did };
+      if (did) return { type: 'agent-detail', agentId: did };
       break;
     }
-    case 'deliverable-list':
-      return { type: 'deliverable-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
+    case 'agent-list':
+      return { type: 'agent-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
     case 'context-browser':
       return {
         type: 'context-browser',
-        scope: (params.get('scope') as 'user' | 'deliverable') || 'user',
+        scope: (params.get('scope') as 'user' | 'agent') || 'user',
         scopeId: params.get('scopeId') || undefined,
       };
     case 'context-editor': {

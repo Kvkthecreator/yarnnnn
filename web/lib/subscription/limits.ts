@@ -6,19 +6,19 @@
  * api/services/platform_limits.py and fetched via API.
  *
  * Tier structure (ADR-100, 2026-03-09):
- * - Free: 5/5/10 sources, 1x/day sync, 50 messages/month, 2 deliverables
- * - Pro ($19/mo, Early Bird $9/mo): unlimited sources, hourly sync, unlimited messages, 10 deliverables
+ * - Free: 5/5/10 sources, 1x/day sync, 50 messages/month, 2 agents
+ * - Pro ($19/mo, Early Bird $9/mo): unlimited sources, hourly sync, unlimited messages, 10 agents
  */
 
 export const SUBSCRIPTION_LIMITS = {
   free: {
     monthlyMessages: 50,          // ADR-100: Monthly message limit
-    activeDeliverables: 2,        // ADR-100: Active deliverable limit
+    activeAgents: 2,        // ADR-100: Active agent limit
     documents: 10,
   },
   pro: {
     monthlyMessages: Infinity,    // Unlimited
-    activeDeliverables: Infinity,
+    activeAgents: Infinity,
     documents: Infinity,
   },
 } as const;
@@ -28,7 +28,7 @@ export type SubscriptionTier = keyof typeof SUBSCRIPTION_LIMITS;
 export interface UsageData {
   monthlyMessagesUsed: number;
   documentCount: number;
-  activeDeliverables: number;
+  activeAgents: number;
 }
 
 export interface LimitStatus {

@@ -9,7 +9,7 @@
 ## Why this was archived
 
 This document tracked TP configuration changes from January–February 2025 (v1–v2). It references:
-- Removed tools (`list_deliverables`, `create_deliverable`)
+- Removed tools (`list_agents`, `create_agent`)
 - Removed workflow phases (`[PLAN]`, `[GATE]`, `[EXEC]`, `[VALIDATE]`)
 - Outdated session limits (30 messages vs current 50,000 token budget)
 - The `skills.py` system which has been simplified

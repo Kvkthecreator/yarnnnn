@@ -19,7 +19,7 @@ python3 scripts/validate_phase1_integration.py
 This validates:
 - ✅ Layer 4 content integration in manual signal processing
 - ✅ Layer 4 content integration in automated cron
-- ✅ ~~New deliverable types registered (deep_research, daily_strategy_reflection, intelligence_brief)~~ — **Deprecated by ADR-082**: these types are now absorbed into research_brief and status_report
+- ✅ ~~New agent types registered (deep_research, daily_strategy_reflection, intelligence_brief)~~ — **Deprecated by ADR-082**: these types are now absorbed into research_brief and status_report
 - ✅ Memory extraction wired to approval endpoint
 - ✅ Pattern detection scheduled at midnight UTC
 - ✅ 5 pattern types implemented
@@ -32,20 +32,20 @@ This validates:
 
 ### 1. Manual Signal Processing with Layer 4 Content
 
-**Objective**: Verify manual trigger includes recent deliverable content in reasoning
+**Objective**: Verify manual trigger includes recent agent content in reasoning
 
 **Prerequisites**:
 - User has active platform connections (Google Calendar, Gmail, Slack, or Notion)
-- User has at least 1 existing deliverable with generated versions
+- User has at least 1 existing agent with generated versions
 
 **Test Steps**:
-1. Navigate to Settings or Deliverables page
+1. Navigate to Settings or Agents page
 2. Click "Run Signal Processing Now" button
 3. Check response payload
 
 **Expected Result**:
 - Signal processing completes successfully
-- If `trigger_existing` action taken, it should be informed by recent deliverable content
+- If `trigger_existing` action taken, it should be informed by recent agent content
 - Response includes `actions_taken` array with reasoning results
 
 **Verification**:
@@ -61,15 +61,15 @@ curl -X POST https://api.yarnnn.com/signal-processing/trigger \
 
 ---
 
-### 2. Memory Extraction from Deliverable Feedback
+### 2. Memory Extraction from Agent Feedback
 
 **Objective**: Verify approval with edits triggers memory extraction
 
 **Prerequisites**:
-- User has a staged deliverable version
+- User has a staged agent version
 
 **Test Steps**:
-1. Navigate to Deliverables page
+1. Navigate to Agents page
 2. Open a staged version
 3. Edit the content (e.g., shorten intro, change format)
 4. Approve the version
@@ -107,8 +107,8 @@ LIMIT 5;
 
 **Prerequisites**:
 - User has `activity_log` entries spanning multiple days
-- At least 5 `deliverable_run` events (threshold for time-of-day and type patterns)
-- For edit/formatting patterns: `deliverable_approved` events with `had_edits`/length metadata
+- At least 5 `agent_run` events (threshold for time-of-day and type patterns)
+- For edit/formatting patterns: `agent_approved` events with `had_edits`/length metadata
 
 **Test Steps**:
 1. Trigger pattern detection manually or wait until midnight UTC
@@ -119,13 +119,13 @@ LIMIT 5;
 
 | Pattern Type | Key | Threshold | Example Value |
 |---|---|---|---|
-| Day-of-week | `pattern:deliverable_day` | >50% on one day AND ≥3 runs | "Typically runs deliverables on Thursdays" |
-| Time-of-day | `pattern:deliverable_time` | ≥5 total runs AND >50% in one block AND ≥3 in block | "Typically runs deliverables in the morning (6am-12pm)" |
-| Type preference | `pattern:deliverable_type_preference` | ≥5 runs AND >60% one type | "Frequently uses status_report deliverables" |
-| Edit location | `pattern:edit_location` | ≥3 `deliverable_approved` events with `had_edits` | "Tends to edit intro sections when revising" |
+| Day-of-week | `pattern:agent_day` | >50% on one day AND ≥3 runs | "Typically runs agents on Thursdays" |
+| Time-of-day | `pattern:agent_time` | ≥5 total runs AND >50% in one block AND ≥3 in block | "Typically runs agents in the morning (6am-12pm)" |
+| Type preference | `pattern:agent_type_preference` | ≥5 runs AND >60% one type | "Frequently uses status_report agents" |
+| Edit location | `pattern:edit_location` | ≥3 `agent_approved` events with `had_edits` | "Tends to edit intro sections when revising" |
 | Formatting length | `pattern:formatting_length` | ≥3 approvals with `final_length`/`draft_length` and >30% change | "Prefers concise output; typically shortens generated content" |
 
-**Note**: Patterns 4-5 require the approval flow to emit `deliverable_approved` activity_log events with metadata. If no approvals have occurred, only patterns 1-3 can fire.
+**Note**: Patterns 4-5 require the approval flow to emit `agent_approved` activity_log events with metadata. If no approvals have occurred, only patterns 1-3 can fire.
 
 **Manual Trigger** (for testing):
 ```python
@@ -150,27 +150,27 @@ LIMIT 10;
 
 ---
 
-### 4. ~~New Deliverable Types (Phase 2)~~ — Deprecated
+### 4. ~~New Agent Types (Phase 2)~~ — Deprecated
 
 > **ADR-082**: The original Phase 2 types (`deep_research`, `daily_strategy_reflection`, `intelligence_brief`) have been absorbed into the consolidated type system. `research_brief` and `status_report` now cover these use cases. See ADR-082 for the 8 active types.
 
-**Current active types** (verify via `TYPE_PROMPTS` in deliverable generation):
+**Current active types** (verify via `TYPE_PROMPTS` in agent generation):
 `status_report`, `research_brief`, `meeting_prep`, `slack_channel_digest`, `gmail_inbox_brief`, `weekly_calendar_preview`, `notion_page_tracker`, `custom`
 
 ---
 
-### 5. Signal-Emergent Deliverables with Layer 4 Content
+### 5. Signal-Emergent Agents with Layer 4 Content
 
-**Objective**: Verify signal processing uses recent deliverable content to make quality-aware decisions
+**Objective**: Verify signal processing uses recent agent content to make quality-aware decisions
 
 **Prerequisites**:
-- User has 1+ active deliverables with recent versions
+- User has 1+ active agents with recent versions
 - User has calendar events or signals
 
 **Test Scenario A**: Content Staleness Detection
 
 **Setup**:
-1. Create a `meeting_prep` deliverable for "Weekly Team Standup"
+1. Create a `meeting_prep` agent for "Weekly Team Standup"
 2. Run it to generate version with content about internal team
 3. Add new calendar event: "Client Meeting with Alice (external)"
 
@@ -180,18 +180,18 @@ LIMIT 10;
 
 **Expected Result**:
 - Signal processing detects calendar event signal
-- Reads recent `meeting_prep` deliverable content (400-char preview)
+- Reads recent `meeting_prep` agent content (400-char preview)
 - LLM reasoning: "Existing meeting_prep is for internal standup, not Alice meeting"
-- Action: `create_signal_emergent` (new one-time deliverable) instead of `trigger_existing`
+- Action: `create_signal_emergent` (new one-time agent) instead of `trigger_existing`
 
 **Verification**:
 ```sql
--- Check signal processing created NEW deliverable
-SELECT id, title, origin, deliverable_type
-FROM deliverables
+-- Check signal processing created NEW agent
+SELECT id, title, origin, agent_type
+FROM agents
 WHERE user_id = 'USER_ID'
   AND origin = 'signal_emergent'
-  AND deliverable_type = 'meeting_prep'
+  AND agent_type = 'meeting_prep'
 ORDER BY created_at DESC
 LIMIT 1;
 ```
@@ -199,7 +199,7 @@ LIMIT 1;
 **Test Scenario B**: Content Coverage Detection
 
 **Setup**:
-1. Create `intelligence_brief` deliverable for "AI regulation trends"
+1. Create `intelligence_brief` agent for "AI regulation trends"
 2. Run it to generate version about AI regulation
 3. Add new calendar event related to AI regulation (within existing coverage)
 
@@ -209,40 +209,40 @@ LIMIT 1;
 
 **Expected Result**:
 - Signal processing reads recent `intelligence_brief` content
-- LLM reasoning: "Recent deliverable (2 days ago) already covers this signal"
+- LLM reasoning: "Recent agent (2 days ago) already covers this signal"
 - Action: `no_action` (signal deduplicated by recent work)
 
 ---
 
 ### 6. TP Tool Integration
 
-**Objective**: Verify TP can create deliverables via Write tool
+**Objective**: Verify TP can create agents via Write tool
 
 **Test Cases**:
 
 ```
 User: "Create a weekly status report"
-TP: Write(ref="deliverable:new", content={
+TP: Write(ref="agent:new", content={
   title: "Weekly Status Report",
-  deliverable_type: "status_report",
+  agent_type: "status_report",
   frequency: "weekly"
 })
-→ Expect: Deliverable created with type=status_report
+→ Expect: Agent created with type=status_report
 ```
 
 ```
 User: "Set up a research brief about AI safety"
-TP: Write(ref="deliverable:new", content={
+TP: Write(ref="agent:new", content={
   title: "AI Safety Research",
-  deliverable_type: "research_brief"
+  agent_type: "research_brief"
 })
-→ Expect: Deliverable created with type=research_brief
+→ Expect: Agent created with type=research_brief
 ```
 
 **Verification**:
 - Check TP response acknowledges creation
-- Check deliverables table has new row with correct type
-- Verify `deliverable_type` is one of the 8 active types (ADR-082)
+- Check agents table has new row with correct type
+- Verify `agent_type` is one of the 8 active types (ADR-082)
 
 ---
 
@@ -254,7 +254,7 @@ TP: Write(ref="deliverable:new", content={
 
 - [ ] [four-layer-model.md](../architecture/four-layer-model.md) has bidirectional learning section
 - [ ] [memory.md](../features/memory.md) lists 3 extraction sources
-- [ ] [deliverables.md](../architecture/deliverables.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
+- [ ] [agents.md](../architecture/agents.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
 - [ ] [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) exists and describes Layer 4 integration
 - [ ] [ADR-070](../adr/ADR-070-enhanced-activity-pattern-detection.md) exists and describes 5 pattern types
 - [ ] [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) exists and describes 8 strategic principles
@@ -265,7 +265,7 @@ TP: Write(ref="deliverable:new", content={
 grep -r "bidirectional learning" docs/architecture/
 grep -r "quality flywheel" docs/architecture/
 grep -r "three extraction sources" docs/features/memory.md
-grep -r "signal_emergent" docs/architecture/deliverables.md
+grep -r "signal_emergent" docs/architecture/agents.md
 ```
 
 ---
@@ -284,7 +284,7 @@ time curl -X POST https://api.yarnnn.com/signal-processing/trigger \
 ```
 
 **Expected**:
-- With Layer 4 content (10 deliverables): 5-8 seconds
+- With Layer 4 content (10 agents): 5-8 seconds
 - Token usage: ~2,500-3,500 additional tokens (acceptable per ADR-069)
 
 ### Pattern Detection Performance
@@ -314,18 +314,18 @@ print(f"Pattern detection: {extracted} patterns in {elapsed:.2f}s")
 
 ## Edge Cases
 
-### 1. Deliverable with No Versions
+### 1. Agent with No Versions
 
-**Scenario**: User created deliverable but never ran it
+**Scenario**: User created agent but never ran it
 
 **Expected Behavior**:
-- Signal processing query returns deliverable with `recent_content=None`
+- Signal processing query returns agent with `recent_content=None`
 - Prompt formatting handles missing content gracefully (no preview shown)
 - No crash or error
 
-### 2. All Deliverables Are Stale
+### 2. All Agents Are Stale
 
-**Scenario**: User has deliverables but last version was >30 days ago
+**Scenario**: User has agents but last version was >30 days ago
 
 **Expected Behavior**:
 - Signal processing includes content previews with "30 days ago" recency
@@ -343,7 +343,7 @@ print(f"Pattern detection: {extracted} patterns in {elapsed:.2f}s")
 
 ### 4. Pattern Detection with Insufficient Data
 
-**Scenario**: User has only 1 deliverable_run event
+**Scenario**: User has only 1 agent_run event
 
 **Expected Behavior**:
 - Pattern detection runs but finds no patterns (thresholds not met)
@@ -361,14 +361,14 @@ If Phase 1-3 integration causes issues:
 1. Revert manual trigger endpoint to old query:
 ```python
 # In api/routes/signal_processing.py:170-177
-existing_deliverables_result = (
-    supabase.table("deliverables")
-    .select("id, title, deliverable_type, next_run_at, status")
+existing_agents_result = (
+    supabase.table("agents")
+    .select("id, title, agent_type, next_run_at, status")
     .eq("user_id", user_id)
     .in_("status", ["active", "paused"])
     .execute()
 )
-existing_deliverables = existing_deliverables_result.data or []
+existing_agents = existing_agents_result.data or []
 ```
 
 2. Deploy hotfix
@@ -399,8 +399,8 @@ Phase 1-3 implementation is considered validated when:
 - [ ] Manual signal processing includes Layer 4 content
 - [ ] Memory extraction from approval creates `source=feedback` entries
 - [ ] Daily pattern detection creates `source=pattern` entries in `user_memory`
-- [ ] 8 active deliverable types execute successfully (ADR-082)
-- [ ] TP can create deliverables via Write tool
+- [ ] 8 active agent types execute successfully (ADR-082)
+- [ ] TP can create agents via Write tool
 - [ ] Signal processing demonstrates quality-aware decision making (staleness/coverage)
 - [ ] No performance regression (signal processing <10s, pattern detection <30s)
 - [ ] Documentation matches implementation
@@ -424,7 +424,7 @@ Once validation complete:
 3. **Feature Iteration**
    - Tune pattern detection thresholds based on real data
    - Add LLM-based edit location analysis (replace keyword heuristics)
-   - Consider summarization for very long deliverables (>5,000 words)
+   - Consider summarization for very long agents (>5,000 words)
 
 ---
 

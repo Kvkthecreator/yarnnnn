@@ -4,13 +4,13 @@ Edit Primitive
 Modify existing entity.
 
 Usage:
-  Edit(ref="deliverable:uuid-123", changes={status: "paused"})
-  Edit(ref="deliverable:uuid-123", changes={deliverable_instructions: "Use formal tone."})
+  Edit(ref="agent:uuid-123", changes={status: "paused"})
+  Edit(ref="agent:uuid-123", changes={agent_instructions: "Use formal tone."})
   Edit(ref="memory:uuid-456", changes={content: "Updated content"})
 
-For deliverable_memory, use append_observation or set_goal keys (scoped writes, not replace):
-  Edit(ref="deliverable:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
-  Edit(ref="deliverable:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
+For agent_memory, use append_observation or set_goal keys (scoped writes, not replace):
+  Edit(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
+  Edit(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
 """
 
 from typing import Any
@@ -24,20 +24,20 @@ EDIT_TOOL = {
     "description": """Modify an existing entity.
 
 Examples:
-- Edit(ref="deliverable:uuid-123", changes={status: "paused"})
-- Edit(ref="deliverable:uuid-123", changes={deliverable_instructions: "Always use bullet points."})
-- Edit(ref="deliverable:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
-- Edit(ref="deliverable:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
+- Edit(ref="agent:uuid-123", changes={status: "paused"})
+- Edit(ref="agent:uuid-123", changes={agent_instructions: "Always use bullet points."})
+- Edit(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
+- Edit(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
 - Edit(ref="memory:uuid-456", changes={content: "Updated preference"})
 
-For deliverable_memory, use append_observation or set_goal (scoped writes — do not pass raw deliverable_memory JSONB).
+For agent_memory, use append_observation or set_goal (scoped writes — do not pass raw agent_memory JSONB).
 Only specified fields are updated; others remain unchanged.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference (e.g., 'deliverable:uuid-123')"
+                "description": "Entity reference (e.g., 'agent:uuid-123')"
             },
             "changes": {
                 "type": "object",
@@ -126,17 +126,17 @@ async def handle_edit(auth: Any, input: dict) -> dict:
             "ref": ref_str,
         }
 
-    # ADR-091: Scoped deliverable_memory writes — append_observation / set_goal
+    # ADR-091: Scoped agent_memory writes — append_observation / set_goal
     # These are handled specially to avoid clobbering system-accumulated memory.
-    if parsed.entity_type == "deliverable" and (
+    if parsed.entity_type == "agent" and (
         "append_observation" in changes or "set_goal" in changes
     ):
-        return await _handle_deliverable_memory_write(auth, parsed, existing, changes)
+        return await _handle_agent_memory_write(auth, parsed, existing, changes)
 
     # Filter out immutable fields (and scoped memory keys, handled above)
     filtered_changes = {
         k: v for k, v in changes.items()
-        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "deliverable_memory")
+        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "agent_memory")
     }
 
     if not filtered_changes:
@@ -144,7 +144,7 @@ async def handle_edit(auth: Any, input: dict) -> dict:
             "success": False,
             "error": "no_valid_changes",
             "message": f"Cannot modify fields: {', '.join(changes.keys())}. "
-                       f"Use append_observation or set_goal to write deliverable memory.",
+                       f"Use append_observation or set_goal to write agent memory.",
         }
 
     # Add updated_at
@@ -192,17 +192,17 @@ async def handle_edit(auth: Any, input: dict) -> dict:
         }
 
 
-async def _handle_deliverable_memory_write(auth: Any, parsed: Any, existing: dict, changes: dict) -> dict:
+async def _handle_agent_memory_write(auth: Any, parsed: Any, existing: dict, changes: dict) -> dict:
     """
-    Scoped write to deliverable_memory JSONB.
+    Scoped write to agent_memory JSONB.
 
     ADR-091: append_observation appends to observations list (never replaces).
     set_goal replaces the goal object only (observations untouched).
-    Raw deliverable_memory writes are blocked to avoid clobbering system-accumulated memory.
+    Raw agent_memory writes are blocked to avoid clobbering system-accumulated memory.
     """
     import json
 
-    current_memory = existing.get("deliverable_memory") or {}
+    current_memory = existing.get("agent_memory") or {}
     if isinstance(current_memory, str):
         try:
             current_memory = json.loads(current_memory)
@@ -247,8 +247,8 @@ async def _handle_deliverable_memory_write(auth: Any, parsed: Any, existing: dic
         applied.append("set_goal")
 
     try:
-        result = auth.client.table("deliverables").update({
-            "deliverable_memory": updated_memory,
+        result = auth.client.table("agents").update({
+            "agent_memory": updated_memory,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", parsed.identifier).eq("user_id", auth.user_id).execute()
 
@@ -256,14 +256,14 @@ async def _handle_deliverable_memory_write(auth: Any, parsed: Any, existing: dic
             return {
                 "success": False,
                 "error": "update_failed",
-                "message": "Failed to update deliverable memory",
+                "message": "Failed to update agent memory",
             }
 
         return {
             "success": True,
             "data": result.data[0],
-            "ref": f"deliverable:{parsed.identifier}",
-            "entity_type": "deliverable",
+            "ref": f"agent:{parsed.identifier}",
+            "entity_type": "agent",
             "changes_applied": applied,
             "message": _format_memory_write_message(applied, changes),
         }
@@ -293,7 +293,7 @@ def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
     if "updated_at" in change_list:
         change_list.remove("updated_at")
 
-    if entity_type == "deliverable":
+    if entity_type == "agent":
         title = data.get("title", "Untitled")
         if "status" in changes:
             return f"Updated {title}: now {changes['status']}"

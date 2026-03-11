@@ -14,7 +14,7 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 
 ### Core Analogy
 
-YARNNN's entity space is the user's **filesystem**. Platforms (Slack, Notion) and documents are the source files. Deliverables are the build outputs. TP navigates and acts on this filesystem using primitives — the same way Claude Code navigates a codebase with Read, Write, Search, and Bash.
+YARNNN's entity space is the user's **filesystem**. Platforms (Slack, Notion) and documents are the source files. Agents are the build outputs. TP navigates and acts on this filesystem using primitives — the same way Claude Code navigates a codebase with Read, Write, Search, and Bash.
 
 ```
 Claude Code filesystem         YARNNN filesystem
@@ -24,7 +24,7 @@ Claude Code filesystem         YARNNN filesystem
 /project/README.md            document:* (uploads)
 /project/CLAUDE.md            user profile (context injection)
 .git/ history                 session:* (conversation history)
-build output                  deliverable:* (generated work)
+build output                  agent:* (generated work)
 CI jobs                       work:* (execution records)
 ```
 
@@ -55,7 +55,7 @@ CI jobs                       work:* (execution records)
 | Primitive | Reason | Replacement |
 |-----------|--------|-------------|
 | **Respond** | Model's natural text output serves this purpose | TP's message IS the response |
-| **Todo** | No multi-step workflows yet that need progress UI | Re-add when `deliverable.generate` pipelines exist |
+| **Todo** | No multi-step workflows yet that need progress UI | Re-add when `agent.generate` pipelines exist |
 
 ---
 
@@ -71,7 +71,7 @@ All entity references follow a consistent grammar:
 
 | Component | Description | Example |
 |-----------|-------------|---------|
-| `type` | Entity type | `deliverable`, `platform`, `document` |
+| `type` | Entity type | `agent`, `platform`, `document` |
 | `identifier` | Entity ID or special | UUID, `new`, `latest`, `*` |
 | `subpath` | Nested access | `/credentials`, `/channels/eng` |
 | `query` | Filter parameters | `?status=active&limit=10` |
@@ -80,7 +80,7 @@ All entity references follow a consistent grammar:
 
 | Type | Table | Description | Filesystem Analogy |
 |------|-------|-------------|-------------------|
-| `deliverable` | `deliverables` | Recurring content outputs | Build output |
+| `agent` | `agents` | Recurring content outputs | Build output |
 | `platform` | `user_integrations` | Connected platforms (by provider) | Source directories |
 | `document` | `documents` | Uploaded documents | Source files |
 | `work` | `work_tickets` | Work execution records | CI job logs |
@@ -96,12 +96,12 @@ All entity references follow a consistent grammar:
 
 ### Entity Schemas
 
-#### deliverable
+#### agent
 
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
-| `title` | string | Deliverable name | ✓ Primary |
+| `title` | string | Agent name | ✓ Primary |
 | `description` | string | Optional description | — |
 | `status` | enum | `active`, `paused`, `archived` | ✓ Badge |
 | `schedule` | JSONB | `{frequency, day, time, timezone}` | ✓ Frequency |
@@ -143,7 +143,7 @@ All entity references follow a consistent grammar:
 | `status` | enum | `pending`, `running`, `completed`, `failed` | ✓ Badge |
 | `agent_type` | string | Which agent handles it | — |
 | `result` | JSONB | Execution result | — |
-| `deliverable_id` | UUID | Optional linked deliverable | — |
+| `agent_id` | UUID | Optional linked agent | — |
 
 #### session
 
@@ -166,10 +166,10 @@ All entity references follow a consistent grammar:
 ### Examples
 
 ```
-deliverable:uuid-123              # Specific deliverable
-deliverable:latest                # Most recently updated
-deliverable:*                     # All deliverables
-deliverable:?status=active        # Active deliverables
+agent:uuid-123              # Specific agent
+agent:latest                # Most recently updated
+agent:*                     # All agents
+agent:?status=active        # Active agents
 
 platform:slack                    # Slack integration (by provider)
 platform:slack/channels/eng       # Specific synced content
@@ -193,7 +193,7 @@ Retrieve a single entity by reference.
 **Input**:
 ```json
 {
-  "ref": "deliverable:uuid-123"
+  "ref": "agent:uuid-123"
 }
 ```
 
@@ -202,8 +202,8 @@ Retrieve a single entity by reference.
 {
   "success": true,
   "data": { "id": "uuid-123", "title": "Weekly Update", ... },
-  "ref": "deliverable:uuid-123",
-  "entity_type": "deliverable"
+  "ref": "agent:uuid-123",
+  "entity_type": "agent"
 }
 ```
 
@@ -218,10 +218,10 @@ Create a new entity.
 **Input**:
 ```json
 {
-  "ref": "deliverable:new",
+  "ref": "agent:new",
   "content": {
     "title": "Weekly Status",
-    "deliverable_type": "status_report"
+    "agent_type": "status_report"
   }
 }
 ```
@@ -231,9 +231,9 @@ Create a new entity.
 {
   "success": true,
   "data": { "id": "new-uuid", "title": "Weekly Status", ... },
-  "ref": "deliverable:new-uuid",
-  "entity_type": "deliverable",
-  "message": "Created deliverable: Weekly Status (weekly)"
+  "ref": "agent:new-uuid",
+  "entity_type": "agent",
+  "message": "Created agent: Weekly Status (weekly)"
 }
 ```
 
@@ -241,7 +241,7 @@ Create a new entity.
 
 | Type | Required |
 |------|----------|
-| `deliverable` | `title`, `deliverable_type` |
+| `agent` | `title`, `agent_type` |
 | `work` | `task`, `agent_type` |
 | `document` | `name` |
 
@@ -249,7 +249,7 @@ Create a new entity.
 
 | Type | Defaults |
 |------|----------|
-| `deliverable` | `status: active`, `frequency: weekly`, `governance: manual` |
+| `agent` | `status: active`, `frequency: weekly`, `governance: manual` |
 | `work` | `frequency: once`, `status: pending` |
 
 ---
@@ -261,7 +261,7 @@ Modify an existing entity.
 **Input**:
 ```json
 {
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes": { "status": "paused" }
 }
 ```
@@ -271,7 +271,7 @@ Modify an existing entity.
 {
   "success": true,
   "data": { "id": "uuid-123", "status": "paused", ... },
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes_applied": ["status", "updated_at"]
 }
 ```
@@ -287,7 +287,7 @@ Find entities by pattern (structural navigation).
 **Input**:
 ```json
 {
-  "pattern": "deliverable:?status=active",
+  "pattern": "agent:?status=active",
   "limit": 10,
   "order_by": "updated_at"
 }
@@ -302,9 +302,9 @@ Find entities by pattern (structural navigation).
     { "id": "uuid-2", "title": "Daily Digest", ... }
   ],
   "count": 2,
-  "pattern": "deliverable:?status=active",
-  "entity_type": "deliverable",
-  "message": "Found 2 deliverable(s) (2 active)"
+  "pattern": "agent:?status=active",
+  "entity_type": "agent",
+  "message": "Found 2 agent(s) (2 active)"
 }
 ```
 
@@ -341,7 +341,7 @@ Find entities by semantic meaning (embedding search).
 }
 ```
 
-**Scopes**: `deliverable`, `document`, `platform_content`, `all`
+**Scopes**: `agent`, `document`, `platform_content`, `all`
 
 **Note:** `memory` scope removed. If platform content is indexed, use `platform_content`. For cross-entity search, use `all`.
 
@@ -378,16 +378,16 @@ Trigger external operations on entities. This is where YARNNN's core value loop 
 | Action | Target | Description | The "Why" |
 |--------|--------|-------------|-----------|
 | `platform.sync` | `platform` | Pull content from platform | Populate the filesystem |
-| `deliverable.generate` | `deliverable` | Generate content from sources | Produce the build output |
-| `platform.publish` | `deliverable` | Push deliverable to platform | Deliver the output |
+| `agent.generate` | `agent` | Generate content from sources | Produce the build output |
+| `platform.publish` | `agent` | Push agent to platform | Deliver the output |
 
 **Supporting Actions**:
 
 | Action | Target | Description |
 |--------|--------|-------------|
 | `platform.auth` | `platform` | Initiate OAuth |
-| `deliverable.schedule` | `deliverable` | Update schedule |
-| `deliverable.approve` | `deliverable` | Approve version |
+| `agent.schedule` | `agent` | Update schedule |
+| `agent.approve` | `agent` | Approve version |
 | `work.run` | `work` | Execute generic work |
 
 **Removed:** `memory.extract` — now a background job triggered by `platform.sync`, not a TP-facing action.
@@ -435,8 +435,8 @@ context = {
         "preferences": { ... },
         "timezone": "..."
     },
-    "active_deliverables": [
-        # List(pattern="deliverable:?status=active") — preloaded
+    "active_agents": [
+        # List(pattern="agent:?status=active") — preloaded
         { "id": "...", "title": "Weekly Update", "frequency": "weekly", ... }
     ],
     "connected_platforms": [
@@ -463,7 +463,7 @@ context = {
 
 - User asks about something from a specific document → `Search(scope="document")`
 - User references old platform content → `Search(scope="platform_content")`
-- User asks about a specific deliverable detail → `Read(ref="deliverable:uuid")`
+- User asks about a specific agent detail → `Read(ref="agent:uuid")`
 
 The difference: TP searches **source material**, not extracted copies.
 
@@ -494,9 +494,9 @@ When a primitive fails, TP should:
 
 ```
 # Example: Read fails with not_found
-Read(ref="deliverable:uuid-wrong") → error: not_found
-→ List(pattern="deliverable:*") → find the right UUID
-→ Read(ref="deliverable:uuid-correct") → success
+Read(ref="agent:uuid-wrong") → error: not_found
+→ List(pattern="agent:*") → find the right UUID
+→ Read(ref="agent:uuid-correct") → success
 ```
 
 The user never sees "Entity not found" — they see the result.
@@ -573,7 +573,7 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 - **Reduced to 7 primitives** (removed Respond, Todo)
 - **Demoted memory** from first-class entity to background cache
 - **Demoted domain** to deferred status
-- **Added context injection** — preload user profile, active deliverables, platform summaries
+- **Added context injection** — preload user profile, active agents, platform summaries
 - **Clarified core value loop** — Sync → Generate → Publish
 - **Added error recovery guidance** for TP behavior
 - **Added filesystem analogy** mapping Claude Code patterns to YARNNN entities

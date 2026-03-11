@@ -9,18 +9,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.10.4] - ADR-105: Instructions to chat surface migration (prompt guidance)
 
 ### Changed
-- `api/agents/tp_prompts/behaviors.py`: Added "Update audience" guidance to Deliverable Workspace Management section. TP now has an explicit example for persisting recipient_context via the Edit primitive when users describe who a deliverable is for.
-- `api/agents/tp_prompts/tools.py`: Added "Audience" field documentation to Deliverable Workspace section between "Instructions" and "Observations", with Edit primitive example for setting recipient_context.
-- Expected behavior: When a user says "this report is for my CTO Sarah, she cares about velocity", TP will use `Edit(ref="deliverable:{id}", changes={recipient_context: {...}})` to persist the audience context. Previously TP had examples for instructions and observations but not audience — it would append an observation instead of setting the structured recipient_context field.
+- `api/agents/tp_prompts/behaviors.py`: Added "Update audience" guidance to Agent Workspace Management section. TP now has an explicit example for persisting recipient_context via the Edit primitive when users describe who an agent is for.
+- `api/agents/tp_prompts/tools.py`: Added "Audience" field documentation to Agent Workspace section between "Instructions" and "Observations", with Edit primitive example for setting recipient_context.
+- Expected behavior: When a user says "this report is for my CTO Sarah, she cares about velocity", TP will use `Edit(ref="agent:{id}", changes={recipient_context: {...}})` to persist the audience context. Previously TP had examples for instructions and observations but not audience — it would append an observation instead of setting the structured recipient_context field.
 
 ---
 
-## [2026.03.10.3] - ADR-104: Deliverable instructions as unified targeting layer
+## [2026.03.10.3] - ADR-104: Agent instructions as unified targeting layer
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Added `{user_instructions}` slot to all 7 TYPE_PROMPTS templates. `build_type_prompt()` now injects `deliverable_instructions` into the user message as "USER INSTRUCTIONS (priority lens for this deliverable)". This is **dual injection** — instructions appear in both the headless system prompt (behavioral constraints, step 3 of ADR-101 composition) and the user message (priority lens for interpreting gathered context). Deleted dead code: `SECTION_TEMPLATES`, `normalize_sections()`, `build_sections_list()`, unused `LENGTH_GUIDANCE` entries (`scan`, `analysis`, `deep_dive`).
+- `api/services/agent_pipeline.py`: Added `{user_instructions}` slot to all 7 TYPE_PROMPTS templates. `build_type_prompt()` now injects `agent_instructions` into the user message as "USER INSTRUCTIONS (priority lens for this agent)". This is **dual injection** — instructions appear in both the headless system prompt (behavioral constraints, step 3 of ADR-101 composition) and the user message (priority lens for interpreting gathered context). Deleted dead code: `SECTION_TEMPLATES`, `normalize_sections()`, `build_sections_list()`, unused `LENGTH_GUIDANCE` entries (`scan`, `analysis`, `deep_dive`).
 - `web/types/index.ts`: Removed dead `type_config` fields never consumed by `build_type_prompt()`: `DigestConfig.max_items`, all `BriefConfig` fields, `WatchConfig.threshold_notes`, all `DeepResearchConfig` fields, `CustomConfig.example_content`. Removed `TypeClassification.platform_grounding` and `freshness_requirement_hours` (stored, never consumed by any strategy).
-- Expected behavior: Deliverable outputs should be more targeted. Previously, `deliverable_instructions` only influenced the system prompt — the agent saw instructions and gathered content in separate contexts. Now the agent sees instructions *alongside* the content it needs to interpret, providing a priority lens. Users who customize instructions should see noticeably more focused output.
+- Expected behavior: Agent outputs should be more targeted. Previously, `agent_instructions` only influenced the system prompt — the agent saw instructions and gathered content in separate contexts. Now the agent sees instructions *alongside* the content it needs to interpret, providing a priority lens. Users who customize instructions should see noticeably more focused output.
 
 ---
 
@@ -34,22 +34,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.03.10.1] - Context provenance for deliverable versions (ADR-049 evolution)
+## [2026.03.10.1] - Context provenance for agent runs (ADR-049 evolution)
 
 ### Changed
-- `api/services/working_memory.py`: Deliverable-scoped TP sessions now receive source provenance in working memory injection. The `latest_version` scope includes `sources` (per-source platform/name/items_used), `total_items_fetched`, and `strategy`. TP can answer "what context was used?" from working memory without needing tool calls.
+- `api/services/working_memory.py`: Agent-scoped TP sessions now receive source provenance in working memory injection. The `latest_version` scope includes `sources` (per-source platform/name/items_used), `total_items_fetched`, and `strategy`. TP can answer "what context was used?" from working memory without needing tool calls.
 - `api/services/primitives/refs.py`: Read primitive now includes `source_snapshots` and `metadata` columns when reading version refs. TP can inspect full provenance details including `platform_content_ids`.
-- Expected behavior: When a user opens deliverable-scoped chat and asks "what context was used for the latest version?", TP immediately sees the source list, per-source item counts, strategy used, and total items fetched. For deeper inspection, TP can read the version to get individual `platform_content_ids`.
+- Expected behavior: When a user opens agent-scoped chat and asks "what context was used for the latest version?", TP immediately sees the source list, per-source item counts, strategy used, and total items fetched. For deeper inspection, TP can read the version to get individual `platform_content_ids`.
 
 ---
 
-## [2026.03.09.6] - Deliverable feedback loop: chat auto-persist + version feedback strip + email CTA
+## [2026.03.09.6] - Agent feedback loop: chat auto-persist + version feedback strip + email CTA
 
 ### Changed
-- `api/agents/tp_prompts/behaviors.py`: Strengthened "Deliverable Workspace Management" section with explicit guidance for TP to auto-persist user feedback from chat as observations. Added "IMPORTANT" block explaining that headless generation does NOT see chat history — feedback must be written to deliverable_memory or deliverable_instructions to influence autonomous runs. Added patterns for direct feedback, implicit feedback, and corrections. Changed "don't update for one-off requests" to "still append observation even for one-offs".
-- `web/components/deliverables/DeliverableVersionDisplay.tsx`: Added `VersionFeedbackStrip` component — compact inline feedback UI on delivered version cards. Calls existing `updateVersion` API with `feedback_notes`. Shows on delivered/approved versions with content. Includes helper text explaining feedback shapes future runs.
-- `api/services/platform_output.py`: Email footer CTA changed from "View deliverable in yarnnn" to "Reply with feedback" with subtext "Tell the agent what to change — it learns from your feedback." Encourages users to visit the deliverable page and engage with scoped chat or feedback strip.
-- Expected behavior: Three complementary feedback paths now active. (1) Chat path: TP recognizes feedback in deliverable-scoped chat and proactively persists it via `Edit(append_observation)`, flowing into headless generation via `deliverable_memory.observations`. (2) Direct path: Users can leave `feedback_notes` on versions via the UI strip, flowing into headless generation via `get_past_versions_context()` → "Learned Preferences" in system prompt. (3) Email nudge: Delivered emails encourage users to provide feedback, driving them to the deliverable page.
+- `api/agents/tp_prompts/behaviors.py`: Strengthened "Agent Workspace Management" section with explicit guidance for TP to auto-persist user feedback from chat as observations. Added "IMPORTANT" block explaining that headless generation does NOT see chat history — feedback must be written to agent_memory or agent_instructions to influence autonomous runs. Added patterns for direct feedback, implicit feedback, and corrections. Changed "don't update for one-off requests" to "still append observation even for one-offs".
+- `web/components/agents/AgentRunDisplay.tsx`: Added `VersionFeedbackStrip` component — compact inline feedback UI on delivered version cards. Calls existing `updateVersion` API with `feedback_notes`. Shows on delivered/approved versions with content. Includes helper text explaining feedback shapes future runs.
+- `api/services/platform_output.py`: Email footer CTA changed from "View agent in yarnnn" to "Reply with feedback" with subtext "Tell the agent what to change — it learns from your feedback." Encourages users to visit the agent page and engage with scoped chat or feedback strip.
+- Expected behavior: Three complementary feedback paths now active. (1) Chat path: TP recognizes feedback in agent-scoped chat and proactively persists it via `Edit(append_observation)`, flowing into headless generation via `agent_memory.observations`. (2) Direct path: Users can leave `feedback_notes` on versions via the UI strip, flowing into headless generation via `get_past_versions_context()` → "Learned Preferences" in system prompt. (3) Email nudge: Delivered emails encourage users to provide feedback, driving them to the agent page.
 
 ---
 
@@ -57,53 +57,53 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Changed
 - `api/services/platform_content.py`: Added `"yarnnn"` to `PlatformType` literal and `"yarnnn_output"` to `RetainedReason`. Added TTL entry (unused — yarnnn content is always retained).
-- `api/services/deliverable_execution.py`: After successful delivery, writes the version draft as a `platform_content` row with `platform="yarnnn"`, `retained=True`, `retained_reason="yarnnn_output"`. Closes the accumulation loop — deliverable outputs become searchable context for TP and other deliverables.
-- `api/services/primitives/search.py`: Search tool enum now includes `"yarnnn"` — agents can search deliverable outputs alongside platform content.
+- `api/services/agent_execution.py`: After successful delivery, writes the version draft as a `platform_content` row with `platform="yarnnn"`, `retained=True`, `retained_reason="yarnnn_output"`. Closes the accumulation loop — agent outputs become searchable context for TP and other agents.
+- `api/services/primitives/search.py`: Search tool enum now includes `"yarnnn"` — agents can search agent outputs alongside platform content.
 - `api/routes/system.py`: `content_platforms` includes `"yarnnn"` for system status content counts.
 - `api/routes/admin.py`: Admin dashboard includes `"yarnnn"` in platform content counts and `"yarnnn_output"` in retention reason breakdown.
-- Expected behavior: Each successful deliverable delivery now writes the generated content to `platform_content`. TP and headless agents can search across deliverable outputs via `platform="yarnnn"`. Cross-deliverable context sharing is now possible — a coordinator can reference outputs from deliverables it orchestrates.
+- Expected behavior: Each successful agent delivery now writes the generated content to `platform_content`. TP and headless agents can search across agent outputs via `platform="yarnnn"`. Cross-agent context sharing is now possible — a coordinator can reference outputs from agents it orchestrates.
 
 ---
 
-## [2026.03.09.4] - JSONB type alignment + per-deliverable token tracking (ADR-101)
+## [2026.03.09.4] - JSONB type alignment + per-agent token tracking (ADR-101)
 
 ### Changed
 - `api/services/anthropic.py`: `ChatResponse` dataclass now includes `usage: Optional[dict]`. `_parse_response()` extracts `response.usage.input_tokens` and `output_tokens` from Anthropic API responses. This was already done for the streaming path — now the non-streaming path (`chat_completion_with_tools`) also captures usage.
-- `api/services/deliverable_execution.py`: `generate_draft_inline()` accumulates token usage across all tool rounds in the agentic loop and returns `(draft, usage)` tuple. `update_version_for_delivery()` accepts optional `metadata` dict stored on the version row. `execute_deliverable_generation()` passes token metadata to both `deliverable_versions.metadata` and `activity_log.metadata`.
-- `supabase/migrations/096_version_metadata.sql`: Adds `metadata JSONB` column to `deliverable_versions`.
-- `web/types/index.ts`: `DeliverableMemory` type completed with `review_log`, `created_deliverables`, `last_generated_at`. `DeliverableVersion` extended with `metadata` field.
-- `web/components/deliverables/DeliverableDrawerPanels.tsx`: MemoryPanel displays `review_log` entries with color-coded action pills. Prompt preview includes review history section.
-- `web/components/deliverables/DeliverableVersionDisplay.tsx`: Token count displayed on version cards (hover for input/output breakdown).
-- Expected behavior: Each deliverable generation now records token usage. Version cards show total tokens used. MemoryPanel displays proactive review history. DeliverableMemory TypeScript type matches backend JSONB structure.
+- `api/services/agent_execution.py`: `generate_draft_inline()` accumulates token usage across all tool rounds in the agentic loop and returns `(draft, usage)` tuple. `update_version_for_delivery()` accepts optional `metadata` dict stored on the version row. `execute_agent_generation()` passes token metadata to both `agent_runs.metadata` and `activity_log.metadata`.
+- `supabase/migrations/096_version_metadata.sql`: Adds `metadata JSONB` column to `agent_runs`.
+- `web/types/index.ts`: `AgentMemory` type completed with `review_log`, `created_agents`, `last_generated_at`. `AgentRun` extended with `metadata` field.
+- `web/components/agents/AgentDrawerPanels.tsx`: MemoryPanel displays `review_log` entries with color-coded action pills. Prompt preview includes review history section.
+- `web/components/agents/AgentRunDisplay.tsx`: Token count displayed on version cards (hover for input/output breakdown).
+- Expected behavior: Each agent generation now records token usage. Version cards show total tokens used. MemoryPanel displays proactive review history. AgentMemory TypeScript type matches backend JSONB structure.
 
 ---
 
-## [2026.03.09.3] - Fix empty draft on proactive deliverables hitting tool round limit
+## [2026.03.09.3] - Fix empty draft on proactive agents hitting tool round limit
 
 ### Changed
-- `api/services/deliverable_execution.py`: Reworded proactive review trigger prompt — no longer tells agent to "investigate themes further with your tools" (which caused tool-looping). Now says "focus on synthesizing insights from the gathered context."
-- `api/services/deliverable_execution.py`: Added fallback synthesis call when agent hits max tool rounds with no text. Instead of failing with empty draft, makes one final API call with no tools available, forcing the agent to synthesize all gathered information into a response.
-- Expected behavior: Proactive deliverables that previously failed with "Agent produced empty draft" when the agent exhausted tool rounds without producing text will now produce a draft via the forced synthesis fallback.
+- `api/services/agent_execution.py`: Reworded proactive review trigger prompt — no longer tells agent to "investigate themes further with your tools" (which caused tool-looping). Now says "focus on synthesizing insights from the gathered context."
+- `api/services/agent_execution.py`: Added fallback synthesis call when agent hits max tool rounds with no text. Instead of failing with empty draft, makes one final API call with no tools available, forcing the agent to synthesize all gathered information into a response.
+- Expected behavior: Proactive agents that previously failed with "Agent produced empty draft" when the agent exhausted tool rounds without producing text will now produce a draft via the forced synthesis fallback.
 
 ---
 
-## [2026.03.09.2] - Deliverable intelligence model: close feedback loop (ADR-101)
+## [2026.03.09.2] - Agent intelligence model: close feedback loop (ADR-101)
 
 ### Changed
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts `learned_preferences` parameter. Feedback from past version edits is injected as a "## Learned Preferences" section in the system prompt (after Memory, before Tool Usage). Previously this data was only in the type prompt (user message). `generate_draft_inline()` passes learned preferences to system prompt and empty string to type prompt to avoid duplication.
-- `api/services/deliverable_pipeline.py`: `get_past_versions_context()` status filter changed from `eq("status", "approved")` to `in_("status", ["approved", "delivered"])`. This unbreaks the feedback loop for delivery-first (ADR-066) versions that skip the approval gate.
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` now accepts `learned_preferences` parameter. Feedback from past version edits is injected as a "## Learned Preferences" section in the system prompt (after Memory, before Tool Usage). Previously this data was only in the type prompt (user message). `generate_draft_inline()` passes learned preferences to system prompt and empty string to type prompt to avoid duplication.
+- `api/services/agent_pipeline.py`: `get_past_versions_context()` status filter changed from `eq("status", "approved")` to `in_("status", ["approved", "delivered"])`. This unbreaks the feedback loop for delivery-first (ADR-066) versions that skip the approval gate.
 - `api/services/feedback_engine.py`: Deleted dead `create_feedback_memory()` function (never called). Updated module docstring to reference ADR-101.
-- Expected behavior: Headless agent now sees learned preferences from user edits in its system prompt. For delivery-first deliverables, edit history from delivered versions is now included (previously only approved versions were queried, which excluded most versions under ADR-066).
+- Expected behavior: Headless agent now sees learned preferences from user edits in its system prompt. For delivery-first agents, edit history from delivered versions is now included (previously only approved versions were queried, which excluded most versions under ADR-066).
 
 ---
 
 ## [2026.03.09.1] - Structured Instructions panel with prompt preview (frontend only)
 
 ### Changed
-- `web/components/deliverables/DeliverableDrawerPanels.tsx`: Replaced single textarea InstructionsPanel with structured editor — Behavior Directives (deliverable_instructions), Audience (recipient_context, moved from Settings), Output Format (template_structure.format_notes, custom type only), and a live Prompt Preview showing composed agent context. Client-side `composePromptPreview()` mirrors `_build_headless_system_prompt()` logic.
-- `web/components/deliverables/DeliverableSettingsPanel.tsx`: Removed Recipient Context section (moved to Instructions panel).
+- `web/components/agents/AgentDrawerPanels.tsx`: Replaced single textarea InstructionsPanel with structured editor — Behavior Directives (agent_instructions), Audience (recipient_context, moved from Settings), Output Format (template_structure.format_notes, custom type only), and a live Prompt Preview showing composed agent context. Client-side `composePromptPreview()` mirrors `_build_headless_system_prompt()` logic.
+- `web/components/agents/AgentSettingsPanel.tsx`: Removed Recipient Context section (moved to Instructions panel).
 - No backend prompt changes — this is purely UI visibility. The agent receives exactly the same composed prompt as before.
-- Expected behavior: Users can now see exactly what the agent receives from their instruction inputs, improving inspectability and confidence in deliverable configuration.
+- Expected behavior: Users can now see exactly what the agent receives from their instruction inputs, improving inspectability and confidence in agent configuration.
 
 ---
 
@@ -118,21 +118,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.06.6] - Deep Research → Proactive Insights: signal-driven autonomous intelligence
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Deleted entire old deep_research prompt (static `{focus_area}`, `{subjects_list}`, `{purpose}` fields). Replaced with v2 Proactive Insights prompt: autonomous signal detection from platform data, WebSearch for external context, BAD/GOOD examples showing generic news vs platform-grounded intelligence. New output format: "This Week's Signals" (internal signal + external context + why it matters) + "What I'm Watching" (progressive tracking). Updated section templates, default instructions, build_type_prompt (now just `{today_date}`). Simplified output validation (flat 200-word minimum, no depth tiers).
+- `api/services/agent_pipeline.py`: Deleted entire old deep_research prompt (static `{focus_area}`, `{subjects_list}`, `{purpose}` fields). Replaced with v2 Proactive Insights prompt: autonomous signal detection from platform data, WebSearch for external context, BAD/GOOD examples showing generic news vs platform-grounded intelligence. New output format: "This Week's Signals" (internal signal + external context + why it matters) + "What I'm Watching" (progressive tracking). Updated section templates, default instructions, build_type_prompt (now just `{today_date}`). Simplified output validation (flat 200-word minimum, no depth tiers).
 - `api/services/proactive_review.py`: Added `deep_research` type-specific review prompt. Haiku agent scans platform_content for emerging themes (HOT threads, DECISIONS, new contacts, stalled work). Uses WebSearch to check for external relevance. Signal vs noise distinction (strategic vs operational). Generates only when themes have internal momentum AND external context.
-- `api/services/deliverable_execution.py`: Added proactive review trigger context forwarding — review decision note surfaced to generation agent as "Review Context" section.
+- `api/services/agent_execution.py`: Added proactive review trigger context forwarding — review decision note surfaced to generation agent as "Review Context" section.
 - `api/services/skills.py`: Deleted old deep-research skill (form-based focus area dropdown). Replaced with Proactive Insights skill: no topic selection (autonomous), one per user, asks frequency (daily/weekly), all connected platforms as sources, mode=proactive.
-- `api/routes/deliverables.py`: Replaced `DeepResearchConfig` (was `focus_area` enum, `subjects` list, `purpose`, `depth`) with `pulse_frequency` only. Changed type classification from `binding: research, temporal: on_demand` to `binding: hybrid, temporal: proactive`.
-- Frontend: Updated type label, starter card, and landing page across `deliverables.ts`, `ChatFirstDesk.tsx`, `page.tsx`.
-- Expected behavior: Deep research is now a persistent proactive deliverable that autonomously identifies interesting themes from the user's work platforms, researches them externally, and delivers intelligence the user didn't ask for. Two-phase execution: cheap Haiku review (most days sleep/observe) → full Sonnet generation only when warranted. Progressive learning via deliverable_memory observations and user refinement via scoped TP sessions.
+- `api/routes/agents.py`: Replaced `DeepResearchConfig` (was `focus_area` enum, `subjects` list, `purpose`, `depth`) with `pulse_frequency` only. Changed type classification from `binding: research, temporal: on_demand` to `binding: hybrid, temporal: proactive`.
+- Frontend: Updated type label, starter card, and landing page across `agents.ts`, `ChatFirstDesk.tsx`, `page.tsx`.
+- Expected behavior: Deep research is now a persistent proactive agent that autonomously identifies interesting themes from the user's work platforms, researches them externally, and delivers intelligence the user didn't ask for. Two-phase execution: cheap Haiku review (most days sleep/observe) → full Sonnet generation only when warranted. Progressive learning via agent_memory observations and user refinement via scoped TP sessions.
 
 ---
 
 ## [2026.03.06.5] - Auto Meeting Prep prompt v3: deeper research, anti-flat output
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Rewrote brief prompt from v2 → v3. Added explicit "you are a research assistant, not a calendar formatter" framing. Per-classification BAD/GOOD examples. WebSearch instruction for external contacts. "Search for each attendee" directive. Honest gap acknowledgment ("no results found" instead of padding). Recurring meetings: focus on what the OTHER person needs.
-- `api/services/deliverable_execution.py`: Bumped brief type tool rounds from 3 → 5. Meeting prep benefits from per-attendee search + WebSearch more than other cross_platform types.
+- `api/services/agent_pipeline.py`: Rewrote brief prompt from v2 → v3. Added explicit "you are a research assistant, not a calendar formatter" framing. Per-classification BAD/GOOD examples. WebSearch instruction for external contacts. "Search for each attendee" directive. Honest gap acknowledgment ("no results found" instead of padding). Recurring meetings: focus on what the OTHER person needs.
+- `api/services/agent_execution.py`: Bumped brief type tool rounds from 3 → 5. Meeting prep benefits from per-attendee search + WebSearch more than other cross_platform types.
 - Expected behavior: v3 output is significantly richer — agent uses WebSearch for external contacts, acknowledges information gaps honestly, connects dots between meetings (e.g., mentioning investor meeting during 1:1 prep). Output reads as intelligence, not reformatted calendar.
 
 ---
@@ -140,9 +140,9 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.06.4] - Brief → Auto Meeting Prep: daily calendar-driven prep with meeting classification
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Deleted entire old brief prompt (static `{event_context}`, `{attendees}`, `{focus_areas}` fields). Replaced with v2 auto meeting prep prompt: scans calendar events for today + tomorrow morning, classifies each meeting (recurring internal / external / large group / low-stakes), adapts prep depth per classification. Updated section templates, default instructions, and build_type_prompt to compute `{today_date}` and `{date_range}` dynamically.
+- `api/services/agent_pipeline.py`: Deleted entire old brief prompt (static `{event_context}`, `{attendees}`, `{focus_areas}` fields). Replaced with v2 auto meeting prep prompt: scans calendar events for today + tomorrow morning, classifies each meeting (recurring internal / external / large group / low-stakes), adapts prep depth per classification. Updated section templates, default instructions, and build_type_prompt to compute `{today_date}` and `{date_range}` dynamically.
 - `api/services/skills.py`: Deleted old brief skill (event-specific flow). Replaced with auto meeting prep skill: one per user guard, Google Calendar connection check, delivery time preference, auto-populated sources (calendar + all connected platforms).
-- `api/routes/deliverables.py`: Replaced `BriefConfig` (was `event_title`, `attendees`, `focus_areas`, `depth`) with `delivery_time` only. Changed type classification from `reactive` to `scheduled` with 24hr freshness.
+- `api/routes/agents.py`: Replaced `BriefConfig` (was `event_title`, `attendees`, `focus_areas`, `depth`) with `delivery_time` only. Changed type classification from `reactive` to `scheduled` with 24hr freshness.
 - Expected behavior: Brief type is now a daily-batch auto meeting prep. Runs every morning, preps all meetings for today + tomorrow morning with classification-adapted depth. Cross-platform context (Slack/Gmail/Notion) surfaced for attendee research.
 
 ---
@@ -150,7 +150,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.06.3] - Digest → Recap: platform-wide synthesis + rename
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Rewrote `digest` TYPE_PROMPT from single-source summary to platform-wide recap. New two-part structure: Highlights (top 3-5 across entire platform) + By Source (subsections per channel/label/page). Updated default instructions to match.
+- `api/services/agent_pipeline.py`: Rewrote `digest` TYPE_PROMPT from single-source summary to platform-wide recap. New two-part structure: Highlights (top 3-5 across entire platform) + By Source (subsections per channel/label/page). Updated default instructions to match.
 - `api/services/skills.py`: Renamed skill to "Recap". Flow now asks which platform + frequency. Duplicate guard: 1 recap per platform per user. Sources auto-populated with all synced sources for selected platform.
 - Expected behavior: Recap covers entire platform (all Slack channels, all Gmail labels, etc.) instead of a single source. Output is richer and more useful as a catchup tool.
 
@@ -159,36 +159,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.06.2] - Status prompt: stronger cross-platform connection language
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Expanded the cross-platform connection bullet in the status prompt from a single line to a detailed section with concrete examples (e.g., "The Render deployment issues in #dev-ops align with billing alerts in Gmail"). Instructs the agent to look for same-topic threads, cause-and-effect chains, and people mentioned across platforms.
+- `api/services/agent_pipeline.py`: Expanded the cross-platform connection bullet in the status prompt from a single line to a detailed section with concrete examples (e.g., "The Render deployment issues in #dev-ops align with billing alerts in Gmail"). Instructs the agent to look for same-topic threads, cause-and-effect chains, and people mentioned across platforms.
 - Expected behavior: Part 1 synthesis now explicitly connects dots between platforms — the key differentiator that no single-platform tool can provide.
 
 ---
 
-## [2026.03.06.1] - Status deliverable: two-part format (synthesis + platform breakdown)
+## [2026.03.06.1] - Status agent: two-part format (synthesis + platform breakdown)
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Rewrote `status` TYPE_PROMPT to produce a two-part document: Part 1 is cross-platform synthesis (TL;DR, accomplishments, blockers, next steps with cross-platform connections); Part 2 is per-platform activity breakdown (Slack by channel, Gmail highlights, Notion updates, Calendar). Updated SECTION_TEMPLATES to include platform sections. Bumped LENGTH_GUIDANCE for standard/detailed to accommodate richer output.
-- Expected behavior: Status deliverables now produce a more comprehensive document — intelligence at the top, evidence per platform below. Users get both "what matters" and "what happened where."
+- `api/services/agent_pipeline.py`: Rewrote `status` TYPE_PROMPT to produce a two-part document: Part 1 is cross-platform synthesis (TL;DR, accomplishments, blockers, next steps with cross-platform connections); Part 2 is per-platform activity breakdown (Slack by channel, Gmail highlights, Notion updates, Calendar). Updated SECTION_TEMPLATES to include platform sections. Bumped LENGTH_GUIDANCE for standard/detailed to accommodate richer output.
+- Expected behavior: Status agents now produce a more comprehensive document — intelligence at the top, evidence per platform below. Users get both "what matters" and "what happened where."
 
 ---
 
-## [2026.03.05.7] - Deliverable creation: TP chat handoff + coordinator skill
+## [2026.03.05.7] - Agent creation: TP chat handoff + coordinator skill
 
 ### Changed
 - `api/services/skills.py`: Added coordinator skill (was missing — only 6 of 7 types had skills). Added `create a {type}` trigger patterns to all type skills so TP chat pre-fill messages match correctly.
-- `api/agents/tp_prompts/behaviors.py`: Added "Type-Specific Creation Guidance" table after deliverable creation section. TP now knows which 1-2 key questions to ask per type, default mode, and schedule.
+- `api/agents/tp_prompts/behaviors.py`: Added "Type-Specific Creation Guidance" table after agent creation section. TP now knows which 1-2 key questions to ask per type, default mode, and schedule.
 
 ### Expected behavior
 - **Coordinator skill available**: `/coordinator` or "create a coordinator" triggers coordinator creation flow.
 - **Type-specific creation**: TP asks focused questions per type instead of generic form-like questions. If user provides enough context, skips clarification entirely.
-- **Frontend**: All "New Deliverable" buttons redirect to `/dashboard?create` which pre-fills TP chat with "I want to create a new deliverable". No separate create page.
+- **Frontend**: All "New Agent" buttons redirect to `/dashboard?create` which pre-fills TP chat with "I want to create a new agent". No separate create page.
 
 ---
 
 ## [2026.03.05.6] - Fix: working memory parallelization thread safety + skill detection resilience
 
 ### Changed
-- `api/services/working_memory.py`: Each parallel thread now gets its own Supabase client instance instead of sharing one. Fixes `[Errno 35] Resource temporarily unavailable` from httpx connection pool thread-safety issue. Removed dead async wrapper functions (`_get_user_memory`, `_get_active_deliverables`, etc.) per singular implementation discipline.
+- `api/services/working_memory.py`: Each parallel thread now gets its own Supabase client instance instead of sharing one. Fixes `[Errno 35] Resource temporarily unavailable` from httpx connection pool thread-safety issue. Removed dead async wrapper functions (`_get_user_memory`, `_get_active_agents`, etc.) per singular implementation discipline.
 - `api/services/skills.py`: `detect_skill_hybrid()` now catches general exceptions from semantic skill detection (not just `ImportError`). Missing `OPENAI_API_KEY` no longer crashes the chat flow — falls back to pattern matching gracefully.
 
 ### Expected behavior
@@ -201,7 +201,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Changed
 - `api/agents/thinking_partner.py`: `tool_choice` changed from `{"type": "any"}` to `{"type": "auto"}`. TP no longer forced to call a tool on every response — can answer directly from working memory for simple questions.
-- `api/agents/tp_prompts/base.py`: "How You Work" section expanded with explicit "When to use tools" vs "When to answer directly from working memory" guidance. Examples updated to show direct answers for profile/deliverable/platform questions.
+- `api/agents/tp_prompts/base.py`: "How You Work" section expanded with explicit "When to use tools" vs "When to answer directly from working memory" guidance. Examples updated to show direct answers for profile/agent/platform questions.
 - `api/routes/chat.py`: History format switched from simplified text (`[Called ToolName]`) to structured `tool_use`/`tool_result` blocks. TP now sees proper tool call history across turns, reducing redundant tool calls.
 - `api/routes/chat.py`: Inline session summary generation on session close — when a new session is created, the previous session's summary is generated as a background task instead of waiting for nightly cron.
 - `api/services/working_memory.py`: Working memory queries parallelized via `asyncio.gather()` + `asyncio.to_thread()` (sync Supabase client). 5 independent DB queries now run concurrently instead of sequentially. Each thread gets its own client to avoid httpx pool thread-safety issues.
@@ -215,29 +215,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.03.05.4] - Fix: deliverable ref visible in scoped working memory
+## [2026.03.05.4] - Fix: agent ref visible in scoped working memory
 
 ### Changed
-- `api/services/working_memory.py`: `format_for_prompt()` now renders `**Ref:** deliverable:{id}` in the scoped deliverable section. Previously the UUID was in the data dict but never shown in the prompt, forcing TP to List-resolve the ID before every Edit call.
-- `api/agents/tp_prompts/behaviors.py`: Added explicit instruction to use the Ref from working memory for Edit calls — "do NOT guess or fabricate the deliverable ID."
+- `api/services/working_memory.py`: `format_for_prompt()` now renders `**Ref:** agent:{id}` in the scoped agent section. Previously the UUID was in the data dict but never shown in the prompt, forcing TP to List-resolve the ID before every Edit call.
+- `api/agents/tp_prompts/behaviors.py`: Added explicit instruction to use the Ref from working memory for Edit calls — "do NOT guess or fabricate the agent ID."
 
 ### Expected behavior
-- TP can now Edit deliverable instructions/observations/goals on the first attempt without a List roundtrip.
+- TP can now Edit agent instructions/observations/goals on the first attempt without a List roundtrip.
 - Eliminates the `Edit→fail→List→Edit→success` pattern observed in qualitative testing.
 
 ---
 
-## [2026.03.05.3] - Active deliverable workspace management: behavioral triggers for TP
+## [2026.03.05.3] - Active agent workspace management: behavioral triggers for TP
 
 ### Changed
 - `api/agents/tp_prompts/behaviors.py`: Replaced stale "Work Boundary (ADR-061)" section with two new sections:
-  1. "Conversation vs Generation Boundary" — clarifies DO/DON'T without referencing obsolete ADR-061 Path A/B split. Adds "actively manage deliverable workspaces during scoped sessions" to the DO list.
-  2. "Deliverable Workspace Management (ADR-087 / ADR-091)" — defines the dual posture: passive for user memory (nightly cron), active for deliverable workspace (real-time TP-managed). Includes concrete behavioral triggers: when to update instructions, append observations, update goals. Distinguishes scoped sessions (proactive steward) from general sessions (hands-off).
-- `api/agents/tp_prompts/tools.py`: Fixed incorrect Edit syntax in Deliverable Workspace section — was using `action="append_observation", content="..."` (wrong), now uses `changes={append_observation: {note: "..."}}` and `changes={set_goal: {...}}` (matches actual Edit primitive). Added cross-reference to Behaviors for when-to-act guidance.
+  1. "Conversation vs Generation Boundary" — clarifies DO/DON'T without referencing obsolete ADR-061 Path A/B split. Adds "actively manage agent workspaces during scoped sessions" to the DO list.
+  2. "Agent Workspace Management (ADR-087 / ADR-091)" — defines the dual posture: passive for user memory (nightly cron), active for agent workspace (real-time TP-managed). Includes concrete behavioral triggers: when to update instructions, append observations, update goals. Distinguishes scoped sessions (proactive steward) from general sessions (hands-off).
+- `api/agents/tp_prompts/tools.py`: Fixed incorrect Edit syntax in Agent Workspace section — was using `action="append_observation", content="..."` (wrong), now uses `changes={append_observation: {note: "..."}}` and `changes={set_goal: {...}}` (matches actual Edit primitive). Added cross-reference to Behaviors for when-to-act guidance.
 
 ### Expected behavior
-- **In deliverable-scoped sessions**: TP proactively updates instructions when user states output preferences ("make it shorter", "use bullet points"), appends observations when user shares relevant context or gives version feedback, and updates goals on milestone changes. This is analogous to Claude Code updating CLAUDE.md/memory for a project.
-- **In general sessions**: TP only touches deliverable workspaces when explicitly asked. No unsolicited browsing or updating.
+- **In agent-scoped sessions**: TP proactively updates instructions when user states output preferences ("make it shorter", "use bullet points"), appends observations when user shares relevant context or gives version feedback, and updates goals on milestone changes. This is analogous to Claude Code updating CLAUDE.md/memory for a project.
+- **In general sessions**: TP only touches agent workspaces when explicitly asked. No unsolicited browsing or updating.
 - **User memory unchanged**: Still handled by nightly cron extraction. TP acknowledges preferences naturally but does not call Write/Edit on user_memory.
 - **Stale reference removed**: "Work Boundary (ADR-061)" replaced — ADR-061 was superseded by ADR-080.
 
@@ -246,57 +246,57 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.03.05.2] - Remove Conversation Analyst (ADR-060 superseded)
 
 ### Removed
-- `api/services/conversation_analysis.py`: Entire file deleted. Background conversation pattern detection and suggested deliverable creation.
+- `api/services/conversation_analysis.py`: Entire file deleted. Background conversation pattern detection and suggested agent creation.
 - `api/jobs/unified_scheduler.py`: Removed 6 AM UTC analysis phase (~90 lines) — no more daily behavioral pattern scanning.
-- `api/routes/deliverables.py`: Removed `GET /suggested`, `POST /{id}/versions/{vid}/enable`, `DELETE /{id}/versions/{vid}/dismiss` endpoints. Removed `AnalystMetadata` model, `SuggestedVersionResponse`, `_parse_analyst_metadata()`.
+- `api/routes/agents.py`: Removed `GET /suggested`, `POST /{id}/versions/{vid}/enable`, `DELETE /{id}/versions/{vid}/dismiss` endpoints. Removed `AnalystMetadata` model, `SuggestedRunResponse`, `_parse_analyst_metadata()`.
 - `api/routes/admin.py`: Removed `POST /trigger-analysis/{user_id}` and `POST /trigger-analysis-all` admin endpoints.
 - `api/services/notifications.py`: Removed `notify_suggestion_created()` and `notify_analyst_cold_start()`.
 - `api/scripts/test_conversation_analyst.py`: Deleted test script.
-- Frontend: Removed "Suggested for you" section, suggestion API calls, `SuggestedVersion`/`AnalystMetadata` types.
+- Frontend: Removed "Suggested for you" section, suggestion API calls, `SuggestedRun`/`AnalystMetadata` types.
 
 ### Expected behavior
 - No more background LLM calls to analyze chat sessions for patterns.
-- No more `status=suggested` versions or `status=paused` analyst-created deliverables.
-- Coordinator deliverables (ADR-092) are the sole system-initiated creation path.
+- No more `status=suggested` versions or `status=paused` analyst-created agents.
+- Coordinator agents (ADR-092) are the sole system-initiated creation path.
 - Zero LLM cost from the daily analysis phase.
 
 ---
 
-## [2026.03.05.1] - TP structural overhaul: deliverable context visibility & active management
+## [2026.03.05.1] - TP structural overhaul: agent context visibility & active management
 
 ### Added
-- `api/services/primitives/refs.py`: Added `version` entity type to `ENTITY_TYPES` and `TABLE_MAP` (`"version": "deliverable_versions"`). Added `_resolve_version_ref()` for version-specific resolution including `version:latest?deliverable_id=X` pattern. TP can now read generated deliverable content.
-- `api/services/primitives/search.py`: Added `version` search scope and `_search_versions()` handler. Supports `deliverable_id` filter parameter. Versions scoped through user's deliverables for security.
-- `api/services/working_memory.py`: `_extract_deliverable_scope()` now queries `deliverable_versions` for latest version and includes `latest_version` dict (version_number, status, created_at, delivery_status, content_preview at 400 chars). `format_for_prompt()` renders this in the "Current deliverable" section.
-- `api/agents/tp_prompts/tools.py`: Added "Deliverable Workspace" section documenting instructions editing, observation appending, goal setting, and version reading patterns. Added `version` to Reference Syntax types.
-- `api/services/deliverable_pipeline.py`: Added `DEFAULT_INSTRUCTIONS` dict with per-type seed instructions for 7 deliverable types.
-- `api/services/primitives/write.py`: Deliverable creation now seeds `deliverable_instructions` from `DEFAULT_INSTRUCTIONS` when not explicitly provided.
+- `api/services/primitives/refs.py`: Added `version` entity type to `ENTITY_TYPES` and `TABLE_MAP` (`"version": "agent_runs"`). Added `_resolve_version_ref()` for version-specific resolution including `version:latest?agent_id=X` pattern. TP can now read generated agent content.
+- `api/services/primitives/search.py`: Added `version` search scope and `_search_versions()` handler. Supports `agent_id` filter parameter. Versions scoped through user's agents for security.
+- `api/services/working_memory.py`: `_extract_agent_scope()` now queries `agent_runs` for latest version and includes `latest_version` dict (version_number, status, created_at, delivery_status, content_preview at 400 chars). `format_for_prompt()` renders this in the "Current agent" section.
+- `api/agents/tp_prompts/tools.py`: Added "Agent Workspace" section documenting instructions editing, observation appending, goal setting, and version reading patterns. Added `version` to Reference Syntax types.
+- `api/services/agent_pipeline.py`: Added `DEFAULT_INSTRUCTIONS` dict with per-type seed instructions for 7 agent types.
+- `api/services/primitives/write.py`: Agent creation now seeds `agent_instructions` from `DEFAULT_INSTRUCTIONS` when not explicitly provided.
 
 ### Changed
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts and renders `user_context` (profile + preferences from `user_memory`). Full `deliverable_memory` injection: goal, review_log (last 3), observations. `generate_draft_inline()` fetches lightweight user context before building prompt.
-- `api/agents/tp_prompts/tools.py`: Replaced stale `"work"` references with `"deliverable"` in Reference Syntax types and Domain Terms. Removed "work = one-time agent task" domain term.
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` now accepts and renders `user_context` (profile + preferences from `user_memory`). Full `agent_memory` injection: goal, review_log (last 3), observations. `generate_draft_inline()` fetches lightweight user context before building prompt.
+- `api/agents/tp_prompts/tools.py`: Replaced stale `"work"` references with `"agent"` in Reference Syntax types and Domain Terms. Removed "work = one-time agent task" domain term.
 - `api/services/primitives/search.py`: Cleaned stale `"work"` scope reference from scope list and docstring.
 - `api/services/primitives/write.py`: Removed stale `work:new` example from tool description.
 
 ### Expected behavior
-- **Version visibility**: TP can now see generated content via `Read(ref="version:latest?deliverable_id=X")` or `Search(scope="version")`. In deliverable-scoped chat, latest version preview is auto-injected into working memory — no tool call needed.
-- **Active workspace management**: TP has prompt guidance for updating instructions (`Edit`), appending observations, setting goals, and reading versions. New deliverables start with type-appropriate seed instructions.
-- **Headless quality**: Draft generation now reflects user preferences (tone, verbosity) and full deliverable memory (goals, review history, observations). Adds ~300-500 tokens to headless prompt.
+- **Version visibility**: TP can now see generated content via `Read(ref="version:latest?agent_id=X")` or `Search(scope="version")`. In agent-scoped chat, latest version preview is auto-injected into working memory — no tool call needed.
+- **Active workspace management**: TP has prompt guidance for updating instructions (`Edit`), appending observations, setting goals, and reading versions. New agents start with type-appropriate seed instructions.
+- **Headless quality**: Draft generation now reflects user preferences (tone, verbosity) and full agent memory (goals, review history, observations). Adds ~300-500 tokens to headless prompt.
 - **Stale cleanup**: No more "work" entity references in tool docs or search scopes.
 
 ---
 
-## [2026.03.04.1] - ADR-091: Deliverable workspace primitives
+## [2026.03.04.1] - ADR-091: Agent workspace primitives
 
 ### Changed
-- `api/services/primitives/edit.py`: Added scoped `deliverable_memory` write paths — `append_observation` and `set_goal` keys on deliverable Edit calls. Raw `deliverable_memory` JSONB replacement blocked to prevent clobbering system-accumulated memory. Added `deliverable_instructions` as an editable field (was previously accepted by the generic update path but not documented or validated).
-- `api/services/primitives/execute.py`: Added `deliverable.acknowledge` action — lightweight observation append to `deliverable_memory` from conversation context. Haiku-level cost, no generation triggered. Observations capped at 20 most recent. Removed dead `work.run` from tool description (deleted in ADR-090).
+- `api/services/primitives/edit.py`: Added scoped `agent_memory` write paths — `append_observation` and `set_goal` keys on agent Edit calls. Raw `agent_memory` JSONB replacement blocked to prevent clobbering system-accumulated memory. Added `agent_instructions` as an editable field (was previously accepted by the generic update path but not documented or validated).
+- `api/services/primitives/execute.py`: Added `agent.acknowledge` action — lightweight observation append to `agent_memory` from conversation context. Haiku-level cost, no generation triggered. Observations capped at 20 most recent. Removed dead `work.run` from tool description (deleted in ADR-090).
 
 ### Expected behavior
-- TP can now update deliverable instructions from chat: `Edit(ref="deliverable:uuid", changes={deliverable_instructions: "Always use bullet points."})`
-- TP can record user-shared context without triggering full generation: `Execute(action="deliverable.acknowledge", target="deliverable:uuid", params={note: "Q4 data is finalized"})`
+- TP can now update agent instructions from chat: `Edit(ref="agent:uuid", changes={agent_instructions: "Always use bullet points."})`
+- TP can record user-shared context without triggering full generation: `Execute(action="agent.acknowledge", target="agent:uuid", params={note: "Q4 data is finalized"})`
 - Memory writes are scoped (append-only for observations) — system-accumulated observations are preserved
-- Enables ADR-091 deliverable workspace: chat on deliverable page can act on deliverable state directly
+- Enables ADR-091 agent workspace: chat on agent page can act on agent state directly
 
 ---
 
@@ -304,27 +304,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Changed
 - `api/services/memory.py`: Renamed `MemoryService` → `UserMemoryService`. Explicitly scoped as user_memory service. Deleted `process_feedback()`, `_analyze_edit_patterns()`, `process_patterns()`, `_detect_activity_patterns()`, `generate_session_summary()`. Only `process_conversation()` and `get_for_prompt()` remain.
-- `api/services/working_memory.py`: `_extract_deliverable_scope()` now async — queries `chat_sessions` by `deliverable_id` FK at read time instead of reading `session_summaries` from JSONB. Removed `feedback_patterns` rendering from `format_for_prompt()`.
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` no longer renders `feedback_patterns` — only `observations` from `deliverable_memory` JSONB.
-- Expected behavior: Deliverable learning now happens through conversational iteration (TP chat + `deliverable_instructions`), not approval-gate edit-diff analysis. Session summaries are queried live via FK, not duplicated in JSONB.
+- `api/services/working_memory.py`: `_extract_agent_scope()` now async — queries `chat_sessions` by `agent_id` FK at read time instead of reading `session_summaries` from JSONB. Removed `feedback_patterns` rendering from `format_for_prompt()`.
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` no longer renders `feedback_patterns` — only `observations` from `agent_memory` JSONB.
+- Expected behavior: Agent learning now happens through conversational iteration (TP chat + `agent_instructions`), not approval-gate edit-diff analysis. Session summaries are queried live via FK, not duplicated in JSONB.
 
 ### Added
 - `api/services/session_continuity.py`: `generate_session_summary()` moved here from memory.py. Chat-layer feature for cross-session conversational continuity (YARNNN's equivalent of Claude Code auto-memory).
 
 ### Removed
-- `process_feedback()` caller in `api/routes/deliverables.py` — approval-gate feedback loop deleted
+- `process_feedback()` caller in `api/routes/agents.py` — approval-gate feedback loop deleted
 - `process_patterns()` caller in `api/jobs/unified_scheduler.py` — activity pattern detection deleted
-- `feedback_patterns` and `session_summaries` reads from `deliverable_memory` JSONB
+- `feedback_patterns` and `session_summaries` reads from `agent_memory` JSONB
 
 ---
 
-## [2026.03.03.1] - ADR-087 Phase 1: Deliverable-scoped context injection
+## [2026.03.03.1] - ADR-087 Phase 1: Agent-scoped context injection
 
 ### Changed
-- `api/services/working_memory.py`: `build_working_memory()` accepts optional `deliverable` dict. When scoped, injects deliverable instructions, observations, and goal into the working memory prompt under "### Current deliverable".
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` accepts optional `deliverable` dict. Injects `deliverable_instructions` as "## Deliverable Instructions" and `deliverable_memory` observations as "## Deliverable Memory" into headless generation prompts.
-- `api/agents/thinking_partner.py`: Passes `scoped_deliverable` parameter from chat route through to `build_working_memory()`.
-- Expected behavior: When a user chats on a deliverable page, TP now sees that deliverable's instructions and accumulated memory. When headless generation runs, the agent sees the same context. Both modes share a common understanding of the deliverable.
+- `api/services/working_memory.py`: `build_working_memory()` accepts optional `agent` dict. When scoped, injects agent instructions, observations, and goal into the working memory prompt under "### Current agent".
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` accepts optional `agent` dict. Injects `agent_instructions` as "## Agent Instructions" and `agent_memory` observations as "## Agent Memory" into headless generation prompts.
+- `api/agents/thinking_partner.py`: Passes `scoped_agent` parameter from chat route through to `build_working_memory()`.
+- Expected behavior: When a user chats on a agent page, TP now sees that agent's instructions and accumulated memory. When headless generation runs, the agent sees the same context. Both modes share a common understanding of the agent.
 
 ---
 
@@ -365,11 +365,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.02.27.2] - Dead code deletion: remove all deprecated type code (ADR-082)
 
 ### Deleted
-- `api/services/deliverable_pipeline.py`: Deleted 19 deprecated TYPE_PROMPTS entries, 19 SECTION_TEMPLATES entries, 16 deprecated validation functions (`validate_stakeholder_update`, `validate_meeting_summary`, `validate_client_proposal`, `validate_performance_self_assessment`, `validate_newsletter_section`, `validate_changelog`, `validate_one_on_one_prep`, `validate_board_update`, `validate_inbox_summary`, `validate_reply_draft`, `validate_follow_up_tracker`, `validate_thread_summary`, `validate_slack_standup`, `validate_deep_research`, `validate_daily_strategy_reflection`, `validate_intelligence_brief`). Deleted deprecated VARIANT_PROMPTS (email_summary, email_draft_reply, email_follow_up, email_weekly_digest, email_triage, notion_page, weekly_status, project_brief, cross_platform_digest, activity_summary) and their handler branches in `_build_variant_prompt()`. `validate_output()` reduced to 6 active validators.
-- `api/routes/deliverables.py`: Deleted 6 deprecated Pydantic config models (DeepResearch*, DailyStrategyReflection*, IntelligenceBrief*). TypeConfig union reduced to 6 active types. `get_default_config()` reduced to 6 entries. Removed unused `Annotated` import.
+- `api/services/agent_pipeline.py`: Deleted 19 deprecated TYPE_PROMPTS entries, 19 SECTION_TEMPLATES entries, 16 deprecated validation functions (`validate_stakeholder_update`, `validate_meeting_summary`, `validate_client_proposal`, `validate_performance_self_assessment`, `validate_newsletter_section`, `validate_changelog`, `validate_one_on_one_prep`, `validate_board_update`, `validate_inbox_summary`, `validate_reply_draft`, `validate_follow_up_tracker`, `validate_thread_summary`, `validate_slack_standup`, `validate_deep_research`, `validate_daily_strategy_reflection`, `validate_intelligence_brief`). Deleted deprecated VARIANT_PROMPTS (email_summary, email_draft_reply, email_follow_up, email_weekly_digest, email_triage, notion_page, weekly_status, project_brief, cross_platform_digest, activity_summary) and their handler branches in `_build_variant_prompt()`. `validate_output()` reduced to 6 active validators.
+- `api/routes/agents.py`: Deleted 6 deprecated Pydantic config models (DeepResearch*, DailyStrategyReflection*, IntelligenceBrief*). TypeConfig union reduced to 6 active types. `get_default_config()` reduced to 6 entries. Removed unused `Annotated` import.
 - `web/types/index.ts`: Deleted 24 deprecated TypeScript interfaces (Section + Config pairs for all deprecated types). Deleted `SynthesizerType`. TypeConfig union reduced to 6 active types + `Record` fallback.
-- `web/components/modals/DeliverableSettingsModal.tsx`: DELIVERABLE_TYPE_LABELS reduced to 8 active types.
-- `web/components/surfaces/IdleSurface.tsx`: DELIVERABLE_TYPE_LABELS reduced to 8 active types.
+- `web/components/modals/AgentSettingsModal.tsx`: AGENT_TYPE_LABELS reduced to 8 active types.
+- `web/components/surfaces/IdleSurface.tsx`: AGENT_TYPE_LABELS reduced to 8 active types.
 
 ### Behavior
 - Deprecated types still work via aliasing in `get_type_classification()` and `_TYPE_PROMPT_ALIASES` in `build_type_prompt()` — they route to the parent type's prompt, strategy, and validation.
@@ -381,27 +381,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Changed
 - `api/services/signal_processing.py`: Updated `_REASONING_SYSTEM_PROMPT` to reference only active types (`status_report`, `research_brief`, `custom`) instead of deprecated types (`daily_strategy_reflection`, `intelligence_brief`, `deep_research`). Updated JSON examples accordingly. Removed hardcoded `MEETING_PREP_TYPE_CLASSIFICATION` — now uses `get_type_classification()` from routes.
-- `api/services/deliverable_pipeline.py`: `build_type_prompt()` now resolves deprecated types to parent type's prompt template and field mapping via `_TYPE_PROMPT_ALIASES`. e.g., `stakeholder_update` → `status_report` template.
+- `api/services/agent_pipeline.py`: `build_type_prompt()` now resolves deprecated types to parent type's prompt template and field mapping via `_TYPE_PROMPT_ALIASES`. e.g., `stakeholder_update` → `status_report` template.
 - `api/services/conversation_analysis.py`: Removed `weekly_status` from `SUGGESTABLE_TYPES` (deprecated, absorbed by `status_report`).
 
 ### Behavior
 - Signal processing now instructs the LLM to create only active types. Deprecated types returned by LLM still work via aliasing in `get_type_classification()`.
-- Deprecated types in existing deliverables use parent type's prompt template on next execution, not their original dedicated prompt.
-- Conversation analysis no longer suggests `weekly_status` as a deliverable type.
+- Deprecated types in existing agents use parent type's prompt template on next execution, not their original dedicated prompt.
+- Conversation analysis no longer suggests `weekly_status` as an agent type.
 
 ---
 
 ## [2026.02.26.4] - Execution path consolidation: absorb web research into headless mode (ADR-081)
 
 ### Changed
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts `research_directive` parameter. When provided (research/hybrid bindings), the system prompt includes a `## Research Directive` section instructing the agent to actively use WebSearch, replacing the default conservative "use tools only if needed" guidance. `generate_draft_inline()` accepts `research_directive` and uses binding-aware tool round limits (`HEADLESS_TOOL_ROUNDS` dict) instead of flat `HEADLESS_MAX_TOOL_ROUNDS=3`.
-- `api/services/execution_strategies.py`: `ResearchStrategy` and `HybridStrategy` no longer call `web_research.research_topic()`. Instead they gather platform context only and pass a `research_directive` string via `GatheredContext.summary`. New `_build_research_directive()` helper builds the directive from deliverable title/description.
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` now accepts `research_directive` parameter. When provided (research/hybrid bindings), the system prompt includes a `## Research Directive` section instructing the agent to actively use WebSearch, replacing the default conservative "use tools only if needed" guidance. `generate_draft_inline()` accepts `research_directive` and uses binding-aware tool round limits (`HEADLESS_TOOL_ROUNDS` dict) instead of flat `HEADLESS_MAX_TOOL_ROUNDS=3`.
+- `api/services/execution_strategies.py`: `ResearchStrategy` and `HybridStrategy` no longer call `web_research.research_topic()`. Instead they gather platform context only and pass a `research_directive` string via `GatheredContext.summary`. New `_build_research_directive()` helper builds the directive from agent title/description.
 - `api/services/web_research.py`: Marked as DEPRECATED. No longer imported by any pipeline code.
 
 ### Behavior
-- Research-type deliverables (`research_brief`, `deep_research`) now use the headless agent's WebSearch primitive for web research during generation, instead of a separate pre-generation web research loop. The agent can do targeted research informed by the deliverable template.
+- Research-type agents (`research_brief`, `deep_research`) now use the headless agent's WebSearch primitive for web research during generation, instead of a separate pre-generation web research loop. The agent can do targeted research informed by the agent template.
 - Binding-aware tool rounds: platform_bound=2, cross_platform=3, research=6, hybrid=6 (was flat 3 for all).
-- Eliminates one of three independent agentic loops in the deliverable pipeline, achieving true "one agent, two modes" as ADR-080 intended.
+- Eliminates one of three independent agentic loops in the agent pipeline, achieving true "one agent, two modes" as ADR-080 intended.
 - Cost profile: research types may use more tool rounds (up to 6) but eliminate a separate Sonnet call from `web_research.py`. Net cost should be comparable.
 
 ---
@@ -409,39 +409,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.02.26.3] - Headless mode: agentic generation with read-only tools (ADR-080 Phase 1+2)
 
 ### Changed
-- `api/services/deliverable_execution.py`: `generate_draft_inline()` now uses `chat_completion_with_tools()` instead of `chat_completion()`. Agent runs in headless mode with read-only tools (Search, Read, List, WebSearch, GetSystemState) and max 3 tool rounds. New `_build_headless_system_prompt()` extracts and enhances the system prompt with tool usage instructions.
+- `api/services/agent_execution.py`: `generate_draft_inline()` now uses `chat_completion_with_tools()` instead of `chat_completion()`. Agent runs in headless mode with read-only tools (Search, Read, List, WebSearch, GetSystemState) and max 3 tool rounds. New `_build_headless_system_prompt()` extracts and enhances the system prompt with tool usage instructions.
 - `api/services/primitives/registry.py`: Added `PRIMITIVE_MODES` dict, `get_tools_for_mode()`, and `create_headless_executor()` for mode-gated primitive access.
 
 ### Behavior
-- Deliverable generation is now agentic — the agent CAN use read-only tools to investigate when gathered context is insufficient, but is instructed to prefer generating from provided context directly.
-- Most deliverables will generate in a single turn (no tool use), same as before. The tools are a safety net for when context gathering misses something.
+- Agent generation is now agentic — the agent CAN use read-only tools to investigate when gathered context is insufficient, but is instructed to prefer generating from provided context directly.
+- Most agents will generate in a single turn (no tool use), same as before. The tools are a safety net for when context gathering misses something.
 - System prompt restructured into sections (Output Rules, Tool Usage) for clearer instruction following.
 - Cost impact: ~0-3 additional API calls per generation in the rare case tools are used. Typical case unchanged (single call).
 
 ---
 
-## [2026.02.26.2] - Signal context forwarding to deliverable generation (ADR-080 Phase 0)
+## [2026.02.26.2] - Signal context forwarding to agent generation (ADR-080 Phase 0)
 
 ### Changed
-- `api/services/deliverable_execution.py`: System prompt now includes signal reasoning and signal context (entity, platforms) when a deliverable is triggered by signal processing. Added `trigger_context` parameter to `generate_draft_inline()`.
+- `api/services/agent_execution.py`: System prompt now includes signal reasoning and signal context (entity, platforms) when an agent is triggered by signal processing. Added `trigger_context` parameter to `generate_draft_inline()`.
 - `api/services/signal_processing.py`: `_queue_signal_emergent_execution()` now forwards `reasoning_summary` and per-action `signal_context` from the SignalAction into `trigger_context`.
 
 ### Behavior
-- Signal-emergent deliverables now receive the LLM reasoning that caused their creation, enabling the generation step to understand WHY the deliverable exists and focus on the relevant entity/pattern.
+- Signal-emergent agents now receive the LLM reasoning that caused their creation, enabling the generation step to understand WHY the agent exists and focus on the relevant entity/pattern.
 - Previously, `trigger_context={"type": "signal_emergent"}` passed zero intelligence. Now includes `signal_reasoning` (up to 1000 chars) and `signal_context` (entity, platforms).
-- Non-signal-triggered deliverables are unaffected (trigger_context is None or lacks signal fields).
+- Non-signal-triggered agents are unaffected (trigger_context is None or lacks signal fields).
 
 ---
 
-## [2026.02.26.1] - Deliverable quality: no-emoji, conciseness, calendar preview rewrite
+## [2026.02.26.1] - Agent quality: no-emoji, conciseness, calendar preview rewrite
 
 ### Changed
-- `api/services/deliverable_execution.py`: System prompt now instructs no-emoji output, enforces conciseness preference, uses plain markdown headers.
-- `api/services/deliverable_pipeline.py`: Rewrote `weekly_calendar_preview` prompt to analyze raw event data instead of expecting pre-computed stats ({meeting_count}, {total_hours} etc. were never filled). Prompt now instructs LLM to compute counts from context.
-- `api/services/deliverable_pipeline.py`: Updated `gmail_inbox_brief` prompt to explicitly request plain markdown headers and no-emoji output.
+- `api/services/agent_execution.py`: System prompt now instructs no-emoji output, enforces conciseness preference, uses plain markdown headers.
+- `api/services/agent_pipeline.py`: Rewrote `weekly_calendar_preview` prompt to analyze raw event data instead of expecting pre-computed stats ({meeting_count}, {total_hours} etc. were never filled). Prompt now instructs LLM to compute counts from context.
+- `api/services/agent_pipeline.py`: Updated `gmail_inbox_brief` prompt to explicitly request plain markdown headers and no-emoji output.
 
 ### Behavior
-- All deliverable types now produce plain markdown output without emoji headers
+- All agent types now produce plain markdown output without emoji headers
 - Calendar preview no longer shows "N/A" placeholders — derives stats from raw event data
 - Gmail inbox brief uses consistent `## Urgent`, `## Action Required` headers instead of emoji variants
 - User conciseness preferences (from working memory) are now prioritized by system prompt
@@ -467,26 +467,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.02.24.6] - Consolidate notification architecture (single path)
 
 ### Changed
-- `api/jobs/unified_scheduler.py`: Removed all deliverable notification email logic. Scheduler no longer sends `send_deliverable_ready_email()` or `send_deliverable_failed_email()`. Exception handler now calls `notify_deliverable_failed()` from notifications.py instead.
-- `api/jobs/email.py`: Deleted `send_deliverable_ready_email()` and `send_deliverable_failed_email()` — legacy functions only used by the scheduler.
+- `api/jobs/unified_scheduler.py`: Removed all agent notification email logic. Scheduler no longer sends `send_agent_ready_email()` or `send_agent_failed_email()`. Exception handler now calls `notify_agent_failed()` from notifications.py instead.
+- `api/jobs/email.py`: Deleted `send_agent_ready_email()` and `send_agent_failed_email()` — legacy functions only used by the scheduler.
 - `api/services/delivery.py`: Always calls `_notify_delivered()` (removed email-platform skip). Passes `delivery_platform` to notification service for skip decision.
-- `api/services/notifications.py`: `notify_deliverable_delivered()` now accepts `delivery_platform` param. When platform is "email"/"gmail", logs as in_app notification instead of sending a separate email (content email IS the notification). Removed unused `notify_deliverable_ready()`.
+- `api/services/notifications.py`: `notify_agent_delivered()` now accepts `delivery_platform` param. When platform is "email"/"gmail", logs as in_app notification instead of sending a separate email (content email IS the notification). Removed unused `notify_agent_ready()`.
 
 ### Behavior
-- **Single notification path**: All deliverable notifications flow through `delivery.py` → `notifications.py`. The scheduler only handles generation + scheduling.
+- **Single notification path**: All agent notifications flow through `delivery.py` → `notifications.py`. The scheduler only handles generation + scheduling.
 - **Email-platform skip logic** lives in one place (`notifications.py`) instead of three (was in scheduler, delivery.py, and notifications.py).
 - No change to user-facing behavior — email deliveries still produce exactly 1 email (the content), non-email deliveries still get a notification email.
 
 ---
 
-## [2026.02.24.5] - Deliverable detail page rewrite (content-first layout)
+## [2026.02.24.5] - Agent detail page rewrite (content-first layout)
 
 ### Changed
-- `web/app/(authenticated)/deliverables/[id]/page.tsx`: Full rewrite — content-first layout with rendered markdown (ReactMarkdown), version selection via delivery history rows, clean status model (delivered/failed/generating only), execution details bar with source snapshot pills.
+- `web/app/(authenticated)/agents/[id]/page.tsx`: Full rewrite — content-first layout with rendered markdown (ReactMarkdown), version selection via delivery history rows, clean status model (delivered/failed/generating only), execution details bar with source snapshot pills.
 - Added `react-markdown` and `@tailwindcss/typography` dependencies for markdown rendering.
 
 ### Behavior
-- Deliverable content is now the hero element, rendered as formatted markdown instead of hidden behind a collapsible `<details>` element
+- Agent content is now the hero element, rendered as formatted markdown instead of hidden behind a collapsible `<details>` element
 - Delivery history rows switch the content area on click (replaces accordion pattern)
 - Source snapshots, word count, and delivery timestamps shown inline
 - Failed versions show error banner with delivery_error message and Retry button
@@ -501,21 +501,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `api/integrations/exporters/registry.py`: Register `ResendExporter` as default "email" handler. `GmailExporter` remains for explicit Gmail drafts/sends via OAuth.
 - `api/services/delivery.py`: Added "email" to no-auth platforms in `_get_exporter_context()`.
 - `api/jobs/unified_scheduler.py`: Skip notification email when content was delivered via email (content email IS the notification). Failure emails still send.
-- `api/routes/deliverables.py`: Added `delivery_error` to `VersionResponse` model; populated `source_snapshots`, `analyst_metadata`, `source_fetch_summary`, `delivery_error` in detail endpoint.
+- `api/routes/agents.py`: Added `delivery_error` to `VersionResponse` model; populated `source_snapshots`, `analyst_metadata`, `source_fetch_summary`, `delivery_error` in detail endpoint.
 
 ### Behavior
-- All users receive deliverables via email regardless of Google OAuth status (Resend = server-side API key)
+- All users receive agent outputs via email regardless of Google OAuth status (Resend = server-side API key)
 - `GmailExporter` (`platform="gmail"`) remains for creating Gmail drafts or sending as user's own address
 - No duplicate notification email when content already lands in user's inbox
-- `/deliverables/{id}` API now returns full version metadata (delivery_error, source_snapshots, etc.)
+- `/agents/{id}` API now returns full version metadata (delivery_error, source_snapshots, etc.)
 
 ---
 
-## [2026.02.24.3] - Fix signal processing: deliverable ID missing from prompt
+## [2026.02.24.3] - Fix signal processing: agent ID missing from prompt
 
 ### Changed
-- `api/services/signal_processing.py`: Include deliverable UUID in brackets in EXISTING DELIVERABLES list (`[uuid] Title (type, next run: ...)`). Previously only showed title, causing LLM to return title as `trigger_deliverable_id` instead of UUID — which crashed with "invalid input syntax for type uuid".
-- Added UUID validation guard in `_parse_reasoning_response()` to reject non-UUID `trigger_deliverable_id` values gracefully instead of crashing.
+- `api/services/signal_processing.py`: Include agent UUID in brackets in EXISTING AGENTS list (`[uuid] Title (type, next run: ...)`). Previously only showed title, causing LLM to return title as `trigger_agent_id` instead of UUID — which crashed with "invalid input syntax for type uuid".
+- Added UUID validation guard in `_parse_reasoning_response()` to reject non-UUID `trigger_agent_id` values gracefully instead of crashing.
 
 ### Behavior
 - `trigger_existing` actions now work correctly — LLM can see and return the actual UUID
@@ -530,14 +530,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Behavior
 - Email delivery (`platform: "email"`) now works for users with Google OAuth connections stored as `platform = "google"`
-- Fixes deliverable delivery failures where content was generated successfully but couldn't be emailed
+- Fixes agent delivery failures where content was generated successfully but couldn't be emailed
 
 ---
 
 ## [2026.02.24.1] - Fix ADR-035 Wave 1 prompt template field mappings
 
 ### Changed
-- `api/services/deliverable_pipeline.py`: Added `elif` blocks for `slack_channel_digest`, `slack_standup`, `gmail_inbox_brief`, and `notion_page_summary` in `build_type_prompt()`. These types had prompt templates defined in `TYPE_PROMPTS` but no field mapping in the main function, causing KeyError fallback to the generic custom template.
+- `api/services/agent_pipeline.py`: Added `elif` blocks for `slack_channel_digest`, `slack_standup`, `gmail_inbox_brief`, and `notion_page_summary` in `build_type_prompt()`. These types had prompt templates defined in `TYPE_PROMPTS` but no field mapping in the main function, causing KeyError fallback to the generic custom template.
 
 ### Behavior
 - `slack_channel_digest` now renders with proper `{focus}`, `{reply_threshold}`, `{reaction_threshold}`, `{sections_list}` fields
@@ -611,7 +611,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `api/routes/chat.py`: Token budget enforcement replaces conversation count limit. Token usage persisted to `session_messages.metadata` (`input_tokens`, `output_tokens`).
 - `api/routes/signal_processing.py`: Free-tier users blocked from manual signal processing trigger (403).
 - `api/jobs/unified_scheduler.py`: Signal processing phase skips free-tier users.
-- `api/services/signal_processing.py`: `execute_signal_actions()` checks deliverable limit before creating signal-emergent deliverables.
+- `api/services/signal_processing.py`: `execute_signal_actions()` checks agent limit before creating signal-emergent agents.
 - `supabase/migrations/079_daily_token_usage.sql`: SQL function `get_daily_token_usage()` for efficient daily token aggregation.
 
 ### Frontend
@@ -621,22 +621,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `useChatGate` → `useTokenBudgetGate`, limits.ts updated for new tier model
 
 ### Behavior
-- Free tier: 50k tokens/day, 2 sources/platform, 1x/day sync, 2 deliverables, no signal processing
-- Starter: 250k tokens/day, 5 sources, 4x/day sync, 5 deliverables, signal processing on
-- Pro: unlimited tokens, unlimited sources, hourly sync, unlimited deliverables
+- Free tier: 50k tokens/day, 2 sources/platform, 1x/day sync, 2 agents, no signal processing
+- Starter: 250k tokens/day, 5 sources, 4x/day sync, 5 agents, signal processing on
+- Pro: unlimited tokens, unlimited sources, hourly sync, unlimited agents
 
 ---
 
 ## [2026.02.23.4] - Fix signal processing crash + scheduler health query
 
 ### Changed
-- `api/routes/signal_processing.py`: Removed `.order("deliverable_versions(created_at)")` — PostgREST PGRST118 error on one-to-many related table ordering. Sort versions client-side instead.
+- `api/routes/signal_processing.py`: Removed `.order("agent_runs(created_at)")` — PostgREST PGRST118 error on one-to-many related table ordering. Sort versions client-side instead.
 - `api/jobs/unified_scheduler.py`: Same PGRST118 fix for scheduler signal processing path.
 - `api/services/primitives/system_state.py`: `_get_scheduler_health()` now queries per-user heartbeats instead of non-existent sentinel UUID `00000000-...`.
 - `web/app/(authenticated)/system/page.tsx`: Removed dead Conversation Analyst icon map entry + unused MessageSquare import.
 
 ### Behavior
-- Signal processing no longer crashes with 500 when deliverables exist
+- Signal processing no longer crashes with 500 when agents exist
 - TP GetSystemState primitive now correctly retrieves scheduler heartbeat data
 - No prompt/tool definition changes
 
@@ -662,20 +662,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ### Changed
 - `api/services/execution_strategies.py`: Migrated PlatformBound + CrossPlatform strategies from live API calls (`fetch_integration_source_data`) to `platform_content` reads via `get_content_summary_for_generation()`. Added `platform_content_ids` field to `GatheredContext` for retention tracking. Research and Hybrid strategies propagate content IDs from delegated CrossPlatform calls.
 - `api/services/signal_extraction.py`: Complete rewrite — replaced `_fetch_calendar_content`, `_fetch_gmail_content`, `_fetch_slack_content`, `_fetch_notion_content` (live API calls) with `_read_*` variants that query `platform_content` table. Same output shape (`SignalSummary`) so `signal_processing.py` unchanged.
-- `api/services/deliverable_execution.py`: Wired `mark_content_retained()` after draft generation to mark consumed content as retained. Fixed source snapshot logic (sources_used became strings after migration). Deleted legacy `gather_context_inline()` and `_get_relevant_memories()`.
-- `api/services/deliverable_pipeline.py`: Deleted ~1440 lines — `fetch_integration_source_data`, all `_fetch_*_data` helpers, `execute_deliverable_pipeline`, pipeline step functions, cache infrastructure. Retained: `TYPE_PROMPTS`, validation functions, `build_type_prompt`, `get_past_versions_context`.
+- `api/services/agent_execution.py`: Wired `mark_content_retained()` after draft generation to mark consumed content as retained. Fixed source snapshot logic (sources_used became strings after migration). Deleted legacy `gather_context_inline()` and `_get_relevant_memories()`.
+- `api/services/agent_pipeline.py`: Deleted ~1440 lines — `fetch_integration_source_data`, all `_fetch_*_data` helpers, `execute_agent_pipeline`, pipeline step functions, cache infrastructure. Retained: `TYPE_PROMPTS`, validation functions, `build_type_prompt`, `get_past_versions_context`.
 - `api/workers/platform_worker.py`: Fixed Slack method name bug — `get_slack_messages()` → `get_slack_channel_history()` (actual MCP client method).
 - `api/services/platform_content.py`: Deleted deprecated backward-compat stubs (`FilesystemItem`, `store_filesystem_item`, `get_filesystem_items`, etc.).
 
 ### Removed
-- `fetch_integration_source_data()` and all per-platform live fetch helpers from `deliverable_pipeline.py`
-- `gather_context_inline()` from `deliverable_execution.py` (superseded by `execution_strategies.py`)
+- `fetch_integration_source_data()` and all per-platform live fetch helpers from `agent_pipeline.py`
+- `gather_context_inline()` from `agent_execution.py` (superseded by `execution_strategies.py`)
 - All live API calls from `signal_extraction.py` (now reads from `platform_content`)
 - Deprecated `FilesystemItem` alias and stub functions from `platform_content.py`
 
 ### Behavior
-- **Single fetch path enforced**: Only `platform_sync_scheduler` → `platform_worker` calls external APIs. All consumers (execution strategies, signal extraction, deliverables) read from `platform_content` table.
-- **Content retention wired**: Platform content consumed during deliverable generation is marked retained (excluded from TTL cleanup).
+- **Single fetch path enforced**: Only `platform_sync_scheduler` → `platform_worker` calls external APIs. All consumers (execution strategies, signal extraction, agents) read from `platform_content` table.
+- **Content retention wired**: Platform content consumed during agent generation is marked retained (excluded from TTL cleanup).
 - **Slack sync fixed**: Method name mismatch that would have caused runtime errors corrected.
 - **No behavioral change to signal_processing.py**: LLM triage still runs; transformation to scheduling heuristics is deferred per ADR-073 migration path.
 
@@ -684,13 +684,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ## [2026.02.23.1] - ADR-073: Unified Fetch Architecture + Platform Integrations rewrite
 
 ### Added
-- `docs/adr/ADR-073-unified-fetch-architecture.md`: Establishes single fetch path (platform_sync only), eliminates triple-fetch pattern (sync + signal extraction + deliverable execution all calling live APIs independently). Defines per-platform fetch specs (time windows, source filtering, sync token strategy, items per source, TTLs). Documents retention lifecycle wiring, scheduling heuristics replacing LLM signal triage, and deferred webhook strategy.
+- `docs/adr/ADR-073-unified-fetch-architecture.md`: Establishes single fetch path (platform_sync only), eliminates triple-fetch pattern (sync + signal extraction + agent execution all calling live APIs independently). Defines per-platform fetch specs (time windows, source filtering, sync token strategy, items per source, TTLs). Documents retention lifecycle wiring, scheduling heuristics replacing LLM signal triage, and deferred webhook strategy.
 
 ### Changed
 - `docs/integrations/PLATFORM-INTEGRATIONS.md`: Full rewrite reflecting ADR-073 architecture. Documents singular fetch → platform_content → consumers data flow. Per-platform specification tables (Slack, Gmail, Calendar, Notion) with credential handling, sync token approach, content types, TTLs. Replaces prior documentation that showed three independent data paths.
 
 ### Architectural decisions
-- Signal processing LLM triage (Haiku call per user per hour) to be replaced by scheduling heuristics (rules + freshness checks, no LLM). LLM reasoning happens at consumption time only (TP chat or deliverable execution).
+- Signal processing LLM triage (Haiku call per user per hour) to be replaced by scheduling heuristics (rules + freshness checks, no LLM). LLM reasoning happens at consumption time only (TP chat or agent execution).
 - Monetization enforcement scoped to ADR-074 (separate).
 - Observability scoped to separate feature documentation.
 - `mark_content_retained()` and `cleanup_expired_content()` to be wired into existing pipeline.
@@ -719,29 +719,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Added
 - `supabase/migrations/063_activity_log_event_types.sql`: Extends CHECK constraint with 4 new event types:
-  `integration_connected`, `integration_disconnected`, `deliverable_approved`, `deliverable_rejected`
+  `integration_connected`, `integration_disconnected`, `agent_approved`, `agent_rejected`
 - `api/services/activity_log.py`: Added all 4 new types to `VALID_EVENT_TYPES`
 - `api/routes/integrations.py`: Logs `integration_connected` after OAuth callback success;
   logs `integration_disconnected` after disconnect
-- `api/routes/deliverables.py`: Logs `deliverable_approved` / `deliverable_rejected` after version status change;
-  also fetches `title` from deliverables for human-readable summary
+- `api/routes/agents.py`: Logs `agent_approved` / `agent_rejected` after version status change;
+  also fetches `title` from agents for human-readable summary
 - `web/app/(authenticated)/activity/page.tsx`: Added display config for all 4 new event types
   (ThumbsUp/ThumbsDown icons for approvals, Link/Unlink for integrations); click navigation to
-  deliverable page or integration context page; `FILTER_TYPES` constant for curated filter chips
+  agent page or integration context page; `FILTER_TYPES` constant for curated filter chips
 
 ---
 
 ## [2026.02.19.13] - ADR-066: Delivery-first, remove governance
 
 ### Changed
-- `api/services/deliverable_execution.py`: Remove governance gate, always deliver immediately
+- `api/services/agent_execution.py`: Remove governance gate, always deliver immediately
   - No more `staged` status — versions go directly to `delivered` or `failed`
   - Removed governance check before delivery (manual/semi_auto/full_auto → always deliver)
   - Added `update_version_for_delivery()` to replace `update_version_staged()`
   - Error status changed from `rejected` to `failed`
   - Activity log records delivery result, not governance state
 
-- `web/app/(authenticated)/deliverables/[id]/page.tsx`: Delivery-first detail page
+- `web/app/(authenticated)/agents/[id]/page.tsx`: Delivery-first detail page
   - Removed Approve/Reject buttons (no governance workflow)
   - "Latest Output" → "Latest Delivery" with delivery status
   - "Previous Versions" → "Delivery History"
@@ -749,34 +749,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   - Added external link to delivered content
   - Added Retry button for failed deliveries
 
-- `web/app/(authenticated)/deliverables/page.tsx`: Enhanced list view per ADR-067
+- `web/app/(authenticated)/agents/page.tsx`: Enhanced list view per ADR-067
   - Platform badges on every card (not just group headers)
   - Delivery status (delivered/failed) instead of governance
   - Schedule status (Active/Paused) independent from delivery
   - Destination visibility with arrow indicator
 
 ### Behavior
-- Deliverables now deliver immediately when generated — no approval step
+- Agents now deliver immediately when generated — no approval step
 - Users control automation via Pause/Resume, not Approve/Reject
 - Single-user workflow: scheduling + pause is sufficient governance
 - Multi-user governance can be re-added as feature flag in future
 
 ---
 
-## [2026.02.19.12] - Deliverable creation flow: delivery options + instant run
+## [2026.02.19.12] - Agent creation flow: delivery options + instant run
 
 ### Changed
-- `web/components/surfaces/DeliverableCreateSurface.tsx`: Platform-agnostic delivery options + instant run
+- `web/components/surfaces/AgentCreateSurface.tsx`: Platform-agnostic delivery options + instant run
   - Added delivery mode selector: Email (default), Slack DM, or Platform Channel
   - Email sends to user's registered email address (fetched from Supabase auth)
   - Slack DM sends as direct message to user (if Slack is connected)
   - Platform Channel shows channel selector (original behavior)
-  - Instant run: Creates deliverable AND immediately triggers run for instant gratification
+  - Instant run: Creates agent AND immediately triggers run for instant gratification
   - Button changed from "Create" to "Create & Run" with Play icon
   - Notice updated to explain instant run behavior
 
 ### Behavior
-- Users get immediate feedback when creating a deliverable (runs on creation)
+- Users get immediate feedback when creating an agent (runs on creation)
 - Default delivery is email, no longer requires selecting a platform channel
 - Builds trust by showing sample output immediately after setup
 
@@ -794,7 +794,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   - `verify_destination_access()` also uses `google_client.list_gmail_messages()` instead of MCP
 
 ### Behavior
-- Gmail deliverable delivery (draft, send, reply, html formats) now correctly routes through Google Direct API
+- Gmail agent delivery (draft, send, reply, html formats) now correctly routes through Google Direct API
 - All three exporters now use production-compatible backends: Slack → MCP Gateway, Notion → Direct API, Gmail → Direct API
 
 ---
@@ -812,13 +812,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `api/integrations/exporters/notion.py`: Route through Direct API instead of MCP npx
   - Removed `MCPClientManager` dependency (Notion MCP server requires ntn_... internal tokens, incompatible with OAuth)
   - Added `_create_notion_page()` helper using Notion REST API POST /v1/pages
-  - Added `_markdown_to_notion_blocks()` to convert deliverable markdown to Notion blocks
+  - Added `_markdown_to_notion_blocks()` to convert agent markdown to Notion blocks
   - Supported formats: page (child under parent_id), database_item (in database), draft (YARNNN Drafts DB)
   - `verify_destination_access()` uses `NotionAPIClient.get_page()` instead of MCP notion-fetch
   - Removed MCP_AVAILABLE guard
 
 ### Behavior
-- Deliverable delivery (scheduled + semi_auto) now works on Render (no Node.js required in Python service)
+- Agent delivery (scheduled + semi_auto) now works on Render (no Node.js required in Python service)
 - Slack delivery uses MCP Gateway (same path as TP tools), Notion delivery uses Direct API
 - All existing destination schemas are preserved — no DB migration required
 
@@ -1129,14 +1129,14 @@ The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP se
 ### Changed
 - `api/services/working_memory.py`: Added `_get_recent_activity()` helper and `recent_activity` key
 - `api/services/working_memory.py`: Added "Recent activity" section to `format_for_prompt()`
-- `api/services/deliverable_execution.py`: Writes `deliverable_run` event after generation completes
+- `api/services/agent_execution.py`: Writes `agent_run` event after generation completes
 - `api/workers/platform_worker.py`: Writes `platform_synced` event after each sync batch
 
 ### Expected behavior
 - TP system prompt now includes a "### Recent activity" block (up to 10 events, 7-day window)
 - Format: `- 2026-02-18 09:00 · Weekly Digest v3 generated (staged)`
 - TP can now answer "when did you last run my digest?" without a live DB query
-- Cold-start sessions: block renders empty until first deliverable run or sync
+- Cold-start sessions: block renders empty until first agent run or sync
 - All writes are non-fatal — failures log a warning and never block the primary operation
 
 ### Token budget impact
@@ -1163,17 +1163,17 @@ The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP se
 
 ---
 
-## [2026.02.16.7] - Admin Analysis Endpoints + Suggested Deliverables UI (ADR-060/061)
+## [2026.02.16.7] - Admin Analysis Endpoints + Suggested Agents UI (ADR-060/061)
 
 ### Added
 - `api/routes/admin.py`: Added `/trigger-analysis/{user_id}` and `/trigger-analysis-all` endpoints
-- `web/app/(authenticated)/deliverables/page.tsx`: Added Suggested Deliverables section
+- `web/app/(authenticated)/agents/page.tsx`: Added Suggested Agents section
 
 ### Changed
 - **Behavior**: Admin can manually trigger conversation analysis for testing
 - **Impact**:
   - Manual testing of ADR-060 Background Conversation Analyst without waiting for daily cron
-  - Users see suggested deliverables at top of /deliverables page
+  - Users see suggested agents at top of /agents page
   - Enable/dismiss actions for analyst-detected patterns
 
 ### UI Changes
@@ -1188,16 +1188,16 @@ The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP se
 ### Changed
 - `api/agents/tp_prompts/behaviors.py`: Added "Work Boundary (ADR-061)" section
 - **Behavior**: TP now has explicit guidance on Path A vs Path B responsibilities
-  - DO: Answer questions, execute one-time actions, create deliverables when asked
-  - DON'T: Generate deliverable content inline, suggest automations mid-conversation
+  - DO: Answer questions, execute one-time actions, create agents when asked
+  - DON'T: Generate agent content inline, suggest automations mid-conversation
 - **Impact**:
   - TP stays conversational and responsive (Path A)
-  - Deliverable content generation happens in orchestrator (Path B)
+  - Agent content generation happens in orchestrator (Path B)
   - Pattern detection runs in background, not in conversation
 
 ### Architectural Note
 - Part of ADR-061 Two-Path Architecture implementation
-- TP creates deliverable configurations; orchestrator generates content on schedule
+- TP creates agent configurations; orchestrator generates content on schedule
 
 ---
 

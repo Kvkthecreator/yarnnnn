@@ -8,7 +8,7 @@
 
 ## Context
 
-Users connect platforms (Slack, Gmail, Notion) to provide context for deliverable generation. Currently, platform connections exist in the backend but lack frontend visibility and control. Users need to:
+Users connect platforms (Slack, Gmail, Notion) to provide context for agent generation. Currently, platform connections exist in the backend but lack frontend visibility and control. Users need to:
 
 1. See which platforms are connected
 2. Select which sources (channels, labels, pages) to sync
@@ -33,7 +33,7 @@ Implement a Platform Settings page with source selection, limit enforcement, and
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Platform Connections                                        │
-│ Connect your tools to enable context-aware deliverables     │
+│ Connect your tools to enable context-aware agents     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │ [PlatformCard: Slack]                                       │
@@ -51,7 +51,7 @@ Implement a Platform Settings page with source selection, limit enforcement, and
 Disconnected:
 ┌─────────────────────────────────────────────────────────────┐
 │ 💬 Slack                                                    │
-│ Connect to sync channel messages for your deliverables      │
+│ Connect to sync channel messages for your agents      │
 │                                          [Connect Slack →]  │
 └─────────────────────────────────────────────────────────────┘
 
@@ -119,15 +119,15 @@ Stale (1-24 hours):   ○ Synced 6 hours ago
 Old (> 24 hours):     ⚠️ Synced 2 days ago [Refresh]
 ```
 
-### 5. Deliverable Source Preview
+### 5. Agent Source Preview
 
-When creating/editing a deliverable, show platform sources:
+When creating/editing a agent, show platform sources:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Data Sources                                                │
 ├─────────────────────────────────────────────────────────────┤
-│ This deliverable will pull from:                            │
+│ This agent will pull from:                            │
 │                                                             │
 │ 💬 Slack: #engineering, #product                            │
 │    ● Last synced 2 hours ago                                │
@@ -343,8 +343,8 @@ function getSyncStatus(lastSyncAt: string | null): SyncStatus {
 - [ ] Manual refresh button
 - [ ] Sync status indicators
 
-### Phase 4: Deliverable Integration
-- [ ] Source preview in deliverable creation
+### Phase 4: Agent Integration
+- [ ] Source preview in agent creation
 - [ ] Pre-generation freshness check UI
 - [ ] "Refresh sources" before generate
 
@@ -424,14 +424,14 @@ See Phase 1 - implemented together.
 - SyncStatusBadge component created
 - Not yet integrated into PlatformCard/resource lists
 
-### Phase 4: Deliverable Integration (Pending)
-- [ ] Source preview in deliverable creation
+### Phase 4: Agent Integration (Pending)
+- [ ] Source preview in agent creation
 - [ ] Pre-generation freshness check UI
 - [ ] "Refresh sources" before generate
 
 ### Phase 5: First-Time Import for Cold Start ✅
 
-**Problem**: Users connect a platform and select channels, but TP has no context until a deliverable runs. This creates a poor cold-start experience where users expect "I connected Slack, TP should know about my work."
+**Problem**: Users connect a platform and select channels, but TP has no context until a agent runs. This creates a poor cold-start experience where users expect "I connected Slack, TP should know about my work."
 
 **Solution**: After first source selection save, prompt user to import recent context.
 

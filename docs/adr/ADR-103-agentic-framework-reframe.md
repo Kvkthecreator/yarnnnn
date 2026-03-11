@@ -3,15 +3,15 @@
 **Status:** Accepted
 **Date:** 2026-03-10
 **Authors:** Kevin Kim, Claude (analysis)
-**Supersedes:** Portions of naming-conventions.md (Tier 1 vocabulary for "Deliverable")
+**Supersedes:** Portions of naming-conventions.md (Tier 1 vocabulary for "Agent")
 **Updates:**
 - [Agent Model Comparison](../architecture/agent-model-comparison.md) — reframes YARNNN's model position
 - [Naming Conventions](../architecture/naming-conventions.md) — revises Tier 1 vocabulary
 - [ESSENCE.md](../ESSENCE.md) — repositions product thesis
 - [GTM_POSITIONING.md](../GTM_POSITIONING.md) — revises competitive positioning
 **Related:**
-- [ADR-092: Deliverable Intelligence & Mode Taxonomy](ADR-092-deliverable-intelligence-mode-taxonomy.md)
-- [ADR-101: Deliverable Intelligence Model](ADR-101-deliverable-intelligence-model.md)
+- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md)
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md)
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer-tp-execution-pipeline.md)
 
@@ -27,7 +27,7 @@ YARNNN's architecture has organically evolved into an autonomous agent framework
 - **A perception pipeline** (platform sync) feeding a shared knowledge base (platform_content)
 - **A meta-agent** (coordinator mode) that spawns and directs other agents
 
-However, the terminology — rooted in the original "deliverable generation platform" framing — obscures this reality. Strategic conversations, investor communication, developer onboarding, and competitive positioning all require a translation layer between what the system *is* and what it's *called*.
+However, the terminology — rooted in the original "agent generation platform" framing — obscures this reality. Strategic conversations, investor communication, developer onboarding, and competitive positioning all require a translation layer between what the system *is* and what it's *called*.
 
 ### Market Context (March 2026)
 
@@ -40,15 +40,15 @@ The AI landscape has shifted decisively toward agentic execution:
 
 The common pattern: **agents that execute work, not assistants that respond to prompts.** Context is an implementation detail of execution quality, not the product itself.
 
-YARNNN's architecture is aligned with this direction — but the vocabulary is not. "Deliverable" communicates output artifacts. "Agent" communicates autonomous execution. The product already does the latter; the language should catch up.
+YARNNN's architecture is aligned with this direction — but the vocabulary is not. "Agent" communicates output artifacts. "Agent" communicates autonomous execution. The product already does the latter; the language should catch up.
 
 ### The Naming Decision That Changed
 
-The previous naming-conventions.md explicitly chose "Deliverable" over "Agent" with this rationale:
+The previous naming-conventions.md explicitly chose "Agent" over "Agent" with this rationale:
 
-> "Task" implies one-time. "Workflow" implies multi-step process. "Agent" implies autonomous entity. "Deliverable" implies recurring, specialized, improving output.
+> "Task" implies one-time. "Workflow" implies multi-step process. "Agent" implies autonomous entity. "Agent" implies recurring, specialized, improving output.
 
-This was correct when deliverables were primarily scheduled content generation configs. After ADR-087 (per-deliverable instructions and memory), ADR-092 (five execution modes including proactive and coordinator), and ADR-101 (four-layer intelligence model with feedback learning), deliverables **are** autonomous entities. The naming rationale is now self-defeating — we chose "Deliverable" to avoid implying autonomous entity, but the system became exactly that.
+This was correct when agents were primarily scheduled content generation configs. After ADR-087 (per-agent instructions and memory), ADR-092 (five execution modes including proactive and coordinator), and ADR-101 (four-layer intelligence model with feedback learning), agents **are** autonomous entities. The naming rationale is now self-defeating — we chose "Agent" to avoid implying autonomous entity, but the system became exactly that.
 
 ---
 
@@ -62,12 +62,12 @@ The following terminology mapping establishes the new canonical vocabulary:
 
 | Current term | New term | Scope | Rationale |
 |---|---|---|---|
-| Deliverable | **Agent** | Docs, positioning, investor comms, future UI | The entity has identity, memory, instructions, capabilities, and execution autonomy. It is an agent. |
-| Deliverable type (digest, brief, status...) | **Agent archetype** | Docs, positioning | Pre-configured skill set and output format for an agent |
-| Deliverable mode (recurring, goal, reactive, proactive, coordinator) | **Execution mode** | No change needed | Already accurate |
-| Deliverable instructions | **Agent directives** | Docs, positioning | User-authored behavioral programming for a persistent agent |
-| Deliverable memory | **Agent memory** | Docs, positioning | System-accumulated operational state |
-| Deliverable versions | **Agent outputs** (or **runs**) | Docs, positioning | The artifact produced per execution cycle |
+| Agent | **Agent** | Docs, positioning, investor comms, future UI | The entity has identity, memory, instructions, capabilities, and execution autonomy. It is an agent. |
+| Agent type (digest, brief, status...) | **Agent archetype** | Docs, positioning | Pre-configured skill set and output format for an agent |
+| Agent mode (recurring, goal, reactive, proactive, coordinator) | **Execution mode** | No change needed | Already accurate |
+| Agent instructions | **Agent directives** | Docs, positioning | User-authored behavioral programming for a persistent agent |
+| Agent memory | **Agent memory** | Docs, positioning | System-accumulated operational state |
+| Agent versions | **Agent outputs** (or **runs**) | Docs, positioning | The artifact produced per execution cycle |
 | Thinking Partner (TP) | **Orchestrator** | Docs, positioning | The user-facing agent that manages the agent network. TP remains as internal code abbreviation. |
 
 #### System Layer Rename
@@ -86,8 +86,8 @@ The following terminology mapping establishes the new canonical vocabulary:
 
 | Current framing | New framing |
 |---|---|
-| "Deliverable generation platform with context accumulation" | "Autonomous agent platform for recurring knowledge work" |
-| "Each deliverable is a lightweight specialist agent" | "Each agent is a persistent, sleeping specialist" |
+| "Agent generation platform with context accumulation" | "Autonomous agent platform for recurring knowledge work" |
+| "Each agent is a lightweight specialist agent" | "Each agent is a persistent, sleeping specialist" |
 | "The accumulation moat" | "Knowledge accumulation as agent intelligence" |
 | "Sleep is a feature" | "Sleep-wake architecture" — agents sleep between executions, wake fully informed |
 | "Supervision model" | "Human-in-the-loop agent supervision" |
@@ -98,13 +98,13 @@ The following terminology mapping establishes the new canonical vocabulary:
 
 **Phase 1 (Post-Thursday, documentation):** Update all docs/architecture/*.md, docs/features/*.md, and relevant ADRs to use new vocabulary. Update naming-conventions.md as the canonical reference.
 
-**Phase 2 (Future, frontend):** Update UI labels — "Work" nav → "Agents", deliverable cards use agent language, creation flow uses agent framing.
+**Phase 2 (Future, frontend):** Update UI labels — "Work" nav → "Agents", agent cards use agent language, creation flow uses agent framing.
 
 **Phase 3 (Future, backend):** Rename code variables, API routes, and eventually DB columns. This is the most disruptive phase and should be carefully sequenced.
 
-### 3. Preserve "deliverable" where it remains accurate
+### 3. Preserve "agent" where it remains accurate
 
-The word "deliverable" doesn't disappear — it describes what agents *produce*. An agent produces deliverables (outputs). The entity itself is an agent. This mirrors human organizations: a consultant (agent) produces deliverables (outputs). The consultant is not called "a deliverable."
+The word "agent" doesn't disappear — it describes what agents *produce*. An agent produces agents (outputs). The entity itself is an agent. This mirrors human organizations: a consultant (agent) produces agents (outputs). The consultant is not called "a agent."
 
 ### 4. Reposition the product thesis
 
@@ -145,7 +145,7 @@ This aligns with the macro market direction (agents as the work abstraction) whi
 
 ## What Doesn't Change
 
-- **Code internals:** `deliverable_execution.py`, `deliverables` table, `deliverable_versions` table — all stay as-is for now. The code works; renaming is Phase 3.
+- **Code internals:** `agent_execution.py`, `agents` table, `agent_runs` table — all stay as-is for now. The code works; renaming is Phase 3.
 - **TP as internal identifier:** The codebase uses "TP" as a system abbreviation. This continues. The user-facing and investor-facing term becomes "Orchestrator" or is kept as brand name.
 - **Architecture:** No architectural changes. The system already implements the agentic model. This ADR changes how we talk about it, not how it works.
 - **Primitive terminology internally:** "Primitives" stays in code. "Capabilities" is used in external communication.
@@ -156,9 +156,9 @@ This aligns with the macro market direction (agents as the work abstraction) whi
 
 1. **"Agent" is overloaded.** Every AI company says "agents" in 2026. Risk: YARNNN becomes one of many "agent platforms." Mitigation: the differentiator is specific — *persistent sleeping specialists with per-agent memory and feedback learning*. No one else has this exact model.
 
-2. **Terminology churn.** This is the second vocabulary revision (after naming-conventions.md established "Deliverable"). Risk: team confusion, doc rot. Mitigation: Phased rollout. Documentation first. Code last. Each phase is independently valuable.
+2. **Terminology churn.** This is the second vocabulary revision (after naming-conventions.md established "Agent"). Risk: team confusion, doc rot. Mitigation: Phased rollout. Documentation first. Code last. Each phase is independently valuable.
 
-3. **"Deliverable" had product clarity.** It communicated tangible output. Risk: losing that specificity. Mitigation: "Agent" is the entity; "deliverable" is what it produces. Both words survive.
+3. **"Agent" had product clarity.** It communicated tangible output. Risk: losing that specificity. Mitigation: "Agent" is the entity; "agent" is what it produces. Both words survive.
 
 ---
 
@@ -170,7 +170,7 @@ This aligns with the macro market direction (agents as the work abstraction) whi
 - GTM_POSITIONING.md is updated with new competitive positioning
 - An investor-facing architecture document is created using the new vocabulary
 - Code, API routes, and database remain unchanged until Phase 3
-- The word "deliverable" continues to describe agent outputs, not the agent itself
+- The word "agent" continues to describe agent outputs, not the agent itself
 
 ---
 

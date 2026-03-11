@@ -7,8 +7,8 @@
  * Reads from activity_log table (unified activity layer).
  *
  * Groups event types into user-meaningful categories:
- *   - Deliverables: deliverable_run, deliverable_approved, deliverable_rejected,
- *                   deliverable_generated, deliverable_scheduled
+ *   - Agents: agent_run, agent_approved, agent_rejected,
+ *                   agent_generated, agent_scheduled
  *   - Memory: memory_written, session_summary_written, pattern_detected,
  *             conversation_analyzed
  *   - Sync: platform_synced, content_cleanup
@@ -72,36 +72,36 @@ const EVENT_CONFIG: Record<string, {
   color: string;
   category: string;
 }> = {
-  // Deliverables
-  deliverable_run: {
-    label: 'Deliverable',
+  // Agents
+  agent_run: {
+    label: 'Agent',
     icon: <Play className="w-4 h-4" />,
     color: 'text-blue-500',
-    category: 'deliverables',
+    category: 'agents',
   },
-  deliverable_approved: {
+  agent_approved: {
     label: 'Approved',
     icon: <ThumbsUp className="w-4 h-4" />,
     color: 'text-green-500',
-    category: 'deliverables',
+    category: 'agents',
   },
-  deliverable_rejected: {
+  agent_rejected: {
     label: 'Rejected',
     icon: <ThumbsDown className="w-4 h-4" />,
     color: 'text-red-500',
-    category: 'deliverables',
+    category: 'agents',
   },
-  deliverable_generated: {
+  agent_generated: {
     label: 'Generated',
     icon: <FileOutput className="w-4 h-4" />,
     color: 'text-emerald-500',
-    category: 'deliverables',
+    category: 'agents',
   },
-  deliverable_scheduled: {
+  agent_scheduled: {
     label: 'Scheduled',
     icon: <CalendarClock className="w-4 h-4" />,
     color: 'text-blue-400',
-    category: 'deliverables',
+    category: 'agents',
   },
   // Memory & Analysis
   memory_written: {
@@ -179,7 +179,7 @@ const DEFAULT_EVENT_CONFIG = {
 
 // Filter categories shown as chips — user-meaningful groupings
 const FILTER_CATEGORIES = [
-  { key: 'deliverables', label: 'Deliverables' },
+  { key: 'agents', label: 'Agents' },
   { key: 'memory', label: 'Memory' },
   { key: 'sync', label: 'Sync' },
   { key: 'chat', label: 'Chat' },
@@ -189,7 +189,7 @@ type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 
 // Map category filters to the event_type values they include
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
-  deliverables: ['deliverable_run', 'deliverable_approved', 'deliverable_rejected', 'deliverable_generated', 'deliverable_scheduled'],
+  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled'],
   memory: ['memory_written', 'session_summary_written', 'pattern_detected', 'conversation_analyzed'],
   sync: ['platform_synced', 'content_cleanup'],
   chat: ['chat_session'],
@@ -245,13 +245,13 @@ function getNavigationTarget(
 ): { href: string; label: string } | null {
   const metadata = item.metadata || {};
   switch (item.event_type) {
-    case 'deliverable_run':
-    case 'deliverable_approved':
-    case 'deliverable_rejected':
-    case 'deliverable_generated':
-    case 'deliverable_scheduled':
-      if (metadata.deliverable_id) {
-        return { href: `/deliverables/${metadata.deliverable_id}`, label: 'View deliverable' };
+    case 'agent_run':
+    case 'agent_approved':
+    case 'agent_rejected':
+    case 'agent_generated':
+    case 'agent_scheduled':
+      if (metadata.agent_id) {
+        return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
       }
       return null;
     case 'memory_written':
@@ -391,11 +391,11 @@ export default function ActivityPage() {
     );
 
     switch (item.event_type) {
-      case 'deliverable_run':
+      case 'agent_run':
         return (
           <>
             {metadata.strategy && <DetailRow label="Strategy" value={String(metadata.strategy)} />}
-            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
             {metadata.version_number && <DetailRow label="Version" value={`v${metadata.version_number}`} />}
             {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
             {metadata.delivery_error && (
@@ -404,11 +404,11 @@ export default function ActivityPage() {
           </>
         );
 
-      case 'deliverable_approved':
-      case 'deliverable_rejected':
+      case 'agent_approved':
+      case 'agent_rejected':
         return (
           <>
-            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
             {metadata.had_edits !== undefined && (
               <DetailRow label="Edits" value={metadata.had_edits ? 'User edited before approving' : 'Approved as-is'} />
             )}
@@ -418,18 +418,18 @@ export default function ActivityPage() {
           </>
         );
 
-      case 'deliverable_generated':
+      case 'agent_generated':
         return (
           <>
-            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
-            {metadata.deliverable_title && <DetailRow label="Title" value={String(metadata.deliverable_title)} />}
+            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
+            {metadata.agent_title && <DetailRow label="Title" value={String(metadata.agent_title)} />}
           </>
         );
 
-      case 'deliverable_scheduled':
+      case 'agent_scheduled':
         return (
           <>
-            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
             {metadata.trigger_reason && <DetailRow label="Trigger" value={String(metadata.trigger_reason)} />}
             {metadata.scheduled_for && (
               <DetailRow label="Scheduled for" value={format(new Date(String(metadata.scheduled_for)), 'MMM d, h:mm a')} />
@@ -631,7 +631,7 @@ export default function ActivityPage() {
                                       {source}
                                     </span>
                                   )}
-                                  {config.category === 'deliverables' && origin === 'coordinator_created' && (
+                                  {config.category === 'agents' && origin === 'coordinator_created' && (
                                     <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                       coordinator
                                     </span>

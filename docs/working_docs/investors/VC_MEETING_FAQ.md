@@ -45,7 +45,7 @@ No. A wrapper sends a prompt and returns a response. YARNNN is a purpose-built a
 
 ### Q: What about Notion AI, Glean, Granola — don't they already have work context?
 
-Single-platform context, no autonomous output. Notion AI knows your pages but not your Slack. Glean is enterprise search with no agent layer. YARNNN is the only product that accumulates cross-platform context and uses it for autonomous recurring deliverables.
+Single-platform context, no autonomous output. Notion AI knows your pages but not your Slack. Glean is enterprise search with no agent layer. YARNNN is the only product that accumulates cross-platform context and uses it for autonomous recurring agents.
 
 > *If pressed:* Notion ($11B), Glean ($7.2B), Granola ($250M), Mem.ai ($110M) — all validated demand for AI-powered context. We add the autonomous output layer none of them have.
 
@@ -103,7 +103,7 @@ The product is live. The raise accelerates, it doesn't unblock. Without hires, I
 
 ### Q: How are you acquiring customers?
 
-Three channels. First, community-led: solo consultant communities on Slack, Reddit, and X where the pain is discussed daily. Second, content marketing: showing the compounding effect with real before/after examples — week 1 output vs. week 12 output from the same agent. Third, product-led virality: when a consultant's agent produces a client deliverable, the client sees what's possible.
+Three channels. First, community-led: solo consultant communities on Slack, Reddit, and X where the pain is discussed daily. Second, content marketing: showing the compounding effect with real before/after examples — week 1 output vs. week 12 output from the same agent. Third, product-led virality: when a consultant's agent produces a client agent, the client sees what's possible.
 
 > *If pressed:* The wedge is narrow by design. Solo consultants have no procurement process — individual purchase decision, same day. CAC should be near-zero through organic channels initially.
 
@@ -151,7 +151,7 @@ It's market validation. ClawdBot proved tens of thousands want personalized, per
 
 ### Q: What does YARNNN look like in 5 years?
 
-The operating system for knowledge work. Today, one user with a handful of agents. In 2–3 years, teams where agents coordinate across departments — a coordinator agent that watches the sales pipeline and auto-triggers client deliverables, meeting prep, and follow-up chains. In 5 years, the context layer that every AI surface plugs into via MCP — the persistent understanding of how a company actually works.
+The operating system for knowledge work. Today, one user with a handful of agents. In 2–3 years, teams where agents coordinate across departments — a coordinator agent that watches the sales pipeline and auto-triggers client agents, meeting prep, and follow-up chains. In 5 years, the context layer that every AI surface plugs into via MCP — the persistent understanding of how a company actually works.
 
 > *If pressed:* The wedge is consultants. The category is agent infrastructure for recurring knowledge work. Owning the context layer gives us the right to expand the product surface indefinitely — same pattern as Notion going from docs to databases to projects to AI.
 

@@ -419,7 +419,7 @@ class GoogleAPIClient:
         """
         Create a Gmail draft for user review.
 
-        Useful for deliverables that need review before sending.
+        Useful for agents that need review before sending.
         """
         try:
             access_token = await self._get_access_token(

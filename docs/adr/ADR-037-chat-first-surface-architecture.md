@@ -79,8 +79,8 @@ Adopt a **Chat-First Surface Architecture** with clear separation of concerns:
 
 | Route | Purpose | Content |
 |-------|---------|---------|
-| `/deliverables` | List recurring work | All deliverables, create fallback |
-| `/deliverables/:id` | Deliverable detail | Versions, history, sources, config |
+| `/agents` | List recurring work | All agents, create fallback |
+| `/agents/:id` | Agent detail | Versions, history, sources, config |
 | `/platforms` | Connected platforms | OAuth management, source selection |
 | `/docs` | Uploaded documents | Document list, upload interface |
 | `/activity` | Audit trail | What happened, when, provenance |
@@ -128,7 +128,7 @@ Adopt a **Chat-First Surface Architecture** with clear separation of concerns:
 │                         PAGES                                    │
 │                         Conventional CRUD + Receipts             │
 │                                                                  │
-│   /deliverables ──→ List, detail, versions, history             │
+│   /agents ──→ List, detail, versions, history             │
 │   /platforms    ──→ OAuth, sources, connection status           │
 │   /docs         ──→ Uploaded files, assets                      │
 │   /activity     ──→ What happened, audit trail                  │
@@ -179,14 +179,14 @@ Under Chat-First, navigation is **fallback for exploration**, not primary intera
 | Access Pattern | How User Gets There |
 |----------------|---------------------|
 | **Attention items** | Chat surfaces on load; or `/review` page |
-| **Specific deliverable** | TP links inline; or `/deliverables/:id` |
+| **Specific agent** | TP links inline; or `/agents/:id` |
 | **Platform management** | TP suggests; or `/platforms` |
 | **History/audit** | `/activity` page |
 | **Settings** | `/settings` page |
 
 **Primary nav structure**:
 - TP (always visible, primary)
-- Secondary: Deliverables, Platforms, Docs, Activity, Settings
+- Secondary: Agents, Platforms, Docs, Activity, Settings
 - Flat hierarchy, no deep nesting
 
 ---
@@ -214,7 +214,7 @@ This ADR is the **frontend manifestation** of Two-Layer:
 |-------------------|---------------------------|
 | Interaction Layer | Chat surface |
 | Infrastructure invisible | No context browser; lineage shown on outputs |
-| Deliverables-as-Skills | TP invokes; results inline in chat |
+| Agents-as-Skills | TP invokes; results inline in chat |
 | Push/Scheduling | Chat surfaces attention on load |
 
 ### ADR-034 (Emergent Context Domains) — Enforced
@@ -231,7 +231,7 @@ Context browser deprecation enforces ADR-034's "context is invisible" principle.
    - `/` → Chat (home)
    - Remove `/dashboard`
    - Remove `/context`
-   - Keep/create entity pages (`/deliverables`, `/platforms`, `/docs`, `/activity`, `/settings`)
+   - Keep/create entity pages (`/agents`, `/platforms`, `/docs`, `/activity`, `/settings`)
 
 2. **Component extraction**
    - Extract CRUD views from hybrid surfaces
@@ -281,7 +281,7 @@ None directly. Backend APIs remain the same. Frontend consumption patterns chang
 ## Open Items
 
 1. **Review page**: Keep as optional dedicated page, or fully absorb into chat?
-2. **Deliverable creation fallback**: Simple form on `/deliverables` or modal from chat?
+2. **Agent creation fallback**: Simple form on `/agents` or modal from chat?
 3. **Mobile considerations**: How does chat-first work on mobile web?
 
 ---

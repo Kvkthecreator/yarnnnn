@@ -13,7 +13,7 @@ YARNNN's backend runs 4 Render services sharing a single codebase (ADR-083: work
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, manual triggers |
-| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, memory, cleanup |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Agents, memory, cleanup |
 | 3 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
 | 4 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 
@@ -22,12 +22,12 @@ All execution is inline — no background worker, no Redis. On-demand operations
 ### Pipeline Flow
 
 ```
-External APIs ──[F1: Sync]──→ platform_content ──→ deliverables
+External APIs ──[F1: Sync]──→ platform_content ──→ agents
                                                         │
                                                [F3: Execution]
                                                         │
                                                         ▼
-                                               deliverable_versions
+                                               agent_runs
                                                         │
                                                [F3: Delivery]
                                                         ▼
@@ -49,7 +49,7 @@ Background features, each with a unique ID for cross-referencing. F2 (Signal Pro
 |----|---------|-----------|------|-------------|---------|
 | F1 | Platform Sync | Tier-gated (2x/4x/hourly) | No | Platform API reads | platform-sync cron |
 | ~~F2~~ | ~~Signal Processing~~ | ~~Removed (ADR-092)~~ | — | — | — |
-| F3 | Deliverable Execution | Every 5 min (due check) | Sonnet | ~2-5k tokens/run | unified-scheduler |
+| F3 | Agent Execution | Every 5 min (due check) | Sonnet | ~2-5k tokens/run | unified-scheduler |
 | F4 | Memory Extraction | Daily 00:00 UTC | Sonnet | ~1-2k tokens/user | unified-scheduler |
 | ~~F5~~ | ~~Conversation Analysis~~ | ~~Removed~~ | — | — | — |
 | F6 | Content Cleanup | Hourly | No | DB deletes | unified-scheduler |
@@ -135,25 +135,25 @@ Each item → `_store_platform_content()`:
 ## ~~F2: Signal Processing~~ — Removed (ADR-092)
 
 Signal processing was dissolved in ADR-092. Its responsibilities were absorbed into:
-- **Coordinator deliverables** (mode=coordinator) — manage child deliverable lifecycles
+- **Coordinator agents** (mode=coordinator) — manage child agent lifecycles
 - **Trigger dispatch** (`api/services/trigger_dispatch.py`, ADR-088) — unified trigger routing
 
 Files deleted: `signal_extraction.py`, `signal_processing.py`, routes, scheduler phases, `signal_history` table.
 
 ---
 
-## F3: Deliverable Execution
+## F3: Agent Execution
 
-**Files**: `api/services/deliverable_execution.py`, `api/services/deliverable_pipeline.py`
-**Entry points**: Unified scheduler (every 5 min), `POST /deliverables/{id}/run`
+**Files**: `api/services/agent_execution.py`, `api/services/agent_pipeline.py`
+**Entry points**: Unified scheduler (every 5 min), `POST /agents/{id}/run`
 **ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention), ADR-080 (headless mode), ADR-082 (8 active types)
 **LLM**: `claude-sonnet-4-20250514` (agent in headless mode)
-**Tier gate**: Active deliverable count limited (Free: 2, Starter: 5, Pro: unlimited)
+**Tier gate**: Active agent count limited (Free: 2, Starter: 5, Pro: unlimited)
 
 ### Flow
 
 1. Freshness check — skip if no new content since `last_run_at` (ADR-049)
-2. Create `deliverable_versions` (generating)
+2. Create `agent_runs` (generating)
 3. Select strategy by `type_classification.binding`:
 
 | Strategy | Content Source |
@@ -172,9 +172,9 @@ Files deleted: `signal_extraction.py`, `signal_processing.py`, routes, scheduler
 
 | Reads | Writes |
 |-------|--------|
-| `deliverables`, `platform_content` | `deliverable_versions` |
+| `agents`, `platform_content` | `agent_runs` |
 | `sync_registry` (freshness) | `platform_content` (retained=true) |
-| `deliverable_versions` (versioning) | `source_snapshots`, `activity_log` |
+| `agent_runs` (versioning) | `source_snapshots`, `activity_log` |
 
 ---
 
@@ -209,7 +209,7 @@ Source priority for `user_memory`: `user_stated > conversation > feedback > patt
 
 ## ~~F5: Conversation Analysis~~ — Removed
 
-`api/services/conversation_analysis.py` was deleted. Deliverable suggestions are now handled through TP conversation (user-driven) and coordinator deliverables (automated).
+`api/services/conversation_analysis.py` was deleted. Agent suggestions are now handled through TP conversation (user-driven) and coordinator agents (automated).
 
 ---
 
@@ -262,8 +262,8 @@ Writes `content_cleanup` events to `activity_log` per user.
 
 ## ~~F10: Work Ticket Processing~~ — Removed (ADR-090)
 
-Work ticket processing was removed in ADR-090 Phase 1. Deliverable execution (F3) is the only execution path.
-Files deleted: `work_execution.py`, `agents/factory.py`, `agents/deliverable.py`, `routes/work.py`, `routes/agents.py`.
+Work ticket processing was removed in ADR-090 Phase 1. Agent execution (F3) is the only execution path.
+Files deleted: `work_execution.py`, `agents/factory.py`, `agents/agent.py`, `routes/work.py`, `routes/agents.py`.
 
 ---
 
@@ -274,7 +274,7 @@ Files deleted: `work_execution.py`, `agents/factory.py`, `agents/deliverable.py`
 
 | Phase | Frequency | Gate | Feature |
 |-------|-----------|------|---------|
-| Deliverables | Every 5 min | `next_run_at <= now` | F3 |
+| Agents | Every 5 min | `next_run_at <= now` | F3 |
 | Import Jobs | Every 5 min | Pending jobs exist | F8 |
 | Content Cleanup | Hourly (`minute < 5`) | Always | F6 |
 | Weekly Digests | Hourly (`minute < 5`) | Day + hour + tz match | F7 |
@@ -291,9 +291,9 @@ Files deleted: `work_execution.py`, `agents/factory.py`, `agents/deliverable.py`
 | Event Type | Writer | Feature |
 |-----------|--------|---------|
 | `platform_synced` | `platform_worker.py` | F1 |
-| `deliverable_run` | `deliverable_execution.py` | F3 |
-| `deliverable_approved` / `rejected` | `routes/deliverables.py` | User action |
-| `deliverable_scheduled` | `unified_scheduler.py` | F3 |
+| `agent_run` | `agent_execution.py` | F3 |
+| `agent_approved` / `rejected` | `routes/agents.py` | User action |
+| `agent_scheduled` | `unified_scheduler.py` | F3 |
 | `memory_written` | `memory.py` | F4 |
 | `session_summary_written` | `memory.py` | F4 |
 | `pattern_detected` | `memory.py` | F4 |
@@ -322,7 +322,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 | Model | Feature | Purpose | Cost/Call |
 |-------|---------|---------|-----------|
-| `claude-sonnet-4-20250514` | F3 Deliverable Execution | Agent headless mode (ADR-080/081) — draft generation + binding-aware tool rounds (2-6). Research types use WebSearch primitive (nested Sonnet call). | ~2-12k tokens |
+| `claude-sonnet-4-20250514` | F3 Agent Execution | Agent headless mode (ADR-080/081) — draft generation + binding-aware tool rounds (2-6). Research types use WebSearch primitive (nested Sonnet call). | ~2-12k tokens |
 | `claude-sonnet-4-20250514` | F4 Memory Extraction | Fact extraction | ~1-2k tokens |
 | `claude-sonnet-4-20250514` | F4 Session Summaries | Cross-session continuity | ~1k tokens |
 | `text-embedding-3-small` | F9 Embeddings (not impl.) | Semantic search | ~$0.003/sync |
@@ -336,8 +336,8 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | `platform_content` | Context | F1 Sync, F3 (retained flag), F6 (cleanup) | F3 Execution, TP Search |
 | `sync_registry` | Context | F1 Sync | F3 Freshness, System status |
 | `platform_connections` | Context | F1 Sync, OAuth | F1, System status |
-| `deliverables` | Work | User, Coordinator | F3 Execution |
-| `deliverable_versions` | Work | F3 Execution | User review |
+| `agents` | Work | User, Coordinator | F3 Execution |
+| `agent_runs` | Work | F3 Execution | User review |
 | `user_memory` | Memory | F4 Memory, User edits | TP, Working memory |
 | `activity_log` | Activity | ALL features | Working memory, F4, System status |
 | `chat_sessions` | Activity | Chat endpoints, F4 (summary) | F4 |
@@ -350,7 +350,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | Endpoint | Feature | Notes |
 |----------|---------|-------|
 | `POST /integrations/{provider}/sync` | F1 | Runs via FastAPI BackgroundTasks |
-| `POST /deliverables/{id}/run` | F3 | Direct execution |
+| `POST /agents/{id}/run` | F3 | Direct execution |
 | `POST /admin/backfill-sources/{user_id}` | F1 (ADR-079) | Admin-only, backfill smart defaults |
 
 ---
@@ -380,7 +380,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 3. **Implicit memory** (ADR-064): No explicit memory tools for TP. F4 extracts nightly.
 4. **Delivery-first** (ADR-066): No approval gate. F3 delivers immediately after generation.
 5. **activity_log as nervous system**: Every feature writes events. Multiple consumers read for different purposes.
-6. **Tier-gated LLM spend**: Token budget checked per chat message (not per background job). Deliverable count gated by tier.
+6. **Tier-gated LLM spend**: Token budget checked per chat message (not per background job). Agent count gated by tier.
 7. **Unified agent, separate orchestration** (ADR-080): F3 invokes the agent in headless mode for content generation. Orchestration (scheduling, strategy, delivery, retention) stays in the pipeline. One agent, two modes — shared primitives, no drift.
 
 ---
@@ -404,7 +404,7 @@ Platforms sync sequentially within a user. Running Slack + Gmail + Notion + Cale
 
 ### ~~GAP-4: Conversation Analysis Overlap with Signal Processing~~ — Resolved (ADR-092)
 
-Signal processing (F2) and conversation analysis (F5) were both removed (ADR-092). Coordinator deliverables now handle proactive work creation.
+Signal processing (F2) and conversation analysis (F5) were both removed (ADR-092). Coordinator agents now handle proactive work creation.
 
 ### ~~GAP-5: Work Ticket Dual Path~~ — **Resolved** (ADR-083)
 

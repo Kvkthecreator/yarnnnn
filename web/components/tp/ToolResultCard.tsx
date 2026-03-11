@@ -44,7 +44,7 @@ function renderEntityPreview(entity: Record<string, unknown>, entityType?: strin
   const content = entity.content as string | undefined;
 
   switch (entityType) {
-    case 'deliverable': {
+    case 'agent': {
       const schedule = entity.schedule as Record<string, unknown> | undefined;
       const frequency = schedule?.frequency as string | undefined;
       return (
@@ -188,7 +188,7 @@ export function ToolResultCard({ result, compact = false }: ToolResultCardProps)
  * Extract display-friendly data from tool result
  *
  * YARNNN Entity Types:
- * - deliverable: title, status, schedule (frequency), recipient_context
+ * - agent: title, status, schedule (frequency), recipient_context
  * - memory: content, tags, importance
  * - platform: provider, status
  * - document: filename, content_type
@@ -284,8 +284,8 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
               <div className="space-y-1">
                 {entities.slice(0, 4).map((e, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    {/* Deliverable-specific display */}
-                    {entityType === 'deliverable' && (
+                    {/* Agent-specific display */}
+                    {entityType === 'agent' && (
                       <>
                         <span className={cn(
                           "w-2 h-2 rounded-full",
@@ -315,7 +315,7 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
                       <span className="line-clamp-1">{String(e.content).slice(0, 60)}...</span>
                     )}
                     {/* Generic fallback */}
-                    {!['deliverable', 'platform', 'memory'].includes(entityType || '') && (
+                    {!['agent', 'platform', 'memory'].includes(entityType || '') && (
                       <span>{String(e.title || e.name || e.content?.toString().slice(0, 40) || `Item ${i + 1}`)}</span>
                     )}
                   </div>

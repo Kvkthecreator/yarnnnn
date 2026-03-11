@@ -325,7 +325,7 @@ Phase 1 proved the technical flow works. Now we need to refine the *quality* of 
 
 **Current behavior**: When work completes and the drawer opens, TP also writes a lengthy elaboration in chat.
 
-**Problem**: Redundant. The artifact/output IS the deliverable. The chat message should:
+**Problem**: Redundant. The artifact/output IS the agent. The chat message should:
 - Acknowledge the work is done
 - Reference the artifact (brief)
 - Not duplicate the content

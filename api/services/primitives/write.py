@@ -4,7 +4,7 @@ Write Primitive
 Create new entity.
 
 Usage:
-  Write(ref="deliverable:new", content={...})
+  Write(ref="agent:new", content={...})
   Write(ref="memory:new", content={...})
 """
 
@@ -20,7 +20,7 @@ WRITE_TOOL = {
     "description": """Create a new entity.
 
 Examples:
-- Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status"})
+- Write(ref="agent:new", content={title: "Weekly Update", agent_type: "status"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
 Use ref ending in ':new' to create. Content schema depends on entity type.""",
     "input_schema": {
@@ -28,7 +28,7 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference with ':new' (e.g., 'deliverable:new')"
+                "description": "Entity reference with ':new' (e.g., 'agent:new')"
             },
             "content": {
                 "type": "object",
@@ -42,16 +42,16 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 # Required fields per entity type
 REQUIRED_FIELDS = {
-    "deliverable": ["title"],  # deliverable_type has default in schema
+    "agent": ["title"],  # agent_type has default in schema
     "memory": ["content"],
     "document": ["name"],
     "domain": ["name"],
 }
 
 # Default values per entity type
-# Note: deliverable.schedule is JSONB, frequency goes inside it
+# Note: agent.schedule is JSONB, frequency goes inside it
 DEFAULTS = {
-    "deliverable": {
+    "agent": {
         "status": "active",
     },
     "memory": {
@@ -137,8 +137,8 @@ async def handle_write(auth: Any, input: dict) -> dict:
     }
 
     # Entity-specific processing
-    if parsed.entity_type == "deliverable":
-        entity_data = _process_deliverable(entity_data)
+    if parsed.entity_type == "agent":
+        entity_data = _process_agent(entity_data)
     elif parsed.entity_type == "memory":
         entity_data = _process_memory(entity_data)
     elif parsed.entity_type == "document":
@@ -173,12 +173,12 @@ async def handle_write(auth: Any, input: dict) -> dict:
         }
 
 
-def _process_deliverable(data: dict) -> dict:
-    """Process deliverable-specific fields.
+def _process_agent(data: dict) -> dict:
+    """Process agent-specific fields.
 
     Schema notes:
     - schedule: JSONB with {frequency, day, time, timezone}
-    - deliverable_type: defaults to 'custom' in schema
+    - agent_type: defaults to 'custom' in schema
     - recipient_context: JSONB with {name, role, priorities, company}
     - type_config: JSONB with type-specific settings
 
@@ -248,12 +248,12 @@ def _process_deliverable(data: dict) -> dict:
         data["destination"] = destination
 
     # Seed default instructions if not provided (ADR-087)
-    if not data.get("deliverable_instructions"):
-        from services.deliverable_pipeline import DEFAULT_INSTRUCTIONS
-        dtype = data.get("deliverable_type", "custom")
+    if not data.get("agent_instructions"):
+        from services.agent_pipeline import DEFAULT_INSTRUCTIONS
+        dtype = data.get("agent_type", "custom")
         default = DEFAULT_INSTRUCTIONS.get(dtype, DEFAULT_INSTRUCTIONS.get("custom", ""))
         if default:
-            data["deliverable_instructions"] = default
+            data["agent_instructions"] = default
 
     # Calculate next_run_at based on schedule
     if "next_run_at" not in data:
@@ -315,10 +315,10 @@ def _process_document(data: dict) -> dict:
 
 def _format_write_message(entity_type: str, data: dict) -> str:
     """Generate a human-readable message for the write result."""
-    if entity_type == "deliverable":
+    if entity_type == "agent":
         title = data.get("title", "Untitled")
         freq = data.get("frequency", "weekly")
-        return f"Created deliverable: {title} ({freq})"
+        return f"Created agent: {title} ({freq})"
 
     elif entity_type == "memory":
         content = data.get("content", "")[:40]

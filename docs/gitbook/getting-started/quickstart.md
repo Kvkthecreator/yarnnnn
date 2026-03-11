@@ -44,19 +44,19 @@ Open the AI assistant from any page and ask something like:
 
 The assistant already has access to your connected tools — no need to paste anything.
 
-## Step 5: Create your first deliverable
+## Step 5: Create your first agent
 
-A deliverable is a recurring output YARNNN produces for you on autopilot. For example:
+A agent is a recurring output YARNNN produces for you on autopilot. For example:
 
 > "Create a weekly digest of #engineering, delivered every Monday at 9am"
 
 You can set this up through the wizard on your dashboard, or just tell the AI assistant what you want.
 
-See [Creating your first deliverable](creating-your-first-deliverable.md) for a full walkthrough.
+See [Creating your first agent](creating-your-first-agent.md) for a full walkthrough.
 
 ## What happens next
 
 - YARNNN syncs your sources on a regular schedule
-- Deliverables run automatically and produce drafts for your review
+- Agents run automatically and produce drafts for your review
 - The system learns your preferences and gets better over time
 - You review, approve, and occasionally tweak — that's it

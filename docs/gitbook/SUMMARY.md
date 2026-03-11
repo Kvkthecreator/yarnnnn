@@ -6,12 +6,12 @@
 
 * [Quickstart](getting-started/quickstart.md)
 * [Connecting your tools](getting-started/connecting-your-tools.md)
-* [Creating your first deliverable](getting-started/creating-your-first-deliverable.md)
+* [Creating your first agent](getting-started/creating-your-first-agent.md)
 
 ## How It Works
 
-* [What are deliverables?](concepts/what-are-deliverables.md)
-* [Deliverable types and modes](concepts/deliverable-types-and-modes.md)
+* [What are agents?](concepts/what-are-agents.md)
+* [Agent types and modes](concepts/agent-types-and-modes.md)
 * [The AI assistant](concepts/ai-assistant.md)
 * [How YARNNN learns](concepts/how-yarnnn-learns.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
@@ -34,7 +34,7 @@
 * [Overview](api-reference/overview.md)
 * [Authentication](api-reference/authentication.md)
 * [Chat](api-reference/chat.md)
-* [Deliverables](api-reference/deliverables.md)
+* [Agents](api-reference/agents.md)
 
 ## Resources
 

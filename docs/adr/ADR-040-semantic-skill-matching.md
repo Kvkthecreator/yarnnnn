@@ -91,7 +91,7 @@ Add natural language descriptions to each skill for semantic matching:
 ```python
 SKILL_DESCRIPTIONS = {
     "board-update": """
-        Create recurring board update deliverables for investors and board members.
+        Create recurring board update agents for investors and board members.
         Monthly or quarterly updates with company metrics, progress, challenges, and asks.
         Investor communications, board reports, investor updates.
     """,

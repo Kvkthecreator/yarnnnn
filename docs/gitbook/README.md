@@ -8,7 +8,7 @@ You spend hours every week on repetitive knowledge work: summarizing Slack threa
 
 ## How YARNNN is different
 
-YARNNN is not a chatbot you talk to when you need help. It's an autonomous AI work system that continuously syncs your work context and runs specialist deliverables in the background.
+YARNNN is not a chatbot you talk to when you need help. It's an autonomous AI work system that continuously syncs your work context and runs specialist agents in the background.
 
 | Traditional AI tools | YARNNN |
 |---|---|
@@ -22,21 +22,21 @@ YARNNN is not a chatbot you talk to when you need help. It's an autonomous AI wo
 - Generate recurring digests, briefs, and status updates automatically
 - Run proactive or reactive specialists that surface signal when it matters
 - Ask context-grounded questions across Slack, Gmail, Notion, and Calendar
-- Trigger deliverables from YARNNN, Claude, or ChatGPT via MCP connector
-- Improve quality over time as deliverables learn from your edits
+- Trigger agents from YARNNN, Claude, or ChatGPT via MCP connector
+- Improve quality over time as agents learn from your edits
 
 ## How it works
 
 1. Connect your tools
-2. Configure deliverables (type + mode + sources)
+2. Configure agents (type + mode + sources)
 3. Review and supervise outputs
 4. Let each specialist improve through execution history
 
 ## Get started
 
 - [Quickstart guide](getting-started/quickstart.md)
-- [What are deliverables?](concepts/what-are-deliverables.md)
-- [Deliverable types and modes](concepts/deliverable-types-and-modes.md)
+- [What are agents?](concepts/what-are-agents.md)
+- [Agent types and modes](concepts/agent-types-and-modes.md)
 - [Versioning & sync](resources/versioning.md)
 
 ## Maintainer note

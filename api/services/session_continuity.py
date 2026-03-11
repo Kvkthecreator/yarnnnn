@@ -13,8 +13,8 @@ Write:
 
 Read:
   - Summaries read by working_memory._get_recent_sessions() for global sessions.
-  - For deliverable-scoped sessions, read via chat_sessions.deliverable_id FK
-    in working_memory._extract_deliverable_scope().
+  - For agent-scoped sessions, read via chat_sessions.agent_id FK
+    in working_memory._extract_agent_scope().
 """
 
 import logging
@@ -76,7 +76,7 @@ async def generate_session_summary(
 Focus on:
 - Decisions made or agreed on
 - Work in progress or left unfinished
-- Actions taken (deliverables set up, platform actions executed)
+- Actions taken (agents set up, platform actions executed)
 - Anything the user explicitly asked to continue or follow up on
 
 Do NOT include:

@@ -7,7 +7,7 @@
 
 ## What it is
 
-Context is the unified content layer — platform content with retention-based accumulation. Emails, Slack messages, Notion pages, calendar events. Content that proves significant (referenced by deliverables, signal processing, or TP sessions) is retained indefinitely. Unreferenced content expires after TTL.
+Context is the unified content layer — platform content with retention-based accumulation. Emails, Slack messages, Notion pages, calendar events. Content that proves significant (referenced by agents, signal processing, or TP sessions) is retained indefinitely. Unreferenced content expires after TTL.
 
 Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, via TP primitives (`Search`, `FetchPlatformContent`, `CrossPlatformQuery`).
 
@@ -19,7 +19,7 @@ Context is never injected wholesale into the TP system prompt. It is fetched on 
 
 - Not stable user knowledge — that is Memory (`user_memory`)
 - Not a log of YARNNN's actions — that is Activity (`activity_log`)
-- Not generated output — that is Work (`deliverable_versions`)
+- Not generated output — that is Work (`agent_runs`)
 - Not pre-loaded into the TP prompt — TP fetches it on demand
 
 ---
@@ -34,7 +34,7 @@ platform_content
 │   └── Written by platform sync, expires after TTL
 │
 └── Retained content (retained=true, expires_at NULL)
-    └── Marked significant by deliverable execution, signal processing, or TP sessions
+    └── Marked significant by agent execution, signal processing, or TP sessions
 ```
 
 ### Writer
@@ -52,7 +52,7 @@ When content is consumed by a downstream system, it's marked retained:
 
 | Consumer | When | Sets |
 |---|---|---|
-| Deliverable execution | After synthesis | `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id` |
+| Agent execution | After synthesis | `retained=true`, `retained_reason='agent_execution'`, `retained_ref=version_id` |
 | TP session | After semantic search hit | `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id` |
 | Signal processing | When identified as significant | `retained=true`, `retained_reason='signal_processing'` |
 
@@ -74,7 +74,7 @@ When content is consumed by a downstream system, it's marked retained:
 | `content_embedding` | vector(1536) for semantic search |
 | `fetched_at` | When fetched from platform |
 | `retained` | When true, content never expires |
-| `retained_reason` | `deliverable_execution`, `signal_processing`, `tp_session` |
+| `retained_reason` | `agent_execution`, `signal_processing`, `tp_session` |
 | `retained_ref` | FK to the record that marked this retained |
 | `expires_at` | NULL if retained=true, otherwise TTL |
 
@@ -114,11 +114,11 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 - `Search(scope="platform_content")` — read-only search
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
-- `freshness.sync_stale_sources()` — blocking sync for stale sources before deliverable generation
+- `freshness.sync_stale_sources()` — blocking sync for stale sources before agent generation
 
-**Deliverable execution** uses the orchestration pipeline (ADR-045) for context gathering via `get_content_summary_for_generation()`. The agent in headless mode (ADR-080) can supplement with primitive calls during generation.
+**Agent execution** uses the orchestration pipeline (ADR-045) for context gathering via `get_content_summary_for_generation()`. The agent in headless mode (ADR-080) can supplement with primitive calls during generation.
 
-**Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger deliverables.
+**Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger agents.
 
 **Context page** ("Run sync" button) — triggers `POST /api/integrations/{provider}/sync` for user-initiated refresh.
 
@@ -143,7 +143,7 @@ Content that proves significant accumulates indefinitely. Over time, `platform_c
 - Recent ephemeral content (TTL-bounded, most expires unused)
 - Accumulated significant content (never expires, the compounding moat)
 
-This is how YARNNN builds intelligence over time. A user with 6 months of deliverable history has a rich archive of content that mattered.
+This is how YARNNN builds intelligence over time. A user with 6 months of agent history has a rich archive of content that mattered.
 
 **Key insight**: Don't accumulate everything. Don't expire everything. **Accumulate what proved significant.**
 
@@ -156,7 +156,7 @@ This is how YARNNN builds intelligence over time. A user with 6 months of delive
 | Does TP get platform content in its system prompt? | No — Context is fetched on demand via primitives, never pre-loaded |
 | Can Context be used as Memory? | No — platform content must be promoted explicitly. Automatic promotion was removed in ADR-059 |
 | Is `platform_content` the source of truth? | No — platforms are. `platform_content` is a working cache with retention semantics |
-| Does a stale cache affect deliverables? | Deliverables skip generation if no new content since `last_run_at` (ADR-049 freshness check). If content is stale but exists, generation proceeds with what's available. |
+| Does a stale cache affect agents? | Agents skip generation if no new content since `last_run_at` (ADR-049 freshness check). If content is stale but exists, generation proceeds with what's available. |
 | Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature |
 | What replaces `filesystem_items`? | `platform_content` (ADR-072). The old table was dropped in migration 077. |
 

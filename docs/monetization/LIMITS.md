@@ -10,7 +10,7 @@
 
 This document describes the resource limits that control platform usage based on subscription tier. These limits serve three purposes:
 
-1. **Cost Control** — Monthly messages and deliverables are the primary LLM cost drivers
+1. **Cost Control** — Monthly messages and agents are the primary LLM cost drivers
 2. **Fair Usage** — Prevent abuse and ensure equitable resource distribution
 3. **Monetization** — Create upgrade incentives aligned with value delivered
 
@@ -29,7 +29,7 @@ This document describes the resource limits that control platform usage based on
 | **Calendars** | Unlimited | Unlimited |
 | **Sync frequency** | 1x/day | Hourly |
 | **Monthly messages** | 50 | Unlimited |
-| **Active deliverables** | 2 | 10 |
+| **Active agents** | 2 | 10 |
 
 ### Early Bird Pricing
 
@@ -60,7 +60,7 @@ class PlatformLimits:
     total_platforms: int
     sync_frequency: str
     monthly_messages: int     # -1 for unlimited
-    active_deliverables: int  # -1 for unlimited
+    active_agents: int  # -1 for unlimited
 
 TIER_LIMITS = {
     "free": PlatformLimits(
@@ -71,7 +71,7 @@ TIER_LIMITS = {
         total_platforms=4,
         sync_frequency="1x_daily",
         monthly_messages=50,
-        active_deliverables=2,
+        active_agents=2,
     ),
     "pro": PlatformLimits(
         slack_channels=-1,
@@ -81,7 +81,7 @@ TIER_LIMITS = {
         total_platforms=4,
         sync_frequency="hourly",
         monthly_messages=-1,
-        active_deliverables=10,
+        active_agents=10,
     ),
 }
 ```
@@ -94,7 +94,7 @@ TIER_LIMITS = {
 | `get_limits_for_user(client, user_id)` | Returns PlatformLimits for tier |
 | `check_source_limit(client, user_id, provider, count)` | Check if can add sources |
 | `check_monthly_message_limit(client, user_id)` | Check monthly message budget |
-| `check_deliverable_limit(client, user_id)` | Check active deliverable count |
+| `check_agent_limit(client, user_id)` | Check active agent count |
 | `get_usage_summary(client, user_id)` | Full limits + usage report |
 
 ---
@@ -110,13 +110,13 @@ When user sends a chat message:
 
 **Files**: `api/services/platform_limits.py`, `api/routes/chat.py`
 
-### 2. Deliverable Limit
+### 2. Agent Limit
 
-When user creates a deliverable:
-- Check `active_deliverables` limit (Free: 2, Pro: 10)
+When user creates a agent:
+- Check `active_agents` limit (Free: 2, Pro: 10)
 - Returns 429 error with upgrade prompt if at limit
 
-**Files**: `api/routes/deliverables.py`
+**Files**: `api/routes/agents.py`
 
 ### 3. Source Selection
 
@@ -154,7 +154,7 @@ Returns current tier, limits, and usage.
     "total_platforms": 4,
     "sync_frequency": "1x_daily",
     "monthly_messages": 50,
-    "active_deliverables": 2
+    "active_agents": 2
   },
   "usage": {
     "slack_channels": 3,
@@ -163,7 +163,7 @@ Returns current tier, limits, and usage.
     "calendars": 1,
     "platforms_connected": 3,
     "monthly_messages_used": 12,
-    "active_deliverables": 1
+    "active_agents": 1
   },
   "next_sync": "2026-03-10T08:00:00+09:00"
 }
@@ -195,7 +195,7 @@ ADR-053 used `daily_token_budget` (50k/250k/unlimited tokens per day). ADR-100 r
 |------|---------|
 | `api/services/platform_limits.py` | Backend limit enforcement |
 | `api/routes/chat.py` | Monthly message limit check |
-| `api/routes/deliverables.py` | Deliverable limit check |
+| `api/routes/agents.py` | Agent limit check |
 | `web/lib/subscription/limits.ts` | Frontend limit constants |
 | `web/lib/api/client.ts` | Frontend API client (getLimits) |
 | `supabase/migrations/094_monthly_message_count.sql` | Monthly message count RPC |

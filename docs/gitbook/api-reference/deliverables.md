@@ -1,10 +1,10 @@
-# Deliverables API
+# Agents API
 
-Manage autonomous deliverables and their version history.
+Manage autonomous agents and their version history.
 
-## Deliverable types
+## Agent types
 
-Current supported `deliverable_type` values:
+Current supported `agent_type` values:
 
 - `digest`
 - `brief`
@@ -14,7 +14,7 @@ Current supported `deliverable_type` values:
 - `coordinator`
 - `custom`
 
-## Deliverable modes
+## Agent modes
 
 Current `mode` values:
 
@@ -24,10 +24,10 @@ Current `mode` values:
 - `proactive`
 - `coordinator`
 
-## Create deliverable
+## Create agent
 
 ```text
-POST /api/deliverables
+POST /api/agents
 ```
 
 Example:
@@ -35,7 +35,7 @@ Example:
 ```json
 {
   "title": "Weekly Engineering Digest",
-  "deliverable_type": "digest",
+  "agent_type": "digest",
   "mode": "recurring",
   "schedule": {
     "frequency": "weekly",
@@ -52,14 +52,14 @@ Example:
       "label": "#engineering"
     }
   ],
-  "deliverable_instructions": "Summarize decisions, blockers, and owners."
+  "agent_instructions": "Summarize decisions, blockers, and owners."
 }
 ```
 
-## List deliverables
+## List agents
 
 ```text
-GET /api/deliverables
+GET /api/agents
 ```
 
 Optional query params:
@@ -67,44 +67,44 @@ Optional query params:
 - `status=active|paused|archived`
 - `limit=<int>`
 
-## Get deliverable
+## Get agent
 
 ```text
-GET /api/deliverables/{deliverable_id}
+GET /api/agents/{agent_id}
 ```
 
-## Update deliverable
+## Update agent
 
 ```text
-PATCH /api/deliverables/{deliverable_id}
+PATCH /api/agents/{agent_id}
 ```
 
-## Archive deliverable
+## Archive agent
 
 ```text
-DELETE /api/deliverables/{deliverable_id}
+DELETE /api/agents/{agent_id}
 ```
 
 ## Trigger immediate run
 
 ```text
-POST /api/deliverables/{deliverable_id}/run
+POST /api/agents/{agent_id}/run
 ```
 
 Returns execution status and new version metadata when successful.
 
 ## Version endpoints
 
-- `GET /api/deliverables/{deliverable_id}/versions`
-- `GET /api/deliverables/{deliverable_id}/versions/{version_id}`
-- `PATCH /api/deliverables/{deliverable_id}/versions/{version_id}`
-- `POST /api/deliverables/{deliverable_id}/versions/{version_id}/enable`
-- `DELETE /api/deliverables/{deliverable_id}/versions/{version_id}/dismiss`
+- `GET /api/agents/{agent_id}/versions`
+- `GET /api/agents/{agent_id}/versions/{version_id}`
+- `PATCH /api/agents/{agent_id}/versions/{version_id}`
+- `POST /api/agents/{agent_id}/versions/{version_id}/enable`
+- `DELETE /api/agents/{agent_id}/versions/{version_id}/dismiss`
 
 ## Source freshness endpoint
 
 ```text
-GET /api/deliverables/{deliverable_id}/sources/freshness
+GET /api/agents/{agent_id}/sources/freshness
 ```
 
-Returns per-source freshness metadata for the deliverable.
+Returns per-source freshness metadata for the agent.

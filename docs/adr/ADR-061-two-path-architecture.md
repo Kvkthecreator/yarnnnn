@@ -3,7 +3,7 @@
 **Date**: 2026-02-16
 **Status**: Proposed
 **Supersedes**: ADR-016 (Layered Agent Architecture) - work agent model
-**Clarifies**: ADR-045 (Deliverable Orchestration) - execution strategies
+**Clarifies**: ADR-045 (Agent Orchestration) - execution strategies
 
 ---
 
@@ -14,7 +14,7 @@
 YARNNN has evolved through multiple agent architecture iterations:
 
 1. **ADR-016** (Jan 2025): Introduced TP + Work Agents (Research, Content, Reporting)
-2. **ADR-018** (Feb 2025): Added Recurring Deliverables with pipeline execution
+2. **ADR-018** (Feb 2025): Added Recurring Agents with pipeline execution
 3. **ADR-042** (Feb 2025): Simplified 3-step pipeline to single execution
 4. **ADR-045** (Feb 2025): Type-aware execution strategies (platform_bound, cross_platform, research, hybrid)
 5. **ADR-060** (Feb 2026): Proposed Conversation Analyst for background pattern detection
@@ -23,7 +23,7 @@ YARNNN has evolved through multiple agent architecture iterations:
 
 Analysis of the codebase reveals:
 
-**Dead code**: SynthesizerAgent, ReportAgent, ResearcherAgent are never triggered from production paths. Only DeliverableAgent actually produces outputs.
+**Dead code**: SynthesizerAgent, ReportAgent, ResearcherAgent are never triggered from production paths. Only AgentAgent actually produces outputs.
 
 **Actual pattern**: Two distinct execution paths already exist:
 1. **Thinking Partner (TP)**: Real-time, conversational, Claude Code-like
@@ -66,11 +66,11 @@ YARNNN operates through exactly two paths:
 │  - Answer questions                                             │
 │  - Execute platform actions (send Slack, create draft)          │
 │  - Remember facts (knowledge_entries)                           │
-│  - Create/manage deliverables when explicitly asked             │
+│  - Create/manage agents when explicitly asked             │
 │                                                                 │
 │  Does NOT:                                                      │
 │  - Proactively suggest automations mid-conversation             │
-│  - Generate deliverable content (that's Path B)                 │
+│  - Generate agent content (that's Path B)                 │
 │  - Run long-running research tasks (hands off to Path B)        │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -97,12 +97,12 @@ YARNNN operates through exactly two paths:
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │ 1. ANALYSIS PHASE (daily)                                │   │
 │  │    - Conversation pattern detection (ADR-060)            │   │
-│  │    - Creates suggested deliverables                      │   │
+│  │    - Creates suggested agents                      │   │
 │  │    - No LLM agent - service function with LLM call       │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 2. EXECUTION PHASE (per-deliverable schedule)            │   │
+│  │ 2. EXECUTION PHASE (per-agent schedule)            │   │
 │  │    - Freshness check (ADR-049)                           │   │
 │  │    - Strategy selection (ADR-045: type_classification)   │   │
 │  │    - Context gathering (parallel per platform)           │   │
@@ -111,7 +111,7 @@ YARNNN operates through exactly two paths:
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  Output:                                                        │
-│  - deliverable_versions (staged, approved, delivered)           │
+│  - agent_runs (staged, approved, delivered)           │
 │  - Email notifications                                          │
 │  - Platform delivery (Slack, Gmail, Notion)                     │
 │                                                                 │
@@ -125,7 +125,7 @@ The boundary between paths is clear:
 | Action | Path | Rationale |
 |--------|------|-----------|
 | "Summarize #engineering channel" | A (TP) | One-time request, immediate response |
-| "Set up weekly #engineering digest" | A→B | TP creates deliverable, orchestrator executes |
+| "Set up weekly #engineering digest" | A→B | TP creates agent, orchestrator executes |
 | Generate weekly #engineering digest | B | Scheduled, async, no conversation |
 | "What happened in #engineering this week?" (3x) | A, then B | TP answers; orchestrator detects pattern |
 | Detect recurring user patterns | B (Analysis) | Background, daily, non-blocking |
@@ -135,7 +135,7 @@ The boundary between paths is clear:
 The orchestrator selects execution strategy based on `type_classification.binding`:
 
 ```python
-# From deliverable type config
+# From agent type config
 type_classification = {
     "binding": "platform_bound",      # Strategy: single platform fetch
     "primary_platform": "slack",      # Platform focus
@@ -180,7 +180,7 @@ Trigger → HybridStrategy.gather_context()
           → generate_draft() → Version
 ```
 
-The key insight: **complexity is in the strategy, not in agent proliferation**. One DeliverableAgent with type-aware context gathering handles all cases.
+The key insight: **complexity is in the strategy, not in agent proliferation**. One AgentAgent with type-aware context gathering handles all cases.
 
 ### Conversation Analysis (ADR-060)
 
@@ -191,25 +191,25 @@ Conversation analysis is NOT a separate agent. It's a service function in the or
 async def run_analysis_phase(supabase, user_id):
     """
     Detect patterns in recent conversations.
-    Creates suggested deliverables with confidence scores.
+    Creates suggested agents with confidence scores.
     """
     # Get recent sessions
     sessions = await get_recent_sessions(supabase, user_id, days=7)
 
-    # Get existing deliverables (avoid duplicates)
-    existing = await get_user_deliverables(supabase, user_id)
+    # Get existing agents (avoid duplicates)
+    existing = await get_user_agents(supabase, user_id)
 
     # Single LLM call with structured output
     suggestions = await analyze_conversation_patterns(
         sessions=sessions,
-        existing_deliverables=existing,
+        existing_agents=existing,
         user_knowledge=await get_user_knowledge(supabase, user_id),
     )
 
-    # Create suggested deliverables (status: "suggested")
+    # Create suggested agents (status: "suggested")
     for suggestion in suggestions:
         if suggestion.confidence >= 0.50:
-            await create_suggested_deliverable(supabase, user_id, suggestion)
+            await create_suggested_agent(supabase, user_id, suggestion)
 ```
 
 This is simpler than a full "ConversationAnalystAgent" with its own prompt, tools, and lifecycle.
@@ -222,14 +222,14 @@ The following should be marked for removal or significant simplification:
 
 | File | Status | Reason |
 |------|--------|--------|
-| `api/agents/synthesizer.py` | Dead | Never triggered; DeliverableAgent handles synthesis |
-| `api/agents/report.py` | Dead | Never triggered; deliverable types cover reports |
+| `api/agents/synthesizer.py` | Dead | Never triggered; AgentAgent handles synthesis |
+| `api/agents/report.py` | Dead | Never triggered; agent types cover reports |
 | `api/agents/researcher.py` | Partial | Only `research_topic()` used by ResearchStrategy |
-| `api/agents/factory.py` | Simplify | Only DeliverableAgent instantiation needed |
+| `api/agents/factory.py` | Simplify | Only AgentAgent instantiation needed |
 
 Keep:
 - `api/agents/thinking_partner.py` - Path A
-- `api/agents/deliverable.py` - Path B content generation
+- `api/agents/agent.py` - Path B content generation
 - `api/agents/base.py` - Shared infrastructure
 
 ---
@@ -247,7 +247,7 @@ Keep:
 - [ ] Use ADR-060 schema (suggested status, analyst_metadata)
 
 ### Phase 3: Dead Code Cleanup (Future)
-- [ ] Remove SynthesizerAgent (or merge into DeliverableAgent)
+- [ ] Remove SynthesizerAgent (or merge into AgentAgent)
 - [ ] Remove ReportAgent
 - [ ] Simplify ResearcherAgent to pure function
 - [ ] Update factory.py
@@ -258,7 +258,7 @@ Keep:
 
 The `unified_scheduler.py` IS the orchestrator. No rename needed - it already:
 - Runs on cron schedule
-- Processes deliverables (execution phase)
+- Processes agents (execution phase)
 - Processes work tickets
 - Processes digests
 
@@ -281,15 +281,15 @@ You are a conversational assistant (Path A), NOT a batch processor (Path B).
 **DO:**
 - Answer questions using Search, Read, Execute primitives
 - Execute one-time platform actions
-- Create deliverables when user explicitly asks
+- Create agents when user explicitly asks
 - Remember facts about user
 
 **DON'T:**
-- Generate recurring deliverable content (orchestrator does that)
+- Generate recurring agent content (orchestrator does that)
 - Suggest automations mid-conversation (background analysis does that)
-- Run long research tasks (use Execute for one-off, deliverable for recurring)
+- Run long research tasks (use Execute for one-off, agent for recurring)
 
-If user says "set up a weekly digest", create the deliverable config.
+If user says "set up a weekly digest", create the agent config.
 The orchestrator will generate content on schedule.
 """
 ```
@@ -337,7 +337,7 @@ The orchestrator will generate content on schedule.
 │  │ Analysis Phase  │ (daily, minute < 5)      │ Execution Phase │
 │  │                 │                          │                 │
 │  │ For each user:  │                          │ For due items:  │
-│  │  - get_sessions │                          │  - deliverables │
+│  │  - get_sessions │                          │  - agents │
 │  │  - analyze_patterns                        │  - work_tickets │
 │  │  - create_suggested                        │  - digests      │
 │  │                 │                          │  - imports      │
@@ -345,7 +345,7 @@ The orchestrator will generate content on schedule.
 │                                                        │        │
 │                                                        ▼        │
 │                                          ┌─────────────────────┐│
-│                                          │ process_deliverable ││
+│                                          │ process_agent ││
 │                                          │                     ││
 │                                          │ 1. freshness_check  ││
 │                                          │ 2. get_strategy     ││

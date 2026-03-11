@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-06
 **Status:** Pass 3 validated (prompt v3)
-**Related:** [Deliverable Types](deliverable-types.md), [Quality Testing](../development/deliverable-quality-testing.md)
+**Related:** [Agent Types](agent-types.md), [Quality Testing](../development/agent-quality-testing.md)
 
 ---
 
@@ -14,7 +14,7 @@ Auto Meeting Prep runs every morning, reads the user's Google Calendar, and send
 
 ## Calendar dependency
 
-- **Requires Google Calendar** — the deliverable will not produce useful output without it
+- **Requires Google Calendar** — the agent will not produce useful output without it
 - Calendar sync window: -7 days to +14 days (ADR-077)
 - Calendar content TTL: 2 days in `platform_content`
 - Google OAuth provides both Gmail and Calendar under one `platform="google"` connection
@@ -61,7 +61,7 @@ This is the differentiator — no calendar app alone can surface "what you discu
 
 - **Frequency:** Daily only (fixed)
 - **Delivery:** Morning, user's timezone (configurable delivery time, default 08:00)
-- **Scheduler:** `unified_scheduler.py` — same path as all recurring deliverables
+- **Scheduler:** `unified_scheduler.py` — same path as all recurring agents
 - **Freshness:** 24-hour freshness requirement (daily batch, not reactive)
 
 ---
@@ -78,13 +78,13 @@ This is the differentiator — no calendar app alone can surface "what you discu
 
 | Component | File | Notes |
 |-----------|------|-------|
-| Prompt | `api/services/deliverable_pipeline.py` | TYPE_PROMPTS["brief"] v3, meeting classification + tool use + BAD/GOOD examples |
-| Prompt builder | `api/services/deliverable_pipeline.py` | `build_type_prompt` brief branch — computes `today_date`, `date_range` |
+| Prompt | `api/services/agent_pipeline.py` | TYPE_PROMPTS["brief"] v3, meeting classification + tool use + BAD/GOOD examples |
+| Prompt builder | `api/services/agent_pipeline.py` | `build_type_prompt` brief branch — computes `today_date`, `date_range` |
 | Skill flow | `api/services/skills.py` | Auto meeting prep skill — calendar check, delivery time, auto-sources |
-| Config schema | `api/routes/deliverables.py` | `BriefConfig` — `delivery_time` only |
-| Type classification | `api/routes/deliverables.py` | `cross_platform` binding, `scheduled` temporal pattern |
+| Config schema | `api/routes/agents.py` | `BriefConfig` — `delivery_time` only |
+| Type classification | `api/routes/agents.py` | `cross_platform` binding, `scheduled` temporal pattern |
 | Execution strategy | `api/services/execution_strategies.py` | `CrossPlatformStrategy` (shared with Work Summary) |
 | Scheduler | `api/jobs/unified_scheduler.py` | Standard daily frequency handling |
 | Delivery | `api/services/delivery.py` | Email via Resend (generic pipeline) |
 | UI starter card | `web/components/desk/ChatFirstDesk.tsx` | "Auto Meeting Prep" card |
-| Type label | `web/lib/constants/deliverables.ts` | `brief: 'Auto Meeting Prep'` |
+| Type label | `web/lib/constants/agents.ts` | `brief: 'Auto Meeting Prep'` |

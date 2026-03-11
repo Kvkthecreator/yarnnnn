@@ -1,4 +1,4 @@
-# YARNNN Strategic Direction: Recurring Deliverables as Wedge to A2A Infrastructure
+# YARNNN Strategic Direction: Recurring Agents as Wedge to A2A Infrastructure
 
 **Date:** February 1, 2026
 **Status:** Committed direction — ready for implementation
@@ -38,17 +38,17 @@ Cursor didn't launch as "the coordination layer for coding agents." It launched 
 
 ---
 
-## 2. The Answer — Recurring Deliverables
+## 2. The Answer — Recurring Agents
 
-### Why Recurring Deliverables
+### Why Recurring Agents
 
-Most knowledge work has ambiguous quality signals, subjective outputs, and long feedback cycles. That's why no "Cursor for marketing" exists despite many attempts. But there is one knowledge work pattern with tight, measurable feedback: **recurring deliverables with known recipients.**
+Most knowledge work has ambiguous quality signals, subjective outputs, and long feedback cycles. That's why no "Cursor for marketing" exists despite many attempts. But there is one knowledge work pattern with tight, measurable feedback: **recurring agents with known recipients.**
 
-A consultant sending a weekly client status update has a clear loop: context goes in, deliverable comes out, client responds (or doesn't complain). The output format is known. The quality bar is "does the client accept it without asking for revisions." The feedback cycle is weekly, not quarterly. And critically — it's work people hate doing but can't stop doing.
+A consultant sending a weekly client status update has a clear loop: context goes in, agent comes out, client responds (or doesn't complain). The output format is known. The quality bar is "does the client accept it without asking for revisions." The feedback cycle is weekly, not quarterly. And critically — it's work people hate doing but can't stop doing.
 
 ### Why This Is the Bridge to A2A
 
-A recurring deliverable is already a multi-agent coordination problem. You need a context-gathering step (pull updates from relevant sources), a synthesis step (turn raw context into structured deliverable), and a formatting/delivery step. That's a 2-3 step agent chain — small enough to build and validate quickly but structurally identical to the A2A pattern.
+A recurring agent is already a multi-agent coordination problem. You need a context-gathering step (pull updates from relevant sources), a synthesis step (turn raw context into structured agent), and a formatting/delivery step. That's a 2-3 step agent chain — small enough to build and validate quickly but structurally identical to the A2A pattern.
 
 ### The Flywheel
 
@@ -62,38 +62,38 @@ YARNNN is the system that produces and delivers your recurring work — the repo
 
 ## 3. Design Decisions (Resolved)
 
-### Decision 1: Deliverable as Versioned Template
+### Decision 1: Agent as Versioned Template
 
-The Deliverable is a **versioned template**, not a living document that overwrites. Each execution produces a new version, preserving clear footprints of user feedback, accumulated context, and the output derived for each specific sequence/turn.
+The Agent is a **versioned template**, not a living document that overwrites. Each execution produces a new version, preserving clear footprints of user feedback, accumulated context, and the output derived for each specific sequence/turn.
 
 **Rationale:** Versioning provides auditability, enables comparison across deliveries (was version 8 better than version 5?), supports the feedback engine (what changed between what YARNNN produced and what the user actually sent?), and preserves provenance — critical for the eventual A2A layer where multiple agents contribute across versions.
 
 ### Decision 2: Feedback Capture — Heavy Investment, Core Feature
 
-The feedback mechanism is not a nice-to-have — it IS the core product engine. When a user edits a staged deliverable before sending, the system should capture and categorize edits at the medium-to-heavy level:
+The feedback mechanism is not a nice-to-have — it IS the core product engine. When a user edits a staged agent before sending, the system should capture and categorize edits at the medium-to-heavy level:
 
 - **Additions** = context gaps (YARNNN missed something)
 - **Deletions** = irrelevance signals (YARNNN included something unnecessary)
 - **Restructuring** = format preference signals
 - **Rewrites** = tone/voice/framing signals
 
-This categorized feedback feeds back into the synthesis agent's instructions for the next cycle. The deliverable converges toward what the user would have written themselves over time.
+This categorized feedback feeds back into the synthesis agent's instructions for the next cycle. The agent converges toward what the user would have written themselves over time.
 
-**Measurable quality metric:** Edit distance between YARNNN's output and what the user actually sends. This decreases over time. Eventually marketable: "By week 4, users edit less than 10% of the deliverable."
+**Measurable quality metric:** Edit distance between YARNNN's output and what the user actually sends. This decreases over time. Eventually marketable: "By week 4, users edit less than 10% of the agent."
 
 ### Decision 3: Cold Start — Front-Load Onboarding
 
 Strongly encourage uploading past examples during onboarding. "Show me your last 3 reports and I'll learn your style." If users provide examples, the first output can be surprisingly good via style transfer plus context injection.
 
-Fallback: if no examples available, make the first deliverable explicitly collaborative — a chat-driven refinement process where the TP walks the user through improving the first draft, and that refinement process becomes initial context.
+Fallback: if no examples available, make the first agent explicitly collaborative — a chat-driven refinement process where the TP walks the user through improving the first draft, and that refinement process becomes initial context.
 
 **General principle:** Willing to risk front-loading (asking for more rather than less upfront) to avoid a disappointing cold start that loses the user.
 
 ### Decision 4: Delivery Mechanism — Staged Review, Phase Automated Later
 
-Initial build: staged review only. "Your deliverable is ready for review" with copy/export. User sends via their own channels. Email sending infrastructure already exists in the system and can serve as a notification/staging mechanism.
+Initial build: staged review only. "Your agent is ready for review" with copy/export. User sends via their own channels. Email sending infrastructure already exists in the system and can serve as a notification/staging mechanism.
 
-**Rationale:** Staging forces the user to look at the deliverable, which means they'll edit it, which means you get feedback signal. Also — if the core deliverable quality is strong and trustable, users won't mind copy-pasting or resharing to their existing platforms. It's the work that counts, not the delivery plumbing.
+**Rationale:** Staging forces the user to look at the agent, which means they'll edit it, which means you get feedback signal. Also — if the core agent quality is strong and trustable, users won't mind copy-pasting or resharing to their existing platforms. It's the work that counts, not the delivery plumbing.
 
 Automated direct delivery (email, Slack, etc.) is a Phase 2 feature once trust is established and the feedback loop has sufficient data.
 
@@ -101,11 +101,11 @@ Automated direct delivery (email, Slack, etc.) is a Phase 2 feature once trust i
 
 The Thinking Partner chat interface is preserved but repositioned within the **supervision model**:
 
-- **Deliverables** = the objects users supervise (first-class data entities)
+- **Agents** = the objects users supervise (first-class data entities)
 - **TP** = the method of supervision (first-class interaction surface)
 
-TP is not the entry point or primary product surface—deliverables are. But TP is how users interact with and refine deliverables. It manifests in two ways:
-1. **Inline refinements** — embedded in deliverable review (chips like "Shorter", "More formal")
+TP is not the entry point or primary product surface—agents are. But TP is how users interact with and refine agents. It manifests in two ways:
+1. **Inline refinements** — embedded in agent review (chips like "Shorter", "More formal")
 2. **Floating chat** — available globally for conversational interaction
 
 Both are TP; they serve different interaction needs. The user is a supervisor who oversees AI-produced work, and TP is their interface for exercising that supervision.
@@ -119,7 +119,7 @@ See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision
 Claude Code assessed the existing YARNNN repo (github.com/Kvkthecreator/yarnnnn) and found:
 
 ### Strengths (Preserve)
-- **Context assembly pipeline (9/10)** — `load_context_for_work()` assembles ContextBundle with importance ranking, scoping, tagging. This is the competitive core. It's what makes the 10th deliverable better than the 1st.
+- **Context assembly pipeline (9/10)** — `load_context_for_work()` assembles ContextBundle with importance ranking, scoping, tagging. This is the competitive core. It's what makes the 10th agent better than the 1st.
 - **Agent architecture** — Clean BaseAgent interface, factory pattern, modular tool definitions. Extensible for pipeline stages.
 - **Work execution pipeline** — Timeout handling, error capture, status tracking, retry logic. Robust.
 - **Scheduling infrastructure** — Cron-based scheduling exists for recurring work.
@@ -145,14 +145,14 @@ The critical finding: gaps are **additive features, not architectural rewrites**
 ### New Positioning Direction
 The product sells the outcome: recurring work that improves over time.
 
-**Core message:** "Your recurring deliverables, produced and improving every cycle. Set up once, refine over time, never start from scratch again."
+**Core message:** "Your recurring agents, produced and improving every cycle. Set up once, refine over time, never start from scratch again."
 
 **Supporting messages:**
 - "The reports, updates, and briefs you owe people — handled."
 - "Gets better every cycle because it remembers everything."
 - "Your 10th delivery is dramatically better than your 1st."
 
-**Target user (sharpened):** Anyone who owes someone a recurring deliverable and hates producing it from scratch every time. Initially: agency owners, consultants, founders with investor/client reporting obligations.
+**Target user (sharpened):** Anyone who owes someone a recurring agent and hates producing it from scratch every time. Initially: agency owners, consultants, founders with investor/client reporting obligations.
 
 **What YARNNN is NOT:** Another AI chat interface. Another prompt wrapper. Another "AI assistant." It's the system that does the work you owe other people, on schedule, and gets better at it over time.
 
@@ -162,29 +162,29 @@ The product sells the outcome: recurring work that improves over time.
 
 ### Why This Is Defensible
 
-**The feedback flywheel:** Each edit cycle makes the next deliverable better. A new competitor starting from scratch has no accumulated context or learned preferences. Switching costs increase with every delivery cycle.
+**The feedback flywheel:** Each edit cycle makes the next agent better. A new competitor starting from scratch has no accumulated context or learned preferences. Switching costs increase with every delivery cycle.
 
-**Context accumulation as byproduct:** Users don't need to "build their knowledge graph." Context accumulates naturally through the deliverable production process — uploaded examples, gathered sources, edit feedback. This is the Cursor pattern: value comes from doing the work, not from configuration.
+**Context accumulation as byproduct:** Users don't need to "build their knowledge graph." Context accumulates naturally through the agent production process — uploaded examples, gathered sources, edit feedback. This is the Cursor pattern: value comes from doing the work, not from configuration.
 
 **The A2A option value:** The chained agent pipeline, shared context ledger, and MCP integration are architectural assets that unlock the larger A2A play when the market is ready. Competitors building simple report generators won't have this infrastructure.
 
 ### Where This Is Vulnerable
 
-**Quality ceiling:** If the deliverables aren't good enough to trust, the feedback loop never starts. First-delivery quality is critical.
+**Quality ceiling:** If the agents aren't good enough to trust, the feedback loop never starts. First-delivery quality is critical.
 
 **Incumbent risk:** If Anthropic, OpenAI, or Google add native "recurring scheduled outputs" to their platforms, the wrapper value disappears. The defense is that accumulated context and learned preferences don't transfer.
 
-**Narrow wedge risk:** "Recurring deliverables" is specific enough to validate but might be too narrow to sustain a business. The A2A expansion path is the answer to this, but it's deferred.
+**Narrow wedge risk:** "Recurring agents" is specific enough to validate but might be too narrow to sustain a business. The A2A expansion path is the answer to this, but it's deferred.
 
 ---
 
 ## 7. Open Questions for Ongoing Validation
 
-1. **Who hates producing recurring deliverables the most?** Kevin's 10+ years of go-to-market experience should inform which deliverable type to prioritize. Weekly client status reports? Monthly investor updates? Competitive briefs?
+1. **Who hates producing recurring agents the most?** Kevin's 10+ years of go-to-market experience should inform which agent type to prioritize. Weekly client status reports? Monthly investor updates? Competitive briefs?
 
 2. **Will 5 people say "I want that" when you describe this product?** This conversation hasn't been validated with potential users yet. The strategic logic is sound, but customer pull hasn't been confirmed.
 
-3. **What's the pricing model?** Per-deliverable? Per-project? Subscription with deliverable limits? This affects how the value is framed.
+3. **What's the pricing model?** Per-agent? Per-project? Subscription with agent limits? This affects how the value is framed.
 
 4. **When does the A2A positioning go public?** For now, the A2A layer is architectural advantage, not marketing message. When does that change?
 

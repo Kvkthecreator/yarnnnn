@@ -384,7 +384,7 @@ export function ConnectedIntegrationsSection({
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
               <strong>How it works:</strong> After connecting, select sources on each platform&apos;s context page.
-              Context syncs automatically based on your tier — TP uses it in conversations and deliverables.
+              Context syncs automatically based on your tier — TP uses it in conversations and agents.
             </p>
           </div>
         </div>

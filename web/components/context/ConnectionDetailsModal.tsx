@@ -292,7 +292,7 @@ function getPermissionsForProvider(provider: string): string[] {
         'Read channels',
         'Read messages',
         'Read user profiles',
-        'Write messages (for deliverables)',
+        'Write messages (for agents)',
       ];
     case 'gmail':
       return [

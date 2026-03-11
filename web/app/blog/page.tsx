@@ -9,14 +9,14 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Blog",
   description:
-    "Practical ideas on autonomous work systems, context accumulation, supervision design, and deliverable intelligence.",
+    "Practical ideas on autonomous work systems, context accumulation, supervision design, and agent intelligence.",
   path: "/blog",
   keywords: [
     "ai agent blog",
     "autonomous work",
     "context accumulation",
     "yarnnn blog",
-    "deliverable intelligence",
+    "agent intelligence",
   ],
 });
 
@@ -27,7 +27,7 @@ export default function BlogPage() {
     "@type": "Blog",
     name: `${BRAND.name} Blog`,
     description:
-      "Practical ideas on autonomous work systems, context accumulation, supervision design, and deliverable intelligence.",
+      "Practical ideas on autonomous work systems, context accumulation, supervision design, and agent intelligence.",
     url: `${BRAND.url}/blog`,
     blogPost: posts.slice(0, 20).map((post) => ({
       "@type": "BlogPosting",

@@ -7,7 +7,7 @@ Accepted
 2025-01-30
 
 ## Refinements
-- [ADR-020: Deliverable-Centric Chat](ADR-020-deliverable-centric-chat.md) - Clarifies application to deliverables
+- [ADR-020: Agent-Centric Chat](ADR-020-agent-centric-chat.md) - Clarifies application to agents
 - [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) - Provides conceptual framework
 
 ## Context
@@ -220,9 +220,9 @@ Projects are conversational context, not routes. Settings could be a surface or 
 
 ## Addendum: Relationship to Supervision Model (2026-02-02)
 
-With the pivot to recurring deliverables (ADR-018), this ADR's framing has been clarified by the **supervision model**:
+With the pivot to recurring agents (ADR-018), this ADR's framing has been clarified by the **supervision model**:
 
-- **Surfaces** in this ADR correspond to **deliverable views** (objects of supervision)
+- **Surfaces** in this ADR correspond to **agent views** (objects of supervision)
 - **Conversation** corresponds to **TP interaction** (method of supervision)
 
 The drawer pattern established here remains valid. What's clarified is:
@@ -230,6 +230,6 @@ The drawer pattern established here remains valid. What's clarified is:
 2. Conversation isn't "primary"—it's the method of supervision
 3. Both are first-class in their respective dimensions (data vs. interaction)
 
-TP also manifests as **inline refinements** (embedded in deliverable views), not just as the floating drawer. Both are TP; one is conversational, one is direct manipulation.
+TP also manifests as **inline refinements** (embedded in agent views), not just as the floating drawer. Both are TP; one is conversational, one is direct manipulation.
 
 See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full framework.

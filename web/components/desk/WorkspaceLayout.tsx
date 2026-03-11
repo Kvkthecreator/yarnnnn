@@ -4,8 +4,8 @@
  * Workspace Layout — Persistent Panel Architecture
  *
  * Shared layout for all chat-first workspace pages:
- * - /dashboard (global TP — no deliverable scope)
- * - /deliverables/[id] (deliverable workspace — scoped TP)
+ * - /dashboard (global TP — no agent scope)
+ * - /agents/[id] (agent workspace — scoped TP)
  *
  * Layout (≥ lg):
  *   ┌──────────────────────────┬──────────────────────────┐
@@ -36,7 +36,7 @@ export interface WorkspacePanelTab {
 export interface WorkspaceIdentity {
   /** Icon element shown in the identity chip */
   icon: React.ReactNode;
-  /** Primary label — "Thinking Partner" or deliverable title */
+  /** Primary label — "Thinking Partner" or agent title */
   label: string;
   /** Optional badge shown next to label — e.g. mode badge "[Rec]" */
   badge?: React.ReactNode;

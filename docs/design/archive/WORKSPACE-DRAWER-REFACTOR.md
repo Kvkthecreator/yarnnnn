@@ -4,13 +4,13 @@
 **Status:** Implemented
 **Related:**
 - [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — updated layout diagrams
-- [Deliverables Workspace Overhaul](DELIVERABLES-WORKSPACE-OVERHAUL.md) — settings modal absorption noted
+- [Agents Workspace Overhaul](DELIVERABLES-WORKSPACE-OVERHAUL.md) — settings modal absorption noted
 
 ---
 
 ## Problem
 
-Both `/dashboard` and `/deliverables/[id]` used a shared `WorkspaceLayout` with a fixed 320px right panel (`hidden md:flex`). Three issues:
+Both `/dashboard` and `/agents/[id]` used a shared `WorkspaceLayout` with a fixed 320px right panel (`hidden md:flex`). Three issues:
 
 1. **Too narrow for content** — version preview markdown crammed into 320px is unreadable
 2. **Invisible on mobile** — `hidden md:flex` meant no panel access below 768px
@@ -35,7 +35,7 @@ Latest version shown as a collapsible card pinned above chat messages at full ch
 
 ### Settings modal absorbed into drawer
 
-`DeliverableSettingsModal` stripped of modal wrapper, moved to `DeliverableSettingsPanel`. Same form state and save logic. Now the first drawer tab. Header simplifies to `[Active/Paused toggle] [drawer trigger]`. Recipient Context moved from Settings to Instructions panel (2026-03-09).
+`AgentSettingsModal` stripped of modal wrapper, moved to `AgentSettingsPanel`. Same form state and save logic. Now the first drawer tab. Header simplifies to `[Active/Paused toggle] [drawer trigger]`. Recipient Context moved from Settings to Instructions panel (2026-03-09).
 
 ---
 
@@ -48,15 +48,15 @@ Latest version shown as a collapsible card pinned above chat messages at full ch
 - Chat messages + input
 
 ### DRAWER (slides from right, overlays)
-**Deliverable page:** Settings | Versions | Memory | Instructions | Sessions
+**Agent page:** Settings | Versions | Memory | Instructions | Sessions
 - **Settings**: Title, Schedule, Data Sources, Destination, Archive
-- **Instructions**: Structured editor — Behavior (`deliverable_instructions`), Audience (`recipient_context`), Output Format (custom type only, `template_structure.format_notes`), Prompt Preview (read-only, what the agent sees)
+- **Instructions**: Structured editor — Behavior (`agent_instructions`), Audience (`recipient_context`), Output Format (custom type only, `template_structure.format_notes`), Prompt Preview (read-only, what the agent sees)
 
-**Dashboard:** Deliverables | Context
+**Dashboard:** Agents | Context
 
 ### HEADER
 - Identity chip (mode icon + title + badge)
-- Active/Paused toggle (deliverable only)
+- Active/Paused toggle (agent only)
 - Drawer trigger (single button, replaces both settings gear and panel toggle)
 
 ---
@@ -66,9 +66,9 @@ Latest version shown as a collapsible card pinned above chat messages at full ch
 | File | Action |
 |------|--------|
 | `web/components/desk/WorkspaceLayout.tsx` | Rewritten — inline panel to drawer overlay |
-| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Inline version card, settings drawer tab, simplified header |
-| `web/components/deliverables/DeliverableSettingsPanel.tsx` | Created — settings form as drawer tab content |
-| `web/components/modals/DeliverableSettingsModal.tsx` | Deleted — replaced by DeliverableSettingsPanel |
+| `web/app/(authenticated)/agents/[id]/page.tsx` | Inline version card, settings drawer tab, simplified header |
+| `web/components/agents/AgentSettingsPanel.tsx` | Created — settings form as drawer tab content |
+| `web/components/modals/AgentSettingsModal.tsx` | Deleted — replaced by AgentSettingsPanel |
 | `web/components/tp/TPDrawer.tsx` | Deleted — deprecated, only used by deleted Desk.tsx |
 | `web/components/desk/Desk.tsx` | Deleted — deprecated, replaced by ChatFirstDesk |
 | `web/components/desk/ChatFirstDesk.tsx` | No changes — drawer refactor applied via WorkspaceLayout |

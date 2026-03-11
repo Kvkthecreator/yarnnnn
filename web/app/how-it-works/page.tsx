@@ -9,12 +9,12 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "yarnnn turns connected work context into autonomous deliverables. Define a specialist, connect sources, review versions, and let quality compound over time.",
+    "yarnnn turns connected work context into autonomous agents. Define a specialist, connect sources, review versions, and let quality compound over time.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
     "autonomous ai workflow",
-    "deliverable automation",
+    "agent automation",
     "thinking partner",
     "context powered agent",
   ],
@@ -24,13 +24,13 @@ export default function HowItWorksPage() {
   const howToSchema = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "How yarnnn autonomous deliverables work",
+    name: "How yarnnn autonomous agents work",
     description: metadata.description,
     url: `${BRAND.url}/how-it-works`,
     step: [
       {
         "@type": "HowToStep",
-        name: "Define your deliverable specialist (type + mode)",
+        name: "Define your agent specialist (type + mode)",
       },
       {
         "@type": "HowToStep",
@@ -73,7 +73,7 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Define work in plain language</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Use TP to define what you need, or use the deliverable UI directly.
+                Use TP to define what you need, or use the agent UI directly.
                 You choose type, mode, sources, and constraints. yarnnn handles orchestration.
               </p>
 
@@ -90,7 +90,7 @@ export default function HowItWorksPage() {
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-2">
-                        Great. I&apos;ll configure a <span className="text-white">status</span> deliverable in
+                        Great. I&apos;ll configure a <span className="text-white">status</span> agent in
                         <span className="text-white"> recurring</span> mode.
                       </p>
                       <p className="text-white/70 text-sm">
@@ -111,7 +111,7 @@ export default function HowItWorksPage() {
                         Done. First version will be ready on the next run.
                       </p>
                       <div className="mt-3 pt-3 border-t border-white/10">
-                        <p className="text-white/40 text-xs">Deliverable configured successfully.</p>
+                        <p className="text-white/40 text-xs">Agent configured successfully.</p>
                       </div>
                     </div>
                   </div>
@@ -156,7 +156,7 @@ export default function HowItWorksPage() {
                 <div className="border border-white/10 rounded-xl p-6">
                   <div className="text-lg font-medium mb-3">Context = performance moat</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Synced platform context plus deliverable memory lets specialists improve with tenure, not reset.
+                    Synced platform context plus agent memory lets specialists improve with tenure, not reset.
                   </p>
                 </div>
               </div>
@@ -198,7 +198,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-3">Run and review versions</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Deliverables execute in background mode and generate versions.
+                      Agents execute in background mode and generate versions.
                       You review, edit, approve, and maintain supervision control.
                     </p>
                   </div>

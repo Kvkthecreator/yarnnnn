@@ -8,7 +8,7 @@
 
 ## Context
 
-YARNNN's architecture has evolved through multiple ADRs (ADR-063 four-layer model, ADR-064 implicit memory extraction, ADR-068 signal-emergent deliverables, ADR-069 Layer 4 content integration). These decisions share underlying strategic principles that were implicit but not explicitly documented.
+YARNNN's architecture has evolved through multiple ADRs (ADR-063 four-layer model, ADR-064 implicit memory extraction, ADR-068 signal-emergent agents, ADR-069 Layer 4 content integration). These decisions share underlying strategic principles that were implicit but not explicitly documented.
 
 This ADR codifies those principles to:
 1. Provide architectural guidance for future development
@@ -38,7 +38,7 @@ Context (L3) ──────┘
 
 **Learning flow** (upward):
 ```
-Work (L4) ─────► Deliverable Feedback ──► Memory (L1)
+Work (L4) ─────► Agent Feedback ──► Memory (L1)
                (process_feedback: ADR-064)
 
 Work (L4) ─────► Content Quality Signal ──► Signal Processing (L4)
@@ -67,14 +67,14 @@ Activity (L2) ──► Pattern Detection ────► Memory (L1)
 
 **Mature users (90+ days)**:
 - Rely increasingly on **L4 (Work)**
-- System learns what quality looks like from prior deliverable versions
+- System learns what quality looks like from prior agent versions
 - Layer 4 content becomes the strongest signal for what the user values
 - Pattern detection from Activity and feedback from edits refine Memory
 
-**Why**: Layer 4 accumulates intelligence over time. A mature user's deliverable history reveals preferences more accurately than stated facts. The system improves with usage.
+**Why**: Layer 4 accumulates intelligence over time. A mature user's agent history reveals preferences more accurately than stated facts. The system improves with usage.
 
 **Implementation**:
-- Signal processing prompts include recent deliverable content (ADR-069)
+- Signal processing prompts include recent agent content (ADR-069)
 - Pattern detection analyzes 90 days of activity (ADR-070)
 - Memory extraction confidence varies by source (user_stated=1.0, feedback=0.7, pattern=0.6)
 
@@ -86,7 +86,7 @@ Activity (L2) ──► Pattern Detection ────► Memory (L1)
 
 **The flywheel**:
 ```
-Better deliverables → More usage → More learning → Better deliverables
+Better agents → More usage → More learning → Better agents
          ↑                                              ↓
          └──────────────────────────────────────────────┘
 ```
@@ -100,14 +100,14 @@ Better deliverables → More usage → More learning → Better deliverables
 - Training signal for what quality looks like
 - Recent content informs signal processing (ADR-069)
 - User edits trigger memory extraction (ADR-064)
-- Deliverable runs populate Activity for pattern detection (ADR-070)
+- Agent runs populate Activity for pattern detection (ADR-070)
 
-**Why**: The more deliverables a user runs, the more the system learns what they value. Each generation run both produces value and improves future quality.
+**Why**: The more agents a user runs, the more the system learns what they value. Each generation run both produces value and improves future quality.
 
 **Implementation**:
-- `deliverable_versions.final_content` included in signal reasoning prompts (400-char preview)
+- `agent_runs.final_content` included in signal reasoning prompts (400-char preview)
 - Approval with edits triggers `process_feedback()` to extract length/format preferences
-- `deliverable_run` activity events enable pattern detection (day-of-week, time-of-day, type preferences)
+- `agent_run` activity events enable pattern detection (day-of-week, time-of-day, type preferences)
 
 ---
 
@@ -116,9 +116,9 @@ Better deliverables → More usage → More learning → Better deliverables
 **Principle**: Every write to Memory, Activity, and Work happens at a known boundary. No scattered inference, no automatic promotion mid-operation.
 
 **Defined boundaries**:
-- **Memory writes**: Session end (nightly cron), deliverable approval (async), pattern detection (daily cron)
-- **Activity writes**: After deliverable run, after platform sync, after chat turn, after memory write
-- **Work writes**: At deliverable generation completion (version creation)
+- **Memory writes**: Session end (nightly cron), agent approval (async), pattern detection (daily cron)
+- **Activity writes**: After agent run, after platform sync, after chat turn, after memory write
+- **Work writes**: At agent generation completion (version creation)
 
 **Never happens**:
 - Memory written mid-conversation by TP
@@ -129,7 +129,7 @@ Better deliverables → More usage → More learning → Better deliverables
 
 **Implementation**:
 - `process_conversation()` scheduled at midnight UTC, processes yesterday's sessions
-- `process_feedback()` called from `routes/deliverables.py` approval endpoint via async task
+- `process_feedback()` called from `routes/agents.py` approval endpoint via async task
 - `process_patterns()` scheduled at midnight UTC, analyzes last 90 days
 - `write_activity()` called immediately after primary operation completes
 
@@ -137,7 +137,7 @@ Better deliverables → More usage → More learning → Better deliverables
 
 ### 5. Separation of Freshness and Authority
 
-**Principle**: The cache (`filesystem_items`) is fresh enough for conversation. Live APIs are authoritative for generation. Using the cache for deliverables would introduce silent staleness risk. Using live APIs for every conversational search would be prohibitively slow.
+**Principle**: The cache (`filesystem_items`) is fresh enough for conversation. Live APIs are authoritative for generation. Using the cache for agents would introduce silent staleness risk. Using live APIs for every conversational search would be prohibitively slow.
 
 **Cache (`filesystem_items`)**:
 - Used for: `Search(scope="platform_content")` during conversation
@@ -147,7 +147,7 @@ Better deliverables → More usage → More learning → Better deliverables
 - Cross-platform: Single query across all platforms
 
 **Live APIs**:
-- Used for: Deliverable execution, TP platform tools
+- Used for: Agent execution, TP platform tools
 - Freshness: Always current
 - Authority: Yes — direct from platform
 - Latency: Slower (external API round trip)
@@ -156,7 +156,7 @@ Better deliverables → More usage → More learning → Better deliverables
 **Why**: Different use cases require different trade-offs. Conversational search needs speed and composability. Generation needs authority and point-in-time accuracy.
 
 **Implementation**:
-- `deliverable_pipeline.py → fetch_integration_source_data()` never reads `filesystem_items`
+- `agent_pipeline.py → fetch_integration_source_data()` never reads `filesystem_items`
 - `platform_worker.py` populates cache on schedule with TTL expiry
 - `primitives/search.py` hits cache for cross-platform ILIKE search
 
@@ -164,17 +164,17 @@ Better deliverables → More usage → More learning → Better deliverables
 
 ### 6. Immutability Where It Matters
 
-**Principle**: Work versions are immutable records. Activity rows are immutable. Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled.
+**Principle**: Work versions are immutable records. Activity rows are immutable. Only Memory and agent metadata are mutable — and Memory mutability is boundary-controlled.
 
 **Immutable**:
-- `deliverable_versions.final_content` — never changes after generation
+- `agent_runs.final_content` — never changes after generation
 - `activity_log` rows — append-only, no updates
-- `deliverable_versions.source_snapshots` — audit trail of what was read
+- `agent_runs.source_snapshots` — audit trail of what was read
 
 **Mutable (controlled)**:
 - `user_context` — upserted at boundaries (session end, approval, pattern detection)
-- `deliverables` metadata (title, schedule, status) — user can edit configuration
-- `deliverable_versions.status` — progresses forward (generating → staged → approved → published)
+- `agents` metadata (title, schedule, status) — user can edit configuration
+- `agent_runs.status` — progresses forward (generating → staged → approved → published)
 
 **Why**: Immutability enables audit, debugging, and learning. Layer 4 content is a historical record of what was produced. Activity is a provenance log. Only Memory needs mutability for learning.
 
@@ -189,25 +189,25 @@ Better deliverables → More usage → More learning → Better deliverables
 
 **Principle**: Activity writes are wrapped in `try/except pass` everywhere. The provenance log is valuable but never mission-critical. A log failure is a missing entry, not a broken pipeline.
 
-**Why**: Activity (Layer 2) exists to improve quality (recent activity in prompts, pattern detection), not to enable core functionality. If an activity write fails, the primary operation (deliverable run, platform sync, chat turn) must still succeed.
+**Why**: Activity (Layer 2) exists to improve quality (recent activity in prompts, pattern detection), not to enable core functionality. If an activity write fails, the primary operation (agent run, platform sync, chat turn) must still succeed.
 
 **Implementation**:
 - All `write_activity()` calls wrapped in `try/except` with pass or warning log
 - Service-role writes only (users cannot INSERT/UPDATE/DELETE)
 - Activity reads are defensive (handle empty result sets)
 
-**Example** (from `deliverable_execution.py`):
+**Example** (from `agent_execution.py`):
 ```python
 try:
     write_activity(
         client=client,
         user_id=user_id,
-        event_type="deliverable_run",
-        summary=f"Generated {deliverable.get('title')}",
+        event_type="agent_run",
+        summary=f"Generated {agent.get('title')}",
         metadata=metadata,
     )
 except Exception:
-    pass  # Non-fatal — a log failure doesn't fail the deliverable run
+    pass  # Non-fatal — a log failure doesn't fail the agent run
 ```
 
 ---
@@ -216,17 +216,17 @@ except Exception:
 
 **Principle**: Work is produced by a scheduler that runs without a user session. It depends only on credentials stored in `platform_connections`. The user does not need to be online.
 
-**Why**: Deliverables are scheduled, automated outputs. The system must run reliably on cron without requiring an active user session.
+**Why**: Agents are scheduled, automated outputs. The system must run reliably on cron without requiring an active user session.
 
 **Implementation**:
 - `unified_scheduler.py` runs every 5 minutes (Render Cron Job)
 - Decrypts OAuth credentials from `platform_connections` at execution time
 - Fetches live platform data via API clients (Google, Notion, Slack MCP)
-- LLM call via `DeliverableAgent`
+- LLM call via `AgentAgent`
 - Version creation, activity write, delivery all headless
 - Email notification sent to user after generation (optional)
 
-**User control**: Users configure deliverables (sources, schedule, destination) and review staged versions, but execution itself is fully automated.
+**User control**: Users configure agents (sources, schedule, destination) and review staged versions, but execution itself is fully automated.
 
 ---
 
@@ -290,7 +290,7 @@ When building new features or modifying existing systems, ask:
 
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md) — Architectural foundation
 - [ADR-064: Implicit Memory Extraction](ADR-064-unified-memory-service.md) — Learning from conversation, feedback, patterns
-- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md) — Signal processing orchestration
+- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — Signal processing orchestration
 - [ADR-069: Layer 4 Content Integration](ADR-069-layer-4-content-in-signal-reasoning.md) — Work as training signal
 - [ADR-070: Enhanced Activity Pattern Detection](ADR-070-enhanced-activity-pattern-detection.md) — 5 pattern types from Activity
 - [Four-Layer Model Architecture](../architecture/four-layer-model.md) — Comprehensive architectural overview with bidirectional learning diagrams

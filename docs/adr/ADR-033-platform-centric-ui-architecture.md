@@ -3,7 +3,7 @@
 > **Status**: Accepted
 > **Created**: 2026-02-09
 > **Decision**: Option C (Hybrid) - Platform-aware Dashboard with progressive drill-down
-> **Related**: ADR-032 (Platform-Native Frontend Architecture), ADR-031 (Platform-Native Deliverables)
+> **Related**: ADR-032 (Platform-Native Frontend Architecture), ADR-031 (Platform-Native Agents)
 
 ---
 
@@ -30,14 +30,14 @@ Navigation:
 ├── Docs (documents list)
 └── Settings
 
-Deliverables: Flat list, filterable by status (active/paused)
-Projects: Implicit grouping (deliverables belong to projects)
+Agents: Flat list, filterable by status (active/paused)
+Projects: Implicit grouping (agents belong to projects)
 Platforms: Shown as badges, no dedicated views
 ```
 
 **Gap**: Users can see platform badges on memories, but cannot:
 - View all context from a specific platform
-- See all deliverables targeting a specific platform
+- See all agents targeting a specific platform
 - Manage platform resources in one place
 - Understand "what does YARNNN know from my Slack?"
 
@@ -45,7 +45,7 @@ Platforms: Shown as badges, no dedicated views
 
 ## The Core Question
 
-**Where should users see platform-specific context and manage platform-specific deliverables?**
+**Where should users see platform-specific context and manage platform-specific agents?**
 
 Two approaches under consideration:
 
@@ -54,7 +54,7 @@ Two approaches under consideration:
 | **Entry point** | Dashboard with platform cards | New nav items per platform |
 | **Forest view** | Dashboard shows all platforms | Context page shows all platforms |
 | **Tree view** | Click card → platform detail | `/context/slack`, `/context/gmail` |
-| **Deliverables** | Stay separate, filter by platform | Nested under target platform |
+| **Agents** | Stay separate, filter by platform | Nested under target platform |
 | **Mental model** | "My workspace has these platforms" | "I work in Slack, Gmail, Notion" |
 
 ---
@@ -115,7 +115,7 @@ Dashboard becomes the "forest view" - a unified workspace showing all connected 
 │  └─────────────────────────────────────────────────────────────┘
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────────┤
-│  │ Deliverables Targeting Slack                                │
+│  │ Agents Targeting Slack                                │
 │  ├─────────────────────────────────────────────────────────────┤
 │  │ Weekly Status Update → #leadership-updates    Fridays 4pm  │
 │  │ Engineering Digest   → #engineering           Daily 9am    │
@@ -141,8 +141,8 @@ Dashboard becomes the "forest view" - a unified workspace showing all connected 
 ### Cons
 
 1. **Dashboard overload**: Could become cluttered with many platforms
-2. **Two-level deep**: Dashboard → Platform → Resource → Deliverable
-3. **Deliverables fragmented**: Still need separate deliverables list view
+2. **Two-level deep**: Dashboard → Platform → Resource → Agent
+3. **Agents fragmented**: Still need separate agents list view
 4. **Project relationship unclear**: Where do projects fit?
 
 ---
@@ -151,14 +151,14 @@ Dashboard becomes the "forest view" - a unified workspace showing all connected 
 
 ### Concept
 
-Each platform gets its own first-class surface in navigation. The platform surface shows everything related to that platform: resources, context, and deliverables.
+Each platform gets its own first-class surface in navigation. The platform surface shows everything related to that platform: resources, context, and agents.
 
 ```
 Navigation:
 ├── Dashboard (attention queue + cross-platform summary)
-├── Slack (Slack-specific context + deliverables)
-├── Gmail (Gmail-specific context + deliverables)
-├── Notion (Notion-specific context + deliverables)
+├── Slack (Slack-specific context + agents)
+├── Gmail (Gmail-specific context + agents)
+├── Notion (Notion-specific context + agents)
 ├── Docs (user documents, not platform imports)
 └── Settings
 ```
@@ -180,12 +180,12 @@ Navigation:
 │  │ + Add channel    │ • "Sprint demo Thursday 2pm"             │
 │  │                  │                                          │
 │  │                  ├──────────────────────────────────────────┤
-│  │                  │ Deliverables → #engineering              │
+│  │                  │ Agents → #engineering              │
 │  │                  │                                          │
 │  │                  │ • Engineering Daily Digest   [Edit]      │
 │  │                  │   Daily at 9am                           │
 │  │                  │                                          │
-│  │                  │ [+ New deliverable to #engineering]      │
+│  │                  │ [+ New agent to #engineering]      │
 │  │                  │                                          │
 │  └──────────────────┴──────────────────────────────────────────┘
 └─────────────────────────────────────────────────────────────────┘
@@ -198,34 +198,34 @@ Slack (platform surface)
 ├── Resources (channels)
 │   ├── #engineering
 │   │   ├── Context (messages extracted)
-│   │   └── Deliverables targeting this channel
+│   │   └── Agents targeting this channel
 │   ├── #leadership-updates
 │   │   ├── Context
-│   │   └── Deliverables
+│   │   └── Agents
 │   └── + Add channel
-└── All Slack Deliverables (cross-channel view)
+└── All Slack Agents (cross-channel view)
 
 Gmail (platform surface)
 ├── Resources (labels)
 │   ├── Work/Important
 │   │   ├── Context
-│   │   └── Deliverables
+│   │   └── Agents
 │   └── + Add label
-└── All Gmail Deliverables
+└── All Gmail Agents
 
 Notion (platform surface)
 ├── Resources (pages/databases)
 │   ├── /Engineering
 │   │   ├── Context
-│   │   └── Deliverables
+│   │   └── Agents
 │   └── + Add page
-└── All Notion Deliverables
+└── All Notion Agents
 ```
 
 ### Pros
 
 1. **Deep platform focus**: Everything about Slack in one place
-2. **Deliverables co-located**: See deliverable right next to its target
+2. **Agents co-located**: See agent right next to its target
 3. **Clear ownership**: "These are my Slack workflows"
 4. **Matches user mental model**: "I'm working in Slack mode"
 
@@ -245,7 +245,7 @@ Notion (platform surface)
 | User Thinking | Implication |
 |---------------|-------------|
 | "What's happening in my Slack?" | Platform-centric (Option B) |
-| "What deliverables do I have?" | Deliverable-centric (current) |
+| "What agents do I have?" | Agent-centric (current) |
 | "What's YARNNN doing for me?" | Dashboard overview (Option A) |
 | "Show me this project's context" | Project-centric |
 
@@ -272,14 +272,14 @@ User
 ├── user_integrations (1 per platform)
 ├── projects
 │   ├── project_resources (maps project → platform resources)
-│   └── deliverables (many per project)
-└── deliverables.destinations (each deliverable → 1+ platforms)
+│   └── agents (many per project)
+└── agents.destinations (each agent → 1+ platforms)
 ```
 
 **Key insight**: There's a many-to-many relationship:
 - One project can have resources from multiple platforms
 - One platform resource can be used by multiple projects
-- One deliverable can target multiple platforms
+- One agent can target multiple platforms
 
 This suggests **neither pure Option A nor B** fully captures the model.
 
@@ -289,7 +289,7 @@ This suggests **neither pure Option A nor B** fully captures the model.
 
 ### Concept
 
-Dashboard remains the forest view with platform cards. Clicking a platform shows a detail panel (not a full navigation change). Deliverables stay organized by project but filterable by platform.
+Dashboard remains the forest view with platform cards. Clicking a platform shows a detail panel (not a full navigation change). Agents stay organized by project but filterable by platform.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -304,7 +304,7 @@ Dashboard remains the forest view with platform cards. Clicking a platform shows
 │  Projects                             │  • #engineering (142)   │
 │  ┌─────────────────────────────────┐ │  • #leadership (18)     │
 │  │ Q1 Launch                       │ │                         │
-│  │ • Weekly Status → Slack        │ │  Deliverables:          │
+│  │ • Weekly Status → Slack        │ │  Agents:          │
 │  │ • Stakeholder Email → Gmail    │ │  • 2 targeting Slack    │
 │  └─────────────────────────────────┘ │                         │
 │  ┌─────────────────────────────────┐ │  Recent Context:        │
@@ -319,8 +319,8 @@ Dashboard remains the forest view with platform cards. Clicking a platform shows
 
 1. **Dashboard is home**: Platform cards + project list coexist
 2. **Platform detail panel**: Click card → side panel with details
-3. **Project-organized deliverables**: Deliverables grouped by project (their owner)
-4. **Platform filter**: Can filter deliverables list by target platform
+3. **Project-organized agents**: Agents grouped by project (their owner)
+4. **Platform filter**: Can filter agents list by target platform
 5. **Full platform view**: "Full View" goes to dedicated platform page (Option B style) for deep exploration
 
 ### Navigation
@@ -334,7 +334,7 @@ Context (memories browser, current behavior)
 ├── Platform filter (show only Slack memories)
 └── Project filter (show only Q1 Launch memories)
 
-Deliverables (organized by project)
+Agents (organized by project)
 ├── Platform filter (show only Slack-targeting)
 └── Status filter (active/paused)
 
@@ -354,9 +354,9 @@ Settings
 2. **Data Model**: Respects project ownership while showing platform relationships
 3. **Progressive Disclosure**: Overview → Side Panel → Full View (user controls depth)
 4. **Scalability**: Doesn't add nav items per platform
-5. **Supports Both Models**: Platform-specific deliverables AND cross-platform synthesizers coexist
+5. **Supports Both Models**: Platform-specific agents AND cross-platform synthesizers coexist
 
-### Key Insight: Two Types of Deliverables
+### Key Insight: Two Types of Agents
 
 The architecture must support both:
 
@@ -365,7 +365,7 @@ The architecture must support both:
 | **Platform-specific** | "Daily #engineering digest" | Single Slack channel | Same platform (Slack) |
 | **Cross-platform synthesizer** | "Weekly status report" | Slack + Gmail + Notion | Any platform (often email) |
 
-**Platform-specific deliverables** live naturally under their platform view.
+**Platform-specific agents** live naturally under their platform view.
 **Cross-platform synthesizers** live under projects (their logical owner) and show in Dashboard with multi-platform badges.
 
 ### Context Boundaries via Projects
@@ -381,7 +381,7 @@ Project: Q1 Product Launch
 ├── Slack: #product-launch, #engineering
 ├── Gmail: label:product-launch
 ├── Notion: /Q1-Launch-Planning
-└── Deliverables:
+└── Agents:
     ├── Weekly Status (synthesizer) → Leadership email
     ├── Daily Slack Digest → #product-launch
     └── Sprint Notes → Notion /Q1-Launch-Planning
@@ -402,14 +402,14 @@ Project: Q1 Product Launch
   - Connection status (connected/error/expired)
   - Resource count (3 channels, 2 labels, 5 pages)
   - Activity indicator (142 msgs/7d)
-  - Deliverable count targeting this platform
+  - Agent count targeting this platform
 - Click → opens `PlatformDetailPanel` (side drawer)
 
 **Data Requirements**:
 - `GET /api/integrations/summary` - Returns all integrations with:
   - Connection status
   - Resource counts from landscape
-  - Deliverable counts (query by destination.platform)
+  - Agent counts (query by destination.platform)
   - Recent activity stats (from ephemeral_context)
 
 **UI Location**: Dashboard surface, above or alongside project list
@@ -423,13 +423,13 @@ Project: Q1 Product Launch
   - Connection info (workspace name, connected date)
   - Resources list (channels/labels/pages)
   - Per-resource activity sparkline
-  - Deliverables targeting this platform
+  - Agents targeting this platform
   - Recent context snippets
   - "Full View →" link
 
 **Interactions**:
 - Click resource → filter context to that resource
-- Click deliverable → navigate to deliverable detail
+- Click agent → navigate to agent detail
 - "Full View" → navigate to full platform surface
 
 ### Phase 3: Platform Filters
@@ -440,7 +440,7 @@ Project: Q1 Product Launch
 - `ContextBrowserSurface` - Add platform filter dropdown
   - Filter memories by `source_ref.platform`
   - Show platform badge on each memory
-- `DeliverableListSurface` - Add platform filter
+- `AgentListSurface` - Add platform filter
   - Filter by `destination.platform` OR `destinations[].platform`
   - Show "multi-platform" badge for synthesizers
 - URL params: `?platform=slack` persists filter
@@ -455,7 +455,7 @@ Project: Q1 Product Launch
 - Full resource list with detailed stats
 - Import history per resource
 - Coverage state visualization (covered/partial/stale)
-- All deliverables targeting this platform
+- All agents targeting this platform
 - All context from this platform
 - Manage: refresh landscape, disconnect, re-auth
 
@@ -479,7 +479,7 @@ Project: Q1 Product Launch
 **Goal**: First-class creation flow for synthesizers.
 
 **Flow**:
-1. "New Deliverable" → Type selector includes "Cross-Platform Summary"
+1. "New Agent" → Type selector includes "Cross-Platform Summary"
 2. Select project (defines context boundary)
 3. Review auto-suggested resources (from project_resources)
 4. Add/remove sources
@@ -495,10 +495,10 @@ Project: Q1 Product Launch
 
 ## Open Questions
 
-1. **Projects vs Platforms as primary organizer**: Should deliverables be listed under projects (current) or under their target platform?
+1. **Projects vs Platforms as primary organizer**: Should agents be listed under projects (current) or under their target platform?
    - **Recommendation**: Keep project-organized, add platform filter
 
-2. **Where does cross-platform synthesis show?**: A deliverable that synthesizes Slack+Gmail belongs to... which platform view?
+2. **Where does cross-platform synthesis show?**: A agent that synthesizes Slack+Gmail belongs to... which platform view?
    - **Recommendation**: Show in both, with "cross-platform" badge
 
 3. **Attention queue**: Should platform detail show only that platform's staged items?
@@ -518,7 +518,7 @@ Project: Q1 Product Launch
 | `Dashboard` page | Add platform cards, upcoming deliveries |
 | New: `PlatformCard` | Platform summary card |
 | New: `PlatformDetailSurface` | Full platform view |
-| `DeliverableListSurface` | Add platform filter |
+| `AgentListSurface` | Add platform filter |
 | `DeskContext` | Add `selectedPlatform` state |
 
 ### Option B (Per-Platform Surfaces)
@@ -530,7 +530,7 @@ Project: Q1 Product Launch
 | New: `GmailSurface` | Full Gmail management |
 | New: `NotionSurface` | Full Notion management |
 | `SurfaceRouter` | Add platform surface types |
-| Remove separate Deliverables list? | Nested under platforms |
+| Remove separate Agents list? | Nested under platforms |
 
 ### Option C (Hybrid)
 
@@ -541,7 +541,7 @@ Project: Q1 Product Launch
 | New: `PlatformDetailPanel` | Side panel for platform |
 | New: `PlatformDetailSurface` | Full view (optional drill-down) |
 | `ContextBrowserSurface` | Add platform filter |
-| `DeliverableListSurface` | Add platform filter |
+| `AgentListSurface` | Add platform filter |
 | `DeskContext` | Add `platformFilter` state |
 
 ---
@@ -549,5 +549,5 @@ Project: Q1 Product Launch
 ## References
 
 - [ADR-032: Platform-Native Frontend Architecture](./ADR-032-platform-native-frontend-architecture.md)
-- [ADR-031: Platform-Native Deliverables](./ADR-031-platform-native-deliverables.md)
-- [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
+- [ADR-031: Platform-Native Agents](./ADR-031-platform-native-agents.md)
+- [ADR-028: Destination-First Agents](./ADR-028-destination-first-agents.md)

@@ -10,14 +10,14 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Autonomous AI That Knows Your Work",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs autonomous deliverables for you. It learns from every cycle so your outputs improve over time.",
+    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs autonomous agents for you. It learns from every cycle so your outputs improve over time.",
   path: "/",
   keywords: [
     "autonomous ai",
     "ai work agent",
     "thinking partner",
     "context aware ai",
-    "deliverable automation",
+    "agent automation",
     "human in the loop ai",
   ],
 });
@@ -57,7 +57,7 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Connect your tools once. Configure deliverables once.
+                  Connect your tools once. Configure agents once.
                   yarnnn runs recurring, reactive, and proactive work in the background.
                   You supervise outcomes.
                 </p>
@@ -98,10 +98,10 @@ export default function LandingPage() {
               </div>
               <div className="glass-card-light p-6">
                 <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">How yarnnn is different</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Context in. Deliverables out.</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Context in. Agents out.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   yarnnn continuously accumulates context from your connected tools,
-                  then runs specialist deliverables that learn from every version.
+                  then runs specialist agents that learn from every version.
                   The longer you use it, the less manual work remains.
                 </p>
               </div>
@@ -121,7 +121,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Define your deliverable</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Define your agent</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   Use TP or the UI to choose type, mode, schedule, and source scope.
                   Example: weekly digest, reactive watch, or proactive briefing specialist.
@@ -160,7 +160,7 @@ export default function LandingPage() {
                   <span className="text-[#1a1a1a]/50">per specialist.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  Every sync and every approved version improves the same deliverable specialist.
+                  Every sync and every approved version improves the same agent specialist.
                   Quality grows with usage instead of resetting on every interaction.
                 </p>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">
@@ -176,7 +176,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">2</div>
-                    <p className="text-[#1a1a1a]/70 text-sm">Deliverable memory captures what works</p>
+                    <p className="text-[#1a1a1a]/70 text-sm">Agent memory captures what works</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">3</div>
@@ -198,7 +198,7 @@ export default function LandingPage() {
               What yarnnn handles
             </h2>
             <p className="text-[#1a1a1a]/50 mb-12 max-w-xl">
-              Purpose-built deliverables across recurring updates, event-driven watch, and research workflows.
+              Purpose-built agents across recurring updates, event-driven watch, and research workflows.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -243,10 +243,10 @@ export default function LandingPage() {
               Put autonomous work on your calendar.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 50 messages/month, 2 deliverables, daily sync
+              Free: 50 messages/month, 2 agents, daily sync
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
-              Pro: unlimited messages, 10 deliverables, hourly sync — $19/mo
+              Pro: unlimited messages, 10 agents, hourly sync — $19/mo
             </p>
             <Link
               href="/auth/login"

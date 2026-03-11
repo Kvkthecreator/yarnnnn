@@ -14,9 +14,9 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface UseContentRefinementOptions {
-  deliverableId: string;
-  deliverableTitle?: string;
-  deliverableType?: string;
+  agentId: string;
+  agentTitle?: string;
+  agentType?: string;
 }
 
 interface UseContentRefinementReturn {
@@ -30,9 +30,9 @@ interface UseContentRefinementReturn {
  * Calls TP with the current content and instruction, returns refined content.
  */
 export function useContentRefinement({
-  deliverableId,
-  deliverableTitle,
-  deliverableType,
+  agentId,
+  agentTitle,
+  agentType,
 }: UseContentRefinementOptions): UseContentRefinementReturn {
   const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function useContentRefinement({
         }
 
         // Build the refinement prompt with context
-        const prompt = `I'm reviewing my "${deliverableTitle || 'deliverable'}" (${deliverableType || 'content'}). Here is the current draft:
+        const prompt = `I'm reviewing my "${agentTitle || 'agent'}" (${agentType || 'content'}). Here is the current draft:
 
 ---
 ${currentContent}
@@ -146,7 +146,7 @@ IMPORTANT: Return ONLY the refined content, no explanations or commentary. The o
         abortControllerRef.current = null;
       }
     },
-    [deliverableTitle, deliverableType]
+    [agentTitle, agentType]
   );
 
   return {

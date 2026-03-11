@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
  * ADR-033 Phase 3: Platform Filter Component
  *
  * Reusable dropdown for filtering by platform.
- * Used in Context Browser and Deliverable List surfaces.
+ * Used in Context Browser and Agent List surfaces.
  */
 
 export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'calendar' | 'yarnnn';

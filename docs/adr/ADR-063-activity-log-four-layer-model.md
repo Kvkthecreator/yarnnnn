@@ -8,13 +8,13 @@
 
 ## Context
 
-ADR-062 clarified the three-layer model (Memory / Context / Work) and confirmed that `filesystem_items` is a conversational search cache — not a source of truth, not used by deliverable execution. It is retained for its specific load-bearing purpose: serving `Search(scope="platform_content")` via ILIKE on cached platform content.
+ADR-062 clarified the three-layer model (Memory / Context / Work) and confirmed that `filesystem_items` is a conversational search cache — not a source of truth, not used by agent execution. It is retained for its specific load-bearing purpose: serving `Search(scope="platform_content")` via ILIKE on cached platform content.
 
 After that clarification, a further question was raised: does Yarnnn have a record of what *it* has done? The answer is no.
 
 Currently:
 - `chat_sessions` / `session_messages` stores conversation turns but no summary of what happened
-- `deliverable_versions` stores generated output but no execution event record
+- `agent_runs` stores generated output but no execution event record
 - `working_memory.py` injects up to 3 recent session summaries — but only if sessions have a populated `summary` field (which nothing currently writes)
 - No unified log of YARNNN activity exists across both pipelines
 
@@ -33,16 +33,16 @@ Pipeline 1: Chat (api/routes/chat.py)
   → Messages appended to session_messages
   → No summary written anywhere
 
-Pipeline 2: Deliverable execution (deliverable_execution.py → deliverable_pipeline.py)
+Pipeline 2: Agent execution (agent_execution.py → agent_pipeline.py)
   → unified_scheduler.py triggers execution
-  → Live API reads → LLM generation → deliverable_version created
+  → Live API reads → LLM generation → agent_version created
   → work_execution_log tracks step-by-step progress (ephemeral)
   → No persistent event record written after completion
 ```
 
 `working_memory.py → build_working_memory()` currently reads:
 - `user_context` (Memory)
-- `deliverables` (up to 5 active, with sources and schedule)
+- `agents` (up to 5 active, with sources and schedule)
 - `platform_connections` (status and last_synced_at)
 - `chat_sessions` (up to 3 recent, last 7 days — summary field, which is never populated)
 
@@ -59,7 +59,7 @@ The three-layer model (Memory / Context / Work) is correct and complete for desc
 | **Memory** | What TP knows about you | `user_context` |
 | **Activity** | What YARNNN has done | `activity_log` (new) |
 | **Context** | What's in your platforms right now | `filesystem_items` + live APIs |
-| **Work** | What TP has produced | `deliverables` + `deliverable_versions` |
+| **Work** | What TP has produced | `agents` + `agent_runs` |
 
 **Activity is not Memory**: Memory is user-owned stable facts. Activity is system provenance — timestamped events written by pipelines, never by the user.
 
@@ -75,12 +75,12 @@ Every write is from a system pipeline, never from the user. Events are immutable
 
 | event_type | Written by | summary example |
 |---|---|---|
-| `deliverable_run` | deliverable_execution.py | "Generated Weekly Digest v3 (draft)" |
+| `agent_run` | agent_execution.py | "Generated Weekly Digest v3 (draft)" |
 | `memory_written` | memory.py (implicit extraction) | "Noted: prefers bullet points" |
 | `platform_synced` | platform_worker.py | "Synced Slack #general: 47 messages" |
 | `chat_session` | chat.py (on session end / summary) | "Session: discussed digest cadence" |
 
-The log is append-only. It is not a replacement for `deliverable_versions`, `session_messages`, or `sync_registry` — those continue to serve their existing roles. `activity_log` is a lightweight summary layer on top of all pipelines.
+The log is append-only. It is not a replacement for `agent_runs`, `session_messages`, or `sync_registry` — those continue to serve their existing roles. `activity_log` is a lightweight summary layer on top of all pipelines.
 
 ---
 
@@ -90,10 +90,10 @@ The log is append-only. It is not a replacement for `deliverable_versions`, `ses
 CREATE TABLE activity_log (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id       UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    event_type    TEXT        NOT NULL,  -- 'deliverable_run', 'memory_written', 'platform_synced', 'chat_session'
+    event_type    TEXT        NOT NULL,  -- 'agent_run', 'memory_written', 'platform_synced', 'chat_session'
     event_ref     UUID,                  -- FK to relevant record: version_id, session_id, etc.
     summary       TEXT        NOT NULL,  -- Human-readable one-liner
-    metadata      JSONB,                 -- Event-specific detail (deliverable_id, platform, key, etc.)
+    metadata      JSONB,                 -- Event-specific detail (agent_id, platform, key, etc.)
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -134,13 +134,13 @@ This gives TP a grounded, factual answer to "when did you last run my digest?" w
 ## What This ADR Does Not Change
 
 - `filesystem_items` — unchanged, kept for conversational Search
-- `deliverable_versions` — unchanged, primary output store
+- `agent_runs` — unchanged, primary output store
 - `session_messages` — unchanged, full message history
 - `sync_registry` — unchanged, per-resource sync cursor
 - `work_execution_log` — unchanged, ephemeral execution step tracking
 - `user_context` — unchanged, Memory layer
 - Platform sync pipeline — platform_worker adds one `activity_log` INSERT after a successful sync batch; no structural changes
-- Deliverable execution pipeline — adds one `activity_log` INSERT after version is created; no structural changes
+- Agent execution pipeline — adds one `activity_log` INSERT after version is created; no structural changes
 
 ---
 
@@ -150,7 +150,7 @@ This gives TP a grounded, factual answer to "when did you last run my digest?" w
 |---|---|
 | `supabase/migrations/060_activity_log.sql` | New table + indexes + RLS (new) |
 | `api/services/activity_log.py` | `write_activity()` helper (new) |
-| `api/services/deliverable_execution.py` | Call `write_activity("deliverable_run", ...)` after version created |
+| `api/services/agent_execution.py` | Call `write_activity("agent_run", ...)` after version created |
 | `api/workers/platform_worker.py` | Call `write_activity("platform_synced", ...)` after sync batch completes |
 | `api/routes/chat.py` | Call `write_activity("chat_session", ...)` when session summary is available |
 | `api/services/memory.py` | Call `write_activity("memory_written", ...)` on implicit extraction (ADR-064) |
@@ -184,7 +184,7 @@ Replacing `filesystem_items` with `activity_log` was considered and rejected. Th
 │  What YARNNN has done — system provenance, append-only      │
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
-         Written by: deliverable pipeline, platform sync,
+         Written by: agent pipeline, platform sync,
                      chat pipeline, memory extraction (ADR-064)
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -196,11 +196,11 @@ Replacing `filesystem_items` with `activity_log` was considered and rejected. Th
                      live API calls at execution time
 
 ┌─────────────────────────────────────────────────────────────┐
-│  WORK  (deliverables + deliverable_versions)                 │
+│  WORK  (agents + agent_runs)                 │
 │  What TP produces — structured, versioned, exported         │
 │  Always generated from live Context reads                   │
 └─────────────────────────────────────────────────────────────┘
-         Written by: deliverable execution pipeline
+         Written by: agent execution pipeline
 ```
 
 ---
@@ -212,8 +212,8 @@ Replacing `filesystem_items` with `activity_log` was considered and rejected. Th
 | **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
 | **Activity** | Git commit log | Script execution log | `activity_log` |
 | **Context** | Source files (read on demand) | Local filesystem | `filesystem_items` + live API |
-| **Work** | Build output | Script output | `deliverable_versions` |
-| **Execution** | Shell commands | Skills | Deliverable pipeline (live reads) |
+| **Work** | Build output | Script output | `agent_runs` |
+| **Execution** | Shell commands | Skills | Agent pipeline (live reads) |
 
 ---
 

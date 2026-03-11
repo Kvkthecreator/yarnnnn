@@ -1,6 +1,6 @@
 # Slack Integration
 
-Connect Slack so YARNNN can read your team conversations and include them in deliverables and AI assistant responses.
+Connect Slack so YARNNN can read your team conversations and include them in agents and AI assistant responses.
 
 ## What YARNNN can do with Slack
 
@@ -24,7 +24,7 @@ Connect Slack so YARNNN can read your team conversations and include them in del
 - You can change your channel selection at any time
 - YARNNN syncs recent messages from each channel on a regular schedule
 
-## Example deliverables using Slack
+## Example agents using Slack
 
 - **Weekly engineering digest** — summary of #engineering activity
 - **Cross-team update** — combines #product + #engineering + #design

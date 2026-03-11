@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Invest — Pre-Seed",
   description:
-    "yarnnn is raising $500K pre-seed to build the application layer for work context. An autonomous AI agent that accumulates cross-platform context and produces deliverables on schedule.",
+    "yarnnn is raising $500K pre-seed to build the application layer for work context. An autonomous AI agent that accumulates cross-platform context and produces agents on schedule.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
@@ -55,7 +55,7 @@ export default function InvestPage() {
                 Every platform cycle produces an application layer the platform provider
                 doesn&apos;t own. LLMs are no different. yarnnn is building that layer for work —
                 an autonomous AI agent that connects to your tools, accumulates your context,
-                and produces deliverables on schedule.
+                and produces agents on schedule.
               </p>
               <p className="text-white font-medium">
                 We&apos;re raising $500K pre-seed at $5M post-money.
@@ -133,7 +133,7 @@ export default function InvestPage() {
                   <div className="text-white/50">
                     <p>
                       Chat mode for context-aware conversations. Headless mode for scheduled
-                      autonomous deliverables — weekly updates, project summaries, meeting prep —
+                      autonomous agents — weekly updates, project summaries, meeting prep —
                       generated without prompting.
                     </p>
                   </div>
@@ -146,7 +146,7 @@ export default function InvestPage() {
                   <div className="text-white/50">
                     <p>
                       Architecture Decision Records documenting every design choice — from the
-                      unified content layer to five-mode deliverable intelligence. This is a
+                      unified content layer to five-mode agent intelligence. This is a
                       purpose-built context engine, not an API wrapper.
                     </p>
                   </div>
@@ -214,7 +214,7 @@ export default function InvestPage() {
               </div>
 
               <p className="text-white/50 max-w-2xl">
-                Entry wedge: solo consultants managing multiple clients with recurring deliverables
+                Entry wedge: solo consultants managing multiple clients with recurring agents
                 across 3+ tools. Clearest pain, shortest sales cycle, highest willingness to pay.
                 Expansion path: founders, executives, teams, then all knowledge workers.
               </p>

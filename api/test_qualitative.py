@@ -35,8 +35,8 @@ from supabase import create_client
 
 USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
 
-# Deliverable with versions for scoped test
-SCOPED_DELIVERABLE_ID = "7ac36217-935b-4201-8471-b8e6ed3ce7c9"  # Competitive Research Brief, 9 versions
+# Agent with versions for scoped test
+SCOPED_AGENT_ID = "7ac36217-935b-4201-8471-b8e6ed3ce7c9"  # Competitive Research Brief, 9 versions
 
 
 @dataclass
@@ -55,7 +55,7 @@ class MockAuth:
         self.client = client
 
 
-async def run_chat_turn(auth, message, scoped_deliverable=None, history=None):
+async def run_chat_turn(auth, message, scoped_agent=None, history=None):
     """Run a single TP chat turn and capture results."""
     from agents.thinking_partner import ThinkingPartnerAgent
     from services.working_memory import build_working_memory, format_for_prompt
@@ -64,14 +64,14 @@ async def run_chat_turn(auth, message, scoped_deliverable=None, history=None):
 
     # Build working memory
     t0 = time.time()
-    deliverable_dict = None
-    if scoped_deliverable:
-        d = auth.client.table("deliverables").select(
-            "id, title, deliverable_type, deliverable_instructions, deliverable_memory"
-        ).eq("id", scoped_deliverable).eq("user_id", auth.user_id).single().execute()
-        deliverable_dict = d.data
+    agent_dict = None
+    if scoped_agent:
+        d = auth.client.table("agents").select(
+            "id, title, agent_type, agent_instructions, agent_memory"
+        ).eq("id", scoped_agent).eq("user_id", auth.user_id).single().execute()
+        agent_dict = d.data
 
-    wm = await build_working_memory(auth.user_id, auth.client, deliverable=deliverable_dict)
+    wm = await build_working_memory(auth.user_id, auth.client, agent=agent_dict)
     wm_time = (time.time() - t0) * 1000
 
     wm_text = format_for_prompt(wm)
@@ -93,7 +93,7 @@ async def run_chat_turn(auth, message, scoped_deliverable=None, history=None):
         parameters={
             "include_context": True,
             "history": messages[:-1],  # prior history
-            "scoped_deliverable": deliverable_dict,
+            "scoped_agent": agent_dict,
         },
     ):
         if event.type == "tool_use":
@@ -183,20 +183,20 @@ async def test_3_working_memory_latency():
 
 
 async def test_4_scoped_session_ref():
-    """Test: Scoped session shows deliverable ref in working memory."""
+    """Test: Scoped session shows agent ref in working memory."""
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
     auth = MockAuth(USER_ID, client)
 
     from services.working_memory import build_working_memory, format_for_prompt
 
-    d = client.table("deliverables").select(
-        "id, title, deliverable_type, deliverable_instructions, deliverable_memory"
-    ).eq("id", SCOPED_DELIVERABLE_ID).eq("user_id", USER_ID).single().execute()
+    d = client.table("agents").select(
+        "id, title, agent_type, agent_instructions, agent_memory"
+    ).eq("id", SCOPED_AGENT_ID).eq("user_id", USER_ID).single().execute()
 
-    wm = await build_working_memory(USER_ID, client, deliverable=d.data)
+    wm = await build_working_memory(USER_ID, client, agent=d.data)
     wm_text = format_for_prompt(wm)
 
-    has_ref = f"deliverable:{SCOPED_DELIVERABLE_ID}" in wm_text
+    has_ref = f"agent:{SCOPED_AGENT_ID}" in wm_text
     has_title = "Competitive Research Brief" in wm_text
     has_version = "Latest version" in wm_text
 
@@ -207,7 +207,7 @@ async def test_4_scoped_session_ref():
     details.append(f"Latest version in prompt: {has_version}")
 
     return TestResult(
-        name="4. Scoped session: deliverable ref + context in working memory",
+        name="4. Scoped session: agent ref + context in working memory",
         passed=passed,
         details=" | ".join(details),
     )
@@ -220,8 +220,8 @@ async def test_5_scoped_edit():
 
     result = await run_chat_turn(
         auth,
-        "From now on, always include a 'key risks' section in this deliverable.",
-        scoped_deliverable=SCOPED_DELIVERABLE_ID,
+        "From now on, always include a 'key risks' section in this agent.",
+        scoped_agent=SCOPED_AGENT_ID,
     )
 
     tools = result["tools_used"]
@@ -233,7 +233,7 @@ async def test_5_scoped_edit():
     for tr in result["tool_results"]:
         if isinstance(tr, dict):
             ref = tr.get("ref", "")
-            if SCOPED_DELIVERABLE_ID in str(ref):
+            if SCOPED_AGENT_ID in str(ref):
                 correct_ref_used = True
 
     # Check if it used Edit on first attempt (not Edit→List→Edit pattern)
@@ -257,19 +257,19 @@ async def test_6_headless_generation():
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
     auth = MockAuth(USER_ID, client)
 
-    # Use a deliverable with existing versions
-    deliverable = client.table("deliverables").select("*").eq(
-        "id", SCOPED_DELIVERABLE_ID
+    # Use a agent with existing versions
+    agent = client.table("agents").select("*").eq(
+        "id", SCOPED_AGENT_ID
     ).eq("user_id", USER_ID).single().execute()
 
-    if not deliverable.data:
+    if not agent.data:
         return TestResult(
             name="6. Headless generation quality",
             passed=False,
-            details="Deliverable not found",
+            details="Agent not found",
         )
 
-    from services.deliverable_execution import generate_draft_inline
+    from services.agent_execution import generate_draft_inline
 
     # Build minimal gathered context for headless test
     gathered_context = "Test context: Generate a competitive research brief covering market landscape."
@@ -279,7 +279,7 @@ async def test_6_headless_generation():
         draft = await generate_draft_inline(
             client=client,
             user_id=USER_ID,
-            deliverable=deliverable.data,
+            agent=agent.data,
             gathered_context=gathered_context,
         )
         elapsed = (time.time() - t0) * 1000
@@ -335,7 +335,7 @@ async def main():
     logger.info("TP QUALITATIVE TEST — Chat + Headless")
     logger.info("=" * 60)
     logger.info(f"Test user: {USER_ID}")
-    logger.info(f"Scoped deliverable: {SCOPED_DELIVERABLE_ID}")
+    logger.info(f"Scoped agent: {SCOPED_AGENT_ID}")
     logger.info("")
 
     tests = [

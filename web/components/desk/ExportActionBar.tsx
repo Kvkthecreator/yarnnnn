@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * ExportActionBar - Export deliverable versions to connected integrations
+ * ExportActionBar - Export agent versions to connected integrations
  *
  * Shows available export destinations (Slack, Notion) for approved versions.
- * Displays inline after approval or in the deliverable detail view.
+ * Displays inline after approval or in the agent detail view.
  */
 
 import { useState, useEffect } from 'react';
@@ -25,8 +25,8 @@ interface Integration {
 }
 
 interface ExportActionBarProps {
-  deliverableVersionId: string;
-  deliverableTitle: string;
+  agentRunId: string;
+  agentTitle: string;
   onExportComplete?: (provider: string, url?: string) => void;
 }
 
@@ -44,8 +44,8 @@ const NotionIcon = ({ className }: { className?: string }) => (
 );
 
 export function ExportActionBar({
-  deliverableVersionId,
-  deliverableTitle,
+  agentRunId,
+  agentTitle,
   onExportComplete,
 }: ExportActionBarProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -102,7 +102,7 @@ export function ExportActionBar({
       }
 
       const result = await api.integrations.export(provider, {
-        deliverable_version_id: deliverableVersionId,
+        agent_run_id: agentRunId,
         destination,
       });
 

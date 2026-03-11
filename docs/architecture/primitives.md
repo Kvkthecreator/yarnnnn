@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-03-04 (ADR-091 — Edit scoped memory writes; Execute deliverable.acknowledge; work entity removed; deliverable schema updated with instructions/memory/mode)
-> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory), ADR-087 (Deliverable Scoped Context), ADR-091 (Workspace Layout)
+> **Updated**: 2026-03-04 (ADR-091 — Edit scoped memory writes; Execute agent.acknowledge; work entity removed; agent schema updated with instructions/memory/mode)
+> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory), ADR-087 (Agent Scoped Context), ADR-091 (Workspace Layout)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -28,7 +28,7 @@ YARNNN uses a four-layer model (ADR-063):
 | **Memory** | `user_memory` | User facts, preferences, patterns |
 | **Activity** | `activity_log` | System provenance (what YARNNN has done) |
 | **Context** | `platform_content` | Synced platform data with retention-based accumulation |
-| **Work** | `deliverable_versions` | Generated content outputs |
+| **Work** | `agent_runs` | Generated content outputs |
 
 **Context Sources** (all first-class):
 
@@ -77,7 +77,7 @@ All entity references follow a consistent grammar:
 
 | Component | Description | Example |
 |-----------|-------------|---------|
-| `type` | Entity type | `deliverable`, `platform_content`, `platform` |
+| `type` | Entity type | `agent`, `platform_content`, `platform` |
 | `identifier` | Entity ID or special | UUID, `new`, `latest`, `*` |
 | `subpath` | Nested access | `/credentials`, `/sources/0` |
 | `query` | Filter parameters | `?status=active&limit=10` |
@@ -90,13 +90,13 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 
 | Type | Table | Description |
 |------|-------|-------------|
-| `deliverable` | `deliverables` | Recurring content outputs with scoped instructions + memory |
+| `agent` | `agents` | Recurring content outputs with scoped instructions + memory |
 | `platform` | `platform_connections` | Connected platforms (by provider name) |
 | `document` | `documents` | Uploaded documents |
-| `session` | `chat_sessions` | Chat sessions (scoped via `deliverable_id`) |
+| `session` | `chat_sessions` | Chat sessions (scoped via `agent_id`) |
 | `action` | (virtual) | Available actions for Execute |
 
-> **ADR-090 Note**: `work` entity removed — `work_tickets` table dropped. Deliverable execution audit trail migrated to `activity_log`.
+> **ADR-090 Note**: `work` entity removed — `work_tickets` table dropped. Agent execution audit trail migrated to `activity_log`.
 
 #### Background Entities (Infrastructure)
 
@@ -113,24 +113,24 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 
 Each entity type has a defined schema. Key fields are shown for display purposes.
 
-#### deliverable
+#### agent
 
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
-| `title` | string | Deliverable name | ✓ Primary |
+| `title` | string | Agent name | ✓ Primary |
 | `status` | enum | `active`, `paused`, `archived` | ✓ Badge |
 | `mode` | enum | `recurring` \| `goal` | ✓ Badge |
 | `schedule` | JSONB | `{frequency, day, time, timezone}` | ✓ Frequency |
 | `sources` | JSONB[] | Data source configs | — |
 | `destination` | JSONB | `{platform, target}` | — |
 | `next_run_at` | timestamp | Next scheduled run | — |
-| `deliverable_instructions` | TEXT | Agent behavioral instructions (user-editable) | — |
-| `deliverable_memory` | JSONB | `{observations: [{date, source, note}], goal: {description, status, milestones}}` | — |
+| `agent_instructions` | TEXT | Agent behavioral instructions (user-editable) | — |
+| `agent_memory` | JSONB | `{observations: [{date, source, note}], goal: {description, status, milestones}}` | — |
 
 **Display Priority:** `title` > `status` > `mode` > `schedule.frequency`
 
-> **ADR-087 Note**: `deliverable_instructions` and `deliverable_memory` are scoped to each deliverable and injected into the headless generation prompt. Memory is system-accumulated; use `Edit(append_observation)` or `Edit(set_goal)` — never write raw `deliverable_memory`. See Edit spec below.
+> **ADR-087 Note**: `agent_instructions` and `agent_memory` are scoped to each agent and injected into the headless generation prompt. Memory is system-accumulated; use `Edit(append_observation)` or `Edit(set_goal)` — never write raw `agent_memory`. See Edit spec below.
 
 #### platform_content
 
@@ -221,10 +221,10 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 ### Examples
 
 ```
-deliverable:uuid-123          # Specific deliverable
-deliverable:latest            # Most recently updated deliverable
-deliverable:*                 # All deliverables
-deliverable:?status=active    # Active deliverables
+agent:uuid-123          # Specific agent
+agent:latest            # Most recently updated agent
+agent:*                 # All agents
+agent:?status=active    # Active agents
 
 platform:slack               # Slack integration (by provider)
 platform:*/credentials       # All platforms, credentials subpath
@@ -250,7 +250,7 @@ Retrieve a single entity by reference.
 **Input**:
 ```json
 {
-  "ref": "deliverable:uuid-123"
+  "ref": "agent:uuid-123"
 }
 ```
 
@@ -259,8 +259,8 @@ Retrieve a single entity by reference.
 {
   "success": true,
   "data": { "id": "uuid-123", "title": "Weekly Update", ... },
-  "ref": "deliverable:uuid-123",
-  "entity_type": "deliverable"
+  "ref": "agent:uuid-123",
+  "entity_type": "agent"
 }
 ```
 
@@ -278,10 +278,10 @@ Create a new entity.
 **Input**:
 ```json
 {
-  "ref": "deliverable:new",
+  "ref": "agent:new",
   "content": {
     "title": "Weekly Status",
-    "deliverable_type": "status_report"
+    "agent_type": "status_report"
   }
 }
 ```
@@ -291,9 +291,9 @@ Create a new entity.
 {
   "success": true,
   "data": { "id": "new-uuid", "title": "Weekly Status", ... },
-  "ref": "deliverable:new-uuid",
-  "entity_type": "deliverable",
-  "message": "Created deliverable: Weekly Status (weekly)"
+  "ref": "agent:new-uuid",
+  "entity_type": "agent",
+  "message": "Created agent: Weekly Status (weekly)"
 }
 ```
 
@@ -301,14 +301,14 @@ Create a new entity.
 
 | Type | Required |
 |------|----------|
-| `deliverable` | `title`, `deliverable_type` |
+| `agent` | `title`, `agent_type` |
 | `document` | `name` |
 
 **Defaults Applied**:
 
 | Type | Defaults |
 |------|----------|
-| `deliverable` | `status: active`, `frequency: weekly`, `mode: recurring` |
+| `agent` | `status: active`, `frequency: weekly`, `mode: recurring` |
 
 ---
 
@@ -319,7 +319,7 @@ Modify an existing entity.
 **Input**:
 ```json
 {
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes": {
     "status": "paused"
   }
@@ -331,7 +331,7 @@ Modify an existing entity.
 {
   "success": true,
   "data": { "id": "uuid-123", "status": "paused", ... },
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes_applied": ["status", "updated_at"]
 }
 ```
@@ -339,20 +339,20 @@ Modify an existing entity.
 **Immutable Fields** (cannot be edited):
 - `id`, `user_id`, `created_at`
 
-**Deliverable-specific editable fields** (ADR-087/091):
+**Agent-specific editable fields** (ADR-087/091):
 - `status` — `active` / `paused` / `archived`
-- `deliverable_instructions` — plain text behavioral instructions for the agent
+- `agent_instructions` — plain text behavioral instructions for the agent
 - `schedule` — update recurrence
 - `destination` — update delivery target
 
-**Deliverable memory writes — scoped operations only** (ADR-091):
+**Agent memory writes — scoped operations only** (ADR-091):
 
-Raw `deliverable_memory` writes are blocked. Use scoped keys instead:
+Raw `agent_memory` writes are blocked. Use scoped keys instead:
 
 ```json
 // Append an observation (never replaces existing observations)
 {
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes": {
     "append_observation": { "note": "Q4 data is now finalized", "source": "user" }
   }
@@ -360,14 +360,14 @@ Raw `deliverable_memory` writes are blocked. Use scoped keys instead:
 
 // Set or replace the goal object (observations untouched)
 {
-  "ref": "deliverable:uuid-123",
+  "ref": "agent:uuid-123",
   "changes": {
     "set_goal": { "description": "...", "status": "in_progress", "milestones": ["..."] }
   }
 }
 ```
 
-Observations are capped at 20 most recent. For lightweight observation appends from conversation context, prefer `Execute(action="deliverable.acknowledge", ...)` — it's a single-call shorthand.
+Observations are capped at 20 most recent. For lightweight observation appends from conversation context, prefer `Execute(action="agent.acknowledge", ...)` — it's a single-call shorthand.
 
 ---
 
@@ -378,7 +378,7 @@ Find entities by pattern (structural navigation).
 **Input**:
 ```json
 {
-  "pattern": "deliverable:?status=active",
+  "pattern": "agent:?status=active",
   "limit": 10,
   "order_by": "updated_at"
 }
@@ -393,9 +393,9 @@ Find entities by pattern (structural navigation).
     { "id": "uuid-2", "title": "Daily Digest", ... }
   ],
   "count": 2,
-  "pattern": "deliverable:?status=active",
-  "entity_type": "deliverable",
-  "message": "Found 2 deliverable(s) (2 active)"
+  "pattern": "agent:?status=active",
+  "entity_type": "agent",
+  "message": "Found 2 agent(s) (2 active)"
 }
 ```
 
@@ -435,12 +435,12 @@ Find entities by content using text search.
 }
 ```
 
-**Scopes**: `platform_content`, `document`, `deliverable`, `work`, `all`
+**Scopes**: `platform_content`, `document`, `agent`, `work`, `all`
 
 **Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`, `calendar`, `yarnnn`
 
 > **Scope clarification**:
-> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar) and deliverable outputs (`yarnnn`, ADR-102). If external content is stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
+> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar) and agent outputs (`yarnnn`, ADR-102). If external content is stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
 > - `document` searches uploaded files (PDF, DOCX, TXT, MD)
 > - `memory` is **not a valid scope** (ADR-065) — memory is already injected into working memory at session start. Passing `scope="memory"` returns an error.
 
@@ -453,8 +453,8 @@ Trigger external operations on entities.
 **Input**:
 ```json
 {
-  "action": "deliverable.generate",
-  "target": "deliverable:uuid-123"
+  "action": "agent.generate",
+  "target": "agent:uuid-123"
 }
 ```
 
@@ -467,8 +467,8 @@ Trigger external operations on entities.
     "version_id": "version-uuid",
     "version_number": 3
   },
-  "action": "deliverable.generate",
-  "target": "deliverable:uuid-123"
+  "action": "agent.generate",
+  "target": "agent:uuid-123"
 }
 ```
 
@@ -476,17 +476,17 @@ Trigger external operations on entities.
 
 | Action | Target Type | Description | Requires |
 |--------|-------------|-------------|----------|
-| `platform.publish` | `deliverable` | Publish approved version to platform | `via` |
-| `deliverable.generate` | `deliverable` | Run content generation pipeline | — |
-| `deliverable.schedule` | `deliverable` | Update deliverable schedule | — |
-| `deliverable.approve` | `deliverable` | Approve pending version | `params.version_id` (optional) |
-| `deliverable.acknowledge` | `deliverable` | Append one observation from conversation context to `deliverable_memory` (lightweight, no generation) | `params.note` |
+| `platform.publish` | `agent` | Publish approved version to platform | `via` |
+| `agent.generate` | `agent` | Run content generation pipeline | — |
+| `agent.schedule` | `agent` | Update agent schedule | — |
+| `agent.approve` | `agent` | Approve pending version | `params.version_id` (optional) |
+| `agent.acknowledge` | `agent` | Append one observation from conversation context to `agent_memory` (lightweight, no generation) | `params.note` |
 | `memory.extract` | `session` | Extract memories from session | — |
 | `signal.process` | `system` | Run signal extraction pipeline | — |
 
-> **Note**: `platform.sync`, `platform.send`, and `work.run` removed — use `RefreshPlatformContent` (ADR-085), platform MCP tools, and `deliverable.generate` respectively. `work` entity removed (ADR-090).
+> **Note**: `platform.sync`, `platform.send`, and `work.run` removed — use `RefreshPlatformContent` (ADR-085), platform MCP tools, and `agent.generate` respectively. `work` entity removed (ADR-090).
 
-**`deliverable.acknowledge` vs `Edit(append_observation)`:**
+**`agent.acknowledge` vs `Edit(append_observation)`:**
 - `acknowledge` — TP calls this during chat when the user says something worth persisting ("note that Q4 is finalized"). Single call, source="user", immediate.
 - `append_observation` via Edit — more explicit, allows setting `source` field, can be chained with other changes. Use when you want fine-grained control.
 
@@ -526,7 +526,7 @@ Synchronous write-through cache refresh. Calls the same `_sync_platform_async()`
 }
 ```
 
-**Supported platforms**: `slack`, `gmail`, `notion`, `calendar` (not `yarnnn` — deliverable outputs are written internally, not synced)
+**Supported platforms**: `slack`, `gmail`, `notion`, `calendar` (not `yarnnn` — agent outputs are written internally, not synced)
 
 **Mode**: Chat only (`["chat"]`). Headless mode uses `freshness.sync_stale_sources()` instead.
 
@@ -646,9 +646,9 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ### 2026-03-04 — ADR-090 + ADR-091 updates
 
-- **Edit primitive**: Added `deliverable_instructions` as editable field. Added scoped `deliverable_memory` write paths: `append_observation` (appends, never replaces, cap 20) and `set_goal` (replaces goal only). Raw `deliverable_memory` writes blocked to prevent clobbering system-accumulated memory.
-- **Execute primitive**: Added `deliverable.acknowledge` action — lightweight observation append from conversation context (no generation). Removed `work.run` (ADR-090 — `work` entity dropped).
-- **Entity schema**: `work` entity removed (ADR-090 — `work_tickets` table dropped). Deliverable schema updated with `deliverable_instructions`, `deliverable_memory`, `mode` fields (ADR-087).
+- **Edit primitive**: Added `agent_instructions` as editable field. Added scoped `agent_memory` write paths: `append_observation` (appends, never replaces, cap 20) and `set_goal` (replaces goal only). Raw `agent_memory` writes blocked to prevent clobbering system-accumulated memory.
+- **Execute primitive**: Added `agent.acknowledge` action — lightweight observation append from conversation context (no generation). Removed `work.run` (ADR-090 — `work` entity dropped).
+- **Entity schema**: `work` entity removed (ADR-090 — `work_tickets` table dropped). Agent schema updated with `agent_instructions`, `agent_memory`, `mode` fields (ADR-087).
 - **TP-Facing Entities**: 6 → 5 (work removed).
 
 ### 2026-02-28 — RefreshPlatformContent primitive (ADR-085)
@@ -675,7 +675,7 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ### 2026-02-11 — ADR-042 Entity Tier Clarification
 - Clarified entity types into TP-facing (6) and background (3) tiers
-- TP-facing: deliverable, platform, document, work, session, action
+- TP-facing: agent, platform, document, work, session, action
 - Background: memory, platform_content, domain
 - Added ADR-042 reference for execution simplification
 
@@ -719,7 +719,7 @@ Progress tracking for multi-step operations.
 - [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
 - [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
 - [ADR-038: Filesystem-as-Context Architecture](../adr/ADR-038-filesystem-as-context.md)
-- [ADR-042: Deliverable Execution Simplification](../adr/ADR-042-deliverable-execution-simplification.md)
-- [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
-- [ADR-045: Deliverable Orchestration Redesign](../adr/ADR-045-deliverable-orchestration-redesign.md)
+- [ADR-042: Agent Execution Simplification](../adr/ADR-042-agent-execution-simplification.md)
+- [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
+- [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
 - [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)

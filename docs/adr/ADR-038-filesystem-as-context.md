@@ -25,8 +25,8 @@ The question: does YARNNN need a separate memory layer, or can it treat platform
 1. **Reduce primitives from 9 to 7** — Remove Respond (redundant with model output) and Todo (no multi-step workflows yet)
 2. **Demote memory from first-class entity to background cache** — Memories still get written for audit/caching, but TP doesn't interact with them as tools
 3. **Demote domain entity** — Deferred; not essential for TP operations
-4. **Introduce context injection** — Preload user profile, active deliverables, platform summaries, and recent session summaries at session start (analogous to Claude Code reading CLAUDE.md)
-5. **Narrow Search scopes** — Replace `memory` scope with `platform_content`; keep `document`, `deliverable`, `all`
+4. **Introduce context injection** — Preload user profile, active agents, platform summaries, and recent session summaries at session start (analogous to Claude Code reading CLAUDE.md)
+5. **Narrow Search scopes** — Replace `memory` scope with `platform_content`; keep `document`, `agent`, `all`
 6. **Move `memory.extract`** from Execute action catalog to background job triggered by `platform.sync`
 
 ### The Mapping
@@ -35,7 +35,7 @@ The question: does YARNNN need a separate memory layer, or can it treat platform
 Claude Code                    YARNNN
 ──────────                    ──────
 Source files                  Platform content + documents
-Build output                  Deliverables
+Build output                  Agents
 CLAUDE.md                     Context injection (user profile + summaries)
 Shell history                 Session history
 CI jobs                       Work tickets
@@ -56,14 +56,14 @@ Bash (execute)                Execute (sync/generate/publish)
 
 ### Negative
 
-- **Memory search at scale** — If/when YARNNN has users with hundreds of deliverables and months of platform history, context injection won't scale. Will need to re-introduce semantic retrieval, likely scoped to platform content rather than extracted memories.
+- **Memory search at scale** — If/when YARNNN has users with hundreds of agents and months of platform history, context injection won't scale. Will need to re-introduce semantic retrieval, likely scoped to platform content rather than extracted memories.
 - **Loss of memory importance scoring** — The memory system's ability to weight retrieval by importance is lost. Context injection is flat — everything gets equal weight. Acceptable at current scale.
 - **Migration work** — Need to update TP prompt, primitives implementation, and remove dead code paths for Respond, Todo, memory-as-entity.
 
 ### Neutral
 
 - **Memory table stays** — No data migration needed. The table remains; only the TP-facing interface changes.
-- **Todo can return** — When `deliverable.generate` becomes a multi-step pipeline taking 30+ seconds, re-introduce Todo as a primitive.
+- **Todo can return** — When `agent.generate` becomes a multi-step pipeline taking 30+ seconds, re-introduce Todo as a primitive.
 - **Respond can return** — If streaming interleaved messages during long operations becomes necessary, re-introduce as a primitive or handle via websocket.
 
 ## Alternatives Considered

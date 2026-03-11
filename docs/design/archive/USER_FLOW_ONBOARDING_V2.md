@@ -9,11 +9,11 @@
 
 ## Overview
 
-Users connect platforms (Slack, Gmail, Notion, Calendar) and select which sources to sync. Context accumulates over time through tier-based scheduled syncs. TP (Thinking Partner) uses this context in conversations and deliverable generation.
+Users connect platforms (Slack, Gmail, Notion, Calendar) and select which sources to sync. Context accumulates over time through tier-based scheduled syncs. TP (Thinking Partner) uses this context in conversations and agent generation.
 
 **Key design principle**: Context pages (`/context/{platform}`) are the **singular** source selection experience. No modals, no wizards — one place for everything.
 
-**ADR-091 update**: `/dashboard` is now a **global TP launcher** (chat + Deliverables panel + Context panel). Each deliverable has its own workspace at `/deliverables/[id]` with scoped TP chat. Users navigate from the Deliverables panel on the dashboard into deliverable workspaces.
+**ADR-091 update**: `/dashboard` is now a **global TP launcher** (chat + Agents panel + Context panel). Each agent has its own workspace at `/agents/[id]` with scoped TP chat. Users navigate from the Agents panel on the dashboard into agent workspaces.
 
 ---
 
@@ -24,7 +24,7 @@ OPEN  →  CONNECT  →  SELECT SOURCES  →  CONTEXT BUILDS  →  USE TP
  │          │              │                   │              │
  ▼          ▼              ▼                   ▼              ▼
 Dashboard  OAuth       Context page       Scheduled       Chat +
-welcome    redirect    with recommended   tier-based      Deliverables
+welcome    redirect    with recommended   tier-based      Agents
 screen     to context  grouping           syncs
            page
 ```
@@ -202,7 +202,7 @@ Dashboard (PlatformSyncStatus)
 With accumulated context, TP can:
 - Reference recent Slack messages, Gmail threads, Notion pages
 - Prep for upcoming calendar meetings
-- Generate deliverables (status reports, summaries, briefs)
+- Generate agents (status reports, summaries, briefs)
 - Answer questions about what happened across platforms
 
 ---
@@ -224,7 +224,7 @@ With accumulated context, TP can:
 
 | Hook | Purpose |
 |------|---------|
-| `usePlatformData` | Loads integration, landscape, limits, sources, deliverables |
+| `usePlatformData` | Loads integration, landscape, limits, sources, agents |
 | `useSourceSelection` | Toggle, save, import workflow with tier enforcement |
 | `useResourceExpansion` | On-demand content preview per resource |
 

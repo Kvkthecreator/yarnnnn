@@ -742,7 +742,7 @@ Work can be scoped to project or user-level:
 
 **Project-Scoped Work:**
 - Research for a specific project
-- Content for project deliverables
+- Content for project agents
 - Project-specific reports
 
 **User-Scoped Work (Orchestration Level):**

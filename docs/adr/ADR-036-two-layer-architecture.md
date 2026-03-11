@@ -13,22 +13,22 @@
 YARNNN has evolved through multiple architectural phases:
 
 1. **v3-v4**: Complex substrate pipeline (P0→P4), message bus, multi-layer abstraction
-2. **v5**: Simplified to deliverables + context + integrations
+2. **v5**: Simplified to agents + context + integrations
 3. **ADR-034**: Made context domains emergent (not user-configured)
-4. **ADR-035**: Made deliverable types platform-first (workflow-oriented)
+4. **ADR-035**: Made agent types platform-first (workflow-oriented)
 
 A strategic discourse (February 10, 2026) identified a tension:
 
-- **Part I thesis**: TP-first activation, context invisible, deliverables via conversation
-- **Part II thesis**: Fully emergent system, deliverables discovered by pattern recognition
+- **Part I thesis**: TP-first activation, context invisible, agents via conversation
+- **Part II thesis**: Fully emergent system, agents discovered by pattern recognition
 
-These appeared to conflict: Is the system structured (deliverables as defined objects) or emergent (everything discovered)?
+These appeared to conflict: Is the system structured (agents as defined objects) or emergent (everything discovered)?
 
 **The resolution**: These are complementary philosophies governing different layers.
 
 ### The Core Insight
 
-> Users know what they want, but express it fluidly. Chat captures this fluidity naturally. Everything else — deliverables, context, tools, scheduling — is supporting infrastructure that makes chat effective.
+> Users know what they want, but express it fluidly. Chat captures this fluidity naturally. Everything else — agents, context, tools, scheduling — is supporting infrastructure that makes chat effective.
 
 This mirrors successful AI products:
 - **Claude Code**: User expresses intent conversationally; tools (Bash, Edit, Read) are invisible infrastructure
@@ -152,14 +152,14 @@ This layer is invisible to users but critical for connecting fluid interaction t
 - "I noticed you ask about Acme every Monday — want me to automate this?"
 - "You haven't checked the BigCo digest in 2 weeks — still useful?"
 
-### Pillar 2: Deliverables as Skills/Tools
+### Pillar 2: Agents as Skills/Tools
 
-**Purpose**: Deliverables are capabilities TP invokes, not objects users configure.
+**Purpose**: Agents are capabilities TP invokes, not objects users configure.
 
 **The Reframe**:
 ```
-Old: Deliverable = thing user creates in dashboard
-New: Deliverable = skill/tool TP uses to fulfill intent
+Old: Agent = thing user creates in dashboard
+New: Agent = skill/tool TP uses to fulfill intent
 ```
 
 **Skill Interface** (conceptual):
@@ -223,7 +223,7 @@ User request → Context retrieved → Output generated → User feedback
 
 | Component | Previous Understanding | Two-Layer Understanding |
 |-----------|----------------------|------------------------|
-| **Deliverables** | User-created recurring work objects | Skills TP invokes to fulfill intent |
+| **Agents** | User-created recurring work objects | Skills TP invokes to fulfill intent |
 | **Context Blocks** | User-managed knowledge store | Invisible context TP retrieves |
 | **Domains** | User groupings (rejected) → Emergent groupings | Invisible infrastructure for context scoping |
 | **TP** | Chat assistant alongside dashboard | Primary interface; everything flows through |
@@ -359,7 +359,7 @@ From ClawdBot/Claude Code learnings:
 
 ## References
 
-- [Strategic Validation: Context Extraction vs. Deliverables Architecture](../strategy/STRATEGIC_VALIDATION_CONTEXT_DELIVERABLES_SPLIT.md)
+- [Strategic Validation: Context Extraction vs. Agents Architecture](../strategy/STRATEGIC_VALIDATION_CONTEXT_DELIVERABLES_SPLIT.md)
 - [ADR-034: Emergent Context Domains](./ADR-034-emergent-context-domains.md)
 - [ADR-035: Platform-First Type System](./ADR-035-platform-first-type-system.md)
 - [ADR-037: Chat-First Surface Architecture](./ADR-037-chat-first-surface-architecture.md)

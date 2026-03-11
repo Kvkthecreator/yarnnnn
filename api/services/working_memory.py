@@ -7,17 +7,17 @@ nothing inferred by background jobs.
 
 Sources (Memory + Activity layers only):
   user_memory   — stated preferences, profile, facts, instructions (Memory)
-  activity_log   — recent system events: deliverable runs, syncs, memory writes (Activity)
+  activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
-What goes in the prompt (~2,000 tokens, + ~500 for deliverable scope):
+What goes in the prompt (~2,000 tokens, + ~500 for agent scope):
   - About you: name, role, company, timezone
   - Preferences: tone_*, verbosity_*, preference:*
   - What you've told me: fact:*, instruction:*
-  - Active deliverables (max 5)
+  - Active agents (max 5)
   - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
   - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
-  - Scoped deliverable: instructions + memory (if session is deliverable-scoped) ← ADR-087
+  - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 Raw platform_content is NOT included here.
 TP fetches it via Search when needed.
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 
-MAX_DELIVERABLES = 5
+MAX_AGENTS = 5
 MAX_PLATFORMS = 5
 MAX_RECENT_SESSIONS = 3
 MAX_CONTEXT_ENTRIES = 20       # Max user_memory rows to include in prompt
@@ -50,7 +50,7 @@ WORKING_MEMORY_TOKEN_BUDGET = 2000
 async def build_working_memory(
     user_id: str,
     client: Any,
-    deliverable: Optional[dict] = None,
+    agent: Optional[dict] = None,
 ) -> dict:
     """
     Build the working memory object for TP system prompt injection.
@@ -58,13 +58,13 @@ async def build_working_memory(
     Args:
         user_id: The authenticated user's ID
         client: Supabase client instance
-        deliverable: Optional deliverable dict for scoped context (ADR-087).
-                     Expected keys: id, title, deliverable_type,
-                     deliverable_instructions, deliverable_memory.
+        agent: Optional agent dict for scoped context (ADR-087).
+                     Expected keys: id, title, agent_type,
+                     agent_instructions, agent_memory.
 
     Returns:
         Dict structured for JSON serialization into the prompt.
-        Designed to stay under ~2,000 tokens (+ ~500 for deliverable scope).
+        Designed to stay under ~2,000 tokens (+ ~500 for agent scope).
     """
     # Parallelize independent DB queries via thread pool.
     # Each thread gets its own Supabase client to avoid httpx connection pool
@@ -75,9 +75,9 @@ async def build_working_memory(
     def _make_client():
         return _create_supabase_client(url, key)
 
-    context_rows, deliverables, platforms, sessions, system_summary = await asyncio.gather(
+    context_rows, agents, platforms, sessions, system_summary = await asyncio.gather(
         asyncio.to_thread(_get_user_memory_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_active_deliverables_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_active_agents_sync, user_id, _make_client()),
         asyncio.to_thread(_get_connected_platforms_sync, user_id, _make_client()),
         asyncio.to_thread(_get_recent_sessions_sync, user_id, _make_client()),
         asyncio.to_thread(_get_system_summary_sync, user_id, _make_client()),
@@ -87,15 +87,15 @@ async def build_working_memory(
         "profile": _extract_profile(context_rows),
         "preferences": _extract_preferences(context_rows),
         "known": _extract_known(context_rows),
-        "deliverables": deliverables,
+        "agents": agents,
         "platforms": platforms,
         "recent_sessions": sessions,
         "system_summary": system_summary,
     }
 
-    # ADR-087: Inject deliverable-scoped context if session is scoped
-    if deliverable:
-        working_memory["scoped_deliverable"] = await _extract_deliverable_scope(deliverable, client)
+    # ADR-087: Inject agent-scoped context if session is scoped
+    if agent:
+        working_memory["scoped_agent"] = await _extract_agent_scope(agent, client)
 
     return working_memory
 
@@ -169,36 +169,36 @@ def _extract_known(rows: list[dict]) -> list[dict]:
     return known
 
 
-async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
+async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     """
-    Extract deliverable-scoped context for working memory injection (ADR-087).
+    Extract agent-scoped context for working memory injection (ADR-087).
 
     Returns a structured dict with instructions, session history (via FK query),
-    and memory (observations, goal) for the scoped deliverable.
+    and memory (observations, goal) for the scoped agent.
 
-    Session summaries are queried from chat_sessions by deliverable_id FK,
-    NOT duplicated into deliverable_memory JSONB.
+    Session summaries are queried from chat_sessions by agent_id FK,
+    NOT duplicated into agent_memory JSONB.
     """
-    instructions = (deliverable.get("deliverable_instructions") or "").strip()
-    memory = deliverable.get("deliverable_memory") or {}
-    deliverable_id = deliverable.get("id")
+    instructions = (agent.get("agent_instructions") or "").strip()
+    memory = agent.get("agent_memory") or {}
+    agent_id = agent.get("id")
 
     scope = {
-        "id": deliverable_id,
-        "title": deliverable.get("title", "Untitled"),
-        "type": deliverable.get("deliverable_type", "custom"),
+        "id": agent_id,
+        "title": agent.get("title", "Untitled"),
+        "type": agent.get("agent_type", "custom"),
     }
 
     if instructions:
         scope["instructions"] = instructions
 
-    # Query scoped session summaries via deliverable_id FK (ADR-087 Phase 2)
-    if deliverable_id:
+    # Query scoped session summaries via agent_id FK (ADR-087 Phase 2)
+    if agent_id:
         try:
             sessions_result = (
                 client.table("chat_sessions")
                 .select("summary, created_at")
-                .eq("deliverable_id", deliverable_id)
+                .eq("agent_id", agent_id)
                 .not_.is_("summary", "null")
                 .order("created_at", desc=True)
                 .limit(3)
@@ -227,12 +227,12 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
         scope["goal"] = goal
 
     # Fetch latest version preview + provenance — so TP can see what was last generated
-    if deliverable_id:
+    if agent_id:
         try:
             version_result = (
-                client.table("deliverable_versions")
+                client.table("agent_runs")
                 .select("version_number, status, draft_content, final_content, created_at, delivery_status, source_snapshots, metadata")
-                .eq("deliverable_id", deliverable_id)
+                .eq("agent_id", agent_id)
                 .order("created_at", desc=True)
                 .limit(1)
                 .execute()
@@ -270,30 +270,30 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
     return scope
 
 
-def _get_active_deliverables_sync(user_id: str, client: Any) -> list:
-    """Fetch active deliverables summary (sync, for thread pool)."""
-    deliverables = []
+def _get_active_agents_sync(user_id: str, client: Any) -> list:
+    """Fetch active agents summary (sync, for thread pool)."""
+    agents = []
     total_count = 0
 
     try:
-        count_result = client.table("deliverables").select(
+        count_result = client.table("agents").select(
             "id", count="exact"
         ).eq("user_id", user_id).eq("status", "active").execute()
 
         total_count = count_result.count or 0
 
-        result = client.table("deliverables").select(
+        result = client.table("agents").select(
             "id, title, status, schedule, recipient_context, next_run_at, updated_at"
         ).eq("user_id", user_id).eq("status", "active").order(
             "updated_at", desc=True
-        ).limit(MAX_DELIVERABLES).execute()
+        ).limit(MAX_AGENTS).execute()
 
         if result.data:
             for d in result.data:
                 schedule = d.get("schedule", {}) or {}
                 recipient = d.get("recipient_context", {}) or {}
 
-                deliverables.append({
+                agents.append({
                     "id": d["id"],
                     "title": d.get("title", "Untitled"),
                     "frequency": schedule.get("frequency", "unknown"),
@@ -301,15 +301,15 @@ def _get_active_deliverables_sync(user_id: str, client: Any) -> list:
                     "next_run": d.get("next_run_at"),
                 })
 
-        if total_count > MAX_DELIVERABLES:
-            deliverables.append({
-                "_note": f"... and {total_count - MAX_DELIVERABLES} more active deliverables"
+        if total_count > MAX_AGENTS:
+            agents.append({
+                "_note": f"... and {total_count - MAX_AGENTS} more active agents"
             })
 
     except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch deliverables: {e}")
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch agents: {e}")
 
-    return deliverables
+    return agents
 
 
 def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
@@ -434,12 +434,12 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
             created_at = row.get("created_at")
 
             actions_taken = metadata.get("actions_taken", [])
-            deliverables_triggered = metadata.get("deliverables_triggered", [])
+            agents_triggered = metadata.get("agents_triggered", [])
 
             summary["last_signal_pass"] = {
                 "when": calculate_freshness(created_at, now),
                 "actions_count": len(actions_taken),
-                "deliverables_triggered": len(deliverables_triggered),
+                "agents_triggered": len(agents_triggered),
             }
 
     except Exception as e:
@@ -504,12 +504,12 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platform sync freshness: {e}")
 
     try:
-        # 3. Pending reviews (deliverable versions with status=draft)
+        # 3. Pending reviews (agent versions with status=draft)
         # Use a direct query approach that works with the schema
         pending_result = (
-            client.table("deliverable_versions")
-            .select("id, deliverable_id, deliverables!inner(user_id)")
-            .eq("deliverables.user_id", user_id)
+            client.table("agent_runs")
+            .select("id, agent_id, agents!inner(user_id)")
+            .eq("agents.user_id", user_id)
             .in_("status", ["draft"])
             .execute()
         )
@@ -520,20 +520,20 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch pending reviews (join query): {e}")
         # Fallback: try simpler query
         try:
-            # Get user's deliverable IDs first
-            deliverables_result = (
-                client.table("deliverables")
+            # Get user's agent IDs first
+            agents_result = (
+                client.table("agents")
                 .select("id")
                 .eq("user_id", user_id)
                 .execute()
             )
-            deliverable_ids = [d["id"] for d in (deliverables_result.data or [])]
+            agent_ids = [d["id"] for d in (agents_result.data or [])]
 
-            if deliverable_ids:
+            if agent_ids:
                 pending_result = (
-                    client.table("deliverable_versions")
+                    client.table("agent_runs")
                     .select("id", count="exact")
-                    .in_("deliverable_id", deliverable_ids)
+                    .in_("agent_id", agent_ids)
                     .in_("status", ["draft"])
                     .execute()
                 )
@@ -627,11 +627,11 @@ def format_for_prompt(working_memory: dict) -> str:
             else:
                 lines.append(f"- {content}")
 
-    # Deliverables (WORK)
-    deliverables = working_memory.get("deliverables", [])
-    if deliverables:
-        lines.append(f"\n### Active deliverables")
-        for d in deliverables:
+    # Agents (WORK)
+    agents = working_memory.get("agents", [])
+    if agents:
+        lines.append(f"\n### Active agents")
+        for d in agents:
             if "_note" in d:
                 lines.append(f"  {d['_note']}")
             else:
@@ -656,15 +656,15 @@ def format_for_prompt(working_memory: dict) -> str:
         for s in sessions:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
 
-    # ADR-087: Scoped deliverable context — instructions + memory for active deliverable
-    scoped = working_memory.get("scoped_deliverable")
+    # ADR-087: Scoped agent context — instructions + memory for active agent
+    scoped = working_memory.get("scoped_agent")
     if scoped:
         title = scoped.get("title", "Untitled")
         dtype = scoped.get("type", "custom").replace("_", " ").title()
         did = scoped.get("id", "")
-        lines.append(f"\n### Current deliverable: {title} ({dtype})")
+        lines.append(f"\n### Current agent: {title} ({dtype})")
         if did:
-            lines.append(f"**Ref:** `deliverable:{did}`")
+            lines.append(f"**Ref:** `agent:{did}`")
 
         instructions = scoped.get("instructions")
         if instructions:
@@ -714,7 +714,7 @@ def format_for_prompt(working_memory: dict) -> str:
         if signal_pass:
             when = signal_pass.get("when", "unknown")
             actions = signal_pass.get("actions_count", 0)
-            triggered = signal_pass.get("deliverables_triggered", 0)
+            triggered = signal_pass.get("agents_triggered", 0)
             if actions > 0 or triggered > 0:
                 lines.append(f"- Signal processing: {when} ({actions} actions, {triggered} triggered)")
             else:

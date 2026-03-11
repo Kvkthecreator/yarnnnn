@@ -4,7 +4,7 @@
  * DestinationSelector - ADR-032 Phase 2
  *
  * Platform-first destination picker. Shows connected integrations
- * and allows selecting where deliverables should be sent.
+ * and allows selecting where agents should be sent.
  *
  * This is step 1 in the platform-first flow:
  * Destination → Type → Sources → Schedule
@@ -196,7 +196,7 @@ export function DestinationSelector({
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Where should this deliverable appear?
+          Where should this agent appear?
         </p>
 
         <div className="grid grid-cols-2 gap-2">

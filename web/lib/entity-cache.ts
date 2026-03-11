@@ -1,14 +1,14 @@
 /**
  * Entity Cache
  *
- * Simple in-memory cache for entity names (deliverables, projects).
+ * Simple in-memory cache for entity names (agents, projects).
  * Surfaces populate this cache when loading data, TPBar reads from it
  * to display actual names instead of generic labels.
  */
 
 interface CachedEntity {
   name: string;
-  type: 'deliverable' | 'project';
+  type: 'agent' | 'project';
   cachedAt: number;
 }
 
@@ -23,7 +23,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 export function cacheEntity(
   id: string,
   name: string,
-  type: 'deliverable' | 'project'
+  type: 'agent' | 'project'
 ): void {
   entityCache.set(id, {
     name,

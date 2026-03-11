@@ -6,7 +6,7 @@ RAG cache-miss pattern: Search finds stale/empty → Refresh syncs latest → Se
 
 Modes:
   chat    — 30-minute staleness guard; any connected platform
-  headless — no staleness guard (infrequent, purposeful); scoped to deliverable's sources
+  headless — no staleness guard (infrequent, purposeful); scoped to agent's sources
 
 Usage:
   RefreshPlatformContent(platform="slack")
@@ -59,10 +59,10 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
     Handle RefreshPlatformContent primitive.
 
     Chat mode: checks 30-minute staleness guard, any connected platform.
-    Headless mode (ADR-092): no staleness guard; scoped to deliverable's configured sources.
+    Headless mode (ADR-092): no staleness guard; scoped to agent's configured sources.
 
     Args:
-        auth: Auth context with user_id, client, and optionally headless/deliverable_sources
+        auth: Auth context with user_id, client, and optionally headless/agent_sources
         input: {"platform": "slack|gmail|notion|calendar"}
 
     Returns:
@@ -87,13 +87,13 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
 
     user_id = auth.user_id
 
-    # ADR-092: Headless mode — verify platform is in deliverable's configured sources
+    # ADR-092: Headless mode — verify platform is in agent's configured sources
     if is_headless:
-        deliverable_sources = getattr(auth, "deliverable_sources", None)
-        if deliverable_sources is not None:
-            # deliverable_sources is a list of source dicts with a 'platform' key
+        agent_sources = getattr(auth, "agent_sources", None)
+        if agent_sources is not None:
+            # agent_sources is a list of source dicts with a 'platform' key
             configured_platforms = {
-                s.get("platform", "") for s in deliverable_sources if isinstance(s, dict)
+                s.get("platform", "") for s in agent_sources if isinstance(s, dict)
             }
             # google connection covers both gmail and calendar
             if "google" in configured_platforms:
@@ -103,7 +103,7 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
                     "success": False,
                     "error": "platform_not_in_sources",
                     "message": (
-                        f"Headless refresh is scoped to this deliverable's configured sources. "
+                        f"Headless refresh is scoped to this agent's configured sources. "
                         f"{platform} is not in the configured sources."
                     ),
                 }

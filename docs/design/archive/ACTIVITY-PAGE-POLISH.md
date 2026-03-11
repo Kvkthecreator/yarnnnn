@@ -10,7 +10,7 @@
 
 ## Problem
 
-The activity page rendered a flat list of up to 500 events with no temporal structure. Clicking any item navigated directly to a related page (deliverable workspace, context page, memory) with no preview of what happened — the redirect felt ambiguous because the user lost context of the activity that triggered it.
+The activity page rendered a flat list of up to 500 events with no temporal structure. Clicking any item navigated directly to a related page (agent workspace, context page, memory) with no preview of what happened — the redirect felt ambiguous because the user lost context of the activity that triggered it.
 
 Rich metadata (strategy, error messages, item counts, tool usage) existed per event but was never surfaced.
 
@@ -45,7 +45,7 @@ Backend fetch unchanged (500 items, 30 days). Pagination is client-side via `vis
 Click a row to expand inline detail panel showing:
 - **Metadata details** per event type (strategy, type, version, status, error, items synced, tools used, etc.)
 - **Absolute timestamp** ("Mar 3, 2026 9:15 AM")
-- **Explicit navigation link** ("View deliverable", "View gmail context", etc.)
+- **Explicit navigation link** ("View agent", "View gmail context", etc.)
 
 This replaces the previous click-to-navigate behavior. Navigation is now a deliberate second step inside the expanded panel.
 
@@ -58,7 +58,7 @@ This replaces the previous click-to-navigate behavior. Navigation is now a delib
 │   Version     v3                            │
 │   Status      delivered                     │
 │   Mar 3, 2026 9:15 AM                       │
-│   View deliverable →                        │
+│   View agent →                        │
 └─────────────────────────────────────────────┘
 ```
 

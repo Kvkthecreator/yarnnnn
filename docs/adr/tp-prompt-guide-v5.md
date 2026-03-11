@@ -38,7 +38,7 @@ User's workspace (the "codebase"):
 ├── platform:slack       → synced Slack content (source directory)
 ├── platform:notion      → synced Notion content (source directory)
 ├── document:*           → uploaded files (source files)
-├── deliverable:*        → generated outputs (build artifacts)
+├── agent:*        → generated outputs (build artifacts)
 ├── work:*               → execution records (CI logs)
 └── {context}            → user profile + summaries (CLAUDE.md)
 ```
@@ -50,7 +50,7 @@ TP navigates this with Read/List/Search, modifies with Write/Edit, and triggers 
 ```
 1. Context injection ({context})
    - User profile (name, role, preferences, timezone)
-   - Active deliverables summary
+   - Active agents summary
    - Connected platforms + last sync
    - Recent session summaries (2-3)
 
@@ -74,7 +74,7 @@ TP navigates this with Read/List/Search, modifies with Write/Edit, and triggers 
 
 5. Reference Syntax
    - type:identifier[/subpath][?query]
-   - Types: deliverable, platform, document, work, session, action
+   - Types: agent, platform, document, work, session, action
 
 6. Guidelines
    - Check for duplicates before creating (List first)
@@ -83,19 +83,19 @@ TP navigates this with Read/List/Search, modifies with Write/Edit, and triggers 
    - If a tool fails, recover silently (search for right ref, retry)
 
 7. Domain Terms
-   - Deliverable: recurring content output
+   - Agent: recurring content output
    - Platform: connected service (Slack, Notion)
-   - Source: data input for a deliverable
+   - Source: data input for a agent
    - Work: an execution record
 
 8. Explore Before Asking
    - Ambiguous request → List existing entities → Search docs/platform content
-   - Context injection already has user profile and active deliverables
+   - Context injection already has user profile and active agents
    - Only Clarify when: no entities to learn from, no relevant context, multiple equally-valid options
    - Even then, prefer inferring defaults and confirming over asking
 
 9. Creating Entities
-   - Write(ref="deliverable:new", content={...})
+   - Write(ref="agent:new", content={...})
    - Always confirm intent first
    - Check duplicates with List
 
@@ -125,9 +125,9 @@ In v4, TP explored entities and memories. In v5, exploration is simpler because 
 User: "Create a weekly report for my team"
 
 v5 behavior:
-1. {context} already contains active deliverables and user profile
-   → Sees existing "Weekly Update" deliverable for Product Team
-2. List(pattern="deliverable:?status=active")
+1. {context} already contains active agents and user profile
+   → Sees existing "Weekly Update" agent for Product Team
+2. List(pattern="agent:?status=active")
    → Confirms pattern
 3. "I'll create a Weekly Report for the Product Team, similar to your existing Weekly Update. Sound good?"
 
@@ -140,8 +140,8 @@ The key insight: **{context} injection at session start eliminates most need for
 ### Good Response Examples
 
 ```
-User: "How many deliverables do I have?"
-→ [List] → "You have 3 active deliverables."
+User: "How many agents do I have?"
+→ [List] → "You have 3 active agents."
 
 User: "Pause my weekly report"
 → [Edit] → "Paused."
@@ -177,7 +177,7 @@ TP's most important workflow maps to three Execute actions:
 
 ```
 1. platform.sync        → Populate the filesystem (pull from Slack/Notion)
-2. deliverable.generate → Produce the output (read sources, create content)
+2. agent.generate → Produce the output (read sources, create content)
 3. platform.publish     → Deliver the output (push to destination)
 ```
 
@@ -213,7 +213,7 @@ def build_session_context(user_id: str) -> dict:
             "preferences": dict,   # tone, frequency defaults, etc.
             "timezone": str        # e.g., "Asia/Seoul"
         },
-        "active_deliverables": [
+        "active_agents": [
             {
                 "id": str,
                 "title": str,
@@ -254,12 +254,12 @@ Target: context injection should be < 2,000 tokens to leave room for conversatio
 | Section | Approximate Tokens |
 |---------|-------------------|
 | User profile | ~100 |
-| Active deliverables (5 max) | ~300 |
+| Active agents (5 max) | ~300 |
 | Connected platforms (5 max) | ~200 |
 | Recent sessions (3 max, summaries only) | ~400 |
 | **Total** | **~1,000** |
 
-Generous budget. If user has many deliverables, truncate to 5 most recent + count.
+Generous budget. If user has many agents, truncate to 5 most recent + count.
 
 ---
 
@@ -271,7 +271,7 @@ Generous budget. If user has many deliverables, truncate to 5 most recent + coun
 - Reduced to 7 primitives (removed Respond, Todo)
 - Adopted filesystem-as-context mental model
 - Context injection replaces memory search for most use cases
-- Search scopes narrowed: `document`, `platform_content`, `deliverable`, `all`
+- Search scopes narrowed: `document`, `platform_content`, `agent`, `all`
 - Added error recovery section
 - Removed Multi-Step Work section (Todo gone)
 - Added Core Value Loop section (Sync → Generate → Publish)
@@ -304,7 +304,7 @@ Generous budget. If user has many deliverables, truncate to 5 most recent + coun
 
 **Respond** — TP's text output IS the response. A separate tool adds indirection without value. If interleaved progress messages are needed later (during long-running Execute), that's a streaming/websocket concern.
 
-**Todo** — No current workflow takes long enough to need a progress UI. Claude Code doesn't have progress widgets — the visible tool-call stream IS the progress indicator. If `deliverable.generate` becomes a multi-step pipeline taking 30+ seconds, add Todo back.
+**Todo** — No current workflow takes long enough to need a progress UI. Claude Code doesn't have progress widgets — the visible tool-call stream IS the progress indicator. If `agent.generate` becomes a multi-step pipeline taking 30+ seconds, add Todo back.
 
 ### Why Demote Memory?
 
@@ -326,7 +326,7 @@ The memory table stays for audit/cache purposes, but TP doesn't need to know abo
 | Runtime `Search(scope="memory")` | +500ms per search | Embedding call + results | Depends on embedding quality |
 | Context injection at session start | 0ms during conversation | ~1,000 tokens in system prompt | Deterministic — always present |
 
-For a solo user with < 10 active deliverables and 2-3 platforms, injection is clearly better. Runtime search becomes valuable at scale (100+ deliverables, 10+ platforms, months of history).
+For a solo user with < 10 active agents and 2-3 platforms, injection is clearly better. Runtime search becomes valuable at scale (100+ agents, 10+ platforms, months of history).
 
 ### Why Filesystem-as-Context?
 
@@ -352,10 +352,10 @@ Example test matrix:
 
 | Input | Expected Behavior |
 |-------|-------------------|
-| "How many deliverables?" | Read from context or List → short answer |
+| "How many agents?" | Read from context or List → short answer |
 | "What's connected?" | Read from context → "Slack and Notion" |
 | "/create" | Clarify(options=[...]) |
-| "Make me a report" | Check context → check existing deliverables → infer or Clarify |
+| "Make me a report" | Check context → check existing agents → infer or Clarify |
 | "yes" (after confirmation) | Write immediately |
 | "Sync Slack" | Execute(platform.sync) → "Syncing now." |
 | "Pause weekly report" | Edit → "Paused." |

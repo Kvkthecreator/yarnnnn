@@ -145,7 +145,7 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ```sql
 -- Count entities by user (ADR-059: user_memory replaces memories)
 SELECT user_id, COUNT(*) FROM user_memory GROUP BY user_id;
-SELECT user_id, COUNT(*) FROM deliverables GROUP BY user_id;
+SELECT user_id, COUNT(*) FROM agents GROUP BY user_id;
 
 -- Recent memories
 SELECT key, value, source, confidence, updated_at FROM user_memory

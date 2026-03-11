@@ -4,7 +4,7 @@ List Primitive
 Find entities by structure/pattern.
 
 Usage:
-  List(pattern="deliverable:*")
+  List(pattern="agent:*")
   List(pattern="memory:?type=fact")
   List(pattern="action:platform.*")
 """
@@ -19,8 +19,8 @@ LIST_TOOL = {
     "description": """Find entities by pattern (structural navigation).
 
 Examples:
-- List(pattern="deliverable:*") - all deliverables
-- List(pattern="deliverable:?status=active") - active deliverables
+- List(pattern="agent:*") - all agents
+- List(pattern="agent:?status=active") - active agents
 - List(pattern="memory:?type=fact&limit=20") - fact memories
 - List(pattern="platform:*") - all connected platforms
 - List(pattern="action:platform.*") - all platform actions
@@ -31,7 +31,7 @@ Pattern format: <type>:<identifier|*>[?<filters>]""",
         "properties": {
             "pattern": {
                 "type": "string",
-                "description": "Pattern to match (e.g., 'deliverable:*')"
+                "description": "Pattern to match (e.g., 'agent:*')"
             },
             "limit": {
                 "type": "integer",
@@ -135,9 +135,9 @@ def _format_list_message(entity_type: str, items: list) -> str:
         return f"No {entity_type}s found"
 
     # Provide summary based on type
-    if entity_type == "deliverable":
+    if entity_type == "agent":
         active = sum(1 for i in items if i.get("status") == "active")
-        return f"Found {count} deliverable(s) ({active} active)"
+        return f"Found {count} agent(s) ({active} active)"
 
     elif entity_type == "platform":
         connected = sum(1 for i in items if i.get("status") == "active")

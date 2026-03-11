@@ -4,7 +4,7 @@
  * ADR-034: Hook to get the active domain for the current context.
  *
  * Domain is determined by:
- * 1. If viewing a deliverable, use that deliverable's domain
+ * 1. If viewing a agent, use that agent's domain
  * 2. If user has only one non-default domain, use it implicitly
  * 3. Otherwise, null (ambiguous)
  */
@@ -22,7 +22,7 @@ export interface ActiveDomain {
 
 export interface UseActiveDomainResult {
   domain: ActiveDomain | null;
-  source: 'deliverable' | 'single_domain' | 'ambiguous' | 'loading';
+  source: 'agent' | 'single_domain' | 'ambiguous' | 'loading';
   domainCount: number;
   isLoading: boolean;
   error: Error | null;
@@ -35,26 +35,26 @@ export function useActiveDomain(): UseActiveDomainResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Get deliverable ID from surface context
-  const deliverableId =
-    surface.type === 'deliverable-review' || surface.type === 'deliverable-detail'
-      ? ('deliverableId' in surface ? surface.deliverableId : undefined)
+  // Get agent ID from surface context
+  const agentId =
+    surface.type === 'agent-review' || surface.type === 'agent-detail'
+      ? ('agentId' in surface ? surface.agentId : undefined)
       : undefined;
 
   const fetchDomain = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const result = await api.domains.getActive(deliverableId);
+      const result = await api.domains.getActive(agentId);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch domain'));
     } finally {
       setIsLoading(false);
     }
-  }, [deliverableId]);
+  }, [agentId]);
 
-  // Fetch on mount and when deliverableId changes
+  // Fetch on mount and when agentId changes
   useEffect(() => {
     fetchDomain();
   }, [fetchDomain]);

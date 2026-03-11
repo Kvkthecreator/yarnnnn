@@ -4,16 +4,16 @@ Reference Parsing and Resolution (ADR-072 Unified Content Layer)
 Grammar: <type>:<identifier>[/<subpath>][?<query>]
 
 Examples:
-  deliverable:uuid-123          # Specific by ID
-  deliverable:latest            # Most recent
+  agent:uuid-123          # Specific by ID
+  agent:latest            # Most recent
   platform:slack                # By provider name
   platform:slack/credentials    # Sub-entity
   platform_content:*            # All platform content
   session:current               # Special reference
 
 Entity types:
-  - deliverable: Content deliverables
-  - version: Deliverable versions (generated content)
+  - agent: Content agents
+  - version: Agent versions (generated content)
   - platform: Connected platforms (platform_connections)
   - platform_content: Unified content layer (ADR-072)
   - memory: Knowledge entries (user facts, preferences)
@@ -71,8 +71,8 @@ class EntityRef:
 
 # Valid entity types
 ENTITY_TYPES = {
-    "deliverable",
-    "version",  # Deliverable versions (generated content)
+    "agent",
+    "version",  # Agent versions (generated content)
     "platform",
     "platform_content",  # ADR-072: unified content layer
     "memory",  # ADR-059: user_memory
@@ -100,7 +100,7 @@ def parse_ref(ref: str) -> EntityRef:
     Parse a reference string into an EntityRef.
 
     Args:
-        ref: Reference string like "deliverable:uuid-123" or "memory:?type=fact"
+        ref: Reference string like "agent:uuid-123" or "memory:?type=fact"
 
     Returns:
         EntityRef with parsed components
@@ -155,8 +155,8 @@ def parse_ref(ref: str) -> EntityRef:
 
 # Table mappings for entity types
 TABLE_MAP = {
-    "deliverable": "deliverables",
-    "version": "deliverable_versions",  # Generated deliverable content
+    "agent": "agents",
+    "version": "agent_runs",  # Generated agent content
     "platform": "platform_connections",
     "platform_content": "platform_content",  # ADR-072: unified content layer
     "memory": "user_memory",  # ADR-059: Replaces knowledge_entries
@@ -200,7 +200,7 @@ async def resolve_ref(
     if ref.entity_type == "system":
         return {"type": "system", "scope": ref.identifier}
 
-    # Handle version type specially — scoped through deliverable, no direct user_id
+    # Handle version type specially — scoped through agent, no direct user_id
     if ref.entity_type == "version":
         return await _resolve_version_ref(ref, auth)
 
@@ -224,7 +224,7 @@ async def resolve_ref(
         if "type" in ref.query and ref.entity_type == "memory":
             # Filter memories by type/tag
             query = query.contains("tags", [ref.query["type"]])
-        if "status" in ref.query and ref.entity_type == "deliverable":
+        if "status" in ref.query and ref.entity_type == "agent":
             query = query.eq("status", ref.query["status"])
 
         result = query.execute()
@@ -406,47 +406,47 @@ async def _enrich_platform_with_sync_status(client: Any, user_id: str, platform:
 
 async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Dict], None]:
     """
-    Resolve version references. Versions are scoped through deliverables (no direct user_id).
+    Resolve version references. Versions are scoped through agents (no direct user_id).
 
     Supports:
-      - version:latest?deliverable_id=X  → latest version for a specific deliverable
-      - version:latest                    → latest version across all user's deliverables
+      - version:latest?agent_id=X  → latest version for a specific agent
+      - version:latest                    → latest version across all user's agents
       - version:<uuid>                    → specific version by ID
-      - version:*?deliverable_id=X        → all versions for a deliverable
+      - version:*?agent_id=X        → all versions for a agent
     """
     client = auth.client
-    deliverable_id = ref.query.get("deliverable_id")
+    agent_id = ref.query.get("agent_id")
 
-    # Get user's deliverable IDs for scoping
-    if deliverable_id:
-        # Verify this deliverable belongs to the user
-        check = client.table("deliverables").select("id").eq(
-            "id", deliverable_id
+    # Get user's agent IDs for scoping
+    if agent_id:
+        # Verify this agent belongs to the user
+        check = client.table("agents").select("id").eq(
+            "id", agent_id
         ).eq("user_id", auth.user_id).execute()
         if not check.data:
             return None
-        user_deliverable_ids = [deliverable_id]
+        user_agent_ids = [agent_id]
     else:
-        user_dels = client.table("deliverables").select("id").eq(
+        user_dels = client.table("agents").select("id").eq(
             "user_id", auth.user_id
         ).execute()
-        user_deliverable_ids = [d["id"] for d in (user_dels.data or [])]
-        if not user_deliverable_ids:
+        user_agent_ids = [d["id"] for d in (user_dels.data or [])]
+        if not user_agent_ids:
             return [] if ref.identifier == "*" else None
 
     select_cols = (
-        "id, deliverable_id, version_number, status, "
+        "id, agent_id, version_number, status, "
         "draft_content, final_content, "
         "source_snapshots, metadata, "
         "created_at, delivery_status, delivery_error"
     )
 
     if ref.identifier == "*":
-        q = client.table("deliverable_versions").select(select_cols)
-        if deliverable_id:
-            q = q.eq("deliverable_id", deliverable_id)
+        q = client.table("agent_runs").select(select_cols)
+        if agent_id:
+            q = q.eq("agent_id", agent_id)
         else:
-            q = q.in_("deliverable_id", user_deliverable_ids)
+            q = q.in_("agent_id", user_agent_ids)
         limit = int(ref.query.get("limit", 20))
         result = q.order("created_at", desc=True).limit(limit).execute()
         # Normalize content field + truncate in list view
@@ -462,11 +462,11 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
         return result.data or []
 
     elif ref.identifier == "latest":
-        q = client.table("deliverable_versions").select(select_cols)
-        if deliverable_id:
-            q = q.eq("deliverable_id", deliverable_id)
+        q = client.table("agent_runs").select(select_cols)
+        if agent_id:
+            q = q.eq("agent_id", agent_id)
         else:
-            q = q.in_("deliverable_id", user_deliverable_ids)
+            q = q.in_("agent_id", user_agent_ids)
         result = q.order("created_at", desc=True).limit(1).execute()
         if result.data:
             item = result.data[0]
@@ -476,9 +476,9 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
 
     else:
         # Specific version by ID
-        result = client.table("deliverable_versions").select(select_cols).eq(
+        result = client.table("agent_runs").select(select_cols).eq(
             "id", ref.identifier
-        ).in_("deliverable_id", user_deliverable_ids).execute()
+        ).in_("agent_id", user_agent_ids).execute()
         if result.data:
             item = result.data[0]
             item["content"] = item.pop("final_content", None) or item.pop("draft_content", None) or ""

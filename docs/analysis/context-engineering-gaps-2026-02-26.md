@@ -10,7 +10,7 @@
 
 **The problem**: The framework identifies artifact trail (tracking which files/content were accessed, modified, or produced) as the universal weakness across all compression methods, scoring only 2.2-2.5/5.0. YARNNN's in-session compaction (ADR-067) generates prose summaries that lose the trail of which `platform_content` records were searched, which tool calls were made, and what intermediate results informed decisions.
 
-**Why it matters for YARNNN**: The Thinking Partner handles long sessions where users iterate on deliverables, search across platforms, and make decisions based on specific Slack threads or Gmail messages. When compaction fires at 40K tokens, that provenance trail compresses into generic prose. If the user later asks "which Slack thread had that metric you mentioned?", the compacted context can't answer.
+**Why it matters for YARNNN**: The Thinking Partner handles long sessions where users iterate on agents, search across platforms, and make decisions based on specific Slack threads or Gmail messages. When compaction fires at 40K tokens, that provenance trail compresses into generic prose. If the user later asks "which Slack thread had that metric you mentioned?", the compacted context can't answer.
 
 **Recommendation**: Implement a structured compaction format alongside prose summaries. When compaction triggers:
 
@@ -25,7 +25,7 @@
     - Include deployment frequency chart (user approved)
     - Exclude incident count (user said "too negative")
   </decisions>
-  <deliverable_state>digest v3 drafted, pending tone adjustment</deliverable_state>
+  <agent_state>digest v3 drafted, pending tone adjustment</agent_state>
   <next_steps>Apply casual tone, regenerate intro paragraph</next_steps>
 </compaction>
 ```
@@ -67,7 +67,7 @@ This is the framework's "anchored iterative" approach with explicit artifact sec
 1. Track `prompt_tokens` and `completion_tokens` from Anthropic API responses (already returned in usage metadata)
 2. Accumulate per-session totals in `chat_sessions` (add `total_prompt_tokens`, `total_completion_tokens`)
 3. Track per-tool-call token contribution (measure tool result size before/after truncation)
-4. Dashboard metric: tokens-per-task for deliverable generation, platform search, and general conversation
+4. Dashboard metric: tokens-per-task for agent generation, platform search, and general conversation
 
 This data enables evidence-based tuning of truncation limits and compaction thresholds.
 
@@ -148,7 +148,7 @@ These aren't gaps — they're areas where YARNNN's approach is novel and could c
 
 ### 1. Signal-Driven Retention (ADR-072)
 
-The framework's memory systems assume content is either cached or discarded based on TTL. YARNNN's `retained` flag model — where content starts ephemeral and gets promoted to permanent only when referenced by signal processing or deliverable execution — is a novel pattern not covered by any framework skill. This is effectively an "attention-driven retention" model: content that proves useful survives.
+The framework's memory systems assume content is either cached or discarded based on TTL. YARNNN's `retained` flag model — where content starts ephemeral and gets promoted to permanent only when referenced by signal processing or agent execution — is a novel pattern not covered by any framework skill. This is effectively an "attention-driven retention" model: content that proves useful survives.
 
 **Contribution opportunity**: Document this as a "selective retention" pattern for the framework's memory-systems skill.
 
@@ -166,7 +166,7 @@ The framework's memory layers (working, short-term, long-term, entity, temporal)
 
 ### 4. Headless Agent Reuse
 
-YARNNN runs the same TP agent in both interactive (streaming) and headless (deliverable execution) modes. The framework discusses multi-agent patterns but doesn't cover single-agent reuse across execution modes. This avoids the framework's "telephone game" problem entirely.
+YARNNN runs the same TP agent in both interactive (streaming) and headless (agent execution) modes. The framework discusses multi-agent patterns but doesn't cover single-agent reuse across execution modes. This avoids the framework's "telephone game" problem entirely.
 
 **Contribution opportunity**: Document "modal agent reuse" as an alternative to multi-agent delegation for scheduled work.
 

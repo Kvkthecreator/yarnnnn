@@ -8,7 +8,7 @@
 
 ## Overview
 
-Add Google Calendar as the fourth platform integration, leveraging existing Google OAuth infrastructure from Gmail. This enables time-triggered, person-aware deliverables like meeting prep and weekly previews.
+Add Google Calendar as the fourth platform integration, leveraging existing Google OAuth infrastructure from Gmail. This enables time-triggered, person-aware agents like meeting prep and weekly previews.
 
 ---
 
@@ -105,7 +105,7 @@ B. **Incremental scope upgrade** (more complex)
 
 ### 2.1 Create Calendar Fetch Function
 
-**File**: `api/services/deliverable_pipeline.py`
+**File**: `api/services/agent_pipeline.py`
 
 ```python
 async def _fetch_calendar_data(
@@ -297,14 +297,14 @@ def parse_time_filter(filter_str: str) -> datetime:
 
 ---
 
-## Phase 3: Meeting Prep Deliverable (Day 2-3)
+## Phase 3: Meeting Prep Agent (Day 2-3)
 
 ### 3.1 Add Meeting Prep Type
 
 **File**: `web/types/index.ts`
 
 ```typescript
-export type DeliverableType =
+export type AgentType =
   // ... existing types ...
 
   // Calendar-triggered (ADR-046)
@@ -314,7 +314,7 @@ export type DeliverableType =
 ```
 
 **Tasks**:
-- [ ] Add new deliverable types to TypeScript types
+- [ ] Add new agent types to TypeScript types
 - [ ] Add type metadata (tier, description, etc.)
 
 ### 3.2 Meeting Prep Configuration
@@ -359,11 +359,11 @@ interface MeetingPrepConfig {
 
 **Tasks**:
 - [ ] Define config schema for meeting prep
-- [ ] Add to deliverable config types
+- [ ] Add to agent config types
 
 ### 3.3 Cross-Platform Attendee Context
 
-**File**: `api/services/deliverable_pipeline.py`
+**File**: `api/services/agent_pipeline.py`
 
 ```python
 async def assemble_meeting_prep_context(
@@ -468,7 +468,7 @@ async def fetch_cross_platform_context_for_person(
 
 ### 3.4 Meeting Prep Generation Prompt
 
-**File**: `api/prompts/deliverable_prompts.py` (or similar)
+**File**: `api/prompts/agent_prompts.py` (or similar)
 
 ```python
 MEETING_PREP_PROMPT = """
@@ -497,12 +497,12 @@ Highlight action items or unresolved questions prominently.
 - [ ] Create meeting prep generation prompt
 - [ ] Handle edge cases (no context, many meetings, etc.)
 
-### 3.5 Add to Deliverable Wizard
+### 3.5 Add to Agent Wizard
 
-**File**: `web/components/wizards/DeliverableWizard.tsx` (or similar)
+**File**: `web/components/wizards/AgentWizard.tsx` (or similar)
 
 **Tasks**:
-- [ ] Add "Meeting Prep" as deliverable type option
+- [ ] Add "Meeting Prep" as agent type option
 - [ ] Show Calendar icon
 - [ ] Configure meeting filter options
 - [ ] Configure which platforms to pull context from
@@ -514,7 +514,7 @@ Highlight action items or unresolved questions prominently.
 
 ### 4.1 Weekly Calendar Preview
 
-Simple deliverable that summarizes the week ahead.
+Simple agent that summarizes the week ahead.
 
 ```python
 # Config
@@ -626,7 +626,7 @@ Update Google integration card to show both Gmail and Calendar:
 - [ ] Show capabilities based on metadata
 - [ ] Add icons for Gmail and Calendar
 
-### 5.2 Deliverable Wizard Updates
+### 5.2 Agent Wizard Updates
 
 **Tasks**:
 - [ ] Add Calendar as platform icon in source selection
@@ -659,7 +659,7 @@ Update Google integration card to show both Gmail and Calendar:
 ### E2E Tests
 
 - [ ] Connect Google with Calendar
-- [ ] Create meeting prep deliverable
+- [ ] Create meeting prep agent
 - [ ] Generate meeting prep output
 - [ ] Weekly preview generation
 
@@ -693,10 +693,10 @@ Update Google integration card to show both Gmail and Calendar:
 ### Modified Files
 - [ ] `api/integrations/core/oauth.py` — Add calendar scopes
 - [ ] `api/routes/integrations.py` — Update routes if renaming
-- [ ] `api/services/deliverable_pipeline.py` — Add calendar fetch, meeting prep context
-- [ ] `web/types/index.ts` — Add new deliverable types
+- [ ] `api/services/agent_pipeline.py` — Add calendar fetch, meeting prep context
+- [ ] `web/types/index.ts` — Add new agent types
 - [ ] `web/components/settings/IntegrationCard.tsx` — Show capabilities
-- [ ] `web/components/wizards/DeliverableWizard.tsx` — Add calendar types
+- [ ] `web/components/wizards/AgentWizard.tsx` — Add calendar types
 - [ ] `docs/design/LANDING-PAGE-NARRATIVE-V2.md` — Already updated
 
 ---
@@ -706,7 +706,7 @@ Update Google integration card to show both Gmail and Calendar:
 | Metric | Target | How to Measure |
 |--------|--------|----------------|
 | Calendar connection rate | 50%+ of Google users | `user_integrations` with calendar scope |
-| Meeting prep creation | 20%+ of Calendar users | Deliverables with type = meeting_prep |
+| Meeting prep creation | 20%+ of Calendar users | Agents with type = meeting_prep |
 | Cross-platform usage | 70%+ meeting preps use 2+ platforms | Source config analysis |
 | User satisfaction | Positive feedback | User surveys, support tickets |
 

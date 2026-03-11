@@ -32,7 +32,7 @@ Add a `RefreshPlatformContent` primitive that performs a **synchronous, awaited*
 ### What stays the same:
 
 - Scheduler-based tier-gated cron syncs (ADR-077) continue unchanged
-- Headless mode uses `freshness.sync_stale_sources()` for deliverable generation
+- Headless mode uses `freshness.sync_stale_sources()` for agent generation
 - Frontend "Run sync" button on context pages continues calling REST endpoint
 - All data flows through `platform_content` — TP never reads raw API responses
 
@@ -44,10 +44,10 @@ Add a `RefreshPlatformContent` primitive that performs a **synchronous, awaited*
 - **Mode**: `["chat", "headless"]` — extended to headless by ADR-092
 - **Parameters**: `platform` (enum: slack, gmail, notion, calendar)
 - **Staleness threshold**: 30 minutes (chat only) — headless calls skip this guard (purposeful, infrequent)
-- **Headless scoping**: When called in headless mode, refresh is scoped to the deliverable's configured `sources` only — not arbitrary platforms
+- **Headless scoping**: When called in headless mode, refresh is scoped to the agent's configured `sources` only — not arbitrary platforms
 - **Engine**: Calls `_sync_platform_async()` from `platform_worker.py` (same pipeline as scheduler)
 
-> **ADR-092 note:** Headless `RefreshPlatformContent` enables proactive and reactive deliverables to refresh their own source context mid-execution during a review pass. The `freshness.sync_stale_sources()` pre-flight in the standard generation pipeline is unchanged — it runs before agent invocation as an orchestration step. Headless `RefreshPlatformContent` is available for agent-initiated targeted refresh during the tool-use loop.
+> **ADR-092 note:** Headless `RefreshPlatformContent` enables proactive and reactive agents to refresh their own source context mid-execution during a review pass. The `freshness.sync_stale_sources()` pre-flight in the standard generation pipeline is unchanged — it runs before agent invocation as an orchestration step. Headless `RefreshPlatformContent` is available for agent-initiated targeted refresh during the tool-use loop.
 
 ### Singular implementation
 

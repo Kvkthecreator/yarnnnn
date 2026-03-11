@@ -11,7 +11,7 @@ The difference is simple: **YARNNN's assistant is already connected to your tool
 | You paste in context every time | Your Slack, email, docs, and calendar are already connected |
 | Forgets everything between sessions | Remembers your preferences and work style |
 | Same generic personality for everyone | Personalized to how you work |
-| You drive every interaction | Can work proactively via deliverables |
+| You drive every interaction | Can work proactively via agents |
 
 When you ask "What did the team discuss about the launch?", the assistant searches your actual Slack channels and email threads — not the open internet.
 
@@ -33,7 +33,7 @@ The assistant pulls from your connected platforms to give you answers grounded i
 
 The assistant can search across all your connected tools in a single query — something you'd otherwise do manually across three different apps.
 
-### Deliverable management
+### Agent management
 
 > "Create a weekly digest of #engineering"
 
@@ -41,7 +41,7 @@ The assistant can search across all your connected tools in a single query — s
 
 > "Pause my daily digest — I'm on vacation"
 
-You can create, refine, and manage deliverables through natural conversation.
+You can create, refine, and manage agents through natural conversation.
 
 ### General AI assistance
 
@@ -51,8 +51,8 @@ The assistant is also a capable general-purpose AI. You can ask it to brainstorm
 
 The assistant isn't a separate page you navigate to. It's present on every screen:
 
-- On the **dashboard** — ask questions or create deliverables
-- On a **deliverable review** — refine the draft with natural language
+- On the **dashboard** — ask questions or create agents
+- On a **agent review** — refine the draft with natural language
 - On the **context page** — ask about your connected data
 
 ## It remembers you

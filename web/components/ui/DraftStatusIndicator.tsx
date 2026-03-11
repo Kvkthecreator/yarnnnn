@@ -18,10 +18,10 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { DeliverableVersion, Destination } from '@/types';
+import type { AgentRun, Destination } from '@/types';
 
 interface DraftStatusIndicatorProps {
-  version: DeliverableVersion;
+  version: AgentRun;
   destination?: Destination;
   className?: string;
 }
@@ -198,7 +198,7 @@ export function DraftStatusBadge({
   version,
   destination,
 }: {
-  version: DeliverableVersion;
+  version: AgentRun;
   destination?: Destination;
 }) {
   if (!destination) return null;

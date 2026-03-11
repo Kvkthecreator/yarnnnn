@@ -357,12 +357,12 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Deliverables Scheduled (24h)</p>
-                  <p className="text-xl font-semibold">{pipelineStats.deliverables_scheduled_24h}</p>
+                  <p className="text-muted-foreground">Agents Scheduled (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.agents_scheduled_24h}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Deliverables Executed (24h)</p>
-                  <p className="text-xl font-semibold">{pipelineStats.deliverables_executed_24h}</p>
+                  <p className="text-muted-foreground">Agents Executed (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.agents_executed_24h}</p>
                 </div>
               </div>
 

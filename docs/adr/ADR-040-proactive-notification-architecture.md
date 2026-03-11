@@ -36,9 +36,9 @@ YARNNN's vision includes proactive outreach — "reaching out, pushing" like Cla
 
 ### The Problem
 
-1. **Deliverables ≠ Notifications**: Deliverables are recurring content artifacts (digests, summaries). Notifications are lightweight, often one-off messages ("Your sync completed", "New mentions detected").
+1. **Agents ≠ Notifications**: Agents are recurring content artifacts (digests, summaries). Notifications are lightweight, often one-off messages ("Your sync completed", "New mentions detected").
 
-2. **TP Can't Notify**: TP can create deliverables but can't send a simple "I noticed X" push notification.
+2. **TP Can't Notify**: TP can create agents but can't send a simple "I noticed X" push notification.
 
 3. **Event Triggers Disconnected**: Event handlers exist but don't trigger the notification pipeline.
 
@@ -55,7 +55,7 @@ YARNNN's vision includes proactive outreach — "reaching out, pushing" like Cla
 │   DELIVERABLES    │   NOTIFICATIONS     │      MONITORS             │
 ├───────────────────┼─────────────────────┼───────────────────────────┤
 │ Recurring content │ Lightweight alerts  │ Conditions that trigger   │
-│ artifacts         │ and messages        │ deliverables/notifications│
+│ artifacts         │ and messages        │ agents/notifications│
 │                   │                     │                           │
 │ • Weekly digests  │ • "Sync complete"   │ • Slack mention detected  │
 │ • Daily summaries │ • "I noticed X"     │ • Email from VIP          │
@@ -74,7 +74,7 @@ YARNNN's vision includes proactive outreach — "reaching out, pushing" like Cla
 
 ### Notifications as First-Class Concept
 
-Notifications are NOT mini-deliverables. They are a separate, lightweight mechanism:
+Notifications are NOT mini-agents. They are a separate, lightweight mechanism:
 
 ```python
 @dataclass
@@ -85,15 +85,15 @@ class Notification:
 
     # Content
     message: str                    # The notification text
-    context: Optional[dict]         # Related context (deliverable_id, event, etc.)
+    context: Optional[dict]         # Related context (agent_id, event, etc.)
 
     # Delivery
     channel: Literal["push", "email", "slack_dm", "in_app"]
     urgency: Literal["low", "normal", "high"]
 
     # Source
-    source_type: Literal["system", "monitor", "tp", "deliverable"]
-    source_id: Optional[str]        # deliverable_id, monitor_id, etc.
+    source_type: Literal["system", "monitor", "tp", "agent"]
+    source_id: Optional[str]        # agent_id, monitor_id, etc.
 
     # State
     status: Literal["pending", "sent", "failed", "dismissed"]
@@ -103,7 +103,7 @@ class Notification:
 
 ### TP Gets Notification Tools
 
-TP should be able to send notifications without creating full deliverables:
+TP should be able to send notifications without creating full agents:
 
 ```python
 SEND_NOTIFICATION_TOOL = {
@@ -114,11 +114,11 @@ SEND_NOTIFICATION_TOOL = {
     Use this for:
     - Alerting about something you noticed
     - Confirming an action completed
-    - Proactive insights that don't need a full deliverable
+    - Proactive insights that don't need a full agent
 
-    This is DIFFERENT from deliverables:
+    This is DIFFERENT from agents:
     - Notifications: one-off, lightweight, immediate
-    - Deliverables: recurring, content-rich, scheduled
+    - Agents: recurring, content-rich, scheduled
     """,
     "input_schema": {
         "type": "object",
@@ -136,7 +136,7 @@ SEND_NOTIFICATION_TOOL = {
             },
             "context": {
                 "type": "object",
-                "description": "Optional context (related deliverable, event, etc.)"
+                "description": "Optional context (related agent, event, etc.)"
             }
         },
         "required": ["message", "channel"]
@@ -146,7 +146,7 @@ SEND_NOTIFICATION_TOOL = {
 
 ### Monitors Define Triggers
 
-Monitors are conditions that trigger deliverables OR notifications:
+Monitors are conditions that trigger agents OR notifications:
 
 ```python
 @dataclass
@@ -163,8 +163,8 @@ class Monitor:
     filters: Optional[dict]         # keyword_filter, sender_filter, etc.
 
     # Action
-    action_type: Literal["trigger_deliverable", "send_notification", "both"]
-    deliverable_id: Optional[str]   # If triggering a deliverable
+    action_type: Literal["trigger_agent", "send_notification", "both"]
+    agent_id: Optional[str]   # If triggering a agent
     notification_template: Optional[str]  # If sending notification
 
     # Throttling
@@ -183,17 +183,17 @@ For `full_auto` governance to work:
 # In delivery.py
 
 async def process_staged_instance(instance_id: str) -> dict:
-    """Process a staged deliverable instance."""
+    """Process a staged agent instance."""
     instance = await get_instance(instance_id)
-    deliverable = await get_deliverable(instance.deliverable_id)
+    agent = await get_agent(instance.agent_id)
 
-    governance = deliverable.governance
+    governance = agent.governance
 
     if governance == "manual":
         # Create notification about pending approval
         await send_notification(
-            user_id=deliverable.user_id,
-            message=f"'{deliverable.title}' is ready for review",
+            user_id=agent.user_id,
+            message=f"'{agent.title}' is ready for review",
             channel="in_app",
             context={"instance_id": instance_id}
         )
@@ -203,8 +203,8 @@ async def process_staged_instance(instance_id: str) -> dict:
         # Deliver but notify
         result = await execute_delivery(instance)
         await send_notification(
-            user_id=deliverable.user_id,
-            message=f"'{deliverable.title}' was delivered to {result.destination}",
+            user_id=agent.user_id,
+            message=f"'{agent.title}' was delivered to {result.destination}",
             channel="in_app",
             context={"instance_id": instance_id, "external_url": result.external_url}
         )
@@ -227,7 +227,7 @@ async def process_staged_instance(instance_id: str) -> dict:
 
 2. **Notification Service** (`api/services/notifications.py`):
    - `send_notification()` - Main entry point
-   - `notify_deliverable_ready/delivered/failed()` - Convenience functions
+   - `notify_agent_ready/delivered/failed()` - Convenience functions
    - Email delivery via existing Resend infrastructure
 
 3. **Delivery Service Updates** (`api/services/delivery.py`):
@@ -271,7 +271,7 @@ CREATE TABLE notifications (
     urgency TEXT DEFAULT 'normal' CHECK (urgency IN ('low', 'normal', 'high')),
 
     -- Source
-    source_type TEXT NOT NULL CHECK (source_type IN ('system', 'monitor', 'tp', 'deliverable')),
+    source_type TEXT NOT NULL CHECK (source_type IN ('system', 'monitor', 'tp', 'agent')),
     source_id UUID,
 
     -- State
@@ -315,13 +315,13 @@ Add `send_notification` to `THINKING_PARTNER_TOOLS` with handler.
 
 Update `event_triggers.py` to:
 - Log trigger events to a table
-- Support notification-only triggers (not just deliverable triggers)
+- Support notification-only triggers (not just agent triggers)
 - Use database for cooldown (not in-memory)
 
 ### Phase 6: Monitors (Future)
 
 Create monitors as configurable triggers that can:
-- Trigger deliverables
+- Trigger agents
 - Send notifications
 - Both
 
@@ -329,11 +329,11 @@ Create monitors as configurable triggers that can:
 
 ### Positive
 
-- **Clear separation**: Deliverables for content, notifications for alerts
-- **TP empowerment**: TP can proactively reach out without heavy deliverable creation
+- **Clear separation**: Agents for content, notifications for alerts
+- **TP empowerment**: TP can proactively reach out without heavy agent creation
 - **Governance completion**: full_auto actually works
 - **Audit trail**: All notifications logged in database
-- **Flexibility**: Monitors can trigger either deliverables or notifications
+- **Flexibility**: Monitors can trigger either agents or notifications
 
 ### Negative
 

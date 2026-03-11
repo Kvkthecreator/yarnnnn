@@ -11,14 +11,14 @@
 
 **This ADR is superseded by ADR-072.** The decisions made here created architectural tensions:
 
-1. `filesystem_items` as "cache only" created a provenance gap — deliverables couldn't link back to source content
+1. `filesystem_items` as "cache only" created a provenance gap — agents couldn't link back to source content
 2. "Do not expand the mirror's role" prevented accumulation of significant content
 3. Separate "live reads for execution, cache for search" created two parallel pipelines with a quality gap
 
 **What changed (ADR-072):**
 - `filesystem_items` is replaced by `platform_content` — a unified content layer with retention semantics
 - Content that proves significant is retained indefinitely (accumulation moat)
-- Deliverable execution uses TP in headless mode (same primitives as live sessions)
+- Agent execution uses TP in headless mode (same primitives as live sessions)
 - `source_snapshots` now includes `platform_content_ids` for provenance
 
 **The three-layer model defined here (Memory / Context / Work) evolves into the four-layer model (Memory / Activity / Context / Work) documented in ADR-063 and updated in ADR-072.**
@@ -37,11 +37,11 @@ The investigation also surfaced a terminology problem that was causing architect
 
 ---
 
-## Finding: Scheduled Deliverables Already Do Live Reads
+## Finding: Scheduled Agents Already Do Live Reads
 
-The most important finding from this review: **`filesystem_items` is not used by the deliverable execution pipeline at all.**
+The most important finding from this review: **`filesystem_items` is not used by the agent execution pipeline at all.**
 
-When a scheduled deliverable runs (via `unified_scheduler.py` → `execute_deliverable_generation()` → `fetch_integration_source_data()`), it:
+When a scheduled agent runs (via `unified_scheduler.py` → `execute_agent_generation()` → `fetch_integration_source_data()`), it:
 
 1. Decrypts OAuth credentials from `platform_connections` at execution time
 2. Makes live API calls to Slack, Gmail, Notion, Calendar
@@ -50,7 +50,7 @@ When a scheduled deliverable runs (via `unified_scheduler.py` → `execute_deliv
 
 This means the concern that motivated the question — "do we need the mirror to run background work?" — is already answered: **no, we do not. Background work already runs on live data.**
 
-`filesystem_items` and the deliverable execution pipeline are two independent systems that happen to target the same upstream platforms.
+`filesystem_items` and the agent execution pipeline are two independent systems that happen to target the same upstream platforms.
 
 ---
 
@@ -63,7 +63,7 @@ Without the mirror, TP would need to fan out to platform APIs live during a stre
 | | With filesystem_items | Without (live only) |
 |---|---|---|
 | `Search(scope="platform_content")` | Fast local text query | Requires live calls to each platform |
-| Scheduled deliverable execution | Not used | Already live |
+| Scheduled agent execution | Not used | Already live |
 | Conversational TP platform tools | Not used (separate tool path) | Already live |
 | Notion sync reliability | Currently broken (known bug) | N/A |
 
@@ -75,13 +75,13 @@ The mirror is only meaningful if it's reliably populated. The known Notion sync 
 
 ### Keep filesystem_items, but with a clarified mandate
 
-`filesystem_items` is retained as the **conversational search index** — the cache that makes `Search(scope="platform_content")` possible within a conversation turn. It is not a source-of-truth mirror. It is not used for deliverable execution. Its purpose is narrow and specific.
+`filesystem_items` is retained as the **conversational search index** — the cache that makes `Search(scope="platform_content")` possible within a conversation turn. It is not a source-of-truth mirror. It is not used for agent execution. Its purpose is narrow and specific.
 
 The fix for Notion sync (switching to direct `NotionAPIClient.get_page_content()` calls, the same approach used for landscape discovery) should be applied to `platform_worker.py`. This is the correct fix; it does not change the architecture.
 
 ### Do not expand the mirror's role
 
-The mirror should not be the primary data source for any critical path. Deliverable execution remains on live reads. This is correct and should be documented explicitly to prevent future drift.
+The mirror should not be the primary data source for any critical path. Agent execution remains on live reads. This is correct and should be documented explicitly to prevent future drift.
 
 ### Future option: replace conversational search with live fan-out
 
@@ -105,14 +105,14 @@ Things that are *about the user* — stable, explicit, user-owned. Name, role, h
 The current working material for a task — what's in their platforms right now. Platform-synced. Ephemeral. The "filesystem" in the Claude Code analogy.
 
 - **Table**: `filesystem_items` (search cache), live API calls for execution
-- **Written by**: Background sync worker (`platform_worker.py`) for the cache; live at execution time for deliverables
-- **Read by**: TP `Search(scope="platform_content")` calls during conversation; `fetch_integration_source_data()` during deliverable execution
+- **Written by**: Background sync worker (`platform_worker.py`) for the cache; live at execution time for agents
+- **Read by**: TP `Search(scope="platform_content")` calls during conversation; `fetch_integration_source_data()` during agent execution
 - **Size**: Large and TTL-bounded.
 
 ### Work
-What TP produces. Structured, versioned, deliverable to a platform destination.
+What TP produces. Structured, versioned, agent to a platform destination.
 
-- **Table**: `deliverables` + `deliverable_versions`
+- **Table**: `agents` + `agent_runs`
 - **Written by**: Execution pipeline, always from live reads
 - **Read by**: User review, platform export
 
@@ -136,7 +136,7 @@ What TP produces. Structured, versioned, deliverable to a platform destination.
                            ↑ synced by platform_worker
 
 ┌─────────────────────────────────────────────────────────────┐
-│  WORK (deliverables + deliverable_versions)                  │
+│  WORK (agents + agent_runs)                  │
 │  What TP produces — structured, versioned, exported         │
 │  Always generated from live Context reads                   │
 └─────────────────────────────────────────────────────────────┘
@@ -148,8 +148,8 @@ This maps cleanly to both reference models:
 |---|---|---|---|
 | **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
 | **Context** | Source files (read on demand) | Local filesystem | `filesystem_items` + live API |
-| **Work** | Build output | Script output | `deliverable_versions` |
-| **Execution** | Shell commands | Skills | Deliverable pipeline (live reads) |
+| **Work** | Build output | Script output | `agent_runs` |
+| **Execution** | Shell commands | Skills | Agent pipeline (live reads) |
 
 ---
 
@@ -167,7 +167,7 @@ This is deferred pending the above architectural hardening.
 
 - `filesystem_items` schema — unchanged
 - Platform sync pipeline — unchanged (except the Notion bug fix is now clearly prioritised)
-- Deliverable execution pipeline — unchanged (already on live reads; this ADR documents it)
+- Agent execution pipeline — unchanged (already on live reads; this ADR documents it)
 - `user_context` table (ADR-059) — unchanged
 - Working memory builder — unchanged
 

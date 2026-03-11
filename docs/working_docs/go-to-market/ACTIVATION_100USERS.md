@@ -21,7 +21,7 @@ This file is a live experiment log. It's designed to be updated as we spend real
 
 ## The Thesis We're Testing
 
-> A non-technical professional who already pays for AI tools will pay $9–19/mo for an AI that connects to their work tools, already knows their context, and produces recurring deliverables without prompting — if we can make them feel the pain of what they're currently doing and show them the alternative in under 10 seconds.
+> A non-technical professional who already pays for AI tools will pay $9–19/mo for an AI that connects to their work tools, already knows their context, and produces recurring agents without prompting — if we can make them feel the pain of what they're currently doing and show them the alternative in under 10 seconds.
 
 If this doesn't convert at $5–10 CAC on Reddit, we either have the wrong message, the wrong audience, or the wrong product-market fit. All three are worth learning fast.
 
@@ -50,7 +50,7 @@ We're not just testing copy — we're testing **which audience converts**. The I
 
 | Subreddit | Members | Why this audience | Copy angle to test | Expected CPC |
 |-----------|---------|-------------------|-------------------|--------------|
-| **r/freelance** | 300K | Multi-client freelancers assembling deliverables weekly. They feel context-switching pain across clients. | Pain-first: context re-entry across clients | $2–4 |
+| **r/freelance** | 300K | Multi-client freelancers assembling agents weekly. They feel context-switching pain across clients. | Pain-first: context re-entry across clients | $2–4 |
 | **r/consulting** | 400K | Solo and fractional consultants. Some big-firm, but the recurring-reporting pain is universal. | Pain-first: re-explaining to AI every session | $3–5 |
 | **r/Entrepreneur** | 2.5M | Solo founders with boards, investors, recurring updates. Broad but high volume. | Outcome-first: AI that already knows your business | $2–4 |
 
@@ -80,7 +80,7 @@ Two variables: **message frame** and **audience**. Phase 1 tests message frame. 
 
 > **Don't build AI agents. Just use one.**
 >
-> YARNNN connects to your Slack, Gmail, Notion, and Calendar — learns your clients, projects, and how you work — then handles your recurring deliverables automatically.
+> YARNNN connects to your Slack, Gmail, Notion, and Calendar — learns your clients, projects, and how you work — then handles your recurring agents automatically.
 >
 > You supervise. It works.
 >
@@ -118,7 +118,7 @@ Two variables: **message frame** and **audience**. Phase 1 tests message frame. 
 >
 > → yarnnn.com
 
-**Why this might work:** Most concrete. Names the specific deliverable (weekly client reports). Names the specific time saved (2 hours). Easiest to picture yourself using.
+**Why this might work:** Most concrete. Names the specific agent (weekly client reports). Names the specific time saved (2 hours). Easiest to picture yourself using.
 
 **Risk:** Narrowest framing. Only resonates if the reader has "weekly client reports" as a pain point. Misses founders, ops leads, analysts.
 
@@ -160,7 +160,7 @@ Run **2 copy variants** against **3 subreddits** for 3–4 days. Budget: ~$10/da
 | High CTR but zero signups | Landing page or onboarding is the bottleneck, not the ad. | Fix signup flow before spending more. |
 | Low CTR everywhere | Neither message resonates. Rewrite from scratch — the pain framing is wrong. | Go back to ICP interviews before more spend. |
 | Signups but no platform connections | Activation moment #1 isn't firing. Onboarding friction. | Fix the connect → sync → first TP conversation flow. |
-| Platform connections but no return visits | Product doesn't deliver on the ad's promise. Deeper issue. | Pause ads. Fix TP quality or deliverable pipeline. |
+| Platform connections but no return visits | Product doesn't deliver on the ad's promise. Deeper issue. | Pause ads. Fix TP quality or agent pipeline. |
 
 ---
 
@@ -178,7 +178,7 @@ Use the winning copy angle but rewrite as an authentic "I built this" post. Redd
 >
 > I'm a solo founder who spent 10 years in CRM/GTM. Every week I watched the same problem: smart people spending hours re-assembling context that already existed in their tools.
 >
-> So I built YARNNN. It connects to your Slack, Gmail, Notion, and Calendar. It accumulates context over time. And it produces recurring deliverables — client reports, investor updates, project briefs — without you having to re-explain everything every session.
+> So I built YARNNN. It connects to your Slack, Gmail, Notion, and Calendar. It accumulates context over time. And it produces recurring agents — client reports, investor updates, project briefs — without you having to re-explain everything every session.
 >
 > It's in beta. I'm looking for 10 professionals who manage multiple clients or projects and are tired of being their AI's memory. Free tier available, $9/mo early bird if it clicks.
 >
@@ -244,7 +244,7 @@ Only enter Phase 3 when Phase 1 and 2 have answered:
 - High impressions + low CTR = wrong message. Rewrite.
 - High CTR + low signups = landing page problem. Fix yarnnn.com.
 - Signups + no platform connection = onboarding friction. Fix connect → sync flow.
-- Platform connection + no return = product gap. The TP or deliverable isn't delivering on the promise.
+- Platform connection + no return = product gap. The TP or agent isn't delivering on the promise.
 - If all funnels break, do 5 manual conversations (DMs, calls) with ICP members to hear the objection in their own words before spending more.
 
 ---
@@ -256,7 +256,7 @@ These must be true before the first ad goes live:
 - [ ] **Signup flow works end-to-end.** New account → connect Slack → sync completes → first TP conversation references real synced content. Test this as a stranger, not as the developer.
 - [ ] **Time to "aha moment" < 5 minutes.** From signup to TP demonstrating context awareness. If sync takes 10 minutes and the user has to come back later, the loop breaks.
 - [ ] **Landing page matches ad promise.** If the ad says "AI that already knows your work," the landing page must show that, not a generic AI pitch.
-- [ ] **Free tier is genuinely usable.** A skeptical stranger will not enter credit card info on first visit. The free tier (50 TP messages, 2 deliverables) must be enough to experience the value before upgrading.
+- [ ] **Free tier is genuinely usable.** A skeptical stranger will not enter credit card info on first visit. The free tier (50 TP messages, 2 agents) must be enough to experience the value before upgrading.
 - [ ] **Stripe/Lemon Squeezy checkout works.** If someone wants to pay on Day 1, don't lose them to a broken checkout flow.
 - [ ] **Basic analytics are tracking.** You need to know: ad click → site visit → signup → platform connected → first TP session → return visit. Even simple UTM params + Supabase event logging is enough.
 

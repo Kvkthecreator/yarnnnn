@@ -31,7 +31,7 @@ Real user data (2 sessions, 14 messages) over 2 days:
 The analyst correctly produced no suggestions, but the detection logic wouldn't have found patterns even with more data because:
 1. It looks for explicit frequency keywords ("every week", "daily")
 2. It looks for audience mentions ("for the board")
-3. These phrases indicate users who would create deliverables manually
+3. These phrases indicate users who would create agents manually
 
 ### TP vs Orchestrator Architecture Reality
 
@@ -69,7 +69,7 @@ Users will naturally use TP for exploration and one-off tasks. The analyst shoul
 | **Platform Query** | Same platform resource queried 2+ times | 2 queries | "Daily Inbox Brief" |
 | **Temporal Need** | "yesterday", "this week", "recent" patterns | 2 occurrences | "Weekly Activity Summary" |
 | **Format Consistency** | Repeated output structure requests | 3 requests | Template suggestion |
-| **Context Re-establishment** | Same background info repeated | 2 sessions | Profile/deliverable setup |
+| **Context Re-establishment** | Same background info repeated | 2 sessions | Profile/agent setup |
 
 ### User Maturity Model
 
@@ -78,9 +78,9 @@ Not all users should receive suggestions immediately.
 | Stage | Criteria | Analyst Behavior |
 |-------|----------|------------------|
 | **Onboarding** | < 7 days OR < 3 sessions | Skip analysis entirely |
-| **Exploring** | 3-10 sessions, no deliverables | Analyze but require high confidence (0.70+) |
-| **Active** | 10+ sessions OR 1+ deliverables | Normal analysis (0.50+ threshold) |
-| **Power User** | 5+ deliverables | Look for coverage gaps |
+| **Exploring** | 3-10 sessions, no agents | Analyze but require high confidence (0.70+) |
+| **Active** | 10+ sessions OR 1+ agents | Normal analysis (0.50+ threshold) |
+| **Power User** | 5+ agents | Look for coverage gaps |
 
 ### Cold Start Communication
 
@@ -89,7 +89,7 @@ When analysis runs but finds nothing, send a one-time acknowledgment:
 ```
 "I analyzed your recent conversations but didn't detect patterns that would
 benefit from automation yet. As you use YARNNN more, I'll look for recurring
-information needs and suggest deliverables when appropriate."
+information needs and suggest agents when appropriate."
 ```
 
 This is NOT sent every analysis cycle - only once per user until:
@@ -123,7 +123,7 @@ ANALYSIS_SYSTEM_PROMPT = """You are analyzing user conversation BEHAVIOR pattern
 
 4. **Re-established Context**: User repeatedly explains the same background
    - e.g., "I'm working on Project X for Client Y" in multiple sessions
-   - Suggests: this should be a deliverable template or profile entry
+   - Suggests: this should be a agent template or profile entry
 
 **What NOT to look for:**
 - Explicit scheduling language ("every Monday", "weekly") - user would self-service
@@ -152,14 +152,14 @@ async def get_user_stage(client, user_id: str) -> str:
     # Check session count (all time)
     session_count = client.table("chat_sessions").select("id", count="exact").eq("user_id", user_id).execute().count
 
-    # Check deliverable count
-    deliverable_count = client.table("deliverables").select("id", count="exact").eq("user_id", user_id).in_("status", ["active", "paused"]).execute().count
+    # Check agent count
+    agent_count = client.table("agents").select("id", count="exact").eq("user_id", user_id).in_("status", ["active", "paused"]).execute().count
 
     if account_age_days < 7 or session_count < 3:
         return "onboarding"
-    elif deliverable_count >= 5:
+    elif agent_count >= 5:
         return "power_user"
-    elif deliverable_count >= 1 or session_count >= 10:
+    elif agent_count >= 1 or session_count >= 10:
         return "active"
     else:
         return "exploring"

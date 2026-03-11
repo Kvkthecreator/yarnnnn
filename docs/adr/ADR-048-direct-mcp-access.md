@@ -60,7 +60,7 @@ TP tools:
 ```
 TP tools:
 ├── 7 primitives (Read, Write, Edit, Search, List, Execute, Clarify)
-├── Execute for YARNNN orchestration only (deliverable.generate, platform.sync, etc.)
+├── Execute for YARNNN orchestration only (agent.generate, platform.sync, etc.)
 ├── mcp__slack__* tools (direct)
 ├── mcp__notion__* tools (direct)
 └── Platform helper tools (list_integrations, list_platform_resources, etc.)
@@ -72,11 +72,11 @@ Execute remains for **YARNNN-specific orchestration**, not MCP wrapping:
 
 | Action | Purpose |
 |--------|---------|
-| `deliverable.generate` | Trigger content generation pipeline |
-| `deliverable.approve` | Approve pending version |
-| `deliverable.schedule` | Update schedule |
+| `agent.generate` | Trigger content generation pipeline |
+| `agent.approve` | Approve pending version |
+| `agent.schedule` | Update schedule |
 | `platform.sync` | Sync data into ephemeral_context |
-| `platform.publish` | Publish deliverable to platform |
+| `platform.publish` | Publish agent to platform |
 | `work.run` | Execute background work |
 | `memory.extract` | Extract memories from conversation |
 

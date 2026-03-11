@@ -8,10 +8,10 @@
 
 ## Context
 
-YARNNN connects to user platforms (Slack, Gmail, Notion) to gather context for deliverable generation. Two sync models are architecturally supported:
+YARNNN connects to user platforms (Slack, Gmail, Notion) to gather context for agent generation. Two sync models are architecturally supported:
 
 1. **Continuous Background Sync**: Scheduled jobs refresh platform data periodically
-2. **On-Demand Sync**: Platform data fetched when needed for deliverable generation
+2. **On-Demand Sync**: Platform data fetched when needed for agent generation
 
 This decision affects costs, UX, and monetization strategy.
 
@@ -91,8 +91,8 @@ Users need visibility into their connected platforms. Required UI:
    - Sync health indicator
    - Manual "Refresh Now" button
 
-4. **Deliverable → Platform Mapping**
-   - When creating deliverable, show which platforms are sources
+4. **Agent → Platform Mapping**
+   - When creating agent, show which platforms are sources
    - Indicate data freshness for each source
 
 ---

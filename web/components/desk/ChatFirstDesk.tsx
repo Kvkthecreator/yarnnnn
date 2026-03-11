@@ -5,10 +5,10 @@
  * ADR-091: Workspace Layout & Navigation Architecture
  *
  * Global TP workspace — renders WorkspaceLayout with "Agent" identity.
- * No deliverable scope. Chat is the primary interface.
+ * No agent scope. Chat is the primary interface.
  *
  * Panel tabs:
- * - Deliverables: compact entry cards linking to /deliverables/[id]
+ * - Agents: compact entry cards linking to /agents/[id]
  * - Context: platform sync status (existing PlatformSyncStatus component)
  */
 
@@ -43,20 +43,20 @@ import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
-import type { Deliverable } from '@/types';
+import type { Agent } from '@/types';
 
 // =============================================================================
-// Panel: Deliverables (compact entry cards)
+// Panel: Agents (compact entry cards)
 // =============================================================================
 
-function DeliverablesPanel() {
-  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+function AgentsPanel() {
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.deliverables.list()
-      .then((data) => setDeliverables(data))
-      .catch((err) => console.error('Failed to load deliverables:', err))
+    api.agents.list()
+      .then((data) => setAgents(data))
+      .catch((err) => console.error('Failed to load agents:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -68,11 +68,11 @@ function DeliverablesPanel() {
     );
   }
 
-  if (deliverables.length === 0) {
+  if (agents.length === 0) {
     return (
       <div className="p-4 text-center">
         <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground mb-3">No deliverables yet</p>
+        <p className="text-sm text-muted-foreground mb-3">No agents yet</p>
         <Link
           href="/dashboard?create"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
@@ -87,10 +87,10 @@ function DeliverablesPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="divide-y divide-border flex-1 overflow-y-auto">
-        {deliverables.map((d) => (
+        {agents.map((d) => (
           <Link
             key={d.id}
-            href={`/deliverables/${d.id}`}
+            href={`/agents/${d.id}`}
             className="flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors group"
           >
             <div className="min-w-0">
@@ -195,7 +195,7 @@ export function ChatFirstDesk() {
   const { surface } = useDesk();
 
   // ADR-087 Phase 3: Load global (unscoped) history when dashboard mounts
-  // This ensures navigating back from a deliverable reloads the global thread
+  // This ensures navigating back from a agent reloads the global thread
   useEffect(() => {
     loadScopedHistory();
   }, [loadScopedHistory]);
@@ -224,10 +224,10 @@ export function ChatFirstDesk() {
     fileInputRef,
   } = useFileAttachments();
 
-  // Handle ?create param — pre-fill input for deliverable creation handoff
+  // Handle ?create param — pre-fill input for agent creation handoff
   useEffect(() => {
     if (searchParams?.has('create')) {
-      setInput('I want to create a new deliverable');
+      setInput('I want to create a new agent');
       textareaRef.current?.focus();
       router.replace('/dashboard', { scroll: false });
     }
@@ -313,8 +313,8 @@ export function ChatFirstDesk() {
       onSelect: () => fileInputRef.current?.click(),
     },
     {
-      id: 'create-deliverable',
-      label: 'Create deliverable',
+      id: 'create-agent',
+      label: 'Create agent',
       icon: Sparkles,
       verb: 'show',
       onSelect: () => setShowCreateCards((prev) => !prev),
@@ -346,9 +346,9 @@ export function ChatFirstDesk() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'deliverables',
-      label: 'Deliverables',
-      content: <DeliverablesPanel />,
+      id: 'agents',
+      label: 'Agents',
+      content: <AgentsPanel />,
     },
     {
       id: 'context',
@@ -526,14 +526,14 @@ export function ChatFirstDesk() {
               isOpen={skillPickerOpen}
             />
 
-            {/* Create deliverable cards — show verb */}
+            {/* Create agent cards — show verb */}
             {showCreateCards && (
               <div
                 ref={createCardsRef}
                 className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">What type of deliverable?</p>
+                  <p className="text-xs font-medium text-muted-foreground">What type of agent?</p>
                   <button
                     type="button"
                     onClick={() => setShowCreateCards(false)}

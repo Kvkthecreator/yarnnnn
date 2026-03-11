@@ -14,7 +14,7 @@ ADR-039 (2026-02-10) introduced Redis/RQ infrastructure for background work exec
 
 1. **Platform sync moved to crons**: ADR-053/ADR-077 introduced dedicated cron jobs (`platform_sync_scheduler`, `unified_scheduler`) that execute all scheduled work inline — no RQ queue involved.
 
-2. **Deliverable execution moved inline**: ADR-042 simplified the deliverable pipeline to run inline during scheduler execution, not through the RQ worker.
+2. **Agent execution moved inline**: ADR-042 simplified the agent pipeline to run inline during scheduler execution, not through the RQ worker.
 
 3. **Only 5 enqueue call sites remained**, and 4 of them silently failed when Redis was unavailable:
    - `POST /integrations/{provider}/sync` — returned `job_id: None`, did nothing
@@ -54,5 +54,5 @@ Remove the RQ worker service, Redis database, and all RQ/Redis dependencies enti
 
 | Action | Files |
 |--------|-------|
-| **Deleted** | `api/services/job_queue.py`, `api/workers/work_worker.py`, `api/workers/deliverable_worker.py`, `api/workers/run_worker.py`, `api/workers/__init__.py`, `api/test_job_queue_contracts.py` |
+| **Deleted** | `api/services/job_queue.py`, `api/workers/work_worker.py`, `api/workers/agent_worker.py`, `api/workers/run_worker.py`, `api/workers/__init__.py`, `api/test_job_queue_contracts.py` |
 | **Modified** | `api/services/work_execution.py`, `api/services/freshness.py`, `api/services/primitives/execute.py`, `api/routes/integrations.py`, `api/routes/work.py`, `api/main.py`, `api/requirements.txt`, `render.yaml`, `web/lib/api/client.ts` |

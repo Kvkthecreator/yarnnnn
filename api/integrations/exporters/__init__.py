@@ -1,9 +1,9 @@
 """
 Destination Exporters - ADR-028
 
-Platform-agnostic export infrastructure for destination-first deliverables.
+Platform-agnostic export infrastructure for destination-first agents.
 
-The key insight: "The deliverable isn't the content. It's the commitment to
+The key insight: "The agent isn't the content. It's the commitment to
 deliver something to a destination at the right time."
 
 Each exporter implements:

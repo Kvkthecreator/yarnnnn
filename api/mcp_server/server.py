@@ -49,9 +49,9 @@ _server_url = os.environ.get(
 mcp = FastMCP(
     "yarnnn",
     instructions=(
-        "Access YARNNN context, deliverables, and accumulated platform knowledge. "
+        "Access YARNNN context, agents, and accumulated platform knowledge. "
         "YARNNN syncs your Slack, Gmail, Notion, and Calendar — this server "
-        "lets you query that accumulated context and trigger deliverables."
+        "lets you query that accumulated context and trigger agents."
     ),
     lifespan=lifespan,
     # OAuth 2.1 provider — enables Claude.ai connectors + ChatGPT developer mode
@@ -84,7 +84,7 @@ async def get_status(
     scope: Optional[str] = None,
     platform: Optional[str] = None,
 ) -> dict:
-    """Get YARNNN system status: connected platforms, sync freshness, recent activity, and active deliverables.
+    """Get YARNNN system status: connected platforms, sync freshness, recent activity, and active agents.
 
     Use this to check what platforms are connected, when they last synced,
     whether the scheduler is running, and if there are any issues.
@@ -106,14 +106,14 @@ async def get_status(
 
 
 @mcp.tool()
-async def list_deliverables(
+async def list_agents(
     ctx: Context,
     status: Optional[str] = None,
 ) -> dict:
-    """List your configured deliverables with their schedule and status.
+    """List your configured agents with their schedule and status.
 
-    Returns deliverable titles, types, schedules, destinations, and when they last ran.
-    Use this to discover what deliverables exist before triggering or reading output.
+    Returns agent titles, types, schedules, destinations, and when they last ran.
+    Use this to discover what agents exist before triggering or reading output.
 
     Args:
         status: Filter by status. Options: "active" (default), "paused", "archived"
@@ -121,8 +121,8 @@ async def list_deliverables(
     auth = ctx.request_context.lifespan_context["auth"]
 
     query = (
-        auth.client.table("deliverables")
-        .select("id, title, deliverable_type, status, schedule, destination, sources, last_run_at, next_run_at")
+        auth.client.table("agents")
+        .select("id, title, agent_type, status, schedule, destination, sources, last_run_at, next_run_at")
         .eq("user_id", auth.user_id)
     )
     if status:
@@ -132,47 +132,47 @@ async def list_deliverables(
 
     result = query.order("created_at", desc=True).limit(20).execute()
 
-    return {"deliverables": result.data or [], "count": len(result.data or [])}
+    return {"agents": result.data or [], "count": len(result.data or [])}
 
 
 @mcp.tool()
-async def run_deliverable(
+async def run_agent(
     ctx: Context,
-    deliverable_id: str,
+    agent_id: str,
 ) -> dict:
-    """Trigger a deliverable to execute now and deliver its output.
+    """Trigger a agent to execute now and deliver its output.
 
     Runs the full pipeline: gather context from synced platforms, generate content,
     and deliver to the configured destination (Slack, email, etc.).
-    Use list_deliverables first to find the deliverable ID.
+    Use list_agents first to find the agent ID.
 
     Args:
-        deliverable_id: The UUID of the deliverable to run
+        agent_id: The UUID of the agent to run
     """
     auth = ctx.request_context.lifespan_context["auth"]
 
-    # Fetch the deliverable (with ownership check)
+    # Fetch the agent (with ownership check)
     try:
         del_result = (
-            auth.client.table("deliverables")
+            auth.client.table("agents")
             .select("*")
-            .eq("id", deliverable_id)
+            .eq("id", agent_id)
             .eq("user_id", auth.user_id)
             .single()
             .execute()
         )
     except Exception:
-        return {"success": False, "error": "Deliverable not found"}
+        return {"success": False, "error": "Agent not found"}
 
     if not del_result.data:
-        return {"success": False, "error": "Deliverable not found"}
+        return {"success": False, "error": "Agent not found"}
 
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.agent_execution import execute_agent_generation
 
-    result = await execute_deliverable_generation(
+    result = await execute_agent_generation(
         client=auth.client,
         user_id=auth.user_id,
-        deliverable=del_result.data,
+        agent=del_result.data,
         trigger_context={"type": "mcp"},
     )
 
@@ -180,18 +180,18 @@ async def run_deliverable(
 
 
 @mcp.tool()
-async def get_deliverable_output(
+async def get_agent_output(
     ctx: Context,
-    deliverable_id: str,
+    agent_id: str,
     version: Optional[int] = None,
 ) -> dict:
-    """Get the generated content from a deliverable's most recent (or specific) version.
+    """Get the generated content from a agent's most recent (or specific) version.
 
     Returns the actual text output that was generated and delivered.
-    Use list_deliverables first to find the deliverable ID.
+    Use list_agents first to find the agent ID.
 
     Args:
-        deliverable_id: The UUID of the deliverable
+        agent_id: The UUID of the agent
         version: Specific version number to retrieve. If omitted, returns the latest.
     """
     auth = ctx.request_context.lifespan_context["auth"]
@@ -199,24 +199,24 @@ async def get_deliverable_output(
     # Verify ownership
     try:
         del_check = (
-            auth.client.table("deliverables")
+            auth.client.table("agents")
             .select("id")
-            .eq("id", deliverable_id)
+            .eq("id", agent_id)
             .eq("user_id", auth.user_id)
             .single()
             .execute()
         )
     except Exception:
-        return {"success": False, "error": "Deliverable not found"}
+        return {"success": False, "error": "Agent not found"}
 
     if not del_check.data:
-        return {"success": False, "error": "Deliverable not found"}
+        return {"success": False, "error": "Agent not found"}
 
     # Fetch version(s)
     query = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .select("id, version_number, status, draft_content, final_content, created_at, delivered_at")
-        .eq("deliverable_id", deliverable_id)
+        .eq("agent_id", agent_id)
     )
     if version:
         query = query.eq("version_number", version)
@@ -243,7 +243,7 @@ async def get_context(ctx: Context) -> dict:
     """Get YARNNN's accumulated knowledge about you: profile, preferences, memories, and platform status.
 
     Returns your working memory — what YARNNN has learned from synced platforms
-    and past conversations. Includes your profile, known facts, active deliverables,
+    and past conversations. Includes your profile, known facts, active agents,
     and connected platform status.
     """
     auth = ctx.request_context.lifespan_context["auth"]

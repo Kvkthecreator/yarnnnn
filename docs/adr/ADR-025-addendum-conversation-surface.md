@@ -13,7 +13,7 @@ After implementing "Conversation as Surface" (Model A), we reconsidered from fir
 
 **Model A (Conversation as Surface):**
 - Chat is a place you navigate to
-- Creates friction: viewing deliverable → must navigate away to discuss it
+- Creates friction: viewing agent → must navigate away to discuss it
 - Feels like "leaving" to talk
 
 **Model B (TP as Persistent Drawer):**
@@ -147,14 +147,14 @@ Auto-expand drawer when:
 ## Behavior
 
 ### Desktop
-1. User views deliverable → Surface shows deliverable detail
+1. User views agent → Surface shows agent detail
 2. User types in TPBar (collapsed) → Drawer expands, message sent
 3. TP responds → Chat visible in drawer
 4. User can collapse drawer to focus on surface
 5. TP progress (todos) visible in expanded drawer
 
 ### Mobile
-1. User views deliverable → Full screen surface
+1. User views agent → Full screen surface
 2. User taps TP FAB → Full screen chat overlay
 3. Chat happens
 4. User taps back/X → Returns to surface
@@ -175,7 +175,7 @@ Auto-expand drawer when:
 - `web/types/desk.ts` — remove `conversation` surface type
 - `web/components/desk/SurfaceRouter.tsx` — remove conversation route
 - `web/components/tp/TPBar.tsx` — simplify to drawer trigger
-- `web/components/surfaces/DeliverableDetailSurface.tsx` — remove TPWorkPanel integration
+- `web/components/surfaces/AgentDetailSurface.tsx` — remove TPWorkPanel integration
 - `web/components/surfaces/IdleSurface.tsx` — remove TPWorkPanel integration
 - `DeskLayout` or page — add TPDrawer to layout
 
@@ -187,7 +187,7 @@ Auto-expand drawer when:
 
 - **Simpler mental model**: Surface + Drawer, always available
 - **No mode switching**: Don't "go to" conversation
-- **Context preserved**: See deliverable while discussing it
+- **Context preserved**: See agent while discussing it
 - **Aligned with ADR-023**: TP is ambient, not a destination
 
 ### Negative

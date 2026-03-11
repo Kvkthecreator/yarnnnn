@@ -10,7 +10,7 @@ Universal agent primitives mirroring Claude Code patterns:
 - Execute: External operations
 - Todo: Track intent/progress
 
-These primitives operate on YARNNN entities (deliverables, platforms, memories, etc.)
+These primitives operate on YARNNN entities (agents, platforms, memories, etc.)
 rather than files, but follow the same interface contract.
 """
 

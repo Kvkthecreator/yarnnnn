@@ -18,7 +18,7 @@ The tool-based approach has problems:
 
 - **Explicit tool calls add friction**: TP must recognize "this is worth remembering" and call a tool, which appears in the conversation as a visible action
 - **Categorization overhead**: TP must pick `entry_type` (fact/instruction/preference) and generate a sanitized key
-- **TP-centric scope**: Only conversations feed memory — but YARNNN has multiple signal sources (deliverable feedback, activity patterns, platform sync)
+- **TP-centric scope**: Only conversations feed memory — but YARNNN has multiple signal sources (agent feedback, activity patterns, platform sync)
 
 ### Learning from Claude Code
 
@@ -36,8 +36,8 @@ Unlike Claude Code (a CLI for coding), YARNNN has multiple surfaces that generat
 | Source | Signal Example |
 |--------|----------------|
 | TP conversation | "I prefer bullet points" |
-| Deliverable feedback | User always edits the intro paragraph |
-| Deliverable runs | Weekly digest runs every Monday 9am |
+| Agent feedback | User always edits the intro paragraph |
+| Agent runs | Weekly digest runs every Monday 9am |
 | Platform sync | Calendar shows recurring 1:1 with Sarah |
 
 Memory extraction should be a **backend orchestration concern**, not a TP tool.
@@ -57,7 +57,7 @@ Replace explicit TP memory tools with a backend service that:
 ┌─────────────────────────────────────────────────────────────┐
 │                      Signal Sources                          │
 ├────────────────┬────────────────┬────────────────┬──────────┤
-│  Chat Pipeline │  Deliverable   │  Activity Log  │  Future  │
+│  Chat Pipeline │  Agent   │  Activity Log  │  Future  │
 │  (session end) │  (user edits)  │  (patterns)    │  ...     │
 └───────┬────────┴───────┬────────┴───────┬────────┴────┬─────┘
         │                │                │             │
@@ -88,16 +88,16 @@ Aligned with existing backend orchestration patterns:
 | Source | Trigger | Method |
 |--------|---------|--------|
 | Chat | Session end (timeout or explicit close) | `process_conversation()` |
-| Deliverable | User approves edited version | `process_feedback()` |
+| Agent | User approves edited version | `process_feedback()` |
 | Activity | Background job (daily, via unified_scheduler) | `process_patterns()` |
 
-No real-time extraction during conversation. Extract once at pipeline boundaries, like deliverable execution.
+No real-time extraction during conversation. Extract once at pipeline boundaries, like agent execution.
 
 ### Extraction approach
 
 **v1: Simple**
 - **Conversation**: Single LLM call at session end: "What facts about this user are worth remembering?"
-- **Deliverable feedback**: Diff analysis — what did user consistently change?
+- **Agent feedback**: Diff analysis — what did user consistently change?
 - **Activity patterns**: Rule-based — if user runs X every Monday, note it
 
 **Future**: More sophisticated ML-based extraction, but keep the interface stable.
@@ -167,12 +167,12 @@ class MemoryService:
         self,
         client,
         user_id: str,
-        deliverable_id: str,
+        agent_id: str,
         original: str,
         edited: str,
     ) -> int:
         """
-        Learn from user edits to deliverable output.
+        Learn from user edits to agent output.
 
         Called when user approves an edited version.
         Analyzes diff to identify consistent patterns.
@@ -234,14 +234,14 @@ You can view and edit what I remember in the Context page.
 ### unified_scheduler.py
 
 Memory pattern extraction runs as a daily job, same pattern as:
-- Deliverable execution (check due, execute)
+- Agent execution (check due, execute)
 - Import job processing (check pending, process)
 
 ```python
 # In unified_scheduler.py main()
 
 # Existing
-await process_due_deliverables(client)
+await process_due_agents(client)
 await process_import_jobs(client)
 
 # New

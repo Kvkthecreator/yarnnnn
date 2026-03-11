@@ -10,7 +10,7 @@
 
 **[0:00–0:05] Intro + One-Liner**
 
-> Hi, I'm Kevin Kim. I'm building yarnnn, — an autonomous AI agent that learns your work and produces your deliverables on schedule.
+> Hi, I'm Kevin Kim. I'm building yarnnn, — an autonomous AI agent that learns your work and produces your agents on schedule.
 
 **[0:05–0:18] The Honest Bet (Beat 1)**
 
@@ -18,7 +18,7 @@
 
 **[0:18–0:40] Meet the Product (Beat 3)**
 
-> And that's why I built yarn with our autonomous AI agent name Thinking Partner (TP). TP ]connects to your Slack, Gmail, Notion, and Calendar, and via automated syncs accumulates your work context while you sleep. Then it produces your deliverables on schedule — client briefs, status digests, meeting prep — without being asked. And it gets smarter every cycle. You supervise. TP operates.
+> And that's why I built yarn with our autonomous AI agent name Thinking Partner (TP). TP ]connects to your Slack, Gmail, Notion, and Calendar, and via automated syncs accumulates your work context while you sleep. Then it produces your agents on schedule — client briefs, status digests, meeting prep — without being asked. And it gets smarter every cycle. You supervise. TP operates.
 
 **[0:40–0:52] The Insight (Beat 4)**
 

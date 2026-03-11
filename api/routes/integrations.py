@@ -284,7 +284,7 @@ class IntegrationListResponse(BaseModel):
 
 class ExportRequest(BaseModel):
     """Request to export content."""
-    deliverable_version_id: str
+    agent_run_id: str
     destination: dict[str, Any]  # Provider-specific (channel_id, page_id, etc.)
 
 
@@ -369,7 +369,7 @@ class PlatformContentItem(BaseModel):
     source_timestamp: Optional[str] = None
     fetched_at: str  # ADR-072: platform_content uses fetched_at
     retained: bool = False  # ADR-072: retention flag
-    retained_reason: Optional[str] = None  # ADR-072: why retained (deliverable_execution, signal_processing, tp_session)
+    retained_reason: Optional[str] = None  # ADR-072: why retained (agent_execution, signal_processing, tp_session)
     retained_at: Optional[str] = None  # ADR-072: when marked retained
     expires_at: Optional[str] = None  # ADR-072: for ephemeral content, when it expires
     metadata: dict[str, Any] = {}
@@ -545,7 +545,7 @@ class PlatformSummary(BaseModel):
     connected_at: datetime
     resource_count: int = 0
     resource_type: str = ""  # channels, labels, pages
-    deliverable_count: int = 0
+    agent_count: int = 0
     activity_7d: int = 0  # messages/emails/updates in last 7 days
 
 
@@ -556,11 +556,11 @@ class IntegrationsSummaryResponse(BaseModel):
     Provides aggregated stats for each connected platform:
     - Connection status
     - Resource counts (channels, labels, pages)
-    - Deliverable counts targeting this platform
+    - Agent counts targeting this platform
     - Recent activity from ephemeral context
     """
     platforms: list[PlatformSummary]
-    total_deliverables: int = 0
+    total_agents: int = 0
 
 
 @router.get("/integrations/summary")
@@ -580,7 +580,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         ).eq("user_id", user_id).execute()
 
         if not integrations_result.data:
-            return IntegrationsSummaryResponse(platforms=[], total_deliverables=0)
+            return IntegrationsSummaryResponse(platforms=[], total_agents=0)
 
         platforms: list[PlatformSummary] = []
         from datetime import timedelta
@@ -614,8 +614,8 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 integration,
             )
 
-        def _count_deliverables(provider: str) -> int:
-            result = auth.client.table("deliverables").select(
+        def _count_agents(provider: str) -> int:
+            result = auth.client.table("agents").select(
                 "id", count="exact"
             ).eq("user_id", user_id).contains(
                 "destination", {"platform": provider}
@@ -660,7 +660,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 connected_at=integration["created_at"],
                 resource_count=_resource_count_for(provider, integration),
                 resource_type=resource_type,
-                deliverable_count=_count_deliverables(provider),
+                agent_count=_count_agents(provider),
                 activity_7d=_count_activity(provider),
             )
 
@@ -681,15 +681,15 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             if has_calendar:
                 platforms.append(_to_summary("calendar", gmail_integration))
 
-        # Total deliverables count
-        total_result = auth.client.table("deliverables").select(
+        # Total agents count
+        total_result = auth.client.table("agents").select(
             "id", count="exact"
         ).eq("user_id", user_id).execute()
-        total_deliverables = total_result.count or 0
+        total_agents = total_result.count or 0
 
         return IntegrationsSummaryResponse(
             platforms=platforms,
-            total_deliverables=total_deliverables
+            total_agents=total_agents
         )
 
     except Exception as e:
@@ -803,30 +803,30 @@ async def get_import_job(
 @router.get("/integrations/history")
 async def get_export_history(
     auth: UserClient,
-    deliverable_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
     limit: int = 20
 ) -> dict:
     """
     Get export history for the user.
-    Optionally filter by deliverable.
+    Optionally filter by agent.
     """
     user_id = auth.user_id
 
     try:
         query = auth.client.table("export_log").select(
             "id, provider, status, external_url, created_at, "
-            "deliverable_version_id"
+            "agent_run_id"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
 
-        if deliverable_id:
-            # Filter by deliverable (need to join through versions)
-            versions = auth.client.table("deliverable_versions").select(
+        if agent_id:
+            # Filter by agent (need to join through versions)
+            versions = auth.client.table("agent_runs").select(
                 "id"
-            ).eq("deliverable_id", deliverable_id).execute()
+            ).eq("agent_id", agent_id).execute()
 
             if versions.data:
                 version_ids = [v["id"] for v in versions.data]
-                query = query.in_("deliverable_version_id", version_ids)
+                query = query.in_("agent_run_id", version_ids)
 
         result = query.execute()
 
@@ -1050,7 +1050,7 @@ async def export_to_provider(
     auth: UserClient
 ) -> ExportResponse:
     """
-    Export a deliverable version to a provider.
+    Export a agent version to a provider.
 
     ADR-028: Uses the unified DestinationExporter infrastructure.
 
@@ -1126,21 +1126,21 @@ async def export_to_provider(
                 metadata={}
             )
 
-        # 2. Get deliverable version content
-        version = auth.client.table("deliverable_versions").select(
-            "id, final_content, draft_content, deliverable_id"
-        ).eq("id", request.deliverable_version_id).limit(1).execute()
+        # 2. Get agent version content
+        version = auth.client.table("agent_runs").select(
+            "id, final_content, draft_content, agent_id"
+        ).eq("id", request.agent_run_id).limit(1).execute()
 
         if not version.data:
-            raise HTTPException(status_code=404, detail="Deliverable version not found")
+            raise HTTPException(status_code=404, detail="Agent version not found")
 
-        # Get deliverable title
-        deliverable = auth.client.table("deliverables").select(
+        # Get agent title
+        agent = auth.client.table("agents").select(
             "title"
-        ).eq("id", version.data[0]["deliverable_id"]).limit(1).execute()
+        ).eq("id", version.data[0]["agent_id"]).limit(1).execute()
 
         content = version.data[0].get("final_content") or version.data[0].get("draft_content", "")
-        title = deliverable.data[0]["title"] if deliverable.data else "YARNNN Export"
+        title = agent.data[0]["title"] if agent.data else "YARNNN Export"
 
         # 3. Normalize destination format for exporters
         # Support both legacy format (channel_id, page_id) and new format (target)
@@ -1159,15 +1159,15 @@ async def export_to_provider(
             content=content,
             title=title,
             metadata={
-                "deliverable_version_id": request.deliverable_version_id,
-                "deliverable_id": version.data[0]["deliverable_id"]
+                "agent_run_id": request.agent_run_id,
+                "agent_id": version.data[0]["agent_id"]
             },
             context=context
         )
 
         # 5. Log the export
         log_entry = {
-            "deliverable_version_id": request.deliverable_version_id,
+            "agent_run_id": request.agent_run_id,
             "user_id": user_id,
             "provider": provider,
             "destination": destination,
@@ -1720,7 +1720,7 @@ async def list_google_calendars(
     ADR-046: List Google Calendars the user has access to.
 
     Used for:
-    - Calendar selection in deliverable creation
+    - Calendar selection in agent creation
     - Meeting prep source configuration
     """
     user_id = auth.user_id
@@ -1814,7 +1814,7 @@ async def list_google_calendar_events(
     ADR-046: List calendar events for meeting prep and context.
 
     Used for:
-    - Meeting prep deliverable context
+    - Meeting prep agent context
     - Weekly calendar preview
     - 1:1 prep with attendee info
 
@@ -2873,7 +2873,7 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     - tier: "free" | "pro"
     - limits: slack_channels, gmail_labels, notion_pages, calendars,
               total_platforms, sync_frequency, monthly_messages,
-              active_deliverables
+              active_agents
     - usage: Current usage counts for each resource
     - next_sync: ISO timestamp of next scheduled platform sync
     """

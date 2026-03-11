@@ -8,7 +8,7 @@
 
 This document outlines the monetization strategy for yarnnn. ADR-100 simplified from 3-tier to 2-tier (Free + Pro) with Early Bird pricing for beta.
 
-**Key Insight (ADR-100)**: Gate on what costs money (LLM usage via monthly messages + deliverable count). Sync is cheap — don't gate on it beyond source counts.
+**Key Insight (ADR-100)**: Gate on what costs money (LLM usage via monthly messages + agent count). Sync is cheap — don't gate on it beyond source counts.
 
 ---
 
@@ -30,9 +30,9 @@ This document outlines the monetization strategy for yarnnn. ADR-100 simplified 
 - **Sources per platform**: 5 Slack / 5 Gmail / 10 Notion / Unlimited Calendar
 - **Sync frequency**: 1x/day
 - **Monthly messages**: 50
-- **Active deliverables**: 2
+- **Active agents**: 2
 
-**Rationale**: Generous enough to experience value and build habits. 50 messages/month = ~12/week. 2 deliverables = Recap + one other. Users hit natural upgrade triggers when they want more.
+**Rationale**: Generous enough to experience value and build habits. 50 messages/month = ~12/week. 2 agents = Recap + one other. Users hit natural upgrade triggers when they want more.
 
 ### Pro Tier ($19/month standard, $9/month Early Bird)
 
@@ -41,7 +41,7 @@ This document outlines the monetization strategy for yarnnn. ADR-100 simplified 
 - **Sources per platform**: Unlimited
 - **Sync frequency**: Hourly
 - **Monthly messages**: Unlimited
-- **Active deliverables**: 10
+- **Active agents**: 10
 
 **Rationale**: Single paid tier — one decision for the user. Early Bird at $9/mo for beta users, locked in while available.
 

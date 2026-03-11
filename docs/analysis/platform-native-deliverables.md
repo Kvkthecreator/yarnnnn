@@ -1,31 +1,31 @@
-# Platform-Native Deliverables: A Conceptual Analysis
+# Platform-Native Agents: A Conceptual Analysis
 
 > **Status**: Refined
 > **Date**: 2026-02-08
 > **Updated**: 2026-02-08 (Decisions hardened from discourse)
-> **Related**: ADR-028 (Destination-First), ADR-019 (Deliverable Types), ADR-030 (Context Extraction)
+> **Related**: ADR-028 (Destination-First), ADR-019 (Agent Types), ADR-030 (Context Extraction)
 
 ---
 
 ## Executive Summary
 
-This analysis explores the evolution of YARNNN's deliverable model from **generic task execution** to **platform-native automation**. The core insight: deliverables that are deeply aware of their source platforms (Slack, Notion, Gmail) can deliver fundamentally more value than platform-agnostic content generation.
+This analysis explores the evolution of YARNNN's agent model from **generic task execution** to **platform-native automation**. The core insight: agents that are deeply aware of their source platforms (Slack, Notion, Gmail) can deliver fundamentally more value than platform-agnostic content generation.
 
-**Key Decision**: YARNNN will pursue the **radical interpretation** of platform awareness—platforms inform *what's worth saying*, not just how to say it. This means understanding platform-specific signals (hot threads, unanswered questions, urgent senders) as first-class inputs to deliverable generation.
+**Key Decision**: YARNNN will pursue the **radical interpretation** of platform awareness—platforms inform *what's worth saying*, not just how to say it. This means understanding platform-specific signals (hot threads, unanswered questions, urgent senders) as first-class inputs to agent generation.
 
 ---
 
 ## The Tension Identified
 
-### Current State: Platform-Agnostic Deliverables
+### Current State: Platform-Agnostic Agents
 
-The existing deliverable types (status report, stakeholder update, research brief, etc.) are **platform-agnostic**:
+The existing agent types (status report, stakeholder update, research brief, etc.) are **platform-agnostic**:
 
 ```
 User Input → AI Processing → Content Output → (Optional) Platform Export
 ```
 
-This design was intentional—it maximizes flexibility. A "status report" can be exported to Slack, Notion, email, or downloaded. The deliverable doesn't care where it goes.
+This design was intentional—it maximizes flexibility. A "status report" can be exported to Slack, Notion, email, or downloaded. The agent doesn't care where it goes.
 
 ### The Observed Gap
 
@@ -35,7 +35,7 @@ Through building integration reads (ADR-027) and context extraction (ADR-030), a
 2. **User mental models are platform-linked**: "The project status is in Slack" or "The decisions are in Notion"
 3. **Outputs want to be platform-native**: A Slack thread summary should feel like a Slack message, not a generic markdown document
 
-The current model treats platforms as **plumbing** (input sources, output destinations) rather than **semantic participants** in the deliverable workflow.
+The current model treats platforms as **plumbing** (input sources, output destinations) rather than **semantic participants** in the agent workflow.
 
 ---
 
@@ -70,9 +70,9 @@ All extracted context flows into a shared memory pool:
 
 **This remains.** The user's knowledge isn't siloed by platform—their understanding of a project spans tools.
 
-### Layer 2: Platform-Aware Deliverables (The Evolution)
+### Layer 2: Platform-Aware Agents (The Evolution)
 
-This is where the current design is **flat**. Deliverables should be:
+This is where the current design is **flat**. Agents should be:
 
 | Dimension | Current (Generic) | Evolved (Platform-Native) |
 |-----------|-------------------|---------------------------|
@@ -86,11 +86,11 @@ This is where the current design is **flat**. Deliverables should be:
 
 ## Two-Tier Context for Generation
 
-To avoid muddling long-term memory with time-sensitive data, deliverable generation uses two context tiers. **Important**: These tiers are defined by *lifespan*, not by *source*. Platform data is one category within the ephemeral layer, not the definition of it.
+To avoid muddling long-term memory with time-sensitive data, agent generation uses two context tiers. **Important**: These tiers are defined by *lifespan*, not by *source*. Platform data is one category within the ephemeral layer, not the definition of it.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Deliverable Context                         │
+│                     Agent Context                         │
 │                                                                 │
 │  ┌─────────────────────────────────────┐                       │
 │  │  Ephemeral Context (Temporal)       │                       │
@@ -103,7 +103,7 @@ To avoid muddling long-term memory with time-sensitive data, deliverable generat
 │  │  • Calendar/schedule events         │                       │
 │  │  • Session context                  │                       │
 │  │  • Time-bounded user notes          │                       │
-│  │  • Recent deliverable outputs       │                       │
+│  │  • Recent agent outputs       │                       │
 │  └─────────────────────────────────────┘                       │
 │                        +                                        │
 │  ┌─────────────────────────────────────┐                       │
@@ -115,7 +115,7 @@ To avoid muddling long-term memory with time-sensitive data, deliverable generat
 │  │  • User memories (manual/chat)      │                       │
 │  │  • Promoted from ephemeral          │                       │
 │  │  • Document extractions             │                       │
-│  │  • Deliverable-scoped learnings     │                       │
+│  │  • Agent-scoped learnings     │                       │
 │  └─────────────────────────────────────┘                       │
 │                        ↓                                        │
 │  ┌─────────────────────────────────────┐                       │
@@ -126,7 +126,7 @@ To avoid muddling long-term memory with time-sensitive data, deliverable generat
 
 **Key distinction**:
 - **Ephemeral context**: Time-bounded, source-attributed, auto-cleaned after TTL. Platform imports are one source category among several.
-- **Persistent context**: The current memory system, plus per-deliverable accumulated learnings. Includes context "promoted" from ephemeral when deemed important.
+- **Persistent context**: The current memory system, plus per-agent accumulated learnings. Includes context "promoted" from ephemeral when deemed important.
 
 **Decision**: Use dedicated `ephemeral_context` table (Option 2), not fetch-fresh or mixed storage. The schema is general-purpose—`platform` column represents source type, not exclusively integration platforms.
 
@@ -154,13 +154,13 @@ The user's work **graph** spans platforms. But each platform has:
 - **Information density** (Slack is ephemeral, Notion is persistent)
 - **Relationship context** (Slack = internal team, Email = external stakeholders)
 
-A platform-native deliverable understands this graph, not just the content.
+A platform-native agent understands this graph, not just the content.
 
 ---
 
-## Deliverable-Specific Scoping
+## Agent-Specific Scoping
 
-**Key insight**: Deliverables should be specific enough that trigger behavior is predictable.
+**Key insight**: Agents should be specific enough that trigger behavior is predictable.
 
 Instead of broad "Slack automation", each archetype has:
 1. **Scoped target**: Specific channel, label, page (not "all of Slack")
@@ -176,17 +176,17 @@ Instead of broad "Slack automation", each archetype has:
 | Notion Changelog | Single page or database | Event (modification) or Scheduled | Full-auto |
 
 This gives us:
-- **Batching**: Event-triggered deliverables are batched by their scope, not globally
+- **Batching**: Event-triggered agents are batched by their scope, not globally
 - **Thresholds**: Defined per-archetype (e.g., Slack digest only fires if >10 messages)
-- **Cooldowns**: Per-deliverable, not per-platform
+- **Cooldowns**: Per-agent, not per-platform
 
 ---
 
-## Evolved Deliverable Archetypes
+## Evolved Agent Archetypes
 
 ### Category 1: Platform Monitors
 
-These deliverables **watch** a platform and produce intelligence.
+These agents **watch** a platform and produce intelligence.
 
 | Archetype | Platform | Trigger | Output |
 |-----------|----------|---------|--------|
@@ -197,7 +197,7 @@ These deliverables **watch** a platform and produce intelligence.
 
 ### Category 2: Platform Responders
 
-These deliverables **respond** within a platform context.
+These agents **respond** within a platform context.
 
 | Archetype | Platform | Trigger | Output |
 |-----------|----------|---------|--------|
@@ -207,7 +207,7 @@ These deliverables **respond** within a platform context.
 
 ### Category 3: Cross-Platform Synthesizers
 
-These deliverables **connect** context across platforms.
+These agents **connect** context across platforms.
 
 | Archetype | Sources | Output |
 |-----------|---------|--------|
@@ -224,12 +224,12 @@ These deliverables **connect** context across platforms.
 
 Platform-native archetypes that are **conceptually new** (auto-reply, triage) get new types:
 ```python
-deliverable_type: "slack_auto_reply" | "gmail_triage" | "slack_thread_synthesizer"
+agent_type: "slack_auto_reply" | "gmail_triage" | "slack_thread_synthesizer"
 ```
 
 Archetypes that are **platform-specific versions of existing types** use variants:
 ```python
-deliverable_type: "status_report"
+agent_type: "status_report"
 platform_variant: "slack_digest"
 ```
 
@@ -242,7 +242,7 @@ This preserves the existing type system while enabling platform-native specializ
 ### Current: Schedule-Only
 
 ```python
-DeliverableSchedule = {
+AgentSchedule = {
     "type": "weekly",
     "day": "monday",
     "hour": 9
@@ -279,10 +279,10 @@ trigger = {
 
 ## Governance as Destination-Influenced
 
-Governance is deliverable-scoped but with destination-derived ceilings:
+Governance is agent-scoped but with destination-derived ceilings:
 
 ```python
-class Deliverable:
+class Agent:
     governance: GovernanceLevel  # User-configured
     governance_ceiling: GovernanceLevel  # System-enforced
 
@@ -335,7 +335,7 @@ Example: A Slack digest should:
      │        │                                │                     │
      │        │                                │                     │
      │        ▼                                │                     │
-     │   Deliverable ─────────→ Write ─────────┼──→ Platform        │
+     │   Agent ─────────→ Write ─────────┼──→ Platform        │
      │        │                                │    (Slack/Notion/  │
      │        │                                │     Gmail)         │
      │        └──────── Observe ───────────────┘                    │
@@ -356,47 +356,47 @@ Example: A Slack digest should:
 
 ### Phase 0: Foundation (Current State) ✅
 - Context extraction works (ADR-030)
-- Destination-first deliverables work (ADR-028)
+- Destination-first agents work (ADR-028)
 - Platform source visibility in UI
 
 ### Phase 1: Platform-Semantic Extraction
 - Extend extraction prompts to capture platform-specific signals
 - Add platform metadata to memories (thread depth, reaction counts, etc.)
 - Preserve temporal attribution for ephemeral context
-- **Deliverable**: Richer extracted context, no new deliverable types yet
+- **Agent**: Richer extracted context, no new agent types yet
 
 ### Phase 2: Platform-Native Archetypes (Slack First)
 - Implement **Slack Digest** (scheduled, read-only, low risk) — **First archetype**
 - Implement **Slack Auto-Reply** (event-triggered, scoped to channel)
 - Define archetype config schema, trigger types, governance ceilings
-- **Deliverable**: Two working Slack-native archetypes, end-to-end
+- **Agent**: Two working Slack-native archetypes, end-to-end
 
 ### Phase 3: Temporal Context Layer
 - Create `ephemeral_context` table for time-bounded platform data
-- Deliverable generation pulls both ephemeral + persistent context
+- Agent generation pulls both ephemeral + persistent context
 - TTL-based cleanup for ephemeral entries
-- **Deliverable**: Digests feel "fresh" without polluting long-term memory
+- **Agent**: Digests feel "fresh" without polluting long-term memory
 
 ### Phase 4: Gmail Archetypes
 - Gmail Triage (scheduled inbox summary)
 - Email Drafter (event-triggered, manual governance only)
-- **Deliverable**: Gmail workflow value
+- **Agent**: Gmail workflow value
 
 ### Phase 5: Notion Archetypes
 - Notion Changelog (scheduled or event-triggered)
 - Notion integration tends toward read-heavy, write-light
-- **Deliverable**: Notion awareness in context and outputs
+- **Agent**: Notion awareness in context and outputs
 
 ### Phase 6: Cross-Platform Synthesizers
 - Weekly Status pulling from all platforms
 - Project-to-resource mapping (explicit or inferred)
-- **Deliverable**: The "holy grail" multi-platform synthesis
+- **Agent**: The "holy grail" multi-platform synthesis
 
 ---
 
 ## Integration with Existing Architecture
 
-### Deliverable Types (ADR-019)
+### Agent Types (ADR-019)
 
 Platform-native archetypes **extend, not replace** existing types:
 
@@ -416,16 +416,16 @@ New conceptually-distinct archetypes get new types:
 
 ### Destination-First (ADR-028)
 
-Platform-native deliverables align with destination-first:
+Platform-native agents align with destination-first:
 - Destination informs not just export, but **generation**
 - Style inference becomes **platform-style inference**
 - Governance levels remain applicable, with destination-derived ceilings
 
 ### Context Extraction (ADR-030)
 
-Platform-native deliverables **consume** extraction methodology:
-- Source metadata (`platform`, `resource_name`) informs deliverable
-- Block types can be filtered by relevance to deliverable type
+Platform-native agents **consume** extraction methodology:
+- Source metadata (`platform`, `resource_name`) informs agent
+- Block types can be filtered by relevance to agent type
 - Freshness guarantees enable event-driven triggers
 
 ---
@@ -434,22 +434,22 @@ Platform-native deliverables **consume** extraction methodology:
 
 | Metric | Definition | Target |
 |--------|------------|--------|
-| **Platform fit score** | % of deliverables exported without style edits | >70% |
+| **Platform fit score** | % of agents exported without style edits | >70% |
 | **Event trigger accuracy** | User acceptance of event-triggered runs | >80% |
 | **Response quality** | Auto-responses approved without edit | >60% |
-| **Time saved** | Reduction in user effort per deliverable | 50%+ |
+| **Time saved** | Reduction in user effort per agent | 50%+ |
 | **Trust delegation** | Users enabling auto modes | 30%+ by month 3 |
 
 ---
 
 ## Conclusion
 
-The evolution from generic deliverables to platform-native automation represents a significant but natural progression of YARNNN's vision. Key principles:
+The evolution from generic agents to platform-native automation represents a significant but natural progression of YARNNN's vision. Key principles:
 
 1. **Keep the unified context pool** — Cross-platform synthesis is core value
 2. **Platforms inform reasoning, not just formatting** — Radical interpretation chosen
 3. **Separate ephemeral from persistent context** — Temporal awareness without pollution
-4. **Deliverables are specifically scoped** — Predictable trigger behavior
+4. **Agents are specifically scoped** — Predictable trigger behavior
 5. **Vertical implementation (Slack first)** — Prove the model before expanding
 6. **Preserve user control** — Governance ceilings, not surprise automation
 
@@ -457,9 +457,9 @@ The evolution from generic deliverables to platform-native automation represents
 
 ## References
 
-- [ADR-031: Platform-Native Deliverable Architecture](../adr/ADR-031-platform-native-deliverables.md)
-- [ADR-028: Destination-First Deliverables](../adr/ADR-028-destination-first-deliverables.md)
-- [ADR-019: Deliverable Types System](../adr/ADR-019-deliverable-types.md)
+- [ADR-031: Platform-Native Agent Architecture](../adr/ADR-031-platform-native-agents.md)
+- [ADR-028: Destination-First Agents](../adr/ADR-028-destination-first-agents.md)
+- [ADR-019: Agent Types System](../adr/ADR-019-agent-types.md)
 - [ADR-030: Context Extraction Methodology](../adr/ADR-030-context-extraction-methodology.md)
 - [Integration Strategy Analysis](./integration-strategy.md)
 - [Integration-First Onboarding](../design/INTEGRATION_FIRST_ONBOARDING.md)

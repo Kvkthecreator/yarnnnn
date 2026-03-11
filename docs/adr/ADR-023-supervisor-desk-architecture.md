@@ -12,7 +12,7 @@
 
 We've iterated through multiple UI architectures:
 - ADR-013: Conversation + Surfaces (drawers layer on chat)
-- ADR-020: Deliverable-Centric Chat (floating chat globally)
+- ADR-020: Agent-Centric Chat (floating chat globally)
 - ADR-021: Review-First (land on what needs attention)
 - ADR-022: Tab-Based (IDE-like tabs for multiple open items)
 
@@ -41,14 +41,14 @@ YARNNN operates on multiple data domains, each with TP tools and UI needs:
 
 | Data Domain | TP Tools | User Actions |
 |-------------|----------|--------------|
-| **Deliverables** | `list_deliverables`, `get_deliverable`, `create_deliverable`, `run_deliverable`, `update_deliverable` | Review versions, edit settings, view history |
-| **Deliverable Versions** | (via deliverable tools + API) | Edit content, refine with TP, approve/reject |
+| **Agents** | `list_agents`, `get_agent`, `create_agent`, `run_agent`, `update_agent` | Review versions, edit settings, view history |
+| **Agent Versions** | (via agent tools + API) | Edit content, refine with TP, approve/reject |
 | **Work** | `create_work`, `list_work`, `get_work`, `update_work`, `delete_work` | View outputs, track progress |
 | **Context/Memory** | `list_memories`, `get_memory`, `create_memory`, `update_memory`, `delete_memory` (NEW) | Browse context, edit memories, manage what TP knows |
 | **Documents** | (upload via API) | View documents, see extracted content |
 | **Projects** | `list_projects`, `create_project`, `rename_project`, `update_project` | Browse projects, edit settings |
 
-The desk must support **all domains**, not just deliverables.
+The desk must support **all domains**, not just agents.
 
 ## Decision
 
@@ -66,8 +66,8 @@ One persistent workspace. One thing "on the desk" at a time. Any data domain can
 │   │   THE DESK (current surface)                            │   │
 │   │                                                         │   │
 │   │   Any data domain:                                      │   │
-│   │   • Deliverable version review                          │   │
-│   │   • Deliverable detail                                  │   │
+│   │   • Agent version review                          │   │
+│   │   • Agent detail                                  │   │
 │   │   • Work output                                         │   │
 │   │   • Context/memory browser                              │   │
 │   │   • Document viewer                                     │   │
@@ -76,7 +76,7 @@ One persistent workspace. One thing "on the desk" at a time. Any data domain can
 │   └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │   ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐   │
-│     ATTENTION: 2 deliverables staged                            │
+│     ATTENTION: 2 agents staged                            │
 │   │ [Weekly Report ▸] [Client Update ▸]                    │   │
 │   └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘   │
 │                                                                 │
@@ -94,15 +94,15 @@ The desk displays **surfaces** — typed views into data domains:
 
 ```typescript
 type DeskSurface =
-  // === Deliverables Domain ===
+  // === Agents Domain ===
   | {
-      type: 'deliverable-review';
-      deliverableId: string;
+      type: 'agent-review';
+      agentId: string;
       versionId: string;
     }
   | {
-      type: 'deliverable-detail';
-      deliverableId: string;
+      type: 'agent-detail';
+      agentId: string;
     }
 
   // === Work Domain ===
@@ -119,8 +119,8 @@ type DeskSurface =
   // === Context Domain ===
   | {
       type: 'context-browser';
-      scope: 'user' | 'deliverable' | 'project';
-      scopeId?: string;  // deliverableId or projectId
+      scope: 'user' | 'agent' | 'project';
+      scopeId?: string;  // agentId or projectId
     }
   | {
       type: 'context-editor';
@@ -165,28 +165,28 @@ When TP executes a tool, the result can include a `ui_action` that opens a surfa
   "success": true,
   "ui_action": {
     "type": "OPEN_SURFACE",
-    "surface": "deliverable",
-    "data": { "deliverableId": "abc123" }
+    "surface": "agent",
+    "data": { "agentId": "abc123" }
   }
 }
 
 // Maps to DeskSurface
-{ type: 'deliverable-detail', deliverableId: 'abc123' }
+{ type: 'agent-detail', agentId: 'abc123' }
 ```
 
 **2. Attention Queue**
-Staged deliverable versions appear in the attention bar. Clicking opens review:
+Staged agent versions appear in the attention bar. Clicking opens review:
 
 ```typescript
-{ type: 'deliverable-review', deliverableId: '...', versionId: '...' }
+{ type: 'agent-review', agentId: '...', versionId: '...' }
 ```
 
 **3. Domain Browser (Escape Hatch)**
 User explicitly browses and selects an item:
 
 ```typescript
-// User clicks "Weekly Status Report" in deliverables section
-{ type: 'deliverable-detail', deliverableId: '...' }
+// User clicks "Weekly Status Report" in agents section
+{ type: 'agent-detail', agentId: '...' }
 
 // User clicks "About Me" in context section
 { type: 'context-browser', scope: 'user' }
@@ -199,11 +199,11 @@ function mapToolActionToSurface(action: UIAction): DeskSurface | null {
   const { surface, data } = action;
 
   switch (surface) {
-    // Deliverables
-    case 'deliverable':
-      return { type: 'deliverable-detail', deliverableId: data.deliverableId };
-    case 'deliverable-review':
-      return { type: 'deliverable-review', deliverableId: data.deliverableId, versionId: data.versionId };
+    // Agents
+    case 'agent':
+      return { type: 'agent-detail', agentId: data.agentId };
+    case 'agent-review':
+      return { type: 'agent-review', agentId: data.agentId, versionId: data.versionId };
 
     // Work
     case 'output':
@@ -252,7 +252,7 @@ The `[Browse ≡]` button opens a panel showing all data domains:
 │ ├─ Weekly Status Report                      Mon 9am           │
 │ ├─ Client Update                             15th monthly      │
 │ ├─ Competitor Brief                          Paused            │
-│ └─ + Create new deliverable                                    │
+│ └─ + Create new agent                                    │
 │                                                                │
 │ RECENT WORK                                                    │
 │ ├─ Market Analysis                           completed 2h ago  │
@@ -280,8 +280,8 @@ Each surface type has a dedicated component:
 
 ```
 web/components/surfaces/
-├── DeliverableReviewSurface.tsx    # Edit, refine, approve version
-├── DeliverableDetailSurface.tsx    # View deliverable, history, settings
+├── AgentReviewSurface.tsx    # Edit, refine, approve version
+├── AgentDetailSurface.tsx    # View agent, history, settings
 ├── WorkOutputSurface.tsx           # View work result
 ├── WorkListSurface.tsx             # List work items
 ├── ContextBrowserSurface.tsx       # Browse memories
@@ -295,7 +295,7 @@ web/components/surfaces/
 
 ### Example Surfaces
 
-**Deliverable Review Surface:**
+**Agent Review Surface:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Weekly Status Report                              [→ Next] [All]│
@@ -370,7 +370,7 @@ web/components/surfaces/
 │                                                                 │
 │                        All caught up.                           │
 │                                                                 │
-│        Next deliverable: Weekly Status Report (Mon 9am)         │
+│        Next agent: Weekly Status Report (Mon 9am)         │
 │                                                                 │
 │        ─────────────────────────────────────────────────        │
 │                                                                 │
@@ -387,14 +387,14 @@ TP is always present at the bottom. Chips adapt to current surface:
 ```typescript
 function getChipsForSurface(surface: DeskSurface): Chip[] {
   switch (surface.type) {
-    case 'deliverable-review':
+    case 'agent-review':
       return [
         { label: 'Shorter', prompt: 'Make this more concise' },
         { label: 'More detail', prompt: 'Add more detail' },
         { label: 'More formal', prompt: 'Make the tone more formal' },
       ];
 
-    case 'deliverable-detail':
+    case 'agent-detail':
       return [
         { label: 'Run now', prompt: 'Generate a new version now' },
         { label: 'Show history', prompt: 'Show me the version history' },
@@ -461,7 +461,7 @@ User: "create a task"
 
 TP calls: clarify("What kind of task?", [
   "One-time work item",
-  "Recurring deliverable (like a weekly report)",
+  "Recurring agent (like a weekly report)",
   "Just a reminder/note"
 ])
 → TPBar shows the question with option buttons
@@ -469,8 +469,8 @@ TP calls: clarify("What kind of task?", [
 ```
 
 **Domain vocabulary mapping in system prompt:**
-- "task", "work", "job" → Could be `work` OR `deliverable` (clarify)
-- "report", "update", "document" → Usually `deliverable`
+- "task", "work", "job" → Could be `work` OR `agent` (clarify)
+- "report", "update", "document" → Usually `agent`
 - "note", "remember this" → Usually `memory`
 - "project", "workspace" → `project`
 
@@ -478,7 +478,7 @@ TP calls: clarify("What kind of task?", [
 All surfaces with creation actions wire their buttons to TP rather than custom forms:
 - ContextBrowserSurface "Add" → `sendMessage("I'd like to add something to my memory")`
 - ProjectListSurface "New Project" → `sendMessage("I'd like to create a new project")`
-- DeliverableListSurface "New" → `sendMessage("I'd like to create a new recurring deliverable")`
+- AgentListSurface "New" → `sendMessage("I'd like to create a new recurring agent")`
 
 This keeps TP as the primary interaction point while providing UI affordances for discoverability.
 
@@ -496,7 +496,7 @@ Use this when user asks "what do you know about X" or wants to see their context
 
 Scopes:
 - "user": Cross-cutting personal context (preferences, company info)
-- "deliverable": Context specific to a deliverable
+- "agent": Context specific to a agent
 - "project": Context specific to a project (legacy)
 """,
     "input_schema": {
@@ -504,12 +504,12 @@ Scopes:
         "properties": {
             "scope": {
                 "type": "string",
-                "enum": ["user", "deliverable", "project"],
+                "enum": ["user", "agent", "project"],
                 "description": "Which context scope to list"
             },
             "scope_id": {
                 "type": "string",
-                "description": "For deliverable/project scope, the ID"
+                "description": "For agent/project scope, the ID"
             },
             "tags": {
                 "type": "array",
@@ -532,7 +532,7 @@ CREATE_MEMORY_TOOL = {
 Use when:
 - User explicitly tells you to remember something
 - You learn something important about the user that should persist
-- User provides context that will be useful for future deliverables
+- User provides context that will be useful for future agents
 
 Examples:
 - "Remember that I prefer bullet points"
@@ -548,12 +548,12 @@ Examples:
             },
             "scope": {
                 "type": "string",
-                "enum": ["user", "deliverable"],
+                "enum": ["user", "agent"],
                 "description": "Where this memory applies. Default: user"
             },
             "scope_id": {
                 "type": "string",
-                "description": "For deliverable scope, the deliverable ID"
+                "description": "For agent scope, the agent ID"
             },
             "tags": {
                 "type": "array",
@@ -608,7 +608,7 @@ interface DeskState {
   // Cached data for current surface (avoid re-fetching)
   surfaceData: Record<string, unknown> | null;
 
-  // Attention queue (staged deliverables)
+  // Attention queue (staged agents)
   attention: AttentionItem[];
 
   // Loading states
@@ -617,8 +617,8 @@ interface DeskState {
 }
 
 interface AttentionItem {
-  type: 'deliverable-staged';
-  deliverableId: string;
+  type: 'agent-staged';
+  agentId: string;
   versionId: string;
   title: string;
   stagedAt: string;
@@ -652,8 +652,8 @@ Single route with query params for deep linking:
 
 ```
 /dashboard                                    → Idle or first attention item
-/dashboard?surface=deliverable-review&did=X&vid=Y   → Review version
-/dashboard?surface=deliverable-detail&did=X         → Deliverable detail
+/dashboard?surface=agent-review&did=X&vid=Y   → Review version
+/dashboard?surface=agent-detail&did=X         → Agent detail
 /dashboard?surface=context-browser&scope=user       → User context
 /dashboard?surface=work-output&wid=X                → Work output
 ```
@@ -677,8 +677,8 @@ web/
 │   │   └── DomainBrowser.tsx         # [Browse] escape hatch
 │   │
 │   ├── surfaces/
-│   │   ├── DeliverableReviewSurface.tsx
-│   │   ├── DeliverableDetailSurface.tsx
+│   │   ├── AgentReviewSurface.tsx
+│   │   ├── AgentDetailSurface.tsx
 │   │   ├── WorkOutputSurface.tsx
 │   │   ├── WorkListSurface.tsx
 │   │   ├── ContextBrowserSurface.tsx
@@ -737,14 +737,14 @@ web/
 3. Create `Desk.tsx` container with `SurfaceRouter`
 
 ### Phase 2: Core Surfaces
-1. `DeliverableReviewSurface` (adapt from VersionTabView)
-2. `DeliverableDetailSurface` (adapt from DeliverableDetail)
+1. `AgentReviewSurface` (adapt from VersionTabView)
+2. `AgentDetailSurface` (adapt from AgentDetail)
 3. `IdleSurface` (new)
 4. `AttentionBar` component
 
 ### Phase 3: Domain Browser
 1. `DomainBrowser` component
-2. Load data for each section (deliverables, work, context, docs)
+2. Load data for each section (agents, work, context, docs)
 
 ### Phase 4: Additional Surfaces
 1. `WorkOutputSurface`, `WorkListSurface`
@@ -771,7 +771,7 @@ web/
 - `TabContext.tsx`
 - `TabBar.tsx`
 - `TabContent.tsx`
-- `tabs/views/DeliverableTabView.tsx`
+- `tabs/views/AgentTabView.tsx`
 - `tabs/views/VersionTabView.tsx`
 - `EmbeddedTPInput.tsx`
 - `Sidebar.tsx`
@@ -779,8 +779,8 @@ web/
 
 **Frontend — Keep & Adapt:**
 - `ChatView.tsx` → Extract patterns to TPBar
-- `VersionReview.tsx` → Adapt to DeliverableReviewSurface
-- `DeliverableDetail.tsx` → Adapt to DeliverableDetailSurface
+- `VersionReview.tsx` → Adapt to AgentReviewSurface
+- `AgentDetail.tsx` → Adapt to AgentDetailSurface
 - UI primitives (button, card, input, etc.)
 
 **Backend — Add:**
@@ -790,6 +790,6 @@ web/
 ## References
 
 - [ESSENCE.md](../ESSENCE.md) - Core principles
-- [ADR-018: Recurring Deliverables](ADR-018-recurring-deliverables.md) - Deliverable data model
+- [ADR-018: Recurring Agents](ADR-018-recurring-agents.md) - Agent data model
 - [ADR-022: Tab-Based Architecture](ADR-022-tab-based-supervision-architecture.md) - Superseded
 - Factory supervisor mental model (conversation 2026-02-03)

@@ -19,13 +19,13 @@ import type {
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
-  Deliverable,
-  DeliverableCreate,
-  DeliverableUpdate,
-  DeliverableDetail,
-  DeliverableVersion,
+  Agent,
+  AgentCreate,
+  AgentUpdate,
+  AgentDetail,
+  AgentRun,
   VersionUpdate,
-  DeliverableRunResponse,
+  AgentRunResponse,
   // ADR-034: Context Domains
   ContextDomainSummary,
   ContextDomainDetail,
@@ -287,9 +287,9 @@ export const api = {
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     // Get global chat history
-    globalHistory: (limit: number = 1, deliverableId?: string) => {
+    globalHistory: (limit: number = 1, agentId?: string) => {
       const params = new URLSearchParams({ limit: String(limit) });
-      if (deliverableId) params.set('deliverable_id', deliverableId);
+      if (agentId) params.set('agent_id', agentId);
       return request<{
         sessions: Array<{
           id: string;
@@ -397,67 +397,67 @@ export const api = {
     pipelineStats: () => request<AdminPipelineStats>("/api/admin/pipeline-stats"),
   },
 
-  // ADR-018: Deliverables endpoints
-  deliverables: {
-    // List user's deliverables
+  // ADR-018: Agents endpoints
+  agents: {
+    // List user's agents
     list: (status?: string) => {
       const params = status ? `?status=${status}` : "";
-      return request<Deliverable[]>(`/api/deliverables${params}`);
+      return request<Agent[]>(`/api/agents${params}`);
     },
 
-    // Create a new deliverable
-    create: (data: DeliverableCreate) =>
-      request<Deliverable>("/api/deliverables", {
+    // Create a new agent
+    create: (data: AgentCreate) =>
+      request<Agent>("/api/agents", {
         method: "POST",
         body: JSON.stringify(data),
       }),
 
-    // Get deliverable with version history
-    get: (deliverableId: string) =>
-      request<DeliverableDetail>(`/api/deliverables/${deliverableId}`),
+    // Get agent with version history
+    get: (agentId: string) =>
+      request<AgentDetail>(`/api/agents/${agentId}`),
 
-    // Update deliverable settings
-    update: (deliverableId: string, data: DeliverableUpdate) =>
-      request<Deliverable>(`/api/deliverables/${deliverableId}`, {
+    // Update agent settings
+    update: (agentId: string, data: AgentUpdate) =>
+      request<Agent>(`/api/agents/${agentId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
 
-    // Archive deliverable
-    delete: (deliverableId: string) =>
+    // Archive agent
+    delete: (agentId: string) =>
       request<{ success: boolean; message: string }>(
-        `/api/deliverables/${deliverableId}`,
+        `/api/agents/${agentId}`,
         { method: "DELETE" }
       ),
 
     // Trigger an ad-hoc run
-    run: (deliverableId: string) =>
-      request<DeliverableRunResponse>(`/api/deliverables/${deliverableId}/run`, {
+    run: (agentId: string) =>
+      request<AgentRunResponse>(`/api/agents/${agentId}/run`, {
         method: "POST",
       }),
 
-    // List versions for a deliverable
-    listVersions: (deliverableId: string, limit?: number) => {
+    // List runs for an agent
+    listRuns: (agentId: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
-      return request<DeliverableVersion[]>(
-        `/api/deliverables/${deliverableId}/versions${params}`
+      return request<AgentRun[]>(
+        `/api/agents/${agentId}/runs${params}`
       );
     },
 
-    // Get a specific version
-    getVersion: (deliverableId: string, versionId: string) =>
-      request<DeliverableVersion>(
-        `/api/deliverables/${deliverableId}/versions/${versionId}`
+    // Get a specific run
+    getRun: (agentId: string, runId: string) =>
+      request<AgentRun>(
+        `/api/agents/${agentId}/runs/${runId}`
       ),
 
     // Update version (approve, reject, save edits)
-    updateVersion: (
-      deliverableId: string,
-      versionId: string,
+    updateRun: (
+      agentId: string,
+      runId: string,
       data: VersionUpdate
     ) =>
-      request<DeliverableVersion>(
-        `/api/deliverables/${deliverableId}/versions/${versionId}`,
+      request<AgentRun>(
+        `/api/agents/${agentId}/runs/${runId}`,
         {
           method: "PATCH",
           body: JSON.stringify(data),
@@ -465,10 +465,10 @@ export const api = {
       ),
 
     // ADR-087 Phase 3: Scoped sessions
-    listSessions: (deliverableId: string, limit?: number) => {
+    listSessions: (agentId: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
       return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
-        `/api/deliverables/${deliverableId}/sessions${params}`
+        `/api/agents/${agentId}/sessions${params}`
       );
     },
   },
@@ -478,19 +478,19 @@ export const api = {
     // Notification preferences
     getNotificationPreferences: () =>
       request<{
-        email_deliverable_ready: boolean;
-        email_deliverable_failed: boolean;
+        email_agent_ready: boolean;
+        email_agent_failed: boolean;
         email_suggestion_created: boolean; // ADR-060
       }>("/api/account/notification-preferences"),
 
     updateNotificationPreferences: (data: {
-      email_deliverable_ready?: boolean;
-      email_deliverable_failed?: boolean;
+      email_agent_ready?: boolean;
+      email_agent_failed?: boolean;
       email_suggestion_created?: boolean; // ADR-060
     }) =>
       request<{
-        email_deliverable_ready: boolean;
-        email_deliverable_failed: boolean;
+        email_agent_ready: boolean;
+        email_agent_failed: boolean;
         email_suggestion_created: boolean; // ADR-060
       }>("/api/account/notification-preferences", {
         method: "PATCH",
@@ -506,8 +506,8 @@ export const api = {
         memories: number;
         documents: number;
         // Content subtotals
-        deliverables: number;
-        deliverable_versions: number;
+        agents: number;
+        agent_runs: number;
         // Platform content (ADR-072)
         platform_content: number;
         // Integrations
@@ -628,7 +628,7 @@ export const api = {
     // Export to provider
     export: (
       provider: string,
-      data: { deliverable_version_id: string; destination: Record<string, unknown> }
+      data: { agent_run_id: string; destination: Record<string, unknown> }
     ) =>
       request<{
         status: string;
@@ -641,7 +641,7 @@ export const api = {
       }),
 
     // Get export history
-    getHistory: (deliverableId?: string) =>
+    getHistory: (agentId?: string) =>
       request<{
         exports: Array<{
           id: string;
@@ -652,7 +652,7 @@ export const api = {
         }>;
         total: number;
       }>(
-        `/api/integrations/history${deliverableId ? `?deliverable_id=${deliverableId}` : ""}`
+        `/api/integrations/history${agentId ? `?agent_id=${agentId}` : ""}`
       ),
 
     // ADR-027: Context Import
@@ -794,7 +794,7 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
-    // ADR-072: Get synced platform content from platform_content (+ yarnnn deliverable outputs, ADR-102)
+    // ADR-072: Get synced platform content from platform_content (+ yarnnn agent outputs, ADR-102)
     getPlatformContext: (
       provider: "slack" | "notion" | "gmail" | "calendar" | "yarnnn",
       options?: { limit?: number; resourceId?: string; offset?: number }
@@ -854,10 +854,10 @@ export const api = {
           connected_at: string;
           resource_count: number;
           resource_type: string;
-          deliverable_count: number;
+          agent_count: number;
           activity_7d: number;
         }>;
-        total_deliverables: number;
+        total_agents: number;
       }>("/api/integrations/summary"),
 
     // ADR-100: 2-tier monetization — Source Selection & Limits
@@ -873,7 +873,7 @@ export const api = {
           total_platforms: number;
           sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
           monthly_messages: number; // -1 for unlimited
-          active_deliverables: number; // -1 for unlimited
+          active_agents: number; // -1 for unlimited
         };
         usage: {
           slack_channels: number;
@@ -882,7 +882,7 @@ export const api = {
           calendars: number;
           platforms_connected: number;
           monthly_messages_used: number;
-          active_deliverables: number;
+          active_agents: number;
         };
         next_sync: string | null; // ISO timestamp
       }>("/api/user/limits"),
@@ -1068,7 +1068,7 @@ export const api = {
     list: (options?: {
       limit?: number;
       days?: number;
-      eventType?: 'deliverable_run' | 'deliverable_approved' | 'deliverable_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
+      eventType?: 'agent_run' | 'agent_approved' | 'agent_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
     }) => {
       const params = new URLSearchParams();
       if (options?.limit) params.append("limit", options.limit.toString());
@@ -1078,7 +1078,7 @@ export const api = {
       return request<{
         activities: Array<{
           id: string;
-          event_type: 'deliverable_run' | 'deliverable_approved' | 'deliverable_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
+          event_type: 'agent_run' | 'agent_approved' | 'agent_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
           event_ref: string | null;
           summary: string;
           metadata: Record<string, unknown> | null;
@@ -1099,8 +1099,8 @@ export const api = {
       }>("/api/domains"),
 
     // Get active domain for current context
-    getActive: (deliverableId?: string) => {
-      const params = deliverableId ? `?deliverable_id=${deliverableId}` : "";
+    getActive: (agentId?: string) => {
+      const params = agentId ? `?agent_id=${agentId}` : "";
       return request<ActiveDomainResponse>(`/api/domains/active${params}`);
     },
 

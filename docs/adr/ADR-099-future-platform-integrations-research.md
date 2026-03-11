@@ -66,7 +66,7 @@ Platform has official remote MCP with OAuth?
 
 ### Linear
 
-**Value for YARNNN**: High. Engineering teams are core users. Push deliverables as issues, pull project context for recurring reports.
+**Value for YARNNN**: High. Engineering teams are core users. Push agents as issues, pull project context for recurring reports.
 
 | Dimension | Finding |
 |-----------|---------|
@@ -80,8 +80,8 @@ Platform has official remote MCP with OAuth?
 **Recommended approach**: Remote MCP client. Linear is the gold standard — official remote server, OAuth, no client restrictions. This is the model we want all platforms to follow.
 
 **Integration value**:
-- Pull: Sprint status, issue summaries, team workload → feed into recurring deliverables
-- Push: Create issues from deliverable outputs, post updates to projects
+- Pull: Sprint status, issue summaries, team workload → feed into recurring agents
+- Push: Create issues from agent outputs, post updates to projects
 
 ---
 
@@ -102,7 +102,7 @@ Platform has official remote MCP with OAuth?
 
 **Integration value**:
 - Pull: PR summaries, commit activity, issue status → engineering standup reports
-- Push: Create issues, post comments from deliverable outputs
+- Push: Create issues, post comments from agent outputs
 
 ---
 
@@ -119,12 +119,12 @@ Platform has official remote MCP with OAuth?
 | Client restrictions | ⚠️ **YES — whitelisted clients only.** Dynamic client registration returns 403 for unapproved clients. Beta access via application form. |
 | Transport | Streamable HTTP |
 
-**Recommended approach**: **Wait.** Figma's remote MCP is restricted to approved clients (Claude, Cursor, VS Code, etc.). YARNNN would need to apply and get approved, which is uncertain. Direct REST API is the reliable fallback, but Figma's value for recurring deliverables is lower priority.
+**Recommended approach**: **Wait.** Figma's remote MCP is restricted to approved clients (Claude, Cursor, VS Code, etc.). YARNNN would need to apply and get approved, which is uncertain. Direct REST API is the reliable fallback, but Figma's value for recurring agents is lower priority.
 
 **Integration value**:
 - Pull: Design specs, component data, variable definitions → design handoff docs
 - Push: Limited (Figma is primarily read-only for integrations)
-- Reality check: Most Figma MCP usage is code-generation focused, less relevant for YARNNN's deliverable automation
+- Reality check: Most Figma MCP usage is code-generation focused, less relevant for YARNNN's agent automation
 
 ---
 
@@ -138,7 +138,7 @@ Platform has official remote MCP with OAuth?
 | OAuth support | Likely (remote hosted servers typically support OAuth) |
 | REST API | ✅ Well-documented |
 
-**Value**: Project management context for deliverables. Similar use case to Linear but for non-engineering teams.
+**Value**: Project management context for agents. Similar use case to Linear but for non-engineering teams.
 
 ### Jira
 
@@ -158,7 +158,7 @@ Platform has official remote MCP with OAuth?
 | Open-source MCP | Community servers exist |
 | REST API | ✅ Google APIs (same OAuth we already have) |
 
-**Value**: High. We already have Google OAuth. Adding Drive/Docs read access would let YARNNN pull context from existing docs for deliverable generation. Minimal incremental auth work since we already have Google OAuth.
+**Value**: High. We already have Google OAuth. Adding Drive/Docs read access would let YARNNN pull context from existing docs for agent generation. Minimal incremental auth work since we already have Google OAuth.
 
 **Recommended approach**: Direct API (extend existing `GoogleAPIClient`). Easiest expansion since auth is already done.
 
@@ -247,7 +247,7 @@ Based on value × feasibility:
 - [ ] For platforms with both remote MCP and REST API (GitHub), which approach gives us more control and better DX?
 - [ ] How do we handle MCP server versioning? (Notion v2.0.0 broke tool names)
 - [ ] Should we build an abstraction layer that normalizes across MCP and direct API, or keep them separate?
-- [ ] What's the minimum viable "pull" integration? (Read-only context fetching for deliverable generation)
+- [ ] What's the minimum viable "pull" integration? (Read-only context fetching for agent generation)
 
 ---
 

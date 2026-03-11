@@ -27,12 +27,12 @@ Source limits and sync frequency are tier-based and can vary by provider. See [P
 ## Why multi-platform context matters
 
 - Cross-platform questions become grounded and complete
-- Deliverables can combine evidence across systems
+- Agents can combine evidence across systems
 - Output quality improves as context accumulates
 
 ## Use YARNNN from Claude or ChatGPT
 
-Use the [MCP connector](mcp-connector.md) to access YARNNN context and deliverables from external AI tools.
+Use the [MCP connector](mcp-connector.md) to access YARNNN context and agents from external AI tools.
 
 ## Security and privacy
 

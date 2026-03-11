@@ -13,7 +13,7 @@
 
 YARNNN's current session model (ADR-049) was built on one core assumption:
 
-> *"Sessions are for API coherence (tool_use/tool_result blocks), not context memory. Context continuity comes from deliverable state and platform freshness, not history."*
+> *"Sessions are for API coherence (tool_use/tool_result blocks), not context memory. Context continuity comes from agent state and platform freshness, not history."*
 
 This was wrong in practice, and has produced four compounding gaps:
 
@@ -34,7 +34,7 @@ The session boundary is UTC midnight. At midnight, the current session ends and 
 Claude Code operates in a static environment (codebase). YARNNN operates in a dynamic one (live platform data). This makes compaction *more* necessary for YARNNN:
 
 - Tool results from live platform reads (Slack history, Gmail threads, Notion pages) are large and consume history budget fast
-- The conversational surface is richer — users iteratively refine deliverables, discuss preferences, review content — all of which produces history that is contextually important but quickly fills the window
+- The conversational surface is richer — users iteratively refine agents, discuss preferences, review content — all of which produces history that is contextually important but quickly fills the window
 - Working memory updates overnight, not in real-time — so within-session context is the only continuity mechanism a user has during the day
 
 Claude Code's three mechanisms solve exactly these problems. There is no architectural reason to deviate from them.
@@ -100,7 +100,7 @@ At the end of each session (detected by the nightly cron: sessions started yeste
 **Implementation**: Add `generate_session_summary()` to `api/services/memory.py`. Single LLM call. Input: full session messages. Output: 2-5 sentence prose summary focused on decisions, in-progress work, and stated intent.
 
 **Example**:
-> [2026-02-19] Worked on Q2 board update — settled on 4-section structure (Overview, Metrics, Risks, Next Steps). User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
+> [2026-02-19] Worked on Q2 board update — settled on 4-section structure (Overview, Metrics, Risks, Next Steps). User wants financials added; agent paused pending numbers. Also set up weekly #engineering digest.
 
 **Working memory injection**: `_get_recent_sessions()` in `working_memory.py` already queries `chat_sessions.summary` and the `format_for_prompt()` function already renders "Recent conversations." No changes needed to the reader path — only the writer (nightly cron) needs to be wired.
 

@@ -15,13 +15,13 @@ Audit of the codebase (2026-02-23) revealed **three independent subsystems** mak
 |-----------|-------------|-------------------------------|------------------|-------------|
 | Platform Sync | `platform_sync_scheduler.py` → `platform_worker.py` | Yes | `selected_sources` | Hardcoded per platform |
 | Signal Extraction | `unified_scheduler.py` → `signal_extraction.py` | No (discards after LLM triage) | Partial (Slack/Notion yes, Gmail/Calendar no) | Hardcoded per platform |
-| Deliverable Execution | `unified_scheduler.py` → `deliverable_pipeline.py` | No (in-memory cache) | Deliverable config | Configurable |
+| Agent Execution | `unified_scheduler.py` → `agent_pipeline.py` | No (in-memory cache) | Agent config | Configurable |
 
-Additionally, deliverable execution reads from `platform_content` AND live-fetches, merging both into the LLM prompt — two data paths for one operation.
+Additionally, agent execution reads from `platform_content` AND live-fetches, merging both into the LLM prompt — two data paths for one operation.
 
 ### Problems
 
-1. **Triple fetch**: The same Gmail API gets called by sync, signal extraction, and deliverable execution within the same hour.
+1. **Triple fetch**: The same Gmail API gets called by sync, signal extraction, and agent execution within the same hour.
 2. **Inconsistent filtering**: Gmail signal extraction ignores `selected_sources` and queries `in:inbox`. Calendar signal extraction has no source filtering.
 3. **Data discard**: Signal extraction fetches content, passes summaries to Haiku, then discards everything. The raw data is lost — no accumulation.
 4. **Unwired retention**: `mark_content_retained()` is defined but never called. `cleanup_expired_content()` is defined but not in any scheduler. The content lifecycle is incomplete.
@@ -46,7 +46,7 @@ Additionally, deliverable execution reads from `platform_content` AND live-fetch
 │   - Tier-gated frequency (ADR-053)                              │
 │   - This is the ONLY subsystem that talks to external APIs      │
 │                                                                 │
-│ Signal extraction and deliverable execution do NOT call APIs.   │
+│ Signal extraction and agent execution do NOT call APIs.   │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ writes to
                            ▼
@@ -67,7 +67,7 @@ Additionally, deliverable execution reads from `platform_content` AND live-fetch
 │                          │ │                                    │
 │ Rules + freshness checks │ │ LLM reasoning over content:        │
 │ against platform_content │ │ - TP chat (user-initiated)         │
-│ metadata. No LLM calls.  │ │ - Deliverable execution (system)   │
+│ metadata. No LLM calls.  │ │ - Agent execution (system)   │
 │                          │ │                                    │
 │ Decides WHEN to invoke   │ │ Marks consumed content as retained │
 │ the semantic layer.       │ │ via mark_content_retained()        │
@@ -137,7 +137,7 @@ When pursued, webhooks write to `platform_content` through the same store path �
 
 ### Retention Lifecycle (Wire Existing Functions)
 
-1. **Deliverable execution**: After synthesis, call `mark_content_retained(content_ids, reason='deliverable_execution', ref=version_id)`. The `platform_content_ids` are already captured in `deliverable_pipeline.py:3723` — just need to pass to retain function.
+1. **Agent execution**: After synthesis, call `mark_content_retained(content_ids, reason='agent_execution', ref=version_id)`. The `platform_content_ids` are already captured in `agent_pipeline.py:3723` — just need to pass to retain function.
 2. **TP sessions**: When TP reads platform content during chat, call `mark_content_retained(content_ids, reason='tp_session', ref=session_id)`.
 3. **Cleanup**: Add `cleanup_expired_content()` to unified scheduler (hourly). Deletes non-retained content past TTL.
 4. **Versioning**: When `content_hash` differs for the same `(resource_id, item_id)`, the upsert creates a new row (different hash = different unique key). Previous version remains until TTL expiry or cleanup. For explicit version tracking, use the existing `version_of` FK column.
@@ -147,9 +147,9 @@ When pursued, webhooks write to `platform_content` through the same store path �
 The current `signal_extraction.py` + `signal_processing.py` LLM triage pipeline is replaced by scheduling heuristics:
 
 **Rule-based triggers** (no LLM call):
-- Calendar: "Event with >2 external attendees in next 4 hours" → trigger `meeting_prep` deliverable
-- Content freshness: "New platform_content arrived for this deliverable's sources since last run" → trigger execution
-- Staleness: "Deliverable hasn't run in >2x its configured frequency" → trigger execution
+- Calendar: "Event with >2 external attendees in next 4 hours" → trigger `meeting_prep` agent
+- Content freshness: "New platform_content arrived for this agent's sources since last run" → trigger execution
+- Staleness: "Agent hasn't run in >2x its configured frequency" → trigger execution
 
 **What this removes**:
 - `signal_extraction.py` live API calls (replaced by reading `platform_content`)
@@ -157,7 +157,7 @@ The current `signal_extraction.py` + `signal_processing.py` LLM triage pipeline 
 - The hourly per-user LLM cost for signal classification
 
 **What this preserves**:
-- Signal-emergent deliverable creation (a scheduling rule can still create a new deliverable)
+- Signal-emergent agent creation (a scheduling rule can still create a new agent)
 - Deduplication via `signal_history` (same mechanism, different trigger)
 - `activity_log` tracking of scheduling decisions
 
@@ -171,10 +171,10 @@ The fetch architecture provides natural monetization control points:
 - Number of platform connections
 
 **Compute layer**:
-- Number of LLM-consuming operations per period (TP sessions + deliverable runs)
+- Number of LLM-consuming operations per period (TP sessions + agent runs)
 - Token usage per operation
 
-Enforcement at fetch level means downstream consumers (TP, deliverables) are automatically scoped — they can only access what was fetched and stored.
+Enforcement at fetch level means downstream consumers (TP, agents) are automatically scoped — they can only access what was fetched and stored.
 
 Detailed monetization scoping is a separate concern requiring its own ADR.
 
@@ -184,7 +184,7 @@ The singular fetch path enables single-point instrumentation:
 
 **Fetch layer**: Per-sync-cycle logging of what was fetched, from which sources, how many items, new vs duplicate, errors
 **Content layer**: When fetched, when retained (by what), when expired
-**Consumer layer**: What content was consumed by which deliverable/TP session
+**Consumer layer**: What content was consumed by which agent/TP session
 
 Detailed observability design is a separate concern requiring its own feature documentation and potentially its own ADR.
 
@@ -211,7 +211,7 @@ Detailed observability design is a separate concern requiring its own feature do
 2. ~~Add sync token support to `platform_worker.py` per-platform~~ **Done** (2026-02-23) — Slack `oldest`, Gmail date cursor, Calendar `syncToken`, Notion `last_edited_time`
 3. ~~Modify signal processing to read `platform_content` instead of live APIs~~ **Done** (2026-02-23, commit d300394) — `signal_extraction.py` rewritten to read from `platform_content`
 4. Replace LLM signal triage with scheduling heuristics — **Proposed** in ADR-074
-5. ~~Remove `fetch_integration_source_data` from deliverable execution~~ **Done** (2026-02-23, commit d300394) — execution strategies read from `platform_content`
+5. ~~Remove `fetch_integration_source_data` from agent execution~~ **Done** (2026-02-23, commit d300394) — execution strategies read from `platform_content`
 6. ~~Remove `signal_extraction.py` live API calls~~ **Done** (2026-02-23, commit d300394)
 7. Instrument fetch layer for observability — **Deferred**
 
@@ -222,5 +222,5 @@ Detailed observability design is a separate concern requiring its own feature do
 - ADR-072: Unified Content Layer & TP Execution Pipeline
 - ADR-056: Per-Source Sync Implementation
 - ADR-053: Platform Sync as Monetization Base Layer
-- ADR-068: Signal-Emergent Deliverables (partially superseded)
+- ADR-068: Signal-Emergent Agents (partially superseded)
 - `docs/integrations/PLATFORM-INTEGRATIONS.md` (updated alongside this ADR)

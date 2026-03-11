@@ -44,9 +44,9 @@ class ThinkingPartnerAgent(BaseAgent):
 
     Uses memories from two scopes (ADR-034):
     - Default domain: User's portable profile (preferences, patterns, business facts)
-    - Source domains: Context that emerged from deliverable sources (e.g., "Notion: Board Updates")
+    - Source domains: Context that emerged from agent sources (e.g., "Notion: Board Updates")
 
-    ADR-007: Can use tools to manage memories, deliverables, and work.
+    ADR-007: Can use tools to manage memories, agents, and work.
 
     Output: Chat response (text, optionally streamed)
 
@@ -71,7 +71,7 @@ class ThinkingPartnerAgent(BaseAgent):
 
         ADR-034: Uses domain terminology instead of project terminology.
         - user_memories: From default domain (personal/portable facts)
-        - project_memories: From source domains (deliverable-specific context)
+        - project_memories: From source domains (agent-specific context)
         """
         sections = []
 
@@ -105,7 +105,7 @@ class ThinkingPartnerAgent(BaseAgent):
                 lines.append(f"- {mem.content}{tags_str}{source_marker}")
             sections.append("\n".join(lines))
 
-        # Domain memories (from source domains - deliverable context)
+        # Domain memories (from source domains - agent context)
         if domain_memories:
             domain_label = selected_domain_name or "Domain"
             lines = [f"\n## {domain_label} Context\n"]
@@ -136,7 +136,7 @@ class ThinkingPartnerAgent(BaseAgent):
             context: Memory context bundle (legacy)
             include_context: Whether to include memory context
             with_tools: Whether to include tool usage instructions
-            is_onboarding: Whether user has no deliverables (enables onboarding mode)
+            is_onboarding: Whether user has no agents (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_domain_name: ADR-034 - Name of user's selected domain context
             skill_prompt: ADR-025 - Skill-specific prompt addition to inject
@@ -339,14 +339,14 @@ class ThinkingPartnerAgent(BaseAgent):
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
-        scoped_deliverable = params.get("scoped_deliverable")  # ADR-087: Deliverable-scoped context
+        scoped_agent = params.get("scoped_agent")  # ADR-087: Agent-scoped context
 
         # ADR-058: Build working memory (replaces most memory searches)
-        # ADR-087: Pass scoped_deliverable for per-deliverable instructions + memory injection
+        # ADR-087: Pass scoped_agent for per-agent instructions + memory injection
         injected_context = None
         try:
             injected_context = await build_working_memory(
-                auth.user_id, auth.client, deliverable=scoped_deliverable
+                auth.user_id, auth.client, agent=scoped_agent
             )
         except Exception:
             # Working memory is best-effort; fall back to legacy path

@@ -13,7 +13,7 @@ ADR-058 introduced a four-layer pipeline: `filesystem_items` → inference engin
 
 - Notion sync uses the wrong MCP path and likely fails silently
 - Style learning only runs during Slack import with a special flag
-- Domain inference requires deliverables to exist before it produces anything
+- Domain inference requires agents to exist before it produces anything
 - Profile inference depends on Claude Haiku running correctly after every sync
 - `knowledge_entries` has four different writers with unclear ownership
 - The working memory builder assembles from tables that may be empty or stale
@@ -31,10 +31,10 @@ The result: TP is often operating with less context than the user thinks it has,
 1. **Who is this person** — name, role, company, timezone
 2. **How do they write** — tone and verbosity per platform (stated, not inferred)
 3. **What context from their platforms** — recent Slack messages, emails, Notion pages, calendar events
-4. **What deliverables are active** — so TP knows what they're working on
+4. **What agents are active** — so TP knows what they're working on
 5. **What platforms are connected** — with sync freshness
 
-That's it. Items 3–5 already exist directly as `filesystem_items`, `deliverables`, and `platform_connections`. Items 1–2 are the only thing that needs a dedicated stated-preference store.
+That's it. Items 3–5 already exist directly as `filesystem_items`, `agents`, and `platform_connections`. Items 1–2 are the only thing that needs a dedicated stated-preference store.
 
 ### What the current inference layer adds (vs costs)
 
@@ -42,10 +42,10 @@ That's it. Items 3–5 already exist directly as `filesystem_items`, `deliverabl
 |------|-------|------|
 | Profile inference (Haiku post-sync) | Low — user knows their own name/role | API call per sync, can be stale, silent failure |
 | Style inference (Sonnet from Slack messages) | Medium — genuinely useful if working | Gated flag, barely triggered, complex |
-| Domain inference (graph algorithm from deliverables) | Low — domains are mostly obvious | Requires deliverables to exist, adds schema complexity |
+| Domain inference (graph algorithm from agents) | Low — domains are mostly obvious | Requires agents to exist, adds schema complexity |
 | knowledge_entries (4 writers) | Medium — facts/preferences are useful | Unclear ownership, drift, no good trigger |
 
-The inference layer's core problem: it requires everything upstream to be working correctly to deliver value. When Notion sync is broken, Notion styles are never inferred. When no deliverables exist, domains are empty. Failures are invisible.
+The inference layer's core problem: it requires everything upstream to be working correctly to deliver value. When Notion sync is broken, Notion styles are never inferred. When no agents exist, domains are empty. Failures are invisible.
 
 ---
 
@@ -89,10 +89,10 @@ Platform content with TTL. Synced on schedule. TP searches this when it needs to
 
 - `knowledge_profile` — replaced by `user_context` keys: `name`, `role`, `company`, `timezone`
 - `knowledge_styles` — replaced by `user_context` keys: `tone_{platform}`, `verbosity_{platform}`
-- `knowledge_domains` — removed. Deliverables carry their own source list. Domain grouping is a UI concept, not a data concept.
+- `knowledge_domains` — removed. Agents carry their own source list. Domain grouping is a UI concept, not a data concept.
 - `knowledge_entries` — replaced by `user_context` with `key = 'fact:X'` or `key = 'preference:X'`
 - `profile_inference.py` — removed
-- `domain_inference.py` — removed (domain clustering logic removed; deliverables keep source refs)
+- `domain_inference.py` — removed (domain clustering logic removed; agents keep source refs)
 - `style_learning.py` — removed (TP learns style conversationally, not from batch inference)
 - `working_memory.py` — simplified to just read `user_context` + platform status
 
@@ -110,8 +110,8 @@ Platform content with TTL. Synced on schedule. TP searches this when it needs to
 ### What you've told me
 {user_context keys: fact:*, instruction:*}
 
-### Active deliverables
-{deliverables: title, destination, sources, schedule — max 5}
+### Active agents
+{agents: title, destination, sources, schedule — max 5}
 
 ### Connected platforms
 {platform_connections: name, status, last_synced, freshness}
@@ -141,7 +141,7 @@ This is how Claude Code works: CLAUDE.md starts empty, grows as the user adds pr
 4. **Update Context page**: Profile + Entries sections read/write `user_context`; Styles section simplified to stated preferences only
 5. **Remove inference jobs**: `profile_inference.py`, `domain_inference.py`, `style_learning.py`
 6. **Remove tables**: `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` (after migration)
-7. **Keep `knowledge_domains` UI concept** as a frontend filter on deliverables (no DB table needed)
+7. **Keep `knowledge_domains` UI concept** as a frontend filter on agents (no DB table needed)
 
 ---
 
@@ -149,7 +149,7 @@ This is how Claude Code works: CLAUDE.md starts empty, grows as the user adds pr
 
 - `filesystem_items` — unchanged, same sync pipeline
 - `platform_connections` — unchanged
-- `deliverables` — unchanged, sources stay on deliverable
+- `agents` — unchanged, sources stay on agent
 - Search primitive — unchanged, still queries `filesystem_items`
 - Platform tools — unchanged, still do live API calls
 - Sync scheduler — unchanged

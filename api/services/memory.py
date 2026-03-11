@@ -5,9 +5,9 @@ Dedicated service for user_memory extraction and retrieval.
 Extracts stable personal facts from conversations and persists them
 as key-value rows in the user_memory table.
 
-This service is explicitly scoped to user_memory (global, cross-deliverable).
-Deliverable-scoped context lives in deliverable_instructions (user-authored)
-and deliverable_memory JSONB (agent observations, goal state).
+This service is explicitly scoped to user_memory (global, cross-agent).
+Agent-scoped context lives in agent_instructions (user-authored)
+and agent_memory JSONB (agent observations, goal state).
 Session continuity lives in session_continuity.py.
 
 Write:
@@ -37,7 +37,7 @@ class UserMemoryService:
     User memory extraction and persistence.
 
     Extracts stable personal facts from conversations and writes them
-    to user_memory. Scoped to global (cross-deliverable) knowledge only.
+    to user_memory. Scoped to global (cross-agent) knowledge only.
     """
 
     async def process_conversation(

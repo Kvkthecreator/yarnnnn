@@ -54,7 +54,7 @@ The TP system prompt (`SYSTEM_PROMPT_WITH_TOOLS`) follows this structure:
 2. **Memory Context** - User and project memories
 3. **Surface Content** (optional) - What user is currently viewing
 4. **Core Instructions** - Tool usage patterns, response guidelines
-5. **Domain-Specific Sections** - Plan mode, todo tracking, deliverable creation
+5. **Domain-Specific Sections** - Plan mode, todo tracking, agent creation
 6. **Skill Prompt** (optional) - Injected when a skill is active
 
 ---
@@ -85,13 +85,13 @@ Sessions use a `daily` scope - messages within the same day are grouped together
   "tool_history": [
     {
       "type": "tool_call",
-      "name": "list_deliverables",
+      "name": "list_agents",
       "input_summary": "{}",
       "result_summary": "{\"success\": true, \"count\": 10, ...}"
     },
     {
       "type": "text",
-      "content": "You have 10 active deliverables."
+      "content": "You have 10 active agents."
     }
   ]
 }
@@ -108,11 +108,11 @@ When loading history, we reconstruct Anthropic-format messages with proper `tool
 # Reconstructed for Claude API (structured)
 [
   {"role": "assistant", "content": [
-    {"type": "tool_use", "id": "tool_list_deliverables_0", "name": "list_deliverables", "input": {}},
-    {"type": "text", "text": "You have 10 deliverables."}
+    {"type": "tool_use", "id": "tool_list_agents_0", "name": "list_agents", "input": {}},
+    {"type": "text", "text": "You have 10 agents."}
   ]},
   {"role": "user", "content": [
-    {"type": "tool_result", "tool_use_id": "tool_list_deliverables_0", "content": "..."}
+    {"type": "tool_result", "tool_use_id": "tool_list_agents_0", "content": "..."}
   ]}
 ]
 ```
@@ -128,7 +128,7 @@ This matches how Claude Code maintains tool context across turns, improving cohe
 **Version**: v2 of Task Progress Tracking and Plan Mode
 
 **Problem**:
-1. TP would sometimes execute actions (create deliverable) without explicit user approval
+1. TP would sometimes execute actions (create agent) without explicit user approval
 2. Workflow phases were implicit - no clear separation between planning and execution
 3. Skills had prompt-based guidance but no enforced workflow structure
 
@@ -269,7 +269,7 @@ User Request
 [PLAN] Check project context   ● in_progress
 [PLAN] Gather missing details  ○ pending
 [GATE] Confirm with user       ○ pending
-[EXEC] Create deliverable      ○ pending
+[EXEC] Create agent      ○ pending
 [VALIDATE] Offer first draft   ○ pending
 ```
 
@@ -279,7 +279,7 @@ User Request
 [PLAN] Check project context   ✓ completed
 [PLAN] Gather missing details  ✓ completed
 [GATE] Confirm with user       ● in_progress  ← STOP HERE
-[EXEC] Create deliverable      ○ pending
+[EXEC] Create agent      ○ pending
 [VALIDATE] Offer first draft   ○ pending
 ```
 
@@ -289,7 +289,7 @@ User Request
 [PLAN] Check project context   ✓ completed
 [PLAN] Gather missing details  ✓ completed
 [GATE] Confirm with user       ✓ completed
-[EXEC] Create deliverable      ● in_progress  ← Now can proceed
+[EXEC] Create agent      ● in_progress  ← Now can proceed
 [VALIDATE] Offer first draft   ○ pending
 ```
 
@@ -300,9 +300,9 @@ Not all requests need the full workflow:
 | Request Type | Phases Used |
 |--------------|-------------|
 | Navigation ("show my memories") | None - direct tool call |
-| Quick action ("pause deliverable") | None - direct tool call |
+| Quick action ("pause agent") | None - direct tool call |
 | Simple creation ("remember X") | `[EXEC]` only |
-| Deliverable creation | Full workflow with gate |
+| Agent creation | Full workflow with gate |
 | Complex multi-step request | Full workflow with gate |
 
 ---
@@ -312,7 +312,7 @@ Not all requests need the full workflow:
 ### Context Indicator Behavior
 
 The context indicator in TPDrawer shows:
-- **Surface label**: Current surface type (Deliverables, Dashboard, etc.)
+- **Surface label**: Current surface type (Agents, Dashboard, etc.)
 - **Project selector**: Selected project or "Personal"
 
 This reflects the **current UI state**, not necessarily the context TP used for a response. Future enhancement could show "context used" separately.

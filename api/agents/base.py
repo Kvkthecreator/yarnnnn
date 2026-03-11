@@ -2,7 +2,7 @@
 Base agent interface and shared types
 
 Shared data classes used by ThinkingPartnerAgent and integration agents.
-ADR-090: WorkOutput, SUBMIT_OUTPUT_TOOL, factory, and DeliverableAgent removed.
+ADR-090: WorkOutput, SUBMIT_OUTPUT_TOOL, factory, and AgentAgent removed.
 """
 
 from abc import ABC, abstractmethod
@@ -23,7 +23,7 @@ class Memory:
     - domain_id is None or default domain → always accessible (user profile)
     - domain_id is specific domain → domain-scoped context
 
-    ADR-034: Domains emerge from deliverable source patterns.
+    ADR-034: Domains emerge from agent source patterns.
     The default domain holds portable user profile information.
     """
     id: UUID

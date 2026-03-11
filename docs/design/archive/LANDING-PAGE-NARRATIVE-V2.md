@@ -62,7 +62,7 @@ What makes this different:
 
 ### 2. Emergent Suggestions
 
-**Not this:** "Set up your deliverables and yarnnn will write them"
+**Not this:** "Set up your agents and yarnnn will write them"
 **This:** "yarnnn notices what you need and offers to handle it"
 
 How it works:
@@ -239,7 +239,7 @@ Suggested topics:
 **Step 3: Review and approve**
 > When it's time, yarnnn drafts it. You read, tweak if needed, and send.
 
-**Visual opportunity:** Horizontal flow with platform icons → deliverable types → review UI
+**Visual opportunity:** Horizontal flow with platform icons → agent types → review UI
 
 ---
 
@@ -268,7 +268,7 @@ yarnnn learns:
 
 **Grid layout with platform badges:**
 
-| Deliverable | Pulls from | Who gets it |
+| Agent | Pulls from | Who gets it |
 |-------------|------------|-------------|
 | Weekly status report | Slack #engineering, #product | Your manager |
 | Investor update | Notion metrics, Slack #founders | Your investors |
@@ -280,7 +280,7 @@ yarnnn learns:
 
 **Visual opportunity:**
 - Each card shows platform icons (1-3 depending on sources)
-- Arrow indicating flow: [platforms] → [deliverable] → [recipient]
+- Arrow indicating flow: [platforms] → [agent] → [recipient]
 - Real examples, not abstract descriptions
 
 **Tagline for section:** "One setup. Fresh drafts whenever they're due."
@@ -329,7 +329,7 @@ yarnnn will draft from whatever you give it. Connect platforms later when you're
 
 **Header:** Stop writing updates. Start approving them.
 
-**Subhead:** Free: 2 deliverables, all platforms. Pro: Unlimited.
+**Subhead:** Free: 2 agents, all platforms. Pro: Unlimited.
 
 **CTA:** Start for free
 
@@ -385,7 +385,7 @@ That assembly work? A machine should do it. Your job is to review and decide wha
 
 ### Section: What It's Not
 
-**Not a chatbot.** You don't prompt it with questions. You set up deliverables and review drafts.
+**Not a chatbot.** You don't prompt it with questions. You set up agents and review drafts.
 
 **Not a template tool.** It doesn't fill in blanks. It synthesizes fresh content from current context.
 
@@ -428,7 +428,7 @@ Two paths:
 > Describe it—a weekly status for your manager, a monthly update for investors. Pick which channels or docs should feed into it.
 
 **Let yarnnn figure it out:**
-> Just use yarnnn for a while. Ask it to catch you up, summarize threads, draft replies. It'll notice patterns and suggest deliverables.
+> Just use yarnnn for a while. Ask it to catch you up, summarize threads, draft replies. It'll notice patterns and suggest agents.
 
 **Visual:** Split showing wizard vs. chat suggestion
 
@@ -482,14 +482,14 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 **Pattern recognition:**
 - Asked for Slack catch-ups three times? → Suggests a weekly digest
 - Mentioned the same stakeholder repeatedly? → Suggests a recurring update
-- Always pull from the same channels? → Suggests a deliverable combining them
+- Always pull from the same channels? → Suggests a agent combining them
 
 **You stay in control:**
 - Every suggestion is just an offer
 - You can customize before accepting
 - You can dismiss suggestions you don't want
 
-**Visual:** Example of TP proposing a deliverable based on observed pattern
+**Visual:** Example of TP proposing a agent based on observed pattern
 
 ---
 
@@ -499,26 +499,26 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 
 **Headline:** Simple pricing. Start free.
 
-**Subhead:** Connect all your tools on any plan. Pay for more deliverables when you need them.
+**Subhead:** Connect all your tools on any plan. Pay for more agents when you need them.
 
 ---
 
 ### Tiers
 
 **Free — $0/month**
-- 2 deliverables
+- 2 agents
 - All platform connections (Slack, Gmail, Notion, Calendar)
 - 2 sources/platform, syncs 2x daily
 - 50k tokens/day
 
 **Starter — $9/month**
-- 5 deliverables
+- 5 agents
 - 5+ sources/platform, syncs 4x daily
-- Signal processing (auto-deliverable suggestions)
+- Signal processing (auto-agent suggestions)
 - 250k tokens/day
 
 **Pro — $29/month**
-- Unlimited deliverables
+- Unlimited agents
 - Unlimited sources, hourly syncs
 - 1M tokens/day
 - Priority support
@@ -531,23 +531,23 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 - **Paste or describe context** — Works without any integrations at all
 - **Platform intelligence** — yarnnn reads your tools properly, not just extracting text
 - **The learning loop** — Your edits improve drafts regardless of tier
-- **Emergent suggestions** — yarnnn proposes deliverables on any plan
+- **Emergent suggestions** — yarnnn proposes agents on any plan
 
 ---
 
 ### FAQ
 
 **Why is connecting tools free?**
-> The platforms are where your context lives. Limiting connections would make yarnnn worse. We want you to connect everything—then decide which deliverables are worth automating.
+> The platforms are where your context lives. Limiting connections would make yarnnn worse. We want you to connect everything—then decide which agents are worth automating.
 
 **What if I don't use Slack, Gmail, Notion, or Google Calendar?**
 > You can paste in context or describe what you need—yarnnn works with whatever you give it. And we're adding more integrations (Linear, Jira, Google Docs, Microsoft Teams) soon.
 
-**What counts as a deliverable?**
-> A deliverable is a recurring thing yarnnn produces: a weekly status, a monthly update, a daily digest. Each one counts as one deliverable, regardless of how often it runs. Free tier includes 2, Starter 5, Pro unlimited.
+**What counts as a agent?**
+> A agent is a recurring thing yarnnn produces: a weekly status, a monthly update, a daily digest. Each one counts as one agent, regardless of how often it runs. Free tier includes 2, Starter 5, Pro unlimited.
 
 **Can I try Pro?**
-> Start with Free (2 deliverables). When you need more, upgrade to Starter or Pro.
+> Start with Free (2 agents). When you need more, upgrade to Starter or Pro.
 
 **What integrations are coming next?**
 > Linear, Jira, Google Docs, GitHub, and Microsoft Teams are on the roadmap. [Request an integration →]
@@ -595,7 +595,7 @@ Show what yarnnn "sees" in each platform:
 
 ### Data Flow Visualization
 
-Show context flowing from platforms to deliverable:
+Show context flowing from platforms to agent:
 
 ```
 [Slack] ──┐
@@ -613,7 +613,7 @@ Animate with:
 
 ### Suggestion UI
 
-Show yarnnn proposing a deliverable:
+Show yarnnn proposing a agent:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -659,7 +659,7 @@ Use plain language. Avoid jargon.
 
 | Instead of | Say |
 |------------|-----|
-| Platform-bound deliverable | "From one platform" |
+| Platform-bound agent | "From one platform" |
 | Cross-platform synthesis | "Across platforms" |
 | Context extraction | "Reading your tools" |
 | Temporal pattern | "When it runs" (scheduled, on-demand) |
@@ -709,14 +709,14 @@ Use plain language. Avoid jargon.
 
 4. **Pricing** (`/app/pricing/page.tsx`)
    - Emphasize platforms free on all tiers
-   - Clarify what a "deliverable" is
+   - Clarify what a "agent" is
 
 ### New Components Needed
 
 1. `PlatformIcon` — Consistent icon component for Slack/Gmail/Notion
 2. `PlatformSignals` — Visual representation of what yarnnn reads
 3. `DataFlowDiagram` — Animated platform → yarnnn → output flow
-4. `SuggestionCard` — Example of yarnnn proposing a deliverable
+4. `SuggestionCard` — Example of yarnnn proposing a agent
 5. `ReviewPreview` — Example of the review/approve UI
 6. `UseCaseCard` — Enhanced card with platform source badges
 
@@ -746,6 +746,6 @@ The new landing pages should make visitors understand:
 
 ## Related Documents
 
-- [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
+- [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
 - [DECISION-001: Platform Sync Strategy](../product/DECISION-001-platform-sync-strategy.md)
 - [Design Principle: The Supervision Model](./DESIGN-PRINCIPLE-supervision-model.md)

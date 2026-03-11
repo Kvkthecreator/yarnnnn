@@ -146,7 +146,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             "Uses refresh_token flow, not direct access_token",
             "Access token refreshed automatically on each call",
             "Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars",
-            "Prefer create_draft over send for deliverables",
+            "Prefer create_draft over send for agents",
         ],
 
         "version": "2026-02-12",

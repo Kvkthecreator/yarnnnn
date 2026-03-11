@@ -3,7 +3,7 @@
 **Date:** 2026-03-03
 **Status:** Superseded by [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) (2026-03-04). Tab layout implemented as Phase 3 interim; full Cowork-style layout with scoped chat replaced this.
 **References:**
-- [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — Phase 3 spec
+- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — Phase 3 spec
 - [ADR-090: Work Tickets Consolidation](../adr/ADR-090-work-tickets-consolidation.md) — Phase 2 (surface redirects, combined here)
 - [Workspace Architecture Analysis, Section 10.6](../analysis/workspace-architecture-analysis-2026-03-02.md) — Cowork UI benchmark
 - [Workspace Architecture Analysis, Section 11.4](../analysis/workspace-architecture-analysis-2026-03-02.md) — Typed files → UI component mapping
@@ -29,23 +29,23 @@ Key design properties:
 
 ---
 
-## 2. YARNNN Deliverable Data → Cowork Panel Mapping
+## 2. YARNNN Agent Data → Cowork Panel Mapping
 
 | Cowork Panel | YARNNN Data | Field | Current UI Location |
 |-------------|-------------|-------|-------------------|
 | **Progress** | Schedule state + delivery status | `next_run_at`, `latest_version_status`, `version_count` | Header (schedule badge) + inline status |
-| **Content** | Generated versions | `deliverable_versions` | Delivery History section (bottom of page) |
-| **Context: Memory** | Agent's accumulated knowledge | `deliverable_memory` JSONB | **Not surfaced** (Phase 3 new) |
+| **Content** | Generated versions | `agent_runs` | Delivery History section (bottom of page) |
+| **Context: Memory** | Agent's accumulated knowledge | `agent_memory` JSONB | **Not surfaced** (Phase 3 new) |
 | **Context: Sources** | Data sources | `sources` JSONB array | Settings modal only |
-| **Context: Sessions** | Scoped chat history | `chat_sessions` via `deliverable_id` FK | **Not surfaced** (Phase 3 new) |
-| **Skills** | Behavioral instructions | `deliverable_instructions` TEXT | **Not surfaced** (Phase 3 new) |
+| **Context: Sessions** | Scoped chat history | `chat_sessions` via `agent_id` FK | **Not surfaced** (Phase 3 new) |
+| **Skills** | Behavioral instructions | `agent_instructions` TEXT | **Not surfaced** (Phase 3 new) |
 | — | Mode selector | `mode` column | **Not surfaced** (Phase 3 new) |
 
 ---
 
 ## 3. Crowding Assessment
 
-The current `/deliverables/[id]` page has 5 sections in a single-column layout (~538 lines):
+The current `/agents/[id]` page has 5 sections in a single-column layout (~538 lines):
 
 ```
 ┌─────────────────────────────────┐
@@ -66,8 +66,8 @@ The current `/deliverables/[id]` page has 5 sections in a single-column layout (
 ```
 
 Phase 3 adds 4 new data surfaces:
-- `deliverable_instructions` (editable text)
-- `deliverable_memory` (read-only, observations + goal)
+- `agent_instructions` (editable text)
+- `agent_memory` (read-only, observations + goal)
 - `mode` selector (recurring vs goal)
 - Scoped session history (read-only, recent summaries)
 
@@ -134,7 +134,7 @@ Keep the single-column layout. Add a tab bar below the execution details that sw
 
 ### Option C: Settings modal expansion
 
-Keep the page unchanged. Add Instructions and Memory sections to the existing DeliverableSettingsModal:
+Keep the page unchanged. Add Instructions and Memory sections to the existing AgentSettingsModal:
 
 ```
 Settings Modal (existing):
@@ -160,9 +160,9 @@ Settings Modal (existing):
 
 | Tab | Label | Data | Interaction | Default |
 |-----|-------|------|-------------|---------|
-| **History** | Delivery History | `deliverable_versions[]` | Click version → switch Content Hero | Selected (existing behavior) |
-| **Instructions** | Instructions | `deliverable_instructions` TEXT | Inline edit (auto-save on blur) | — |
-| **Memory** | Agent Memory | `deliverable_memory` JSONB | Read-only viewer with compact cards | — |
+| **History** | Delivery History | `agent_runs[]` | Click version → switch Content Hero | Selected (existing behavior) |
+| **Instructions** | Instructions | `agent_instructions` TEXT | Inline edit (auto-save on blur) | — |
+| **Memory** | Agent Memory | `agent_memory` JSONB | Read-only viewer with compact cards | — |
 | **Sessions** | Chat History | `chat_sessions` via FK | Read-only list of scoped session summaries | — |
 
 ### Tab content specifications
@@ -174,9 +174,9 @@ Settings Modal (existing):
 
 #### Instructions tab
 - Plain textarea with monospace font (markdown-style editing)
-- Auto-save: debounced PATCH to `api.deliverables.update(id, { deliverable_instructions })` on blur or after 2s idle
+- Auto-save: debounced PATCH to `api.agents.update(id, { agent_instructions })` on blur or after 2s idle
 - Save indicator: subtle "Saved" / "Saving..." text
-- Placeholder text: "Add instructions for how the agent should approach this deliverable. Examples: 'Use formal tone', 'Focus on trend analysis', 'The audience is the executive team.'"
+- Placeholder text: "Add instructions for how the agent should approach this agent. Examples: 'Use formal tone', 'Focus on trend analysis', 'The audience is the executive team.'"
 - Empty state: placeholder only (no wrapper, no empty state graphic)
 
 #### Memory tab
@@ -184,14 +184,14 @@ Settings Modal (existing):
 - Capped at 5 most recent (matching backend cap)
 - Goal section (if present): description, status, milestones as checklist
 - Read-only — system-accumulated, not user-editable
-- Empty state: "No observations yet. The agent accumulates knowledge as it processes content for this deliverable."
+- Empty state: "No observations yet. The agent accumulates knowledge as it processes content for this agent."
 
 #### Sessions tab
 - List of scoped TP sessions with summary text
 - Shows: session date, duration indicator, summary (first ~100 chars)
 - Click to expand full summary
 - Read-only — historical record
-- Empty state: "No scoped conversations yet. Chat with the deliverable open to build session history."
+- Empty state: "No scoped conversations yet. Chat with the agent open to build session history."
 
 ### Mode indicator
 
@@ -204,10 +204,10 @@ Mode (`recurring` vs `goal`) surfaces as a **badge in the header**, not a separa
 
 For goal mode, the schedule section transforms:
 - No "Next run" — goals don't have schedules
-- Shows goal progress instead (from `deliverable_memory.goal`)
+- Shows goal progress instead (from `agent_memory.goal`)
 - "Run Now" becomes "Generate Update"
 
-Mode switching happens in the **Settings modal** (since it fundamentally changes the deliverable's behavior), not inline.
+Mode switching happens in the **Settings modal** (since it fundamentally changes the agent's behavior), not inline.
 
 ---
 
@@ -215,20 +215,20 @@ Mode switching happens in the **Settings modal** (since it fundamentally changes
 
 Combined with Phase 3 since both are frontend changes.
 
-### WorkListSurface → redirect to /deliverables
+### WorkListSurface → redirect to /agents
 
 Current: `WorkListSurface` calls `api.work.listAll()` and shows work tickets.
-After: Surface type `work-list` redirects to `/deliverables` route (same as `deliverable-list` already does in `SurfaceRouter.tsx`).
+After: Surface type `work-list` redirects to `/agents` route (same as `agent-list` already does in `SurfaceRouter.tsx`).
 
-### WorkOutputSurface → redirect to /deliverables/[id]
+### WorkOutputSurface → redirect to /agents/[id]
 
 Current: `WorkOutputSurface` calls `api.work.get(workId)` and shows work_ticket output.
-After: Surface type `work-output` redirects to `/deliverables/{deliverableId}` if the work ticket has a `deliverable_id` (93/93 production tickets do). Falls back to showing a "Work item not found" message for any ticket without a deliverable_id (none exist in production).
+After: Surface type `work-output` redirects to `/agents/{agentId}` if the work ticket has a `agent_id` (93/93 production tickets do). Falls back to showing a "Work item not found" message for any ticket without a agent_id (none exist in production).
 
 ### IdleSurface "Recent Work" section
 
 Current: Shows recent work tickets from `api.work.listAll()`.
-After: Shows recent deliverable versions from `api.deliverables.list()` (already shown elsewhere in IdleSurface as deliverable cards). Remove the "Recent Work" section entirely — it's redundant with the deliverable cards.
+After: Shows recent agent versions from `api.agents.list()` (already shown elsewhere in IdleSurface as agent cards). Remove the "Recent Work" section entirely — it's redundant with the agent cards.
 
 ### API client cleanup
 
@@ -238,17 +238,17 @@ Remove `api.work.*` methods from `web/lib/api/client.ts`. Remove `Work`, `WorkOu
 
 ## 7. Backend API Changes Required
 
-### GET /deliverables/:id response
+### GET /agents/:id response
 
-Already returns `deliverable_instructions` and `deliverable_memory` (Phase 1 wired these into the SELECT). Verify frontend types match.
+Already returns `agent_instructions` and `agent_memory` (Phase 1 wired these into the SELECT). Verify frontend types match.
 
-### PATCH /deliverables/:id
+### PATCH /agents/:id
 
-Already accepts `deliverable_instructions` in update payload. Verify.
+Already accepts `agent_instructions` in update payload. Verify.
 
-### GET /deliverables/:id/sessions (new endpoint)
+### GET /agents/:id/sessions (new endpoint)
 
-Returns scoped chat sessions for this deliverable:
+Returns scoped chat sessions for this agent:
 ```json
 {
   "sessions": [
@@ -262,33 +262,33 @@ Returns scoped chat sessions for this deliverable:
 }
 ```
 
-Query: `SELECT id, created_at, summary, (SELECT count(*) FROM session_messages WHERE session_id = cs.id) as message_count FROM chat_sessions cs WHERE deliverable_id = $1 ORDER BY created_at DESC LIMIT 10`
+Query: `SELECT id, created_at, summary, (SELECT count(*) FROM session_messages WHERE session_id = cs.id) as message_count FROM chat_sessions cs WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 10`
 
 ---
 
 ## 8. TypeScript Type Changes
 
 ```typescript
-// Add to Deliverable type
-interface Deliverable {
+// Add to Agent type
+interface Agent {
   // ... existing fields
-  deliverable_instructions?: string;
-  deliverable_memory?: {
+  agent_instructions?: string;
+  agent_memory?: {
     observations?: Array<{ date: string; source: string; note: string }>;
     goal?: { description: string; status: string; milestones?: string[] };
   };
   mode?: 'recurring' | 'goal';
 }
 
-// Add to DeliverableUpdate
-interface DeliverableUpdate {
+// Add to AgentUpdate
+interface AgentUpdate {
   // ... existing fields
-  deliverable_instructions?: string;
+  agent_instructions?: string;
   mode?: 'recurring' | 'goal';
 }
 
 // New type for scoped sessions
-interface DeliverableSession {
+interface AgentSession {
   id: string;
   created_at: string;
   summary?: string;
@@ -302,24 +302,24 @@ interface DeliverableSession {
 
 | File | Change | Scope |
 |------|--------|-------|
-| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Add tab bar + tab panels, mode badge in header | Major (primary change) |
-| `web/types/index.ts` | Add instructions/memory/mode to Deliverable type, add DeliverableSession | Small |
+| `web/app/(authenticated)/agents/[id]/page.tsx` | Add tab bar + tab panels, mode badge in header | Major (primary change) |
+| `web/types/index.ts` | Add instructions/memory/mode to Agent type, add AgentSession | Small |
 | `web/types/desk.ts` | Remove `work-output`, `work-list` surface types | Small |
 | `web/types/surfaces.ts` | Remove workId/outputId/ticketId from SurfaceData | Small |
-| `web/lib/api/client.ts` | Remove `api.work.*`, add `api.deliverables.sessions()` | Small |
+| `web/lib/api/client.ts` | Remove `api.work.*`, add `api.agents.sessions()` | Small |
 | `web/components/surfaces/WorkListSurface.tsx` | Delete file | Delete |
 | `web/components/surfaces/WorkOutputSurface.tsx` | Delete file | Delete |
 | `web/components/surfaces/IdleSurface.tsx` | Remove "Recent Work" section | Small |
 | `web/components/desk/SurfaceRouter.tsx` | Remove work surface cases, redirect to routes | Small |
-| `api/routes/deliverables.py` | Add GET /:id/sessions endpoint | Small |
-| `web/components/modals/DeliverableSettingsModal.tsx` | Add mode selector | Small |
+| `api/routes/agents.py` | Add GET /:id/sessions endpoint | Small |
+| `web/components/modals/AgentSettingsModal.tsx` | Add mode selector | Small |
 
 ---
 
 ## 10. Implementation Sequence
 
-1. **Types first** — Update TypeScript types (Deliverable, surfaces, desk)
-2. **Backend endpoint** — Add GET /deliverables/:id/sessions
+1. **Types first** — Update TypeScript types (Agent, surfaces, desk)
+2. **Backend endpoint** — Add GET /agents/:id/sessions
 3. **Detail page tabs** — Refactor delivery history into tab, add Instructions/Memory/Sessions tabs
 4. **Mode badge** — Add to header, mode selector in settings modal
 5. **Work surface redirect** — Redirect work-list/work-output in SurfaceRouter, remove WorkListSurface/WorkOutputSurface
@@ -330,7 +330,7 @@ interface DeliverableSession {
 
 ## 11. What This Does NOT Include
 
-- **Scoped TP chat panel on the detail page** — Future (requires embedding the chat widget, significant component work). Users chat with deliverable scope via the existing dashboard TP when navigating from a deliverable.
+- **Scoped TP chat panel on the detail page** — Future (requires embedding the chat widget, significant component work). Users chat with agent scope via the existing dashboard TP when navigating from a agent.
 - **Goal mode UI** — Mode badge + mode selector included. Full goal UX (milestones, progress tracking, completion) deferred to separate design doc.
 - **Memory compaction** — Backend concern, not UI.
 - **Sidebar layout** — Validated via tabs first. If tabs prove insufficient, migrate tab panels into sidebar panels.

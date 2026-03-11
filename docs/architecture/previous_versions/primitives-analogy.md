@@ -44,18 +44,18 @@ TodoWrite(todos)        →  Todo(todos)            →  (same)
 ```
 Filesystem Path              YARNNN Reference
 ───────────────────────────────────────────────
-/src/main.py                 deliverable:uuid-123
-/src/*.py                    deliverable:*
-/src/                        deliverable:?status=active
-./main.py                    deliverable:latest
-(create new)                 deliverable:new
+/src/main.py                 agent:uuid-123
+/src/*.py                    agent:*
+/src/                        agent:?status=active
+./main.py                    agent:latest
+(create new)                 agent:new
 ```
 
 ### Entity Types as "Directories"
 
 | Entity Type | Analogous To | Contains |
 |-------------|--------------|----------|
-| `deliverable` | `/deliverables/` | Recurring content configs |
+| `agent` | `/agents/` | Recurring content configs |
 | `platform` | `/platforms/` or `/mnt/` | Connected integrations |
 | `memory` | `/context/` | Knowledge/facts |
 | `document` | `/uploads/` | User-uploaded files |
@@ -128,7 +128,7 @@ Claude Code shows file operations inline in the terminal. YARNNN should show ent
 ```
 
 **Entity-aware rendering** - Each entity type displays appropriate fields:
-- `deliverable`: title, status badge (active/paused), frequency
+- `agent`: title, status badge (active/paused), frequency
 - `memory`: content preview, tags as chips
 - `platform`: provider name, connection status
 - `work`: description, status
@@ -146,8 +146,8 @@ Like shell commands, Execute actions follow namespaced conventions:
 | `platform.sync` | `git pull` | Fetch latest from platform |
 | `platform.publish` | `git push` | Send content to platform |
 | `platform.auth` | `ssh-keygen` | Set up credentials |
-| `deliverable.generate` | `make build` | Run content generation |
-| `deliverable.schedule` | `crontab -e` | Configure timing |
+| `agent.generate` | `make build` | Run content generation |
+| `agent.schedule` | `crontab -e` | Configure timing |
 | `memory.extract` | `grep -o` | Extract facts from content |
 
 ---
@@ -175,11 +175,11 @@ user_profile (Supabase)     # User config root
 ### Per-Entity Configuration
 
 ```
-Claude Code (per project)    YARNNN (per deliverable)
+Claude Code (per project)    YARNNN (per agent)
 ───────────────────────────────────────────────────
-.claude/project.json         deliverable.sources
-.gitignore                   deliverable.extraction_rules
-package.json                 deliverable.output_config
+.claude/project.json         agent.sources
+.gitignore                   agent.extraction_rules
+package.json                 agent.output_config
 ```
 
 ---
@@ -224,8 +224,8 @@ Read(ref="platform:slack/channels/C123/messages?limit=10")
 **Target:** Full nested navigation
 
 ```python
-Read(ref="deliverable:uuid/versions/latest")
-Read(ref="deliverable:uuid/sources/0")
+Read(ref="agent:uuid/versions/latest")
+Read(ref="agent:uuid/sources/0")
 ```
 
 ---

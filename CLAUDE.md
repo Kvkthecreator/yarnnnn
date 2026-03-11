@@ -4,9 +4,18 @@ This file provides context and guidelines for Claude Code when working on this c
 
 ## Project Overview
 
-YARNNN is a context-aware AI work platform. The core product is **Thinking Partner (TP)** - an AI assistant that understands users through synced platform context (Slack, Gmail, Notion, Calendar) and uploaded documents.
+YARNNN is an **autonomous agent platform for recurring knowledge work**. Persistent AI agents connect to work platforms (Slack, Gmail, Notion, Calendar), run on schedule, learn from feedback, and produce outputs that improve with tenure.
 
 **Architecture**: Next.js frontend → FastAPI backend → Supabase (Postgres) → Claude API
+
+**Key terminology** (ADR-103):
+- **Agent** (was: Deliverable) — a persistent, autonomous entity with identity, instructions, memory, tools, schedule, and output history
+- **Agent Run** (was: Deliverable Version) — a single execution of an agent, producing draft/final content
+- **Orchestrator / TP** — the user-facing conversational agent with full capabilities
+- **Agent Instructions** (was: deliverable_instructions) — user-authored behavioral directives
+- **Agent Memory** (was: deliverable_memory) — system-accumulated state (observations, goals)
+- **Perception Pipeline** (was: platform sync) — how agents sense the outside world
+- **Knowledge Base** (was: platform_content) — the shared content substrate agents reason over
 
 ## Core Execution Disciplines
 
@@ -29,12 +38,13 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-067**: Session compaction and continuity - follows Claude Code's model
 - **ADR-072**: Unified Content Layer - platform_content with retention-based accumulation, TP execution pipeline
 - **ADR-080**: Unified Agent Modes - one agent (chat + headless), mode-gated primitives, supersedes ADR-061 two-path separation
-- **ADR-087**: Deliverable Scoped Context - per-deliverable instructions + memory, session routing via deliverable_id
+- **ADR-087**: Agent Scoped Context - per-agent instructions + memory, session routing via agent_id
 - **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `api/services/trigger_dispatch.py`, single decision point for schedule/event/signal triggers (Phase 1 implemented)
-- **ADR-092**: Deliverable Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator deliverables replace `signal_emergent` origin (Implemented — signal processing removed, modes active, coordinator pipeline in `proactive_review.py`)
-- **ADR-101**: Deliverable Intelligence Model - four-layer knowledge model (Skills / Directives / Memory / Feedback); learned preferences from edit history injected into headless system prompt; `get_past_versions_context()` includes delivered versions
-- **ADR-102**: yarnnn Content Platform - deliverable outputs written as `platform_content` rows with `platform="yarnnn"`, closing the accumulation loop; always retained; searchable by TP and headless agents; no OAuth, no sync
-- **ADR-104**: Deliverable Instructions as Unified Targeting - `deliverable_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
+- **ADR-092**: Agent Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator agents replace `signal_emergent` origin (Implemented — signal processing removed, modes active, coordinator pipeline in `proactive_review.py`)
+- **ADR-101**: Agent Intelligence Model - four-layer knowledge model (Skills / Directives / Memory / Feedback); learned preferences from edit history injected into headless system prompt; `get_past_versions_context()` includes delivered runs
+- **ADR-102**: yarnnn Content Platform - agent outputs written as `platform_content` rows with `platform="yarnnn"`, closing the accumulation loop; always retained; searchable by TP and headless agents; no OAuth, no sync
+- **ADR-103**: Agentic Framework Reframe - terminology migration from "deliverable" to "agent" throughout codebase. Agents are persistent autonomous entities, not document generators.
+- **ADR-104**: Agent Instructions as Unified Targeting - `agent_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
 - **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
@@ -169,26 +179,28 @@ You MUST:
 
 **Tables** (use these names, not legacy):
 - `platform_connections` (not `user_integrations`)
-- `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`); includes `platform="yarnnn"` for deliverable outputs (ADR-102)
+- `platform_content` — unified content layer with retention (ADR-072); includes `platform="yarnnn"` for agent outputs (ADR-102)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
+- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103)
+- `agent_runs` — execution history per agent (was `deliverable_versions`, renamed ADR-103)
+- `agent_instructions` — column on `agents` table, user-authored behavioral directives
+- `agent_memory` — column on `agents` table, system-accumulated state
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
 - `api/services/extraction.py` — replaced by `memory.py`
-- `api/services/work_execution.py` — replaced by `deliverable_execution.py`
-- `api/agents/factory.py`, `api/agents/deliverable.py` — replaced by `generate_draft_inline()`
-- `api/routes/work.py`, `api/routes/agents.py` — work_tickets endpoints removed
+- `api/services/work_execution.py` — replaced by `agent_execution.py`
+- `api/agents/factory.py` — replaced by `generate_draft_inline()`
+- `api/routes/work.py`, `api/routes/agents.py` (old) — work_tickets endpoints removed
 - `api/services/signal_extraction.py`, `api/services/signal_processing.py` — dissolved in ADR-092
 - `api/routes/signal_processing.py` — dissolved in ADR-092
 - `api/integrations/readers/` — deprecated module, zero imports
 
 **Removed tables** (ADR-059 — do not reference in new code):
 - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
-
-**Tables pending removal** (ADR-090 Phase 3 — still in schema but being phased out):
-- `work_tickets` — currently used as audit trail by `deliverable_execution.py`, will be replaced by `activity_log`
-- `work_outputs` — frontend surfaces still reference, will redirect to `deliverable_versions`
+- `deliverables`, `deliverable_versions`, `deliverable_*` — renamed to `agents`, `agent_runs`, `agent_*` (ADR-103)
+- `work_tickets`, `work_outputs` — dropped
 
 ### ADR-077: Platform Sync Overhaul
 
@@ -218,18 +230,21 @@ You MUST:
 
 | Concern | Location |
 |---------|----------|
-| TP Agent | `api/agents/thinking_partner.py` |
+| TP Agent (Orchestrator) | `api/agents/thinking_partner.py` |
 | Tool Primitives | `api/services/primitives/*.py` |
 | Memory Service | `api/services/memory.py` |
 | Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
+| Agent Execution | `api/services/agent_execution.py` |
+| Agent Pipeline | `api/services/agent_pipeline.py` |
+| Agent Routes | `api/routes/agents.py` |
 | Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
 | Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
 | Platform API Clients | `api/integrations/core/{slack,google,notion}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |
-| Scheduler (Deliverables) | `api/jobs/unified_scheduler.py` |
+| Agent Scheduler | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075) |
 | Frontend API Client | `web/lib/api/client.ts` |
 | Onboarding UI | `web/components/onboarding/` |
@@ -238,7 +253,7 @@ You MUST:
 
 ## Common Pitfalls
 
-1. **Schema mismatch**: Code referencing old table/column names after ADR-058 migration
+1. **Schema mismatch**: Code referencing old table/column names — use `agents` not `deliverables`, `agent_runs` not `deliverable_versions`, `agent_id` not `deliverable_id`
 2. **Tool loop exhaustion**: TP hits `max_tool_rounds=5` without text response if tools return empty
 3. **PGRST205 errors**: PostgREST schema cache needs refresh after table changes
 4. **OAuth provider vs platform**: Google OAuth provides both `gmail` and `calendar` capabilities

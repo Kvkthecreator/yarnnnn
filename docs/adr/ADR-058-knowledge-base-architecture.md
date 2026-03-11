@@ -129,7 +129,7 @@ The inference engine processes:
 | `filesystem_items` (platform messages) | Styles, facts, decisions, entities |
 | `filesystem_documents` (uploads) | Facts, domain context |
 | `session_messages` (conversations) | Preferences, corrections, stated facts |
-| `deliverables` (configuration) | Domain groupings |
+| `agents` (configuration) | Domain groupings |
 
 ### 5. User Override Pattern
 
@@ -299,7 +299,7 @@ CREATE TABLE knowledge_styles (
     UNIQUE(user_id, platform)
 );
 
--- Work domains (inferred from deliverable patterns)
+-- Work domains (inferred from agent patterns)
 CREATE TABLE knowledge_domains (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -391,16 +391,16 @@ CREATE TABLE session_messages (
 );
 ```
 
-### Deliverables (Updated References)
+### Agents (Updated References)
 
 ```sql
-CREATE TABLE deliverables (
+CREATE TABLE agents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     domain_id UUID REFERENCES knowledge_domains(id),
 
     title TEXT NOT NULL,
-    deliverable_type TEXT,
+    agent_type TEXT,
     status TEXT DEFAULT 'active',
 
     -- Sources point to filesystem
@@ -416,9 +416,9 @@ CREATE TABLE deliverables (
     next_run_at TIMESTAMPTZ
 );
 
-CREATE TABLE deliverable_versions (
+CREATE TABLE agent_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
 
     content TEXT,
     version_number INTEGER NOT NULL,
@@ -451,7 +451,7 @@ async def build_working_memory(user_id: str, client) -> dict:
         "domains": await get_active_domains(user_id, client),
         "entries": await get_recent_entries(user_id, client, limit=20),
         "platforms": await get_platform_status(user_id, client),
-        "deliverables": await get_active_deliverables(user_id, client),
+        "agents": await get_active_agents(user_id, client),
     }
 ```
 
@@ -484,7 +484,7 @@ async def build_working_memory(user_id: str, client) -> dict:
 - Gmail: Inbox (synced 1h ago)
 - Notion: 5 pages (synced 3d ago - stale)
 
-## Active Deliverables
+## Active Agents
 - Weekly Status → Sarah (Fridays)
 - Board Update → Marcus (Monthly)
 ```
@@ -498,7 +498,7 @@ async def build_working_memory(user_id: str, client) -> dict:
 | Event | Inference Action |
 |-------|------------------|
 | After platform sync | Style inference from new user-authored messages |
-| After deliverable created/updated | Domain re-clustering |
+| After agent created/updated | Domain re-clustering |
 | Daily scheduled job | Profile refresh, domain summaries, entry cleanup |
 | User requests "Refresh" | Full re-inference |
 | After chat session | Extract knowledge from conversation |
@@ -763,7 +763,7 @@ All schema changes and migrations applied:
 
 - `DomainSource.platform` type updated (was `provider`)
 - Context page uses correct API endpoints
-- Deliverable source selection verified
+- Agent source selection verified
 - Platform detail pages verified
 
 ### Inference Engine ✅

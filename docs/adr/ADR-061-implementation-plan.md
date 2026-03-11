@@ -25,7 +25,7 @@ This plan implements ADR-061's Two-Path Architecture consolidation:
 | `api/agents/synthesizer.py` | Dead | Grep for imports/calls |
 | `api/agents/report.py` | Dead | Grep for imports/calls |
 | `api/agents/researcher.py` | Partial | Only `research_topic()` used |
-| `api/agents/factory.py` | Simplify | Only DeliverableAgent needed |
+| `api/agents/factory.py` | Simplify | Only AgentAgent needed |
 
 ```bash
 # Verification commands
@@ -41,7 +41,7 @@ grep -r "research_topic" api/ --include="*.py"
 - [ ] Delete `api/agents/synthesizer.py`
 - [ ] Delete `api/agents/report.py`
 - [ ] Update `api/agents/__init__.py` to remove exports
-- [ ] Update `api/agents/factory.py` to only support DeliverableAgent
+- [ ] Update `api/agents/factory.py` to only support AgentAgent
 - [ ] Verify tests still pass (if any agent tests exist)
 
 ### 1.3 Simplify Researcher (Day 1)
@@ -52,10 +52,10 @@ Keep only the `research_topic()` function needed by ResearchStrategy:
 - [ ] Update `api/services/execution_strategies.py` imports
 - [ ] Delete `api/agents/researcher.py` (class-based agent)
 
-**Deliverable**: Cleaner agent directory with only:
+**Agent**: Cleaner agent directory with only:
 - `base.py` - Shared infrastructure
 - `thinking_partner.py` - Path A
-- `deliverable.py` - Path B content generation
+- `agent.py` - Path B content generation
 - `factory.py` - Simplified
 
 ---
@@ -72,7 +72,7 @@ Create `api/services/conversation_analysis.py`:
 """
 Conversation Analysis Service - ADR-060/061
 
-Detects patterns in user conversations and creates suggested deliverables.
+Detects patterns in user conversations and creates suggested agents.
 Runs as part of unified_scheduler.py Analysis Phase (daily).
 """
 
@@ -82,7 +82,7 @@ from typing import Optional
 @dataclass
 class AnalystSuggestion:
     confidence: float  # 0.0 - 1.0
-    deliverable_type: str
+    agent_type: str
     title: str
     description: str
     suggested_frequency: str
@@ -94,7 +94,7 @@ async def analyze_conversation_patterns(
     client,
     user_id: str,
     sessions: list[dict],
-    existing_deliverables: list[dict],
+    existing_agents: list[dict],
     user_knowledge: list[dict],
 ) -> list[AnalystSuggestion]:
     """
@@ -104,7 +104,7 @@ async def analyze_conversation_patterns(
         client: Supabase client
         user_id: User UUID
         sessions: Recent chat sessions (last 7 days)
-        existing_deliverables: Current user deliverables (avoid duplicates)
+        existing_agents: Current user agents (avoid duplicates)
         user_knowledge: Knowledge entries for context
 
     Returns:
@@ -113,15 +113,15 @@ async def analyze_conversation_patterns(
     # Implementation in 2.2
     pass
 
-async def create_suggested_deliverable(
+async def create_suggested_agent(
     client,
     user_id: str,
     suggestion: AnalystSuggestion,
 ) -> Optional[str]:
     """
-    Create a deliverable with status='suggested' and analyst_metadata.
+    Create a agent with status='suggested' and analyst_metadata.
 
-    Returns deliverable_id if created, None if duplicate detected.
+    Returns agent_id if created, None if duplicate detected.
     """
     # Implementation in 2.3
     pass
@@ -133,7 +133,7 @@ Implement `analyze_conversation_patterns()`:
 
 1. **Extract conversation summaries** from sessions
 2. **Single LLM call** with structured output (JSON mode)
-3. **Pattern matching** against known deliverable types
+3. **Pattern matching** against known agent types
 4. **Confidence scoring** based on:
    - Explicit frequency mentions ("weekly", "every Monday")
    - Repeated queries (same channel/topic 3+ times)
@@ -143,7 +143,7 @@ Prompt structure:
 ```
 Analyze these conversations for recurring work patterns.
 For each pattern detected, provide:
-- deliverable_type (from: slack_channel_digest, gmail_inbox_brief, status_report, etc.)
+- agent_type (from: slack_channel_digest, gmail_inbox_brief, status_report, etc.)
 - confidence (0.0-1.0)
 - suggested_frequency
 - detection_reason
@@ -153,14 +153,14 @@ Return JSON array of suggestions.
 
 ### 2.3 Suggestion Creation (Day 3)
 
-Implement `create_suggested_deliverable()`:
+Implement `create_suggested_agent()`:
 
-1. **Duplicate check**: Match deliverable_type + sources
-2. **Create deliverable** with:
-   - `status: 'active'` (deliverable itself)
+1. **Duplicate check**: Match agent_type + sources
+2. **Create agent** with:
+   - `status: 'active'` (agent itself)
    - Initial version with `status: 'suggested'`
    - `analyst_metadata` populated from suggestion
-3. **Return deliverable_id** for tracking
+3. **Return agent_id** for tracking
 
 ### 2.4 Scheduler Integration (Day 3)
 
@@ -189,7 +189,7 @@ async def run_analysis_phase(supabase, now: datetime):
             if len(sessions) < 3:  # Need minimum activity
                 continue
 
-            existing = await get_user_deliverables(supabase, user["id"])
+            existing = await get_user_agents(supabase, user["id"])
             knowledge = await get_user_knowledge(supabase, user["id"])
 
             suggestions = await analyze_conversation_patterns(
@@ -198,7 +198,7 @@ async def run_analysis_phase(supabase, now: datetime):
 
             for suggestion in suggestions:
                 if suggestion.confidence >= 0.50:
-                    result = await create_suggested_deliverable(
+                    result = await create_suggested_agent(
                         supabase, user["id"], suggestion
                     )
                     if result:
@@ -212,7 +212,7 @@ async def run_analysis_phase(supabase, now: datetime):
     logger.info(f"[ANALYSIS] Processed {analysis_count} users, created {suggestions_created} suggestions")
 ```
 
-**Deliverable**: Working analysis phase that creates suggested deliverables.
+**Agent**: Working analysis phase that creates suggested agents.
 
 ---
 
@@ -233,16 +233,16 @@ You are a conversational assistant (Path A), NOT a batch processor (Path B).
 **DO:**
 - Answer questions using Search, Read, Execute primitives
 - Execute one-time platform actions (send Slack, create draft)
-- Create deliverables when user explicitly asks
+- Create agents when user explicitly asks
 - Remember facts about user (Write to memory)
 
 **DON'T:**
-- Generate recurring deliverable content (orchestrator does that)
+- Generate recurring agent content (orchestrator does that)
 - Suggest automations mid-conversation unprompted
-- Run extensive multi-step research (defer to deliverable for recurring needs)
+- Run extensive multi-step research (defer to agent for recurring needs)
 
 **When user says "set up a weekly digest":**
-- Create the deliverable configuration via Write primitive
+- Create the agent configuration via Write primitive
 - The backend orchestrator will generate content on schedule
 - You do NOT generate the first version inline
 
@@ -264,10 +264,10 @@ Per claude.md protocol, update `api/prompts/CHANGELOG.md`:
 ### Changed
 - behaviors.py: Added WORK_BOUNDARY section
 - Expected behavior: TP no longer proactively suggests automations mid-conversation
-- TP creates deliverable configs but doesn't generate content inline
+- TP creates agent configs but doesn't generate content inline
 ```
 
-**Deliverable**: Updated TP prompts with clear path boundary.
+**Agent**: Updated TP prompts with clear path boundary.
 
 ---
 
@@ -278,15 +278,15 @@ Per claude.md protocol, update `api/prompts/CHANGELOG.md`:
 ### 4.1 Manual Testing (Day 5)
 
 - [ ] Verify Analysis Phase runs on scheduler trigger
-- [ ] Verify suggested deliverables appear with correct metadata
+- [ ] Verify suggested agents appear with correct metadata
 - [ ] Verify TP doesn't suggest automations mid-conversation
-- [ ] Verify TP can still create deliverables when explicitly asked
+- [ ] Verify TP can still create agents when explicitly asked
 
 ### 4.2 Integration Points (Day 5)
 
-- [ ] API endpoints for suggested deliverables work (`GET /deliverables/suggested`)
+- [ ] API endpoints for suggested agents work (`GET /agents/suggested`)
 - [ ] Enable/dismiss actions update status correctly
-- [ ] Frontend can display suggested deliverables (when UI ready)
+- [ ] Frontend can display suggested agents (when UI ready)
 
 ---
 
@@ -307,7 +307,7 @@ Per claude.md protocol, update `api/prompts/CHANGELOG.md`:
 |--------|--------|
 | Agent files reduced | 2 files deleted (synthesizer, report) |
 | Analysis phase runs | Daily, logs user count + suggestions |
-| Suggested deliverables created | For users with 3+ sessions/week |
+| Suggested agents created | For users with 3+ sessions/week |
 | TP boundary respected | No automation suggestions mid-chat |
 
 ---
@@ -323,6 +323,6 @@ If issues arise:
 
 ## Next Steps After This Plan
 
-1. **Frontend**: Enhance `/deliverables` page with Suggested section (deferred)
+1. **Frontend**: Enhance `/agents` page with Suggested section (deferred)
 2. **Notifications**: Weekly digest email with suggestions (Phase 3 of ADR-060)
 3. **Learning loop**: Track acceptance rates to improve detection (Phase 4 of ADR-060)

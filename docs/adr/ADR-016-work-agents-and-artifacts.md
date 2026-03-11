@@ -332,7 +332,7 @@ When you delegate work to an agent and it completes:
 - Keep your response SHORT (1-2 sentences)
 - REFERENCE the output: "Done - see the output panel for the full report."
 - Do NOT duplicate the content in your response
-- The work output IS the deliverable; you just acknowledge it
+- The work output IS the agent; you just acknowledge it
 
 When you handle something directly (no delegation):
 - Respond naturally in conversation

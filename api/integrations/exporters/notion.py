@@ -303,7 +303,7 @@ class NotionExporter(DestinationExporter):
         - Status: "Draft"
         - Target Name: human-readable destination
         - Target Location: URL to the intended destination page
-        - Body: the deliverable content, ready to copy
+        - Body: the agent content, ready to copy
         """
         drafts_database_id = options.get("drafts_database_id")
         target_name = options.get("target_name", target)

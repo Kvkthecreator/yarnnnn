@@ -15,7 +15,7 @@ export const metadata: Metadata = getMarketingMetadata({
     "about yarnnn",
     "autonomous ai",
     "context accumulation",
-    "deliverable intelligence",
+    "agent intelligence",
     "supervision model",
   ],
 });
@@ -59,7 +59,7 @@ export default function AboutPage() {
                 source grounding, and supervision loops that improve quality each cycle.
               </p>
               <p className="text-white font-medium">
-                yarnnn is our answer: a system of deliverable specialists that learns from your world and your approvals.
+                yarnnn is our answer: a system of agent specialists that learns from your world and your approvals.
               </p>
             </div>
           </section>
@@ -94,7 +94,7 @@ export default function AboutPage() {
                       refined, and approved with clear control points.
                     </p>
                     <p className="text-white/30 text-sm">
-                      In yarnnn, users supervise specialists instead of manually rebuilding the same deliverables.
+                      In yarnnn, users supervise specialists instead of manually rebuilding the same agents.
                     </p>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ export default function AboutPage() {
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Different work needs different behaviors. Some deliverables should run on cadence.
+                      Different work needs different behaviors. Some agents should run on cadence.
                       Others should react to events, review proactively, or coordinate downstream work.
                     </p>
                     <p className="text-white/30 text-sm">
@@ -149,7 +149,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not template fill-in automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Deliverables generate from live context and memory, not static form fields.
+                    Agents generate from live context and memory, not static form fields.
                   </p>
                 </div>
                 <div>
@@ -203,7 +203,7 @@ export default function AboutPage() {
                 Build your first specialist.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Connect your stack, define one deliverable, and run the supervision loop.
+                Connect your stack, define one agent, and run the supervision loop.
               </p>
               <Link
                 href="/auth/login"

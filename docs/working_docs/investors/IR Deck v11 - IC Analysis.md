@@ -12,8 +12,8 @@
 
 - **Company:** YARNNN
 - **Problem:** AI tools are stateless (forget between sessions) and none work autonomously with user-specific context
-- **Solution:** Autonomous AI system that connects to work platforms (Slack, Gmail, Notion, Calendar), accumulates context over time, and produces deliverables without prompting — getting smarter with tenure
-- **Business Model:** SaaS — Free / $9 / $19 per month, tiered by sync frequency and deliverable limits
+- **Solution:** Autonomous AI system that connects to work platforms (Slack, Gmail, Notion, Calendar), accumulates context over time, and produces agents without prompting — getting smarter with tenure
+- **Business Model:** SaaS — Free / $9 / $19 per month, tiered by sync frequency and agent limits
 - **Stage:** Pre-seed / Seed
 
 ### Key Metrics
@@ -101,7 +101,7 @@ Why: Thiel would ask the contrarian question: is "context-powered autonomy" actu
 **Decision tendency:** 🔴 PASS
 - **Strengths:** The thesis that accumulated data creates a moat is conceptually sound. The four-layer model suggests a structured approach to data architecture. Retention-based content accumulation is a novel approach.
 - **Concerns:** Zero quantitative evidence for any claim. No retention curves, no engagement data, no edit distance metrics, no "quality improvement over time" proof. The deck promises measurable improvement but shows no measurements. The "Context Depth Over Time" chart on Slide 5 is illustrative, not data-backed.
-- **Unique angle:** "The deck's greatest weakness is that it claims a data-driven moat but presents zero data. Show me: (1) retention curve for the first 50 users, (2) edit distance trend across deliverable versions, (3) context accumulation rate by platform. Without these, the deck is a theory, not a business."
+- **Unique angle:** "The deck's greatest weakness is that it claims a data-driven moat but presents zero data. Show me: (1) retention curve for the first 50 users, (2) edit distance trend across agent versions, (3) context accumulation rate by platform. Without these, the deck is a theory, not a business."
 
 ### 7. Reid Hoffman 🔷 — Blitzscaling
 **Decision tendency:** 🟡 DIG DEEPER
@@ -156,7 +156,7 @@ Why: Thiel would ask the contrarian question: is "context-powered autonomy" actu
 "The timing is structurally perfect. LLMs are powerful but stateless. Every professional who uses ChatGPT daily feels this pain. ClawdBot proved the demand signal at massive scale — 17,830 stars in 24 hours isn't a fluke, it's a market scream. And OpenAI acquiring OpenClaw proves that even the incumbents know persistent AI matters but can't build it internally. Kevin has the architecture live, four platforms connected, and a clear wedge. This is a category-creation moment. You invest in these before the data exists, not after."
 
 **🔴 THE BEAR — Bill Gurley:**
-"Marc, you're asking me to invest in a theory. Zero revenue. Zero retention data. Zero evidence that accumulated context actually produces better deliverables. The deck claims 'your 5th version needs fewer edits than the 1st' — show me the edit distance data. There is none. The $19/mo Pro tier has to cover Claude API costs (potentially $0.50–$2.00 per TP conversation), platform sync compute, and vector storage. At 1000 users, that's $19K MRR gross with potentially 40–60% COGS. The unit economics haven't been modeled, let alone proven."
+"Marc, you're asking me to invest in a theory. Zero revenue. Zero retention data. Zero evidence that accumulated context actually produces better agents. The deck claims 'your 5th version needs fewer edits than the 1st' — show me the edit distance data. There is none. The $19/mo Pro tier has to cover Claude API costs (potentially $0.50–$2.00 per TP conversation), platform sync compute, and vector storage. At 1000 users, that's $19K MRR gross with potentially 40–60% COGS. The unit economics haven't been modeled, let alone proven."
 
 **🃏 WILD CARD — Peter Thiel:**
 "Both of you are missing the real question: is 'context-powered autonomy' actually a secret, or is it the most obvious next step that every AI lab is already building? OpenAI acquired OpenClaw. Anthropic is adding Projects and memory. Google has 20 years of your email data plus Gemini. The deck positions these as weaknesses ('stateless,' 'single-platform') — but what if they're simply 6 months behind? The real question is: does yarnnn have a defensible position that survives an incumbent launching 'ChatGPT Pro with platform sync' in Q3 2026?"
@@ -185,17 +185,17 @@ Why: Thiel would ask the contrarian question: is "context-powered autonomy" actu
 "The moat argument assumes users stick around for 90 days. What's the Day 1 value? If I connect my Slack today, what do I get tomorrow? The deck says 'your AI knows your context before you say a word' — but on Day 1, it has one day of context. That's not meaningfully better than starting a ChatGPT conversation with 'here's my Slack export.' The cold-start problem is brutal for context-accumulation businesses. The deck doesn't address it. Where's the immediate value that keeps users engaged during the 0-to-90-day buildup period?"
 
 **🃏 WILD CARD — Peter Thiel:**
-"Bill just identified the real crux. The deck is structured around the 90-day moat but doesn't explain why anyone would stay for 90 days. The Thinking Partner might be the answer — if the TP is genuinely useful from Day 1 with even minimal context, that bridges the cold-start gap. But the deck buries TP as 'Pillar 1' on the Solution slide and doesn't make it the hero of the user experience. The narrative should be: 'TP gets you in the door, deliverables keep you, accumulated context locks you in.' That's a more honest and more compelling arc."
+"Bill just identified the real crux. The deck is structured around the 90-day moat but doesn't explain why anyone would stay for 90 days. The Thinking Partner might be the answer — if the TP is genuinely useful from Day 1 with even minimal context, that bridges the cold-start gap. But the deck buries TP as 'Pillar 1' on the Solution slide and doesn't make it the hero of the user experience. The narrative should be: 'TP gets you in the door, agents keep you, accumulated context locks you in.' That's a more honest and more compelling arc."
 
 ---
 
 ### Round 4: Convergence on the Core Issue
 
 **🟢 THE BULL — Marc Andreessen:**
-"Peter's right. The deck's narrative arc should be: immediate value (TP) → recurring value (deliverables) → compounding value (accumulated context). Right now it leads with the moat, which is the 90-day story. The Day 1 story is TP — and TP is genuinely differentiated because it has platform context that ChatGPT doesn't. Even on Day 1 with one sync cycle, the TP can reference your recent Slack messages and calendar events. That's the hook. The deck needs to make TP the hero of the activation story."
+"Peter's right. The deck's narrative arc should be: immediate value (TP) → recurring value (agents) → compounding value (accumulated context). Right now it leads with the moat, which is the 90-day story. The Day 1 story is TP — and TP is genuinely differentiated because it has platform context that ChatGPT doesn't. Even on Day 1 with one sync cycle, the TP can reference your recent Slack messages and calendar events. That's the hook. The deck needs to make TP the hero of the activation story."
 
 **🔴 THE BEAR — Bill Gurley:**
-"I'll agree on the narrative fix. But my core objection remains: I can't invest in a product with zero user data. The deck says 'MVP Live' and '50 users' but I suspect that's aspirational, not actual. If even 10 users had completed 2+ deliverable cycles and we could see edit distance trends, I'd convert to DIG DEEPER. The fix isn't narrative — it's traction. Come back in 8 weeks with cohort data."
+"I'll agree on the narrative fix. But my core objection remains: I can't invest in a product with zero user data. The deck says 'MVP Live' and '50 users' but I suspect that's aspirational, not actual. If even 10 users had completed 2+ agent cycles and we could see edit distance trends, I'd convert to DIG DEEPER. The fix isn't narrative — it's traction. Come back in 8 weeks with cohort data."
 
 **🃏 WILD CARD — Peter Thiel:**
 "Here's my conditional: the thesis is investable if two things are true. First, that the cold-start problem is solved by TP (need to verify with actual users, not architecture docs). Second, that the accumulated context actually produces measurably better output over time (need edit distance data). Both are testable in 30–60 days with even 10 active users. The deck should acknowledge these as the two hypotheses being tested and present whatever early signal exists — even anecdotal."
@@ -233,13 +233,13 @@ Why: Thiel would ask the contrarian question: is "context-powered autonomy" actu
 The deck leads with the 90-day moat but doesn't explain why anyone stays for 90 days. The TP should be positioned as the immediate-value hook that bridges the cold-start gap. Day 1 value → Day 30 stickiness → Day 90 lock-in. The narrative arc needs restructuring.
 
 **2. Zero Data Is the Biggest Liability**
-Three panelists cited "no data" as their primary objection. The deck claims a data-driven moat but presents zero quantitative evidence. Even early-stage signals (10 users, edit distance from 3 deliverable cycles, retention after first deliverable) would dramatically strengthen the deck.
+Three panelists cited "no data" as their primary objection. The deck claims a data-driven moat but presents zero quantitative evidence. Even early-stage signals (10 users, edit distance from 3 agent cycles, retention after first agent) would dramatically strengthen the deck.
 
 **3. TAM Framing Undermines Credibility**
 "207M creators" and "1.57B freelancers" are proxy stats that don't map to the actual ICP (solo consultants with recurring client obligations). Sophisticated VCs see through inflated TAM. A smaller, honest TAM with clear expansion path is more investable.
 
 **4. TP Is Undersold as the Product Hero**
-The Thinking Partner is the most differentiated Day 1 experience — an AI agent that already knows your work context from synced platforms. But the deck treats it as one of three equal pillars. TP should be the star of the activation story; deliverables and context accumulation are what keep users and lock them in.
+The Thinking Partner is the most differentiated Day 1 experience — an AI agent that already knows your work context from synced platforms. But the deck treats it as one of three equal pillars. TP should be the star of the activation story; agents and context accumulation are what keep users and lock them in.
 
 **5. The "Why Now" Is Strong But the "Why You're Fast Enough" Is Missing**
 The timing argument (ClawdBot demand + no incumbent solution + window to claim) is compelling. But the deck doesn't explain how a solo founder with $0 can move fast enough to capitalize on this window. The fundraise itself is the answer — but the deck should make that connection explicit.
@@ -250,14 +250,14 @@ The timing argument (ClawdBot demand + no incumbent solution + window to claim) 
 
 **From Marc Andreessen (Bull):**
 1. What does the TP experience look like on Day 1 with one sync cycle? Can you demo it?
-2. What's your API cost per TP conversation and per deliverable generation?
+2. What's your API cost per TP conversation and per agent generation?
 3. If ChatGPT adds platform sync in 6 months, what's your response?
 4. Is there a path to team/enterprise pricing beyond $19/mo?
 5. What's the fastest you could get 30-day retention data from 10 active users?
 
 **From Bill Gurley (Bear):**
 1. What's your gross margin at $19/mo given Claude API costs and compute?
-2. Show me the edit distance between v1 and v3 of any deliverable. Does it actually decrease?
+2. Show me the edit distance between v1 and v3 of any agent. Does it actually decrease?
 3. What's your actual user count today — not target, actual?
 4. What happens to the moat if Anthropic launches "Claude with platform sync"?
 5. Why $500K–$1M? What does this buy that you can't do with $0 and 3 more months?
@@ -281,7 +281,7 @@ The timing argument (ClawdBot demand + no incumbent solution + window to claim) 
    Why: Investors need to see the Day 1 value before the Day 90 moat.
 
 2. **Add honest metrics or early signals to Traction slide:**
-   Replace "50 users" (if aspirational) with actual numbers. Even "12 active beta users, 4 with 2+ deliverable cycles" is better than a target. If no users yet, say "MVP launched [date], beta cohort recruiting" — honesty beats vaporware.
+   Replace "50 users" (if aspirational) with actual numbers. Even "12 active beta users, 4 with 2+ agent cycles" is better than a target. If no users yet, say "MVP launched [date], beta cohort recruiting" — honesty beats vaporware.
 
 3. **Fix TAM framing:**
    Replace "207M creators / 1.57B freelancers" with a consultant-specific market sizing. "~5M solo consultants globally × $228/yr (Pro annual) = $1.14B addressable" is smaller but credible. Show the expansion path: consultants → founders → ops leads → teams.
@@ -306,7 +306,7 @@ The timing argument (ClawdBot demand + no incumbent solution + window to claim) 
 **CREATIVE ASSET PLACEHOLDERS (for next iteration):**
 
 9. **Slide 7 (Solution):** Placeholder for product screenshot showing TP conversation with platform context visible
-10. **Slide 12 (Product):** Placeholder for architecture diagram or product screenshot grid (TP, Deliverable Engine, Platform Connections, Signal Processing)
+10. **Slide 12 (Product):** Placeholder for architecture diagram or product screenshot grid (TP, Agent Engine, Platform Connections, Signal Processing)
 11. **Slide 1 (Title):** Placeholder for brand logo
 12. **Slide 14 (Traction):** Placeholder for any retention chart or user testimonial once available
 
@@ -314,7 +314,7 @@ The timing argument (ClawdBot demand + no incumbent solution + window to claim) 
 
 ### 📝 Executive Summary
 
-YARNNN's deck presents a **strong thesis** (context-powered autonomy) with **excellent timing** (post-ClawdBot demand signal, pre-incumbent solutions) but **insufficient evidence** (zero revenue, zero retention data, zero quantitative proof of the compounding thesis). The repositioning from "recurring deliverables platform" to "autonomous AI powered by accumulated context" is the right strategic move — it elevates the narrative from feature-level to category-level.
+YARNNN's deck presents a **strong thesis** (context-powered autonomy) with **excellent timing** (post-ClawdBot demand signal, pre-incumbent solutions) but **insufficient evidence** (zero revenue, zero retention data, zero quantitative proof of the compounding thesis). The repositioning from "recurring agents platform" to "autonomous AI powered by accumulated context" is the right strategic move — it elevates the narrative from feature-level to category-level.
 
 The deck's primary weakness is the **cold-start problem**: it leads with the 90-day moat but doesn't explain Day 1 value. The Thinking Partner is the answer but is undersold. Secondary weakness is **data absence**: the deck claims a data-driven moat without data.
 

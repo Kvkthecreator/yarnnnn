@@ -30,9 +30,9 @@ All backend purge operations run with service-role filtering by `user_id` (or `o
 
 ### Category Reset
 
-- **Clear All Content**: removes deliverable artifacts and planning/execution traces:
-  - `deliverables` (cascades `deliverable_versions`, `deliverable_export_preferences`, delivery logs)
-  - `deliverable_proposals`
+- **Clear All Content**: removes agent artifacts and planning/execution traces:
+  - `agents` (cascades `agent_runs`, `agent_export_preferences`, delivery logs)
+  - `agent_proposals`
   - `user_interaction_patterns`
   - `event_trigger_log` (+ optional legacy `trigger_event_log`)
 - **Clear All Context**: removes context and sync-state:
@@ -51,7 +51,7 @@ All backend purge operations run with service-role filtering by `user_id` (or `o
   - `sync_registry`
   - `integration_sync_config`
   - optional `slack_user_cache`
-  - `deliverable_export_preferences` for user-owned deliverables
+  - `agent_export_preferences` for user-owned agents
 
 ### Full Actions
 

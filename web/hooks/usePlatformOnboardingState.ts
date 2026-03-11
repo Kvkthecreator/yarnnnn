@@ -27,7 +27,7 @@ interface PlatformInfo {
   workspace_name: string | null;
   resource_count: number;
   resource_type: string;
-  deliverable_count: number;
+  agent_count: number;
   activity_7d: number;
 }
 
@@ -44,8 +44,8 @@ interface UsePlatformOnboardingStateReturn {
   platforms: PlatformInfo[];
   /** Whether any platforms are currently syncing */
   hasSyncingPlatforms: boolean;
-  /** Total deliverables across all platforms */
-  totalDeliverables: number;
+  /** Total agents across all platforms */
+  totalAgents: number;
   /** Reload the onboarding state */
   reload: () => Promise<void>;
   /** Dismiss the onboarding prompt for this session */
@@ -58,7 +58,7 @@ const DISMISS_KEY = "yarnnn_platform_onboarding_dismissed";
 
 export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
   const [platforms, setPlatforms] = useState<PlatformInfo[]>([]);
-  const [totalDeliverables, setTotalDeliverables] = useState(0);
+  const [totalAgents, setTotalAgents] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -79,7 +79,7 @@ export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
       // Get integration summary for platform status
       const summary = await api.integrations.getSummary();
       setPlatforms(summary.platforms);
-      setTotalDeliverables(summary.total_deliverables);
+      setTotalAgents(summary.total_agents);
 
       // Check if any import jobs are in progress
       const jobs = await api.integrations.listImportJobs({ status: "running" });
@@ -134,7 +134,7 @@ export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
     platformCount: platforms.filter((p) => p.status === "active").length,
     platforms,
     hasSyncingPlatforms,
-    totalDeliverables,
+    totalAgents,
     reload: load,
     dismiss,
     isDismissed,

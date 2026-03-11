@@ -7,15 +7,15 @@ Layer: Activity (between Memory and Context in the four-layer model)
 Table: activity_log
 
 Write points (all non-fatal — callers continue regardless of log failure):
-  - deliverable_execution.py: 'deliverable_run' after version created
-  - routes/deliverables.py: 'deliverable_approved' / 'deliverable_rejected' on version status change
+  - agent_execution.py: 'agent_run' after version created
+  - routes/agents.py: 'agent_approved' / 'agent_rejected' on version status change
   - platform_worker.py: 'platform_synced' after sync batch completes
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
   - signal_processing.py: 'signal_processed' after signal reasoning pass (ADR-072)
-  - unified_scheduler.py: 'deliverable_scheduled' when deliverable queued (ADR-072)
-  - unified_scheduler.py: 'deliverable_generated' after successful deliverable generation
+  - unified_scheduler.py: 'agent_scheduled' when agent queued (ADR-072)
+  - unified_scheduler.py: 'agent_generated' after successful agent generation
   - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
   - unified_scheduler.py: 'content_cleanup' after expired content deletion
   - unified_scheduler.py: 'session_summary_written' after session summary generation
@@ -35,11 +35,11 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 VALID_EVENT_TYPES = frozenset({
-    "deliverable_run",
-    "deliverable_approved",
-    "deliverable_rejected",
-    "deliverable_scheduled",    # ADR-072: System state awareness - queued for execution
-    "deliverable_generated",    # Deliverable content actually generated (distinct from scheduled)
+    "agent_run",
+    "agent_approved",
+    "agent_rejected",
+    "agent_scheduled",    # ADR-072: System state awareness - queued for execution
+    "agent_generated",    # Agent content actually generated (distinct from scheduled)
     "memory_written",
     "platform_synced",
     "integration_connected",
@@ -71,11 +71,11 @@ async def write_activity(
     Args:
         client: Supabase service-role client
         user_id: The user this event belongs to
-        event_type: One of 'deliverable_run', 'deliverable_approved', 'deliverable_rejected',
+        event_type: One of 'agent_run', 'agent_approved', 'agent_rejected',
             'memory_written', 'platform_synced', 'integration_connected',
             'integration_disconnected', 'chat_session'
         summary: Human-readable one-liner (shown in working memory block)
-        event_ref: UUID of related record (version_id, session_id, etc.) — optional
+        event_ref: UUID of related record (run_id, session_id, etc.) — optional
         metadata: Structured detail dict — optional
 
     Returns:

@@ -26,7 +26,7 @@ def main():
 
     # Check tables exist
     tables = [
-        "deliverables", "deliverable_versions",
+        "agents", "agent_runs",
         "chat_sessions", "session_messages",
         "user_memory", "platform_content", "platform_connections",
         "filesystem_documents", "filesystem_chunks",

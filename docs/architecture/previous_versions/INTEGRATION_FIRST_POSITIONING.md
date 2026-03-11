@@ -32,7 +32,7 @@ Work happens in platforms:
 - Notion docs
 - Meeting notes
 
-Deliverables live elsewhere:
+Agents live elsewhere:
 - Status reports
 - Investor updates
 - Client briefs
@@ -158,13 +158,13 @@ Manual is a valid starting point. But it's not the destination.
 ## Core Messaging
 
 ### One-liner
-> yarnnn turns your work platforms into recurring deliverables.
+> yarnnn turns your work platforms into recurring agents.
 
 ### Tagline
 > Connect. Configure. Approve.
 
 ### Elevator Pitch
-> Your work happens in Slack, Gmail, and Notion. Your deliverables go to clients, investors, and teams. yarnnn connects the two—pulling context from where work happens, synthesizing it into what you owe someone, and learning from every approval. You supervise. yarnnn delivers.
+> Your work happens in Slack, Gmail, and Notion. Your agents go to clients, investors, and teams. yarnnn connects the two—pulling context from where work happens, synthesizing it into what you owe someone, and learning from every approval. You supervise. yarnnn delivers.
 
 ### The Value Proposition (Complete)
 > Set up once. yarnnn pulls context from your connected platforms, synthesizes drafts on schedule, and learns what you approve. Over time, your role shifts from editing to approving.
@@ -175,9 +175,9 @@ Manual is a valid starting point. But it's not the destination.
 
 | Dimension | Previous | New |
 |-----------|----------|-----|
-| **Hero headline** | "Recurring work that gets better every single time" | "Your work platforms, turned into deliverables" |
+| **Hero headline** | "Recurring work that gets better every single time" | "Your work platforms, turned into agents" |
 | **Tagline** | "Set it up once. Review when ready. Watch it learn." | "Connect. Configure. Approve." |
-| **How it works - Step 1** | "Set up your deliverable" | "Connect your tools" |
+| **How it works - Step 1** | "Set up your agent" | "Connect your tools" |
 | **Primary context source** | User-provided (paste, describe, upload) | Platform integrations |
 | **User role emphasis** | "Review and refine" | "Configure and approve" |
 | **Learning emphasis** | "Learns from your edits" | "Learns what to extract and how you approve" |
@@ -188,12 +188,12 @@ Manual is a valid starting point. But it's not the destination.
 ## Landing Page Structure
 
 ### 1. Hero
-**Headline:** Your work platforms, turned into deliverables.
+**Headline:** Your work platforms, turned into agents.
 **Subhead:** Connect. Configure. Approve.
-**Visual:** Platforms (Slack, Gmail, Notion) flowing into yarnnn, out to deliverables.
+**Visual:** Platforms (Slack, Gmail, Notion) flowing into yarnnn, out to agents.
 
 ### 2. The Gap
-**Message:** Work happens in Slack, Gmail, Notion. Deliverables go to clients and stakeholders. The space between is manual labor—reading, summarizing, reformatting. Every week.
+**Message:** Work happens in Slack, Gmail, Notion. Agents go to clients and stakeholders. The space between is manual labor—reading, summarizing, reformatting. Every week.
 
 ### 3. The Solution
 **Message:** yarnnn connects to where your work happens. It extracts what matters, synthesizes it into what you owe someone, and delivers drafts on schedule. You review and approve.
@@ -205,7 +205,7 @@ Manual is a valid starting point. But it's not the destination.
 - **Approve** — Review drafts, approve with light touch
 
 ### 5. What You Deliver
-Show specific platform → deliverable flows:
+Show specific platform → agent flows:
 - Slack #engineering → Weekly Status Report
 - Gmail inbox → Client Follow-up Summary
 - Notion project docs → Investor Update
@@ -235,7 +235,7 @@ Start for free.
 Link the platforms where your work happens. Slack, Gmail, Notion. One-time OAuth. yarnnn can now see what you see.
 
 ### Step 2: Configure What You Deliver
-Describe your recurring deliverable. Who receives it. When it's due. Which channels, threads, or docs should inform it. Set the scope.
+Describe your recurring agent. Who receives it. When it's due. Which channels, threads, or docs should inform it. Set the scope.
 
 ### Step 3: Review and Approve
 On schedule, yarnnn pulls fresh context, synthesizes a draft, and notifies you. Review it. Make light edits if needed. Approve when ready.
@@ -250,19 +250,19 @@ Every approval teaches yarnnn. What to extract. What to emphasize. What tone to 
 ### What Changes
 - Remove "source documents" as a tier differentiator
 - Integrations are unlimited on all tiers (moat, not gate)
-- Differentiate on deliverable count and execution volume
+- Differentiate on agent count and execution volume
 
 ### Tier Structure
 
 **Free ($0/month)**
-- 1 active deliverable
+- 1 active agent
 - Unlimited integrations
 - Unlimited versions
 - Quality trend analytics
 - Scheduled production
 
 **Pro ($19/month)**
-- Unlimited deliverables
+- Unlimited agents
 - Unlimited integrations
 - Unlimited versions
 - Unlimited chat refinement
@@ -278,9 +278,9 @@ Every approval teaches yarnnn. What to extract. What to emphasize. What tone to 
 ### The Insight (Updated)
 **Most AI forgets.** ChatGPT, Claude, Gemini—they reset every session. Your corrections evaporate.
 
-**Your work already contains the signal.** The Slack threads, email chains, and docs you accumulate every week—that's the raw material for your deliverables. You just have to extract it. Again. And again.
+**Your work already contains the signal.** The Slack threads, email chains, and docs you accumulate every week—that's the raw material for your agents. You just have to extract it. Again. And again.
 
-**yarnnn extracts it for you.** Connect your platforms. Configure your deliverables. Approve the drafts. That's supervision, not writing.
+**yarnnn extracts it for you.** Connect your platforms. Configure your agents. Approve the drafts. That's supervision, not writing.
 
 ### What Makes yarnnn Different (Updated)
 1. **Platforms, not prompts** — yarnnn connects to where work happens, not where you type instructions
@@ -295,7 +295,7 @@ Every approval teaches yarnnn. What to extract. What to emphasize. What tone to 
 ### The Choice Screen
 
 ```
-How should yarnnn get context for your deliverables?
+How should yarnnn get context for your agents?
 
 ┌─────────────────────────────────────┐  ┌─────────────────────────────────────┐
 │  Connect your tools                 │  │  Describe it yourself               │
@@ -314,14 +314,14 @@ How should yarnnn get context for your deliverables?
 
 ### Post-Connection Flow
 1. yarnnn shows what it can see (channels, folders, inbox)
-2. User selects scope for first deliverable
-3. yarnnn creates deliverable with integration sources pre-configured
+2. User selects scope for first agent
+3. yarnnn creates agent with integration sources pre-configured
 4. First draft generated from live context
 5. User reviews → lands in supervision mode from day one
 
 ### Manual Path Flow
 1. User describes or pastes example
-2. yarnnn creates deliverable
+2. yarnnn creates agent
 3. First draft generated from provided context
 4. Prompt to connect integrations appears after first approval
 5. Natural upgrade path to full supervision mode
@@ -331,23 +331,23 @@ How should yarnnn get context for your deliverables?
 ## Implications for Product
 
 ### Onboarding
-- Lead with integration connection, not deliverable description
+- Lead with integration connection, not agent description
 - Show the value of fresh context immediately
 - Manual path exists but is positioned as "quick start" not "default"
 
-### Deliverable Setup
+### Agent Setup
 - Integration source selection is primary configuration
 - Scope parameters (time range, channels, etc.) are prominent
 - Manual upload is secondary option
 
 ### Execution
-- Delta extraction for recurring deliverables (only fetch new context)
+- Delta extraction for recurring agents (only fetch new context)
 - Coverage visibility (what yarnnn is pulling from)
 - Source attribution in drafts (where context came from)
 
 ### Dashboard
 - Show connected integrations prominently
-- Coverage indicators per deliverable
+- Coverage indicators per agent
 - "Last synced" timestamps
 
 ---
@@ -355,7 +355,7 @@ How should yarnnn get context for your deliverables?
 ## What This Is Not
 
 This is not:
-- A pivot away from recurring deliverables (core stays same)
+- A pivot away from recurring agents (core stays same)
 - A deprecation of manual input (still valid path)
 - A change to the learning mechanism (still learns from approvals/edits)
 - A technical refactor mandate (architecture already supports this)
@@ -372,7 +372,7 @@ This is:
 
 | Document | Status |
 |----------|--------|
-| ESSENCE.md | Still valid. Supervision model + recurring deliverables unchanged. |
+| ESSENCE.md | Still valid. Supervision model + recurring agents unchanged. |
 | GTM_POSITIONING.md | Partially superseded. Learning loop messaging still valid. Context source messaging updated here. |
 | STRATEGIC_SYNTHESIS.md | Still valid. "Witnessed existence" framing compatible. This doc addresses the *mechanism*. |
 | ADR-030 | Validated. This positioning relies on that architecture. |
@@ -383,7 +383,7 @@ This is:
 
 ## Summary
 
-**The shift:** From "describe your deliverable and paste examples" to "connect your platforms and configure scope."
+**The shift:** From "describe your agent and paste examples" to "connect your platforms and configure scope."
 
 **The reason:** If users are supervisors, they shouldn't gather context manually. That's worker-level labor.
 

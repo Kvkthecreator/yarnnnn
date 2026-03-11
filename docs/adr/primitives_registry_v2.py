@@ -5,7 +5,7 @@ Primitives Registry v2
 
 Removed from v1:
 - Respond: TP's natural text output serves as the response
-- Todo: No multi-step workflows yet; re-add when deliverable.generate pipelines exist
+- Todo: No multi-step workflows yet; re-add when agent.generate pipelines exist
 
 Usage:
     from services.primitives import PRIMITIVES, execute_primitive
@@ -44,13 +44,13 @@ HANDLERS = {
 PRIMITIVES = [
     {
         "name": "Read",
-        "description": "Get a single entity by reference. Use when you need details about a specific deliverable, platform, document, or work ticket.",
+        "description": "Get a single entity by reference. Use when you need details about a specific agent, platform, document, or work ticket.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "ref": {
                     "type": "string",
-                    "description": "Entity reference. Format: type:identifier. Examples: deliverable:uuid-123, platform:slack, document:latest"
+                    "description": "Entity reference. Format: type:identifier. Examples: agent:uuid-123, platform:slack, document:latest"
                 }
             },
             "required": ["ref"]
@@ -64,11 +64,11 @@ PRIMITIVES = [
             "properties": {
                 "ref": {
                     "type": "string",
-                    "description": "Reference with :new identifier. Examples: deliverable:new, work:new"
+                    "description": "Reference with :new identifier. Examples: agent:new, work:new"
                 },
                 "content": {
                     "type": "object",
-                    "description": "Entity fields. Required fields vary by type. Deliverable: title, deliverable_type. Work: task, agent_type."
+                    "description": "Entity fields. Required fields vary by type. Agent: title, agent_type. Work: task, agent_type."
                 }
             },
             "required": ["ref", "content"]
@@ -82,7 +82,7 @@ PRIMITIVES = [
             "properties": {
                 "ref": {
                     "type": "string",
-                    "description": "Reference to existing entity. Example: deliverable:uuid-123"
+                    "description": "Reference to existing entity. Example: agent:uuid-123"
                 },
                 "changes": {
                     "type": "object",
@@ -100,7 +100,7 @@ PRIMITIVES = [
             "properties": {
                 "pattern": {
                     "type": "string",
-                    "description": "Entity pattern with optional filters. Examples: deliverable:?status=active, platform:*, document:?content_type=pdf"
+                    "description": "Entity pattern with optional filters. Examples: agent:?status=active, platform:*, document:?content_type=pdf"
                 },
                 "limit": {
                     "type": "integer",
@@ -126,7 +126,7 @@ PRIMITIVES = [
                 },
                 "scope": {
                     "type": "string",
-                    "enum": ["deliverable", "document", "platform_content", "all"],
+                    "enum": ["agent", "document", "platform_content", "all"],
                     "description": "Where to search. Default: all"
                 },
                 "limit": {
@@ -139,17 +139,17 @@ PRIMITIVES = [
     },
     {
         "name": "Execute",
-        "description": "Trigger an external operation. Core actions: platform.sync (pull data), deliverable.generate (create content), platform.publish (deliver output). Also: platform.auth, deliverable.schedule, deliverable.approve, work.run.",
+        "description": "Trigger an external operation. Core actions: platform.sync (pull data), agent.generate (create content), platform.publish (deliver output). Also: platform.auth, agent.schedule, agent.approve, work.run.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "description": "Action to perform. Examples: platform.sync, deliverable.generate, platform.publish"
+                    "description": "Action to perform. Examples: platform.sync, agent.generate, platform.publish"
                 },
                 "target": {
                     "type": "string",
-                    "description": "Entity reference for the action target. Examples: platform:slack, deliverable:uuid-123"
+                    "description": "Entity reference for the action target. Examples: platform:slack, agent:uuid-123"
                 },
                 "params": {
                     "type": "object",

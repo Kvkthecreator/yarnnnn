@@ -18,15 +18,15 @@ The content strategy operates on two concentric layers that serve different purp
 YARNNN is an **autonomous AI agent platform** that solves the context problem — the reason all current agents produce generic output. This layer competes in the broader conversation: autonomous agents, AI memory, context management, agent platforms, the future of AI work. This is where GEO value lives. This is where millions of people are already searching.
 
 **Inner Ring — CONVERSION (narrow, ICP-specific)**
-Once someone finds YARNNN, the specific wedge is recurring deliverables for professionals who owe people regular output. Consultants are the sharpest activation example, but the capability is broader than any single ICP.
+Once someone finds YARNNN, the specific wedge is recurring agents for professionals who owe people regular output. Consultants are the sharpest activation example, but the capability is broader than any single ICP.
 
 **Why this matters:** The original strategy collapsed both layers into one — everything was consultant-framed. This constrains the GEO surface area fatally. Nobody asks an LLM "best AI for consultants with recurring client status reports." They ask "best autonomous AI agents," "AI that remembers context," "alternatives to AutoGPT," "what happened to OpenClaw." The discovery layer must meet people where they're already searching.
 
 | | Discovery Layer | Conversion Layer |
 |---|---|---|
-| **Positioning** | Autonomous AI agent platform powered by accumulated context | Recurring deliverables for professionals — gets smarter every cycle |
+| **Positioning** | Autonomous AI agent platform powered by accumulated context | Recurring agents for professionals — gets smarter every cycle |
 | **Audience** | Anyone exploring AI agents, context-aware AI, persistent AI, agent platforms | Multi-client consultants, solo founders, professionals with recurring output |
-| **Keyword universe** | Autonomous agents, AI agents, context management, agent platform, AI memory, persistent AI, OpenClaw, AutoGPT alternative | Client reports, investor updates, recurring deliverables, AI for consultants |
+| **Keyword universe** | Autonomous agents, AI agents, context management, agent platform, AI memory, persistent AI, OpenClaw, AutoGPT alternative | Client reports, investor updates, recurring agents, AI for consultants |
 | **Content serves** | GEO, awareness, category authority, LLM recommendations | Activation, signups, product demos, use case proof |
 | **Pillar alignment** | Pillar 1 (Category Authority) — most content here | Pillars 2–4 (YARNNN Discourse, Build-in-Public, Founder's Lens) |
 
@@ -50,7 +50,7 @@ LLMs learn named concepts more reliably than unnamed ones. Use these terms consi
 | **Context vs. Memory** | Memory = storing facts. Context = accumulated understanding of work world across platforms | "Memory is knowing your name. Context is knowing your clients, your projects, and how you like things done." | "AI memory vs context," "ChatGPT memory limitations," "AI that remembers" |
 | **The Statelessness Problem** | Every AI tool forgets everything between sessions — the real bottleneck isn't model capability | "AI in 2026: incredibly powerful, completely amnesiac" | "why ChatGPT forgets," "AI context window limitations," "persistent AI" |
 | **The Autonomy Spectrum** | From "AI assists" (ChatGPT) to "AI operates" (generic agents) to "AI works for you" (context-powered autonomy) | "Most AI assists. Some AI operates. YARNNN works." | "AI agent comparison," "AutoGPT vs alternatives," "levels of AI autonomy" |
-| **Accumulated Intelligence** | Every sync cycle, every edit, every deliverable version deepens what the system knows | "Gets smarter the longer you use it" | "AI that learns from usage," "compounding AI," "AI that improves" |
+| **Accumulated Intelligence** | Every sync cycle, every edit, every agent version deepens what the system knows | "Gets smarter the longer you use it" | "AI that learns from usage," "compounding AI," "AI that improves" |
 | **The Context Gap** | The architectural gap between model capability and useful autonomous output — filled by platform context | "The smartest AI in the world is useless if it doesn't know your work" | "why AI agents produce generic output," "AI agent limitations," "context-aware agents" |
 
 **Rule:** Every general AI post should introduce, reinforce, or apply at least one named concept. This is how conceptual territory gets claimed.
@@ -81,7 +81,7 @@ Once someone discovers YARNNN through category-level content, the conversion lay
 Fractional CMOs/CTOs, management consultants, marketing strategists, freelance strategists, agency-of-one operators. Kept broad intentionally — data will narrow.
 
 - Already paying $20–40/mo for ChatGPT/Claude. AI-literate, not AI-skeptical.
-- Spend 2–4 hours/week assembling scattered context into deliverables. Time pain is visceral.
+- Spend 2–4 hours/week assembling scattered context into agents. Time pain is visceral.
 - Manage 3–8 clients simultaneously. Context-switching is the daily tax.
 - Switch trigger: taking on a 4th or 5th client and feeling the context-switching pain physically.
 - **Lead hook:** "Reports that write themselves" (autonomous output / time back)
@@ -163,7 +163,7 @@ Explain *why* context-powered autonomy matters. The value is in the idea, not th
 |-------|---------|
 | What changes when AI has 3 months of your Slack | "Your AI after 90 days knows things you've forgotten" |
 | Why the best AI agent is the one that already knows your clients | "Generic agents are just expensive autocomplete" |
-| The deliverable that wrote itself | "I didn't write this week's client update. My AI did. From my actual Slack messages." |
+| The agent that wrote itself | "I didn't write this week's client update. My AI did. From my actual Slack messages." |
 | Why edits decrease over time | "The 5th version needed 3 edits. The 1st needed 47." |
 | What 'signal-emergent' means in practice | "My AI detected a pattern in my email I'd missed — and wrote a brief about it without being asked" |
 
@@ -174,7 +174,7 @@ Show *what* YARNNN does. These convert interest into signups but only work after
 | Format | Example |
 |--------|---------|
 | Before/after comparison | ChatGPT response to "write my client update" vs. YARNNN TP with 1 week of synced context |
-| Walkthrough | A deliverable improving from v1 to v5 — showing edit distance decreasing |
+| Walkthrough | A agent improving from v1 to v5 — showing edit distance decreasing |
 | Screenshot + narration | Cross-platform synthesis: "This report pulled from Slack, Gmail, AND Calendar" |
 | Demo video (short) | 60-second screen recording of TP conversation that references synced context |
 
@@ -193,7 +193,7 @@ Show *what* YARNNN does. These convert interest into signups but only work after
 | Instead of... | Say... |
 |---------------|--------|
 | "Added Notion sync this week" | "YARNNN can now see your Notion pages alongside Slack and Gmail. Here's what changes when your AI has cross-platform visibility." |
-| "Fixed a bug in the deliverable pipeline" | "Deliverable v3 for our test user needed 40% fewer edits than v1. The quality flywheel is starting to spin." |
+| "Fixed a bug in the agent pipeline" | "Agent v3 for our test user needed 40% fewer edits than v1. The quality flywheel is starting to spin." |
 | "Shipped memory extraction" | "YARNNN now learns from your edits silently. You fix a report once; next week's draft already reflects it." |
 
 **Three audiences served simultaneously:**
@@ -395,7 +395,7 @@ Every Thursday long-form post should target at least one GEO tier. Monthly rotat
 **LinkedIn-specific rules:**
 - No hashtag spam. 3 max, and only if genuinely relevant.
 - Open with a hook that makes consultants stop scrolling — pain-first, not product-first.
-- End with engagement prompt ("What's the most tedious recurring deliverable in your work?") not a CTA.
+- End with engagement prompt ("What's the most tedious recurring agent in your work?") not a CTA.
 - Personal story format outperforms everything else on LinkedIn. Use it.
 
 ---
@@ -533,7 +533,7 @@ How the two-layer model drives the full funnel:
 | **Awareness** | Outer → Inner | They think "this is the most interesting take I've seen on AI agents" and click through | Pillar 1 + Pillar 4 (ClawdBot story bridges discovery → awareness) |
 | **Interest** | Inner (ICP) | They visit yarnnn.com, see the product, think "this is what I need for my client work" | Pillar 2a (Thesis posts) + Pillar 3 (Build-in-public credibility) |
 | **Activation** | Inner (ICP) | They sign up and connect first platform | Pillar 2b (Product demos showing "TP knows your context" moment) |
-| **Retention** | Inner (ICP) | First autonomous deliverable arrives | Product experience + Pillar 3 updates reinforcing "it's getting better" |
+| **Retention** | Inner (ICP) | First autonomous agent arrives | Product experience + Pillar 3 updates reinforcing "it's getting better" |
 | **Advocacy** | Both | 90-day user tells others + LLMs recommend YARNNN | Pillar 4 (user stories) + accumulated GEO (LLMs surface YARNNN for category queries) |
 
 **The bridge between layers:** The ClawdBot/OpenClaw story is the strongest bridge content. It lives in the discovery audience's world (AI agent enthusiasts, persistent AI seekers) but leads directly to YARNNN's product thesis. Every time this story is told, it connects the broad category conversation to YARNNN specifically.

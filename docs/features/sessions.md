@@ -9,7 +9,7 @@
 - Sessions use **inactivity-based boundaries** (4-hour gap = new session). The UTC midnight hard cut was removed.
 - Within a session, TP has the full conversation history (up to a 50,000 token budget).
 - **In-session compaction** triggers at 80% of budget — a summary block is prepended rather than silently truncating oldest messages.
-- Across sessions, TP knows what's in **working memory** — profile, preferences, recent activity, active deliverables, and **recent session summaries** (last 3 within 14-day window).
+- Across sessions, TP knows what's in **working memory** — profile, preferences, recent activity, active agents, and **recent session summaries** (last 3 within 14-day window).
 - Session summaries are written by the nightly cron to `chat_sessions.summary`.
 
 ---
@@ -46,7 +46,7 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 | Name, role, company, timezone | `user_memory` | User sets via Context page |
 | Tone and verbosity preferences | `user_memory` | User sets or nightly extraction |
 | Facts, instructions, preferences | `user_memory` | User sets or nightly extraction |
-| Active deliverables (up to 5) | `deliverables` | Always live |
+| Active agents (up to 5) | `agents` | Always live |
 | Connected platforms + sync freshness | `platform_connections` | Always live |
 | Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline + sync |
 | Recent session summaries | `chat_sessions.summary` | **Not currently written — always empty** |
@@ -72,7 +72,7 @@ Claude Code uses auto-compaction — context-window-pressure-driven, not time-ba
 |---|---|---|
 | **Session boundary** | Context-window-driven | Inactivity-based (4h default) |
 | **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Compaction at 80% of 50k token budget |
-| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_memory` + deliverables + activity + `chat_sessions.summary` |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_memory` + agents + activity + `chat_sessions.summary` |
 | **Session summaries** | Auto-generated during compaction | Written by nightly cron |
 | **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored, deferred) |
 
@@ -91,7 +91,7 @@ The YARNNN equivalent of Claude Code's auto memory (MEMORY.md). The nightly cron
 The reader is already built: `working_memory.py → _get_recent_sessions()` queries `chat_sessions.summary` and `format_for_prompt()` renders "Recent conversations." Only the writer (nightly cron) needs wiring — ~30 lines.
 
 **Example summary**:
-> [2026-02-19] Worked on Q2 board update — settled on 4-section structure. User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
+> [2026-02-19] Worked on Q2 board update — settled on 4-section structure. User wants financials added; agent paused pending numbers. Also set up weekly #engineering digest.
 
 ### Phase 2 — Inactivity-based session boundary
 

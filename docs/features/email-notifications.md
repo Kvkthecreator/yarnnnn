@@ -1,13 +1,13 @@
 # Email Notifications
 
 > **Status**: Active
-> **ADRs**: ADR-018 (Deliverable Scheduling)
+> **ADRs**: ADR-018 (Agent Scheduling)
 
 ---
 
 ## Overview
 
-YARNNN sends email notifications when deliverables are ready and when generation/delivery fails. Suggestion-created notifications are also supported. Emails are sent via Resend API.
+YARNNN sends email notifications when agents are ready and when generation/delivery fails. Suggestion-created notifications are also supported. Emails are sent via Resend API.
 
 ---
 
@@ -20,7 +20,7 @@ YARNNN sends email notifications when deliverables are ready and when generation
 | `api/jobs/email.py` | Resend API client |
 | `api/services/delivery.py` | Delivery orchestration and notification triggers |
 | `api/services/notifications.py` | Notification routing, preference checks, email send |
-| `api/jobs/unified_scheduler.py` | Cron entrypoint that triggers deliverable execution |
+| `api/jobs/unified_scheduler.py` | Cron entrypoint that triggers agent execution |
 | `supabase/migrations/022_user_notification_preferences.sql` | User preferences table |
 
 ### Email Flow
@@ -29,7 +29,7 @@ YARNNN sends email notifications when deliverables are ready and when generation
 Scheduler (every 5 min)
         │
         ▼
-deliverable execution (dispatch_trigger)
+agent execution (dispatch_trigger)
         │
         ▼
 delivery service (delivery.py)
@@ -51,7 +51,7 @@ send email via Resend to user's auth email
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Resend API client | ✅ Complete | Async, error handling, proper config |
-| Email templates | ✅ Complete | `deliverable_ready`, `deliverable_failed` |
+| Email templates | ✅ Complete | `agent_ready`, `agent_failed` |
 | Scheduler integration | ✅ Complete | Every 5 min via Render cron, routed through delivery service |
 | Preference checking | ✅ Complete | `should_send_email()` checks DB per notification type |
 | Preferences DB table | ✅ Complete | With RLS and helper function |
@@ -77,18 +77,18 @@ All emails go to the **user's authenticated email** (from Supabase auth). This i
 
 ```python
 # In unified_scheduler.py
-user = supabase.auth.admin.get_user_by_id(deliverable.user_id)
+user = supabase.auth.admin.get_user_by_id(agent.user_id)
 recipient_email = user.user.email
 ```
 
-### Future Consideration: Deliverable-Level Recipients
+### Future Consideration: Agent-Level Recipients
 
-The deliverable settings modal (see screenshot) has a **Recipient** field with:
+The agent settings modal (see screenshot) has a **Recipient** field with:
 - Name (e.g., "Sarah", "Board")
 - Role (e.g., "Manager", "Investor")
 - Notes (e.g., "prefers bullet points, wants metrics upfront")
 
-**Current usage**: This is used to personalize the *content* of the deliverable (tone, focus areas), NOT to determine email recipients.
+**Current usage**: This is used to personalize the *content* of the agent (tone, focus areas), NOT to determine email recipients.
 
 **Future possibility**: Allow sending directly to external recipients (e.g., board@company.com). This would require:
 1. Email verification for external addresses
@@ -111,8 +111,8 @@ CREATE TABLE user_notification_preferences (
     user_id UUID REFERENCES auth.users(id),
 
     -- Email toggles (all default to true)
-    email_deliverable_ready BOOLEAN DEFAULT true,
-    email_deliverable_failed BOOLEAN DEFAULT true,
+    email_agent_ready BOOLEAN DEFAULT true,
+    email_agent_failed BOOLEAN DEFAULT true,
     email_suggestion_created BOOLEAN DEFAULT true,
 
     created_at TIMESTAMPTZ,
@@ -122,16 +122,16 @@ CREATE TABLE user_notification_preferences (
 );
 ```
 
-### Potential Future: Deliverable-Level Overrides
+### Potential Future: Agent-Level Overrides
 
-If we need per-deliverable email settings, we could add:
+If we need per-agent email settings, we could add:
 
 ```sql
--- Future: deliverable_notification_settings
--- Overrides user defaults for specific deliverables
-CREATE TABLE deliverable_notification_settings (
+-- Future: agent_notification_settings
+-- Overrides user defaults for specific agents
+CREATE TABLE agent_notification_settings (
     id UUID PRIMARY KEY,
-    deliverable_id UUID REFERENCES deliverables(id),
+    agent_id UUID REFERENCES agents(id),
 
     -- Override user default (null = use user preference)
     send_email_on_ready BOOLEAN,
@@ -144,27 +144,27 @@ CREATE TABLE deliverable_notification_settings (
 );
 ```
 
-**Current decision**: Not implementing deliverable-level overrides for MVP.
+**Current decision**: Not implementing agent-level overrides for MVP.
 
 ---
 
 ## Email Templates
 
-### 1. Deliverable Ready
+### 1. Agent Ready
 
-Sent when a deliverable version is generated and delivered (ADR-066 delivery-first — no approval gate).
+Sent when a agent version is generated and delivered (ADR-066 delivery-first — no approval gate).
 
 ```
 Subject: Your [Title] is ready for review
 
 Body:
-- Deliverable title and type
+- Agent title and type
 - Schedule description
 - Next scheduled run
-- CTA: "Review Now" → /dashboard?surface=deliverable-review&...
+- CTA: "Review Now" → /dashboard?surface=agent-review&...
 ```
 
-### 2. Deliverable Failed
+### 2. Agent Failed
 
 Sent when pipeline execution fails.
 
@@ -174,10 +174,10 @@ Subject: Issue with your [Title]
 Body:
 - Error summary
 - Troubleshooting guidance
-- CTA: "View Deliverable" → /dashboard?surface=deliverable-detail&...
+- CTA: "View Agent" → /dashboard?surface=agent-detail&...
 ```
 
-Preference handling: this notification is controlled by `email_deliverable_failed` independently from `email_deliverable_ready`.
+Preference handling: this notification is controlled by `email_agent_failed` independently from `email_agent_ready`.
 
 ## Configuration
 
@@ -208,7 +208,7 @@ services:
 
 ### Phase 1: Core Loop (Current Target)
 
-**Goal**: Users receive emails for all deliverable events at their auth email.
+**Goal**: Users receive emails for all agent events at their auth email.
 
 - [x] Resend client and templates
 - [x] Scheduler integration
@@ -230,7 +230,7 @@ services:
 
 ### Phase 3: Advanced Features (Future)
 
-- [ ] Per-deliverable email toggles
+- [ ] Per-agent email toggles
 - [ ] External recipient support (with verification)
 - [ ] Email scheduling preferences (immediate vs batched)
 - [ ] Email analytics dashboard
@@ -244,7 +244,7 @@ services:
 
 ### Context
 
-Currently all deliverable delivery routes through email (Gmail API for content delivery, Resend for notifications). This is correct for MVP — email is the universal inbox and requires zero onboarding friction.
+Currently all agent delivery routes through email (Gmail API for content delivery, Resend for notifications). This is correct for MVP — email is the universal inbox and requires zero onboarding friction.
 
 However, as YARNNN matures, a dedicated **in-app delivery surface** would provide:
 - **Richer presentation**: Interactive content, source attribution links, execution metadata
@@ -261,12 +261,12 @@ delivery.py → ExporterRegistry.get_exporter(platform) → GmailExporter / Slac
 ```
 
 Adding an in-app channel would require:
-1. An `AppExporter` that writes to a `deliverable_inbox` or similar table
+1. An `AppExporter` that writes to a `agent_inbox` or similar table
 2. Registration in the exporter registry (`"app"` platform)
-3. Frontend reads from that table on `/deliverables/[id]` page
+3. Frontend reads from that table on `/agents/[id]` page
 4. Destination config: `{"platform": "app", "format": "markdown"}`
 
-The `destinations` array (ADR-031 Phase 6) already supports multi-destination, so a deliverable could deliver to **both** email and in-app simultaneously.
+The `destinations` array (ADR-031 Phase 6) already supports multi-destination, so a agent could deliver to **both** email and in-app simultaneously.
 
 ### Current Decision
 
@@ -278,9 +278,9 @@ Email-first delivery is the right default. The in-app channel is a Phase 3+ enha
 
 ### Manual Testing Checklist
 
-- [ ] Create deliverable → scheduled run → email received
+- [ ] Create agent → scheduled run → email received
 - [ ] Toggle preference off → no email sent
-- [ ] Deliverable failure → failure email received
+- [ ] Agent failure → failure email received
 - [ ] Weekly digest triggers correctly
 
 ### Test Email Endpoint
@@ -295,9 +295,9 @@ curl -X POST https://api.yarnnn.com/api/test-email \
 
 ## Related Documentation
 
-- [Deliverable Architecture](../architecture/deliverables.md)
-- [Backend Orchestration](../architecture/backend-orchestration.md) — F3 (Deliverable Execution), F7 (Weekly Digest)
-- ADR-018: Deliverable Scheduling
+- [Agent Architecture](../architecture/agents.md)
+- [Backend Orchestration](../architecture/backend-orchestration.md) — F3 (Agent Execution), F7 (Weekly Digest)
+- ADR-018: Agent Scheduling
 - ADR-066: Delivery-First (no approval gate)
 
 ---
@@ -307,6 +307,6 @@ curl -X POST https://api.yarnnn.com/api/test-email \
 ### 2026-02-06: Documentation Created
 
 - Documented current email infrastructure (80% complete)
-- Clarified that "Recipient" field in deliverable settings is for content personalization, not email delivery
+- Clarified that "Recipient" field in agent settings is for content personalization, not email delivery
 - Defined Phase 1 scope: core loop with user preferences
-- Deferred deliverable-level email settings to future phases
+- Deferred agent-level email settings to future phases

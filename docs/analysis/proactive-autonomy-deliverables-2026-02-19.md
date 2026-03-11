@@ -1,15 +1,15 @@
-# Proactive Autonomy — Next-Generation Deliverable Types
+# Proactive Autonomy — Next-Generation Agent Types
 
 **Date**: 2026-02-19
 **Status**: Superseded by ADR-068 — retained for strategic context and ideation record
-**See**: [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) for the architectural decision
+**See**: [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md) for the architectural decision
 **Note**: The "TP agent running autonomously with a task brief" framing in this doc was architecturally incorrect — it violates the Path A/B boundary (ADR-061). The correct model is the orchestrator's Signal Processing phase (Path B). The examples and use cases remain valid; the mechanism was wrong.
 
 ---
 
 ## The Reframe
 
-Current deliverables are **pull-based pipelines**: user configures sources, system fetches on schedule, LLM summarizes, delivers. The user has to think to set them up. The output is a competent summary of what happened.
+Current agents are **pull-based pipelines**: user configures sources, system fetches on schedule, LLM summarizes, delivers. The user has to think to set them up. The output is a competent summary of what happened.
 
 That's not the real product. The real product is an agent that already knows your world and takes initiative on work you'd otherwise have to think to ask for.
 
@@ -25,11 +25,11 @@ The primitives are already in the architecture:
 - **Context layer** — live access to Slack, Gmail, Notion, Calendar
 - **TP agent** — has tools, has reasoning, knows your context
 
-The deliverable types just haven't caught up to what the infrastructure enables.
+The agent types just haven't caught up to what the infrastructure enables.
 
 ---
 
-## Two Classes of Proactive Deliverable
+## Two Classes of Proactive Agent
 
 ### Class 1: Pattern-Aware Alerts
 The system tracks state across time and surfaces deviations from your normal patterns. No schedule needed — triggered when the pattern is detected.
@@ -87,13 +87,13 @@ Meeting prep with commitment tracking requires reading past emails/messages, ext
 Most of these fire when a condition is met, not on a calendar schedule. Relationship drift fires when silence exceeds a threshold. Conflict detection fires when pattern divergence exceeds a threshold. This requires a different execution model — event-driven or periodic-check rather than cron.
 
 **5. Action outputs, not just report outputs**
-These deliverables produce things that can be *sent or acted on*, not just read. A draft email isn't just a summary — it's ready to go if the user approves. This means the delivery model needs a review-before-send gate that currently doesn't exist as a first-class UX pattern.
+These agents produce things that can be *sent or acted on*, not just read. A draft email isn't just a summary — it's ready to go if the user approves. This means the delivery model needs a review-before-send gate that currently doesn't exist as a first-class UX pattern.
 
 ---
 
 ## Execution Model — Architectural Correction
 
-**The "TP running autonomously with a task brief" framing in the original draft was wrong.** TP is Path A (conversational, real-time, session-scoped). It does not generate deliverable content — that is Path B (ADR-061).
+**The "TP running autonomously with a task brief" framing in the original draft was wrong.** TP is Path A (conversational, real-time, session-scoped). It does not generate agent content — that is Path B (ADR-061).
 
 The correct execution model is the **orchestrator's Signal Processing phase** (ADR-068):
 
@@ -101,20 +101,20 @@ The correct execution model is the **orchestrator's Signal Processing phase** (A
 Cron fires
   → Signal extraction pass over Layer 3 (what happened in user's world)
   → Orchestration agent reasons: what does this warrant?
-  → Creates signal_emergent deliverable (origin=signal_emergent, trigger_type=manual)
-  → Queues execution using existing DeliverableAgent + execution strategies
+  → Creates signal_emergent agent (origin=signal_emergent, trigger_type=manual)
+  → Queues execution using existing AgentAgent + execution strategies
   → Version surfaces to user with governance=manual (review gate)
 ```
 
-The "task brief" concept maps to the signal summary fed to the orchestration agent — structured behavioral signal extracted from platform data, not raw content. The orchestration agent is not TP. It is the same DeliverableAgent that handles all Path B execution, operating over a richer context input.
+The "task brief" concept maps to the signal summary fed to the orchestration agent — structured behavioral signal extracted from platform data, not raw content. The orchestration agent is not TP. It is the same AgentAgent that handles all Path B execution, operating over a richer context input.
 
 The changes required (from ADR-068):
 
 1. **Signal extraction pass** — Deterministic read of `filesystem_items` metadata producing a structured behavioral signal summary (no LLM needed for extraction).
 
-2. **Signal processing function** — Single LLM call (orchestration agent) reasoning over signal summary + user memory + recent activity. Produces: trigger existing deliverable, create signal-emergent deliverable, or nothing.
+2. **Signal processing function** — Single LLM call (orchestration agent) reasoning over signal summary + user memory + recent activity. Produces: trigger existing agent, create signal-emergent agent, or nothing.
 
-3. **`origin` field on `deliverables`** — Distinguishes `user_configured` | `analyst_suggested` | `signal_emergent`. One schema addition.
+3. **`origin` field on `agents`** — Distinguishes `user_configured` | `analyst_suggested` | `signal_emergent`. One schema addition.
 
 4. **Review gate** — Already exists. `governance=manual` → version lands as `staged`, user reviews before delivery. No new UX pattern needed.
 
@@ -123,7 +123,7 @@ The changes required (from ADR-068):
 ## Proposed Sequence
 
 **Phase 1 — Validate the execution model** (before new types)
-Wire one existing deliverable type (Gmail Inbox Brief is the best candidate) to run as a TP agent session instead of the dumb pipeline. Confirm: output capture works, cost is acceptable, execution completes within timeout.
+Wire one existing agent type (Gmail Inbox Brief is the best candidate) to run as a TP agent session instead of the dumb pipeline. Confirm: output capture works, cost is acceptable, execution completes within timeout.
 
 **Phase 2 — First proactive type**
 Meeting Prep with commitment tracking. This is the most contained: calendar event is a clear trigger, the fetch chain is bounded (calendar → email history with attendees → memory), and the output is a brief the user reads, not an action they approve.
@@ -138,7 +138,7 @@ Conflict detection, momentum digest. These require the state comparison infrastr
 
 ## What This Product Actually Is
 
-These deliverable types make the product something different from what's currently in the market:
+These agent types make the product something different from what's currently in the market:
 
 - **Not a chat assistant** — doesn't wait to be asked
 - **Not a summary tool** — doesn't just report what happened
@@ -146,9 +146,9 @@ These deliverable types make the product something different from what's current
 
 It's closer to a chief of staff that has read access to everything, has internalized your patterns, and surfaces the work that would otherwise fall through the cracks or require you to think to ask for it.
 
-The four-layer model (Memory / Activity / Context / Work) was the right architectural bet. The memory layer is what makes proactive deliverables personal rather than generic. Without knowing your commitment cadence with a specific person, relationship drift is just silence. With it, the agent can make a judgment call.
+The four-layer model (Memory / Activity / Context / Work) was the right architectural bet. The memory layer is what makes proactive agents personal rather than generic. Without knowing your commitment cadence with a specific person, relationship drift is just silence. With it, the agent can make a judgment call.
 
-The gap between current deliverables and this vision is real but it's a product roadmap gap, not an architectural one. The primitives are there.
+The gap between current agents and this vision is real but it's a product roadmap gap, not an architectural one. The primitives are there.
 
 ---
 
@@ -156,8 +156,8 @@ The gap between current deliverables and this vision is real but it's a product 
 
 1. **Trigger model** — hourly cron evaluating conditions vs. event-driven webhooks from platforms. Cron is simpler to build; webhooks are lower-latency but require platform push subscriptions.
 
-2. **Cost ceiling per user** — what's the acceptable monthly cost for a user with 5 active proactive deliverables, each running TP with 4-6 tool calls? Needs a number before Phase 1.
+2. **Cost ceiling per user** — what's the acceptable monthly cost for a user with 5 active proactive agents, each running TP with 4-6 tool calls? Needs a number before Phase 1.
 
-3. **Review gate vs. full autonomy** — is the review gate always required for action-producing deliverables, or does the user opt into full autonomy per deliverable? This is partly a trust/liability question, not just a UX one.
+3. **Review gate vs. full autonomy** — is the review gate always required for action-producing agents, or does the user opt into full autonomy per agent? This is partly a trust/liability question, not just a UX one.
 
-4. **Memory write-back** — when TP runs a proactive deliverable and makes judgments ("this contact relationship is drifting"), should that judgment be written back to memory? This would make subsequent runs more accurate but complicates the memory model.
+4. **Memory write-back** — when TP runs a proactive agent and makes judgments ("this contact relationship is drifting"), should that judgment be written back to memory? This would make subsequent runs more accurate but complicates the memory model.

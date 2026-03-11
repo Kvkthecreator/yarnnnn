@@ -10,10 +10,10 @@
 
 ## 1. One-Liner
 
-> yarnnn is an autonomous AI agent that connects to your work tools, accumulates your context over time, and produces your deliverables on schedule — getting smarter every cycle.
+> yarnnn is an autonomous AI agent that connects to your work tools, accumulates your context over time, and produces your agents on schedule — getting smarter every cycle.
 
 **Shorter variant** (for tight character limits):
-> The application layer for work context — an autonomous AI agent that learns your work and produces deliverables on schedule.
+> The application layer for work context — an autonomous AI agent that learns your work and produces agents on schedule.
 
 `[PearX: field 6 — "One-line description of the company"]`
 `[YC: "Describe what your company does in 50 characters or less"]`
@@ -26,9 +26,9 @@ The prevailing assumption in AI right now is that the big LLM providers — Open
 
 We think the pattern will rhyme with every prior platform cycle. Google didn't become Salesforce. Facebook didn't become Shopify. AWS didn't become Datadog. General-purpose platforms always look invincible — until the application layer emerges and proves that domain-specific value requires different architecture, different data models, and different product priorities than the platform provider optimizes for. The first application layer the LLM providers built was code — the easiest case, where model capability maps directly to output. Work context is the hard case: unstructured, personal, cross-platform, and domain-specific. Nobody is building that layer yet.
 
-yarnnn is building it. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar. It syncs your work context automatically, accumulates knowledge over time, and produces deliverables on schedule — weekly client updates, project status summaries, meeting prep briefs, investor reports — without being asked. You supervise the output. TP operates.
+yarnnn is building it. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar. It syncs your work context automatically, accumulates knowledge over time, and produces agents on schedule — weekly client updates, project status summaries, meeting prep briefs, investor reports — without being asked. You supervise the output. TP operates.
 
-The product is live at yarnnn.com with all four integrations syncing. TP works in two modes: a chat interface where it already has your context, and a headless mode that generates deliverables in the background on a schedule. After 90 days of accumulated context, the system knows your preferences, your clients' priorities, and your communication style. At that point, switching to a competitor means starting from zero again.
+The product is live at yarnnn.com with all four integrations syncing. TP works in two modes: a chat interface where it already has your context, and a headless mode that generates agents in the background on a schedule. After 90 days of accumulated context, the system knows your preferences, your clients' priorities, and your communication style. At that point, switching to a competitor means starting from zero again.
 
 `[PearX: field 10 — "What are you building, and why?"]`
 
@@ -50,9 +50,9 @@ This means the moat isn't the model, the integrations, or the UI. The moat is th
 
 ## 4. Traction & Progress
 
-The MVP is live at yarnnn.com with paying tiers (Free / Starter $9/mo / Pro $19/mo). All four platform integrations — Slack, Gmail, Notion, and Google Calendar — are connected and syncing. TP operates in both chat mode (context-aware conversations) and headless mode (scheduled autonomous deliverables).
+The MVP is live at yarnnn.com with paying tiers (Free / Starter $9/mo / Pro $19/mo). All four platform integrations — Slack, Gmail, Notion, and Google Calendar — are connected and syncing. TP operates in both chat mode (context-aware conversations) and headless mode (scheduled autonomous agents).
 
-The technical foundation is unusually deep for a pre-seed company: 90+ Architecture Decision Records document every design choice, from the unified content layer to the five-mode deliverable intelligence system. This isn't a wrapper on an API — it's a purpose-built context engine designed from day one for cross-platform context accumulation and agent interoperability (MCP).
+The technical foundation is unusually deep for a pre-seed company: 90+ Architecture Decision Records document every design choice, from the unified content layer to the five-mode agent intelligence system. This isn't a wrapper on an API — it's a purpose-built context engine designed from day one for cross-platform context accumulation and agent interoperability (MCP).
 
 The strongest demand signal came from ClawdBot (also called OpenClaw), an open-source project by a separate team that went viral in January 2026: 17,830 GitHub stars in 24 hours — the fastest single-day growth in GitHub history. What drove that explosion wasn't a better chatbot — it was the promise of AI that's yours: personalized, persistent, and capable of operating in your context. But 95% of users couldn't actually use it — it required VPS provisioning, had 200+ security leaks flagged by GitGuardian, and offered no recurring workflows. yarnnn is the productized version of what ClawdBot proved people want.
 
@@ -66,13 +66,13 @@ Early beta users are actively testing with real integrations connected — Slack
 
 The competitive landscape splits into three categories, and yarnnn is the only product that bridges the gap between them:
 
-**General AI assistants (ChatGPT, Claude, Gemini)**: Extraordinary general-purpose models with improving memory and expanding tools. But their architecture is model-centric, not context-centric — they optimize for breadth across all users, not depth for any specific user. They accumulate some preferences; they don't accumulate your full work context across four platforms and use it for intelligent autonomous deliverables. They're the engine — we're building the vehicle.
+**General AI assistants (ChatGPT, Claude, Gemini)**: Extraordinary general-purpose models with improving memory and expanding tools. But their architecture is model-centric, not context-centric — they optimize for breadth across all users, not depth for any specific user. They accumulate some preferences; they don't accumulate your full work context across four platforms and use it for intelligent autonomous agents. They're the engine — we're building the vehicle.
 
 **Autonomous agent startups (Devin, AutoGPT, CrewAI)**: These can act independently, but generically. They have no persistent understanding of your specific clients, projects, or preferences. Autonomy without accumulated context produces impressive demos but weak repeat performance for the same user over time.
 
 **Workspace AI (Notion AI, Glean, Granola)**: These have context, but they're trapped inside one platform and produce no autonomous output. Notion AI knows your Notion pages but nothing about your Slack conversations or emails. Glean is enterprise-only with no prosumer play.
 
-yarnnn is the only product that accumulates cross-platform work context and uses it for autonomous output. TP connects to all four platforms, synthesizes across them, and produces deliverables on schedule. The compounding dynamic means switching costs increase with tenure — after 90 days, no competitor can replicate what the system knows about your work. And the structural argument is historical: in every platform cycle, the platform provider didn't build the application layer. We're betting this cycle rhymes.
+yarnnn is the only product that accumulates cross-platform work context and uses it for autonomous output. TP connects to all four platforms, synthesizes across them, and produces agents on schedule. The compounding dynamic means switching costs increase with tenure — after 90 days, no competitor can replicate what the system knows about your work. And the structural argument is historical: in every platform cycle, the platform provider didn't build the application layer. We're betting this cycle rhymes.
 
 The comparable companies that have proven this market — Notion ($11B), Glean ($7.2B), Granola ($250M), Mem.ai ($110M), Limitless (acquired by Meta) — all validated demand for AI-powered context. yarnnn adds the autonomous output layer that none of them have.
 
@@ -84,7 +84,7 @@ The comparable companies that have proven this market — Notion ($11B), Glean (
 
 We size the market bottoms-up from our entry wedge: solo consultants with recurring client obligations.
 
-There are approximately 5 million solo consultants globally who manage multiple clients, produce recurring deliverables (weekly updates, monthly reports, strategic briefs), and use 3+ productivity tools daily. These are the users who feel the context gap most acutely — they need AI that understands their specific work across platforms, not just a general-purpose assistant.
+There are approximately 5 million solo consultants globally who manage multiple clients, produce recurring agents (weekly updates, monthly reports, strategic briefs), and use 3+ productivity tools daily. These are the users who feel the context gap most acutely — they need AI that understands their specific work across platforms, not just a general-purpose assistant.
 
 At our Pro tier pricing ($228/year), the Serviceable Addressable Market is approximately $1.14 billion. Our Entry SOM targets 50,000 consultants (1% of SAM) within the first 3 years, representing $11.4 million in ARR.
 
@@ -132,11 +132,11 @@ The $500K raise is purpose-built: a senior Tech Lead to accelerate the context e
 
 ### Elevator Pitch (30 seconds)
 
-> Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar, accumulates your work context, and produces your deliverables on schedule. It's the application layer for work — and no one else is building it. Live at yarnnn.com.
+> Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar, accumulates your work context, and produces your agents on schedule. It's the application layer for work — and no one else is building it. Live at yarnnn.com.
 
 ### Twitter-Length (~280 chars)
 
-> yarnnn: the application layer for work context. An autonomous AI agent that connects to your tools, accumulates your context, and produces deliverables on schedule. Gets smarter every cycle. Live now → yarnnn.com
+> yarnnn: the application layer for work context. An autonomous AI agent that connects to your tools, accumulates your context, and produces agents on schedule. Gets smarter every cycle. Live now → yarnnn.com
 
 ### "Why Now" (standalone paragraph)
 

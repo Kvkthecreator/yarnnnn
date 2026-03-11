@@ -26,7 +26,7 @@ The main authenticated view is a **full-screen chat interface** (like Claude Cod
 │ yarnnn                                           [User Menu]    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  TP: Good morning! You have 2 deliverables ready for review.    │
+│  TP: Good morning! You have 2 agents ready for review.    │
 │                                                                 │
 │  User: Show me the weekly status report                         │
 │                                                                 │
@@ -54,7 +54,7 @@ The main authenticated view is a **full-screen chat interface** (like Claude Cod
 
 ### 2. Drawer for Contextual Views
 
-When users need to see full content (edit a deliverable, review version history, browse memories), it opens as a **drawer**:
+When users need to see full content (edit a agent, review version history, browse memories), it opens as a **drawer**:
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────┐
@@ -78,10 +78,10 @@ When users need to see full content (edit a deliverable, review version history,
 
 ### 3. Data Views as Separate Routes (Optional)
 
-For users who want to browse all deliverables, memories, etc., there are dedicated data views:
+For users who want to browse all agents, memories, etc., there are dedicated data views:
 
 - `/dashboard` - Chat (home)
-- `/deliverables` - All deliverables grid/list
+- `/agents` - All agents grid/list
 - `/memories` - Memory browser
 - `/settings` - User settings
 
@@ -96,7 +96,7 @@ TP responses use appropriate density:
 TP: Done! Schedule updated to Tuesdays at 9am.
 ```
 
-**Card:** Actionable items (deliverables, versions)
+**Card:** Actionable items (agents, versions)
 ```
 TP: Here's the latest version:
 ┌────────────────────────────────────────┐
@@ -118,7 +118,7 @@ TP: Here's the latest version:
 1. **ChatView** - Full-screen chat interface (primary view)
 2. **Drawer** - Slide-out panel for detail views
 3. **DrawerContent variants:**
-   - DeliverableDrawer - View/edit deliverable
+   - AgentDrawer - View/edit agent
    - VersionReviewDrawer - Review and approve draft
    - MemoryDrawer - View/edit memory
 4. **DataViews** - Traditional list/grid views for browsing
@@ -129,14 +129,14 @@ TP: Here's the latest version:
 ```
 User in Chat
     │
-    ├─► Asks about deliverable ─► TP shows card in chat
+    ├─► Asks about agent ─► TP shows card in chat
     │                                    │
     │                                    ├─► "Open" ─► Drawer opens
     │                                    └─► "Approve" ─► Inline confirmation
     │
     ├─► Clicks "Open" on card ─► Drawer opens
     │
-    └─► Navigates to /deliverables ─► Data view (separate page)
+    └─► Navigates to /agents ─► Data view (separate page)
                                            │
                                            └─► "Ask TP" ─► Back to chat with context
 ```
@@ -145,9 +145,9 @@ User in Chat
 
 ```
 /dashboard                    → Chat (home)
-/dashboard?drawer=del_123     → Chat with deliverable drawer open
+/dashboard?drawer=del_123     → Chat with agent drawer open
 /dashboard?drawer=review_456  → Chat with review drawer open
-/deliverables                 → Deliverables data view
+/agents                 → Agents data view
 /memories                     → Memories data view
 /settings                     → Settings
 ```
@@ -165,17 +165,17 @@ User in Chat
 ### Negative
 
 - **More navigation** - Need to open drawer for detailed editing
-- **Less IDE-like** - Can't have multiple deliverables open side-by-side
+- **Less IDE-like** - Can't have multiple agents open side-by-side
 
 ### Trade-off Accepted
 
 - We prioritize **conversation coherence** over **multi-document workflows**
-- Users who need to compare deliverables can use the data views
+- Users who need to compare agents can use the data views
 
 ## Migration from Current State
 
 1. **Keep:** ChatView, Drawer system, existing data components
-2. **Refactor:** DeliverableDetail → DeliverableDrawer
+2. **Refactor:** AgentDetail → AgentDrawer
 3. **Refactor:** VersionReview → VersionReviewDrawer
 4. **Remove:** Tab infrastructure (TabBar, TabShell, PersistentTP, TabContent, tab renderers)
 5. **Simplify:** Layout back to chat-primary

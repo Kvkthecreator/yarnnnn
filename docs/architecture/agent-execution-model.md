@@ -7,9 +7,9 @@
 **Related:**
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — governing ADR
 - [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md) — predecessor (superseded by ADR-080)
-- [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) — extends orchestration with signal processing phase
-- [ADR-042: Deliverable Execution Simplification](../adr/ADR-042-deliverable-execution-simplification.md)
-- [ADR-045: Deliverable Orchestration Redesign](../adr/ADR-045-deliverable-orchestration-redesign.md)
+- [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md) — extends orchestration with signal processing phase
+- [ADR-042: Agent Execution Simplification](../adr/ADR-042-agent-execution-simplification.md)
+- [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
 - [Supervision Model](supervision-model.md) — the complementary UI/UX framing
 
 ---
@@ -47,8 +47,8 @@ User ←→ Agent (mode="chat")
 **Chat mode responsibilities:**
 - Answer questions (searches memory, platform data, documents)
 - Execute one-time platform actions (send Slack message, create Gmail draft)
-- Create and configure deliverables when the user explicitly asks
-- Read and explain existing deliverable versions
+- Create and configure agents when the user explicitly asks
+- Read and explain existing agent versions
 
 ### Headless Mode (Content Generation)
 
@@ -65,11 +65,11 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 | Primitives | Curated subset: Search, Read, List, WebSearch, GetSystemState |
 | Max tool rounds | Binding-aware: platform_bound=2, cross_platform=3, research=6, hybrid=6 (ADR-081) |
 | System prompt | Directives + memory + learned preferences + optional research directive (ADR-081/087/101) |
-| Entry point | `generate_draft_inline()` in deliverable pipeline |
+| Entry point | `generate_draft_inline()` in agent pipeline |
 | LLM function | `chat_completion_with_tools()` |
 
 **Headless mode responsibilities:**
-- Generate deliverable content from gathered context
+- Generate agent content from gathered context
 - Investigate supplementary context via primitives when the gathered context is insufficient
 - Produce structured, formatted output following type-specific templates
 - For `proactive` and `coordinator` modes (ADR-092): execute a **review pass** — assess domain, return `generate / observe / create_child / advance_schedule / sleep` rather than content
@@ -80,10 +80,10 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 
 **ADR-092 extension — coordinator/proactive write primitives:**
 Coordinator and proactive modes add two headless-only write primitives, scoped exclusively to orchestration actions:
-- `CreateDeliverable` — creates a child deliverable with `origin=coordinator_created`; headless only
-- `AdvanceDeliverableSchedule` — advances another deliverable's `next_run_at` to now; headless only
+- `CreateAgent` — creates a child agent with `origin=coordinator_created`; headless only
+- `AdvanceAgentSchedule` — advances another agent's `next_run_at` to now; headless only
 
-These are not available in chat mode. TP continues to create deliverables via its own `CreateDeliverable` primitive (chat-only). The names are shared but the implementations and mode gates are distinct.
+These are not available in chat mode. TP continues to create agents via its own `CreateAgent` primitive (chat-only). The names are shared but the implementations and mode gates are distinct.
 
 ---
 
@@ -102,16 +102,16 @@ PRIMITIVE_MODES = {
 
     # Write/action/UI primitives — chat only
     "Write":                    ["chat"],
-    "Edit":                     ["chat"],   # includes deliverable_instructions + scoped memory writes (ADR-091)
-    "Execute":                  ["chat"],   # includes deliverable.acknowledge (ADR-091)
-    "RefreshPlatformContent":   ["chat", "headless"],  # ADR-085 extended by ADR-092 (headless: scoped to deliverable sources, no staleness guard)
+    "Edit":                     ["chat"],   # includes agent_instructions + scoped memory writes (ADR-091)
+    "Execute":                  ["chat"],   # includes agent.acknowledge (ADR-091)
+    "RefreshPlatformContent":   ["chat", "headless"],  # ADR-085 extended by ADR-092 (headless: scoped to agent sources, no staleness guard)
     "Clarify":                  ["chat"],
     "list_integrations":        ["chat"],
 
     # Coordinator/proactive primitives — headless only (ADR-092)
     # These are orchestration actions, not user-facing chat operations
-    "CreateDeliverable":        ["headless"],   # coordinator mode: creates child with origin=coordinator_created
-    "AdvanceDeliverableSchedule": ["headless"], # coordinator mode: trigger_existing replacement
+    "CreateAgent":        ["headless"],   # coordinator mode: creates child with origin=coordinator_created
+    "AdvanceAgentSchedule": ["headless"], # coordinator mode: trigger_existing replacement
 }
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
 # Todo and Respond are handled in the HANDLERS map but not in PRIMITIVES list
@@ -136,7 +136,7 @@ Backend Orchestration
 ├── 5. Agent (mode="headless")           ← agent invocation
 │   ├── Receives: gathered context + type prompt + directives + memory + learned preferences (ADR-101)
 │   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
-│   ├── Cannot use: Write, Edit, Execute, Clarify, CreateDeliverable, AdvanceDeliverableSchedule
+│   ├── Cannot use: Write, Edit, Execute, Clarify, CreateAgent, AdvanceAgentSchedule
 │   ├── Max tool rounds: binding-aware (2-6, ADR-081)
 │   └── Returns: structured content (text)
 ├── 6. Retention marking (ADR-072)
@@ -150,23 +150,23 @@ Backend Orchestration
 Backend Orchestration
 ├── 1. Trigger (proactive_next_review_at <= NOW())
 ├── 2. Agent (mode="headless", review prompt)  ← review invocation
-│   ├── Receives: deliverable_instructions + deliverable_memory + source context
+│   ├── Receives: agent_instructions + agent_memory + source context
 │   ├── Can use: Search, Read, List, CrossPlatformQuery, RefreshPlatformContent
-│   ├── Coordinator also: CreateDeliverable, AdvanceDeliverableSchedule
+│   ├── Coordinator also: CreateAgent, AdvanceAgentSchedule
 │   └── Returns: {action: "generate"|"observe"|"create_child"|"advance_schedule"|"sleep", ...}
 ├── 3. Orchestration acts on returned action:
 │   ├── generate → proceeds to standard generation pipeline above
-│   ├── observe → appends note to deliverable_memory.review_log
-│   ├── create_child → creates child deliverable + executes immediately
-│   ├── advance_schedule → sets another deliverable's next_run_at = now
+│   ├── observe → appends note to agent_memory.review_log
+│   ├── create_child → creates child agent + executes immediately
+│   ├── advance_schedule → sets another agent's next_run_at = now
 │   └── sleep → sets proactive_next_review_at = agent-specified time
 └── 4. Activity logging
 ```
 
 **Orchestration's responsibilities:**
-- **Coordinator/proactive review phase** (ADR-092): Schedule review passes for `proactive` and `coordinator` deliverables, act on agent's returned action
-- **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested deliverables
-- **Execution phase**: Execute deliverables on trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
+- **Coordinator/proactive review phase** (ADR-092): Schedule review passes for `proactive` and `coordinator` agents, act on agent's returned action
+- **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested agents
+- **Execution phase**: Execute agents on trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
 
 **Orchestration explicitly does NOT:**
 - Participate in conversation
@@ -182,15 +182,15 @@ Backend Orchestration
 # api/agents/thinking_partner.py → api/services/anthropic.py
 
 User: "Set up a weekly digest of #engineering"
-→ Agent (chat mode) calls CreateDeliverable primitive
+→ Agent (chat mode) calls CreateAgent primitive
 → Agent responds: "Created. It will run every Monday at 9 AM."
 
 # Headless mode: Background, non-streaming, curated primitives
-# api/services/deliverable_execution.py → api/services/anthropic.py
+# api/services/agent_execution.py → api/services/anthropic.py
 
 unified_scheduler.py (cron)
-  → execute_deliverable_generation(client, user_id, deliverable)
-      → get_execution_strategy(deliverable)        # orchestration
+  → execute_agent_generation(client, user_id, agent)
+      → get_execution_strategy(agent)        # orchestration
       → strategy.gather_context(...)               # orchestration
       → generate_draft_inline(...)                 # agent (headless mode)
           → chat_completion_with_tools(             # agent uses primitives
@@ -216,7 +216,7 @@ Complexity in the orchestration pipeline lives in the *strategy*, not in agent l
 | `research` | `ResearchStrategy` | Optional platform grounding + research directive for headless agent (ADR-081) |
 | `hybrid` | `HybridStrategy` | Platform content + research directive for headless agent (ADR-081) |
 
-Strategy is selected at execution time from `deliverable.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073). Research and hybrid strategies pass a `research_directive` to the headless agent, which uses the WebSearch primitive directly (ADR-081) — no separate web research call.
+Strategy is selected at execution time from `agent.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073). Research and hybrid strategies pass a `research_directive` to the headless agent, which uses the WebSearch primitive directly (ADR-081) — no separate web research call.
 
 See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end pipeline.
 
@@ -224,7 +224,7 @@ See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end
 
 ## Signal Context Forwarding (ADR-080)
 
-Signal processing reasons about the user's platform world (Haiku LLM call), producing `reasoning_summary` with cross-platform patterns and entity identification. Previously, this reasoning was discarded before deliverable generation — `trigger_context={"type": "signal_emergent"}` passed zero intelligence.
+Signal processing reasons about the user's platform world (Haiku LLM call), producing `reasoning_summary` with cross-platform patterns and entity identification. Previously, this reasoning was discarded before agent generation — `trigger_context={"type": "signal_emergent"}` passed zero intelligence.
 
 ADR-080 requires forwarding signal reasoning into the headless mode prompt:
 
@@ -241,27 +241,27 @@ if trigger_context.get("signal_reasoning"):
     system_prompt += f"\n\nSIGNAL CONTEXT: {trigger_context['signal_reasoning']}"
 ```
 
-This closes the intelligence gap where signal processing knew *why* a deliverable should exist but that reasoning was lost before generation.
+This closes the intelligence gap where signal processing knew *why* a agent should exist but that reasoning was lost before generation.
 
 ---
 
-## What This Means for Proactive / Autonomous Deliverables
+## What This Means for Proactive / Autonomous Agents
 
-The proactive autonomy roadmap is implemented through **ADR-068: Signal-Emergent Deliverables** — entirely within backend orchestration. The agent is invoked in headless mode at the content generation step.
+The proactive autonomy roadmap is implemented through **ADR-068: Signal-Emergent Agents** — entirely within backend orchestration. The agent is invoked in headless mode at the content generation step.
 
 | Concept | Belongs in | Rationale |
 |---|---|---|
 | "What happened in user's world?" | Signal Processing (orchestration) | Deterministic extraction from `platform_content`, no agent |
 | "What does this warrant?" | Signal Processing (orchestration) | Single Haiku LLM call over signal summary |
-| Content generation for signal-emergent deliverable | Agent (headless mode) | Same agent, same primitives, structured output |
-| Drift detection, conflict detection, meeting prep | Signal-emergent deliverable creation (orchestration) | `origin=signal_emergent`, `trigger_type=manual` |
+| Content generation for signal-emergent agent | Agent (headless mode) | Same agent, same primitives, structured output |
+| Drift detection, conflict detection, meeting prep | Signal-emergent agent creation (orchestration) | `origin=signal_emergent`, `trigger_type=manual` |
 | User promotes output to recurring | `promote-to-recurring` endpoint (orchestration) | `trigger_type` updated; `origin` preserved |
 
 ---
 
 ## Relationship to the Supervision Model
 
-The [Supervision Model](supervision-model.md) covers the UI/UX dimension: deliverables are *objects the user supervises*, TP (chat mode) is *how they supervise*. That framing remains correct.
+The [Supervision Model](supervision-model.md) covers the UI/UX dimension: agents are *objects the user supervises*, TP (chat mode) is *how they supervise*. That framing remains correct.
 
 This document covers the *execution* dimension: how the agent produces content in each mode, and how orchestration manages everything around it.
 
@@ -274,10 +274,10 @@ This document covers the *execution* dimension: how the agent produces content i
 
 ## Anti-Patterns
 
-**Using chat mode for deliverable content generation**
-Chat mode is session-scoped, streaming, and latency-sensitive. Deliverable generation is background work. Using chat mode for deliverables would require session infrastructure, streaming (nobody is watching), and 15 tool rounds (unconstrained cost). Headless mode exists for this.
+**Using chat mode for agent content generation**
+Chat mode is session-scoped, streaming, and latency-sensitive. Agent generation is background work. Using chat mode for agents would require session infrastructure, streaming (nobody is watching), and 15 tool rounds (unconstrained cost). Headless mode exists for this.
 
-**Creating new agent classes for new deliverable complexity**
+**Creating new agent classes for new agent complexity**
 ADR-061 noted that the prior "layered agent" model (TP delegates to specialized work agents) was never realized and produced dead code. Complexity belongs in execution strategies and mode-gated primitives, not new agent classes.
 
 **Treating the orchestration as an agent concern**

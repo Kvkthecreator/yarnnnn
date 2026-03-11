@@ -22,9 +22,9 @@ ADRs document significant architectural decisions made during development.
 | [015](ADR-015-unified-context-model.md) | Unified Context Model | Implemented | 2026-02-01 |
 | [016](ADR-016-work-agents-and-artifacts.md) | Work Agents and Artifacts | Draft | 2026-01-30 |
 | [017](ADR-017-unified-work-model.md) | Unified Work Model | Implemented | 2026-01-31 |
-| [018](ADR-018-recurring-deliverables.md) | Recurring Deliverables Product Pivot | Accepted | 2026-02-01 |
-| [019](ADR-019-deliverable-types.md) | Deliverable Types System | Proposed | 2026-02-02 |
-| [020](ADR-020-deliverable-centric-chat.md) | Deliverable-Centric Chat | Implemented | 2026-02-02 |
+| [018](ADR-018-recurring-agents.md) | Recurring Agents Product Pivot | Accepted | 2026-02-01 |
+| [019](ADR-019-agent-types.md) | Agent Types System | Proposed | 2026-02-02 |
+| [020](ADR-020-agent-centric-chat.md) | Agent-Centric Chat | Implemented | 2026-02-02 |
 | [021](ADR-021-review-first-supervision-ux.md) | Review-First Supervision UX | Implemented | 2026-02-02 |
 | [022](ADR-022-tab-based-supervision-architecture.md) | Tab-Based Supervision Architecture | Draft | 2026-02-02 |
 | [023](ADR-023-supervisor-desk-architecture.md) | Supervisor Desk Architecture | Implemented | 2026-02-03 |
@@ -32,7 +32,7 @@ ADRs document significant architectural decisions made during development.
 | [025](ADR-025-claude-code-agentic-alignment.md) | **Claude Code Agentic Alignment** | **Proposed** | 2026-02-05 |
 | [036](ADR-036-two-layer-architecture.md) | **Two-Layer Architecture** | **Accepted** | 2026-02-10 |
 | [037](ADR-037-chat-first-surface-architecture.md) | **Chat-First Surface Architecture** | **Accepted** | 2026-02-10 |
-| [042](ADR-042-deliverable-execution-simplification.md) | **Deliverable Execution Simplification** | **Proposed** | 2026-02-11 |
+| [042](ADR-042-agent-execution-simplification.md) | **Agent Execution Simplification** | **Proposed** | 2026-02-11 |
 | [087](ADR-087-workspace-scoping-architecture.md) | **Workspace Scoping Architecture** | **Proposed** | 2026-03-02 |
 | [088](ADR-088-input-gateway-work-serialization.md) | **Input Gateway & Work Serialization** | **Proposed (Parked)** | 2026-03-03 |
 | [089](ADR-089-agent-autonomy-context-aware-triggers.md) | **Agent Autonomy & Context-Aware Triggers** | **Proposed (Parked)** | 2026-03-03 |

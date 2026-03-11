@@ -1,23 +1,23 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * ADR-037: Chat-First Surface Architecture
- * ADR-066: Deliverable Detail Redesign
- * ADR-067: Deliverable Creation Simplification
+ * ADR-066: Agent Detail Redesign
+ * ADR-067: Agent Creation Simplification
  *
  * Surface component exports
  *
  * ADR-037 Migration Status:
  * - Documents: migrated to /docs, /docs/[id]
  * - Integrations: migrated to /integrations, /integrations/[provider]
- * - Deliverables: migrated to /deliverables, /deliverables/[id]
+ * - Agents: migrated to /agents, /agents/[id]
  * - Activity: migrated to /activity
  * - Context browser: deprecated (use chat)
  *
  * ADR-066 Migration:
- * - DeliverableReviewSurface: DELETED — review happens inline on detail page
+ * - AgentReviewSurface: DELETED — review happens inline on detail page
  *
  * ADR-067 Migration:
- * - DeliverableCreateSurface: DELETED — creation handled by TP chat (/dashboard?create)
+ * - AgentCreateSurface: DELETED — creation handled by TP chat (/dashboard?create)
  *
  * Remaining surfaces:
  * - ContextEditorSurface: Edit specific memory

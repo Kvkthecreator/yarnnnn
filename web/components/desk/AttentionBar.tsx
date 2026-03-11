@@ -30,16 +30,16 @@ export function AttentionBar({ items }: AttentionBarProps) {
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {items.map((item) => {
             const isActive =
-              surface.type === 'deliverable-review' && surface.versionId === item.versionId;
+              surface.type === 'agent-review' && surface.runId === item.runId;
 
             return (
               <button
-                key={item.versionId}
+                key={item.runId}
                 onClick={() =>
                   setSurface({
-                    type: 'deliverable-review',
-                    deliverableId: item.deliverableId,
-                    versionId: item.versionId,
+                    type: 'agent-review',
+                    agentId: item.agentId,
+                    runId: item.runId,
                   })
                 }
                 className={`

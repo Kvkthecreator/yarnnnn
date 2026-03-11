@@ -5,7 +5,7 @@ ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-059/064: Memory via user_memory table and build_working_memory()
 ADR-067: Session compaction and conversational continuity
-ADR-087: Deliverable-scoped context (deliverable_id on sessions, scoped working memory)
+ADR-087: Agent-scoped context (agent_id on sessions, scoped working memory)
 
 Session Philosophy (ADR-067):
 - In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
@@ -13,10 +13,10 @@ Session Philosophy (ADR-067):
 - Inactivity-based session boundary (4h, not UTC midnight)
 - Compaction format: assistant <summary> block prepended to remaining history
 
-ADR-087: Deliverable Scoping:
-- surface_context.deliverableId routes the session to a specific deliverable
-- deliverable_id set on chat_sessions row at creation time
-- Deliverable's instructions + memory injected into working memory
+ADR-087: Agent Scoping:
+- surface_context.agentId routes the session to a specific agent
+- agent_id set on chat_sessions row at creation time
+- Agent's instructions + memory injected into working memory
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
@@ -49,8 +49,8 @@ class ChatHistoryMessage(BaseModel):
 
 class SurfaceContext(BaseModel):
     """Surface context for TP - what the user is currently viewing."""
-    type: str  # e.g., "deliverable-review", "work-output", "idle"
-    deliverableId: Optional[str] = None
+    type: str  # e.g., "agent-review", "work-output", "idle"
+    agentId: Optional[str] = None
     versionId: Optional[str] = None
     workId: Optional[str] = None
     outputId: Optional[str] = None
@@ -84,7 +84,7 @@ async def get_or_create_session(
     user_id: str,
     session_type: str = "thinking_partner",
     scope: str = "daily",  # "conversation", "daily"
-    deliverable_id: str | None = None,  # ADR-087 Phase 3: scope session to deliverable
+    agent_id: str | None = None,  # ADR-087 Phase 3: scope session to agent
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
@@ -93,8 +93,8 @@ async def get_or_create_session(
     - conversation: Always creates new session
     - daily: Reuses session active within last 4 hours (inactivity boundary)
 
-    ADR-087 Phase 3: When deliverable_id is provided, sessions are scoped to
-    that deliverable. Global TP (deliverable_id=None) gets separate sessions.
+    ADR-087 Phase 3: When agent_id is provided, sessions are scoped to
+    that agent. Global TP (agent_id=None) gets separate sessions.
 
     Returns:
         Session dict with 'id', 'is_new' (bool), and optionally
@@ -108,7 +108,7 @@ async def get_or_create_session(
                 "p_project_id": None,
                 "p_session_type": session_type,
                 "p_scope": scope,
-                "p_deliverable_id": deliverable_id,
+                "p_agent_id": agent_id,
             }
         ).execute()
 
@@ -131,11 +131,11 @@ async def get_or_create_session(
                 .eq("session_type", session_type)\
                 .gte("updated_at", inactivity_cutoff)\
                 .eq("status", "active")
-            # ADR-087 Phase 3: scope by deliverable_id
-            if deliverable_id:
-                q = q.eq("deliverable_id", deliverable_id)
+            # ADR-087 Phase 3: scope by agent_id
+            if agent_id:
+                q = q.eq("agent_id", agent_id)
             else:
-                q = q.is_("deliverable_id", "null")
+                q = q.is_("agent_id", "null")
             existing = q.order("updated_at", desc=True)\
                 .limit(1)\
                 .execute()
@@ -164,8 +164,8 @@ async def get_or_create_session(
             "session_type": session_type,
             "status": "active",
         }
-        if deliverable_id:
-            data["deliverable_id"] = deliverable_id
+        if agent_id:
+            data["agent_id"] = agent_id
 
         result = client.table("chat_sessions").insert(data).execute()
         if result.data:
@@ -694,23 +694,23 @@ async def load_surface_content(
     try:
         surface_type = surface.type
 
-        if surface_type == "deliverable-review" and surface.deliverableId and surface.versionId:
-            # User is reviewing a deliverable version - fetch the content
-            deliverable_result = client.table("deliverables")\
-                .select("title, deliverable_type")\
-                .eq("id", surface.deliverableId)\
+        if surface_type == "agent-review" and surface.agentId and surface.versionId:
+            # User is reviewing a agent version - fetch the content
+            agent_result = client.table("agents")\
+                .select("title, agent_type")\
+                .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
                 .execute()
 
-            version_result = client.table("deliverable_versions")\
+            version_result = client.table("agent_runs")\
                 .select("content, version_number, status")\
                 .eq("id", surface.versionId)\
                 .single()\
                 .execute()
 
-            if deliverable_result.data and version_result.data:
-                d = deliverable_result.data
+            if agent_result.data and version_result.data:
+                d = agent_result.data
                 v = version_result.data
                 content = v.get("content", "")
                 # Truncate if too long
@@ -718,26 +718,26 @@ async def load_surface_content(
                     content = content[:8000] + "\n\n[Content truncated...]"
 
                 return f"""## Currently Viewing: {d['title']} (v{v['version_number']})
-Type: {d.get('deliverable_type', 'custom').replace('_', ' ').title()}
+Type: {d.get('agent_type', 'custom').replace('_', ' ').title()}
 Status: {v['status']}
 
 ### Content:
 {content}
 """
 
-        elif surface_type == "deliverable-detail" and surface.deliverableId:
-            # User is viewing deliverable details (not content)
-            result = client.table("deliverables")\
-                .select("title, deliverable_type, status, schedule, type_config")\
-                .eq("id", surface.deliverableId)\
+        elif surface_type == "agent-detail" and surface.agentId:
+            # User is viewing agent details (not content)
+            result = client.table("agents")\
+                .select("title, agent_type, status, schedule, type_config")\
+                .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
                 .execute()
 
             if result.data:
                 d = result.data
-                return f"""## Currently Viewing: {d['title']} (Deliverable Detail)
-Type: {d.get('deliverable_type', 'custom').replace('_', ' ').title()}
+                return f"""## Currently Viewing: {d['title']} (Agent Detail)
+Type: {d.get('agent_type', 'custom').replace('_', ' ').title()}
 Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """
@@ -775,18 +775,18 @@ async def global_chat(
     """
     from services.platform_limits import check_monthly_message_limit
 
-    # ADR-087 Phase 3: Extract deliverable_id from surface_context BEFORE session lookup
-    # so deliverable-scoped chats get their own sessions, separate from global TP.
-    request_deliverable_id = None
-    if request.surface_context and request.surface_context.deliverableId:
-        request_deliverable_id = request.surface_context.deliverableId
+    # ADR-087 Phase 3: Extract agent_id from surface_context BEFORE session lookup
+    # so agent-scoped chats get their own sessions, separate from global TP.
+    request_agent_id = None
+    if request.surface_context and request.surface_context.agentId:
+        request_agent_id = request.surface_context.agentId
 
-    # Get or create session (daily scope, scoped by deliverable_id if present)
+    # Get or create session (daily scope, scoped by agent_id if present)
     session = await get_or_create_session(
         auth.client,
         auth.user_id,
         scope="daily",
-        deliverable_id=request_deliverable_id,
+        agent_id=request_agent_id,
     )
     session_id = session["id"]
 
@@ -846,34 +846,34 @@ async def global_chat(
         + (f" (compaction block present)" if compaction_block else "")
     )
 
-    # ADR-087 Phase 3: deliverable_id is now set at session creation time (above).
-    # Still need to fetch the deliverable for working memory injection.
-    deliverable_id = request_deliverable_id
-    scoped_deliverable = None
-    if deliverable_id:
+    # ADR-087 Phase 3: agent_id is now set at session creation time (above).
+    # Still need to fetch the agent for working memory injection.
+    agent_id = request_agent_id
+    scoped_agent = None
+    if agent_id:
         try:
-            d_result = auth.client.table("deliverables").select(
-                "id, title, deliverable_type, deliverable_instructions, deliverable_memory"
-            ).eq("id", deliverable_id).eq("user_id", auth.user_id).single().execute()
+            d_result = auth.client.table("agents").select(
+                "id, title, agent_type, agent_instructions, agent_memory"
+            ).eq("id", agent_id).eq("user_id", auth.user_id).single().execute()
             if d_result.data:
-                scoped_deliverable = d_result.data
+                scoped_agent = d_result.data
         except Exception as e:
-            logger.warning(f"[TP] Failed to fetch scoped deliverable: {e}")
+            logger.warning(f"[TP] Failed to fetch scoped agent: {e}")
 
     # ADR-059/064: Memory now loaded via build_working_memory in execute_stream_with_tools
     # ContextBundle is passed for backwards compatibility but is empty
     context = ContextBundle()
 
-    # Check if user has any deliverables (for onboarding mode)
+    # Check if user has any agents (for onboarding mode)
     is_onboarding = False
     try:
-        deliverables_result = auth.client.table("deliverables")\
+        agents_result = auth.client.table("agents")\
             .select("id")\
             .eq("user_id", auth.user_id)\
             .neq("status", "archived")\
             .limit(1)\
             .execute()
-        is_onboarding = len(deliverables_result.data or []) == 0
+        is_onboarding = len(agents_result.data or []) == 0
     except Exception as e:
         logger.debug(f"[TP] Onboarding check failed, defaulting to non-onboarding: {e}")
 
@@ -932,7 +932,7 @@ async def global_chat(
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
-                    "scoped_deliverable": scoped_deliverable,  # ADR-087: Deliverable-scoped context
+                    "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
                 },
             ):
                 if event.type == "text":
@@ -1062,16 +1062,16 @@ async def global_chat(
 async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
-    deliverable_id: Optional[str] = Query(default=None),
+    agent_id: Optional[str] = Query(default=None),
 ):
     """
-    Get chat history scoped by deliverable (or global if no deliverable_id).
+    Get chat history scoped by agent (or global if no agent_id).
     Returns the most recent session(s) with messages.
 
-    ADR-087 Phase 3: deliverable_id param isolates deliverable-scoped sessions
+    ADR-087 Phase 3: agent_id param isolates agent-scoped sessions
     from global TP sessions.
     """
-    # Fetch recent sessions, scoped by deliverable_id
+    # Fetch recent sessions, scoped by agent_id
     q = (
         auth.client.table("chat_sessions")
         .select("*")
@@ -1079,10 +1079,10 @@ async def get_global_chat_history(
         .is_("project_id", "null")
         .eq("session_type", "thinking_partner")
     )
-    if deliverable_id:
-        q = q.eq("deliverable_id", deliverable_id)
+    if agent_id:
+        q = q.eq("agent_id", agent_id)
     else:
-        q = q.is_("deliverable_id", "null")
+        q = q.is_("agent_id", "null")
     sessions_result = q.order("created_at", desc=True).limit(limit).execute()
 
     sessions = []

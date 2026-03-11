@@ -5,12 +5,12 @@ ADR-100: Simplified 2-tier monetization (Free + Pro).
 ADR-077: Widened source limits to support richer content accumulation.
 
 Tier Structure (ADR-100, 2026-03-09):
-- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50 messages/month, 2 deliverables
-- Pro ($19/mo, Early Bird $9/mo): unlimited sources, all platforms, hourly sync, unlimited messages, 10 deliverables
+- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50 messages/month, 2 agents
+- Pro ($19/mo, Early Bird $9/mo): unlimited sources, all platforms, hourly sync, unlimited messages, 10 agents
 
 Key gates (by cost impact):
 1. Monthly messages — user-understandable proxy for Anthropic API spend
-2. Active deliverables — each is a recurring Sonnet call
+2. Active agents — each is a recurring Sonnet call
 3. Source count — controls platform_content volume
 4. Sync frequency — controls API call frequency (lowest cost impact)
 """
@@ -37,7 +37,7 @@ class PlatformLimits:
     total_platforms: int
     sync_frequency: SyncFrequency
     monthly_messages: int     # -1 for unlimited (ADR-100: replaces daily_token_budget)
-    active_deliverables: int  # -1 for unlimited
+    active_agents: int  # -1 for unlimited
 
 
 # Tier definitions (ADR-100: 2-tier model, 2026-03-09)
@@ -50,7 +50,7 @@ TIER_LIMITS = {
         total_platforms=4,       # All platforms open
         sync_frequency="1x_daily",
         monthly_messages=50,
-        active_deliverables=2,
+        active_agents=2,
     ),
     "pro": PlatformLimits(
         slack_channels=-1,       # Unlimited
@@ -60,7 +60,7 @@ TIER_LIMITS = {
         total_platforms=4,
         sync_frequency="hourly",
         monthly_messages=-1,     # Unlimited
-        active_deliverables=10,
+        active_agents=10,
     ),
 }
 
@@ -265,7 +265,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "total_platforms": limits.total_platforms,
             "sync_frequency": limits.sync_frequency,
             "monthly_messages": limits.monthly_messages,
-            "active_deliverables": limits.active_deliverables,
+            "active_agents": limits.active_agents,
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
@@ -274,7 +274,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "calendars": get_source_count(client, user_id, "calendar"),
             "platforms_connected": get_platform_count(client, user_id),
             "monthly_messages_used": monthly_messages_used,
-            "active_deliverables": get_active_deliverable_count(client, user_id),
+            "active_agents": get_active_agent_count(client, user_id),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
     }
@@ -318,19 +318,19 @@ def validate_sources_update(
 
 
 # =============================================================================
-# Deliverable Limits (ADR-053)
+# Agent Limits (ADR-053)
 # =============================================================================
 
 
-def get_active_deliverable_count(client, user_id: str) -> int:
+def get_active_agent_count(client, user_id: str) -> int:
     """
-    Count active deliverables for a user.
+    Count active agents for a user.
 
-    Active = status 'active' (ADR-059: deliverables use status, not enabled column).
+    Active = status 'active' (ADR-059: agents use status, not enabled column).
     """
     try:
         result = (
-            client.table("deliverables")
+            client.table("agents")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .eq("status", "active")
@@ -343,9 +343,9 @@ def get_active_deliverable_count(client, user_id: str) -> int:
         return 0
 
 
-def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
+def check_agent_limit(client, user_id: str) -> tuple[bool, str]:
     """
-    Check if user can create another active deliverable.
+    Check if user can create another active agent.
 
     Returns:
         Tuple of (allowed: bool, message: str)
@@ -353,15 +353,15 @@ def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
     limits = get_limits_for_user(client, user_id)
 
     # -1 means unlimited
-    if limits.active_deliverables == -1:
-        return True, "Unlimited deliverables"
+    if limits.active_agents == -1:
+        return True, "Unlimited agents"
 
-    current_count = get_active_deliverable_count(client, user_id)
+    current_count = get_active_agent_count(client, user_id)
 
-    if current_count >= limits.active_deliverables:
-        return False, f"Active deliverable limit reached: {current_count}/{limits.active_deliverables}. Upgrade for more."
+    if current_count >= limits.active_agents:
+        return False, f"Active agent limit reached: {current_count}/{limits.active_agents}. Upgrade for more."
 
-    return True, f"OK: {current_count + 1}/{limits.active_deliverables} active deliverables"
+    return True, f"OK: {current_count + 1}/{limits.active_agents} active agents"
 
 
 # =============================================================================

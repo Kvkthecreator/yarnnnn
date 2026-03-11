@@ -12,23 +12,23 @@ You don't need to repeat yourself. Tell YARNNN once, and it knows going forward.
 
 ### 2. From your edits
 
-Every time you edit a deliverable before approving it, YARNNN pays attention to *what you changed*:
+Every time you edit a agent before approving it, YARNNN pays attention to *what you changed*:
 
 - You shortened the intro? YARNNN learns to write shorter intros.
 - You always add a TL;DR? YARNNN starts including one automatically.
 - You prefer a more formal tone? Next version will match.
 
-These aren't one-time adjustments — they become permanent preferences that improve every future deliverable.
+These aren't one-time adjustments — they become permanent preferences that improve every future agent.
 
 ### 3. From your patterns
 
 YARNNN quietly observes how you use it:
 
-- Which deliverables you run most often
+- Which agents you run most often
 - What time of day you typically review things
 - Which types of edits you make consistently
 
-These patterns inform suggestions (like recommending a new deliverable type) and improve timing and formatting of existing ones.
+These patterns inform suggestions (like recommending a new agent type) and improve timing and formatting of existing ones.
 
 ## What YARNNN remembers
 
@@ -57,7 +57,7 @@ Here's why this matters:
 
 - **Week 1**: YARNNN produces decent first drafts. You edit them.
 - **Month 1**: Drafts are noticeably better. Less editing needed.
-- **Month 3**: Deliverables feel like they were written by someone who knows you.
+- **Month 3**: Agents feel like they were written by someone who knows you.
 - **Month 6+**: The system has built a deep understanding of your work — preferences, context history, patterns. Switching to another tool would mean starting from zero.
 
 This isn't just convenience. It's a compounding advantage — **the longer you use YARNNN, the more valuable it becomes, because it accumulates understanding that no other tool has**.

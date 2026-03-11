@@ -38,9 +38,9 @@ This context is the **connective tissue** between other platforms. A meeting wit
 | **Signals** | Clear: upcoming meetings, attendees, recurring patterns |
 | **Cross-Platform Value** | Calendar events connect to people across all other platforms |
 
-### Deliverable Types Unlocked
+### Agent Types Unlocked
 
-Calendar enables a new category of **time-triggered, person-aware** deliverables:
+Calendar enables a new category of **time-triggered, person-aware** agents:
 
 1. **Meeting Prep Brief** — Context for upcoming meetings from Slack/Gmail/Notion
 2. **Weekly Preview** — "Your week: 12 meetings, 3 external, 2 recurring 1:1s"
@@ -108,7 +108,7 @@ Users connecting "Google" get access to both Gmail and Calendar data. The UI sho
 ### 2. Calendar Data Fetch
 
 ```python
-# deliverable_pipeline.py - New fetch function
+# agent_pipeline.py - New fetch function
 async def _fetch_calendar_data(
     user_id: str,
     integration: dict,
@@ -178,11 +178,11 @@ Unlike content platforms, Calendar provides **temporal and relational signals**:
 | **Duration** | 30min vs 2hr | Depth of prep needed |
 | **Description/Agenda** | Meeting notes, links | Additional context |
 
-### 4. New Deliverable Types
+### 4. New Agent Types
 
 ```typescript
 // types/index.ts - New calendar-related types
-export type DeliverableType =
+export type AgentType =
   // ... existing types ...
 
   // Calendar-triggered (ADR-046)
@@ -324,12 +324,12 @@ async def assemble_meeting_prep_context(
 
 ## Data Model
 
-### Calendar Source in Deliverables
+### Calendar Source in Agents
 
 ```sql
 -- No new tables needed, use existing integration_import pattern
 
--- Example deliverable source config for meeting prep:
+-- Example agent source config for meeting prep:
 {
   "sources": [
     {
@@ -388,12 +388,12 @@ Update Google integration card to show both capabilities:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Deliverable Creation
+### Agent Creation
 
 Add calendar-triggered types to wizard:
 
 ```
-What kind of deliverable?
+What kind of agent?
 
 ┌─────────────────────────────────────────────────────────────┐
 │ 📅 Meeting Prep                                              │
@@ -422,7 +422,7 @@ What kind of deliverable?
 4. Add migration path for existing Gmail integrations
 5. Update frontend integration card
 
-**Deliverable**: Users can connect Google with Calendar access
+**Agent**: Users can connect Google with Calendar access
 
 ### Phase 2: Calendar Data Fetch (Day 2)
 
@@ -431,16 +431,16 @@ What kind of deliverable?
 3. Add time window parsing utilities
 4. Test with basic calendar fetch
 
-**Deliverable**: Calendar events available as source data
+**Agent**: Calendar events available as source data
 
-### Phase 3: Meeting Prep Deliverable (Day 2-3)
+### Phase 3: Meeting Prep Agent (Day 2-3)
 
-1. Add `meeting_prep` deliverable type
+1. Add `meeting_prep` agent type
 2. Implement cross-platform attendee context assembly
 3. Create generation prompt for meeting prep
-4. Add to deliverable wizard
+4. Add to agent wizard
 
-**Deliverable**: First calendar-triggered deliverable working
+**Agent**: First calendar-triggered agent working
 
 ### Phase 4: Additional Types (Day 3-4)
 
@@ -448,15 +448,15 @@ What kind of deliverable?
 2. 1:1 prep (with recurring event detection)
 3. Post-meeting summary (event-triggered, future)
 
-**Deliverable**: Full calendar deliverable suite
+**Agent**: Full calendar agent suite
 
 ### Phase 5: Landing Page Update (Day 4)
 
 1. Add Calendar to platform list
-2. Update narrative for time-triggered deliverables
+2. Update narrative for time-triggered agents
 3. Add meeting prep to use case examples
 
-**Deliverable**: Marketing reflects Calendar capability
+**Agent**: Marketing reflects Calendar capability
 
 ---
 
@@ -502,19 +502,19 @@ Option 2 (Graceful): Incremental scope request
 
 ## Future Considerations
 
-### Event-Triggered Deliverables (Future)
+### Event-Triggered Agents (Future)
 
 Calendar enables event-based triggers:
 - "30 minutes before meeting" → Generate prep brief
 - "Meeting ended" → Generate follow-up summary
-- "New meeting added" → Suggest prep deliverable
+- "New meeting added" → Suggest prep agent
 
 Requires webhook infrastructure (Phase 4 of ADR-031).
 
 ### Calendar Write Operations (Future)
 
 With write scopes, could:
-- Create calendar events from deliverables
+- Create calendar events from agents
 - Add meeting notes to event descriptions
 - Schedule follow-up meetings
 
@@ -533,7 +533,7 @@ Requires additional scopes and UX for calendar selection.
 
 ## Related Documents
 
-- [ADR-031: Platform-Native Deliverables](./ADR-031-platform-native-deliverables.md)
-- [ADR-044: Deliverable Type Reconceptualization](./ADR-044-deliverable-type-reconceptualization.md)
+- [ADR-031: Platform-Native Agents](./ADR-031-platform-native-agents.md)
+- [ADR-044: Agent Type Reconceptualization](./ADR-044-agent-type-reconceptualization.md)
 - [DECISION-001: Platform Sync Strategy](../product/DECISION-001-platform-sync-strategy.md)
 - [LANDING-PAGE-NARRATIVE-V2](../design/LANDING-PAGE-NARRATIVE-V2.md)

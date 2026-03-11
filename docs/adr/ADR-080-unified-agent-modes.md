@@ -6,9 +6,9 @@
 **Supersedes:** ADR-061 (Two-Path Architecture) — evolves strict path separation into unified agent with modal execution
 **Amends:** ADR-072 (TP Execution Pipeline) — the "TP headless mode" aspiration is now formalized with precise boundaries
 **Related:**
-- [ADR-042: Deliverable Execution Simplification](ADR-042-deliverable-execution-simplification.md)
-- [ADR-045: Deliverable Orchestration Redesign](ADR-045-deliverable-orchestration-redesign.md)
-- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md)
+- [ADR-042: Agent Execution Simplification](ADR-042-agent-execution-simplification.md)
+- [ADR-045: Agent Orchestration Redesign](ADR-045-agent-orchestration-redesign.md)
+- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md)
 - [Agent Execution Model](../architecture/agent-execution-model.md)
 
 ---
@@ -18,9 +18,9 @@
 YARNNN has two LLM execution paths (codified in ADR-061):
 
 1. **TP (Path A)** — conversational, streaming, 20+ primitives, multi-turn tool use via `chat_completion_stream_with_tools()`. Used for chat.
-2. **Backend Orchestrator (Path B)** — single LLM call via `chat_completion()`, no tools, no reasoning. Used for deliverable generation.
+2. **Backend Orchestrator (Path B)** — single LLM call via `chat_completion()`, no tools, no reasoning. Used for agent generation.
 
-Both paths call the same underlying Anthropic SDK, but Path B has no access to any primitives. This creates a measurable quality gap: TP can search, cross-reference, and investigate iteratively. Deliverable generation gets a content dump and must produce output in one pass.
+Both paths call the same underlying Anthropic SDK, but Path B has no access to any primitives. This creates a measurable quality gap: TP can search, cross-reference, and investigate iteratively. Agent generation gets a content dump and must produce output in one pass.
 
 ### What ADR-061 got right
 
@@ -28,13 +28,13 @@ The separation between **orchestration** (scheduling, strategy selection, delive
 
 ### What ADR-061 got wrong
 
-ADR-061 framed the separation as "TP vs. Orchestrator" — two entirely separate systems. In practice, both systems use the same LLM, the same primitives would be useful to both, and maintaining two separate tool registries creates drift risk. The framing also made it architecturally awkward to improve deliverable generation quality, because any use of primitives was considered "mixing paths."
+ADR-061 framed the separation as "TP vs. Orchestrator" — two entirely separate systems. In practice, both systems use the same LLM, the same primitives would be useful to both, and maintaining two separate tool registries creates drift risk. The framing also made it architecturally awkward to improve agent generation quality, because any use of primitives was considered "mixing paths."
 
 ADR-072 attempted to address this with "TP in headless mode" but only as an aspiration — it was never implemented, and three documentation files incorrectly claimed it was.
 
 ### The actual problem
 
-Step 6 of the deliverable execution pipeline — `generate_draft_inline()` — calls `chat_completion()`, a 10-line function that sends one prompt and returns one response. No tools. No investigation ability. The other 9 steps of the pipeline (trigger, freshness, strategy, version creation, delivery, retention, etc.) are well-designed backend orchestration that should not change.
+Step 6 of the agent execution pipeline — `generate_draft_inline()` — calls `chat_completion()`, a 10-line function that sends one prompt and returns one response. No tools. No investigation ability. The other 9 steps of the pipeline (trigger, freshness, strategy, version creation, delivery, retention, etc.) are well-designed backend orchestration that should not change.
 
 ---
 
@@ -47,7 +47,7 @@ YARNNN has one agent concept with two execution modes:
 | | **Chat mode** | **Headless mode** |
 |---|---|---|
 | **Surface** | User-facing conversation (TP) | Background content generation |
-| **Entry point** | `/api/chat` | `generate_draft_inline()` in deliverable pipeline |
+| **Entry point** | `/api/chat` | `generate_draft_inline()` in agent pipeline |
 | **LLM function** | `chat_completion_stream_with_tools()` | `chat_completion_with_tools()` |
 | **Streaming** | Yes | No |
 | **System prompt** | Conversational (thinking_partner.py) | Type-specific structured output |
@@ -69,7 +69,7 @@ Backend Orchestration (unchanged)
 ├── 5. Agent (mode="headless")           ← ONLY this step changes
 │   ├── Receives: gathered context + type prompt + signal reasoning
 │   ├── Can use: Search, FetchPlatformContent, CrossPlatformQuery
-│   ├── Cannot use: CreateDeliverable, UpdatePreferences, UI actions
+│   ├── Cannot use: CreateAgent, UpdatePreferences, UI actions
 │   ├── Max 3 tool rounds
 │   └── Returns: structured content (text)
 ├── 6. Retention marking
@@ -93,8 +93,8 @@ PRIMITIVE_MODES = {
     "GetSystemState":         ["chat", "headless"],
 
     # Write/action primitives — chat only
-    "CreateDeliverable":      ["chat"],
-    "ManageDeliverable":      ["chat"],
+    "CreateAgent":      ["chat"],
+    "ManageAgent":      ["chat"],
     "UpdatePreferences":      ["chat"],
     "SendSlackMessage":       ["chat"],
     "CreateGmailDraft":       ["chat"],
@@ -106,12 +106,12 @@ When a primitive is updated or added, it is tagged with modes. One registry, one
 
 ### Signal context forwarding
 
-Signal processing currently discards all reasoning before deliverable generation (`trigger_context={"type": "signal_emergent"}` — zero signal intelligence forwarded). This ADR requires:
+Signal processing currently discards all reasoning before agent generation (`trigger_context={"type": "signal_emergent"}` — zero signal intelligence forwarded). This ADR requires:
 
 1. `_queue_signal_emergent_execution()` forwards `reasoning_summary` and `signal_context` from the `SignalAction` into `trigger_context`
 2. `generate_draft_inline()` reads `trigger_context.signal_reasoning` and injects it into the headless system prompt as investigation guidance
 
-This is ~15 lines of code and is a prerequisite for headless mode to produce meaningfully better signal-emergent deliverables.
+This is ~15 lines of code and is a prerequisite for headless mode to produce meaningfully better signal-emergent agents.
 
 ---
 
@@ -169,7 +169,7 @@ trigger_context={
 
 ### Modified files
 
-- `api/services/deliverable_execution.py` — `generate_draft_inline()` switches from `chat_completion()` to `chat_completion_with_tools()`
+- `api/services/agent_execution.py` — `generate_draft_inline()` switches from `chat_completion()` to `chat_completion_with_tools()`
 - `api/services/signal_processing.py` — `_queue_signal_emergent_execution()` forwards signal context
 - `api/services/anthropic.py` — no changes (both `chat_completion_with_tools()` and streaming version already exist)
 
@@ -179,7 +179,7 @@ trigger_context={
 
 | Component | Status | Rationale |
 |---|---|---|
-| `execute_deliverable_generation()` | Unchanged | Orchestration pipeline — calls agent, gets text back |
+| `execute_agent_generation()` | Unchanged | Orchestration pipeline — calls agent, gets text back |
 | Execution strategies | Unchanged | Strategy-based context gathering is pre-agent work |
 | `build_type_prompt()` | Unchanged | Type-specific prompt assembly still provides the base prompt |
 | Delivery pipeline | Unchanged | Post-agent delivery infrastructure |
@@ -209,16 +209,16 @@ trigger_context={
 ### Positive
 
 1. **One primitive maintenance track.** Update Search once, it improves everywhere. Add a new primitive, tag it with modes.
-2. **Deliverable quality improvement.** Headless mode can search semantically, cross-reference platforms, and investigate — not just summarize a content dump.
+2. **Agent quality improvement.** Headless mode can search semantically, cross-reference platforms, and investigate — not just summarize a content dump.
 3. **Signal reasoning preserved.** Signal processing intelligence flows through to generation instead of being discarded.
 4. **Future modes are natural.** If signal processing ever needs its own agent reasoning (e.g., `mode="analysis"`), it's a new mode — not a new system.
 5. **Clean boundary preserved.** Orchestration remains orchestration. The agent is invoked at one step and returns text.
-6. **Cost-bounded.** 3 tool rounds max in headless mode. Each round is one LLM call + tool execution. Worst case: 4 LLM calls per deliverable (vs. 1 today). Predictable.
+6. **Cost-bounded.** 3 tool rounds max in headless mode. Each round is one LLM call + tool execution. Worst case: 4 LLM calls per agent (vs. 1 today). Predictable.
 
 ### Negative
 
-1. **Higher per-deliverable cost.** Tool rounds mean additional LLM calls. Mitigated by the 3-round cap and the fact that most deliverables will use 0-1 tool rounds (the gathered context is already in the prompt — tools supplement, not replace).
-2. **Slower generation.** Tool execution adds latency. Acceptable because deliverables are background jobs — nobody is waiting.
+1. **Higher per-agent cost.** Tool rounds mean additional LLM calls. Mitigated by the 3-round cap and the fact that most agents will use 0-1 tool rounds (the gathered context is already in the prompt — tools supplement, not replace).
+2. **Slower generation.** Tool execution adds latency. Acceptable because agents are background jobs — nobody is waiting.
 3. **Primitive error handling in headless context.** If a tool call fails in chat mode, TP tells the user. In headless mode, failures must be handled silently or logged. The executor needs headless-appropriate error handling.
 
 ### Risk
@@ -233,11 +233,11 @@ trigger_context={
 
 ADR-061's core insight — separate orchestration from generation — is preserved. What changes is the framing: instead of "TP vs. Orchestrator" as two separate systems, the agent is unified and the orchestration pipeline invokes it in headless mode.
 
-ADR-061's anti-pattern "Using TP for deliverable content generation" is refined: TP (chat mode) is still not used for deliverable generation. Headless mode is a different execution mode of the same agent — different prompt, different primitives, different constraints.
+ADR-061's anti-pattern "Using TP for agent content generation" is refined: TP (chat mode) is still not used for agent generation. Headless mode is a different execution mode of the same agent — different prompt, different primitives, different constraints.
 
 ### ADR-072 "TP Headless Mode" aspiration
 
-ADR-072 described TP running in headless mode with access to primitives for deliverable generation. This ADR formalizes that aspiration with precise boundaries, naming, and implementation details. The vague aspiration becomes a specified architecture.
+ADR-072 described TP running in headless mode with access to primitives for agent generation. This ADR formalizes that aspiration with precise boundaries, naming, and implementation details. The vague aspiration becomes a specified architecture.
 
 ---
 
@@ -245,7 +245,7 @@ ADR-072 described TP running in headless mode with access to primitives for deli
 
 ### Phase 0 — Signal context forwarding (prerequisite, ~15 lines)
 
-Forward `reasoning_summary` from signal processing into `trigger_context`. `generate_draft_inline()` reads and injects into prompt. No architectural change. Immediate quality improvement for signal-emergent deliverables.
+Forward `reasoning_summary` from signal processing into `trigger_context`. `generate_draft_inline()` reads and injects into prompt. No architectural change. Immediate quality improvement for signal-emergent agents.
 
 ### Phase 1 — Primitive registry + headless executor (~100 lines)
 
@@ -257,7 +257,7 @@ Create `primitives/registry.py` with mode-gated tool definitions. Create `create
 
 ### Phase 3 — Validation and tuning
 
-Test across deliverable types. Tune headless system prompt to avoid unnecessary tool use. Verify cost increase is within bounds (target: <2x average cost per deliverable). Monitor tool usage patterns.
+Test across agent types. Tune headless system prompt to avoid unnecessary tool use. Verify cost increase is within bounds (target: <2x average cost per agent). Monitor tool usage patterns.
 
 ---
 
@@ -271,7 +271,7 @@ Test across deliverable types. Tune headless system prompt to avoid unnecessary 
 | Multi-destination delivery | **Independent** — post-agent delivery, not agent work |
 | Quality metrics | **Benefits from** — better generation quality makes metrics more meaningful |
 | Session summaries (ADR-067) | **Independent** — chat mode infrastructure |
-| Deliverable type consolidation | **Independent** — template cleanup, pairs well with Phase 2 |
+| Agent type consolidation | **Independent** — template cleanup, pairs well with Phase 2 |
 | In-session compaction (ADR-067) | **Independent** — chat mode infrastructure |
 | Sub-agent orchestration (ADR-045 Phase 4) | **Ready when needed** — see note below |
 

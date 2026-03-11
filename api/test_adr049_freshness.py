@@ -16,7 +16,7 @@ def test_imports():
     print("Testing imports...")
 
     from services.freshness import (
-        check_deliverable_freshness,
+        check_agent_freshness,
         get_sync_state,
         update_sync_registry,
         record_source_snapshots,
@@ -119,7 +119,7 @@ def test_freshness_check():
     """Test freshness check logic."""
     print("\nTesting freshness check...")
 
-    from services.freshness import check_deliverable_freshness
+    from services.freshness import check_agent_freshness
 
     # Mock client with sync_registry data
     mock_client = MagicMock()
@@ -156,7 +156,7 @@ def test_freshness_check():
     mock_client.table.return_value.select = mock_select
 
     # Test with mixed sources
-    deliverable = {
+    agent = {
         "sources": [
             {"platform": "slack", "resource_id": "fresh-channel"},
             {"platform": "slack", "resource_id": "stale-channel"},
@@ -207,9 +207,9 @@ def test_source_snapshot_recording():
 
     source = inspect.getsource(record_source_snapshots)
 
-    # Should update deliverable_versions
-    assert "deliverable_versions" in source, "Should update deliverable_versions"
-    print("  ✓ Updates deliverable_versions")
+    # Should update agent_runs
+    assert "agent_runs" in source, "Should update agent_runs"
+    print("  ✓ Updates agent_runs")
 
     # Should include required snapshot fields
     assert "platform" in source, "Should include platform in snapshot"
@@ -279,17 +279,17 @@ def test_platform_content_updates_sync_registry():
     print("✅ platform_content_updates_sync_registry: PASSED")
 
 
-def test_deliverable_execution_freshness_check():
-    """Test that deliverable execution includes freshness check."""
-    print("\nTesting deliverable execution freshness check...")
+def test_agent_execution_freshness_check():
+    """Test that agent execution includes freshness check."""
+    print("\nTesting agent execution freshness check...")
 
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.agent_execution import execute_agent_generation
     import inspect
 
-    source = inspect.getsource(execute_deliverable_generation)
+    source = inspect.getsource(execute_agent_generation)
 
     # Should import freshness functions
-    assert "check_deliverable_freshness" in source or "freshness" in source, \
+    assert "check_agent_freshness" in source or "freshness" in source, \
         "Should use freshness check"
     print("  ✓ Uses freshness check")
 
@@ -298,7 +298,7 @@ def test_deliverable_execution_freshness_check():
         "Should record source snapshots"
     print("  ✓ Records source snapshots")
 
-    print("✅ deliverable_execution_freshness_check: PASSED")
+    print("✅ agent_execution_freshness_check: PASSED")
 
 
 def test_constants():
@@ -328,7 +328,7 @@ if __name__ == "__main__":
     test_sync_registry_update()
     test_source_snapshot_recording()
     test_sync_status_endpoint()
-    test_deliverable_execution_freshness_check()
+    test_agent_execution_freshness_check()
 
     print("\n" + "=" * 60)
     print("✅ All ADR-049 tests passed!")

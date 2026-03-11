@@ -7,7 +7,7 @@ Tests the changes from [2026.03.05.1] and [2026.03.05.3]:
   Phase 3: Enriched headless prompt (user context + full memory)
   Phase 4: DEFAULT_INSTRUCTIONS + instruction seeding on Write
   Phase 5: Behavioral triggers in TP prompt (qualitative)
-  Phase 6: Workspace primitives (append_observation, set_goal, deliverable_instructions)
+  Phase 6: Workspace primitives (append_observation, set_goal, agent_instructions)
 
 Strategy: Real DB writes with TEST_OVERHAUL_ prefix. No live LLM calls.
 Test user: kvkthecreator@gmail.com
@@ -123,23 +123,23 @@ class MockAuth:
 
 def cleanup(client):
     """Remove all test data."""
-    # Get test deliverable IDs first (for cascading cleanup)
-    dels = client.table("deliverables").select("id").eq(
+    # Get test agent IDs first (for cascading cleanup)
+    dels = client.table("agents").select("id").eq(
         "user_id", TEST_USER_ID
     ).ilike("title", f"{TEST_PREFIX}%").execute()
     del_ids = [d["id"] for d in (dels.data or [])]
 
     if del_ids:
-        # Delete versions for test deliverables
+        # Delete versions for test agents
         for did in del_ids:
-            client.table("deliverable_versions").delete().eq(
-                "deliverable_id", did
+            client.table("agent_runs").delete().eq(
+                "agent_id", did
             ).execute()
-        # Delete deliverables
+        # Delete agents
         for did in del_ids:
-            client.table("deliverables").delete().eq("id", did).execute()
+            client.table("agents").delete().eq("id", did).execute()
 
-    logger.info(f"Cleanup: removed {len(del_ids)} test deliverables + versions")
+    logger.info(f"Cleanup: removed {len(del_ids)} test agents + versions")
 
 
 # =============================================================================
@@ -159,37 +159,37 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
     assert_in(r, "version in ENTITY_TYPES", "version", str(ENTITY_TYPES))
 
     # 1b: version in TABLE_MAP
-    assert_eq(r, "TABLE_MAP[version] = deliverable_versions",
-              TABLE_MAP.get("version"), "deliverable_versions")
+    assert_eq(r, "TABLE_MAP[version] = agent_runs",
+              TABLE_MAP.get("version"), "agent_runs")
 
     # 1c: parse_ref accepts version refs
     try:
-        ref = parse_ref("version:latest?deliverable_id=abc123")
+        ref = parse_ref("version:latest?agent_id=abc123")
         assert_eq(r, "parse_ref version:latest type", ref.entity_type, "version")
         assert_eq(r, "parse_ref version:latest identifier", ref.identifier, "latest")
         assert_eq(r, "parse_ref version:latest query",
-                  ref.query.get("deliverable_id"), "abc123")
+                  ref.query.get("agent_id"), "abc123")
     except Exception as e:
         r.fail("parse_ref version:latest", str(e))
 
-    # 1d: Create a test deliverable + version, then resolve refs
+    # 1d: Create a test agent + version, then resolve refs
     del_id = str(uuid4())
     ver_id = str(uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    auth.client.table("deliverables").insert({
+    auth.client.table("agents").insert({
         "id": del_id,
         "user_id": TEST_USER_ID,
         "title": f"{TEST_PREFIX}Version Test",
-        "deliverable_type": "status",
+        "agent_type": "status",
         "status": "active",
         "created_at": now,
         "updated_at": now,
     }).execute()
 
-    auth.client.table("deliverable_versions").insert({
+    auth.client.table("agent_runs").insert({
         "id": ver_id,
-        "deliverable_id": del_id,
+        "agent_id": del_id,
         "version_number": 1,
         "status": "approved",
         "draft_content": "This is test version content for the structural overhaul test suite.",
@@ -197,9 +197,9 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
         "created_at": now,
     }).execute()
 
-    # 1e: Read(ref="version:latest?deliverable_id=X")
+    # 1e: Read(ref="version:latest?agent_id=X")
     result = await execute_primitive(auth, "Read", {
-        "ref": f"version:latest?deliverable_id={del_id}"
+        "ref": f"version:latest?agent_id={del_id}"
     })
     assert_true(r, "Read version:latest success", result.get("success", False),
                 f"Read failed: {result.get('message', '')}")
@@ -219,7 +219,7 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
     result = await execute_primitive(auth, "Search", {
         "query": "structural overhaul",
         "scope": "version",
-        "deliverable_id": del_id,
+        "agent_id": del_id,
     })
     assert_true(r, "Search version scope success", result.get("success", False),
                 f"Search failed: {result.get('message', '')}")
@@ -227,20 +227,20 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
     assert_true(r, "Search version found result", len(results) > 0,
                 f"Expected results, got {len(results)}")
 
-    # 1h: Read(ref="version:*?deliverable_id=X") — list all versions
+    # 1h: Read(ref="version:*?agent_id=X") — list all versions
     result = await execute_primitive(auth, "Read", {
-        "ref": f"version:*?deliverable_id={del_id}"
+        "ref": f"version:*?agent_id={del_id}"
     })
     assert_true(r, "Read version:* returns list", isinstance(result.get("data"), list),
                 f"Expected list, got {type(result.get('data'))}")
 
-    # 1i: Security — version scoping through deliverable ownership
+    # 1i: Security — version scoping through agent ownership
     # Create a fake auth with different user_id
     fake_auth = MockAuth("00000000-0000-0000-0000-000000000000", auth.client)
     result = await execute_primitive(fake_auth, "Read", {
-        "ref": f"version:latest?deliverable_id={del_id}"
+        "ref": f"version:latest?agent_id={del_id}"
     })
-    # Should return not_found (not_error) because fake user doesn't own the deliverable
+    # Should return not_found (not_error) because fake user doesn't own the agent
     assert_true(r, "Version scoping blocks other users",
                 not result.get("success") or result.get("data") is None,
                 "Other user should not be able to read this version")
@@ -258,20 +258,20 @@ async def phase_2_working_memory_version(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 2: Latest Version in Scoped Working Memory")
     logger.info(f"{'='*60}")
 
-    from services.working_memory import _extract_deliverable_scope, format_for_prompt
+    from services.working_memory import _extract_agent_scope, format_for_prompt
 
-    # Get test deliverable
-    dels = auth.client.table("deliverables").select("*").eq(
+    # Get test agent
+    dels = auth.client.table("agents").select("*").eq(
         "user_id", TEST_USER_ID
     ).ilike("title", f"{TEST_PREFIX}Version Test").execute()
-    assert_true(r, "Test deliverable exists", len(dels.data or []) > 0)
+    assert_true(r, "Test agent exists", len(dels.data or []) > 0)
     if not dels.data:
         return r
 
-    deliverable = dels.data[0]
+    agent = dels.data[0]
 
-    # 2a: _extract_deliverable_scope includes latest_version
-    scope = await _extract_deliverable_scope(deliverable, auth.client)
+    # 2a: _extract_agent_scope includes latest_version
+    scope = await _extract_agent_scope(agent, auth.client)
     assert_true(r, "scope has latest_version key", "latest_version" in scope,
                 f"Keys: {list(scope.keys())}")
     if "latest_version" in scope:
@@ -285,26 +285,26 @@ async def phase_2_working_memory_version(auth: MockAuth) -> PhaseResult:
     mock_wm = {
         "profile": {},
         "known": [],
-        "deliverables": [],
+        "agents": [],
         "platforms": [],
-        "scoped_deliverable": scope,
+        "scoped_agent": scope,
     }
     prompt_text = format_for_prompt(mock_wm)
     assert_in(r, "prompt contains 'Latest version'", "Latest version", prompt_text)
     assert_in(r, "prompt contains version content", "structural overhaul", prompt_text)
-    assert_in(r, "prompt contains deliverable ref for Edit calls",
-              f"deliverable:{scope['id']}", prompt_text)
+    assert_in(r, "prompt contains agent ref for Edit calls",
+              f"agent:{scope['id']}", prompt_text)
 
-    # 2c: Deliverable without versions should NOT crash
+    # 2c: Agent without versions should NOT crash
     no_ver_del = {
         "id": str(uuid4()),
         "title": "No versions",
-        "deliverable_type": "custom",
+        "agent_type": "custom",
     }
-    scope_empty = await _extract_deliverable_scope(no_ver_del, auth.client)
-    assert_true(r, "No crash for deliverable without versions",
+    scope_empty = await _extract_agent_scope(no_ver_del, auth.client)
+    assert_true(r, "No crash for agent without versions",
                 "latest_version" not in scope_empty,
-                "Should not have latest_version for nonexistent deliverable")
+                "Should not have latest_version for nonexistent agent")
 
     return r
 
@@ -319,7 +319,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 3: Enriched Headless Prompt")
     logger.info(f"{'='*60}")
 
-    from services.deliverable_execution import _build_headless_system_prompt
+    from services.agent_execution import _build_headless_system_prompt
 
     # 3a: User context injection
     user_ctx = [
@@ -331,7 +331,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         {"key": "preference:brevity", "value": "Keep reports under 500 words"},
     ]
     prompt = _build_headless_system_prompt(
-        deliverable_type="status",
+        agent_type="status",
         user_context=user_ctx,
     )
     assert_in(r, "User context section present", "## User Context", prompt)
@@ -340,10 +340,10 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
     assert_in(r, "Tone preference injected", "Tone Formal", prompt)
     assert_in(r, "Preference injected", "Prefers: Keep reports under 500 words", prompt)
 
-    # 3b: Deliverable instructions injection
-    deliverable = {
-        "deliverable_instructions": "Focus on top 3 items. Use bullet points only.",
-        "deliverable_memory": {
+    # 3b: Agent instructions injection
+    agent = {
+        "agent_instructions": "Focus on top 3 items. Use bullet points only.",
+        "agent_memory": {
             "observations": [
                 {"date": "2026-03-01", "note": "User prefers concise format"},
                 {"date": "2026-03-03", "note": "Q4 data finalized"},
@@ -359,11 +359,11 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         },
     }
     prompt = _build_headless_system_prompt(
-        deliverable_type="status",
-        deliverable=deliverable,
+        agent_type="status",
+        agent=agent,
         user_context=user_ctx,
     )
-    assert_in(r, "Instructions section present", "## Deliverable Instructions", prompt)
+    assert_in(r, "Instructions section present", "## Agent Instructions", prompt)
     assert_in(r, "Instructions content", "top 3 items", prompt)
     assert_in(r, "Goal present", "Ship quarterly report", prompt)
     assert_in(r, "Goal status present", "in_progress", prompt)
@@ -372,18 +372,18 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
 
     # 3c: Empty user_context should not crash
     prompt_no_ctx = _build_headless_system_prompt(
-        deliverable_type="digest",
+        agent_type="digest",
         user_context=None,
     )
     assert_not_in(r, "No User Context section when None", "## User Context", prompt_no_ctx)
     assert_in(r, "Base prompt still works", "generating a digest", prompt_no_ctx)
 
-    # 3d: Empty deliverable_memory should not crash
+    # 3d: Empty agent_memory should not crash
     prompt_no_mem = _build_headless_system_prompt(
-        deliverable_type="status",
-        deliverable={"deliverable_memory": {}},
+        agent_type="status",
+        agent={"agent_memory": {}},
     )
-    assert_not_in(r, "No memory section when empty", "## Deliverable Memory", prompt_no_mem)
+    assert_not_in(r, "No memory section when empty", "## Agent Memory", prompt_no_mem)
 
     return r
 
@@ -398,7 +398,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 4: DEFAULT_INSTRUCTIONS + Write Seeding")
     logger.info(f"{'='*60}")
 
-    from services.deliverable_pipeline import DEFAULT_INSTRUCTIONS
+    from services.agent_pipeline import DEFAULT_INSTRUCTIONS
     from services.primitives import execute_primitive
 
     # 4a: All expected types have instructions
@@ -410,10 +410,10 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
 
     # 4b: Write seeds instructions when not provided
     result = await execute_primitive(auth, "Write", {
-        "ref": "deliverable:new",
+        "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Seeded Instructions",
-            "deliverable_type": "digest",
+            "agent_type": "digest",
         },
     })
     assert_true(r, "Write success", result.get("success", False),
@@ -421,7 +421,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
 
     if result.get("success"):
         data = result.get("data", {})
-        instructions = data.get("deliverable_instructions", "")
+        instructions = data.get("agent_instructions", "")
         assert_true(r, "Instructions seeded on create",
                     len(instructions) > 10,
                     f"Instructions: '{instructions}'")
@@ -430,11 +430,11 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
 
     # 4c: Write does NOT override explicit instructions
     result2 = await execute_primitive(auth, "Write", {
-        "ref": "deliverable:new",
+        "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Explicit Instructions",
-            "deliverable_type": "status",
-            "deliverable_instructions": "My custom instructions here",
+            "agent_type": "status",
+            "agent_instructions": "My custom instructions here",
         },
     })
     assert_true(r, "Write with explicit instructions success",
@@ -442,7 +442,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     if result2.get("success"):
         data2 = result2.get("data", {})
         assert_eq(r, "Explicit instructions preserved",
-                  data2.get("deliverable_instructions"), "My custom instructions here")
+                  data2.get("agent_instructions"), "My custom instructions here")
 
     return r
 
@@ -474,13 +474,13 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
     # 5b: New sections present
     assert_in(r, "Conversation vs Generation Boundary present",
               "Conversation vs Generation Boundary", BEHAVIORS_SECTION)
-    assert_in(r, "Deliverable Workspace Management section present",
-              "Deliverable Workspace Management", BEHAVIORS_SECTION)
+    assert_in(r, "Agent Workspace Management section present",
+              "Agent Workspace Management", BEHAVIORS_SECTION)
 
     # 5c: Dual posture explicitly documented
     assert_in(r, "User memory passive posture documented",
               "User memory", BEHAVIORS_SECTION)
-    assert_in(r, "Deliverable workspace active posture documented",
+    assert_in(r, "Agent workspace active posture documented",
               "active", BEHAVIORS_SECTION)
     assert_in(r, "Nightly cron mentioned for user memory",
               "Nightly cron", BEHAVIORS_SECTION)
@@ -501,7 +501,7 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
 
     # 5f: Scoped vs general session distinction
     assert_in(r, "Scoped session guidance",
-              "deliverable-scoped session", BEHAVIORS_SECTION)
+              "agent-scoped session", BEHAVIORS_SECTION)
     assert_in(r, "General session hands-off",
               "hands-off", BEHAVIORS_SECTION)
 
@@ -510,8 +510,8 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
               "append_observation: {note:", BEHAVIORS_SECTION)
     assert_in(r, "set_goal syntax correct",
               "set_goal: {description:", BEHAVIORS_SECTION)
-    assert_in(r, "deliverable_instructions syntax correct",
-              "deliverable_instructions:", BEHAVIORS_SECTION)
+    assert_in(r, "agent_instructions syntax correct",
+              "agent_instructions:", BEHAVIORS_SECTION)
 
     # 5g2: Ref usage guidance in behaviors
     assert_in(r, "Behaviors instructs TP to use Ref from working memory",
@@ -519,7 +519,7 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
 
     # 5h: tools.py cross-references behaviors
     assert_in(r, "tools.py references behaviors section",
-              "Deliverable Workspace Management", TOOLS_SECTION)
+              "Agent Workspace Management", TOOLS_SECTION)
 
     # 5i: tools.py Edit syntax also correct
     assert_in(r, "tools.py append_observation syntax",
@@ -541,9 +541,9 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
                     len(full_prompt) > 500,
                     f"Prompt too short: {len(full_prompt)} chars")
         assert_in(r, "Full prompt includes behaviors",
-                  "Deliverable Workspace Management", full_prompt)
+                  "Agent Workspace Management", full_prompt)
         assert_in(r, "Full prompt includes tools",
-                  "Deliverable Workspace", full_prompt)
+                  "Agent Workspace", full_prompt)
     except Exception as e:
         r.fail("Full system prompt build", str(e))
 
@@ -562,38 +562,38 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
 
     from services.primitives import execute_primitive
 
-    # Get a test deliverable
-    dels = auth.client.table("deliverables").select("id").eq(
+    # Get a test agent
+    dels = auth.client.table("agents").select("id").eq(
         "user_id", TEST_USER_ID
     ).ilike("title", f"{TEST_PREFIX}%").limit(1).execute()
-    assert_true(r, "Test deliverable available", len(dels.data or []) > 0)
+    assert_true(r, "Test agent available", len(dels.data or []) > 0)
     if not dels.data:
         return r
 
     del_id = dels.data[0]["id"]
 
-    # 6a: Update deliverable_instructions via Edit
+    # 6a: Update agent_instructions via Edit
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
-            "deliverable_instructions": "Keep it under 300 words. Use bullet points. Focus on blockers."
+            "agent_instructions": "Keep it under 300 words. Use bullet points. Focus on blockers."
         },
     })
-    assert_true(r, "Edit deliverable_instructions success",
+    assert_true(r, "Edit agent_instructions success",
                 result.get("success", False),
                 f"Edit failed: {result.get('message', '')}")
 
     # Verify persisted
-    check = auth.client.table("deliverables").select(
-        "deliverable_instructions"
+    check = auth.client.table("agents").select(
+        "agent_instructions"
     ).eq("id", del_id).execute()
     if check.data:
         assert_in(r, "Instructions persisted correctly",
-                  "300 words", check.data[0].get("deliverable_instructions", ""))
+                  "300 words", check.data[0].get("agent_instructions", ""))
 
     # 6b: Append observation via Edit
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {
                 "note": "User found v1 too verbose — prefers concise bullet format"
@@ -606,11 +606,11 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
               "append_observation", str(result.get("changes_applied", [])))
 
     # Verify observation persisted in JSONB
-    check = auth.client.table("deliverables").select(
-        "deliverable_memory"
+    check = auth.client.table("agents").select(
+        "agent_memory"
     ).eq("id", del_id).execute()
     if check.data:
-        memory = check.data[0].get("deliverable_memory") or {}
+        memory = check.data[0].get("agent_memory") or {}
         observations = memory.get("observations", [])
         assert_true(r, "Observation persisted in JSONB",
                     len(observations) >= 1,
@@ -621,7 +621,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
 
     # 6c: Second observation appends (doesn't replace)
     result2 = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {
                 "note": "Q4 financial data is now finalized"
@@ -630,17 +630,17 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
     })
     assert_true(r, "Second append_observation success", result2.get("success", False))
 
-    check2 = auth.client.table("deliverables").select(
-        "deliverable_memory"
+    check2 = auth.client.table("agents").select(
+        "agent_memory"
     ).eq("id", del_id).execute()
     if check2.data:
-        memory2 = check2.data[0].get("deliverable_memory") or {}
+        memory2 = check2.data[0].get("agent_memory") or {}
         observations2 = memory2.get("observations", [])
         assert_eq(r, "Two observations accumulated", len(observations2), 2)
 
     # 6d: Set goal via Edit
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
             "set_goal": {
                 "description": "Ship quarterly board report",
@@ -653,11 +653,11 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
                 f"Failed: {result.get('message', '')}")
 
     # Verify goal persisted without clobbering observations
-    check3 = auth.client.table("deliverables").select(
-        "deliverable_memory"
+    check3 = auth.client.table("agents").select(
+        "agent_memory"
     ).eq("id", del_id).execute()
     if check3.data:
-        memory3 = check3.data[0].get("deliverable_memory") or {}
+        memory3 = check3.data[0].get("agent_memory") or {}
         goal = memory3.get("goal", {})
         observations3 = memory3.get("observations", [])
         assert_eq(r, "Goal description persisted",
@@ -669,7 +669,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
 
     # 6e: Invalid append_observation (missing note) returns error
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {"source": "user"}  # Missing required 'note'
         },
@@ -682,7 +682,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
 
     # 6f: Invalid set_goal (missing description) returns error
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
             "set_goal": {"status": "done"}  # Missing required 'description'
         },
@@ -693,16 +693,16 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
     assert_eq(r, "Error type is invalid_goal",
               result.get("error"), "invalid_goal")
 
-    # 6g: Raw deliverable_memory write blocked
+    # 6g: Raw agent_memory write blocked
     result = await execute_primitive(auth, "Edit", {
-        "ref": f"deliverable:{del_id}",
+        "ref": f"agent:{del_id}",
         "changes": {
-            "deliverable_memory": {"observations": []}  # Should be blocked
+            "agent_memory": {"observations": []}  # Should be blocked
         },
     })
-    assert_true(r, "Raw deliverable_memory write blocked",
+    assert_true(r, "Raw agent_memory write blocked",
                 not result.get("success"),
-                "Should have rejected raw deliverable_memory write")
+                "Should have rejected raw agent_memory write")
 
     return r
 
@@ -717,20 +717,20 @@ async def phase_7_integration(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 7: Integration — Full Scoped Rendering")
     logger.info(f"{'='*60}")
 
-    from services.working_memory import _extract_deliverable_scope, format_for_prompt
+    from services.working_memory import _extract_agent_scope, format_for_prompt
 
-    # Get test deliverable (should have instructions, observations, goal, version)
-    dels = auth.client.table("deliverables").select("*").eq(
+    # Get test agent (should have instructions, observations, goal, version)
+    dels = auth.client.table("agents").select("*").eq(
         "user_id", TEST_USER_ID
     ).ilike("title", f"{TEST_PREFIX}Version Test").execute()
     if not dels.data:
-        r.fail("Test deliverable not found", "Need Phase 1 deliverable")
+        r.fail("Test agent not found", "Need Phase 1 agent")
         return r
 
-    deliverable = dels.data[0]
+    agent = dels.data[0]
 
     # 7a: Full scope extraction
-    scope = await _extract_deliverable_scope(deliverable, auth.client)
+    scope = await _extract_agent_scope(agent, auth.client)
     assert_true(r, "Scope has id", "id" in scope)
     assert_true(r, "Scope has title", "title" in scope)
     assert_true(r, "Scope has type", "type" in scope)
@@ -741,20 +741,20 @@ async def phase_7_integration(auth: MockAuth) -> PhaseResult:
         "known": [
             {"type": "fact", "content": "User prefers concise bullet format"},
         ],
-        "deliverables": [
+        "agents": [
             {"title": "Weekly Status", "frequency": "weekly", "recipient": "Team"},
         ],
         "platforms": [
             {"platform": "slack", "status": "active", "freshness": "3 hours ago"},
         ],
-        "scoped_deliverable": scope,
+        "scoped_agent": scope,
     }
     prompt_text = format_for_prompt(mock_wm)
 
     # Verify all sections render
     assert_in(r, "Prompt has profile section", "Kevin", prompt_text)
-    assert_in(r, "Prompt has deliverable scope", "Current deliverable", prompt_text)
-    assert_in(r, "Prompt has deliverable ref", f"deliverable:{scope['id']}", prompt_text)
+    assert_in(r, "Prompt has agent scope", "Current agent", prompt_text)
+    assert_in(r, "Prompt has agent ref", f"agent:{scope['id']}", prompt_text)
     assert_true(r, "Prompt is reasonable length",
                 200 < len(prompt_text) < 10000,
                 f"Prompt length: {len(prompt_text)}")

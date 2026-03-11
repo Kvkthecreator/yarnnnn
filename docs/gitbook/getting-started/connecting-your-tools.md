@@ -24,7 +24,7 @@ YARNNN reads messages from your selected channels. This means it can:
 
 YARNNN reads emails from your selected labels. This means it can:
 - Reference specific email threads when you ask questions
-- Include email context in deliverables like status reports
+- Include email context in agents like status reports
 - Help you stay on top of a busy inbox
 
 **You choose:** Which labels to sync. Inbox, Important, or project-specific labels work well.
@@ -33,7 +33,7 @@ YARNNN reads emails from your selected labels. This means it can:
 
 YARNNN reads your selected Notion pages. This means it can:
 - Pull information from your docs when answering questions
-- Reference project databases in deliverables
+- Reference project databases in agents
 - Search across your knowledge base
 
 **You choose:** Which pages and databases to sync.

@@ -3,8 +3,8 @@
 **Status:** In Progress
 **Date:** 2026-02-05
 **Updated:** 2026-02-10
-**Extends:** ADR-010 (Thinking Partner Architecture), ADR-018 (Recurring Deliverables)
-**Related:** ADR-019 (Deliverable Types), ADR-023 (Supervisor Desk), ADR-024 (Context Classification), ADR-038 (Claude Code Architecture Mapping)
+**Extends:** ADR-010 (Thinking Partner Architecture), ADR-018 (Recurring Agents)
+**Related:** ADR-019 (Agent Types), ADR-023 (Supervisor Desk), ADR-024 (Context Classification), ADR-038 (Claude Code Architecture Mapping)
 
 ---
 
@@ -12,10 +12,10 @@
 
 ### How We Got Here
 
-While planning the "deliverable roll-up" feature—making TP's deliverable creation process more visible and auditable—we initially explored several reinterpretation approaches:
+While planning the "agent roll-up" feature—making TP's agent creation process more visible and auditable—we initially explored several reinterpretation approaches:
 
 1. "Thinking Traces" - custom progress tracking
-2. "Deliverable Skills" - reimagined workflow system
+2. "Agent Skills" - reimagined workflow system
 3. "Full Agentic Loop" - new schema for work sessions
 
 Each involved designing new concepts that paralleled existing, proven patterns. The question emerged:
@@ -49,7 +49,7 @@ Parse intent (implicit, in system prompt)
     ↓
 Maybe clarify()
     ↓
-Single tool call (create_deliverable)
+Single tool call (create_agent)
     ↓
 respond() with confirmation
 ```
@@ -88,14 +88,14 @@ We will align TP's architecture with Claude Code's agentic pattern. This is not 
 | Skills (`/commit`, `/review-pr`) | `/board-update`, `/status-report`, `/research-brief` |
 | Plan mode | Explicit planning phase before complex work |
 | Tool execution loop | Already exists, enhance with discipline |
-| Context (codebase) | Context (memories + project + deliverables) |
+| Context (codebase) | Context (memories + project + agents) |
 
 ### Core Principle
 
-**TP becomes YARNNN's instantiation of the Claude Code pattern, specialized for recurring deliverables and supervision workflows.**
+**TP becomes YARNNN's instantiation of the Claude Code pattern, specialized for recurring agents and supervision workflows.**
 
 The unique aspects YARNNN adds:
-- Domain context (memories, projects, deliverable history)
+- Domain context (memories, projects, agent history)
 - Supervision UI/UX (review surfaces, approval flows)
 - Feedback loop (edit capture, preference learning)
 - Scheduling (recurring execution)
@@ -116,7 +116,7 @@ TODO_WRITE_TOOL = {
     "description": """Track and update task progress for multi-step work.
 
 Use this when:
-- Setting up a new deliverable (multiple steps involved)
+- Setting up a new agent (multiple steps involved)
 - Executing a complex user request
 - Any work requiring 3+ steps
 
@@ -154,14 +154,14 @@ Todos are stored in the session/conversation context, not persisted to database 
 
 ### 2. Skills as Slash Commands
 
-Deliverable types (ADR-019) become invocable skills:
+Agent types (ADR-019) become invocable skills:
 
 | Skill | Trigger | Expands To |
 |-------|---------|------------|
 | `/board-update` | User types or TP recognizes intent | Board update creation workflow |
 | `/status-report` | User types or TP recognizes intent | Status report creation workflow |
 | `/research-brief` | User types or TP recognizes intent | Research brief creation workflow |
-| `/run-deliverable` | User wants to generate now | Trigger pipeline execution |
+| `/run-agent` | User wants to generate now | Trigger pipeline execution |
 
 Skills are prompt expansions + expected tool sequences, not new code paths.
 
@@ -174,18 +174,18 @@ SKILLS = {
         "system_prompt_addition": """
 ## Skill: Board Update Creation
 
-You are helping the user create a recurring board update deliverable.
+You are helping the user create a recurring board update agent.
 
 Expected workflow:
 1. todo_write: Plan the setup steps
 2. Gather: company name, stage, recipient, frequency
 3. Confirm: State what you'll create
-4. Create: create_deliverable with type=board_update
+4. Create: create_agent with type=board_update
 5. Offer: Generate first draft?
 
 Use clarify() for missing required info. Don't guess.
 """,
-        "deliverable_type": "board_update",
+        "agent_type": "board_update",
         "required_fields": ["company_name", "recipient_name", "frequency"],
     },
     # ... other skills
@@ -203,7 +203,7 @@ For complex requests, TP explicitly enters planning mode:
 
 For simple requests (single clear action): Execute directly.
 
-For complex requests (deliverable setup, multi-step work):
+For complex requests (agent setup, multi-step work):
 1. PLAN: Use todo_write to outline steps
 2. SHARE: Briefly tell user what you'll do
 3. EXECUTE: Work through todos, updating status
@@ -271,7 +271,7 @@ TP enters plan mode:
 ```
 
 **Detection heuristics for "complex" requests:**
-- Deliverable creation (always plan)
+- Agent creation (always plan)
 - Multi-entity operations ("update all my projects")
 - Ambiguous scope ("help me organize my work")
 - Skill invocation (skill defines expected steps)
@@ -308,9 +308,9 @@ Example:
 ```
 
 **Checkpoints (when to verify):**
-- Before creating any entity (deliverable, project, memory)
+- Before creating any entity (agent, project, memory)
 - Before modifying existing entities
-- When plan references specific context (project, deliverable by name)
+- When plan references specific context (project, agent by name)
 - After user provides information that changes scope
 
 #### 1.3 Todo Revision
@@ -348,7 +348,7 @@ Original plan:
 1. ✓ Parse intent
 2. ● Find PayFlow project
 3. ○ Gather details
-4. ○ Create deliverable
+4. ○ Create agent
 
 After check reveals no PayFlow:
 1. ✓ Parse intent
@@ -356,7 +356,7 @@ After check reveals no PayFlow:
 3. ● Clarify with user: create project or use existing?
 4. ○ [Depends on user response]
 5. ○ Gather details
-6. ○ Create deliverable
+6. ○ Create agent
 ```
 
 ---
@@ -365,13 +365,13 @@ After check reveals no PayFlow:
 
 #### 2.1 Full Skill Rollout
 
-**What:** All deliverable types as skills with plan mode integration.
+**What:** All agent types as skills with plan mode integration.
 
 **Dependency:** Skills benefit from plan mode discipline—each becomes a structured workflow that can adapt via assumption checking and revision.
 
-**Deliverable type → Skill mapping:**
+**Agent type → Skill mapping:**
 
-| Skill | Deliverable Type | Status |
+| Skill | Agent Type | Status |
 |-------|------------------|--------|
 | `/board-update` | board_update | ✅ Implemented |
 | `/status-report` | status_report | ✅ Implemented |
@@ -406,7 +406,7 @@ CREATE TABLE skill_executions (
     revisions JSONB[],         -- Each revision with reason
     checkpoints JSONB[],       -- Assumption checks performed
 
-    deliverable_id UUID REFERENCES deliverables(id),
+    agent_id UUID REFERENCES agents(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
@@ -442,7 +442,7 @@ Tier 2 (downstream, benefits from Tier 1):
 └── 2.2 Persistent receipts (schema from stabilized patterns)
 ```
 
-**Tier 1 is a single deliverable.** The three capabilities are interdependent and should be designed/implemented together.
+**Tier 1 is a single agent.** The three capabilities are interdependent and should be designed/implemented together.
 
 ---
 
@@ -465,7 +465,7 @@ CREATE TABLE skill_executions (
     session_id UUID,
     todos JSONB, -- Final todo state
     tool_calls JSONB, -- Sequence of tools used
-    deliverable_id UUID REFERENCES deliverables(id), -- If applicable
+    agent_id UUID REFERENCES agents(id), -- If applicable
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
@@ -501,7 +501,7 @@ This is additive and can be deferred.
 
 ### Risks
 
-1. **Pattern mismatch** - Claude Code is for coding; YARNNN is for deliverables. Some adaptation needed.
+1. **Pattern mismatch** - Claude Code is for coding; YARNNN is for agents. Some adaptation needed.
 
 2. **Performance** - More tool calls = more latency. Monitor.
 
@@ -513,7 +513,7 @@ This is additive and can be deferred.
 Design our own progress tracking system.
 **Rejected:** Why invent when proven pattern exists?
 
-### B: "Deliverable Skills" as New Concept
+### B: "Agent Skills" as New Concept
 Create skill-like system with different semantics.
 **Rejected:** Unnecessary divergence from standard.
 
@@ -565,7 +565,7 @@ Build comprehensive agent orchestration from scratch.
 - Claude Code source patterns (TodoWrite, Skills, Plan mode)
 - [Claude Agent SDK documentation](https://docs.anthropic.com/en/docs/agents-and-tools/claude-agent-sdk)
 - ADR-010: Thinking Partner Architecture
-- ADR-019: Deliverable Types System
+- ADR-019: Agent Types System
 - ADR-023: Supervisor Desk Architecture
 - ADR-024: Context Classification Layer
 - **ADR-038: Claude Code Architecture Mapping** — Comprehensive mapping validation confirming architectural alignment
@@ -590,13 +590,13 @@ For complex requests, enter **plan mode** before executing.
 ### When to Plan
 
 **Always plan for:**
-- Deliverable creation (any type)
+- Agent creation (any type)
 - Multi-entity operations ("update all my...", "organize my...")
 - Ambiguous scope requests ("help me with...", "set up...")
 - Skill invocations (`/board-update`, `/status-report`, etc.)
 
 **Skip planning for:**
-- Single navigation ("show my memories", "list deliverables")
+- Single navigation ("show my memories", "list agents")
 - Single clear action ("pause the weekly report", "rename this to X")
 - Pure conversation ("what do you think about...", "explain...")
 
@@ -619,7 +619,7 @@ For complex requests, enter **plan mode** before executing.
    1. Check your project context
    2. Gather recipient details
    3. Confirm the setup
-   4. Create the deliverable
+   4. Create the agent
 
    Starting now...")
    ```
@@ -638,7 +638,7 @@ Before major actions, verify your assumptions match reality.
 
 | Before... | Verify... |
 |-----------|-----------|
-| Creating a deliverable | Project exists, no duplicate deliverable |
+| Creating a agent | Project exists, no duplicate agent |
 | Using project context | Project exists and has relevant memories |
 | Referencing by name | Entity exists with that name |
 | Modifying an entity | Entity is in expected state |
@@ -671,9 +671,9 @@ Then: `clarify("How should I proceed?", ["Create PayFlow project first", "Use Pe
 
 Use these tools for assumption checks:
 - `list_projects` - Verify project exists
-- `list_deliverables` - Check for duplicates, verify deliverable exists
+- `list_agents` - Check for duplicates, verify agent exists
 - `list_memories` - Verify context is available
-- `get_deliverable` - Check deliverable state before modifying
+- `get_agent` - Check agent state before modifying
 
 ---
 
@@ -707,7 +707,7 @@ Your plan is a living document. Update it when reality changes.
 2. ● Verify PayFlow context
 3. ○ Gather details
 4. ○ Confirm setup
-5. ○ Create deliverable
+5. ○ Create agent
 ```
 
 **After discovering no PayFlow project:**
@@ -719,7 +719,7 @@ todo_write([
   {content: "Create project if needed", status: "pending"},
   {content: "Gather details", status: "pending"},
   {content: "Confirm setup", status: "pending"},
-  {content: "Create deliverable", status: "pending"}
+  {content: "Create agent", status: "pending"}
 ])
 ```
 
@@ -735,7 +735,7 @@ TP: [todo_write] Create initial plan
     2. ○ Check project context
     3. ○ Gather recipient details
     4. ○ Confirm setup
-    5. ○ Create deliverable
+    5. ○ Create agent
     6. ○ Offer first draft
 
 TP: [todo_write] #1 → completed, #2 → in_progress
@@ -769,11 +769,11 @@ User: "yes"
 
 TP: [todo_write] #4 → completed, #5 → in_progress
 
-TP: [list_deliverables]  // ASSUMPTION CHECK: no duplicate
+TP: [list_agents]  // ASSUMPTION CHECK: no duplicate
     → Returns: [] or list without "Board Update"
     → ✓ No duplicate
 
-TP: [create_deliverable]
+TP: [create_agent]
     title: "Monthly Board Update"
     type: "board_update"
     frequency: "monthly"
@@ -800,7 +800,7 @@ TP: [todo_write] Revise plan:
     4. ○ Create project if needed  // NEW
     5. ○ Gather recipient details
     6. ○ Confirm setup
-    7. ○ Create deliverable
+    7. ○ Create agent
     8. ○ Offer first draft
 
 TP: [respond] "I don't see any projects set up yet. Should I:
@@ -826,7 +826,7 @@ Add the three sections above to `SYSTEM_PROMPT_WITH_TOOLS`, after the existing "
 6. **Assumption Checking** (new - Tier 1)
 7. **Todo Revision** (new - Tier 1)
 8. Work Delegation (existing)
-9. Deliverable Creation (existing, may need light updates)
+9. Agent Creation (existing, may need light updates)
 10. Memory Routing (existing)
 
 #### 2. Skill Prompt Updates (`skills.py`)
@@ -838,7 +838,7 @@ Update each skill's `system_prompt_addition` to reference plan mode:
     "system_prompt_addition": """
 ## Active Skill: Board Update Creation
 
-You are helping create a Monthly Board Update deliverable.
+You are helping create a Monthly Board Update agent.
 
 ### Plan Mode Active
 
@@ -847,12 +847,12 @@ Follow the plan mode pattern:
 2. Verify project context exists (assumption check)
 3. Gather: recipient, company stage
 4. Confirm before creating
-5. Create deliverable
+5. Create agent
 6. Offer first draft
 
 ### Assumption Checks Required
 - Before using project context: verify project exists
-- Before creating: verify no duplicate deliverable exists
+- Before creating: verify no duplicate agent exists
 
 ### If Assumptions Fail
 - No project: offer to create one or use Personal
@@ -902,8 +902,8 @@ TP: [todo_write]
     1. ☐ Parse intent (board update, monthly)
     2. ☐ Find or confirm project context
     3. ☐ Gather required details (company, recipient)
-    4. ☐ Confirm deliverable setup
-    5. ☐ Create deliverable
+    4. ☐ Confirm agent setup
+    5. ☐ Create agent
     6. ☐ Offer first draft generation
 
 TP: [todo_write: #1 → completed, #2 → in_progress]
@@ -939,7 +939,7 @@ User: "yes"
 
 TP: [todo_write: #4 → completed, #5 → in_progress]
 
-TP: [create_deliverable]
+TP: [create_agent]
     title: "Monthly Board Update"
     type: "board_update"
     frequency: "monthly"
@@ -950,7 +950,7 @@ TP: [todo_write: #5 → completed, #6 → in_progress]
 TP: [respond]
     "Done! Your Monthly Board Update is set up.
 
-    ✓ Created deliverable
+    ✓ Created agent
     ✓ Linked to PayFlow context (8 memories)
     ✓ Scheduled for 1st of each month
 
@@ -970,7 +970,7 @@ The Claude Code pattern requires UI surfaces that display progress, todos, and c
 ADR-023's core insights remain valid:
 - **One surface at a time** — The supervisor desk model
 - **TP-first interaction** — Tool results trigger surface changes
-- **Attention queue** — Staged deliverables surface naturally
+- **Attention queue** — Staged agents surface naturally
 - **Domain browser escape hatch** — User can navigate directly
 
 We're not replacing ADR-023. We're specifying how the Claude Code pattern **manifests within** its surfaces.
@@ -980,7 +980,7 @@ We're not replacing ADR-023. We're specifying how the Claude Code pattern **mani
 **Mode 1: Ambient TP (Current TPBar)**
 
 For simple, single-turn interactions:
-- "What's my next deliverable?"
+- "What's my next agent?"
 - "Show me my memories"
 - "Pause the weekly report"
 
@@ -992,7 +992,7 @@ TPBar remains as-is:
 **Mode 2: Working TP (New: Chat + Todos Panel)**
 
 For multi-step work where TP is actively building something:
-- Creating a new deliverable
+- Creating a new agent
 - Executing a skill (`/board-update`)
 - Any operation that triggers `todo_write`
 
@@ -1001,9 +1001,9 @@ This requires a **richer interface** that shows:
 - Todo list with live progress
 - The "receipt" of what happened
 
-### DeliverableDetailSurface Evolution
+### AgentDetailSurface Evolution
 
-When TP is actively working on a deliverable (or creating one), the `deliverable-detail` surface evolves:
+When TP is actively working on a agent (or creating one), the `agent-detail` surface evolves:
 
 **Current Layout:**
 ```
@@ -1028,14 +1028,14 @@ When TP is actively working on a deliverable (or creating one), the `deliverable
 ┌─────────────────────────────────────────────────┐
 │ Header (title, schedule, pause/settings)        │
 ├──────────────────────┬──────────────────────────┤
-│ Deliverable Info     │ TP Work Panel            │
+│ Agent Info     │ TP Work Panel            │
 │ (collapsed or        │                          │
 │  left column)        │ ┌─ Todos ──────────────┐ │
 │                      │ │ ✓ Parse intent       │ │
 │ • Status Cards       │ │ ✓ Find project       │ │
 │ • What It Generates  │ │ ● Gather details     │ │
 │ • Data Sources       │ │ ○ Confirm setup      │ │
-│ • Version History    │ │ ○ Create deliverable │ │
+│ • Version History    │ │ ○ Create agent │ │
 │                      │ └─────────────────────┘ │
 │                      │                          │
 │                      │ ┌─ Chat ──────────────┐ │
@@ -1089,11 +1089,11 @@ interface Todo {
 
 **Placement options:**
 
-1. **Side panel on deliverable surface** (shown above) — Best for desktop
+1. **Side panel on agent surface** (shown above) — Best for desktop
 2. **Slide-up panel replacing surface content** — Best for mobile
 3. **Floating drawer** — Alternative, but less integrated
 
-Recommendation: **Side panel on deliverable-detail, slide-up elsewhere.** The deliverable surface is where most multi-step work happens.
+Recommendation: **Side panel on agent-detail, slide-up elsewhere.** The agent surface is where most multi-step work happens.
 
 ### Skill Invocation UI
 
@@ -1101,7 +1101,7 @@ Skills can be invoked via:
 
 1. **Direct typing:** `/board-update` in TPBar
 2. **Intent recognition:** "I need a board update" → TP recognizes, may confirm
-3. **UI affordance:** Skill picker in TPBar or deliverable creation flow
+3. **UI affordance:** Skill picker in TPBar or agent creation flow
 
 **Skill picker (optional, Phase 2):**
 ```
@@ -1141,7 +1141,7 @@ When on `idle` surface (dashboard), skill invocations open a temporary "working"
 │ │ ✓ Parse intent                           │   │
 │ │ ● Gathering details...                   │   │
 │ │ ○ Confirm setup                          │   │
-│ │ ○ Create deliverable                     │   │
+│ │ ○ Create agent                     │   │
 │ │                                          │   │
 │ │ ────────────────────────────────────────│   │
 │ │ TP: What's your company stage?           │   │
@@ -1198,7 +1198,7 @@ When TP calls `todo_write`, the frontend receives the todos via SSE and updates 
 Per ADR-023, surfaces shouldn't require navigation. The TP Work Panel appears **within** the current surface, not as a separate page.
 
 URL behavior:
-- `/dashboard?surface=deliverable-detail&did=X` — Always valid
+- `/dashboard?surface=agent-detail&did=X` — Always valid
 - When TP is working, `?working=true` could be appended for deep-linking (optional)
 - Back/forward preserves the surface, panel expansion state is ephemeral
 
@@ -1208,7 +1208,7 @@ URL behavior:
 
 1. **TPWorkPanel component** — Displays todos + chat history
 2. **todo_write handler in TPContext** — Parse tool result, update state
-3. **Conditional rendering in DeliverableDetailSurface** — Show panel when todos exist
+3. **Conditional rendering in AgentDetailSurface** — Show panel when todos exist
 4. **Test with manual todo_write** — Verify UI updates correctly
 
 **Full Rollout:**
@@ -1224,7 +1224,7 @@ URL behavior:
 |----------|--------|
 | **TPBar** | Remains for ambient interaction. Triggers panel expansion when todos appear. |
 | **TPContext** | Extended with `todos`, `workPanelExpanded`, `activeSkill` |
-| **DeliverableDetailSurface** | Adds conditional TPWorkPanel rendering |
+| **AgentDetailSurface** | Adds conditional TPWorkPanel rendering |
 | **IdleSurface** | Adds conditional working panel overlay |
 | **HandoffBanner** | Unchanged — still used for navigation context |
 | **SurfaceRouter** | Unchanged — surfaces still route normally |
@@ -1243,10 +1243,10 @@ URL behavior:
 6. User sees todo list + TP message asking for details
 7. User responds via embedded input
 8. TP updates todos → TPContext updates → UI re-renders
-9. Eventually: TP calls create_deliverable
-10. Tool result includes ui_action → surface changes to deliverable-detail
+9. Eventually: TP calls create_agent
+10. Tool result includes ui_action → surface changes to agent-detail
 11. TPWorkPanel remains expanded, showing completion
-12. User dismisses panel → back to normal deliverable view
+12. User dismisses panel → back to normal agent view
 ```
 
 ---

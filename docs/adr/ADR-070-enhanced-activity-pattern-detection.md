@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR-064 introduced implicit memory extraction from three sources: conversation, deliverable feedback, and activity patterns. The initial implementation of `process_patterns()` only detected day-of-week preferences (e.g., "Typically runs deliverables on Mondays").
+ADR-064 introduced implicit memory extraction from three sources: conversation, agent feedback, and activity patterns. The initial implementation of `process_patterns()` only detected day-of-week preferences (e.g., "Typically runs agents on Mondays").
 
 The implementation brief specified that pattern detection must expand beyond this single heuristic to capture richer behavioral signals. The principle: **memory extraction should reflect actual user behavior patterns, not just when they work, but how they work**.
 
@@ -15,31 +15,31 @@ The implementation brief specified that pattern detection must expand beyond thi
 Enhanced `_detect_activity_patterns()` in [services/memory.py](../../api/services/memory.py) to detect five first-class pattern types:
 
 ### 1. Day-of-Week Patterns
-- **Detection**: One day has >50% of deliverable_run activity and ≥3 runs
-- **Example**: `"Typically runs deliverables on Mondays"`
-- **Key format**: `pattern:deliverable_day`
+- **Detection**: One day has >50% of agent_run activity and ≥3 runs
+- **Example**: `"Typically runs agents on Mondays"`
+- **Key format**: `pattern:agent_day`
 
 ### 2. Time-of-Day Patterns
 - **Detection**: Activity grouped into 4 time blocks (morning, afternoon, evening, late night)
 - **Threshold**: One block has >50% of activity and ≥3 runs, with ≥5 total runs
-- **Example**: `"Typically runs deliverables in the afternoon (12pm-6pm)"`
-- **Key format**: `pattern:deliverable_time`
+- **Example**: `"Typically runs agents in the afternoon (12pm-6pm)"`
+- **Key format**: `pattern:agent_time`
 
-### 3. Deliverable Type Preferences
-- **Detection**: One deliverable_type represents >60% of runs with ≥5 total runs
-- **Example**: `"Frequently uses meeting_prep deliverables (primary workflow type)"`
-- **Key format**: `pattern:deliverable_type_preference`
+### 3. Agent Type Preferences
+- **Detection**: One agent_type represents >60% of runs with ≥5 total runs
+- **Example**: `"Frequently uses meeting_prep agents (primary workflow type)"`
+- **Key format**: `pattern:agent_type_preference`
 - **Purpose**: Signals primary workflow; useful for signal reasoning and onboarding recommendations
 
 ### 4. Edit Location Patterns
-- **Detection**: Heuristic analysis of deliverable_approved event summaries for location keywords
+- **Detection**: Heuristic analysis of agent_approved event summaries for location keywords
 - **Threshold**: One location (intro/body/conclusion) represents >60% of edits with ≥3 total edits
-- **Example**: `"Tends to edit intro sections when revising deliverables"`
+- **Example**: `"Tends to edit intro sections when revising agents"`
 - **Key format**: `pattern:edit_location`
 - **Note**: Currently uses keyword matching on summary text; future enhancement could use LLM-based diff analysis
 
 ### 5. Formatting Patterns (Length)
-- **Detection**: Compares final_length vs draft_length in deliverable_approved metadata
+- **Detection**: Compares final_length vs draft_length in agent_approved metadata
 - **Classification**: "shorter" if final < draft * 0.7, "longer" if final > draft * 1.3
 - **Threshold**: ≥3 consistent edits in same direction
 - **Examples**:
@@ -51,24 +51,24 @@ Enhanced `_detect_activity_patterns()` in [services/memory.py](../../api/service
 
 To support these detections, activity_log writes now include richer metadata:
 
-### deliverable_run events ([deliverable_execution.py:725](../../api/services/deliverable_execution.py#L725))
+### agent_run events ([agent_execution.py:725](../../api/services/agent_execution.py#L725))
 ```python
 metadata = {
-    "deliverable_id": str(deliverable_id),
+    "agent_id": str(agent_id),
     "version_number": next_version,
-    "deliverable_type": deliverable_type,  # NEW
+    "agent_type": agent_type,  # NEW
     "strategy": strategy.strategy_name,
     "final_status": final_status,
     "delivery_error": delivery_error,
 }
 ```
 
-### deliverable_approved events ([deliverables.py:1960](../../api/routes/deliverables.py#L1960))
+### agent_approved events ([agents.py:1960](../../api/routes/agents.py#L1960))
 ```python
 metadata = {
-    "deliverable_id": str(deliverable_id),
+    "agent_id": str(agent_id),
     "version_id": str(version_id),
-    "deliverable_type": check.data.get("deliverable_type"),  # NEW
+    "agent_type": check.data.get("agent_type"),  # NEW
     "had_edits": bool(...),  # NEW
     "final_length": len(final_content),  # NEW (if had_edits)
     "draft_length": len(draft_content),  # NEW (if had_edits)
@@ -85,12 +85,12 @@ Changes span three files:
    - Uses Counter for frequency analysis across all patterns
    - Maintains existing confidence=0.6 for pattern-sourced memories
 
-2. **[routes/deliverables.py](../../api/routes/deliverables.py)** (lines 1946-1980)
-   - Enhanced deliverable_approved activity log to include had_edits, final_length, draft_length, deliverable_type
+2. **[routes/agents.py](../../api/routes/agents.py)** (lines 1946-1980)
+   - Enhanced agent_approved activity log to include had_edits, final_length, draft_length, agent_type
    - Preserves existing memory feedback extraction (lines 1965-1980)
 
-3. **[services/deliverable_execution.py](../../api/services/deliverable_execution.py)** (line 725)
-   - Added deliverable_type to deliverable_run metadata
+3. **[services/agent_execution.py](../../api/services/agent_execution.py)** (line 725)
+   - Added agent_type to agent_run metadata
 
 ## Consequences
 
@@ -109,8 +109,8 @@ Changes span three files:
 ### Future Enhancements
 - LLM-based edit location analysis (replace keyword heuristics with semantic diff analysis)
 - Section-level formatting patterns (not just overall length)
-- Cross-deliverable consistency patterns (e.g., "Always uses bullet points in weekly_standup but prose in board_update")
-- Temporal patterns (morning deliverables are shorter than evening ones)
+- Cross-agent consistency patterns (e.g., "Always uses bullet points in weekly_standup but prose in board_update")
+- Temporal patterns (morning agents are shorter than evening ones)
 
 ## Completion Criteria (Phase 1B)
 

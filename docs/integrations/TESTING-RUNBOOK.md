@@ -114,15 +114,15 @@ WHERE cs.user_id = '{USER_ID}' AND sm.role = 'assistant'
 ORDER BY sm.created_at DESC LIMIT 5;
 ```
 
-## Deliverable Delivery Test
+## Agent Delivery Test
 
-Trigger a deliverable run to test the full pipeline: content generation → Resend email delivery → notification skip.
+Trigger a agent run to test the full pipeline: content generation → Resend email delivery → notification skip.
 
 ### Setup
 ```bash
 # Set next_run_at to now (and optionally clear last_run_at to bypass freshness check)
 psql "$CONN_STRING" -c "
-UPDATE deliverables
+UPDATE agents
 SET next_run_at = NOW(), last_run_at = NULL
 WHERE id = '{DELIVERABLE_ID}'
 RETURNING id, title, next_run_at, destination;
@@ -134,15 +134,15 @@ RETURNING id, title, next_run_at, destination;
 -- Check latest version
 SELECT version_number, status, delivery_status, delivery_error,
        delivery_external_id, delivered_at
-FROM deliverable_versions
-WHERE deliverable_id = '{DELIVERABLE_ID}'
+FROM agent_runs
+WHERE agent_id = '{DELIVERABLE_ID}'
 ORDER BY version_number DESC LIMIT 1;
 ```
 
 ### Expected behavior
 - `delivery_status = 'delivered'`, `delivery_external_id` is a Resend message ID (UUID format)
 - Email arrives with: title header → rendered markdown content → "View in Yarn" button → "Manage notifications" link
-- **No separate notification email** (skipped for email-platform deliverables)
+- **No separate notification email** (skipped for email-platform agents)
 - Cron log shows: `"Skipped notification — content delivered via email"`
 
 ### Test results (2026-02-24)
@@ -152,7 +152,7 @@ ORDER BY version_number DESC LIMIT 1;
 | Resend delivery (v5) | PASS | Content delivered via ResendExporter, external_id=fbf38403 |
 | Email format | PASS | Title header + markdown content + "View in Yarn" footer |
 | Notification skip | PASS | No redundant "ready" email — cron log confirms skip |
-| Destination in query | PASS | `destination` column included in get_due_deliverables SELECT |
+| Destination in query | PASS | `destination` column included in get_due_agents SELECT |
 
 ---
 
@@ -171,7 +171,7 @@ assert len(tools) == 5, f'Expected 5 headless tools, got {len(tools)}'
 assert set(t['name'] for t in tools) == {'Read', 'Search', 'List', 'WebSearch', 'GetSystemState'}
 print('Mode gate: PASS')
 
-from services.deliverable_execution import _build_headless_system_prompt, HEADLESS_MAX_TOOL_ROUNDS
+from services.agent_execution import _build_headless_system_prompt, HEADLESS_MAX_TOOL_ROUNDS
 assert HEADLESS_MAX_TOOL_ROUNDS == 3
 prompt = _build_headless_system_prompt('status_report', {'signal_reasoning': 'test', 'signal_context': {'entity': 'Q1'}})
 assert '## Tool Usage (Headless Mode)' in prompt
@@ -182,13 +182,13 @@ print('All local checks passed.')
 "
 ```
 
-### Deliverable Generation Test (requires deploy)
+### Agent Generation Test (requires deploy)
 
-Trigger a deliverable run and check logs for headless mode behavior:
+Trigger a agent run and check logs for headless mode behavior:
 
 ```bash
-# 1. Trigger a deliverable run via admin or manual
-curl -s -X POST "https://yarnnn-api.onrender.com/api/deliverables/{DELIVERABLE_ID}/run" \
+# 1. Trigger a agent run via admin or manual
+curl -s -X POST "https://yarnnn-api.onrender.com/api/agents/{DELIVERABLE_ID}/run" \
   -H "Authorization: Bearer {JWT}" | python3 -m json.tool
 
 # 2. Check Render logs for headless mode indicators:
@@ -201,23 +201,23 @@ curl -s -X POST "https://yarnnn-api.onrender.com/api/deliverables/{DELIVERABLE_I
 
 | Scenario | Expected Behavior |
 |---|---|
-| Normal deliverable (sufficient context) | Single-turn generation, no tool use, same as before ADR-080 |
-| Signal-emergent deliverable | System prompt includes signal reasoning, may use Search for investigation |
+| Normal agent (sufficient context) | Single-turn generation, no tool use, same as before ADR-080 |
+| Signal-emergent agent | System prompt includes signal reasoning, may use Search for investigation |
 | Sparse context (few platform_content rows) | Agent may use Search/Read to supplement, 1-2 tool rounds |
 | Max tool rounds hit | Warning logged, partial text used or empty draft → version marked failed |
 
 ### Cost Monitoring
 
-Target: <2x average cost per deliverable vs. pre-ADR-080 baseline.
+Target: <2x average cost per agent vs. pre-ADR-080 baseline.
 
 ```sql
 -- Check work_execution_log for draft_length trends (proxy for cost)
 SELECT wt.created_at::date as day,
   AVG(CAST(wel.metadata->>'draft_length' AS int)) as avg_draft_len,
-  COUNT(*) as deliverables
+  COUNT(*) as agents
 FROM work_tickets wt
 JOIN work_execution_log wel ON wel.ticket_id = wt.id
-WHERE wt.task = 'deliverable.generate'
+WHERE wt.task = 'agent.generate'
   AND wel.stage = 'completed'
   AND wt.created_at > NOW() - INTERVAL '7 days'
 GROUP BY day ORDER BY day;

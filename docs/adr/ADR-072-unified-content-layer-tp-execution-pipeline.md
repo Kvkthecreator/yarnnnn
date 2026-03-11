@@ -3,7 +3,7 @@
 **Date**: 2026-02-20
 **Status**: Accepted
 **Supersedes**: ADR-049 (Context Freshness Model), ADR-062 (Platform Context Architecture)
-**Extends**: ADR-063 (Four-Layer Model), ADR-068 (Signal-Emergent Deliverables), ADR-071 (Strategic Architecture Principles)
+**Extends**: ADR-063 (Four-Layer Model), ADR-068 (Signal-Emergent Agents), ADR-071 (Strategic Architecture Principles)
 **Related**: ADR-064 (Unified Memory Service), ADR-069 (Layer 4 Content Integration)
 
 ---
@@ -16,11 +16,11 @@ YARNNN's architecture evolved through incremental ADRs that made locally correct
 
 **ADR-049** (2026-02-12) chose "freshness over accumulation" — treating platforms as the filesystem and sync as git pull. This was correct for the problem it solved (avoiding history compression complexity) but predated the flywheel moat thesis.
 
-**ADR-062** (2026-02-18) defined `filesystem_items` as "conversational search cache only" and mandated that deliverable execution use live APIs. This created two parallel content access paths with different trust models.
+**ADR-062** (2026-02-18) defined `filesystem_items` as "conversational search cache only" and mandated that agent execution use live APIs. This created two parallel content access paths with different trust models.
 
 **ADR-068** (2026-02-19) introduced signal processing, which reads live APIs for time-sensitive signals. This added a third content access path.
 
-The result: three independent systems (`filesystem_items` cache, deliverable live fetches, signal processing live fetches) accessing the same upstream platforms with no shared representation, no accumulation, and no provenance tracking.
+The result: three independent systems (`filesystem_items` cache, agent live fetches, signal processing live fetches) accessing the same upstream platforms with no shared representation, no accumulation, and no provenance tracking.
 
 ### The Axiomatic Foundation
 
@@ -35,13 +35,13 @@ This is YARNNN's moat. It cannot be achieved with TTL-expiring caches or live-on
 
 **ADR-049's "freshness over accumulation"** was decided before:
 - Signal processing existed
-- The three strategic deliverable types were built
+- The three strategic agent types were built
 - The flywheel moat was articulated
 
 **ADR-062's "cache stays cache"** created:
-- A provenance gap (no link from deliverable output to source content)
+- A provenance gap (no link from agent output to source content)
 - An audit gap (can't answer "what Slack messages informed this digest?")
-- A quality gap (deliverable execution uses cruder fetches than TP primitives)
+- A quality gap (agent execution uses cruder fetches than TP primitives)
 
 These decisions were made in a different context. The product thesis evolved. The architecture must evolve with it.
 
@@ -78,8 +78,8 @@ CREATE TABLE platform_content (
 
     -- Retention policy
     retained            BOOLEAN NOT NULL DEFAULT false,
-    retained_reason     TEXT,                       -- 'deliverable_execution', 'signal_processing', 'tp_session'
-    retained_ref        UUID,                       -- FK to deliverable_version, signal_action, session
+    retained_reason     TEXT,                       -- 'agent_execution', 'signal_processing', 'tp_session'
+    retained_ref        UUID,                       -- FK to agent_version, signal_action, session
     expires_at          TIMESTAMPTZ,                -- NULL if retained=true
 
     -- Metadata
@@ -117,7 +117,7 @@ CREATE POLICY "Users see own content" ON platform_content
 | Condition | `retained` | `expires_at` | Outcome |
 |---|---|---|---|
 | Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
-| Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
+| Referenced by agent_version | `true` | `NULL` | Retained indefinitely |
 | Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
@@ -145,21 +145,21 @@ Two systems write to `platform_content`:
 - Sets `retained_reason='signal_processing'`, `retained_ref=signal_action_id`
 - This is Option A from the implementation discussion
 
-Additionally, **Deliverable Execution** and **TP Sessions** mark existing records as retained:
-- After synthesis, execution marks source records `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id`
+Additionally, **Agent Execution** and **TP Sessions** mark existing records as retained:
+- After synthesis, execution marks source records `retained=true`, `retained_reason='agent_execution'`, `retained_ref=version_id`
 - After semantic search hits during TP session, marks accessed records `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id`
 
 ### 3. TP as Execution Pipeline
 
-Deliverable execution becomes a headless TP session.
+Agent execution becomes a headless TP session.
 
 **Current state** (being replaced):
-- `DeliverableAgent` in `deliverable_pipeline.py` uses its own fetch pipeline
+- `AgentAgent` in `agent_pipeline.py` uses its own fetch pipeline
 - Different primitives than TP
 - Quality gap between interactive and scheduled outputs
 
 **New state**:
-- `DeliverableAgent` invokes the TP agent in execution mode
+- `AgentAgent` invokes the TP agent in execution mode
 - Same primitives: `Search`, `FetchPlatformContent`, `CrossPlatformQuery`
 - Same reasoning capability
 - One codebase, not two
@@ -168,24 +168,24 @@ Deliverable execution becomes a headless TP session.
 
 | Aspect | TP Live Mode | TP Execution Mode |
 |---|---|---|
-| **Streaming** | Streaming responses to user | Collect full output, write to `deliverable_version` |
+| **Streaming** | Streaming responses to user | Collect full output, write to `agent_version` |
 | **Clarification** | Can ask "which version did you mean?" | Cannot ask — must complete with available context |
-| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex deliverables |
+| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex agents |
 
 **Context injection differences**:
 
 | Input | TP Live Mode | TP Execution Mode |
 |---|---|---|
 | User model | Full `user_context` (working memory) | Full `user_context` (working memory) |
-| Task | User message | Deliverable configuration |
+| Task | User message | Agent configuration |
 | Content | Fetched on demand via primitives | Pre-loaded relevant `platform_content` records |
-| History | Recent deliverable versions (Layer 4 content) | Recent versions for same deliverable type |
+| History | Recent agent versions (Layer 4 content) | Recent versions for same agent type |
 
-**Deletion**: The parallel fetch pipeline in `deliverable_pipeline.py → fetch_integration_source_data()` is deleted entirely on cutover. No backwards compatibility shim.
+**Deletion**: The parallel fetch pipeline in `agent_pipeline.py → fetch_integration_source_data()` is deleted entirely on cutover. No backwards compatibility shim.
 
 ### 4. Source Snapshots with Content References
 
-`deliverable_versions.source_snapshots` now references specific `platform_content` record IDs:
+`agent_runs.source_snapshots` now references specific `platform_content` record IDs:
 
 ```json
 {
@@ -202,7 +202,7 @@ Deliverable execution becomes a headless TP session.
 }
 ```
 
-This closes the provenance gap: every deliverable version can answer "which specific content records were synthesized into this output?"
+This closes the provenance gap: every agent version can answer "which specific content records were synthesized into this output?"
 
 ### 5. Memory Source Reference
 
@@ -211,7 +211,7 @@ This closes the provenance gap: every deliverable version can answer "which spec
 ```sql
 ALTER TABLE user_context
     ADD COLUMN source_ref UUID,           -- FK to source record
-    ADD COLUMN source_type TEXT;          -- 'session_message', 'deliverable_version', 'platform_content', 'activity_log'
+    ADD COLUMN source_type TEXT;          -- 'session_message', 'agent_version', 'platform_content', 'activity_log'
 ```
 
 Every memory entry becomes traceable to its origin. This closes the memory audit gap.
@@ -225,9 +225,9 @@ Four distinct cron jobs with distinct responsibilities:
 | Job | Frequency | Responsibility | Writes To |
 |---|---|---|---|
 | **Platform Sync** | Tier-dependent (hourly Pro, less for lower) | Fetch content from external platforms | `platform_content` (retained=false) |
-| **Signal Processing** | Hourly | Read live APIs, identify significance, create/trigger deliverables | `platform_content` (retained=true), `deliverables`, `signal_history` |
+| **Signal Processing** | Hourly | Read live APIs, identify significance, create/trigger agents | `platform_content` (retained=true), `agents`, `signal_history` |
 | **Memory Extraction** | Nightly (midnight UTC) | Extract patterns from sessions and feedback | `user_context` |
-| **Deliverable Scheduler** | Every 5 minutes | Trigger due deliverables | `deliverable_versions` (via execution) |
+| **Agent Scheduler** | Every 5 minutes | Trigger due agents | `agent_runs` (via execution) |
 
 These jobs are completely independent. None calls another. They share the data layer, not execution flow.
 
@@ -259,7 +259,7 @@ These jobs are completely independent. None calls another. They share the data l
 - Update `source_snapshots` format to include `platform_content_ids`
 
 **Phase 5: TP Execution Mode** (Day 11-14)
-- Refactor `DeliverableAgent` to invoke TP agent in headless mode
+- Refactor `AgentAgent` to invoke TP agent in headless mode
 - Implement no-streaming, no-clarification, bounded-tool-rounds behavior
 - Delete `fetch_integration_source_data()` and related cruder fetches
 
@@ -279,7 +279,7 @@ These jobs are completely independent. None calls another. They share the data l
 
 ### ADR-049 (Context Freshness Model)
 
-**Original decision**: "Instead of history management, we need context freshness management... Each deliverable generation should work with current state, not accumulated history."
+**Original decision**: "Instead of history management, we need context freshness management... Each agent generation should work with current state, not accumulated history."
 
 **New decision**: Accumulated history is the moat. Content that proved significant is retained indefinitely. The retention policy (referenced = retained) replaces the TTL-only model.
 
@@ -287,11 +287,11 @@ These jobs are completely independent. None calls another. They share the data l
 
 ### ADR-062 (Platform Context Architecture)
 
-**Original decision**: "`filesystem_items` is retained as the conversational search index... Do not expand the mirror's role... Deliverable execution remains on live reads."
+**Original decision**: "`filesystem_items` is retained as the conversational search index... Do not expand the mirror's role... Agent execution remains on live reads."
 
 **New decision**: `platform_content` is the unified content layer for both conversation and execution. TP primitives are the single content access path for all use cases. The parallel pipeline is deleted.
 
-**Why**: ADR-062 created a quality gap between TP and deliverable execution. The unified model means improvements to TP primitives automatically improve deliverable quality.
+**Why**: ADR-062 created a quality gap between TP and agent execution. The unified model means improvements to TP primitives automatically improve agent quality.
 
 ---
 
@@ -300,7 +300,7 @@ These jobs are completely independent. None calls another. They share the data l
 ### Positive
 
 1. **Accumulation moat**: Significant content retained indefinitely, compounding intelligence over time
-2. **Provenance closure**: Every deliverable links to specific source content; every memory links to its origin
+2. **Provenance closure**: Every agent links to specific source content; every memory links to its origin
 3. **Quality unification**: TP primitives used for both conversation and execution; one codebase
 4. **Semantic search**: pgvector enables semantic retrieval, not just ILIKE
 5. **Audit trail**: "What content informed this output?" becomes answerable
@@ -347,10 +347,10 @@ These jobs are completely independent. None calls another. They share the data l
 | `api/services/filesystem.py` | Rename to `platform_content.py`, update all functions |
 | `api/workers/platform_worker.py` | Write to `platform_content`, implement retention policy |
 | `api/services/signal_extraction.py` | Write significant content with `retained=true` |
-| `api/services/signal_processing.py` | Mark `platform_content_ids` in deliverable versions |
+| `api/services/signal_processing.py` | Mark `platform_content_ids` in agent versions |
 | `api/services/freshness.py` | Update to use `platform_content` |
 | `api/services/primitives/search.py` | Read from `platform_content`, semantic search |
-| `api/services/deliverable_pipeline.py` | Delete `fetch_integration_source_data()`, invoke TP in execution mode |
+| `api/services/agent_pipeline.py` | Delete `fetch_integration_source_data()`, invoke TP in execution mode |
 | `api/agents/thinking_partner.py` | Add execution mode flag, disable streaming/clarification |
 | `api/services/memory.py` | Add `source_ref` to all writes |
 
@@ -371,11 +371,11 @@ These jobs are completely independent. None calls another. They share the data l
 ## Related
 
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md) — Extended by this ADR
-- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md) — Signal processing now dual-role
+- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — Signal processing now dual-role
 - [ADR-071: Strategic Architecture Principles](ADR-071-strategic-architecture-principles.md) — Quality flywheel principle implemented
 - [Four-Layer Model Architecture](../architecture/four-layer-model.md) — To be updated
 - [Context Pipeline](../architecture/context-pipeline.md) — To be updated
-- [Deliverables Architecture](../architecture/deliverables.md) — To be updated
+- [Agents Architecture](../architecture/agents.md) — To be updated
 
 ---
 
@@ -383,9 +383,9 @@ These jobs are completely independent. None calls another. They share the data l
 
 - [x] `platform_content` table created with retention policy
 - [x] Platform sync writes to new table with TTL
-- [x] Signal processing dissolved (ADR-092 — coordinator deliverables replace signals)
+- [x] Signal processing dissolved (ADR-092 — coordinator agents replace signals)
 - [x] TP primitives read from `platform_content` (Search, FetchPlatformContent)
-- [x] Deliverable execution uses TP in headless mode (ADR-080)
+- [x] Agent execution uses TP in headless mode (ADR-080)
 - [x] `source_snapshots` includes `platform_content_ids` + `items_used` per source
 - [x] `user_context.source_ref` populated by all extraction paths
 - [x] `filesystem_items` dropped (migration 077)
@@ -407,7 +407,7 @@ Operational visibility page showing:
 - Background job status (signal processing, memory extraction, conversation analyst)
 
 Distinct from Activity (audit trail) — System shows operational state.
-Deliverable schedules are shown on the dedicated Deliverables page, not duplicated here.
+Agent schedules are shown on the dedicated Agents page, not duplicated here.
 
 ### Context Page Enhancements
 - Retention badges on content items (`Retained` badge)
@@ -417,16 +417,16 @@ Deliverable schedules are shown on the dedicated Deliverables page, not duplicat
 - Provenance badges showing `source_type` ("from feedback", "from chat", "from patterns")
 - `source_ref` available in frontend types
 
-### Deliverables Page Enhancements
-- Origin badges for `signal_emergent` and `analyst_suggested` deliverables
+### Agents Page Enhancements
+- Origin badges for `signal_emergent` and `analyst_suggested` agents
 - Badges on list cards and detail page headers
 
 ### Activity Page Enhancements
 - Added `integration_connected` to filterable event types
-- Enhanced metadata display: version numbers, item counts, origin badges for signal-emergent deliverables
+- Enhanced metadata display: version numbers, item counts, origin badges for signal-emergent agents
 
 ### Navigation
-Navigation bar: Chat | Deliverables | Memory | Context | Activity | System | Settings
+Navigation bar: Chat | Agents | Memory | Context | Activity | System | Settings
 
 ### API Endpoints
 - `GET /api/system/status` — Returns platform sync status, background job status

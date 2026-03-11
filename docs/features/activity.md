@@ -8,7 +8,7 @@
 
 Activity is the system provenance log — a record of what YARNNN has done. It answers the question "what happened recently?" rather than "what do I know about the user?" (Memory) or "what's on the platforms right now?" (Context).
 
-Every time YARNNN completes something meaningful — runs a deliverable, syncs a platform, notes a memory, finishes a chat turn — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
+Every time YARNNN completes something meaningful — runs a agent, syncs a platform, notes a memory, finishes a chat turn — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
 
 Recent activity is injected into every TP session at startup, so TP can answer "when did you last run my digest?" without a live database query.
 
@@ -19,9 +19,9 @@ Recent activity is injected into every TP session at startup, so TP can answer "
 ## What it is not
 
 - Not platform content — that is Context (`platform_content`)
-- Not generated output — that is Work (`deliverable_versions`)
+- Not generated output — that is Work (`agent_runs`)
 - Not stable user knowledge — that is Memory (`user_memory`)
-- Not a replacement for `deliverable_versions` or `session_messages` — those still hold the full records; Activity holds lightweight summaries
+- Not a replacement for `agent_runs` or `session_messages` — those still hold the full records; Activity holds lightweight summaries
 
 ---
 
@@ -43,11 +43,11 @@ Append-only. Written by service role only (no user-facing INSERT).
 
 | event_type | Written by | When | summary example |
 |---|---|---|---|
-| `deliverable_run` | `deliverable_execution.py` | After a version is generated | `"Weekly Digest v3 delivered"` |
-| `deliverable_scheduled` | `unified_scheduler.py` | When scheduler triggers a deliverable | `"Scheduled: Weekly Digest"` |
+| `agent_run` | `agent_execution.py` | After a version is generated | `"Weekly Digest v3 delivered"` |
+| `agent_scheduled` | `unified_scheduler.py` | When scheduler triggers a agent | `"Scheduled: Weekly Digest"` |
 | `memory_written` | `memory.py` | After nightly memory extraction | `"Noted: prefers bullet points"` |
 | `session_summary_written` | `memory.py` | After session summary extraction | `"Session summary written"` |
-| `pattern_detected` | `memory.py` | After activity pattern detection | `"Pattern: prefers morning deliverables"` |
+| `pattern_detected` | `memory.py` | After activity pattern detection | `"Pattern: prefers morning agents"` |
 | `platform_synced` | `platform_worker.py` | After a sync batch completes | `"Synced gmail: 12 items"` |
 | `content_cleanup` | `platform_content.py` | After expired content removal | `"Cleaned up 45 expired items"` |
 | `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete"` |
@@ -63,9 +63,9 @@ Append-only. Written by service role only (no user-facing INSERT).
 Each write point is a single `write_activity()` call from `api/services/activity_log.py`. All calls are wrapped in `try/except pass` — a log failure is never allowed to block the primary operation.
 
 ```
-deliverable_execution.py
+agent_execution.py
   → version delivered
-  → write_activity("deliverable_run", summary="Weekly Digest v3 delivered", ...)
+  → write_activity("agent_run", summary="Weekly Digest v3 delivered", ...)
 
 platform_worker.py
   → sync batch returns successfully
@@ -114,8 +114,8 @@ This block consumes approximately 300 tokens of the 2,000 token working memory b
 | Question | Answer |
 |---|---|
 | Can users write to Activity directly? | No — service role only |
-| Is Activity deleted when a deliverable is deleted? | No — the log is immutable |
-| Does Activity replace `deliverable_versions`? | No — `deliverable_versions` holds the full generated content; Activity holds the summary event |
+| Is Activity deleted when a agent is deleted? | No — the log is immutable |
+| Does Activity replace `agent_runs`? | No — `agent_runs` holds the full generated content; Activity holds the summary event |
 | Does Activity replace `session_messages`? | No — `session_messages` holds the full conversation; Activity holds the lightweight session event |
 | What happens if a write_activity() call fails? | The calling operation continues — the log write is non-fatal by design |
 
@@ -123,7 +123,7 @@ This block consumes approximately 300 tokens of the 2,000 token working memory b
 
 ## Volume expectations
 
-- Deliverable runs: ~1–3/day per user (scheduled digests)
+- Agent runs: ~1–3/day per user (scheduled digests)
 - Platform syncs: ~4–8/day per user (per platform_connections)
 - Memory writes: occasional (user-driven or TP-driven during conversation)
 - Chat turns: ~5–20/day per active user
