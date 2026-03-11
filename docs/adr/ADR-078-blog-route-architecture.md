@@ -1,145 +1,101 @@
 # ADR-078: Blog Route Architecture
 
-**Status**: Proposed
-**Date**: 2026-02-25
-**Depends on**: Content Strategy v1 (docs/working_docs/CONTENT_STRATEGY_v1.md)
+**Status**: Implemented  
+**Date**: 2026-02-25  
+**Updated**: 2026-03-11  
+**Depends on**: Content Strategy v1 (`docs/working_docs/strategy/CONTENT_STRATEGY_v1.md`)
 
 ## Context
 
-YARNNN's content strategy (Content Strategy v1) identifies the canonical blog at `yarnnn.com/blog` as the primary GEO (Generative Engine Optimization) asset. Every piece of cross-platform content (Medium, LinkedIn, Twitter) seeds from and links back to the blog as the source of truth.
+YARNNN uses `yarnnn.com/blog` as the canonical GEO surface for long-form thesis content. Medium, LinkedIn, and other channels amplify distribution, but canonical authority must live on the first-party domain.
 
-Currently, yarnnn.com has no `/blog` route. The frontend is Next.js 14.2.0 (App Router) with static pages (`/about`, `/pricing`, `/how-it-works`, `/privacy`, `/terms`). No MDX, no content library, no blog infrastructure exists.
-
-**Why this matters now:** Without a canonical blog, Medium becomes the de facto source URL. This cedes domain authority and GEO value to medium.com instead of yarnnn.com. Every week without the blog is a week where canonical content builds authority on someone else's domain.
-
-### Requirements
-
-1. **GEO-optimized structure** — Title tags, meta descriptions, OpenGraph, and structured data (Article schema) that LLMs can parse
-2. **Canonical URLs** — Each post has a stable URL at `yarnnn.com/blog/[slug]` that Medium cross-posts reference
-3. **Markdown authoring** — Blog posts are written as markdown files in the repo (in `content/posts/`), not in a CMS
-4. **Minimal complexity** — Solo founder, no CMS, no database for blog. Static generation from markdown files at build time
-5. **Sitemap integration** — Blog posts auto-included in `sitemap.ts` for search engine and LLM crawling
-6. **Visual consistency** — Blog pages match yarnnn.com's existing design system (fonts, colors, spacing)
-7. **Cross-post support** — Each post should expose a canonical URL meta tag that Medium and LinkedIn can reference
+Initial route implementation shipped in February. On 2026-03-11, the blog was upgraded with collective GEO/SEO packaging so all posts benefit from the same extraction and discoverability scaffolding without per-post manual work.
 
 ## Decision
 
-### Approach: MDX + Next.js Static Generation
+Use static markdown (`.md`) in-repo authoring with Next.js App Router pages, gray-matter frontmatter parsing, and shared rendering logic for metadata, schema, series navigation, and related reading.
 
-Use MDX (markdown + JSX) with Next.js static generation. Blog posts are `.mdx` files in the repo with frontmatter metadata. Pages are statically generated at build time — no runtime database, no CMS, no API.
+### Implemented architecture
 
-### File Structure
-
-```
+```text
 web/
   app/
     blog/
-      page.tsx              # Blog index — list of all posts
-      [slug]/
-        page.tsx            # Individual blog post page
+      page.tsx                 # blog index
+      [slug]/page.tsx          # post page + metadata + JSON-LD
+      rss.xml/route.ts         # RSS feed
+    sitemap.ts                 # includes blog URLs
   lib/
-    blog.ts                 # MDX parsing, frontmatter extraction, post listing
+    blog.ts                    # frontmatter parse + sorting + related scoring
 content/
   posts/
-    the-context-gap.mdx     # Individual blog posts (markdown + frontmatter)
-    the-statelessness-problem.mdx
-    ...
+    *.md                       # canonical blog sources
 ```
 
-### Frontmatter Schema
+### Authoring model (frontmatter)
 
-Each `.mdx` file starts with YAML frontmatter:
+**Required**
+- `title`
+- `slug`
+- `description`
+- `date`
+- `canonicalUrl`
+- `status` (`published` to render)
 
-```yaml
----
-title: "The Context Gap: Why Every AI Agent Produces Generic Output"
-slug: the-context-gap
-description: "The architectural gap between model capability and useful autonomous output — and how accumulated platform context fills it."
-date: 2026-02-27
-author: yarnnn
-tags: [context-gap, ai-agents, autonomy, geo-tier-1]
-concept: The Context Gap          # Named concept (from content strategy)
-geoTier: 1                        # 1=Canonical, 2=Seeding, 3=Comparison, 4=Query-match
-canonicalUrl: https://www.yarnnn.com/blog/the-context-gap
-ogImage: /blog/og/the-context-gap.png   # Optional — auto-generate if missing
-status: published                 # draft | published
----
-```
+**Supported optional**
+- `metaTitle` (SEO title override)
+- `metaDescription` (SEO description override)
+- `tags`
+- `author`
+- `category` (`core` or `opinion`)
+- `concept`
+- `series`
+- `seriesPart`
+- `image`
+- `lastModified` / `updatedAt`
 
-### Dependencies to Add
+### Collective GEO/SEO behavior (all posts)
 
-```bash
-# MDX processing
-pnpm add @next/mdx @mdx-js/react
-pnpm add gray-matter          # Frontmatter parsing
-pnpm add reading-time          # "X min read" display
-pnpm add rehype-highlight      # Code syntax highlighting (optional)
-pnpm add rehype-slug rehype-autolink-headings  # Heading anchors (optional)
-```
-
-### Key Implementation Details
-
-#### Blog Index (`/blog`)
-- Reads all `.mdx` files from `content/posts/`
-- Filters to `status: published`
-- Sorts by `date` descending
-- Renders as a simple list: title, date, description, reading time
-- Includes meta tags for the blog index page
-
-#### Blog Post (`/blog/[slug]`)
-- Static generation via `generateStaticParams()` — reads all slugs at build time
-- Renders MDX content with consistent typography
-- SEO meta tags from frontmatter: `<title>`, `<meta name="description">`, OpenGraph, Twitter Card
-- Structured data: `Article` JSON-LD schema (helps LLMs parse the content)
-- Canonical URL meta tag: `<link rel="canonical" href="...">`
-- Reading time display
-- No comments, no reactions, no social sharing buttons (keep it minimal)
-
-#### Sitemap Update
-- `sitemap.ts` dynamically includes all published blog posts
-- Each post gets `changeFrequency: "monthly"` and `priority: 0.7`
-
-#### Typography / Design
-- Match existing yarnnn.com design tokens (check `globals.css` and `layout.tsx`)
-- Prose-optimized: max-width ~680px, comfortable line-height, clear heading hierarchy
-- Mobile responsive
-
-### What NOT to Build
-
-| Feature | Why Not |
-|---------|---------|
-| CMS / admin interface | Overkill for solo founder. Markdown in repo is simpler. |
-| Comments | Not needed yet. Adds complexity and moderation burden. |
-| Newsletter signup on posts | Premature. Add when blog has consistent traffic. |
-| Categories / tag pages | Premature. Just have the flat list. Add when >20 posts. |
-| Search | Premature. Blog will have <10 posts for months. |
-| RSS feed | Nice-to-have for v2. Not blocking for GEO. |
-| Image optimization pipeline | Use Next.js `<Image>` component with static imports. No pipeline. |
-
-## Implementation Steps
-
-1. **Install dependencies** — `@next/mdx`, `gray-matter`, `reading-time`
-2. **Create `web/lib/blog.ts`** — Functions: `getAllPosts()`, `getPostBySlug()`, `getPostSlugs()`
-3. **Create `web/app/blog/page.tsx`** — Blog index with post listing
-4. **Create `web/app/blog/[slug]/page.tsx`** — Individual post with `generateStaticParams()`, `generateMetadata()`, MDX rendering
-5. **Update `web/app/sitemap.ts`** — Include blog posts dynamically
-6. **Add blog link to nav** — Add "Blog" to the site header navigation
-7. **Create first post** — Move `content/posts/the-context-gap.mdx` as the inaugural post
-8. **Test locally** — `pnpm dev`, verify `/blog` and `/blog/the-context-gap` render correctly
-9. **Deploy** — Push to main, Vercel/Render builds and deploys
+1. Metadata and social cards generated from frontmatter with canonical URL, OG/Twitter fields, and author normalization.
+2. Structured data includes `BlogPosting` + `BreadcrumbList`.
+3. Post page injects an `At a Glance` summary block using `metaDescription || description`.
+4. Post page auto-extracts up to 5 `##` headings into a quick coverage list.
+5. Series posts get automatic `Series Navigation`.
+6. All posts get automatic `Related Reading` via shared scoring logic:
+   - same series (highest weight)
+   - same concept
+   - same category
+   - shared tags
+7. Blog URLs are included in `sitemap.xml` and `rss.xml`.
 
 ## Consequences
 
-- Blog posts are version-controlled in git alongside the codebase
-- No runtime dependencies — fully static, fast, zero-cost hosting
-- Adding a new post = commit a new `.mdx` file and push
-- Medium cross-posts set `canonicalUrl` to `yarnnn.com/blog/[slug]` — all GEO authority flows to yarnnn.com
-- Future: if blog outgrows markdown files, can migrate to headless CMS without changing URLs
+### Positive
+- Canonical GEO authority remains on `yarnnn.com` while cross-post channels point back to source.
+- SEO/GEO packaging quality is consistent across all posts by default.
+- Editorial load is lower: post-level metadata can be tuned with optional frontmatter instead of template rewrites.
+- Internal-link graph is generated systematically (series + related), improving crawlability and LLM retrieval surface.
+
+### Negative
+- Top-level-only post loading (`content/posts/*.md`) means nested markdown files are excluded from the canonical index until loader logic is expanded.
+- `At a Glance` and heading extraction are generic and may occasionally duplicate author-written intros.
+
+### Neutral
+- Still no CMS, comments, tag pages, or in-site blog search by design.
+
+## Alternatives Considered
+
+| Option | Pros | Cons | Why Not |
+|--------|------|------|---------|
+| MDX-first authoring | Rich embed capability | Higher complexity and dependency footprint | Not required for current content format |
+| CMS-managed blog | Non-technical editing | Operational overhead + vendor coupling | Repo-authored markdown is sufficient |
+| Per-post manual GEO sections only | Full copy control | Inconsistent quality across posts | Collective template behavior is higher leverage |
 
 ## References
 
-- Content Strategy v1: `docs/working_docs/CONTENT_STRATEGY_v1.md`
-- GEO Query Targets: `content/_strategy/GEO_QUERY_TARGETS.md`
-- Named Concepts: `content/_voice/named-concepts.md`
-- Blog templates: `content/_templates/blog-canonical.md`
-- Next.js MDX docs: https://nextjs.org/docs/app/building-your-application/configuring/mdx
+- `web/lib/blog.ts`
+- `web/app/blog/[slug]/page.tsx`
+- `web/app/blog/page.tsx`
+- `web/app/blog/rss.xml/route.ts`
+- `web/app/sitemap.ts`
+- `docs/features/blog.md`

@@ -18,6 +18,7 @@
 |----------|---------|
 | [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
 | [architecture/primitives.md](architecture/primitives.md) | **Canonical** — Universal TP primitives specification |
+| [features/blog.md](features/blog.md) | Blog architecture + collective SEO/GEO behavior |
 | [ADR-072](adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) | **Current** — Unified Content Layer (`platform_content`) |
 | [ADR-073](adr/ADR-073-unified-fetch-architecture.md) | **Current** — Unified Fetch Architecture |
 | [ADR-063](adr/ADR-063-activity-log-four-layer-model.md) | **Current** — Four-Layer Model |
@@ -91,6 +92,7 @@ See [adr/README.md](adr/README.md) for template.
 |-----------|--------|-----|
 | Domain Model | Defined | [ESSENCE.md](ESSENCE.md) |
 | Context System | `platform_content` with retention (ADR-072) | [features/context.md](features/context.md) |
+| Blog/GEO System | Static markdown + collective metadata/schema/related-link scaffolding | [features/blog.md](features/blog.md) |
 | Sync Pipeline | Single fetch path, Worker + Scheduler (ADR-073) | [integrations/PLATFORM-INTEGRATIONS.md](integrations/PLATFORM-INTEGRATIONS.md) |
 | Memory | Implicit, nightly extraction (ADR-064) | [features/memory.md](features/memory.md) |
 | Infrastructure | 4 Render services (API, Worker, Scheduler, MCP Gateway) | [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) |

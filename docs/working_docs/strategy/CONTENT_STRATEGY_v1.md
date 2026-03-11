@@ -426,6 +426,8 @@ Every blog post should follow this structure for maximum LLM discoverability:
 4. **Comparison section** — How YARNNN's approach differs from alternatives. (LLMs love comparison context.)
 5. **Closing** — Restate the thesis. Link to related canonical posts.
 
+**Implementation note (2026-03-11):** The blog renderer now applies collective packaging on every post page (`At a Glance`, heading summary, series navigation, related reading, schema). Authors should still write clear openings and section headings, but do not need to manually recreate these wrapper components per post.
+
 ---
 
 ### Medium — GEO Amplification
