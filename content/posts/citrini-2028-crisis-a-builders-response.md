@@ -39,9 +39,9 @@ This is the opposite of Citrini's thesis. AI isn't creating a world where worker
 
 I build YARNNN — a platform where AI agents handle recurring knowledge work like weekly digests, meeting prep, research briefs, and competitive analysis. These are exactly the kinds of white-collar tasks Citrini assumes will be automated away.
 
-Here's what's actually happening with users: nobody is firing anyone. People are serving more clients with the same team. They're handling deliverables that weren't economically viable before — the weekly competitor brief that would've taken four hours but never made it to the priority list. The monthly board summary that used to be an all-day Sunday project.
+Here's what's actually happening with users: nobody is firing anyone. People are serving more clients with the same team. They're handling work-agents that weren't economically viable before — the weekly competitor brief that would've taken four hours but never made it to the priority list. The monthly board summary that used to be an all-day Sunday project.
 
-The economic effect isn't displacement. It's expansion. The consultant who uses AI to produce 3x the deliverables doesn't vanish from the economy. They grow their practice. They take on the client they used to turn away. This is the Jevons paradox applied to knowledge work — making intelligence cheaper doesn't reduce demand for it, it increases the surface area of what becomes worth doing.
+The economic effect isn't displacement. It's expansion. The consultant who uses AI to produce 3x the work-agents doesn't vanish from the economy. They grow their practice. They take on the client they used to turn away. This is the Jevons paradox applied to knowledge work — making intelligence cheaper doesn't reduce demand for it, it increases the surface area of what becomes worth doing.
 
 ## What Citrini Accidentally Gets Right
 

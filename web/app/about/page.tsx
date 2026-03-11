@@ -94,7 +94,7 @@ export default function AboutPage() {
                       refined, and approved with clear control points.
                     </p>
                     <p className="text-white/30 text-sm">
-                      In yarnnn, users supervise specialists instead of manually rebuilding the same agents.
+                      In yarnnn, users supervise work-agents instead of manually rebuilding the same outputs.
                     </p>
                   </div>
                 </div>
@@ -143,7 +143,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not just a chat UI</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    TP is an interface into a running system of specialists, not the product itself.
+                    TP Chat is your interface into a running system of work-agents, not the product itself.
                   </p>
                 </div>
                 <div>
@@ -161,7 +161,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not uncontrolled automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    The model is supervised autonomy with versioning, review states, and explicit user control.
+                    The model is supervised autonomy with run history, review states, and explicit user control.
                   </p>
                 </div>
               </div>

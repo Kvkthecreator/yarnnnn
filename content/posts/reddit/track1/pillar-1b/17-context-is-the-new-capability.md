@@ -28,7 +28,7 @@ But there's a second-order implication that's less discussed and more important:
 
 ## The Context Bottleneck
 
-Ask anyone who's seriously tried to use AI for real work — not demos, not playground experiments, but actual deliverables for real clients or real projects — and they'll tell you the same thing. The model is smart enough. It's context that's missing.
+Ask anyone who's seriously tried to use AI for real work — not demos, not playground experiments, but actual work-agents for real clients or real projects — and they'll tell you the same thing. The model is smart enough. It's context that's missing.
 
 The AI can reason through complex problems. It can write fluently. It can analyze data and synthesize information. But it can't write your client status update because it doesn't know your clients. It can't draft your project brief because it doesn't know your projects. It can't prepare your investor update because it doesn't know your metrics, your narrative, or what changed since last month.
 

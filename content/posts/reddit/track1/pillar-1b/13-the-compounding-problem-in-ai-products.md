@@ -48,9 +48,9 @@ Compounding in AI products requires an architecture built around it, not a featu
 
 **Temporal depth.** Compounding requires time as a dimension. The system's understanding at month three should be qualitatively richer than at month one — not just more data, but deeper patterns. The system should recognize recurring rhythms in the user's work (weekly client cycles, monthly reporting cadences, quarterly planning shifts) and incorporate them into its output.
 
-**Measurable improvement.** For compounding to be real and not just a marketing claim, it must be measurable. The edit distance between the system's output and the user's final version should decrease over time. The number of corrections per deliverable should drop. The user's time spent reviewing and revising should shrink. If you can't measure it, it's not compounding.
+**Measurable improvement.** For compounding to be real and not just a marketing claim, it must be measurable. The edit distance between the system's output and the user's final version should decrease over time. The number of corrections per work-agent should drop. The user's time spent reviewing and revising should shrink. If you can't measure it, it's not compounding.
 
-yarnnn is designed around these compounding dynamics. The platform sync engine accumulates context continuously. The Thinking Partner learns from every edit. Working memory deepens over weeks and months. And the improvement is measurable — yarnnn tracks edit distance over time, making the compounding effect visible to the user. The fifth version of a recurring deliverable should require fewer edits than the first, and the system should be able to show that trajectory.
+yarnnn is designed around these compounding dynamics. The platform sync engine accumulates context continuously. The TP Chat learns from every edit. Working memory deepens over weeks and months. And the improvement is measurable — yarnnn tracks edit distance over time, making the compounding effect visible to the user. The fifth run of a recurring work-agent should require fewer edits than the first, and the system should be able to show that trajectory.
 
 ## The Market Implications
 

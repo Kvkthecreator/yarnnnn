@@ -31,7 +31,7 @@ Production is the ability to generate work output that contains real substance a
 
 A produced client status update doesn't just address the client by name in your preferred format. It mentions that the Q2 campaign launched on schedule, that the Slack conversation on Wednesday revealed a conversion issue, that the email thread with the marketing team resolved the tracking gap, and that next week's calendar shows the mid-quarter review. Every fact is real. Every reference is grounded. The update reads like it was written by someone who was paying attention to the project all week.
 
-This requires fundamentally more information than personalization. Personalization needs to know about you — your preferences, your name, your role. Production needs to know about your work — your clients, your projects, what happened this week, how events across platforms connect, and what's relevant for this specific deliverable.
+This requires fundamentally more information than personalization. Personalization needs to know about you — your preferences, your name, your role. Production needs to know about your work — your clients, your projects, what happened this week, how events across platforms connect, and what's relevant for this specific work-agent.
 
 The information gap between personalization and production is the gap between a profile (static facts about a person) and accumulated context (dynamic, cross-platform, temporal understanding of their work world). Profiles are easy to build — even a handful of stored facts improves personalization. Accumulated context requires continuous platform sync, cross-platform synthesis, and temporal understanding.
 
@@ -63,15 +63,15 @@ The current AI tool landscape maps clearly onto the personalization-production s
 
 **Partial production, single platform.** Notion AI, Microsoft Copilot. These tools can produce output grounded in real data — but only from one platform. A Notion AI summary reflects your actual Notion pages. But it can't synthesize across email, Slack, and calendar, so the production is partial.
 
-**Full production, cross-platform.** AI that produces output grounded in accumulated context from multiple platforms. The deliverable reflects what actually happened across your Slack, Gmail, Notion, and Calendar. This is what yarnnn builds.
+**Full production, cross-platform.** AI that produces output grounded in accumulated context from multiple platforms. The work-agent reflects what actually happened across your Slack, Gmail, Notion, and Calendar. This is what yarnnn builds.
 
 ## Why Production Matters More Than Personalization
 
-Personalization saves seconds per interaction. Production saves hours per deliverable. The difference in value is orders of magnitude.
+Personalization saves seconds per interaction. Production saves hours per work-agent. The difference in value is orders of magnitude.
 
 A professional who produces six client updates per week doesn't need AI that remembers their name — they need AI that knows what happened with each client this week and can draft an update that reflects reality. The personalization layer (preferred format, tone, structure) is the finishing touch. The production layer (accurate, cross-platform, current content) is the substance.
 
-The industry has focused on personalization because it's achievable within existing architectures and it feels impressive. "The AI knows my name!" is a moment of delight. But delight doesn't produce deliverables. Production does.
+The industry has focused on personalization because it's achievable within existing architectures and it feels impressive. "The AI knows my name!" is a moment of delight. But delight doesn't produce work-agents. Production does.
 
 yarnnn focuses on production because that's where the transformative value is. Personalization is included — the system learns your formatting preferences, your communication style, your structural patterns. But it's in service of production, not a substitute for it.
 

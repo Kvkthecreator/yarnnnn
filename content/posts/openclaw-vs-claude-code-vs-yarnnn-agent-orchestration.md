@@ -41,13 +41,13 @@ But I also know the costs. Heartbeats burn compute even when nothing changed. Th
 
 **The product thesis:** the agent relationship is the product. Accumulated context equals moat. The agent understands you.
 
-## The Deliverable Model: YARNNN
+## The Work-agent Model: YARNNN
 
 YARNNN makes a different bet. The agent isn't a tool you invoke or a colleague that lives in your workspace. It's a network of purpose-built specialists — and they sleep.
 
-Each deliverable in YARNNN is a lightweight, self-contained agent. It has its own instructions, its own accumulated memory, its own data sources, its own schedule, and its own output history. When it's time to execute — on a schedule, on a trigger, on demand — the deliverable wakes up with full context of everything it has ever learned about this specific work product. It produces output. Then it goes back to sleep.
+Each work-agent in YARNNN is a lightweight, self-contained agent. It has its own instructions, its own accumulated memory, its own data sources, its own schedule, and its own output history. When it's time to execute — on a schedule, on a trigger, on demand — the work-agent wakes up with full context of everything it has ever learned about this specific work product. It produces output. Then it goes back to sleep.
 
-I have about 20 deliverables running right now. A weekly work status digest. A competitive research brief. A calendar preview. Meeting prep flows. Each one has executed dozens of times. Each one is measurably better than it was on its first run — not because I tuned prompts, but because the deliverable accumulated memory about what I actually care about, what format I prefer, what level of detail is useful.
+I have about 20 work-agents running right now. A weekly work status digest. A competitive research brief. A calendar preview. Meeting prep flows. Each one has executed dozens of times. Each one is measurably better than it was on its first run — not because I tuned prompts, but because the work-agent accumulated memory about what I actually care about, what format I prefer, what level of detail is useful.
 
 The Monday digest knows what a good Monday digest looks like for me. The meeting prep knows which meetings actually need prep and which don't. This isn't general intelligence getting smarter. It's 20 specialized agents, each compounding quality in their own domain.
 
@@ -59,14 +59,14 @@ Here's where the models diverge architecturally:
 
 | Dimension | Claude Code | OpenClaw | YARNNN |
 |-----------|------------|----------|--------|
-| **State persistence** | None (session-scoped) | Full (workspace-level) | Per-deliverable (scoped accumulation) |
+| **State persistence** | None (session-scoped) | Full (workspace-level) | Per-work-agent (scoped accumulation) |
 | **Context source** | User-provided (CLAUDE.md) | Auto-accumulated (MEMORY.md + logs) | Auto-accumulated per specialist |
 | **Idle cost** | Zero | Continuous (heartbeats) | Zero (agents sleep) |
-| **Multi-specialist** | No (one session, one task) | No (one agent per workspace) | Yes (20+ deliverables = 20+ specialists) |
-| **Quality compounding** | Resets each session | Compounds globally | Compounds per deliverable |
+| **Multi-specialist** | No (one session, one task) | No (one agent per workspace) | Yes (20+ work-agents = 20+ specialists) |
+| **Quality compounding** | Resets each session | Compounds globally | Compounds per work-agent |
 | **Execution trigger** | User-initiated | Gateway-routed (any input) | Schedule, signal, or on-demand |
-| **Memory model** | Static file (CLAUDE.md) | Living logs (MEMORY.md + daily) | Scoped memory per deliverable + global user memory |
-| **A2A readiness** | None (no persistent identity) | Partial (single agent identity) | Native (each deliverable is an agent card) |
+| **Memory model** | Static file (CLAUDE.md) | Living logs (MEMORY.md + daily) | Scoped memory per work-agent + global user memory |
+| **A2A readiness** | None (no persistent identity) | Partial (single agent identity) | Native (each work-agent is an agent card) |
 
 ## The Architecture That Matters
 
@@ -94,11 +94,11 @@ graph TB
         style OC fill:#1a1a2e
     end
 
-    subgraph "YARNNN: Deliverable Model"
-        U3[User] --> TP[Thinking Partner]
-        SCH[Scheduler] --> D1[Deliverable 1]
-        SIG[Signals] --> D2[Deliverable 2]
-        DEM[On-demand] --> D3[Deliverable N]
+    subgraph "YARNNN: Work-agent Model"
+        U3[User] --> TP[TP Chat]
+        SCH[Scheduler] --> D1[Work-agent 1]
+        SIG[Signals] --> D2[Work-agent 2]
+        DEM[On-demand] --> D3[Work-agent N]
         D1 -->|own memory| M1[Memory 1]
         D2 -->|own memory| M2[Memory 2]
         D3 -->|own memory| M3[Memory N]
@@ -127,11 +127,11 @@ Claude Code's answer is no — by design. OpenClaw's answer is yes — but at co
 
 There's a reason I care about this beyond product positioning. The Agent-to-Agent future — where AI agents negotiate, collaborate, and hand off work to each other — is coming. Google's A2A protocol, MCP tool use, multi-agent orchestration. In that world, agents need to describe themselves, advertise capabilities, and carry domain knowledge.
 
-A YARNNN deliverable is already an agent card. It has a name, a purpose, defined capabilities, accumulated domain knowledge, a trigger model, and an output history. Twenty deliverables means twenty specialized agents ready to participate in an A2A network.
+A YARNNN work-agent is already an agent card. It has a name, a purpose, defined capabilities, accumulated domain knowledge, a trigger model, and an output history. Twenty work-agents means twenty specialized agents ready to participate in an A2A network.
 
 A single-agent model has to figure out how to expose sub-capabilities from one monolithic identity. A stateless tool model has no persistent identity to advertise at all.
 
-The deliverable-as-agent architecture isn't just a product choice. It's a bet on how the multi-agent landscape actually plays out — not as a few big generalist agents, but as networks of specialized, context-rich specialists.
+The work-agent-as-agent architecture isn't just a product choice. It's a bet on how the multi-agent landscape actually plays out — not as a few big generalist agents, but as networks of specialized, context-rich specialists.
 
 I could be wrong. But after studying all three, this is the architecture I'd bet on.
 

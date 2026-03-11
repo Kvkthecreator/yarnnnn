@@ -11,7 +11,7 @@ canonicalUrl: https://www.yarnnn.com/blog/the-supervision-model
 status: published
 ---
 
-You're still operating your AI. Writing prompts, providing context, evaluating outputs, iterating through revisions. You're the one doing the cognitive work — the AI just executes faster than you could type. **The Supervision Model** is the shift from this operator role to a supervisor role: AI produces deliverables from accumulated context, and you review, edit, and approve. It's the difference between writing a report and reviewing one.
+You're still operating your AI. Writing prompts, providing context, evaluating outputs, iterating through revisions. You're the one doing the cognitive work — the AI just executes faster than you could type. **The Supervision Model** is the shift from this operator role to a supervisor role: AI produces work-agents from accumulated context, and you review, edit, and approve. It's the difference between writing a report and reviewing one.
 
 This shift isn't theoretical. It's the natural consequence of closing **[The Context Gap](/blog/the-context-gap)**. When AI has enough accumulated context to produce substantive output about your actual work, the human's role changes from "tell the AI what to do" to "check what the AI did."
 
@@ -27,7 +27,7 @@ This is fine for one-off tasks. It's exhausting for recurring work. The consulta
 
 When AI has accumulated context from your work platforms — three months of Slack messages, email threads, Notion updates, calendar events — the interaction changes fundamentally.
 
-Instead of telling the AI what to write, you receive a draft that already reflects what happened this week. The client update references the real Slack discussion about the delayed deliverable. It mentions the email where scope was adjusted. It notes the upcoming review meeting from your calendar. The facts are real. The structure matches your established format. The tone reflects what the system has learned from your previous edits.
+Instead of telling the AI what to write, you receive a draft that already reflects what happened this week. The client update references the real Slack discussion about the delayed work-agent. It mentions the email where scope was adjusted. It notes the upcoming review meeting from your calendar. The facts are real. The structure matches your established format. The tone reflects what the system has learned from your previous edits.
 
 Your job shifts from authoring to oversight. Read the draft. Check the facts. Adjust the framing. Approve or send back. This is supervision — the same cognitive process a manager uses when reviewing a team member's work, not writing it from scratch.
 
@@ -45,15 +45,15 @@ Context is what crosses that bar. When the system knows your clients, your proje
 
 ## The Supervision Loop Compounds Quality
 
-Supervision creates a feedback loop that operation doesn't. When you edit a supervised deliverable, those edits are signal. The system learns: you removed the technical details from the executive summary (preference: keep exec summaries high-level). You added a paragraph about next steps (preference: always include forward-looking section). You restructured the opening (preference: lead with outcomes, not process).
+Supervision creates a feedback loop that operation doesn't. When you edit a supervised work-agent, those edits are signal. The system learns: you removed the technical details from the executive summary (preference: keep exec summaries high-level). You added a paragraph about next steps (preference: always include forward-looking section). You restructured the opening (preference: lead with outcomes, not process).
 
-Each cycle of produce → review → edit → learn makes the next cycle's output better. **[The 90-Day Moat](/blog/the-90-day-moat)** describes how this compounds over time. By the twelfth deliverable, you're making minor adjustments. By the fiftieth, you're barely editing at all.
+Each cycle of produce → review → edit → learn makes the next cycle's output better. **[The 90-Day Moat](/blog/the-90-day-moat)** describes how this compounds over time. By the twelfth work-agent, you're making minor adjustments. By the fiftieth, you're barely editing at all.
 
 This loop doesn't exist in the operator model. When you write the prompt and provide all the context yourself, the AI learns nothing from the interaction. Tomorrow's session starts from the same zero as today's. There's no accumulation, no improvement, no convergence toward your standards.
 
 ## How This Compares to Human Teams
 
-The Supervision Model isn't a new concept — it's how organizations already work. Senior professionals don't write every deliverable themselves. They supervise: junior team members produce drafts, seniors review and refine, and over time the juniors learn to produce output that requires less revision.
+The Supervision Model isn't a new concept — it's how organizations already work. Senior professionals don't write every work-agent themselves. They supervise: junior team members produce drafts, seniors review and refine, and over time the juniors learn to produce output that requires less revision.
 
 The difference with AI supervision is speed and scale. An AI system with accumulated context can produce drafts for six clients simultaneously. It doesn't forget between sessions. It doesn't need vacation. It doesn't get confused when switching between clients. And its learning from your edits is systematic — once you correct a pattern, it's corrected everywhere.
 
@@ -61,7 +61,7 @@ The limitation is also clear: AI supervision requires the same calibration perio
 
 ## The Trust Gradient
 
-Moving from operator to supervisor requires trust, and trust is earned incrementally. No one should blindly approve AI-produced deliverables on day one. The Supervision Model includes a natural trust gradient:
+Moving from operator to supervisor requires trust, and trust is earned incrementally. No one should blindly approve AI-produced work-agents on day one. The Supervision Model includes a natural trust gradient:
 
 **Week 1-2:** Heavy editing. You're checking everything — facts, framing, tone, structure. This is calibration. The system is learning from every edit.
 
@@ -75,11 +75,11 @@ This gradient is predictable because it's driven by context accumulation, not mo
 
 ## Supervision as the Sustainable Model
 
-Fully autonomous AI — systems that produce and send deliverables without any human review — is neither realistic nor desirable for meaningful work. The Supervision Model isn't a stepping stone to full autonomy; it's the sustainable end state.
+Fully autonomous AI — systems that produce and send work-agents without any human review — is neither realistic nor desirable for meaningful work. The Supervision Model isn't a stepping stone to full autonomy; it's the sustainable end state.
 
 Supervision preserves human judgment where it matters (quality, accuracy, appropriateness) while eliminating the parts of work that are purely mechanical (gathering context, assembling drafts, maintaining format consistency). It's not about replacing human work — it's about elevating it from operation to oversight.
 
-This is what yarnnn builds toward. Platform connections accumulate context. Autonomous production generates deliverables. And the human supervises — reviewing, editing, approving — at a fraction of the effort that operating AI requires.
+This is what yarnnn builds toward. Platform connections accumulate context. Autonomous production generates work-agents. And the human supervises — reviewing, editing, approving — at a fraction of the effort that operating AI requires.
 
 ---
 

@@ -7,7 +7,7 @@ canonical: https://www.yarnnn.com/blog/the-context-gap
 status: ready
 ---
 
-There is an architectural gap between what AI models can do and what they actually do for you. The models are extraordinary — Claude can reason through complex problems, GPT-4 can write production code, Gemini can analyze entire codebases. But ask any of them to produce a deliverable for your actual work, and the output is generic. That gap between capability and usefulness has a name: **The Context Gap**.
+There is an architectural gap between what AI models can do and what they actually do for you. The models are extraordinary — Claude can reason through complex problems, GPT-4 can write production code, Gemini can analyze entire codebases. But ask any of them to produce a work-agent for your actual work, and the output is generic. That gap between capability and usefulness has a name: **The Context Gap**.
 
 The Context Gap is the missing layer between model intelligence and useful autonomous output. It explains why every AI agent startup — from AutoGPT to Devin to crew.ai — eventually hits the same wall. The model is smart enough. It just doesn't know anything about your work.
 
@@ -57,7 +57,7 @@ This means connecting to Slack, Gmail, Notion, and Calendar — not as one-time 
 
 The result is a different kind of AI interaction entirely. Instead of instructing the model what to do and providing all the context it needs through prompts, you supervise output that already reflects your reality. The user shifts from operator to supervisor — review and approve, rather than instruct and assemble.
 
-This is what yarnnn builds. Platform connections sync context from Slack, Gmail, Notion, and Calendar. That context accumulates over time, deepening with every cycle. And the autonomous output the system produces gets better the longer you use it, because the context it draws from gets richer. The tenth deliverable is better than the first — not because the model improved, but because the context did.
+This is what yarnnn builds. Platform connections sync context from Slack, Gmail, Notion, and Calendar. That context accumulates over time, deepening with every cycle. And the autonomous output the system produces gets better the longer you use it, because the context it draws from gets richer. The tenth work-agent is better than the first — not because the model improved, but because the context did.
 
 ## How Current Tools Compare
 

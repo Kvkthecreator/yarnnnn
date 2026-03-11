@@ -38,13 +38,13 @@ But I also know the costs. Heartbeats burn compute even when nothing changed. Th
 
 **The product thesis:** the agent relationship is the product. Accumulated context equals moat.
 
-## The Deliverable Model: YARNNN
+## The Work-agent Model: YARNNN
 
 YARNNN makes a different bet. The agent isn't a tool you invoke or a colleague that lives in your workspace. It's a network of purpose-built specialists — and they sleep.
 
-Each deliverable in YARNNN is a lightweight, self-contained agent. It has its own instructions, its own accumulated memory, its own data sources, its own schedule, and its own output history. When it's time to execute, the deliverable wakes up with full context of everything it has ever learned about this specific work product. It produces output. Then it goes back to sleep.
+Each work-agent in YARNNN is a lightweight, self-contained agent. It has its own instructions, its own accumulated memory, its own data sources, its own schedule, and its own output history. When it's time to execute, the work-agent wakes up with full context of everything it has ever learned about this specific work product. It produces output. Then it goes back to sleep.
 
-I have about 20 deliverables running right now. Each one is measurably better than it was on its first run — not because I tuned prompts, but because the deliverable accumulated memory about what I actually care about.
+I have about 20 work-agents running right now. Each one is measurably better than it was on its first run — not because I tuned prompts, but because the work-agent accumulated memory about what I actually care about.
 
 > The Monday digest knows what a good Monday digest looks like for me. The meeting prep knows which meetings actually need prep. This isn't general intelligence getting smarter. It's 20 specialized agents, each compounding quality in their own domain.
 
@@ -54,12 +54,12 @@ I have about 20 deliverables running right now. Each one is measurably better th
 
 | Dimension | Claude Code | OpenClaw | YARNNN |
 |-----------|------------|----------|--------|
-| State persistence | None (session-scoped) | Full (workspace-level) | Per-deliverable |
+| State persistence | None (session-scoped) | Full (workspace-level) | Per-work-agent |
 | Context source | User-provided (CLAUDE.md) | Auto-accumulated (MEMORY.md) | Auto-accumulated per specialist |
 | Idle cost | Zero | Continuous (heartbeats) | Zero (agents sleep) |
-| Multi-specialist | No | No (one agent per workspace) | Yes (20+ deliverables) |
-| Quality compounding | Resets each session | Compounds globally | Compounds per deliverable |
-| A2A readiness | None | Partial | Native (each deliverable is an agent card) |
+| Multi-specialist | No | No (one agent per workspace) | Yes (20+ work-agents) |
+| Quality compounding | Resets each session | Compounds globally | Compounds per work-agent |
+| A2A readiness | None | Partial | Native (each work-agent is an agent card) |
 
 ## What the Industry Gets Wrong
 

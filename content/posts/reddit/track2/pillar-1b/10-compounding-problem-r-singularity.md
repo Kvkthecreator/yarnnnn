@@ -24,14 +24,14 @@ This is genuinely strange for a product category that's supposed to be intellige
 
 * The system continuously syncs from your work platforms (Slack, email, docs, calendar) and builds understanding over time
 * Every interaction teaches it something — when you edit a draft, it learns the difference between what it produced and what you wanted
-* The 30th version of a recurring deliverable draws on 30 weeks of accumulated understanding
+* The 30th run of a recurring work-agent draws on 30 weeks of accumulated understanding
 * You can actually measure the improvement: edit distance between the AI's drafts and your final versions decreases over time
 
 The tricky part is the cold start. A compounding AI product looks identical to a non-compounding one on day 1. The magic only becomes visible after weeks of use. That's a tough sell in a market that evaluates tools based on first impressions.
 
 But once the compounding kicks in, the dynamics completely change. The user has invested time building the system's understanding. That understanding is irreplaceable — a competitor can match your features, but they can't replicate months of accumulated context for a specific user. You get genuine switching costs based on accumulated value, not lock-in.
 
-I've been building a product (yarnnn) around this thesis — that AI products need to compound with use to create real value. The Thinking Partner syncs from Slack, Gmail, Notion, and Calendar, accumulates context over time, and measurably improves its output as the context deepens. The fifth version of a client update needs fewer edits than the first.
+I've been building a product (yarnnn) around this thesis — that AI products need to compound with use to create real value. The TP Chat syncs from Slack, Gmail, Notion, and Calendar, accumulates context over time, and measurably improves its output as the context deepens. The fifth version of a client update needs fewer edits than the first.
 
 Whether this specific approach works remains to be seen. But the underlying dynamic seems clear: the AI products that figure out genuine compounding will behave very differently in the market than the ones that are equally capable on day 1 and day 1000.
 

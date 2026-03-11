@@ -24,7 +24,7 @@ For anyone managing multiple clients or projects, this tax compounds. Re-explain
 
 **What I think solving this actually requires:** A layer that sits between you and the model — something that connects to your actual work platforms (Slack, email, calendar, docs), syncs continuously, and accumulates understanding over time. Not a one-time upload. Ongoing accumulation.
 
-The difference is immediate and compounding. The first deliverable the system produces with accumulated context is noticeably better than anything a stateless tool generates. By the tenth, the gap is enormous. The fiftieth? You have an AI that understands your work better than a new hire three months in.
+The difference is immediate and compounding. The first work-agent the system produces with accumulated context is noticeably better than anything a stateless tool generates. By the tenth, the gap is enormous. The fiftieth? You have an AI that understands your work better than a new hire three months in.
 
 There's a pattern here: the Statelessness Problem is the root cause of what I've been calling the Context Gap — the distance between what a model could produce with full context and what it actually produces starting from zero. Every improvement to model intelligence compounds less than you'd expect because the model starts from nothing about your specific work each time.
 

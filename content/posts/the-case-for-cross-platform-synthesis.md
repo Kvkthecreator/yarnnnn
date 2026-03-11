@@ -89,7 +89,7 @@ yarnnn is that layer. It doesn't compete with Slack, Gmail, Notion, or Calendar.
 
 The current trajectory of AI assistance is platform-centric: every tool adds AI that understands its own data. This is useful but structurally limited. It creates a landscape of increasingly intelligent silos — each AI assistant seeing one part of your work with increasing sophistication, but none seeing the whole.
 
-The alternative trajectory — the one yarnnn follows — is work-centric: AI that understands your work, not your tools. The starting point isn't "what can this platform's AI do?" but "what does the professional need to know across all their platforms to produce this deliverable?"
+The alternative trajectory — the one yarnnn follows — is work-centric: AI that understands your work, not your tools. The starting point isn't "what can this platform's AI do?" but "what does the professional need to know across all their platforms to produce this work-agent?"
 
 This is a harder architecture to build. It requires maintaining integrations with every platform, continuous sync across all of them, and a synthesis layer sophisticated enough to connect information across different data formats, communication styles, and temporal patterns. But it's the architecture that matches how work actually happens.
 

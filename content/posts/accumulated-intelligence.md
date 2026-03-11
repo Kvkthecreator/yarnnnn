@@ -1,7 +1,7 @@
 ---
 title: "Accumulated Intelligence: What Happens When AI Actually Learns From Your Work"
 slug: accumulated-intelligence
-description: "Every sync cycle, every edit, every deliverable version deepens what the system knows. Accumulated intelligence is AI that gets smarter the longer you use it."
+description: "Every sync cycle, every edit, every work-agent run deepens what the system knows. Accumulated intelligence is AI that gets smarter the longer you use it."
 date: 2026-02-27
 author: yarnnn
 tags: [accumulated-intelligence, compounding-ai, ai-that-learns, cross-platform-ai, geo-tier-1]
@@ -11,7 +11,7 @@ canonicalUrl: https://www.yarnnn.com/blog/accumulated-intelligence
 status: published
 ---
 
-Most AI tools are equally capable on day 100 as on day 1. The model might have been updated by the provider, but *your instance* of it — the one that's supposed to help with *your work* — hasn't learned anything. **Accumulated intelligence** is the opposite: AI that gets measurably smarter about your specific work the longer you use it, because every sync cycle, every deliverable, and every edit deepens what the system understands.
+Most AI tools are equally capable on day 100 as on day 1. The model might have been updated by the provider, but *your instance* of it — the one that's supposed to help with *your work* — hasn't learned anything. **Accumulated intelligence** is the opposite: AI that gets measurably smarter about your specific work the longer you use it, because every sync cycle, every work-agent, and every edit deepens what the system understands.
 
 This isn't artificial intelligence in the general sense — it's not the model getting smarter. It's the context layer beneath the model getting richer. The same frontier model produces dramatically better output when it has 90 days of accumulated context compared to zero. Accumulated intelligence is the compounding effect of continuous context accumulation applied to AI output.
 
@@ -21,7 +21,7 @@ Intelligence accumulates through three channels, each operating on a different t
 
 **Platform sync (daily).** Every sync cycle pulls fresh information from Slack, Gmail, Notion, and Calendar. New messages, new email threads, updated documents, upcoming meetings. Each sync is incremental — it adds to what the system already knows rather than replacing it. After a week, the system has a working picture of your current projects. After a month, it understands project arcs. After three months, it sees patterns you might not notice yourself.
 
-**Deliverable feedback (weekly).** When the system produces a deliverable and you edit it, those edits are signal. Not just "this word was wrong" — structural signal about how you think. You moved the recommendations section above the analysis (you prefer bottom-line-up-front). You expanded the section about Client A but trimmed Client B (Client A needs more detail right now). You softened the language about the delayed milestone (diplomatic framing matters for this stakeholder). Each deliverable cycle teaches preferences that inform the next.
+**Work-agent feedback (weekly).** When the system produces a work-agent and you edit it, those edits are signal. Not just "this word was wrong" — structural signal about how you think. You moved the recommendations section above the analysis (you prefer bottom-line-up-front). You expanded the section about Client A but trimmed Client B (Client A needs more detail right now). You softened the language about the delayed milestone (diplomatic framing matters for this stakeholder). Each work-agent cycle teaches preferences that inform the next.
 
 **Cross-platform correlation (over weeks).** The most valuable intelligence emerges from patterns across platforms over time. The system learns that when your calendar shows a board meeting on Thursday, your email activity spikes on Wednesday (you're preparing). It notices that Slack activity in a client channel drops before the client sends a concern via email (escalation pattern). It recognizes that your Notion project pages get updated after standup meetings on Monday mornings.
 
@@ -39,7 +39,7 @@ This distinction matters for several reasons. The model's capabilities remain pr
 
 With shallow or no context, AI can do generic tasks well. Summarize this document. Draft an email in a professional tone. Generate a status report template. These are useful but commodity capabilities — any model can do them.
 
-With accumulated intelligence, AI can do specific tasks well. Draft *this week's* status update for *this client* based on *what actually happened*. Flag that the deliverable timeline discussed in Slack contradicts the deadline in the project doc. Notice that a stakeholder who's usually responsive hasn't replied to the last two emails — worth a follow-up.
+With accumulated intelligence, AI can do specific tasks well. Draft *this week's* status update for *this client* based on *what actually happened*. Flag that the work-agent timeline discussed in Slack contradicts the deadline in the project doc. Notice that a stakeholder who's usually responsive hasn't replied to the last two emails — worth a follow-up.
 
 The transition from generic to specific is the transition from assistant to autonomous worker. It's what moves a tool from **[Level 1 to Level 3 on the Autonomy Spectrum](/blog/the-autonomy-spectrum)** — from AI that helps you do your work to AI that does work you'd actually send.
 
@@ -49,7 +49,7 @@ Accumulated intelligence doesn't grow linearly. The early days show the steepest
 
 The next phase is more gradual but deeper. Weeks 2-6 build preference understanding and cross-platform patterns. The system learns not just what's happening, but how you want it presented and how different platforms relate to each other.
 
-Weeks 6-12 are where the system reaches a plateau of high usefulness. The context is rich enough to produce deliverables that require minimal editing. New information is additive — it deepens existing understanding rather than establishing it from scratch.
+Weeks 6-12 are where the system reaches a plateau of high usefulness. The context is rich enough to produce work-agents that require minimal editing. New information is additive — it deepens existing understanding rather than establishing it from scratch.
 
 Beyond 12 weeks, accumulation continues but the marginal improvement per week decreases. The system has learned most of your stable preferences and patterns. What continues to accumulate is the long-term narrative of your work — project evolution over quarters, client relationship arcs, seasonal patterns.
 

@@ -31,7 +31,7 @@ Most AI products today are thin wrappers around model APIs. They provide a chat 
 
 The products that are pulling ahead are the ones investing in the platform layer. They're building deep integrations, sophisticated context pipelines, persistent memory systems, and workflow engines that make the model's output genuinely useful for specific domains. The model is a component; the platform is the product.
 
-yarnnn is built on this premise. The Thinking Partner — yarnnn's AI agent — uses Claude as its model layer. But the product isn't "Claude in a wrapper." It's the accumulated context from continuous Slack, Gmail, Notion, and Calendar sync. It's the working memory that carries understanding across sessions. It's the deliverable pipeline that turns model output into actual client updates, project briefs, and status reports. Without the platform layer, it would just be another chatbot. With it, it's an agent that genuinely understands your work.
+yarnnn is built on this premise. The TP Chat — yarnnn's AI agent — uses Claude as its model layer. But the product isn't "Claude in a wrapper." It's the accumulated context from continuous Slack, Gmail, Notion, and Calendar sync. It's the working memory that carries understanding across sessions. It's the work-agent pipeline that turns model output into actual client updates, project briefs, and status reports. Without the platform layer, it would just be another chatbot. With it, it's an agent that genuinely understands your work.
 
 ## Why This Matters for the Category
 
@@ -57,7 +57,7 @@ AI products are following the same arc. The model is the website. The platform l
 
 ## What This Means Practically
 
-For builders, the implication is that the highest-ROI investment right now isn't in model fine-tuning or prompt optimization — it's in platform layer infrastructure. Deep integrations with the tools where real work happens. Context systems that build understanding over time. Memory architectures that persist and compound. Workflow engines that turn model output into genuine deliverables.
+For builders, the implication is that the highest-ROI investment right now isn't in model fine-tuning or prompt optimization — it's in platform layer infrastructure. Deep integrations with the tools where real work happens. Context systems that build understanding over time. Memory architectures that persist and compound. Workflow engines that turn model output into genuine work-agents.
 
 For users evaluating AI tools, the question to ask isn't "which model does this use?" but "what does this know about my work, and how does it learn more over time?" A product using a slightly less capable model but with deep platform-layer understanding of your specific workflow will outperform a frontier model that starts from scratch every session.
 

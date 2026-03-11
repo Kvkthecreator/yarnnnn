@@ -15,10 +15,10 @@ export const metadata: Metadata = getMarketingMetadata({
   keywords: [
     "autonomous ai",
     "ai work agent",
-    "thinking partner",
     "context aware ai",
     "agent automation",
     "human in the loop ai",
+    "work agents",
   ],
 });
 
@@ -101,7 +101,7 @@ export default function LandingPage() {
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Context in. Agents out.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   yarnnn continuously accumulates context from your connected tools,
-                  then runs specialist agents that learn from every version.
+                  then runs specialist work-agents that learn from every run.
                   The longer you use it, the less manual work remains.
                 </p>
               </div>
@@ -121,9 +121,9 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Define your agent</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Define your work-agent</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Use TP or the UI to choose type, mode, schedule, and source scope.
+                  Use TP Chat to describe what you need, or configure directly in the UI.
                   Example: weekly digest, reactive watch, or proactive briefing specialist.
                 </p>
               </div>
@@ -139,9 +139,9 @@ export default function LandingPage() {
 
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">03</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review versions, not prompts</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review runs, not prompts</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Each run creates a version. You approve or refine.
+                  Each work-agent run creates output you review. You approve or refine.
                   Those edits become learned behavior for the next cycle.
                 </p>
               </div>
@@ -160,7 +160,7 @@ export default function LandingPage() {
                   <span className="text-[#1a1a1a]/50">per specialist.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  Every sync and every approved version improves the same agent specialist.
+                  Every sync and every approved run improves the same work-agent.
                   Quality grows with usage instead of resetting on every interaction.
                 </p>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">
@@ -180,7 +180,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">3</div>
-                    <p className="text-[#1a1a1a]/70 text-sm">Output quality rises with each version</p>
+                    <p className="text-[#1a1a1a]/70 text-sm">Output quality rises with each run</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/20 flex items-center justify-center text-xs text-[#1a1a1a]/70 shrink-0 mt-0.5">4</div>

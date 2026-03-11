@@ -10,7 +10,7 @@ I keep seeing the same debate recycled: "AI will replace programmers/consultants
 
 Right now, most people *operate* AI. You write the prompt. You provide the context. You evaluate the output. You iterate until it's usable. The AI assists, but you're doing the cognitive work. The quality ceiling is determined by the quality of your input.
 
-But there's a different operating model emerging: *supervising* AI. The AI produces a deliverable — a report, an analysis, an update — from accumulated context about your work. Your job shifts from creating the output to reviewing it. Not "help me write this" but "write this and I'll tell you what to fix."
+But there's a different operating model emerging: *supervising* AI. The AI produces a work-agent — a report, an analysis, an update — from accumulated context about your work. Your job shifts from creating the output to reviewing it. Not "help me write this" but "write this and I'll tell you what to fix."
 
 The difference sounds subtle but it's structurally enormous. Operating AI means you're doing 80% of the cognitive work and AI handles 20%. Supervising AI inverts it — AI does 80%, you apply judgment, pattern recognition, and client-specific knowledge to refine the 20% it can't get right.
 
@@ -20,9 +20,9 @@ The difference sounds subtle but it's structurally enormous. Operating AI means 
 
 The quality bar for supervision: "Would I accept this as a first draft from a knowledgeable team member?" If yes, you're supervising. If "this needs a complete rewrite," you're still operating.
 
-**The supervision loop compounds quality over time.** When you edit a supervised deliverable, those edits are signal. You removed technical details from the exec summary (preference: keep it high-level). You added a next-steps section (preference: always include forward-looking content). You restructured the opening (preference: lead with outcomes, not process). Each cycle of produce → review → edit → learn makes the next cycle's output better.
+**The supervision loop compounds quality over time.** When you edit a supervised work-agent, those edits are signal. You removed technical details from the exec summary (preference: keep it high-level). You added a next-steps section (preference: always include forward-looking content). You restructured the opening (preference: lead with outcomes, not process). Each cycle of produce → review → edit → learn makes the next cycle's output better.
 
-By the twelfth deliverable, you're making minor adjustments. By the fiftieth, you're barely editing. This loop doesn't exist in the operator model — when you provide all context yourself each session, the AI learns nothing.
+By the twelfth work-agent, you're making minor adjustments. By the fiftieth, you're barely editing. This loop doesn't exist in the operator model — when you provide all context yourself each session, the AI learns nothing.
 
 **The trust gradient is natural and predictable:**
 

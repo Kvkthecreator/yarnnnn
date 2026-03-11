@@ -9,13 +9,13 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "yarnnn turns connected work context into autonomous agents. Define a specialist, connect sources, review versions, and let quality compound over time.",
+    "yarnnn turns connected work context into autonomous work-agents. Define a specialist, connect sources, review runs, and let quality compound over time.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
     "autonomous ai workflow",
     "agent automation",
-    "thinking partner",
+    "work agents",
     "context powered agent",
   ],
 });
@@ -38,7 +38,7 @@ export default function HowItWorksPage() {
       },
       {
         "@type": "HowToStep",
-        name: "Review versioned output and approve",
+        name: "Review run output and approve",
       },
       {
         "@type": "HowToStep",
@@ -64,8 +64,8 @@ export default function HowItWorksPage() {
               <span className="text-white/50">Supervise from there.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn combines an interactive agent with background specialists.
-              You define intent and constraints, yarnnn executes and learns through versioned runs.
+              yarnnn combines TP Chat — your single interactive surface — with background work-agents.
+              You define intent and constraints, work-agents execute and learn through supervised runs.
             </p>
           </section>
 
@@ -73,7 +73,7 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Define work in plain language</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Use TP to define what you need, or use the agent UI directly.
+                Use TP Chat to describe what you need, or configure work-agents directly in the UI.
                 You choose type, mode, sources, and constraints. yarnnn handles orchestration.
               </p>
 
@@ -108,7 +108,7 @@ export default function HowItWorksPage() {
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-3">
-                        Done. First version will be ready on the next run.
+                        Done. First run will be ready on schedule.
                       </p>
                       <div className="mt-3 pt-3 border-t border-white/10">
                         <p className="text-white/40 text-xs">Agent configured successfully.</p>
@@ -147,9 +147,9 @@ export default function HowItWorksPage() {
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Versions = supervision loop</div>
+                  <div className="text-lg font-medium mb-3">Runs = supervision loop</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Each run creates immutable output. You approve or refine. Feedback informs future generation.
+                    Each run creates output you can review. You approve or refine. Feedback informs future generation.
                   </p>
                 </div>
 
@@ -196,9 +196,9 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">03</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Run and review versions</h3>
+                    <h3 className="text-xl font-medium mb-3">Review and refine</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Agents execute in background mode and generate versions.
+                      Work-agents execute in the background and produce runs.
                       You review, edit, approve, and maintain supervision control.
                     </p>
                   </div>

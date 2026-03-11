@@ -24,7 +24,7 @@ Platform-native AI features are improving rapidly, and they should. Slack AI tha
 
 But each of these operates within a silo. Slack AI knows your Slack. Gmail AI knows your email. Notion AI knows your docs. None of them can see what the others see.
 
-This creates a ceiling on how useful any single-platform AI can be for complex knowledge work. Consider writing a weekly status update for a consulting client. The relevant context includes Slack messages from the project channel, an email thread where the client revised priorities, meeting notes from Wednesday's check-in, and a shared Notion page tracking deliverable status. No single-platform AI has access to all of this. Even if each platform's AI is world-class within its domain, the synthesis — the part that actually requires understanding the full picture — is left entirely to the human.
+This creates a ceiling on how useful any single-platform AI can be for complex knowledge work. Consider writing a weekly status update for a consulting client. The relevant context includes Slack messages from the project channel, an email thread where the client revised priorities, meeting notes from Wednesday's check-in, and a shared Notion page tracking work-agent status. No single-platform AI has access to all of this. Even if each platform's AI is world-class within its domain, the synthesis — the part that actually requires understanding the full picture — is left entirely to the human.
 
 This is where most AI productivity gains stall. The AI handles fragments well. The synthesis is still manual.
 
@@ -44,13 +44,13 @@ These challenges are solvable, but they require treating cross-platform synthesi
 
 When you can see across platforms simultaneously, certain capabilities emerge that are qualitatively different from what single-platform AI can do.
 
-**Pattern detection across communication channels.** A client who stops responding in Slack but sends a long email might be escalating. A team member who misses calendar events but is active in Notion might be heads-down on a deliverable. These patterns are invisible within any single platform — they only emerge at the intersection.
+**Pattern detection across communication channels.** A client who stops responding in Slack but sends a long email might be escalating. A team member who misses calendar events but is active in Notion might be heads-down on a work-agent. These patterns are invisible within any single platform — they only emerge at the intersection.
 
 **Temporal reconstruction.** Real work unfolds over time across platforms. Monday's Slack conversation set expectations. Wednesday's email revised them. Thursday's meeting confirmed the new direction. Friday's Notion update reflected the change. Understanding this timeline — and what it means for a status update or a decision brief — requires seeing the temporal progression across platforms, not just the current state within one.
 
-**Completeness verification.** When producing a deliverable, one of the most common failure modes is missing context. With single-platform AI, you can only check completeness within that platform. With cross-platform synthesis, the system can verify that the deliverable reflects information from all relevant sources — the Slack thread and the email thread and the meeting notes and the doc updates.
+**Completeness verification.** When producing a work-agent, one of the most common failure modes is missing context. With single-platform AI, you can only check completeness within that platform. With cross-platform synthesis, the system can verify that the work-agent reflects information from all relevant sources — the Slack thread and the email thread and the meeting notes and the doc updates.
 
-yarnnn's architecture is built around this synthesis challenge. The platform sync engine continuously accumulates context from Slack, Gmail, Notion, and Calendar — not as four separate data stores, but as a unified context layer where signals from different platforms can be connected, cross-referenced, and synthesized. When the Thinking Partner produces a deliverable, it draws on context that spans platforms — because that's how work actually works.
+yarnnn's architecture is built around this synthesis challenge. The platform sync engine continuously accumulates context from Slack, Gmail, Notion, and Calendar — not as four separate data stores, but as a unified context layer where signals from different platforms can be connected, cross-referenced, and synthesized. When the TP Chat produces a work-agent, it draws on context that spans platforms — because that's how work actually works.
 
 ## The Emerging Category Dynamic
 

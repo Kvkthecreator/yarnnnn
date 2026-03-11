@@ -3,12 +3,12 @@
  *
  * Tab types for IDE-like experience:
  * - Chat tab is always present (home)
- * - Output tabs open when viewing agents, versions, etc.
+ * - Output tabs open when viewing agents, runs, etc.
  * - Each tab type has its own full-page view
  */
 
 // Tab types - each represents a different "file type" or view
-export type TabType = 'chat' | 'agent' | 'version' | 'document';
+export type TabType = 'chat' | 'agent' | 'run' | 'document';
 
 // Unified tab interface
 export interface Tab {
@@ -43,7 +43,7 @@ export function createChatTab(): Tab {
   return {
     id: 'chat',
     type: 'chat',
-    title: 'Agent',
+    title: 'Chat',
     isClosable: false,
   };
 }
@@ -58,14 +58,14 @@ export function createAgentTab(id: string, title: string): Tab {
   };
 }
 
-export function createVersionTab(
+export function createRunTab(
   agentId: string,
   runId: string,
   title: string
 ): Tab {
   return {
-    id: `version-${runId}`,
-    type: 'version',
+    id: `run-${runId}`,
+    type: 'run',
     title,
     resourceId: runId,
     data: { agentId, runId },

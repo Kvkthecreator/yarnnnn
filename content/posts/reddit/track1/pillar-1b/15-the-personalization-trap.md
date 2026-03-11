@@ -20,7 +20,7 @@ The distinction matters more than it might seem.
 
 Personalization means the AI adapts its behavior to you. It remembers your preferences, adjusts its tone, references things you've told it before. The output is still fundamentally a response to your prompt — but it's a more tailored response.
 
-Production means the AI produces work on your behalf. Not a customized response to a question, but an actual deliverable — a client status report, a project brief, an investor update — that reflects genuine understanding of your work context and can be used with minimal editing.
+Production means the AI produces work on your behalf. Not a customized response to a question, but an actual work-agent — a client status report, a project brief, an investor update — that reflects genuine understanding of your work context and can be used with minimal editing.
 
 These are qualitatively different capabilities. Personalization requires storing facts about the user. Production requires understanding the user's work world — their clients, projects, deadlines, communication patterns, stakeholder relationships, and the dynamic, evolving context of what's happening right now.
 
@@ -34,7 +34,7 @@ The conflation happens because personalization is easier to build and easier to 
 
 Storing "user prefers bullet points" or "user works in marketing" or "user's client is called Acme Corp" is a straightforward engineering problem. You need a memory store, some extraction logic, and injection into the system prompt. Every major AI company can ship this in a quarter.
 
-Building a system that genuinely understands a user's work context well enough to produce autonomous deliverables is a much harder problem. It requires deep platform integrations, continuous sync infrastructure, context accumulation over time, and an AI architecture that can synthesize across multiple information sources to produce real work output. This is a multi-year architectural commitment.
+Building a system that genuinely understands a user's work context well enough to produce autonomous work-agents is a much harder problem. It requires deep platform integrations, continuous sync infrastructure, context accumulation over time, and an AI architecture that can synthesize across multiple information sources to produce real work output. This is a multi-year architectural commitment.
 
 So the industry ships personalization, calls it the solution to generic output, and moves on. The problem is that personalization doesn't actually solve the generic output problem — it just makes the generic output slightly more comfortable to receive.
 
@@ -42,7 +42,7 @@ A status report that's generic but uses your formatting preferences is still gen
 
 ## The Ladder Nobody's Climbing
 
-Think of AI work capability as a ladder. At the bottom: generic responses to prompts. One rung up: personalized responses that reflect user preferences. Above that: contextual responses informed by real work data. At the top: autonomous production of work deliverables that reflect deep, accumulated understanding.
+Think of AI work capability as a ladder. At the bottom: generic responses to prompts. One rung up: personalized responses that reflect user preferences. Above that: contextual responses informed by real work data. At the top: autonomous production of work work-agents that reflect deep, accumulated understanding.
 
 Most AI products are stuck on the second rung, congratulating themselves for climbing past the first. The industry conversation about "personalization" and "memory" suggests that rung two is the destination. It's not. It's barely the beginning.
 
@@ -50,7 +50,7 @@ The jump from rung two to rung three — from personalized responses to contextu
 
 The jump from rung three to rung four — from contextual responses to autonomous production — requires accumulated context that deepens over time, a supervision model that builds trust, and a delivery pipeline that turns AI output into usable work products. This is where AI stops being an assistant and starts being an agent that works for you.
 
-yarnnn is building toward rung four. The Thinking Partner doesn't personalize responses — it produces deliverables. The platform sync engine doesn't store facts about the user — it accumulates understanding of the user's work context. The supervision model doesn't assume trust — it earns it through measurable improvement over time. The goal isn't a more personalized chatbot; it's an AI that can do real work.
+yarnnn is building toward rung four. The TP Chat doesn't personalize responses — it produces work-agents. The platform sync engine doesn't store facts about the user — it accumulates understanding of the user's work context. The supervision model doesn't assume trust — it earns it through measurable improvement over time. The goal isn't a more personalized chatbot; it's an AI that can do real work.
 
 ## Why This Distinction Matters for Users
 
@@ -58,9 +58,9 @@ If you're evaluating AI tools for your work, the personalization vs. production 
 
 A personalized AI saves you the minor friction of re-stating preferences. Useful, but marginal. You still do all the work; the AI just responds more comfortably.
 
-A production-capable AI saves you the actual work. Not by making your workflow smoother, but by producing the deliverable itself — drawing on real context from your actual platforms, improving with each cycle, and eventually producing output that requires minimal review.
+A production-capable AI saves you the actual work. Not by making your workflow smoother, but by producing the work-agent itself — drawing on real context from your actual platforms, improving with each cycle, and eventually producing output that requires minimal review.
 
-The time calculus is completely different. Personalization might save you five minutes per interaction. Production saves you hours per week — the hours currently spent assembling context from scattered platforms and turning it into deliverables.
+The time calculus is completely different. Personalization might save you five minutes per interaction. Production saves you hours per week — the hours currently spent assembling context from scattered platforms and turning it into work-agents.
 
 ## The Trap
 

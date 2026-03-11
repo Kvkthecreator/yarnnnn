@@ -13,7 +13,7 @@ status: published
 
 Every AI tool you use today has the same interaction model: session starts, you interact, session ends, context disappears. Tomorrow, a fresh session. The same model, the same capabilities, zero accumulated understanding. This is the reset model — and it's so universal that most people don't realize there's an alternative.
 
-yarnnn is built on a different principle: context should compound. Every sync cycle adds to what the system knows. Every deliverable it produces and you edit teaches it something new. Every week of usage makes the next week's output better. Context isn't consumed and discarded — it accumulates, deepens, and compounds into something more valuable than any single session could produce.
+yarnnn is built on a different principle: context should compound. Every sync cycle adds to what the system knows. Every work-agent it produces and you edit teaches it something new. Every week of usage makes the next week's output better. Context isn't consumed and discarded — it accumulates, deepens, and compounds into something more valuable than any single session could produce.
 
 ## The Reset Model and Its Hidden Cost
 

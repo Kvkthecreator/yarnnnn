@@ -19,7 +19,7 @@ yarnnn takes a different position. We build for supervision — not as a tempora
 
 The appeal of full autonomy is obvious. If AI could produce your client reports, send them, handle follow-ups, and manage the entire workflow without you touching it — that's the ultimate time savings. No review step. No approval gate. Just output, delivered.
 
-But consider what full autonomy requires. The system must not only produce correct output — it must produce output that is appropriate for the specific context, relationship, and stakes of every deliverable. It must understand not just what happened this week, but how to frame it for this particular stakeholder. It must get the tone right, the emphasis right, the omissions right. It must know when a draft needs your voice and when a template suffices.
+But consider what full autonomy requires. The system must not only produce correct output — it must produce output that is appropriate for the specific context, relationship, and stakes of every work-agent. It must understand not just what happened this week, but how to frame it for this particular stakeholder. It must get the tone right, the emphasis right, the omissions right. It must know when a draft needs your voice and when a template suffices.
 
 These are judgment calls. They're the kind of decisions that experienced professionals make based on relationship knowledge, political awareness, and situational sensitivity that goes beyond what any context layer can capture. A system that gets these wrong doesn't just produce a bad draft — it sends a bad draft directly to your client, your board, or your manager.
 
@@ -29,7 +29,7 @@ The cost of a wrong autonomous action is categorically different from the cost o
 
 Supervision isn't "the AI does most of the work and you double-check." It's a specific interaction pattern where the roles are clearly defined:
 
-**The AI produces.** Given accumulated context from your work platforms, the system generates deliverables — reports, updates, analyses, summaries. The output is substantive and grounded in real information, not generic templates filled with fabricated details.
+**The AI produces.** Given accumulated context from your work platforms, the system generates work-agents — reports, updates, analyses, summaries. The output is substantive and grounded in real information, not generic templates filled with fabricated details.
 
 **The human reviews.** You read the output. You check whether the facts are accurate, the framing is appropriate, the emphasis is right. You make adjustments — sometimes significant in the early days, increasingly minor as the system learns your preferences.
 
@@ -73,7 +73,7 @@ Supervision isn't binary. yarnnn's architecture supports a spectrum of oversight
 
 **Established trust (weeks 6-12): Light approval.** Output reads like something the human would write. Review is quick — a scan for anything unusual, minor adjustments, approval. The human's role is genuinely supervisory, not editorial.
 
-**Mature relationship (12+ weeks): Exception-based review.** The human trusts the system's output for routine deliverables. Review focuses on flagged items, unusual situations, or high-stakes deliverables that warrant closer attention. Routine output flows with minimal friction.
+**Mature relationship (12+ weeks): Exception-based review.** The human trusts the system's output for routine work-agents. Review focuses on flagged items, unusual situations, or high-stakes work-agents that warrant closer attention. Routine output flows with minimal friction.
 
 This spectrum is a natural consequence of accumulated context and preference learning. It can't be rushed — trust must be earned through demonstrated quality. But it also can't be skipped — jumping to full autonomy on day one means skipping the calibration that makes output good.
 

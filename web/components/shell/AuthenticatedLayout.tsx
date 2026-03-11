@@ -16,7 +16,7 @@
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
  * - Activity (/activity): What YARNNN has done (audit trail)
  * - Context (/context): What's in your platforms (Platforms, Documents)
- * - Work (/agents): What YARNNN produces (recurring outputs)
+ * - Work-Agents (/agents): What YARNNN produces (recurring outputs)
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -114,7 +114,7 @@ interface RouteItem {
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
 // Primary workspace: Agent + Work (creation flows through TP chat)
 // Supporting pages: Memory, Context, Activity, System, Settings
-const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work', icon: Briefcase, path: '/agents' };
+const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Briefcase, path: '/agents' };
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },

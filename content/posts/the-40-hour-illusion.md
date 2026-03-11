@@ -39,7 +39,7 @@ When an AI can produce a first draft in seconds, the person who writes ten repor
 
 Which draft should we ship? Which analysis actually matters to the decision we're making? Which of these twelve options is the one that accounts for context the AI doesn't have? Software engineers are already living this. Many now report that AI generates the majority of their code, and their role has shifted to what one analyst called a "meta function" — debugging, scrutinizing, architecting, deciding what to build and why. The code is the easy part. The thinking is the job.
 
-This means performance metrics need a fundamental update. Not a tweak — a rethink. We need to measure the quality of decisions, not the volume of deliverables. The ability to direct AI effectively. Editorial instinct. The capacity to know when the machine's output is subtly wrong in ways that only domain expertise can catch.
+This means performance metrics need a fundamental update. Not a tweak — a rethink. We need to measure the quality of decisions, not the volume of work-agents. The ability to direct AI effectively. Editorial instinct. The capacity to know when the machine's output is subtly wrong in ways that only domain expertise can catch.
 
 Some companies are starting to figure this out. But most are still counting keystrokes while the building moves around them.
 

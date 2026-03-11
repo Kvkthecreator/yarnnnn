@@ -17,7 +17,7 @@ status: published
 
 *This is Part 3 of "The AI Workplace Thesis" — a five-part series examining how AI restructures the workplace. [Part 1](/blog/the-40-hour-illusion) dismantled the time structure. [Part 2](/blog/ai-workplace-thesis-the-work-life-blur) reimagined the employee contract. This part asks: if output volume is no longer the metric, what is?*
 
-Every performance review system in every company in the world is built on a silent assumption: that human output is roughly proportional to human effort. More hours, more deliverables, more tickets closed, more lines of code — more value created.
+Every performance review system in every company in the world is built on a silent assumption: that human output is roughly proportional to human effort. More hours, more work-agents, more tickets closed, more lines of code — more value created.
 
 AI breaks this assumption so thoroughly that most organizations haven't even begun to process the implications.
 
@@ -29,7 +29,7 @@ This is the volume trap. AI makes production cheap, which means production quant
 
 Betterworks' 2026 performance report found that companies with aggressive AI adoption but weak governance are actually seeing productivity *decrease* — not because the AI isn't working, but because humans aren't filtering its output carefully enough. The bottleneck has moved. It used to be production speed. Now it's judgment quality.
 
-This isn't a new problem dressed in new clothes. It's a genuinely new problem. Factory-era metrics measured widgets per hour. Knowledge-economy metrics measured deliverables per week. Both assumed that more output meant more value. In the AI era, that correlation breaks down completely. A product manager who ships one well-scoped feature that moves a key metric is infinitely more valuable than one who ships five features nobody uses — and AI makes it easier than ever to ship five features nobody uses.
+This isn't a new problem dressed in new clothes. It's a genuinely new problem. Factory-era metrics measured widgets per hour. Knowledge-economy metrics measured work-agents per week. Both assumed that more output meant more value. In the AI era, that correlation breaks down completely. A product manager who ships one well-scoped feature that moves a key metric is infinitely more valuable than one who ships five features nobody uses — and AI makes it easier than ever to ship five features nobody uses.
 
 ## The Judgment Economy
 

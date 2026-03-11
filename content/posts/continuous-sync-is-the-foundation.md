@@ -27,7 +27,7 @@ The limitation is latency and scope. Real-time API calls take time. The system c
 
 **Continuous sync.** The system maintains live connections to Slack, Gmail, Notion, and Calendar, syncing on a regular cadence. Every cycle captures new messages, new emails, document updates, calendar changes. The context accumulates between your interactions with the system, not just during them.
 
-This is yarnnn's approach. The system doesn't wait for you to ask — it's already up to date. When you need a deliverable, the context is there. When something changes in your work world, the system knows about it before you mention it.
+This is yarnnn's approach. The system doesn't wait for you to ask — it's already up to date. When you need a work-agent, the context is there. When something changes in your work world, the system knows about it before you mention it.
 
 ## Why Continuous Changes Everything
 
@@ -57,7 +57,7 @@ Continuous sync is harder to build than batch import or on-demand retrieval. yar
 
 In yarnnn's architecture, the sync cycle is the system's heartbeat. Each cycle pulls fresh information from every connected platform, integrates it into the accumulated context, and makes the updated picture available for output production.
 
-This heartbeat means the system's understanding of your work is always approximately current. Not real-time — there's a sync interval — but fresh enough that when you need a deliverable, the context reflects what happened today, not what happened at import time.
+This heartbeat means the system's understanding of your work is always approximately current. Not real-time — there's a sync interval — but fresh enough that when you need a work-agent, the context reflects what happened today, not what happened at import time.
 
 The heartbeat also means the system learns about your work whether or not you interact with it. You don't need to "use" yarnnn for it to stay current. Your Slack conversations, your email threads, your Notion updates, your calendar — the system sees all of it, continuously, building context in the background.
 
@@ -67,13 +67,13 @@ This is a fundamentally different relationship with an AI tool. Most AI tools ar
 
 Continuous sync is a foundation, not a feature, because everything yarnnn does depends on it:
 
-**Autonomous deliverables** are possible because the system already has the context to produce them. It doesn't need to retrieve information at production time — the context is already accumulated and current.
+**Autonomous work-agents** are possible because the system already has the context to produce them. It doesn't need to retrieve information at production time — the context is already accumulated and current.
 
 **Cross-platform synthesis** works because information from all platforms arrives continuously and lives in the same context layer. The system doesn't need to be told to check Slack and email and calendar — it's already seen all three.
 
 **Quality improvement over time** happens because each sync cycle adds to the accumulated understanding. The system after 90 days has 90 days of continuous context, not 90 repetitions of on-demand retrieval.
 
-**The supervision model** works because the output is grounded in current reality. When you review a deliverable, the facts are real — they came from your actual platforms, synced continuously. Review is genuine oversight, not fact-checking fabrications.
+**The supervision model** works because the output is grounded in current reality. When you review a work-agent, the facts are real — they came from your actual platforms, synced continuously. Review is genuine oversight, not fact-checking fabrications.
 
 Every architectural choice yarnnn has made — accumulation over retrieval, supervision over full autonomy, cross-platform synthesis over single-tool intelligence — depends on continuous sync as the enabling foundation. Without it, none of the rest works. With it, everything else becomes possible.
 

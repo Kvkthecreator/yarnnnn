@@ -16,13 +16,13 @@ But heartbeats burn compute when nothing changed. One agent per workspace. Twent
 
 Product thesis: the agent relationship is the product. The agent understands you.
 
-## The Deliverable Model: YARNNN
+## The Work-agent Model: YARNNN
 
 The agent is a network of purpose-built specialists — and they sleep.
 
-Each deliverable has its own instructions, memory, data sources, schedule, and output history. When triggered, it wakes with full context of everything it's learned about this specific work product. Produces output. Goes back to sleep.
+Each work-agent has its own instructions, memory, data sources, schedule, and output history. When triggered, it wakes with full context of everything it's learned about this specific work product. Produces output. Goes back to sleep.
 
-I have ~20 deliverables running. Each one is measurably better than its first run — not because I tuned prompts, but because the deliverable accumulated memory about what I actually care about.
+I have ~20 work-agents running. Each one is measurably better than its first run — not because I tuned prompts, but because the work-agent accumulated memory about what I actually care about.
 
 Product thesis: accumulated, specialized context is the product. Quality compounds per work product, not per session.
 
@@ -32,9 +32,9 @@ The model that wins isn't the smartest or most autonomous. It's the one that kno
 
 Claude Code's answer: no — by design. OpenClaw's answer: yes — at continuous cost. YARNNN's answer: yes — per specialist, at zero idle cost.
 
-In the Agent-to-Agent future (Google A2A, MCP), agents need persistent identity and domain knowledge. Each YARNNN deliverable is already an agent card. Twenty deliverables = twenty A2A-ready specialists.
+In the Agent-to-Agent future (Google A2A, MCP), agents need persistent identity and domain knowledge. Each YARNNN work-agent is already an agent card. Twenty work-agents = twenty A2A-ready specialists.
 
-The deliverable-as-agent architecture isn't just a product choice. It's a bet on how the multi-agent landscape plays out — not as a few big generalists, but as networks of specialized, context-rich specialists.
+The work-agent-as-agent architecture isn't just a product choice. It's a bet on how the multi-agent landscape plays out — not as a few big generalists, but as networks of specialized, context-rich specialists.
 
 ---
 

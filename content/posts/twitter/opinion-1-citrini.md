@@ -28,7 +28,7 @@ Not from displacement. From doing more.
 **Tweet 4 (Jevons paradox)**
 I build @yabornyarnnn — AI agents for recurring knowledge work. The exact tasks Citrini says get automated away.
 
-What's actually happening: nobody's firing anyone. People serve more clients. Handle deliverables that weren't economically viable before.
+What's actually happening: nobody's firing anyone. People serve more clients. Handle work-agents that weren't economically viable before.
 
 Making intelligence cheaper doesn't reduce demand. It expands what's worth doing.
 

@@ -14,7 +14,7 @@ There are essentially three levels of AI autonomy:
 
 **Level 2: AI that operates.** AutoGPT, crew.ai, LangChain agents, Devin. AI that can execute multi-step tasks without human intervention at each step. Give it a goal, it decomposes into sub-tasks and executes. Real architectural leap. The agent can browse the web, write and execute code, call APIs. The human provides the goal; the agent handles execution.
 
-**Level 3: AI that works for you.** Autonomy meets accumulated context. The AI produces deliverables reflecting accumulated understanding of your specific work. You don't instruct step by step. You don't provide context through prompts. You supervise output that already reflects your work world.
+**Level 3: AI that works for you.** Autonomy meets accumulated context. The AI produces work-agents reflecting accumulated understanding of your specific work. You don't instruct step by step. You don't provide context through prompts. You supervise output that already reflects your work world.
 
 **Why Level 2 keeps disappointing:** The excitement around Level 2 agents was justified — autonomous task execution is a meaningful capability. But the results consistently disappoint for real work because Level 2 solves the wrong bottleneck.
 
@@ -26,7 +26,7 @@ AutoGPT demonstrated this clearly. It could chain tasks together, but every chai
 
 First, accumulated context — the system continuously syncs from platforms where work happens (Slack, email, docs, calendar) and builds deepening understanding over time. Not retrieval-augmented generation, which is session-scoped and keyword-matched. Accumulation.
 
-Second, autonomous production — the system produces deliverables without being prompted for each one. It knows what you owe, when it's due, and what information is relevant because it's been watching your work evolve.
+Second, autonomous production — the system produces work-agents without being prompted for each one. It knows what you owe, when it's due, and what information is relevant because it's been watching your work evolve.
 
 Third, improving quality — each cycle of production and review makes the next cycle better. Your edits teach the system your preferences. The context grows richer. The output converges on what you'd write yourself. By week 12, you're making minor adjustments rather than rewriting.
 

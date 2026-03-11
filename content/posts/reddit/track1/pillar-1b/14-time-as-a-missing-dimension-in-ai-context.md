@@ -20,7 +20,7 @@ Most context systems work with what you might call snapshots. They assemble a pi
 
 Snapshots are useful. They capture what's relevant at a moment in time. But they miss the story — the temporal arc that gives individual data points their meaning.
 
-Consider a simple example. A Slack message that says "the client is happy with the direction" means something very different depending on when it was sent. If it was sent yesterday, it's current and actionable. If it was sent three weeks ago, before a major deliverable change, it might be outdated. If it was sent right after a tense meeting that almost went sideways, it's a relief signal. The content of the message is identical in all three cases. The meaning changes entirely based on temporal context.
+Consider a simple example. A Slack message that says "the client is happy with the direction" means something very different depending on when it was sent. If it was sent yesterday, it's current and actionable. If it was sent three weeks ago, before a major work-agent change, it might be outdated. If it was sent right after a tense meeting that almost went sideways, it's a relief signal. The content of the message is identical in all three cases. The meaning changes entirely based on temporal context.
 
 Current AI products mostly treat this message the same way regardless of when it appeared in the stream. They might prioritize it by recency — more recent messages rank higher in context — but that's a crude heuristic, not genuine temporal understanding.
 
@@ -48,7 +48,7 @@ For AI agents that produce autonomous work output — status reports, project br
 
 The difference between the two is the difference between an AI that compiles information and one that understands work.
 
-yarnnn's approach to this is to treat temporal context as a first-class dimension, not an afterthought. The platform sync engine doesn't just accumulate content — it preserves temporal relationships. When the Thinking Partner produces a deliverable, it has access not just to what was said across platforms, but to the temporal story of how things unfolded. This enables outputs that reflect the actual narrative arc of the user's work week, not just a static summary of extracted facts.
+yarnnn's approach to this is to treat temporal context as a first-class dimension, not an afterthought. The platform sync engine doesn't just accumulate content — it preserves temporal relationships. When the TP Chat produces a work-agent, it has access not just to what was said across platforms, but to the temporal story of how things unfolded. This enables outputs that reflect the actual narrative arc of the user's work week, not just a static summary of extracted facts.
 
 ## The Design Challenge
 

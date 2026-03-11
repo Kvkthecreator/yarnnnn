@@ -34,7 +34,7 @@ I've started calling this "context-powered autonomy" — the principle that mean
 
 **The architecture that makes it work has five layers:**
 
-Platform connections that sync continuously from Slack, Gmail, Notion, Calendar — not one-time imports but ongoing accumulation. Context accumulation that organizes raw data into deepening understanding — messages connected to projects, emails linked to client relationships, calendar events providing temporal structure. Working memory that constructs focused context for each specific task — more sophisticated than RAG because it draws on temporal patterns and cross-platform correlation, not just keyword matching. Autonomous production where the model generates deliverables grounded in accumulated understanding. And preference learning where user edits feed back into the system — each edit refining structure, tone, and focus for next time.
+Platform connections that sync continuously from Slack, Gmail, Notion, Calendar — not one-time imports but ongoing accumulation. Context accumulation that organizes raw data into deepening understanding — messages connected to projects, emails linked to client relationships, calendar events providing temporal structure. Working memory that constructs focused context for each specific task — more sophisticated than RAG because it draws on temporal patterns and cross-platform correlation, not just keyword matching. Autonomous production where the model generates work-agents grounded in accumulated understanding. And preference learning where user edits feed back into the system — each edit refining structure, tone, and focus for next time.
 
 **How this differs from existing approaches:**
 

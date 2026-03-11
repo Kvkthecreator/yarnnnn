@@ -35,13 +35,13 @@ Every Slack conversation, every email thread, every Notion page edit, every cale
 
 The practical difference becomes clear over time. On day one, a retrieval system and an accumulation system might perform similarly. By day thirty, the accumulation system has built a contextual understanding that no query could reconstruct. It knows not just what's in your documents, but the relationships between your projects, the communication patterns with different stakeholders, the recurring rhythms of your work week.
 
-This is the approach yarnnn takes — continuous platform sync that accumulates context from Slack, Gmail, Notion, and Calendar. Not because retrieval is wrong, but because the kind of work yarnnn's Thinking Partner needs to do — producing autonomous deliverables like client updates, project briefs, and status reports — requires understanding that can't be assembled on demand. It has to be built over time.
+This is the approach yarnnn takes — continuous platform sync that accumulates context from Slack, Gmail, Notion, and Calendar. Not because retrieval is wrong, but because the kind of work yarnnn's TP Chat needs to do — producing autonomous work-agents like client updates, project briefs, and status reports — requires understanding that can't be assembled on demand. It has to be built over time.
 
 ## Why the Category Might Split
 
 There's a reasonable argument that the AI agent category is heading toward a fork. One path continues to refine retrieval — better embeddings, smarter chunking, more efficient vector search. This path produces increasingly good question-answering systems and document-aware chatbots. It's a valuable path, and a lot of excellent work is happening along it.
 
-The other path explores what becomes possible when context is accumulated rather than retrieved. This path leads toward agents that don't just answer questions about your work — they understand your work well enough to produce things on your behalf. The output isn't a response to a query; it's an autonomous deliverable that reflects genuine situational awareness.
+The other path explores what becomes possible when context is accumulated rather than retrieved. This path leads toward agents that don't just answer questions about your work — they understand your work well enough to produce things on your behalf. The output isn't a response to a query; it's an autonomous work-agent that reflects genuine situational awareness.
 
 These aren't necessarily competing approaches. Retrieval excels at precision — finding specific information when you know what you're looking for. Accumulation excels at synthesis — building understanding when the task requires seeing the bigger picture. Some products will use both.
 
@@ -69,7 +69,7 @@ These aren't trivial problems. But they're the problems you'd expect an emerging
 
 The retrieval vs. accumulation distinction is still early. Most of the industry's attention and tooling is oriented around retrieval, and for good reason — it's more mature, better understood, and sufficient for many use cases.
 
-But for the specific challenge of building AI agents that produce genuinely useful autonomous work output — agents that don't just answer questions but actually do things on your behalf — accumulation seems like it might be the more promising foundation. The agents that understand your work deeply enough to produce real deliverables will likely be the ones that have been building that understanding continuously, not assembling it on demand.
+But for the specific challenge of building AI agents that produce genuinely useful autonomous work output — agents that don't just answer questions but actually do things on your behalf — accumulation seems like it might be the more promising foundation. The agents that understand your work deeply enough to produce real work-agents will likely be the ones that have been building that understanding continuously, not assembling it on demand.
 
 yarnnn's bet is on accumulation. Whether that bet proves correct will depend on whether the compounding advantages of accumulated context outweigh the complexity of building and maintaining it. The early signal, at least from our own product development, is encouraging.
 

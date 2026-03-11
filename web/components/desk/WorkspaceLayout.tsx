@@ -55,6 +55,8 @@ interface WorkspaceLayoutProps {
   panelTabs?: WorkspacePanelTab[];
   /** Default open state for the panel (default: true) */
   panelDefaultOpen?: boolean;
+  /** Default panel width as percentage (default: 50, clamped 25-65) */
+  panelDefaultPct?: number;
   /** Controlled active tab (parent can drive tab selection) */
   activeTabId?: string;
   /** Callback when active tab changes */
@@ -73,12 +75,13 @@ export function WorkspaceLayout({
   children,
   panelTabs = [],
   panelDefaultOpen = true,
+  panelDefaultPct = DEFAULT_PANEL_PCT,
   activeTabId,
   onActiveTabChange,
 }: WorkspaceLayoutProps) {
   const [panelOpen, setPanelOpen] = useState(panelDefaultOpen);
   const [internalActiveTab, setInternalActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
-  const [panelPct, setPanelPct] = useState(DEFAULT_PANEL_PCT);
+  const [panelPct, setPanelPct] = useState(panelDefaultPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 

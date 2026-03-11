@@ -314,7 +314,7 @@ export function ChatFirstDesk() {
     },
     {
       id: 'create-agent',
-      label: 'Create agent',
+      label: 'Create work-agent',
       icon: Sparkles,
       verb: 'show',
       onSelect: () => setShowCreateCards((prev) => !prev),
@@ -366,6 +366,7 @@ export function ChatFirstDesk() {
       }}
       panelTabs={panelTabs}
       panelDefaultOpen={true}
+      panelDefaultPct={25}
     >
       {/* Drop zone container — wraps messages + input */}
       <div className="relative flex flex-col flex-1 min-h-0" {...dropZoneProps}>
@@ -533,7 +534,7 @@ export function ChatFirstDesk() {
                 className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">What type of agent?</p>
+                  <p className="text-xs font-medium text-muted-foreground">What type of work-agent?</p>
                   <button
                     type="button"
                     onClick={() => setShowCreateCards(false)}

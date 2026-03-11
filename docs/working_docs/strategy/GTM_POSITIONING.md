@@ -1,8 +1,8 @@
-# Yarn GTM Positioning & Messaging
+# YARNNN GTM Positioning & Messaging
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-03-11 (v2.0 — ADR-103 agent-native vocabulary, updated competitive positioning, 2-tier model)
 
-**Reference:** See [ESSENCE.md](ESSENCE.md) for core thesis and architecture.
+**Reference:** See [ESSENCE.md](../../ESSENCE.md) for core thesis and architecture. See [ADR-103](../../adr/ADR-103-agentic-framework-reframe.md) for vocabulary conventions.
 
 ---
 
@@ -13,7 +13,7 @@
 **Tagline:** It connects to your tools. It learns your world. It works while you don't.
 
 **Elevator pitch:**
-Yarn connects to the tools you already use — Slack, Gmail, Notion, Calendar — and accumulates an understanding of your work world over time. Then it works autonomously: producing reports, surfacing signals, and operating as an AI thinking partner that already knows your context. The longer you use it, the smarter it gets. Your AI after 90 days is incomparably better than your AI on day one.
+YARNNN deploys persistent AI agents that connect to the tools you already use — Slack, Gmail, Notion, Calendar — and accumulate knowledge of your work world over time. Then they work autonomously: producing reports, surfacing insights, and operating as an orchestrator that already knows your context. The longer you use it, the smarter each agent gets. Your agents after 90 days are incomparably better than on day one.
 
 ---
 
@@ -36,20 +36,20 @@ Yarn connects to the tools you already use — Slack, Gmail, Notion, Calendar �
 
 ---
 
-## Yarn's Value Proposition
+## YARNNN's Value Proposition
 
 ### The Insight
-The missing ingredient in AI autonomy isn't better models — it's context. An AI that knows your clients, your projects, your communication style, and your platform activity can do meaningful work independently. One that doesn't is just a fancy autocomplete.
+The missing ingredient in AI autonomy isn't better models — it's accumulated knowledge. An AI that knows your clients, your projects, your communication style, and your platform activity can do meaningful work independently. One that doesn't is just a fancy autocomplete.
 
 ### The Promise
-**AI that actually works for you — not just with you.**
+**Persistent agents that actually work for you — not just with you.**
 
-Yarn:
-1. **Connects to your tools** — Syncs with Slack, Gmail, Notion, Calendar continuously
-2. **Accumulates understanding** — Every sync cycle deepens what it knows about your work world
-3. **Works autonomously** — Produces agents on schedule without prompting
-4. **Gets smarter over time** — Your edits, your feedback, your patterns all train the system
-5. **Becomes irreplaceable** — After 90 days of accumulated context, switching costs are real
+YARNNN:
+1. **Connects to your tools** — Perception pipeline syncs Slack, Gmail, Notion, Calendar continuously
+2. **Accumulates knowledge** — Every sync cycle deepens what each agent knows about your work world
+3. **Works autonomously** — Agents produce output on schedule without prompting
+4. **Gets smarter over time** — Your edits, your feedback, your patterns train each agent via its learning loop
+5. **Becomes irreplaceable** — After 90 days of accumulated knowledge, switching costs are real
 
 ---
 
@@ -79,7 +79,7 @@ Primary targets who need AI that works autonomously across their tools:
 - **Use case:** Research digests, competitive intelligence briefs
 - **Pain:** Monitoring multiple sources, synthesizing manually
 - **Pitch:** "Briefs that get smarter because they accumulate what matters to you."
-- **Activation:** Signal-emergent agents triggered automatically by patterns
+- **Activation:** Proactive agents triggered automatically when conditions warrant
 
 ---
 
@@ -89,13 +89,14 @@ Primary targets who need AI that works autonomously across their tools:
 
 | Instead of... | Say... |
 |---------------|--------|
-| "Platform sync and context pipeline" | "Connects to your tools" |
-| "Accumulated platform_content with retention" | "Gets smarter the longer you use it" |
-| "Headless scheduled agent execution" | "Works autonomously" |
-| "Primitive-based tool use with sub-agents" | "AI that can actually do things" |
-| "Four-layer model with bidirectional learning" | "Learns from everything you do" |
-| "Context-powered autonomy" | "AI that works for you, not just with you" |
+| "Perception pipeline and knowledge base" | "Connects to your tools" |
+| "Accumulated knowledge with retention" | "Gets smarter the longer you use it" |
+| "Headless scheduled agent execution" | "Agents that work autonomously" |
+| "Capability-based tool use" | "AI that can actually do things" |
+| "Four-layer intelligence model with learning loop" | "Learns from everything you do" |
+| "Knowledge accumulation as agent intelligence" | "Agents that work for you, not just with you" |
 | "Edit distance metrics" | "Quality that improves over time" |
+| "Agent workspace with inspectable memory" | "You can see exactly what each agent knows" |
 
 ### The Problem → Agitate → Solve
 
@@ -105,33 +106,34 @@ Primary targets who need AI that works autonomously across their tools:
 >
 > **Agitate:** You open ChatGPT. You explain your clients again. You describe your project again. You specify the format again. You make the same corrections. Tomorrow? Same thing. You're the memory. You're the context. The AI is just the typist.
 >
-> **Solve:** Yarn connects to your Slack, Gmail, Notion, and Calendar. It accumulates understanding of your work world continuously. It produces your recurring agents autonomously — and each one is better than the last because the system actually knows your context. You supervise. It works.
+> **Solve:** YARNNN connects to your Slack, Gmail, Notion, and Calendar. It deploys persistent agents that accumulate knowledge of your work world continuously. Each agent produces output autonomously — and each run is better than the last because the agent's knowledge compounds. You supervise. The agents work.
 
 ---
 
 ## Competitive Positioning
 
-### vs ChatGPT / Claude
-"Powerful models, zero persistence. Every session starts from scratch. Yarn accumulates context from your actual tools and works autonomously."
+### vs Microsoft Copilot Cowork
+"Copilot Cowork requires you to hand off a task. YARNNN agents run autonomously — on schedule, proactively, or in response to events — without anyone asking. They're persistent specialists, not session-based assistants."
 
-### vs Agent Startups (Devin, AutoGPT, crew.ai)
-"Autonomous but generic. They don't know YOUR clients, YOUR projects, YOUR communication style. Yarn's autonomy is powered by accumulated context from your real work."
+### vs Claude Cowork
+"Claude Cowork is session-based: you start a task, it executes, the session ends. YARNNN agents persist across time. They accumulate memory from every execution, learn from your corrections, and produce better output on their 50th run than their 1st. No session to start. No context to re-establish."
 
-### vs Workspace AI (Notion AI, Google Gemini)
-"Trapped inside one platform. Yarn sees across all your tools — Slack, Gmail, Notion, Calendar — and synthesizes across them."
+### vs OpenClaw
+"OpenClaw runs one always-on agent per workspace. YARNNN runs many sleeping specialists — each with its own workspace, directives, and execution mode. Twenty agents at zero idle cost, each improving at its specific job."
 
-### vs Custom GPTs / Assistants API
-"Better instructions, but still no real context. No platform connections, no accumulation, no autonomous output."
+### vs Workspace AI (Notion AI, Glean, Granola)
+"Single-platform knowledge, no autonomous output. Notion AI knows your pages but not your Slack. Glean is enterprise search with no agent layer. YARNNN is the only product that accumulates cross-platform knowledge and uses it for autonomous recurring agents."
 
 ### The Comparison Table
 
-| | ChatGPT/Claude | Agent Startups | Workspace AI | Yarn |
+| | Copilot Cowork | Claude Cowork | OpenClaw | YARNNN |
 |---|---|---|---|---|
-| Persistent context | No | No | Single-platform | **Cross-platform, accumulating** |
-| Autonomous output | No | Yes (generic) | Limited | **Yes (context-powered)** |
-| Platform connections | No | Limited | Own platform only | **Slack, Gmail, Notion, Calendar** |
-| Improves with tenure | No | No | Marginally | **Yes (compounding moat)** |
-| Thinking partner | Stateless chat | No | Basic Q&A | **Context-aware agent with tools** |
+| Initiation | User hands off task | User starts session | Always-on heartbeat | **Scheduled, proactive, or event-driven** |
+| Persistence | Task-scoped | Session-scoped | Single workspace agent | **Many persistent agents** |
+| Memory | Work IQ (platform data) | Filesystem access | MEMORY.md per workspace | **Per-agent workspace + global user knowledge** |
+| Learning | None | None | Accumulated logs | **Learning loop from user edits** |
+| Multi-agent | No | No | One per workspace | **Native: coordinator spawns/directs agents** |
+| Idle cost | N/A | N/A | Heartbeat compute | **Zero (sleep-wake architecture)** |
 
 ---
 
@@ -139,11 +141,11 @@ Primary targets who need AI that works autonomously across their tools:
 
 | Objection | Response |
 |-----------|----------|
-| "ChatGPT is good enough" | "ChatGPT is powerful but stateless. Yarn connects to your tools and works autonomously. After 90 days, there's no comparison." |
-| "I already use Notion AI / Gemini" | "Those only see what's inside their own platform. Yarn synthesizes across Slack, Gmail, Notion, and Calendar." |
-| "Agent tools already exist" | "Autonomous without context is just random. Yarn's autonomy is powered by accumulated understanding of YOUR work." |
-| "How do I know it's getting smarter?" | "Every agent version shows quality trends. Each one needs fewer edits because the system knows more about what you want." |
-| "I don't trust AI to work without me" | "You're the supervisor, not the operator. Every agent is staged for your review before anything ships." |
+| "ChatGPT is good enough" | "ChatGPT is powerful but stateless. YARNNN deploys persistent agents that accumulate knowledge from your tools. After 90 days, there's no comparison." |
+| "I already use Notion AI / Gemini" | "Those only see what's inside their own platform. YARNNN agents synthesize across Slack, Gmail, Notion, and Calendar." |
+| "Agent tools already exist" | "Autonomous without accumulated knowledge is just random. YARNNN agents are powered by months of compounded understanding of YOUR work." |
+| "How do I know it's getting smarter?" | "Each agent has an inspectable workspace — you can see its memory, observations, and learned preferences. Every run needs fewer edits." |
+| "I don't trust AI to work without me" | "You're the supervisor, not the operator. Every agent output is staged for your review before anything ships." |
 | "What about data privacy?" | "Your data stays in your workspace with row-level security. Platform connections use OAuth — we never see your passwords." |
 
 ---
@@ -161,7 +163,7 @@ Primary targets who need AI that works autonomously across their tools:
 - **The Insight:** "Autonomy without context is useless. Context without autonomy is just a database."
 - **How It Works:** "Connect → Accumulate → Automate → Supervise"
 - **The Moat:** "After 90 days, your AI knows things no other tool can replicate."
-- **Use Cases:** "What Yarn produces autonomously"
+- **Use Cases:** "What YARNNN agents produce autonomously"
 
 ### CTAs
 - Primary: "Connect your first tool"
@@ -174,14 +176,14 @@ Primary targets who need AI that works autonomously across their tools:
 
 Avoid technical framing:
 - ❌ "Four-layer model with bidirectional learning"
-- ❌ "Retention-based content accumulation pipeline"
-- ❌ "Primitive-based agent execution with sub-agents"
-- ❌ "Platform_content with pgvector semantic search"
+- ❌ "Retention-based knowledge accumulation pipeline"
+- ❌ "Capability-based agent execution with primitives"
+- ❌ "workspace_files with pgvector semantic search"
 
 Avoid weak positioning:
 - ❌ "AI that remembers" (too generic — memory isn't the product, autonomy is)
 - ❌ "Context-aware AI work platform" (passive, doesn't convey autonomy)
-- ❌ "Recurring agents platform" (feature-level, not thesis-level)
+- ❌ "Recurring output platform" (feature-level, not thesis-level)
 - ❌ "Works while you sleep" (feature, not value prop)
 - ❌ "Better ChatGPT" (commodity comparison, not differentiation)
 
@@ -196,11 +198,11 @@ Avoid overclaiming:
 
 The "aha" moments that convert users:
 
-1. **TP knows your context** — Ask about a project and the TP already knows the details from synced Slack/Gmail
-2. **First autonomous agent** — A report arrives without prompting, populated with real data from connected platforms
-3. **Cross-platform synthesis** — A agent combines Slack messages, calendar context, and Notion docs into one coherent output
-4. **Improvement over time** — The 5th version needs fewer edits than the 1st because accumulated context made it smarter
-5. **Signal-emergent output** — System detects a pattern and suggests a agent you didn't think to create
+1. **The orchestrator knows your context** — Ask about a project and it already knows the details from synced Slack/Gmail
+2. **First autonomous agent output** — A report arrives without prompting, populated with real data from connected platforms
+3. **Cross-platform synthesis** — An agent combines Slack messages, calendar context, and Notion docs into one coherent output
+4. **Improvement over time** — The 5th run needs fewer edits than the 1st because accumulated knowledge made the agent smarter
+5. **Proactive agent output** — An agent detects conditions warrant attention and produces output you didn't ask for
 
 ---
 
@@ -210,21 +212,21 @@ The "aha" moments that convert users:
 - **Recipient:** Sarah Chen, VP Marketing at Acme Corp
 - **Schedule:** Every Monday at 8am
 - **Context sources:** Slack #client-acme channel, Gmail threads with Sarah, Notion project page
-- **Autonomy:** Yarn synthesizes last week's activity across platforms, produces draft, stages for review
-- **Improvement:** By week 5, draft needs minimal edits because Yarn knows which metrics Sarah cares about
+- **Autonomy:** YARNNN agent synthesizes last week's activity across platforms, produces draft, stages for review
+- **Improvement:** By week 5, draft needs minimal edits because the agent knows which metrics Sarah cares about
 
 ### Monthly Investor Update
 - **Recipient:** Board of Directors
 - **Schedule:** First of every month
 - **Context sources:** Gmail board threads, Slack #leadership, Calendar board prep meetings, Notion KPIs page
-- **Autonomy:** Yarn pulls real metrics, formats to learned structure, highlights what matters
+- **Autonomy:** YARNNN agent pulls real metrics, formats to learned structure, highlights what matters
 - **Improvement:** Each month, less correction needed on emphasis and narrative framing
 
-### Signal-Emergent Competitive Brief
+### Proactive Competitive Brief
 - **Recipient:** Founder (you)
-- **Trigger:** Yarn detects unusual volume of competitor mentions across Slack + Gmail
-- **Context sources:** Cross-platform signal detection, accumulated competitive intelligence
-- **Autonomy:** System creates a new agent type without being asked — because accumulated context enabled the pattern detection
+- **Trigger:** Proactive agent's periodic self-review detects conditions warrant a brief
+- **Context sources:** Cross-platform knowledge base, accumulated competitive intelligence
+- **Autonomy:** Agent generates when it judges conditions warrant — observe → sleep → generate cycle, not on every event
 
 ---
 
@@ -232,9 +234,9 @@ The "aha" moments that convert users:
 
 1. **The world changed**: AI models got incredibly powerful — but they're all stateless
 2. **Users showed us the demand**: ClawdBot/OpenClaw proved millions want AI that persists and knows them
-3. **The gap**: No one combines persistent context accumulation WITH autonomous output
-4. **Yarn fills it**: Connect your tools → accumulate context → autonomous work that improves with tenure
-5. **The moat**: Accumulated context creates real switching costs — your AI after 90 days can't be replicated
+3. **The gap**: No one combines persistent knowledge accumulation WITH autonomous agent output
+4. **YARNNN fills it**: Connect your tools → accumulate knowledge → persistent agents that improve with tenure
+5. **The moat**: Accumulated knowledge creates real switching costs — your agents after 90 days can't be replicated
 
 ---
 

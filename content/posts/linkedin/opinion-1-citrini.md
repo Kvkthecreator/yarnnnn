@@ -22,7 +22,7 @@ This is the opposite of Citrini's thesis. AI isn't making workers unnecessary. I
 
 I build YARNNN — a platform where AI agents handle recurring knowledge work. These are exactly the tasks Citrini assumes get automated away.
 
-Nobody is firing anyone. People are serving more clients with the same team. They're handling deliverables that weren't economically viable before. The consultant who uses AI to produce 3x the output doesn't vanish from the economy — they grow their practice.
+Nobody is firing anyone. People are serving more clients with the same team. They're handling work-agents that weren't economically viable before. The consultant who uses AI to produce 3x the output doesn't vanish from the economy — they grow their practice.
 
 This is the Jevons paradox applied to knowledge work. Making intelligence cheaper doesn't reduce demand for it. It increases the surface area of what becomes worth doing.
 

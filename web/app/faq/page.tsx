@@ -25,19 +25,19 @@ const faqSections: FaqSection[] = [
           "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs agent specialists that produce real output for you in the background.",
       },
       {
-        question: "What is the Agent?",
+        question: "What is TP Chat?",
         answer:
-          "The Agent is yarnnn's interactive interface. You use it to define agents, refine outputs, and supervise the system. The agent and background execution share the same underlying context and intelligence.",
+          "TP Chat is yarnnn's interactive surface — your single contact point for all work. You use it to define work-agents, refine their output, and supervise the system. TP Chat and background work-agents share the same underlying context and intelligence.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "Chat tools are primarily session-centric. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based agents, and improves those specialists over time through versioned supervision.",
+          "Chat tools are session-centric — they reset every time. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based work-agents, and improves those specialists over time through supervised runs.",
       },
       {
         question: "Is yarnnn an AI agent platform?",
         answer:
-          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the agent specialist with explicit type, mode, source scope, and version history.",
+          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the work-agent — a specialist with explicit type, mode, source scope, and run history.",
       },
     ],
   },
@@ -67,12 +67,12 @@ const faqSections: FaqSection[] = [
     ],
   },
   {
-    category: "Agents",
+    category: "Work-Agents",
     items: [
       {
-        question: "What are agents?",
+        question: "What are work-agents?",
         answer:
-          "Agents are autonomous specialists that generate versioned outputs for recurring or triggered work. Each has its own instructions, memory, and source scope.",
+          "Work-agents are autonomous specialists that produce output on a schedule or trigger. Each has its own instructions, memory, and source scope. You supervise their runs through TP Chat.",
       },
       {
         question: "Which agent types are supported?",
@@ -85,9 +85,9 @@ const faqSections: FaqSection[] = [
           "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when an agent decides to run.",
       },
       {
-        question: "How do agents improve over time?",
+        question: "How do work-agents improve over time?",
         answer:
-          "Each approved/edit-reviewed version becomes signal for future runs. Specialists learn your preferred structure, emphasis, and tone as they execute.",
+          "Each approved or edited run becomes signal for future execution. Work-agents learn your preferred structure, emphasis, and tone as they accumulate feedback.",
       },
     ],
   },
@@ -100,9 +100,9 @@ const faqSections: FaqSection[] = [
           "yarnnn has Free and Pro plans. Both include Slack, Gmail, Notion, and Calendar integration. Pro adds unlimited messages, more agents, faster sync, and unlimited sources.",
       },
       {
-        question: "What are current agent limits?",
+        question: "What are current work-agent limits?",
         answer:
-          "Free supports 2 active agents. Pro supports 10.",
+          "Free supports 2 active work-agents. Pro supports 10.",
       },
       {
         question: "How does sync frequency differ by plan?",
@@ -122,7 +122,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up, connect one platform, then define your first agent through TP or the agent UI. You can usually have a first run quickly.",
+          "Sign up, connect one platform, then define your first work-agent through TP Chat or the work-agents UI. You can usually have a first run quickly.",
       },
       {
         question: "Do I need to configure everything up front?",
@@ -130,7 +130,7 @@ const faqSections: FaqSection[] = [
           "No. Start with one specialist and one high-signal source. Expand type coverage and mode sophistication as you build confidence.",
       },
       {
-        question: "What is the best first agent?",
+        question: "What is the best first work-agent?",
         answer:
           "Most teams start with a recurring digest or status update. These give fast value and create clean supervision signal for future improvements.",
       },
@@ -149,7 +149,7 @@ export const metadata = getMarketingMetadata({
     "yarnnn faq",
     "autonomous ai faq",
     "agent modes",
-    "thinking partner faq",
+    "work agents faq",
     "context powered ai",
   ],
 });

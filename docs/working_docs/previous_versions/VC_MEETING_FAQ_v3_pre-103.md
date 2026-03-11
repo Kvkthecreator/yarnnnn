@@ -1,8 +1,8 @@
 # VC Meeting FAQ
 
 **Purpose**: Pre-emptive answers to expected investor questions for live meetings.
-**Date**: 2026-03-11 (v4 — ADR-103/106 terminology update, workspace architecture, agent-native vocabulary)
-**Source**: IR Deck v19 + VC Answer Bank v4.0 + Agent Platform Architecture doc + ADR-100/103/106 + founder notes
+**Date**: 2026-03-11 (v3 — audited against codebase, tightened per a16z memo guidance)
+**Source**: IR Deck v19 + VC Answer Bank v3.1 + Agent Platform Architecture doc + ADR-100 + founder notes
 **How to use**: Prep doc for meetings. Tight answers for live delivery, "if pressed" for when they dig deeper. At pre-seed, say just enough — don't give them rope to hang you.
 
 ---
@@ -17,7 +17,7 @@ Every platform cycle follows the same pattern: the platform provider doesn't bui
 
 ### Q: What happens when ChatGPT adds better memory and scheduled tasks?
 
-ChatGPT's memory is conversation-scoped — it remembers preferences from past chats. YARNNN's knowledge is platform-scoped — a perception pipeline continuously syncs four work platforms, accumulates what matters in a shared knowledge base, and persistent agents produce autonomous output. Learning your name is different from knowing which Slack channels have signal for your weekly board report.
+ChatGPT's memory is conversation-scoped — it remembers preferences from past chats. YARNNN's knowledge is platform-scoped — it continuously syncs four work platforms, accumulates what matters, and produces autonomous output. Learning your name is different from knowing which Slack channels have signal for your weekly board report.
 
 > *If pressed:* Scheduled tasks in ChatGPT are prompt-based reminders. YARNNN agents have persistent identity, compounding memory, and learned preferences from your edits. Fundamentally different architecture.
 
@@ -39,7 +39,7 @@ The integrations aren't the moat — the accumulated context is. After 90 days, 
 
 ### Q: Isn't this just a wrapper on Claude's API?
 
-No. A wrapper sends a prompt and returns a response. YARNNN is a purpose-built agent platform: four-platform perception pipeline, retention-based knowledge accumulation, five execution modes, four-layer intelligence model, per-agent workspaces with inspectable memory, and an orchestrator managing a network of persistent specialists. 115+ Architecture Decision Records documenting every design choice. Infrastructure, not a skin.
+No. A wrapper sends a prompt and returns a response. YARNNN is a purpose-built agent platform: four-platform perception pipeline, retention-based knowledge accumulation, five execution modes, four-layer intelligence model, and an orchestrator managing a network of persistent agents. 115+ Architecture Decision Records documenting every design choice. Infrastructure, not a skin.
 
 > *If pressed:* That's 6+ months of solo architectural work. The architecture doc is available as a leave-behind.
 
@@ -123,25 +123,19 @@ The product is its own distribution. Every agent output that reaches a client or
 
 ### Q: Walk me through what happens when an agent runs.
 
-Scheduler checks every 5 minutes. When an agent fires: (1) trigger dispatcher evaluates the mode, (2) execution pipeline loads the agent's workspace and assembles the prompt from four intelligence layers — skills, directives, memory, feedback, (3) agentic LLM loop with capabilities — search knowledge base, read workspace, web search, (4) output delivered via 5 channels: email, Slack, Notion, Gmail drafts, download, (5) output written back to knowledge base as retained content, (6) agent workspace updated with observations and thesis, (7) user edits extracted as learned preferences for next run.
+Scheduler checks every 5 minutes. When an agent fires: (1) trigger dispatcher evaluates the mode, (2) execution pipeline assembles the prompt from four intelligence layers — skills, directives, memory, feedback, (3) agentic LLM loop with tool use — search, read, web search, (4) output delivered via email/Slack/Notion/Gmail, (5) output written back to knowledge base as retained content, (6) user edits extracted as learned preferences for next run.
 
 ### Q: How does the knowledge accumulation actually compound?
 
-Three mechanisms. Retention model: synced content starts ephemeral, gets marked retained when referenced — knowledge base becomes a curated corpus of what mattered. Agent workspace: each execution writes observations, thesis updates, and working notes to the agent's virtual filesystem — inspectable, searchable, compounding. Learning loop: user edits become learned preferences injected into next run. The 50th run has 50 executions worth of all three.
+Three mechanisms. Retention model: synced content starts ephemeral, gets marked retained when referenced — knowledge base becomes a curated corpus of what mattered. Agent memory: each execution writes observations to per-agent memory. Feedback loop: user edits become learned preferences injected into next run. The 50th run has 50 executions worth of all three.
 
 ### Q: What's the MCP server for?
 
 Lets external AI tools — Claude.ai, Claude Desktop, ChatGPT — access YARNNN's agent network through 6 exposed tools: status, list agents, run agents, read outputs, search content, get context. A user can ask Claude "what did my Slack Digest agent find this week?" without opening our UI. Strategic positioning: as AI fragments across surfaces, the value layer is the persistent context underneath.
 
-### Q: What makes the agents inspectable? How do users trust them?
-
-Every agent has a workspace — a virtual filesystem you can browse. `AGENT.md` is the identity and directives (like Claude Code's `CLAUDE.md`). `thesis.md` is the agent's evolving domain understanding. `memory/` has topic-scoped observations. You can read exactly what an agent knows, why it made a decision, and what it learned from your edits. Transparency is how you build trust in autonomous systems.
-
-> *If pressed:* Industry is converging on file-based agent interfaces — Claude Code uses `.claude/memory/`, MCP uses resource URIs, A2A uses agent cards. Our workspace aligns with all of these. Future interop is built in.
-
 ### Q: What's actually built and working?
 
-Everything described is shipped. Four-platform OAuth with landscape discovery. Tier-gated perception pipeline (paginated, incremental). Knowledge base with retention-based accumulation. Orchestrator agent with streaming and full capabilities. Headless agent execution with agentic LLM loop. All 5 execution modes. Four-layer intelligence model. Per-agent workspaces with inspectable memory. 5 delivery channels. MCP server with OAuth 2.1. Nightly memory extraction. Agent outputs closing the accumulation loop. 7 agent archetypes. 2-tier monetization via Lemon Squeezy. 115+ ADRs.
+Everything described is shipped. Four-platform OAuth with landscape discovery. Tier-gated perception pipeline (paginated, incremental). Knowledge base with retention-based accumulation. Orchestrator agent with streaming and full capabilities. Headless agent execution with agentic LLM loop. All 5 execution modes. Four-layer intelligence model. 5 delivery channels. MCP server with OAuth 2.1. Nightly memory extraction. Agent outputs closing the accumulation loop. 7 agent types. 2-tier monetization via Lemon Squeezy. 115+ ADRs.
 
 > *If pressed:* This isn't a demo or a prototype. Beta users have real integrations connected and agents producing real output on schedule.
 
@@ -169,7 +163,7 @@ It's market validation. ClawdBot proved tens of thousands want personalized, per
 
 ### Q: What does YARNNN look like in 5 years?
 
-The operating system for knowledge work. Today, one user with a handful of persistent agents, each with its own workspace. In 2–3 years, teams where agents coordinate across departments — a coordinator agent watches the sales pipeline and auto-triggers client agents, meeting prep, follow-up chains. Agent workspaces exposed as MCP resources mean any AI surface can tap into the accumulated intelligence. In 5 years, the knowledge layer that every AI surface plugs into — the persistent understanding of how a company actually works.
+The operating system for knowledge work. Today, one user with a handful of agents. In 2–3 years, teams where agents coordinate across departments — a coordinator agent watches the sales pipeline and auto-triggers client agents, meeting prep, follow-up chains. In 5 years, the context layer that every AI surface plugs into via MCP — the persistent understanding of how a company actually works.
 
 > *If pressed:* The wedge is consultants. The category is agent infrastructure for recurring knowledge work. Owning the context layer gives us the right to expand the product surface indefinitely — same pattern as Notion going from docs to databases to projects to AI.
 

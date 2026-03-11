@@ -717,7 +717,7 @@ async def load_surface_content(
                 if len(content) > 8000:
                     content = content[:8000] + "\n\n[Content truncated...]"
 
-                return f"""## Currently Viewing: {d['title']} (v{v['version_number']})
+                return f"""## Currently Viewing: {d['title']} (Run {v['version_number']})
 Type: {d.get('agent_type', 'custom').replace('_', ' ').title()}
 Status: {v['status']}
 

@@ -17,7 +17,7 @@ I started thinking about this as a ladder:
 **Rung 1:** Generic responses (vanilla ChatGPT, no context)
 **Rung 2:** Personalized responses (Memory, Projects — knows facts about you)
 **Rung 3:** Contextual responses (informed by your actual work data across platforms)
-**Rung 4:** Autonomous production (produces real deliverables from accumulated understanding)
+**Rung 4:** Autonomous production (produces real work-agents from accumulated understanding)
 
 Most AI products are on rung 2, acting like they've reached the top. They haven't. They've barely started climbing.
 

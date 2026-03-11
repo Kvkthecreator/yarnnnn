@@ -11,24 +11,24 @@
 **[0:00–0:10] Dashboard + Connections**
 *Show: yarnnn dashboard with connected platforms visible*
 
-> So this is yarnnn. You can see I've got Slack, Gmail, Notion, and Google Calendar all connected. These sync automatically — TP is pulling context from all four in the background.
+> So this is yarnnn. You can see I've got Slack, Gmail, Notion, and Google Calendar all connected. These sync automatically — the perception pipeline is pulling knowledge from all four in the background.
 
 **[0:10–0:25] Chat — The "It Already Knows" Moment**
-*Show: Open a new chat with TP. Ask something specific about your work — e.g., "What's the latest on [client name]?" or "Summarize my week."*
+*Show: Open a new chat with the orchestrator. Ask something specific about your work — e.g., "What's the latest on [client name]?" or "Summarize my week."*
 
-> Now watch this — I haven't told TP anything. I'm just going to ask it about a client. And it already knows — because it's been accumulating context from every sync.
+> Now watch this — I haven't told it anything. I'm just going to ask about a client. And it already knows — because it's been accumulating knowledge from every sync.
 
-*Let TP's response load on screen for a beat. Don't rush it.*
+*Let the response load on screen for a beat. Don't rush it.*
 
 **[0:25–0:45] Agent — Autonomous Output**
 *Show: Navigate to a agent (e.g., a weekly client brief or status digest). Show that it was generated on schedule.*
 
-> And here's where it gets interesting. This is a weekly client brief that TP produced on its own — on schedule, without me prompting it. It pulled from Slack threads, emails, and Notion updates to write this. I just review and edit.
+> And here's where it gets interesting. This is a weekly client brief that this agent produced on its own — on schedule, without me prompting it. It pulled from Slack threads, emails, and Notion updates to write this. I just review and edit.
 
 **[0:45–0:60] The Punchline**
 *Show: Stay on the agent, or go back to the dashboard.*
 
-> Every cycle, it gets better. More context, better output. That's the product — an AI agent that actually learns your work. yarnnn.com.
+> Every cycle, this agent gets better. More knowledge, better output. That's the product — persistent AI agents that actually learn your work. yarnnn.com.
 
 ---
 
@@ -44,7 +44,7 @@
 
 ## Before You Record
 
-1. Make sure TP has recent synced data so responses look real and specific
+1. Make sure the orchestrator has recent synced data so responses look real and specific
 2. Pick one actual client or project to reference — specificity sells
 3. Have a agent already generated so you can navigate to it quickly
 4. Close Slack/email notifications so nothing pops up mid-recording

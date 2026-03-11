@@ -10,19 +10,19 @@ Everyone's waiting for GPT-5, GPT-6, the next model breakthrough. And model impr
 
 But I've been building an AI system for the past year and the insight I keep returning to is this: the model isn't the bottleneck for useful work output. Context is.
 
-Here's what I mean. Take the exact same model — Claude, GPT-4, whatever. On day 1, ask it to produce a deliverable for your work. It's competent, generic, needs heavy editing. Maybe 30% usable.
+Here's what I mean. Take the exact same model — Claude, GPT-4, whatever. On day 1, ask it to produce a work-agent for your work. It's competent, generic, needs heavy editing. Maybe 30% usable.
 
 Now give that same model 90 days of accumulated context from your actual work platforms — your Slack messages, email threads, calendar events, project docs. Ask it the same question. The output references real events, real clients, real decisions. Maybe 80% usable. Light editing instead of rewriting.
 
 Same model. Dramatically different output. The variable wasn't intelligence — it was information.
 
-I've started calling this "accumulated intelligence" — not because the model gets smarter, but because the context layer beneath it gets richer with every sync cycle, every deliverable version, every edit the user makes.
+I've started calling this "accumulated intelligence" — not because the model gets smarter, but because the context layer beneath it gets richer with every sync cycle, every work-agent run, every edit the user makes.
 
 **Three things compound, each on a different timescale:**
 
 **Daily: platform sync.** Every cycle pulls fresh information from Slack, email, calendar, docs. Each sync is incremental — it adds to what the system knows rather than replacing it. After a week, the system has a working picture of your current projects. After a month, it understands project arcs. After three months, it sees patterns you might not notice yourself.
 
-**Weekly: deliverable feedback.** When you edit a draft the system produced, those edits teach it how you think. Not just "this word was wrong" — structural signal. You moved recommendations above analysis (you prefer bottom-line-up-front). You expanded Client A's section but trimmed Client B (Client A needs more detail right now). You softened language about a delayed milestone (diplomatic framing matters for this stakeholder). Each deliverable cycle teaches preferences that inform the next.
+**Weekly: work-agent feedback.** When you edit a draft the system produced, those edits teach it how you think. Not just "this word was wrong" — structural signal. You moved recommendations above analysis (you prefer bottom-line-up-front). You expanded Client A's section but trimmed Client B (Client A needs more detail right now). You softened language about a delayed milestone (diplomatic framing matters for this stakeholder). Each work-agent cycle teaches preferences that inform the next.
 
 **Over weeks: cross-platform correlations.** The most valuable intelligence emerges from patterns across platforms over time. The system learns that when your calendar shows a board meeting on Thursday, your email activity spikes on Wednesday (you're preparing). Slack activity in a client channel drops before the client sends a concern via email (escalation pattern). Notion project pages get updated after standup meetings on Mondays. These correlations take weeks to emerge because they require enough data points to distinguish patterns from noise. But once they do, they represent understanding that no single-platform tool and no amount of prompting can replicate.
 

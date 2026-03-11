@@ -20,7 +20,7 @@ But what happens with a system that accumulates context from your work platforms
 
 First, context depth. Going from a shallow snapshot to a month of conversations to three months of project arcs. Not just more data — deeper understanding. The system starts seeing the rhythm of your work, the relationships between clients, how priorities shift over time.
 
-Second, preference learning. Every deliverable you edit teaches the system how you think. You restructure a report's opening — it learns you prefer leading with conclusions. You cut a generic section — it learns to be more specific. You add detail about one client and trim another — it learns where depth matters right now. By day 90, the output converges on what you'd write yourself.
+Second, preference learning. Every work-agent you edit teaches the system how you think. You restructure a report's opening — it learns you prefer leading with conclusions. You cut a generic section — it learns to be more specific. You add detail about one client and trim another — it learns where depth matters right now. By day 90, the output converges on what you'd write yourself.
 
 Third, cross-platform synthesis. Early on, the system sees each platform in isolation. Over time, patterns emerge: when a client's Slack activity drops, a concern email usually follows. Your Monday meetings generate action items that appear in Notion by Wednesday. Board meetings on Thursday mean email spikes on Wednesday. These correlations take weeks to emerge but represent understanding no single-platform tool can develop.
 

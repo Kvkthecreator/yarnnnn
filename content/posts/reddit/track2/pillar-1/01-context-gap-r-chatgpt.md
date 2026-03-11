@@ -24,7 +24,7 @@ Now imagine that same model with three months of accumulated context from your a
 
 **The real bottleneck:** For anyone trying to use AI for recurring professional work — weekly reports, client updates, project summaries — you can't prompt your way around the absence of context. A consultant managing six clients can't type enough into a chat window to replicate what they know about each relationship. The information exists, scattered across platforms, but it exists outside the model's reach.
 
-I think the architecture that actually fixes this is fundamentally different from chat. It means connecting to work platforms (Slack, Gmail, Notion, Calendar), syncing continuously, and accumulating understanding over time. The tenth deliverable is better than the first not because the model improved, but because the context did.
+I think the architecture that actually fixes this is fundamentally different from chat. It means connecting to work platforms (Slack, Gmail, Notion, Calendar), syncing continuously, and accumulating understanding over time. The tenth work-agent is better than the first not because the model improved, but because the context did.
 
 The AI tools landscape makes more sense through this lens. ChatGPT and Claude are brilliant but stateless. Agent frameworks added autonomy but not context (autonomy without context = generic output, faster). Domain-specific agents like Devin work because coding context lives in one system — but most knowledge work spans multiple platforms. Notion AI and Copilot see one platform but can't cross-reference.
 

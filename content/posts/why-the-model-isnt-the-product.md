@@ -71,7 +71,7 @@ yarnnn doesn't depend on any single model provider. If Claude improves, we benef
 
 This agnosticism protects against several risks that model-dependent products face: a model provider raising prices, degrading quality, changing terms of service, or being outcompeted by a new entrant. For yarnnn, these are inconveniences to manage, not existential threats.
 
-It also enables optimization. Different deliverables might benefit from different models. A technical synthesis might work best with one model; a client-facing narrative with another. When the model is an input rather than the product, you can choose the best model for each task rather than being locked to one provider.
+It also enables optimization. Different work-agents might benefit from different models. A technical synthesis might work best with one model; a client-facing narrative with another. When the model is an input rather than the product, you can choose the best model for each task rather than being locked to one provider.
 
 ## What This Means for Users
 

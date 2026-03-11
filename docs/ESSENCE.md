@@ -3,26 +3,26 @@
 **Purpose**: Foundation document — what YARNNN is, what it believes, how it works.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-03-04 (v7.0 — reflects ADR-080, ADR-087, ADR-090, ADR-092)
+**Updated**: 2026-03-11 (v8.0 — ADR-103/104/105/106: agent-native vocabulary, workspace architecture, 2-tier model)
 
 ---
 
 ## Core Thesis
 
-YARNNN is an **autonomous AI agent platform** — powered by accumulated context from your real work platforms.
+YARNNN is an **autonomous agent platform for recurring knowledge work** — persistent AI specialists with accumulated knowledge do recurring work better than any session-based alternative.
 
-It connects to the tools where your work lives (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and uses that context to act autonomously: producing agents, operating as a thinking partner that already knows your world, and dispatching work before you ask for it.
+It connects to the tools where your work lives (Slack, Gmail, Notion, Calendar), accumulates knowledge of your work world over time, and deploys persistent agents that act autonomously: producing recurring output, operating as an orchestrator that already knows your world, and dispatching work before you ask for it.
 
 **The value proposition in one sentence:**
-> AI that works autonomously on your behalf — and gets smarter the longer you use it, because it accumulates context from your actual work.
+> Persistent agents with accumulated knowledge do your recurring work — and get smarter the longer you use them.
 
 **What makes this structurally different from every other AI tool:**
-- **Autonomous output**: Produces work (reports, digests, briefs) on schedule without prompting
-- **Persistent context**: Syncs continuously with Slack, Gmail, Notion, Calendar
-- **Accumulated intelligence**: Every sync cycle, every edit, every interaction deepens the system's understanding — per agent, not per conversation
-- **Compounding moat**: 90 days of accumulated context per specialist is irreplaceable — the system becomes more valuable with tenure
+- **Persistent agents**: Each agent has its own identity, directives, memory, workspace, and execution history — sleeping specialists, not session threads
+- **Perception pipeline**: Syncs continuously with Slack, Gmail, Notion, Calendar, feeding a shared knowledge base
+- **Knowledge accumulation**: Every sync cycle, every edit, every execution deepens each agent's understanding — per specialist, not per conversation
+- **Compounding moat**: 90 days of accumulated knowledge per specialist is irreplaceable — the system becomes more valuable with tenure
 
-**The insight**: Most AI tools are stateless — they forget everything between sessions. The few that persist data don't act on it autonomously. YARNNN does both: accumulates context AND uses it to work independently. The accumulated context is what makes the autonomy meaningful rather than generic.
+**The insight**: Most AI tools are stateless — they forget everything between sessions. The few that persist data don't act on it autonomously. YARNNN does both: accumulates knowledge AND deploys persistent agents that use it to work independently. The accumulated knowledge is what makes the autonomy meaningful rather than generic.
 
 ---
 
@@ -46,26 +46,26 @@ Every screen is a supervision surface. TP is always present and interactive — 
 
 YARNNN's autonomous capability rests on three pillars, each architecturally distinct:
 
-### 1. Thinking Partner (TP) — The Intelligent Interface
+### 1. The Orchestrator — The Intelligent Interface
 
-A context-aware AI agent with real-time access to accumulated platform context. Not a chatbot — an agent with primitive-based tool use (Search, FetchPlatformContent, CrossPlatformQuery), scoped to the user's work world before the first message arrives.
+A context-aware AI agent with real-time access to accumulated knowledge. Not a chatbot — an agent with capability-based tool use (Search, FetchPlatformContent, CrossPlatformQuery), scoped to the user's work world before the first message arrives.
 
-TP operates in two modes:
-- **Chat mode** — Streaming, interactive, full primitive set (15 tool rounds). Used in conversation.
-- **Headless mode** — Non-streaming, background, curated read-only primitives (3 tool rounds). Used for autonomous agent generation.
+The orchestrator operates in two modes:
+- **Chat mode** — Streaming, interactive, full capability set (15 tool rounds). Used in conversation.
+- **Headless mode** — Non-streaming, background, curated read-only capabilities (3 tool rounds). Used for autonomous agent execution.
 
-Same agent. Same intelligence. Same primitive access. Different execution context.
+Same agent. Same intelligence. Same capability access. Different execution context.
 
-### 2. Agents — Autonomous Output
+### 2. Persistent Agents — Autonomous Specialists
 
-Scheduled, autonomous work artifacts — each one a purpose-built specialist. Each agent has:
-- Its own `agent_instructions` — user-authored behavioral directive (how it should behave, what it prioritizes)
-- Its own `agent_memory` — system-accumulated knowledge (what it has learned from every execution)
+Each agent is a persistent, sleeping specialist — not a template or a config. Each agent has:
+- Its own **directives** — user-authored behavioral programming (how it should behave, what it prioritizes)
+- Its own **workspace** — a virtual filesystem with inspectable memory, evolving domain understanding (thesis), and learned preferences
 - Its own sources, schedule, output history, and execution mode
 
-Agents are the primary expression of autonomy in YARNNN. They run on schedule, produce versioned immutable output, sleep between executions (zero resource cost), and get smarter with each run — because memory accumulates per specialist, not per conversation.
+Agents are the primary expression of autonomy in YARNNN. They run on schedule, produce versioned immutable output, sleep between executions (zero resource cost), and get smarter with each run — because knowledge accumulates per specialist, not per conversation.
 
-**The five execution modes** (how a agent decides when to act):
+**The five execution modes** (how an agent decides when to act):
 
 | Mode | Character | Execution logic |
 |------|-----------|-----------------|
@@ -75,25 +75,25 @@ Agents are the primary expression of autonomy in YARNNN. They run on schedule, p
 | `proactive` | Living specialist | Periodic self-review; generates when it judges conditions warrant |
 | `coordinator` | Meta-specialist | Proactive + can create new agents and advance schedules for others |
 
-Mode shapes *when* a agent acts. Instructions and memory shape *how* it acts.
+Mode shapes *when* an agent acts. Directives and memory shape *how* it acts.
 
-### 3. Context Accumulation — The Moat
+### 3. Knowledge Accumulation — The Moat
 
-Continuous platform sync feeds a unified content layer (`platform_content`) with retention-based accumulation. Content that proves significant — referenced by a agent run, a TP session, or a pattern match — is retained indefinitely. Content that isn't expires after TTL (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d).
+A perception pipeline (continuous platform sync) feeds a shared knowledge base with retention-based accumulation. Content that proves significant — referenced by an agent run, an orchestrator session, or a pattern match — is retained indefinitely. Content that isn't expires after TTL (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d).
 
-This is not "store everything" — it's "accumulate what proved significant." The accumulated corpus grows with every meaningful execution, creating a moat that compounds with tenure.
+This is not "store everything" — it's "accumulate what proved significant." The knowledge base grows with every meaningful execution, creating a moat that compounds with tenure.
 
-**The four-layer model** (Memory → Activity → Context → Work):
-- **Memory** (`user_memory`): What YARNNN knows about the user — stable, explicit, user-owned. Extracted nightly from TP conversations.
+**The four-layer model** (Memory → Activity → Knowledge → Work):
+- **Memory** (`user_memory` → migrating to workspace files): What YARNNN knows about the user — stable, explicit, user-owned. Extracted nightly from orchestrator conversations.
 - **Activity** (`activity_log`): What the system has done — append-only provenance log.
-- **Context** (`platform_content`): The accumulated content layer — synced, retained, searchable.
+- **Knowledge** (`platform_content` + workspace files): The accumulated knowledge layer — synced, retained, searchable. Agent workspaces provide inspectable, per-agent intelligence.
 - **Work** (`agents`, `agent_runs`): The output layer — versioned, immutable, supervised.
 
 **The relationship between pillars:**
-- Context accumulation enables meaningful autonomy (without context, autonomous output is generic)
+- Knowledge accumulation enables meaningful autonomy (without knowledge, autonomous output is generic)
 - Agents are the primary expression of autonomy (push-based, scheduled, improving)
-- TP is how the user supervises and steers the autonomous system
-- Each pillar reinforces the others: more agent runs → more learning → better context → smarter TP → better agents
+- The orchestrator is how the user supervises and steers the autonomous system
+- Each pillar reinforces the others: more agent runs → more learning → deeper knowledge → smarter orchestrator → better agents
 
 ---
 
@@ -103,15 +103,16 @@ The product revolves around five core entities. (Previous domain model with Work
 
 | Entity | Purpose | Key fields |
 |--------|---------|------------|
-| **agents** | The autonomous specialist | id, user_id, title, agent_type, mode, status, sources, schedule, trigger_config, agent_instructions, agent_memory, origin |
+| **agents** | The persistent specialist | id, user_id, title, agent_type, mode, status, sources, schedule, trigger_config, agent_instructions, agent_memory, origin |
 | **agent_runs** | Immutable output record | id, agent_id, content, version_number, metadata (source_snapshots, trigger_context, generation_cost) |
-| **platform_content** | Accumulated context layer | id, user_id, platform, resource_id, item_id, content, retained, retained_reason, expires_at |
-| **user_memory** | Stable user knowledge | id, user_id, key, value, source, confidence |
+| **workspace_files** | Agent workspaces + knowledge base | id, user_id, path, content, summary, embedding, tags — virtual filesystem (ADR-106) |
+| **platform_content** | Accumulated knowledge layer | id, user_id, platform, resource_id, item_id, content, retained, retained_reason, expires_at |
+| **user_memory** | Stable user knowledge (migrating to workspace) | id, user_id, key, value, source, confidence |
 | **activity_log** | System provenance | id, user_id, event_type, metadata, created_at |
 
 Supporting entities:
 - `platform_connections` — OAuth credentials + sync preferences + selected sources
-- `chat_sessions` + `session_messages` — TP conversation history (with optional `agent_id` FK for scoped sessions)
+- `chat_sessions` + `session_messages` — Orchestrator conversation history (with optional `agent_id` FK for scoped sessions)
 - `filesystem_documents` + `filesystem_chunks` — Uploaded documents (searchable)
 
 **Retired entities** (ADR-090): `work_tickets`, `work_outputs` — do not reference in new code.
@@ -122,7 +123,7 @@ Supporting entities:
 
 ### One Agent, Two Modes (ADR-080)
 
-YARNNN has one agent — TP — that operates in two execution contexts:
+YARNNN has one agent — the orchestrator (internally "TP") — that operates in two execution contexts:
 
 ```
 Chat Mode (interactive)              Headless Mode (background)
@@ -136,40 +137,45 @@ User: conversational                 User: supervisor reviewing output
 
 The boundary is preserved: backend orchestration (scheduler, strategy, delivery, retention) stays outside the agent. The agent is invoked at the generation step and returns text.
 
-### The Agent as Lightweight Agent (ADR-092, agent-model-comparison.md)
+### The Agent as Persistent Specialist (ADR-092, ADR-103, ADR-106)
 
-Each agent is not a template or a config — it is a purpose-built specialist agent:
+Each agent is not a template or a config — it is a persistent, sleeping specialist:
 
-| Component | Agent field | Agent equivalent |
-|-----------|------------------|-----------------|
-| Identity | title + agent_type | Agent name + role |
-| Instructions | `agent_instructions` | System prompt behavioral directive |
-| Memory | `agent_memory` | Accumulated execution knowledge |
-| Sources | `sources` JSONB | Context scope |
+| Component | Implementation | Purpose |
+|-----------|---------------|---------|
+| Identity | title + agent_type + archetype | Agent name, role, and execution strategy |
+| Directives | `agent_instructions` → `AGENT.md` workspace file | User-authored behavioral programming |
+| Workspace | `workspace_files` (virtual filesystem) | Inspectable memory, thesis, working notes, references |
+| Memory | `/agents/{slug}/memory/*.md` | Topic-scoped accumulated knowledge (replaces JSONB blob) |
+| Sources | `sources` JSONB | Knowledge base scope |
 | Schedule | `schedule` + `trigger_config` | Execution trigger |
-| Output history | `agent_runs` | Immutable response log |
-| Capabilities | Mode-gated primitives | Available tools |
+| Output history | `agent_runs` + `/agents/{slug}/runs/` | Immutable response log |
+| Capabilities | Mode-gated primitives | Available tools (+ workspace primitives for reasoning agents) |
 
-This is why the agent is the unit of both *work* and *intelligence*. The mode shapes its execution character. The instructions shape its behavior. The memory makes it better over time.
+This is why the agent is the unit of both *work* and *intelligence*. The mode shapes its execution character. The directives shape its behavior. The workspace makes it better over time — and makes its intelligence inspectable.
 
-### Primitive Registry (Mode-Gated)
+### Capability Registry (Mode-Gated)
 
-Primitives are the agent's tools. They are mode-gated — some available in both chat and headless, some chat-only, some headless-only:
+Capabilities (internally "primitives") are the agent's tools. They are mode-gated — some available in both chat and headless, some chat-only, some headless-only:
 
-| Primitive | Chat | Headless | Notes |
-|-----------|------|----------|-------|
-| Search | ✓ | ✓ | Semantic search over platform_content |
+| Capability | Chat | Headless | Notes |
+|------------|------|----------|-------|
+| Search | ✓ | ✓ | Semantic search over knowledge base |
 | FetchPlatformContent | ✓ | ✓ | Fetch specific resource content |
 | CrossPlatformQuery | ✓ | ✓ | Cross-platform synthesis |
 | RefreshPlatformContent | ✓ | ✓ | Trigger live platform fetch |
-| CreateAgent | ✓ | headless only (coordinator) | Coordinator write primitive |
-| AdvanceAgentSchedule | ✓ | headless only (coordinator) | Coordinator write primitive |
+| ReadWorkspace | ✗ | ✓ | Read from agent's workspace (ADR-106) |
+| WriteWorkspace | ✗ | ✓ | Write to agent's workspace (ADR-106) |
+| SearchWorkspace | ✗ | ✓ | Search within workspace (ADR-106) |
+| QueryKnowledge | ✗ | ✓ | Search the shared knowledge base (ADR-106) |
+| CreateAgent | ✓ | headless only (coordinator) | Coordinator write capability |
+| AdvanceAgentSchedule | ✓ | headless only (coordinator) | Coordinator write capability |
 | SendSlackMessage | ✓ | ✗ | Chat-only (user must confirm) |
 | EditMemory | ✓ | ✗ | Chat-only (explicit user action) |
 
 ### Agent Scoped Context (ADR-087)
 
-When a TP chat session is attached to a specific agent (via `agent_id` FK on `chat_sessions`), the working memory injected into the system prompt includes that agent's `agent_instructions` and `agent_memory`. This enables the user to converse with a specialist that knows its own domain — not just the user's general profile.
+When an orchestrator chat session is attached to a specific agent (via `agent_id` FK on `chat_sessions`), the runtime context injected into the system prompt includes that agent's directives and workspace state. This enables the user to converse with a specialist that knows its own domain — not just the user's general profile. Instructions are edited through chat (ADR-105) — the orchestrator acknowledges, refines, and persists directive changes conversationally.
 
 ---
 
@@ -247,8 +253,11 @@ All execution is inline — no background worker, no Redis, no queue. Platform s
 - ✅ Agent-scoped TP sessions (chat attached to specific agent)
 - ✅ Email notifications (Resend — agent_ready, agent_failed)
 - ✅ MCP server (ADR-075 — OAuth 2.1 for Claude.ai, bearer token for Claude Desktop)
-- ✅ Tier model (Free / Starter / Pro — source limits, sync frequency, agent counts)
-- ✅ Nightly memory extraction from TP conversations
+- ✅ Tier model (Free / Pro $19/mo — source limits, sync frequency, agent counts — ADR-100)
+- ✅ Nightly memory extraction from orchestrator conversations
+- ✅ Agent workspace architecture — virtual filesystem with inspectable per-agent intelligence (ADR-106)
+- ✅ Instructions-to-chat migration — directive editing through conversational orchestrator (ADR-105)
+- ✅ Unified targeting — agent_instructions as single targeting layer, dead infrastructure deleted (ADR-104)
 
 ### What's not yet built
 - ❌ Notifications preferences UI (infrastructure complete, settings page pending)
@@ -263,15 +272,17 @@ All execution is inline — no background worker, no Redis, no queue. Platform s
 
 ### Five architectural principles (from agent-model-comparison.md)
 
-1. **Agent is the unit of work AND intelligence.** Not a template, not a config — a sleeping specialist with its own memory, instructions, and execution character.
+1. **The agent is the unit of work AND intelligence.** Not a template, not a config — a persistent, sleeping specialist with its own workspace, directives, and execution character.
 
-2. **Sleep is a feature.** A agent that isn't running costs nothing, hallucinates nothing, and wastes nothing. Graduated response (observe → sleep → generate) is how intelligence should behave.
+2. **Sleep-wake architecture.** An agent that isn't running costs nothing, hallucinates nothing, and wastes nothing. Graduated response (observe → sleep → generate) is how intelligence should behave.
 
-3. **Accumulation is moat per agent.** Not per user profile, not per conversation — per specialist. The weekly client report gets better at being a weekly client report. The competitive watch brief gets better at watching competition.
+3. **Knowledge accumulation is moat per agent.** Not per user profile, not per conversation — per specialist. The weekly client report gets better at being a weekly client report. The competitive watch brief gets better at watching competition.
 
 4. **Graduated response preserves the task foundation.** Reactive and proactive modes don't generate on every event — they observe, accumulate, and decide. This keeps output meaningful and cost-efficient.
 
-5. **Orchestration stays outside the agent.** The scheduler decides when to trigger. The pipeline handles source assembly, delivery, and retention. The agent generates text. These concerns don't mix.
+5. **Orchestration stays outside the agent.** The scheduler decides when to trigger. The pipeline handles source assembly, delivery, and retention. The agent generates output. These concerns don't mix.
+
+6. **Agent intelligence must be inspectable.** Users browse workspace files to understand what an agent knows. Debug by reading, not querying. Transparency builds trust in autonomous systems.
 
 ### What we're not building (current)
 
@@ -289,8 +300,8 @@ All execution is inline — no background worker, no Redis, no queue. Platform s
 
 | Concern | Location |
 |---------|----------|
-| TP Agent + system prompt | `api/agents/thinking_partner.py` |
-| Primitive registry | `api/services/primitives/registry.py` |
+| Orchestrator agent + system prompt | `api/agents/thinking_partner.py` |
+| Capability registry | `api/services/primitives/registry.py` |
 | Coordinator primitives | `api/services/primitives/coordinator.py` |
 | Agent execution pipeline | `api/services/agent_execution.py` |
 | Unified scheduler (all modes) | `api/jobs/unified_scheduler.py` |
@@ -298,11 +309,12 @@ All execution is inline — no background worker, no Redis, no queue. Platform s
 | Reactive dispatch | `api/services/trigger_dispatch.py` |
 | Platform sync worker | `api/workers/platform_worker.py` |
 | Platform sync scheduler | `api/jobs/platform_sync_scheduler.py` |
-| Working memory builder | `api/services/working_memory.py` |
+| Runtime context builder | `api/services/working_memory.py` |
+| Agent workspace | `api/services/workspace.py` |
 | Memory extraction (nightly) | `api/services/memory.py` |
 | Agent routes | `api/routes/agents.py` |
 | Frontend API client | `web/lib/api/client.ts` |
 
 ---
 
-*This document is the current specification. For decision history, see `docs/adr/`. For GTM language and positioning, see `docs/GTM_POSITIONING.md`. For narrative sequencing, see `docs/NARRATIVE.md`.*
+*This document is the current specification. For decision history, see `docs/adr/`. For GTM language and positioning, see `docs/working_docs/strategy/GTM_POSITIONING.md`. For narrative sequencing, see `docs/NARRATIVE.md`. For terminology conventions, see ADR-103.*

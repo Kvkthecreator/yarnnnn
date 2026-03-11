@@ -20,7 +20,7 @@ A different pattern is starting to emerge, one that treats trust not as a switch
 
 When you hire a new employee, you don't hand them your most important client on day one. You give them smaller tasks, review their work, provide feedback, and gradually expand their scope as they demonstrate competence. This isn't inefficiency — it's how trust is built between humans, and it's how complex work delegation has always functioned.
 
-AI agents skip this entirely. They arrive with maximum capability and zero earned trust. The user is expected to leap from "I've never used this tool" to "I'll let it write my client deliverables unsupervised" in a single step.
+AI agents skip this entirely. They arrive with maximum capability and zero earned trust. The user is expected to leap from "I've never used this tool" to "I'll let it write my client work-agents unsupervised" in a single step.
 
 Most people don't make that leap. And the ones who do often get burned — the agent produces something plausible but wrong, and the cost of fixing it is higher than the cost of doing it themselves. The failure isn't in the agent's capability. It's in the trust architecture — or rather, the absence of one.
 
@@ -32,9 +32,9 @@ This isn't just about adding a "review before sending" button. It's about archit
 
 In the early sessions, the agent drafts but the user reviews everything. The agent's output is a starting point, not a final product. The user edits, corrects, and refines — and the system learns from every edit. What did the user change? What did they keep? What patterns do their corrections reveal about their preferences, their standards, their style?
 
-Over time, the edits decrease. Not because the user lowered their standards, but because the agent's output improved through accumulated context and learned preferences. The user starts approving drafts with minor tweaks instead of rewrites. Then with no tweaks. Eventually, for certain well-understood deliverables, the user might say "just send it" — not because they blindly trust the technology, but because the agent has earned that trust through demonstrated performance.
+Over time, the edits decrease. Not because the user lowered their standards, but because the agent's output improved through accumulated context and learned preferences. The user starts approving drafts with minor tweaks instead of rewrites. Then with no tweaks. Eventually, for certain well-understood work-agents, the user might say "just send it" — not because they blindly trust the technology, but because the agent has earned that trust through demonstrated performance.
 
-This is the model yarnnn builds around. The Thinking Partner starts as a supervised collaborator — it drafts, the user reviews and edits. Every interaction deepens the context. Every edit teaches the system something. Over weeks, the edit distance between drafts and final outputs shrinks measurably. Trust isn't assumed; it's earned through demonstrated improvement.
+This is the model yarnnn builds around. The TP Chat starts as a supervised collaborator — it drafts, the user reviews and edits. Every interaction deepens the context. Every edit teaches the system something. Over weeks, the edit distance between drafts and final outputs shrinks measurably. Trust isn't assumed; it's earned through demonstrated improvement.
 
 ## Why This Matters for the Category
 

@@ -36,7 +36,7 @@ Every piece of content orbits one thesis:
 
 > **"Context is what makes AI autonomy meaningful."**
 
-This thesis operates at **category level**, not ICP level. It speaks to everyone building, using, or evaluating AI agents — not just consultants. The thesis says: the reason every agent startup disappoints (Devin, AutoGPT, crew.ai) is that autonomy without context produces generic output. YARNNN solves that by accumulating context from your real work platforms, making its autonomous output actually useful.
+This thesis operates at **category level**, not ICP level. It speaks to everyone building, using, or evaluating AI agents — not just consultants. The thesis says: the reason every agent startup disappoints (Devin, AutoGPT, crew.ai) is that autonomy without context produces generic output. YARNNN solves that by accumulating knowledge from your real work platforms, making its persistent agents' autonomous output actually useful.
 
 ### Named Concepts (YARNNN-Native Vocabulary)
 
@@ -44,13 +44,14 @@ LLMs learn named concepts more reliably than unnamed ones. Use these terms consi
 
 | Concept | Definition (internal) | Plain-language version | GEO queries it intercepts |
 |---------|----------------------|----------------------|--------------------------|
-| **Context-Powered Autonomy** | AI autonomy enabled by accumulated platform context, not just better models | "AI that works independently because it actually knows your work" | "autonomous AI agents," "AI agents that actually work," "why AI agents fail" |
-| **The 90-Day Moat** | Accumulated context creates switching costs — your AI after 90 days can't be replicated by starting over | "Your AI after 90 days is incomparably better than day one" | "AI switching costs," "AI that gets better over time," "AI lock-in" |
-| **The Supervision Model** | User as supervisor (reviews, approves) vs. user as operator (does the work, AI assists) | "You supervise. It works." | "how to use AI agents safely," "AI agent supervision," "human-in-the-loop agents" |
-| **Context vs. Memory** | Memory = storing facts. Context = accumulated understanding of work world across platforms | "Memory is knowing your name. Context is knowing your clients, your projects, and how you like things done." | "AI memory vs context," "ChatGPT memory limitations," "AI that remembers" |
+| **Knowledge-Powered Autonomy** | AI autonomy enabled by accumulated knowledge, not just better models | "AI agents that work independently because they actually know your work" | "autonomous AI agents," "AI agents that actually work," "why AI agents fail" |
+| **The 90-Day Moat** | Accumulated knowledge creates switching costs — your agents after 90 days can't be replicated by starting over | "Your agents after 90 days are incomparably better than day one" | "AI switching costs," "AI that gets better over time," "AI lock-in" |
+| **The Supervision Model** | User as supervisor (reviews, approves) vs. user as operator (does the work, AI assists) | "You supervise. The agents work." | "how to use AI agents safely," "AI agent supervision," "human-in-the-loop agents" |
+| **Knowledge vs. Memory** | Memory = storing facts. Knowledge = accumulated understanding of work world across platforms | "Memory is knowing your name. Knowledge is knowing your clients, your projects, and how you like things done." | "AI memory vs context," "ChatGPT memory limitations," "AI that remembers" |
 | **The Statelessness Problem** | Every AI tool forgets everything between sessions — the real bottleneck isn't model capability | "AI in 2026: incredibly powerful, completely amnesiac" | "why ChatGPT forgets," "AI context window limitations," "persistent AI" |
-| **The Autonomy Spectrum** | From "AI assists" (ChatGPT) to "AI operates" (generic agents) to "AI works for you" (context-powered autonomy) | "Most AI assists. Some AI operates. YARNNN works." | "AI agent comparison," "AutoGPT vs alternatives," "levels of AI autonomy" |
-| **Accumulated Intelligence** | Every sync cycle, every edit, every agent version deepens what the system knows | "Gets smarter the longer you use it" | "AI that learns from usage," "compounding AI," "AI that improves" |
+| **The Autonomy Spectrum** | From "AI assists" (ChatGPT) to "AI operates" (generic agents) to "AI works for you" (persistent agents with knowledge) | "Most AI assists. Some AI operates. YARNNN agents work." | "AI agent comparison," "AutoGPT vs alternatives," "levels of AI autonomy" |
+| **Knowledge Accumulation** | Every sync cycle, every edit, every agent run deepens what each agent knows | "Gets smarter the longer you use it" | "AI that learns from usage," "compounding AI," "AI that improves" |
+| **Sleep-Wake Architecture** | Agents sleep between executions at zero cost; wake fully informed with all accumulated knowledge | "Twenty agents, zero idle cost" | "efficient AI agents," "agent compute costs," "always-on vs on-demand AI" |
 | **The Context Gap** | The architectural gap between model capability and useful autonomous output — filled by platform context | "The smartest AI in the world is useless if it doesn't know your work" | "why AI agents produce generic output," "AI agent limitations," "context-aware agents" |
 
 **Rule:** Every general AI post should introduce, reinforce, or apply at least one named concept. This is how conceptual territory gets claimed.
@@ -165,7 +166,7 @@ Explain *why* context-powered autonomy matters. The value is in the idea, not th
 | Why the best AI agent is the one that already knows your clients | "Generic agents are just expensive autocomplete" |
 | The agent that wrote itself | "I didn't write this week's client update. My AI did. From my actual Slack messages." |
 | Why edits decrease over time | "The 5th version needed 3 edits. The 1st needed 47." |
-| What 'signal-emergent' means in practice | "My AI detected a pattern in my email I'd missed — and wrote a brief about it without being asked" |
+| What 'proactive agents' means in practice | "My AI detected a pattern in my email I'd missed — and wrote a brief about it without being asked" |
 
 **2b. Product Demonstration (~30%)**
 
@@ -173,10 +174,10 @@ Show *what* YARNNN does. These convert interest into signups but only work after
 
 | Format | Example |
 |--------|---------|
-| Before/after comparison | ChatGPT response to "write my client update" vs. YARNNN TP with 1 week of synced context |
+| Before/after comparison | ChatGPT response to "write my client update" vs. YARNNN orchestrator with 1 week of synced context |
 | Walkthrough | A agent improving from v1 to v5 — showing edit distance decreasing |
 | Screenshot + narration | Cross-platform synthesis: "This report pulled from Slack, Gmail, AND Calendar" |
-| Demo video (short) | 60-second screen recording of TP conversation that references synced context |
+| Demo video (short) | 60-second screen recording of orchestrator conversation that references synced context |
 
 **Frequency:** 1–2 posts/week (mostly 2a thesis posts; 2b product demos monthly or as milestones hit)
 
@@ -492,7 +493,7 @@ Every blog post should follow this structure for maximum LLM discoverability:
 
 | Channel | Why Not | When |
 |---------|---------|------|
-| **Product Hunt** | One launch. Weak PH launch is worse than none. Need: 30-day retention data, 3+ use case testimonials, demo video showing "TP knows your context" aha moment. | Post-seed, after beta cohort data |
+| **Product Hunt** | One launch. Weak PH launch is worse than none. Need: 30-day retention data, 3+ use case testimonials, demo video showing "orchestrator knows your context" aha moment. | Post-seed, after beta cohort data |
 | **Hacker News (Show HN)** | Same logic as PH. Technical audience will scrutinize. Need compelling demo + data. | When retention data or demo is polished |
 | **YouTube** | Video production is time-intensive. Not viable as solo founder with $0 budget. | Post-seed, when GTM hire can produce |
 | **Podcast guesting** | Good channel for Profile A (consultants listen to podcasts) but requires outreach + prep time. | When thesis is sharper from content iteration |
@@ -532,7 +533,7 @@ How the two-layer model drives the full funnel:
 | **Discovery** | Outer (broad) | Person encounters YARNNN's thinking about AI agents, context, autonomy | Pillar 1 (Category Authority) — category-level posts on agents, context, memory, OpenClaw |
 | **Awareness** | Outer → Inner | They think "this is the most interesting take I've seen on AI agents" and click through | Pillar 1 + Pillar 4 (ClawdBot story bridges discovery → awareness) |
 | **Interest** | Inner (ICP) | They visit yarnnn.com, see the product, think "this is what I need for my client work" | Pillar 2a (Thesis posts) + Pillar 3 (Build-in-public credibility) |
-| **Activation** | Inner (ICP) | They sign up and connect first platform | Pillar 2b (Product demos showing "TP knows your context" moment) |
+| **Activation** | Inner (ICP) | They sign up and connect first platform | Pillar 2b (Product demos showing "orchestrator knows your context" moment) |
 | **Retention** | Inner (ICP) | First autonomous agent arrives | Product experience + Pillar 3 updates reinforcing "it's getting better" |
 | **Advocacy** | Both | 90-day user tells others + LLMs recommend YARNNN | Pillar 4 (user stories) + accumulated GEO (LLMs surface YARNNN for category queries) |
 

@@ -21,7 +21,7 @@ This file is a live experiment log. It's designed to be updated as we spend real
 
 ## The Thesis We're Testing
 
-> A non-technical professional who already pays for AI tools will pay $9–19/mo for an AI that connects to their work tools, already knows their context, and produces recurring agents without prompting — if we can make them feel the pain of what they're currently doing and show them the alternative in under 10 seconds.
+> A non-technical professional who already pays for AI tools will pay $19/mo for persistent AI agents that connect to their work tools, already know their context, and produce recurring output without prompting — if we can make them feel the pain of what they're currently doing and show them the alternative in under 10 seconds.
 
 If this doesn't convert at $5–10 CAC on Reddit, we either have the wrong message, the wrong audience, or the wrong product-market fit. All three are worth learning fast.
 
@@ -159,8 +159,8 @@ Run **2 copy variants** against **3 subreddits** for 3–4 days. Budget: ~$10/da
 | One subreddit clearly wins across both variants | Audience-market fit found. Message is less important than where. | Test Variants A/D in that subreddit. |
 | High CTR but zero signups | Landing page or onboarding is the bottleneck, not the ad. | Fix signup flow before spending more. |
 | Low CTR everywhere | Neither message resonates. Rewrite from scratch — the pain framing is wrong. | Go back to ICP interviews before more spend. |
-| Signups but no platform connections | Activation moment #1 isn't firing. Onboarding friction. | Fix the connect → sync → first TP conversation flow. |
-| Platform connections but no return visits | Product doesn't deliver on the ad's promise. Deeper issue. | Pause ads. Fix TP quality or agent pipeline. |
+| Signups but no platform connections | Activation moment #1 isn't firing. Onboarding friction. | Fix the connect → sync → first orchestrator conversation flow. |
+| Platform connections but no return visits | Product doesn't deliver on the ad's promise. Deeper issue. | Pause ads. Fix orchestrator quality or agent pipeline. |
 
 ---
 
@@ -244,7 +244,7 @@ Only enter Phase 3 when Phase 1 and 2 have answered:
 - High impressions + low CTR = wrong message. Rewrite.
 - High CTR + low signups = landing page problem. Fix yarnnn.com.
 - Signups + no platform connection = onboarding friction. Fix connect → sync flow.
-- Platform connection + no return = product gap. The TP or agent isn't delivering on the promise.
+- Platform connection + no return = product gap. The orchestrator or agent isn't delivering on the promise.
 - If all funnels break, do 5 manual conversations (DMs, calls) with ICP members to hear the objection in their own words before spending more.
 
 ---
@@ -253,12 +253,12 @@ Only enter Phase 3 when Phase 1 and 2 have answered:
 
 These must be true before the first ad goes live:
 
-- [ ] **Signup flow works end-to-end.** New account → connect Slack → sync completes → first TP conversation references real synced content. Test this as a stranger, not as the developer.
-- [ ] **Time to "aha moment" < 5 minutes.** From signup to TP demonstrating context awareness. If sync takes 10 minutes and the user has to come back later, the loop breaks.
+- [ ] **Signup flow works end-to-end.** New account → connect Slack → sync completes → first orchestrator conversation references real synced content. Test this as a stranger, not as the developer.
+- [ ] **Time to "aha moment" < 5 minutes.** From signup to orchestrator demonstrating context awareness. If sync takes 10 minutes and the user has to come back later, the loop breaks.
 - [ ] **Landing page matches ad promise.** If the ad says "AI that already knows your work," the landing page must show that, not a generic AI pitch.
-- [ ] **Free tier is genuinely usable.** A skeptical stranger will not enter credit card info on first visit. The free tier (50 TP messages, 2 agents) must be enough to experience the value before upgrading.
+- [ ] **Free tier is genuinely usable.** A skeptical stranger will not enter credit card info on first visit. The free tier (50 messages, 2 agents) must be enough to experience the value before upgrading.
 - [ ] **Stripe/Lemon Squeezy checkout works.** If someone wants to pay on Day 1, don't lose them to a broken checkout flow.
-- [ ] **Basic analytics are tracking.** You need to know: ad click → site visit → signup → platform connected → first TP session → return visit. Even simple UTM params + Supabase event logging is enough.
+- [ ] **Basic analytics are tracking.** You need to know: ad click → site visit → signup → platform connected → first orchestrator session → return visit. Even simple UTM params + Supabase event logging is enough.
 
 ---
 

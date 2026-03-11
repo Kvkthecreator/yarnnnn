@@ -21,14 +21,14 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Active agents", free: "2", pro: "10" },
+  { name: "Active work-agents", free: "2", pro: "10" },
   { name: "Platforms available", free: "All 4", pro: "All 4" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
   { name: "Gmail labels", free: "5", pro: "Unlimited" },
   { name: "Notion pages", free: "10", pro: "Unlimited" },
   { name: "Sync frequency", free: "1x daily", pro: "Hourly" },
   { name: "Monthly messages", free: "50", pro: "Unlimited" },
-  { name: "Versioned outputs", free: true, pro: true },
+  { name: "Run history & review", free: true, pro: true },
   { name: "Learning from your edits", free: true, pro: true },
   { name: "Priority support", free: false, pro: true },
 ];
@@ -86,7 +86,7 @@ export default function PricingPage() {
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
                 Start free, upgrade when you need more.
-                Every plan includes all four integrations and versioned agents.
+                Every plan includes all four integrations and supervised work-agents.
               </p>
             </div>
 

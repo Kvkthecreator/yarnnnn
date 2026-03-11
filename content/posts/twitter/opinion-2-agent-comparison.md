@@ -26,11 +26,11 @@ Persistent identity (SOUL.md), accumulated memory (MEMORY.md), continuous awaren
 But: heartbeats burn compute 24/7. One agent per workspace. 20 specialized tasks = 20 always-on processes.
 
 **Tweet 4 (YARNNN)**
-YARNNN: the Deliverable Model.
+YARNNN: the Work-agent Model.
 
-Network of sleeping specialists. Each deliverable has its own memory, instructions, sources, schedule. Wakes on trigger, executes with full accumulated context, goes back to sleep.
+Network of sleeping specialists. Each work-agent has its own memory, instructions, sources, schedule. Wakes on trigger, executes with full accumulated context, goes back to sleep.
 
-20 deliverables = 20 specialized agents. Zero idle cost.
+20 work-agents = 20 specialized agents. Zero idle cost.
 
 **Tweet 5 (The real test)**
 The model that wins isn't the smartest or most autonomous.

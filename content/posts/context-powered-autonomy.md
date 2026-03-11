@@ -53,9 +53,9 @@ Context-Powered Autonomy isn't a feature you bolt onto an existing chatbot. It's
 
 **Working memory.** When the system needs to produce output, it constructs a focused context window from the accumulated context — pulling the most relevant information for the specific task. This is more sophisticated than RAG (Retrieval-Augmented Generation) because it draws on temporal understanding and cross-platform patterns, not just keyword-matched documents.
 
-**Autonomous production.** The language model receives the working memory context and produces deliverables — reports, updates, analyses, summaries. The output reflects accumulated understanding, not just the current prompt. The system knows what the deliverable should contain because it's been watching the work evolve.
+**Autonomous production.** The language model receives the working memory context and produces work-agents — reports, updates, analyses, summaries. The output reflects accumulated understanding, not just the current prompt. The system knows what the work-agent should contain because it's been watching the work evolve.
 
-**Preference learning.** User edits to produced deliverables feed back into the system's understanding. Each edit refines what the system knows about how the user wants output structured, toned, and focused. This creates the **[supervision feedback loop](/blog/the-supervision-model)** that drives quality improvement over time.
+**Preference learning.** User edits to produced work-agents feed back into the system's understanding. Each edit refines what the system knows about how the user wants output structured, toned, and focused. This creates the **[supervision feedback loop](/blog/the-supervision-model)** that drives quality improvement over time.
 
 ## How This Differs From Existing Approaches
 
@@ -83,7 +83,7 @@ Context-Powered Autonomy changes your relationship with AI tools. Instead of ope
 
 The work that used to take two hours — gathering information across platforms, assembling a draft, editing for accuracy and tone — becomes a fifteen-minute review. Not because the AI is doing sloppy work you have to fix, but because the AI has enough context to produce a credible first draft that you refine.
 
-This is what yarnnn is building: Context-Powered Autonomy for recurring professional work. Your platforms connect. Context accumulates. Deliverables are produced. You supervise. And it gets better the longer you use it.
+This is what yarnnn is building: Context-Powered Autonomy for recurring professional work. Your platforms connect. Context accumulates. Work-agents are produced. You supervise. And it gets better the longer you use it.
 
 ---
 

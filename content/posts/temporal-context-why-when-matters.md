@@ -37,7 +37,7 @@ Consider two systems producing a client status update for a project that experie
 
 **System without temporal context:** Retrieves relevant documents and messages. The output mentions the scope change, the original timeline, and the revised plan — but presents them as a collection of facts. "The project scope includes X, Y, and Z. The timeline target is Q2. The team discussed scope adjustments in Slack." The reader can't tell whether the scope change is resolved or still being debated. The facts are correct; the narrative is absent.
 
-**System with temporal context:** Understands the chronological arc. "The project was tracking to the original Q1 timeline through Monday. On Tuesday, the team identified in Slack that the expanded scope from the client email on February 12th couldn't be delivered within the original timeframe. By Wednesday, the revised Q2 timeline was agreed upon in a follow-up email, and the Notion project plan has been updated to reflect the new milestones. Thursday's review meeting will focus on the revised deliverable sequence."
+**System with temporal context:** Understands the chronological arc. "The project was tracking to the original Q1 timeline through Monday. On Tuesday, the team identified in Slack that the expanded scope from the client email on February 12th couldn't be delivered within the original timeframe. By Wednesday, the revised Q2 timeline was agreed upon in a follow-up email, and the Notion project plan has been updated to reflect the new milestones. Thursday's review meeting will focus on the revised work-agent sequence."
 
 The second output tells a story. It's supervisable — you can scan it, verify the sequence is correct, adjust emphasis, and approve. The first output is a fact dump that requires the human to reconstruct the narrative themselves.
 
@@ -75,7 +75,7 @@ With temporal context as a first-class element, several capabilities become poss
 
 **Proactive flagging.** "The Q2 deadline in Notion doesn't match the revised timeline discussed in email last week." This temporal inconsistency is detectable because the system knows which information is newer and which is stale.
 
-**Narrative-structured deliverables.** Status updates that tell the story of a week, not just list the facts. "Here's what happened, in what order, and what it means." This is the output format that professionals actually need.
+**Narrative-structured work-agents.** Status updates that tell the story of a week, not just list the facts. "Here's what happened, in what order, and what it means." This is the output format that professionals actually need.
 
 **Historical context for current decisions.** "The last time this client raised timeline concerns (October 2025), the resolution took two weeks and involved scope reduction." Temporal context preserves these historical patterns and surfaces them when current events rhyme with past ones.
 

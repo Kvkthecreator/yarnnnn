@@ -18,7 +18,7 @@ status: scaffold
 # SCAFFOLD — Part 3: The Performance Paradox
 
 ## Opening Hook
-Every performance review in every company in the world is built on a silent assumption: that human output is roughly proportional to human effort. More hours, more deliverables, more tickets closed — more value created.
+Every performance review in every company in the world is built on a silent assumption: that human output is roughly proportional to human effort. More hours, more work-agents, more tickets closed — more value created.
 
 AI breaks this assumption completely. And almost nobody has a replacement.
 
@@ -34,7 +34,7 @@ AI breaks this assumption completely. And almost nobody has a replacement.
 - When AI generates code, drafts, analyses at near-zero marginal cost, the person who "produces" 10x more isn't 10x more valuable — they're the one who hasn't realized the game changed
 - The "workslop" risk: high-volume, low-quality AI output flooding organizations. Betterworks 2026 report: companies already seeing productivity *decrease* when AI adoption lacks governance
 - Volume metrics (lines of code, reports written, emails sent) were always imperfect proxies. AI doesn't just make them inaccurate — it makes them actively misleading
-- Historical parallel: Factory workers measured by widgets/hour → knowledge workers measured by deliverables/week → AI-era workers measured by... what?
+- Historical parallel: Factory workers measured by widgets/hour → knowledge workers measured by work-agents/week → AI-era workers measured by... what?
 
 **Data points**:
 - Betterworks 2026: goal accuracy benchmark 85%+, hallucination rate target <2%
@@ -67,7 +67,7 @@ AI breaks this assumption completely. And almost nobody has a replacement.
 **Framework to propose**:
 
 ### 3a. Outcome Quality Over Output Volume
-- Measure the *impact* of decisions, not the *number* of deliverables
+- Measure the *impact* of decisions, not the *number* of work-agents
 - Example: A product manager who ships one well-scoped feature > one who ships five features nobody uses
 - Lag indicators (revenue impact, customer retention) matter more than lead indicators (tasks completed)
 
