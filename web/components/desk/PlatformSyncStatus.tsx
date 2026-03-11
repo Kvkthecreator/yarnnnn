@@ -31,7 +31,7 @@ import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { useDocuments, UploadProgress } from '@/hooks/useDocuments';
+import { useDocuments } from '@/hooks/useDocuments';
 
 type Provider = 'slack' | 'gmail' | 'notion' | 'calendar';
 
@@ -56,6 +56,33 @@ interface SyncStatus {
   platform: string;
   synced_resources: SyncResource[];
   stale_count: number;
+}
+
+interface PlatformSyncSnapshot {
+  integrations: Integration[];
+  syncStatuses: Record<string, SyncStatus>;
+  fetchedAt: number;
+}
+
+interface DocumentCountSnapshot {
+  count: number;
+  fetchedAt: number;
+}
+
+const PLATFORM_SYNC_CACHE_TTL_MS = 30_000;
+let platformSyncSnapshot: PlatformSyncSnapshot | null = null;
+let documentCountSnapshot: DocumentCountSnapshot | null = null;
+
+function getCachedPlatformSyncSnapshot(): PlatformSyncSnapshot | null {
+  if (!platformSyncSnapshot) return null;
+  const isFresh = Date.now() - platformSyncSnapshot.fetchedAt < PLATFORM_SYNC_CACHE_TTL_MS;
+  return isFresh ? platformSyncSnapshot : null;
+}
+
+function getCachedDocumentCount(): number {
+  if (!documentCountSnapshot) return 0;
+  const isFresh = Date.now() - documentCountSnapshot.fetchedAt < PLATFORM_SYNC_CACHE_TTL_MS;
+  return isFresh ? documentCountSnapshot.count : 0;
 }
 
 const PLATFORM_CONFIG: Record<string, {
@@ -114,45 +141,93 @@ const ALLOWED_MIME_TYPES = [
 export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const router = useRouter();
 
-  const [integrations, setIntegrations] = useState<Integration[]>([]);
-  const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({});
-  const [loading, setLoading] = useState(true);
+  const [integrations, setIntegrations] = useState<Integration[]>(
+    () => getCachedPlatformSyncSnapshot()?.integrations ?? []
+  );
+  const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>(
+    () => getCachedPlatformSyncSnapshot()?.syncStatuses ?? {}
+  );
+  const [loading, setLoading] = useState(
+    () => getCachedPlatformSyncSnapshot() === null
+  );
+  const [refreshing, setRefreshing] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [lastKnownDocumentCount, setLastKnownDocumentCount] = useState(
+    () => getCachedDocumentCount()
+  );
 
   // Document upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { documents, upload: uploadDocument, uploadProgress } = useDocuments();
+  const {
+    documents,
+    isLoading: documentsLoading,
+    upload: uploadDocument,
+    uploadProgress,
+  } = useDocuments();
 
-  const loadIntegrations = useCallback(async () => {
+  const loadIntegrations = useCallback(async (showLoading: boolean) => {
+    if (showLoading) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     try {
       const data = await api.integrations.list();
       const activeIntegrations = data.integrations.filter(
         (i: Integration) => i.status === 'active'
       );
-      setIntegrations(activeIntegrations);
 
-      // Load sync status for each platform
-      for (const integration of activeIntegrations) {
-        try {
-          const status = await api.integrations.getSyncStatus(integration.provider);
-          setSyncStatuses((prev) => ({
-            ...prev,
-            [integration.provider]: status,
-          }));
-        } catch (err) {
-          console.error(`Failed to get sync status for ${integration.provider}:`, err);
-        }
+      // Load sync status for each platform in parallel to avoid cascading re-renders.
+      const syncStatusResults = await Promise.all(
+        activeIntegrations.map(async (integration) => {
+          try {
+            const status = await api.integrations.getSyncStatus(integration.provider);
+            return [integration.provider, status] as const;
+          } catch (err) {
+            console.error(`Failed to get sync status for ${integration.provider}:`, err);
+            return null;
+          }
+        })
+      );
+
+      const nextSyncStatuses: Record<string, SyncStatus> = {};
+      for (const entry of syncStatusResults) {
+        if (!entry) continue;
+        const [provider, status] = entry;
+        nextSyncStatuses[provider] = status;
       }
+
+      setIntegrations(activeIntegrations);
+      setSyncStatuses(nextSyncStatuses);
+
+      platformSyncSnapshot = {
+        integrations: activeIntegrations,
+        syncStatuses: nextSyncStatuses,
+        fetchedAt: Date.now(),
+      };
     } catch (err) {
       console.error('Failed to load integrations:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadIntegrations();
+    const hasFreshSnapshot = getCachedPlatformSyncSnapshot() !== null;
+    loadIntegrations(!hasFreshSnapshot);
   }, [loadIntegrations]);
+
+  useEffect(() => {
+    if (documentsLoading) return;
+    const nextCount = documents.length;
+    setLastKnownDocumentCount(nextCount);
+    documentCountSnapshot = {
+      count: nextCount,
+      fetchedAt: Date.now(),
+    };
+  }, [documents.length, documentsLoading]);
 
   const handleConnect = async (provider: Provider) => {
     setConnecting(provider);
@@ -193,7 +268,7 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     return syncStatuses[provider];
   };
 
-  if (loading) {
+  if (loading && integrations.length === 0) {
     return (
       <div className={cn('flex items-center justify-center gap-2 text-muted-foreground text-sm', className)}>
         <Loader2 className="w-4 h-4 animate-spin" />
@@ -204,13 +279,17 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
 
   const connectedPlatforms = ALL_PLATFORMS.filter(p => isConnected(p));
   const unconnectedPlatforms = ALL_PLATFORMS.filter(p => !isConnected(p));
+  const visibleDocumentCount = documentsLoading ? lastKnownDocumentCount : documents.length;
 
   return (
     <div className={cn('max-w-lg mx-auto', className)}>
       {/* Connected Platforms */}
       {connectedPlatforms.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs text-muted-foreground mb-2 text-center">Connected platforms</p>
+          <p className="text-xs text-muted-foreground mb-2 text-center flex items-center justify-center gap-1.5">
+            <span>Connected platforms</span>
+            {refreshing && <Loader2 className="w-3 h-3 animate-spin" />}
+          </p>
           <div className="space-y-2">
             {connectedPlatforms.map((provider) => {
               const config = PLATFORM_CONFIG[provider];
@@ -360,10 +439,12 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
         )}
 
         {/* Show uploaded documents count if any */}
-        {documents.length > 0 && (
+        {visibleDocumentCount > 0 && (
           <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 text-sm">
             <File className="w-4 h-4 text-muted-foreground" />
-            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} uploaded</span>
+            <span>
+              {visibleDocumentCount} document{visibleDocumentCount !== 1 ? 's' : ''} uploaded
+            </span>
             <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
           </div>
         )}
