@@ -9,20 +9,17 @@
  *
  * Layout (≥ lg):
  * - Header: identity chip + breadcrumb + controls + panel toggle
- * - Body: chat area (left, flex-1) | panel (right, w-[400px], persistent, always visible by default)
+ * - Body: chat (left) | draggable divider | panel (right)
+ * - Default split: 50/50. Draggable. Min 30% each side.
  *
  * Layout (< lg):
  * - Header + full-width chat
  * - Panel slides from right as overlay (480px / full-width mobile)
  *
- * The panel serves double duty:
- * - Tab mode: browsing tabs (Versions, Instructions, Memory, Sessions, Settings)
- * - Preview mode: full version render when a version is clicked (managed by parent)
- *
- * Inspired by Claude Cowork's persistent right panel pattern.
+ * Inspired by Claude Cowork's persistent right panel with resizable split.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, PanelRight, PanelRightClose } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +57,11 @@ interface WorkspaceLayoutProps {
   onActiveTabChange?: (tabId: string) => void;
 }
 
+// Panel width as percentage of container. Clamped between 25-65%.
+const DEFAULT_PANEL_PCT = 50;
+const MIN_PANEL_PCT = 25;
+const MAX_PANEL_PCT = 65;
+
 export function WorkspaceLayout({
   identity,
   breadcrumb,
@@ -72,6 +74,9 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const [panelOpen, setPanelOpen] = useState(panelDefaultOpen);
   const [internalActiveTab, setInternalActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
+  const [panelPct, setPanelPct] = useState(DEFAULT_PANEL_PCT);
+  const [isDragging, setIsDragging] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Support controlled or uncontrolled active tab
   const activeTab = activeTabId ?? internalActiveTab;
@@ -94,6 +99,42 @@ export function WorkspaceLayout({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [panelOpen, closePanel]);
+
+  // Drag-to-resize handler
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const body = bodyRef.current;
+      if (!body) return;
+      const rect = body.getBoundingClientRect();
+      const offsetFromRight = rect.right - e.clientX;
+      const pct = (offsetFromRight / rect.width) * 100;
+      setPanelPct(Math.max(MIN_PANEL_PCT, Math.min(MAX_PANEL_PCT, pct)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    // Prevent text selection while dragging
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging]);
 
   // Shared tab bar
   const tabBar = (
@@ -161,20 +202,37 @@ export function WorkspaceLayout({
       </div>
 
       {/* Body: chat + panel */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Chat area — always takes remaining space */}
+      <div ref={bodyRef} className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Chat area — takes remaining space */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {children}
         </div>
 
-        {/* Desktop persistent panel (≥ lg): inline, part of flex layout */}
+        {/* Desktop persistent panel (≥ lg): inline, percentage-based width, resizable */}
         {hasPanelTabs && panelOpen && (
-          <div className="hidden lg:flex lg:flex-col lg:w-[400px] lg:shrink-0 border-l border-border bg-background">
-            {tabBar}
-            <div className="flex-1 overflow-y-auto">
-              {activePanelContent}
+          <>
+            {/* Drag handle */}
+            <div
+              onMouseDown={handleDragStart}
+              className={cn(
+                'hidden lg:flex items-center justify-center w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors shrink-0',
+                isDragging && 'bg-primary/30'
+              )}
+            >
+              <div className="w-px h-8 bg-border rounded-full" />
             </div>
-          </div>
+
+            {/* Panel */}
+            <div
+              className="hidden lg:flex lg:flex-col border-l border-border bg-background shrink-0"
+              style={{ width: `${panelPct}%` }}
+            >
+              {tabBar}
+              <div className="flex-1 overflow-y-auto">
+                {activePanelContent}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Mobile/tablet overlay panel (< lg): fixed, slides from right */}
