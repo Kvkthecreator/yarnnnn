@@ -43,7 +43,7 @@ import {
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
-import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/agents';
+import { AGENT_TYPE_LABELS } from '@/lib/constants/agents';
 import type { Agent, ScheduleConfig, Document as DocType } from '@/types';
 
 // Format schedule to human readable string
@@ -398,7 +398,7 @@ function AgentCard({
   onClick: () => void;
 }) {
   const typeLabel =
-    DELIVERABLE_TYPE_LABELS[agent.agent_type] || agent.agent_type;
+    AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type;
 
   // Quality indicator
   const QualityIndicator = () => {

@@ -36,7 +36,7 @@ from supabase import create_client
 USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
 
 # Agent with versions for scoped test
-SCOPED_DELIVERABLE_ID = "7ac36217-935b-4201-8471-b8e6ed3ce7c9"  # Competitive Research Brief, 9 versions
+SCOPED_AGENT_ID = "7ac36217-935b-4201-8471-b8e6ed3ce7c9"  # Competitive Research Brief, 9 versions
 
 
 @dataclass
@@ -191,12 +191,12 @@ async def test_4_scoped_session_ref():
 
     d = client.table("agents").select(
         "id, title, agent_type, agent_instructions, agent_memory"
-    ).eq("id", SCOPED_DELIVERABLE_ID).eq("user_id", USER_ID).single().execute()
+    ).eq("id", SCOPED_AGENT_ID).eq("user_id", USER_ID).single().execute()
 
     wm = await build_working_memory(USER_ID, client, agent=d.data)
     wm_text = format_for_prompt(wm)
 
-    has_ref = f"agent:{SCOPED_DELIVERABLE_ID}" in wm_text
+    has_ref = f"agent:{SCOPED_AGENT_ID}" in wm_text
     has_title = "Competitive Research Brief" in wm_text
     has_version = "Latest version" in wm_text
 
@@ -221,7 +221,7 @@ async def test_5_scoped_edit():
     result = await run_chat_turn(
         auth,
         "From now on, always include a 'key risks' section in this agent.",
-        scoped_agent=SCOPED_DELIVERABLE_ID,
+        scoped_agent=SCOPED_AGENT_ID,
     )
 
     tools = result["tools_used"]
@@ -233,7 +233,7 @@ async def test_5_scoped_edit():
     for tr in result["tool_results"]:
         if isinstance(tr, dict):
             ref = tr.get("ref", "")
-            if SCOPED_DELIVERABLE_ID in str(ref):
+            if SCOPED_AGENT_ID in str(ref):
                 correct_ref_used = True
 
     # Check if it used Edit on first attempt (not Edit→List→Edit pattern)
@@ -259,7 +259,7 @@ async def test_6_headless_generation():
 
     # Use a agent with existing versions
     agent = client.table("agents").select("*").eq(
-        "id", SCOPED_DELIVERABLE_ID
+        "id", SCOPED_AGENT_ID
     ).eq("user_id", USER_ID).single().execute()
 
     if not agent.data:
@@ -335,7 +335,7 @@ async def main():
     logger.info("TP QUALITATIVE TEST — Chat + Headless")
     logger.info("=" * 60)
     logger.info(f"Test user: {USER_ID}")
-    logger.info(f"Scoped agent: {SCOPED_DELIVERABLE_ID}")
+    logger.info(f"Scoped agent: {SCOPED_AGENT_ID}")
     logger.info("")
 
     tests = [

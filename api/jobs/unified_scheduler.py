@@ -391,7 +391,7 @@ async def should_skip_agent(
 
     except Exception as e:
         # On error, don't skip - better to run than miss updates
-        logger.warning(f"[DELIVERABLE] Freshness check failed: {e}")
+        logger.warning(f"[AGENT] Freshness check failed: {e}")
         return False, ""
 
 
@@ -412,7 +412,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
     agent_type = agent["agent_type"]
     schedule = agent.get("schedule", {})
 
-    logger.info(f"[DELIVERABLE] Processing: {title} ({agent_id})")
+    logger.info(f"[AGENT] Processing: {title} ({agent_id})")
 
     # ADR-072: Write agent_scheduled event when queued for execution
     try:
@@ -431,7 +431,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
             },
         )
     except Exception as e:
-        logger.warning(f"[DELIVERABLE] Failed to write scheduled event: {e}")
+        logger.warning(f"[AGENT] Failed to write scheduled event: {e}")
 
     try:
         # ADR-088: Route through dispatch — schedule triggers always generate (high)
@@ -456,7 +456,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
         # No scheduler-level email — single notification path via ADR-040.
 
         if success:
-            logger.info(f"[DELIVERABLE] ✓ Complete: {title}")
+            logger.info(f"[AGENT] ✓ Complete: {title}")
             try:
                 await write_activity(
                     client=supabase_client,
@@ -470,14 +470,14 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                     },
                 )
             except Exception as e:
-                logger.debug(f"[DELIVERABLE] Activity log write failed for {title}: {e}")
+                logger.debug(f"[AGENT] Activity log write failed for {title}: {e}")
         else:
-            logger.warning(f"[DELIVERABLE] ✗ Failed: {title} - {result.get('error')}")
+            logger.warning(f"[AGENT] ✗ Failed: {title} - {result.get('error')}")
 
         return success
 
     except Exception as e:
-        logger.error(f"[DELIVERABLE] ✗ Error processing {title}: {e}")
+        logger.error(f"[AGENT] ✗ Error processing {title}: {e}")
 
         # Still update next_run_at to prevent retry storm
         try:
@@ -486,7 +486,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                 "next_run_at": next_run.isoformat(),
             }).eq("id", agent_id).execute()
         except Exception as e:
-            logger.warning(f"[DELIVERABLE] Failed to update next_run_at for {title}: {e}")
+            logger.warning(f"[AGENT] Failed to update next_run_at for {title}: {e}")
 
         # Notify failure via delivery service's single notification path
         try:
@@ -500,7 +500,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                 error=str(e),
             )
         except Exception as e2:
-            logger.warning(f"[DELIVERABLE] Failed to send failure notification for {title}: {e2}")
+            logger.warning(f"[AGENT] Failed to send failure notification for {title}: {e2}")
 
         return False
 
@@ -535,7 +535,7 @@ async def run_unified_scheduler():
     # Process Agents (ADR-018)
     # -------------------------------------------------------------------------
     agents = await get_due_agents(supabase)
-    logger.info(f"[DELIVERABLE] Found {len(agents)} due for generation")
+    logger.info(f"[AGENT] Found {len(agents)} due for generation")
 
     agent_success = 0
     agent_skipped = 0
@@ -544,7 +544,7 @@ async def run_unified_scheduler():
             # ADR-031 Phase 3: Skip if no new context since last run
             should_skip, skip_reason = await should_skip_agent(supabase, agent)
             if should_skip:
-                logger.info(f"[DELIVERABLE] Skipping '{agent['title']}': {skip_reason}")
+                logger.info(f"[AGENT] Skipping '{agent['title']}': {skip_reason}")
                 agent_skipped += 1
                 # Still update next_run_at to prevent re-checking every 5 minutes
                 schedule = agent.get("schedule", {})
@@ -557,7 +557,7 @@ async def run_unified_scheduler():
             if await process_agent(supabase, agent):
                 agent_success += 1
         except Exception as e:
-            logger.error(f"[DELIVERABLE] Unexpected error: {e}")
+            logger.error(f"[AGENT] Unexpected error: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-092 Phase 4: Proactive / Coordinator Review Pass

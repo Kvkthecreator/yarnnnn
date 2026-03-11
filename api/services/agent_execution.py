@@ -137,7 +137,7 @@ async def create_version_record(
     result = (
         client.table("agent_runs")
         .insert({
-            "id": run_id,
+            "id": version_id,
             "agent_id": agent_id,
             "version_number": version_number,
             "status": "generating",
@@ -658,7 +658,7 @@ async def execute_agent_generation(
             "sources_used": gathered_result.sources_used,
             "strategy": context_summary.get("strategy", "unknown"),
         }
-        await update_version_for_delivery(client, run_id, draft, metadata=version_metadata)
+        await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
         # ADR-073: Mark consumed platform content as retained
         if gathered_result.platform_content_ids:
@@ -668,7 +668,7 @@ async def execute_agent_generation(
                     client,
                     gathered_result.platform_content_ids,
                     reason="agent_execution",
-                    ref=run_id,
+                    ref=version_id,
                 )
             except Exception as e:
                 logger.warning(f"[EXEC] Failed to mark content retained: {e}")
@@ -686,7 +686,7 @@ async def execute_agent_generation(
                     "user_id": user_id,
                 })
         await record_source_snapshots(
-            client, run_id, sources_for_snapshot,
+            client, version_id, sources_for_snapshot,
             content_ids=gathered_result.platform_content_ids,
         )
 
@@ -724,7 +724,7 @@ async def execute_agent_generation(
                 from services.delivery import get_delivery_service
                 delivery_service = get_delivery_service(client)
                 delivery_result = await delivery_service.deliver_version(
-                    run_id=run_id,
+                    version_id=version_id,
                     user_id=user_id,
                 )
                 if delivery_result.status.value == "success":
@@ -771,7 +771,7 @@ async def execute_agent_generation(
                     user_id=user_id,
                     platform="yarnnn",
                     resource_id=str(agent_id),
-                    item_id=str(run_id),
+                    item_id=str(version_id),
                     content=draft,
                     content_type=agent_type,
                     resource_name=title,
@@ -787,7 +787,7 @@ async def execute_agent_generation(
                     source_timestamp=datetime.now(timezone.utc),
                     retained=True,
                     retained_reason="yarnnn_output",
-                    retained_ref=str(run_id),
+                    retained_ref=str(version_id),
                 )
                 logger.info(f"[EXEC] ADR-102: Stored yarnnn_content for {title} v{next_version}")
             except Exception as e:
@@ -809,7 +809,7 @@ async def execute_agent_generation(
                 user_id=user_id,
                 event_type="agent_run",
                 summary=f"{title} v{next_version} {final_status}",
-                event_ref=run_id,
+                event_ref=version_id,
                 metadata={
                     "agent_id": str(agent_id),
                     "version_number": next_version,
@@ -826,7 +826,7 @@ async def execute_agent_generation(
 
         return {
             "success": final_status == "delivered",
-            "run_id": run_id,
+            "run_id": version_id,
             "version_number": next_version,
             "status": final_status,
             "message": f"Version {next_version} {final_status}" + (f": {delivery_error}" if delivery_error else ""),

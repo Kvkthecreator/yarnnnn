@@ -24,8 +24,8 @@ from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import (
-    CREATE_DELIVERABLE_TOOL, handle_create_agent,
-    ADVANCE_DELIVERABLE_SCHEDULE_TOOL, handle_advance_agent_schedule,
+    CREATE_AGENT_TOOL, handle_create_agent,
+    ADVANCE_AGENT_SCHEDULE_TOOL, handle_advance_agent_schedule,
 )
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
@@ -183,8 +183,8 @@ PRIMITIVES = [
     # Communication (Clarify only - Respond removed)
     CLARIFY_TOOL,
     # Coordinator write primitives — headless only (ADR-092)
-    CREATE_DELIVERABLE_TOOL,
-    ADVANCE_DELIVERABLE_SCHEDULE_TOOL,
+    CREATE_AGENT_TOOL,
+    ADVANCE_AGENT_SCHEDULE_TOOL,
 ]
 
 

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # CreateAgent
 # =============================================================================
 
-CREATE_DELIVERABLE_TOOL = {
+CREATE_AGENT_TOOL = {
     "name": "CreateAgent",
     "description": """Create a new agent on behalf of the user.
 
@@ -193,7 +193,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 # AdvanceAgentSchedule
 # =============================================================================
 
-ADVANCE_DELIVERABLE_SCHEDULE_TOOL = {
+ADVANCE_AGENT_SCHEDULE_TOOL = {
     "name": "AdvanceAgentSchedule",
     "description": """Advance an existing agent's schedule to run now.
 

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 
-MAX_DELIVERABLES = 5
+MAX_AGENTS = 5
 MAX_PLATFORMS = 5
 MAX_RECENT_SESSIONS = 3
 MAX_CONTEXT_ENTRIES = 20       # Max user_memory rows to include in prompt
@@ -286,7 +286,7 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
             "id, title, status, schedule, recipient_context, next_run_at, updated_at"
         ).eq("user_id", user_id).eq("status", "active").order(
             "updated_at", desc=True
-        ).limit(MAX_DELIVERABLES).execute()
+        ).limit(MAX_AGENTS).execute()
 
         if result.data:
             for d in result.data:
@@ -301,9 +301,9 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
                     "next_run": d.get("next_run_at"),
                 })
 
-        if total_count > MAX_DELIVERABLES:
+        if total_count > MAX_AGENTS:
             agents.append({
-                "_note": f"... and {total_count - MAX_DELIVERABLES} more active agents"
+                "_note": f"... and {total_count - MAX_AGENTS} more active agents"
             })
 
     except Exception as e:

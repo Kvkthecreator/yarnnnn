@@ -45,7 +45,7 @@ class DeliveryService:
 
         # Check if delivery should auto-trigger
         if service.should_auto_deliver(agent):
-            result = await service.deliver_version(run_id, user_id)
+            result = await service.deliver_version(version_id, user_id)
     """
 
     def __init__(self, client):

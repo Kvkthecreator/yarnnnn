@@ -114,7 +114,7 @@ interface RouteItem {
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
 // Primary workspace: Agent + Work (creation flows through TP chat)
 // Supporting pages: Memory, Context, Activity, System, Settings
-const DELIVERABLES_ROUTE: RouteItem = { id: 'agents', label: 'Work', icon: Briefcase, path: '/agents' };
+const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work', icon: Briefcase, path: '/agents' };
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
@@ -128,8 +128,8 @@ const ROUTE_PAGES: RouteItem[] = [
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
   // Check agents route first (primary workspace)
-  if (pathname === DELIVERABLES_ROUTE.path || pathname.startsWith(DELIVERABLES_ROUTE.path + '/')) {
-    return DELIVERABLES_ROUTE;
+  if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
+    return AGENTS_ROUTE;
   }
   // Check supporting route pages
   for (const route of ROUTE_PAGES) {
@@ -298,16 +298,16 @@ function AuthenticatedLayoutInner({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(DELIVERABLES_ROUTE.path);
+                    router.push(AGENTS_ROUTE.path);
                     setDropdownOpen(false);
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+                    currentRoute?.id === AGENTS_ROUTE.id && 'bg-primary/5 text-primary'
                   )}
                 >
                   <Briefcase className="w-4 h-4" />
-                  {DELIVERABLES_ROUTE.label}
+                  {AGENTS_ROUTE.label}
                 </button>
 
                 {/* Divider — supporting pages below */}

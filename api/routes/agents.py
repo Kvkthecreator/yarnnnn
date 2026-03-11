@@ -618,7 +618,7 @@ async def create_agent(
         raise HTTPException(status_code=500, detail="Failed to create agent")
 
     agent = result.data[0]
-    logger.info(f"[DELIVERABLE] Created: {agent['id']} - {agent['title']}")
+    logger.info(f"[AGENT] Created: {agent['id']} - {agent['title']}")
 
     return AgentResponse(
         id=agent["id"],
@@ -1002,7 +1002,7 @@ async def archive_agent(
     if not result.data:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    logger.info(f"[DELIVERABLE] Archived: {agent_id}")
+    logger.info(f"[AGENT] Archived: {agent_id}")
 
     return {"success": True, "message": "Agent archived"}
 
@@ -1041,7 +1041,7 @@ async def trigger_run(
     if agent["status"] == "archived":
         raise HTTPException(status_code=400, detail="Cannot run archived agent")
 
-    logger.info(f"[DELIVERABLE] Triggering run: {agent_id}")
+    logger.info(f"[AGENT] Triggering run: {agent_id}")
 
     # ADR-042: Execute with simplified single-call flow
     exec_result = await execute_agent_generation(
@@ -1373,7 +1373,7 @@ async def update_run(
 
     v = result.data[0]
 
-    logger.info(f"[DELIVERABLE] Version updated: {version_id} -> {v['status']}")
+    logger.info(f"[AGENT] Version updated: {version_id} -> {v['status']}")
 
     # Activity log: record approval or rejection (ADR-063)
     if request.status in ("approved", "rejected"):
@@ -1516,7 +1516,7 @@ def validate_type_config(agent_type: AgentType, config: dict) -> dict:
         validated = config_class(**config)
         return validated.model_dump()
     except Exception as e:
-        logger.warning(f"[DELIVERABLE] Invalid type_config for {agent_type}: {e}")
+        logger.warning(f"[AGENT] Invalid type_config for {agent_type}: {e}")
         return get_default_config(agent_type)
 
 
