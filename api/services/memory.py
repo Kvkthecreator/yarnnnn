@@ -6,8 +6,8 @@ Extracts stable personal facts from conversations and persists them
 as key-value rows in the user_memory table.
 
 This service is explicitly scoped to user_memory (global, cross-agent).
-Agent-scoped context lives in agent_instructions (user-authored)
-and agent_memory JSONB (agent observations, goal state).
+Agent-scoped context lives in workspace files (ADR-106): AGENT.md (instructions),
+memory/ directory (observations, goal, review log).
 Session continuity lives in session_continuity.py.
 
 Write:

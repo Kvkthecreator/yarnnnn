@@ -59,8 +59,8 @@ async def build_working_memory(
         user_id: The authenticated user's ID
         client: Supabase client instance
         agent: Optional agent dict for scoped context (ADR-087).
-                     Expected keys: id, title, agent_type,
-                     agent_instructions, agent_memory.
+                     Expected keys: id, title, agent_type, user_id.
+                     agent_instructions/agent_memory used only for lazy workspace migration.
 
     Returns:
         Dict structured for JSON serialization into the prompt.
@@ -173,11 +173,9 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     """
     Extract agent-scoped context for working memory injection (ADR-087).
 
-    Returns a structured dict with instructions, session history (via FK query),
-    and memory (observations, goal) for the scoped agent.
-
-    Session summaries are queried from chat_sessions by agent_id FK,
-    NOT duplicated into agent_memory JSONB.
+    ADR-106 Phase 2: All reads from workspace files (source of truth).
+    Returns structured dict with instructions, observations, goal, session history.
+    DB columns only used for lazy migration via ensure_seeded().
     """
     agent_id = agent.get("id")
 
@@ -221,15 +219,14 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
         except Exception as e:
             logger.warning(f"[WORKING_MEMORY] Failed to fetch scoped sessions: {e}")
 
-    # Extract observations (last 5) from JSONB
-    observations = memory.get("observations", [])
-    if observations:
-        scope["observations"] = observations[-5:]
+    # ADR-106 Phase 2: Read observations and goal from workspace (source of truth)
+    ws_observations = await ws.get_observations()
+    if ws_observations:
+        scope["observations"] = ws_observations[-5:]
 
-    # Extract goal info if present
-    goal = memory.get("goal")
-    if goal:
-        scope["goal"] = goal
+    ws_goal = await ws.get_goal()
+    if ws_goal:
+        scope["goal"] = ws_goal
 
     # Fetch latest version preview + provenance — so TP can see what was last generated
     if agent_id:
