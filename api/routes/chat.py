@@ -83,7 +83,8 @@ async def get_or_create_session(
     client,
     user_id: str,
     session_type: str = "thinking_partner",
-    scope: str = "daily"  # "conversation", "daily"
+    scope: str = "daily",  # "conversation", "daily"
+    deliverable_id: str | None = None,  # ADR-087 Phase 3: scope session to deliverable
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
@@ -91,6 +92,9 @@ async def get_or_create_session(
     Scope behaviors (ADR-067 Phase 2):
     - conversation: Always creates new session
     - daily: Reuses session active within last 4 hours (inactivity boundary)
+
+    ADR-087 Phase 3: When deliverable_id is provided, sessions are scoped to
+    that deliverable. Global TP (deliverable_id=None) gets separate sessions.
 
     Returns:
         Session dict with 'id', 'is_new' (bool), and optionally
@@ -103,7 +107,8 @@ async def get_or_create_session(
                 "p_user_id": user_id,
                 "p_project_id": None,
                 "p_session_type": session_type,
-                "p_scope": scope
+                "p_scope": scope,
+                "p_deliverable_id": deliverable_id,
             }
         ).execute()
 
@@ -120,13 +125,18 @@ async def get_or_create_session(
             inactivity_cutoff = (
                 datetime.now(timezone.utc) - timedelta(hours=4)
             ).isoformat()
-            existing = client.table("chat_sessions")\
+            q = client.table("chat_sessions")\
                 .select("id")\
                 .eq("user_id", user_id)\
                 .eq("session_type", session_type)\
                 .gte("updated_at", inactivity_cutoff)\
-                .eq("status", "active")\
-                .order("updated_at", desc=True)\
+                .eq("status", "active")
+            # ADR-087 Phase 3: scope by deliverable_id
+            if deliverable_id:
+                q = q.eq("deliverable_id", deliverable_id)
+            else:
+                q = q.is_("deliverable_id", "null")
+            existing = q.order("updated_at", desc=True)\
                 .limit(1)\
                 .execute()
             if existing.data:
@@ -152,8 +162,10 @@ async def get_or_create_session(
         data = {
             "user_id": user_id,
             "session_type": session_type,
-            "status": "active"
+            "status": "active",
         }
+        if deliverable_id:
+            data["deliverable_id"] = deliverable_id
 
         result = client.table("chat_sessions").insert(data).execute()
         if result.data:
@@ -763,11 +775,18 @@ async def global_chat(
     """
     from services.platform_limits import check_monthly_message_limit
 
-    # Get or create session (daily scope for global chat)
+    # ADR-087 Phase 3: Extract deliverable_id from surface_context BEFORE session lookup
+    # so deliverable-scoped chats get their own sessions, separate from global TP.
+    request_deliverable_id = None
+    if request.surface_context and request.surface_context.deliverableId:
+        request_deliverable_id = request.surface_context.deliverableId
+
+    # Get or create session (daily scope, scoped by deliverable_id if present)
     session = await get_or_create_session(
         auth.client,
         auth.user_id,
-        scope="daily"
+        scope="daily",
+        deliverable_id=request_deliverable_id,
     )
     session_id = session["id"]
 
@@ -827,19 +846,11 @@ async def global_chat(
         + (f" (compaction block present)" if compaction_block else "")
     )
 
-    # ADR-087: Extract deliverable_id from surface_context for scoped sessions
-    deliverable_id = None
+    # ADR-087 Phase 3: deliverable_id is now set at session creation time (above).
+    # Still need to fetch the deliverable for working memory injection.
+    deliverable_id = request_deliverable_id
     scoped_deliverable = None
-    if request.surface_context and request.surface_context.deliverableId:
-        deliverable_id = request.surface_context.deliverableId
-        # Set deliverable_id on the session row for memory routing
-        try:
-            auth.client.table("chat_sessions").update(
-                {"deliverable_id": deliverable_id}
-            ).eq("id", session_id).execute()
-        except Exception as e:
-            logger.warning(f"[TP] Failed to set deliverable_id on session: {e}")
-        # Fetch the deliverable for working memory injection
+    if deliverable_id:
         try:
             d_result = auth.client.table("deliverables").select(
                 "id, title, deliverable_type, deliverable_instructions, deliverable_memory"
@@ -1051,22 +1062,28 @@ async def global_chat(
 async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
+    deliverable_id: Optional[str] = Query(default=None),
 ):
     """
-    Get global chat history (no project).
+    Get chat history scoped by deliverable (or global if no deliverable_id).
     Returns the most recent session(s) with messages.
+
+    ADR-087 Phase 3: deliverable_id param isolates deliverable-scoped sessions
+    from global TP sessions.
     """
-    # Fetch recent global sessions
-    sessions_result = (
+    # Fetch recent sessions, scoped by deliverable_id
+    q = (
         auth.client.table("chat_sessions")
         .select("*")
         .eq("user_id", auth.user_id)
         .is_("project_id", "null")
         .eq("session_type", "thinking_partner")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
     )
+    if deliverable_id:
+        q = q.eq("deliverable_id", deliverable_id)
+    else:
+        q = q.is_("deliverable_id", "null")
+    sessions_result = q.order("created_at", desc=True).limit(limit).execute()
 
     sessions = []
     for session in (sessions_result.data or []):

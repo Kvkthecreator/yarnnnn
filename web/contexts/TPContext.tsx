@@ -140,6 +140,8 @@ interface TPContextValue {
   respondToClarification: (answer: string) => void;
   closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
+  /** ADR-087 Phase 3: Load history scoped to a deliverable (or global if undefined) */
+  loadScopedHistory: (deliverableId?: string) => Promise<void>;
 }
 
 const TPContext = createContext<TPContextValue | null>(null);
@@ -198,84 +200,92 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, [status.type]);
 
   // ---------------------------------------------------------------------------
-  // Load chat history on mount
+  // Load chat history (ADR-087 Phase 3: supports deliverable-scoped history)
   // ---------------------------------------------------------------------------
+  // Track which scope was last loaded to avoid redundant fetches
+  const lastLoadedScopeRef = useRef<string | undefined>(undefined);
+
+  const loadScopedHistory = useCallback(async (deliverableId?: string) => {
+    // Skip if already loaded for this scope
+    const scopeKey = deliverableId ?? '__global__';
+    if (lastLoadedScopeRef.current === scopeKey) return;
+    lastLoadedScopeRef.current = scopeKey;
+
+    try {
+      const result = await api.chat.globalHistory(1, deliverableId);
+
+      if (result.sessions && result.sessions.length > 0) {
+        const session = result.sessions[0];
+        if (session.messages && session.messages.length > 0) {
+          const messages: TPMessage[] = session.messages.map((m) => {
+            // ADR-042: Reconstruct blocks AND tool results from metadata.tool_history
+            let toolResults: TPToolResult[] | undefined;
+            let blocks: MessageBlock[] | undefined;
+
+            if (m.metadata?.tool_history) {
+              const toolItems = m.metadata.tool_history.filter(
+                (item) => item.type === 'tool_call' && item.name
+              );
+
+              toolResults = toolItems.map((item) => ({
+                toolName: item.name!,
+                success: true,
+                data: {
+                  message: item.result_summary || 'Action completed',
+                },
+              }));
+
+              blocks = toolItems.map((item, idx) => ({
+                type: 'tool_call' as const,
+                id: `hist_${m.id}_${idx}`,
+                tool: item.name!,
+                input: item.input_summary ? { summary: item.input_summary } : {},
+                status: 'success' as const,
+                result: {
+                  toolName: item.name!,
+                  success: true,
+                  data: { message: item.result_summary || 'Action completed' },
+                },
+              }));
+            }
+
+            const messageBlocks: MessageBlock[] = [];
+            if (m.content) {
+              messageBlocks.push({ type: 'text', content: m.content });
+            }
+            if (blocks && blocks.length > 0) {
+              messageBlocks.push(...blocks);
+            }
+
+            return {
+              id: m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.created_at),
+              toolResults: toolResults?.length ? toolResults : undefined,
+              blocks: messageBlocks.length > 0 ? messageBlocks : undefined,
+            };
+          });
+          dispatch({ type: 'SET_MESSAGES', messages });
+        } else {
+          // Session exists but no messages — clear
+          dispatch({ type: 'CLEAR_MESSAGES' });
+        }
+      } else {
+        // No session for this scope — clear messages
+        dispatch({ type: 'CLEAR_MESSAGES' });
+      }
+    } catch (err) {
+      console.warn('[TPContext] Failed to load chat history:', err);
+    }
+  }, []);
+
+  // Load global history on mount (dashboard default)
   useEffect(() => {
     if (historyLoadedRef.current) return;
     historyLoadedRef.current = true;
-
-    const loadHistory = async () => {
-      try {
-        const result = await api.chat.globalHistory(1);
-
-        if (result.sessions && result.sessions.length > 0) {
-          const session = result.sessions[0];
-          if (session.messages && session.messages.length > 0) {
-            const messages: TPMessage[] = session.messages.map((m) => {
-              // ADR-042: Reconstruct blocks AND tool results from metadata.tool_history
-              // This ensures historical messages render with Claude Code-style inline tool calls
-              let toolResults: TPToolResult[] | undefined;
-              let blocks: MessageBlock[] | undefined;
-
-              if (m.metadata?.tool_history) {
-                const toolItems = m.metadata.tool_history.filter(
-                  (item) => item.type === 'tool_call' && item.name
-                );
-
-                // Reconstruct legacy toolResults for backwards compatibility
-                toolResults = toolItems.map((item) => ({
-                  toolName: item.name!,
-                  success: true, // Assume success for historical
-                  data: {
-                    message: item.result_summary || 'Action completed',
-                  },
-                }));
-
-                // ADR-042: Reconstruct blocks for Claude Code-style rendering
-                // Note: Historical data only has input_summary (string), not full input object
-                blocks = toolItems.map((item, idx) => ({
-                  type: 'tool_call' as const,
-                  id: `hist_${m.id}_${idx}`,
-                  tool: item.name!,
-                  input: item.input_summary ? { summary: item.input_summary } : {},
-                  status: 'success' as const,
-                  result: {
-                    toolName: item.name!,
-                    success: true,
-                    data: { message: item.result_summary || 'Action completed' },
-                  },
-                }));
-              }
-
-              // Build blocks array: text content + tool calls
-              const messageBlocks: MessageBlock[] = [];
-              if (m.content) {
-                messageBlocks.push({ type: 'text', content: m.content });
-              }
-              if (blocks && blocks.length > 0) {
-                messageBlocks.push(...blocks);
-              }
-
-              return {
-                id: m.id,
-                role: m.role as 'user' | 'assistant',
-                content: m.content,
-                timestamp: new Date(m.created_at),
-                toolResults: toolResults?.length ? toolResults : undefined,
-                blocks: messageBlocks.length > 0 ? messageBlocks : undefined,
-              };
-            });
-            dispatch({ type: 'SET_MESSAGES', messages });
-          }
-        }
-      } catch (err) {
-        console.warn('[TPContext] Failed to load chat history:', err);
-        // Non-blocking - user can still chat
-      }
-    };
-
-    loadHistory();
-  }, []);
+    loadScopedHistory();
+  }, [loadScopedHistory]);
 
   // ---------------------------------------------------------------------------
   // Send message to TP
@@ -672,6 +682,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     respondToClarification,
     closeSetupConfirmModal,
     onSurfaceChange,
+    loadScopedHistory,
   };
 
   return <TPContext.Provider value={value}>{children}</TPContext.Provider>;

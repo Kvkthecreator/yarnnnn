@@ -287,8 +287,10 @@ export const api = {
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     // Get global chat history
-    globalHistory: (limit: number = 1) =>
-      request<{
+    globalHistory: (limit: number = 1, deliverableId?: string) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (deliverableId) params.set('deliverable_id', deliverableId);
+      return request<{
         sessions: Array<{
           id: string;
           created_at: string;
@@ -310,7 +312,8 @@ export const api = {
             };
           }>;
         }>;
-      }>(`/api/chat/history?limit=${limit}`),
+      }>(`/api/chat/history?${params.toString()}`);
+    },
   },
 
   // Subscription endpoints (Lemon Squeezy)

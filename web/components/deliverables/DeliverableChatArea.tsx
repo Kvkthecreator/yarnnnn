@@ -47,7 +47,13 @@ export function DeliverableChatArea({
     pendingClarification,
     respondToClarification,
     tokenUsage,
+    loadScopedHistory,
   } = useTP();
+
+  // ADR-087 Phase 3: Load deliverable-scoped history on mount
+  useEffect(() => {
+    loadScopedHistory(deliverableId);
+  }, [deliverableId, loadScopedHistory]);
 
   const [input, setInput] = useState('');
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);

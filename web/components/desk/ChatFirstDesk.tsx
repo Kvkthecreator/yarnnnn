@@ -190,8 +190,15 @@ export function ChatFirstDesk() {
     pendingClarification,
     respondToClarification,
     tokenUsage,
+    loadScopedHistory,
   } = useTP();
   const { surface } = useDesk();
+
+  // ADR-087 Phase 3: Load global (unscoped) history when dashboard mounts
+  // This ensures navigating back from a deliverable reloads the global thread
+  useEffect(() => {
+    loadScopedHistory();
+  }, [loadScopedHistory]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
