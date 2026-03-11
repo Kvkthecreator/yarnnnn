@@ -519,29 +519,15 @@ def get_execution_strategy(agent: dict) -> ExecutionStrategy:
 # =============================================================================
 
 async def _get_user_memories(client, user_id: str) -> str:
-    """Get user context entries for prompt injection."""
+    """Get user context entries for prompt injection. ADR-108: reads /memory/notes.md."""
     try:
-        # ADR-059: Read from user_memory (fact/instruction/preference keys)
-        result = (
-            client.table("user_memory")
-            .select("key, value")
-            .eq("user_id", user_id)
-            .limit(20)
-            .execute()
-        )
-
-        if not result.data:
+        from services.workspace import UserMemory
+        um = UserMemory(client, user_id)
+        content = await um.read("notes.md")
+        if not content:
             return ""
-
-        lines = []
-        for row in result.data:
-            key = row.get("key", "")
-            value = row.get("value", "")
-            if key.startswith(("fact:", "instruction:", "preference:")):
-                lines.append(f"- {value}")
-
-        return "\n".join(lines)
-
+        notes = UserMemory._parse_notes_md(content)
+        return "\n".join(f"- {n['content']}" for n in notes)
     except Exception as e:
         logger.warning(f"[STRATEGY] Failed to fetch user context: {e}")
         return ""

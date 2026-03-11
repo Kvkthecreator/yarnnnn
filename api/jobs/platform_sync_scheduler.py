@@ -115,15 +115,15 @@ async def _get_user_sync_info(supabase_client, user_id: str) -> Optional[dict]:
     ADR-059: timezone lives in user_memory (key='timezone').
     Tier comes from workspaces.subscription_status.
     """
-    # Timezone from user_memory (ADR-059)
+    # ADR-108: timezone from /memory/MEMORY.md
     timezone = "UTC"
     try:
-        tz_result = supabase_client.table("user_memory").select(
-            "value"
-        ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
-        timezone = tz_result.data.get("value", "UTC") if tz_result.data else "UTC"
+        from services.workspace import UserMemory
+        um = UserMemory(supabase_client, user_id)
+        profile = UserMemory._parse_memory_md(um.read_sync("MEMORY.md"))
+        timezone = profile.get("timezone") or "UTC"
     except Exception:
-        pass  # No timezone row — default to UTC
+        pass  # No MEMORY.md — default to UTC
 
     # Tier from workspaces.subscription_status
     tier = "free"

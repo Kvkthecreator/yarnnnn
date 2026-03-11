@@ -1,23 +1,30 @@
 """
-Memory routes - ADR-059: Simplified Context Model + ADR-063: Activity Log
+Memory routes — ADR-108: User Memory Filesystem Migration
 
-Mounted at /api/memory. Single store: user_memory table (key/value with source tracking).
+Mounted at /api/memory. Reads/writes /memory/ files in workspace_files.
+Replaces the user_memory key-value table (ADR-059).
+
+Three files back the Memory page:
+  /memory/MEMORY.md      → Profile (name, role, company, timezone, summary)
+  /memory/preferences.md → Per-platform tone/verbosity
+  /memory/notes.md       → Facts, instructions, preferences (accumulated)
 
 Endpoints:
-  GET  /profile              - Get profile fields (name, role, company, timezone, summary)
-  PATCH /profile             - Upsert profile fields
-  GET  /styles               - Get tone/verbosity preferences per platform
+  GET  /profile              - Get profile fields from MEMORY.md
+  PATCH /profile             - Update profile fields in MEMORY.md
+  GET  /styles               - Get tone/verbosity from preferences.md
   GET  /styles/{platform}    - Get tone/verbosity for one platform
   PATCH /styles/{platform}   - Set tone/verbosity for a platform
   DELETE /styles/{platform}  - Clear tone/verbosity for a platform
-  GET  /user/memories        - List fact/instruction/preference entries
-  POST /user/memories        - Create a knowledge entry
+  GET  /user/memories        - List notes from notes.md
+  POST /user/memories        - Add a note to notes.md
   POST /user/memories/import - Bulk import: extract from text
-  DELETE /memories/{id}      - Delete a context entry by id
+  DELETE /memories/{id}      - Delete a note by content hash
   GET  /user/onboarding-state - Detect onboarding state
   GET  /activity             - List recent activity from activity_log (ADR-063)
 """
 
+import hashlib
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -26,6 +33,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from services.workspace import UserMemory
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +73,15 @@ class StyleUpdate(BaseModel):
     verbosity: Optional[str] = None
 
 
-class ContextEntry(BaseModel):
-    id: UUID
-    key: str
+class NoteEntry(BaseModel):
+    """A note from notes.md, presented as a memory entry."""
+    id: str  # Content hash (stable identifier for deletion)
+    key: str  # Type prefix + truncated content (backwards compat)
     value: str
     source: str
     confidence: float
-    source_ref: Optional[UUID] = None  # ADR-072: FK to source record (agent_run_id, session_id)
-    source_type: Optional[str] = None  # ADR-072: type of source (agent_feedback, conversation_extraction, pattern_analysis)
+    source_ref: Optional[UUID] = None
+    source_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -99,27 +108,8 @@ class OnboardingStateResponse(BaseModel):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-PROFILE_KEYS = {"name", "role", "company", "timezone", "summary"}
-ENTRY_PREFIXES = ("fact:", "instruction:", "preference:")
 STYLE_PLATFORM_ALIASES = {"email": "gmail"}
 ALLOWED_STYLE_PLATFORMS = {"slack", "gmail", "notion", "calendar"}
-
-
-def _upsert_context(client, user_id: str, key: str, value: str, source: str = "user_stated") -> None:
-    """Upsert a single key in user_memory."""
-    client.table("user_memory").upsert({
-        "user_id": user_id,
-        "key": key,
-        "value": value,
-        "source": source,
-        "confidence": 1.0,
-        "updated_at": datetime.utcnow().isoformat(),
-    }, on_conflict="user_id,key").execute()
-
-
-def _delete_context_key(client, user_id: str, key: str) -> None:
-    """Delete a single key from user_memory (hard delete — no need for soft delete here)."""
-    client.table("user_memory").delete().eq("user_id", user_id).eq("key", key).execute()
 
 
 def _normalize_style_platform(platform: str) -> str:
@@ -132,6 +122,25 @@ def _normalize_style_platform(platform: str) -> str:
     return normalized
 
 
+def _note_to_entry(note: dict, idx: int) -> dict:
+    """Convert a parsed note dict to NoteEntry-compatible dict for API response."""
+    content = note["content"]
+    note_type = note.get("type", "fact")
+    content_hash = hashlib.sha256(f"{note_type}:{content}".encode()).hexdigest()[:16]
+    now = datetime.utcnow().isoformat()
+    return {
+        "id": content_hash,
+        "key": f"{note_type}:{content[:60]}",
+        "value": content,
+        "source": "filesystem",
+        "confidence": 1.0,
+        "source_ref": None,
+        "source_type": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
 # ─── Onboarding ───────────────────────────────────────────────────────────────
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
@@ -140,12 +149,12 @@ async def get_onboarding_state(auth: UserClient):
     from datetime import timedelta
 
     try:
-        # Count user_memory entries (fact/instruction/preference)
-        memory_result = auth.client.table("user_memory")\
-            .select("id", count="exact")\
-            .eq("user_id", auth.user_id)\
-            .execute()
-        memory_count = memory_result.count or 0
+        um = UserMemory(auth.client, auth.user_id)
+        files = await um.read_all()
+        # Count meaningful content: profile fields + notes
+        profile = UserMemory._parse_memory_md(files.get("MEMORY.md"))
+        notes = UserMemory._parse_notes_md(files.get("notes.md"))
+        memory_count = len([v for v in profile.values() if v]) + len(notes)
 
         doc_result = auth.client.table("filesystem_documents")\
             .select("id", count="exact")\
@@ -184,45 +193,28 @@ async def get_onboarding_state(auth: UserClient):
 
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(auth: UserClient):
-    """Get user's profile from user_memory."""
+    """Get user's profile from /memory/MEMORY.md."""
     try:
-        result = auth.client.table("user_memory")\
-            .select("key, value")\
-            .eq("user_id", auth.user_id)\
-            .in_("key", list(PROFILE_KEYS))\
-            .execute()
-
-        profile: dict[str, Optional[str]] = {k: None for k in PROFILE_KEYS}
-        for row in result.data or []:
-            if row["key"] in PROFILE_KEYS:
-                profile[row["key"]] = row["value"]
-
-        return ProfileResponse(**profile)
-
+        um = UserMemory(auth.client, auth.user_id)
+        profile = await um.get_profile()
+        return ProfileResponse(**{k: profile.get(k) for k in ("name", "role", "company", "timezone", "summary")})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(update: ProfileUpdate, auth: UserClient):
-    """Upsert profile fields in user_memory."""
+    """Update profile fields in /memory/MEMORY.md."""
     try:
-        # Support explicit null/empty clears while leaving omitted fields untouched.
+        um = UserMemory(auth.client, auth.user_id)
+        updates = {}
         for key in update.model_fields_set:
-            if key not in PROFILE_KEYS:
-                continue
-
             value = getattr(update, key, None)
             if isinstance(value, str):
                 value = value.strip()
-
-            if value:
-                _upsert_context(auth.client, auth.user_id, key, value)
-            else:
-                _delete_context_key(auth.client, auth.user_id, key)
-
+            updates[key] = value if value else None
+        await um.update_profile(updates)
         return await get_profile(auth)
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -231,73 +223,38 @@ async def update_profile(update: ProfileUpdate, auth: UserClient):
 
 @router.get("/styles", response_model=StylesListResponse)
 async def get_styles(auth: UserClient):
-    """Get tone/verbosity preferences per platform from user_memory."""
+    """Get tone/verbosity preferences from /memory/preferences.md."""
     try:
-        result = auth.client.table("user_memory")\
-            .select("key, value")\
-            .eq("user_id", auth.user_id)\
-            .or_("key.like.tone_%,key.like.verbosity_%")\
-            .execute()
-
-        platforms: dict[str, dict] = {}
-        for row in result.data or []:
-            key = row["key"]
-            value = row["value"]
-            if key.startswith("tone_"):
-                platform = key[5:]
-                platforms.setdefault(platform, {})["tone"] = value
-            elif key.startswith("verbosity_"):
-                platform = key[10:]
-                platforms.setdefault(platform, {})["verbosity"] = value
-
+        um = UserMemory(auth.client, auth.user_id)
+        prefs = await um.get_preferences()
         styles = [
             StyleItem(platform=p, tone=v.get("tone"), verbosity=v.get("verbosity"))
-            for p, v in sorted(platforms.items())
+            for p, v in sorted(prefs.items())
         ]
-
         return StylesListResponse(styles=styles)
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.patch("/styles/{platform}", response_model=StyleItem)
 async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
-    """Set tone/verbosity for a platform in user_memory."""
+    """Set tone/verbosity for a platform in /memory/preferences.md."""
     try:
         platform = _normalize_style_platform(platform)
+        um = UserMemory(auth.client, auth.user_id)
 
-        # Support explicit null/empty clears while leaving omitted fields untouched.
+        updates = {}
         if "tone" in update.model_fields_set:
-            tone = update.tone.strip() if isinstance(update.tone, str) else ""
-            if tone:
-                _upsert_context(auth.client, auth.user_id, f"tone_{platform}", tone)
-            else:
-                _delete_context_key(auth.client, auth.user_id, f"tone_{platform}")
-
+            updates["tone"] = update.tone.strip() if isinstance(update.tone, str) and update.tone.strip() else None
         if "verbosity" in update.model_fields_set:
-            verbosity = update.verbosity.strip() if isinstance(update.verbosity, str) else ""
-            if verbosity:
-                _upsert_context(auth.client, auth.user_id, f"verbosity_{platform}", verbosity)
-            else:
-                _delete_context_key(auth.client, auth.user_id, f"verbosity_{platform}")
+            updates["verbosity"] = update.verbosity.strip() if isinstance(update.verbosity, str) and update.verbosity.strip() else None
+
+        await um.update_preferences(platform, updates)
 
         # Return current state
-        result = auth.client.table("user_memory")\
-            .select("key, value")\
-            .eq("user_id", auth.user_id)\
-            .in_("key", [f"tone_{platform}", f"verbosity_{platform}"])\
-            .execute()
-
-        tone = None
-        verbosity = None
-        for row in result.data or []:
-            if row["key"] == f"tone_{platform}":
-                tone = row["value"]
-            elif row["key"] == f"verbosity_{platform}":
-                verbosity = row["value"]
-
-        return StyleItem(platform=platform, tone=tone, verbosity=verbosity)
+        prefs = await um.get_preferences()
+        platform_prefs = prefs.get(platform, {})
+        return StyleItem(platform=platform, tone=platform_prefs.get("tone"), verbosity=platform_prefs.get("verbosity"))
 
     except HTTPException:
         raise
@@ -310,21 +267,10 @@ async def get_style(platform: str, auth: UserClient):
     """Get tone/verbosity for a single platform."""
     try:
         platform = _normalize_style_platform(platform)
-        result = auth.client.table("user_memory")\
-            .select("key, value")\
-            .eq("user_id", auth.user_id)\
-            .in_("key", [f"tone_{platform}", f"verbosity_{platform}"])\
-            .execute()
-
-        tone = None
-        verbosity = None
-        for row in result.data or []:
-            if row["key"] == f"tone_{platform}":
-                tone = row["value"]
-            elif row["key"] == f"verbosity_{platform}":
-                verbosity = row["value"]
-
-        return StyleItem(platform=platform, tone=tone, verbosity=verbosity)
+        um = UserMemory(auth.client, auth.user_id)
+        prefs = await um.get_preferences()
+        platform_prefs = prefs.get(platform, {})
+        return StyleItem(platform=platform, tone=platform_prefs.get("tone"), verbosity=platform_prefs.get("verbosity"))
 
     except HTTPException:
         raise
@@ -337,8 +283,8 @@ async def delete_style(platform: str, auth: UserClient):
     """Clear tone/verbosity preferences for a single platform."""
     try:
         platform = _normalize_style_platform(platform)
-        _delete_context_key(auth.client, auth.user_id, f"tone_{platform}")
-        _delete_context_key(auth.client, auth.user_id, f"verbosity_{platform}")
+        um = UserMemory(auth.client, auth.user_id)
+        await um.update_preferences(platform, {"tone": None, "verbosity": None})
         return StyleItem(platform=platform, tone=None, verbosity=None)
 
     except HTTPException:
@@ -347,71 +293,34 @@ async def delete_style(platform: str, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Entries (Memories) ───────────────────────────────────────────────────────
+# ─── Entries (Notes/Memories) ────────────────────────────────────────────────
 
-@router.get("/user/memories", response_model=list[ContextEntry])
+@router.get("/user/memories", response_model=list[NoteEntry])
 async def list_user_memories(auth: UserClient):
-    """
-    List knowledge entries from user_memory.
-
-    Returns all rows whose key starts with fact:, instruction:, or preference:.
-    """
+    """List notes from /memory/notes.md."""
     try:
-        result = auth.client.table("user_memory")\
-            .select("*")\
-            .eq("user_id", auth.user_id)\
-            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
-            .order("created_at", desc=True)\
-            .execute()
-
-        return result.data or []
-
+        um = UserMemory(auth.client, auth.user_id)
+        notes = await um.get_notes()
+        return [_note_to_entry(n, i) for i, n in enumerate(notes)]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/user/memories", response_model=ContextEntry)
+@router.post("/user/memories", response_model=NoteEntry)
 async def create_user_memory(entry: EntryCreate, auth: UserClient):
-    """Create a knowledge entry in user_memory."""
+    """Add a note to /memory/notes.md."""
     try:
-        # Build a key from type + content (truncated, alphanumeric)
-        import re
-        safe_content = re.sub(r'[^a-zA-Z0-9_ -]', '', entry.content)[:60].strip()
-        key = f"{entry.entry_type}:{safe_content}"
-
-        now = datetime.utcnow().isoformat()
-        record = {
-            "user_id": auth.user_id,
-            "key": key,
-            "value": entry.content,
-            "source": "user_stated",
-            "confidence": 1.0,
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        result = auth.client.table("user_memory")\
-            .upsert(record, on_conflict="user_id,key")\
-            .execute()
-
-        if not result.data:
-            raise HTTPException(status_code=400, detail="Failed to create entry")
-
-        return result.data[0]
-
-    except HTTPException:
-        raise
+        um = UserMemory(auth.client, auth.user_id)
+        await um.add_note(entry.entry_type, entry.content)
+        note = {"type": entry.entry_type, "content": entry.content}
+        return _note_to_entry(note, 0)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/user/memories/import", response_model=BulkImportResponse)
 async def import_user_memories(request: BulkImportRequest, auth: UserClient):
-    """
-    Bulk import: extract knowledge entries from pasted text.
-
-    Uses LLM extraction, then writes results to user_memory.
-    """
+    """Bulk import: extract knowledge entries from pasted text → notes.md."""
     if not request.text or len(request.text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Text too short (minimum 50 characters)")
 
@@ -425,26 +334,33 @@ async def import_user_memories(request: BulkImportRequest, auth: UserClient):
         return BulkImportResponse(memories_extracted=count)
 
     except ImportError:
-        # extraction service may not have the new function yet — fall back to 0
         return BulkImportResponse(memories_extracted=0)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/memories/{entry_id}")
-async def delete_memory(entry_id: UUID, auth: UserClient):
-    """Delete a context entry by id (hard delete)."""
+async def delete_memory(entry_id: str, auth: UserClient):
+    """Delete a note by content hash ID."""
     try:
-        result = auth.client.table("user_memory")\
-            .delete()\
-            .eq("id", str(entry_id))\
-            .eq("user_id", auth.user_id)\
-            .execute()
+        um = UserMemory(auth.client, auth.user_id)
+        notes = await um.get_notes()
 
-        if not result.data:
+        # Find the note matching this hash
+        target_note = None
+        for note in notes:
+            content_hash = hashlib.sha256(
+                f"{note.get('type', 'fact')}:{note['content']}".encode()
+            ).hexdigest()[:16]
+            if content_hash == entry_id:
+                target_note = note
+                break
+
+        if not target_note:
             raise HTTPException(status_code=404, detail="Entry not found")
 
-        return {"deleted": True, "id": str(entry_id)}
+        await um.remove_note(target_note["content"])
+        return {"deleted": True, "id": entry_id}
 
     except HTTPException:
         raise
@@ -479,11 +395,6 @@ async def list_activity(
     List recent activity from activity_log.
 
     ADR-063: Four-layer model — Activity layer (what YARNNN has done).
-
-    Args:
-        limit: Max items to return (default 50)
-        days: Lookback window in days (default 30)
-        event_type: Filter by type (agent_run, memory_written, platform_synced, chat_session)
     """
     from datetime import timedelta
     from services.supabase import get_service_client
@@ -491,8 +402,6 @@ async def list_activity(
     try:
         since = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
-        # Use service client — activity_log is written by service role,
-        # and we filter by user_id explicitly (same pattern as system.py)
         client = get_service_client()
         query = client.table("activity_log")\
             .select("*", count="exact")\
@@ -504,8 +413,6 @@ async def list_activity(
         if event_type:
             query = query.eq("event_type", event_type)
         else:
-            # Hide high-frequency system noise by default so category filters
-            # (memory/sync/chat) are not starved by scheduler heartbeat rows.
             query = query.neq("event_type", "scheduler_heartbeat")
 
         result = query.execute()

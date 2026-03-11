@@ -2879,14 +2879,13 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     from services.platform_limits import get_usage_summary
 
-    # Get user's timezone from user_memory (ADR-059: timezone stored as key='timezone')
+    # ADR-108: timezone from /memory/MEMORY.md
     user_tz = "UTC"
     try:
-        tz_result = auth.client.table("user_memory").select(
-            "value"
-        ).eq("user_id", auth.user_id).eq("key", "timezone").maybe_single().execute()
-        if tz_result.data:
-            user_tz = tz_result.data.get("value", "UTC")
+        from services.workspace import UserMemory
+        um = UserMemory(auth.client, auth.user_id)
+        profile = UserMemory._parse_memory_md(um.read_sync("MEMORY.md"))
+        user_tz = profile.get("timezone") or "UTC"
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")
 

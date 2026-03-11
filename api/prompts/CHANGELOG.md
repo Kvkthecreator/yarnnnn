@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.11.6] - ADR-108: User memory filesystem migration
+
+### Changed
+- `api/services/workspace.py`: Added `UserMemory` class scoped to `/memory/`. Three files: `MEMORY.md` (profile), `preferences.md` (per-platform tone/verbosity), `notes.md` (facts/instructions/preferences). Read-merge-write pattern for all mutations. Both async and sync read methods for thread pool compatibility.
+- `api/services/working_memory.py`: Replaced `_get_user_memory_sync()` (user_memory table) with `_get_user_memory_files_sync()` (workspace_files /memory/). `_extract_profile`, `_extract_preferences`, `_extract_known` replaced with `_extract_profile_from_file`, `_extract_preferences_from_file`, `_extract_known_from_file` that parse markdown instead of key-value rows.
+- `api/services/memory.py`: `process_conversation()` now read-merge-writes to `/memory/notes.md` with deduplication instead of row-level upserts to user_memory. `get_for_prompt()` concatenates /memory/ files.
+- `api/routes/memory.py`: All endpoints rewritten to use `UserMemory` class. Profile → MEMORY.md, Styles → preferences.md, Entries → notes.md. Delete endpoint uses content hash IDs instead of UUID row IDs.
+- `api/services/agent_execution.py`: Headless user context reads from `/memory/` files instead of user_memory table.
+- `api/services/execution_strategies.py`: `_get_user_memories()` reads `/memory/notes.md` instead of user_memory table.
+- `api/services/primitives/search.py`: `_search_user_memories()` reads `/memory/notes.md` instead of user_memory table.
+- `api/routes/system.py`, `api/routes/integrations.py`, `api/jobs/platform_sync_scheduler.py`: Timezone reads from `/memory/MEMORY.md` instead of user_memory table.
+- Expected behavior: All memory reads/writes use `/memory/` files in workspace_files. user_memory table preserved but no longer read by application code. Extraction cron deduplicates on content. Memory page shows notes from notes.md with stable content-hash IDs.
+
+---
+
 ## [2026.03.11.5] - ADR-107 Phase 1: Knowledge filesystem — singular cutover
 
 ### Changed

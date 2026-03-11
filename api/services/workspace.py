@@ -4,9 +4,10 @@ Agent Workspace — ADR-106
 Virtual filesystem over Postgres for agent workspaces.
 Storage-agnostic abstraction: agents interact via path-based operations.
 
-Two classes:
+Three classes:
 - AgentWorkspace: scoped to /agents/{slug}/ — one per agent
 - KnowledgeBase: scoped to /knowledge/ — shared, read-only for agents
+- UserMemory: scoped to /memory/ — global user identity, preferences, notes (ADR-108)
 
 Backing store is `workspace_files` table. Swap to S3/GCS by reimplementing
 these classes — agent code doesn't change.
@@ -743,6 +744,270 @@ class KnowledgeBase:
         except Exception as e:
             logger.warning(f"[KNOWLEDGE] List files failed: {e}")
             return []
+
+
+class UserMemory:
+    """
+    User-level memory: /memory/ (ADR-108)
+
+    Global user identity, preferences, and accumulated notes.
+    Three canonical files:
+    - /memory/MEMORY.md     — identity (name, role, company, timezone, bio)
+    - /memory/preferences.md — communication preferences (per-platform tone/verbosity, format prefs)
+    - /memory/notes.md       — standing instructions, observed facts (accumulated by extraction cron)
+
+    Replaces the user_memory key-value table. Analogous to /etc/ in Unix:
+    stable configuration that every process reads.
+    """
+
+    def __init__(self, db_client, user_id: str):
+        self._db = db_client
+        self._user_id = user_id
+        self._base = "/memory"
+
+    def _full_path(self, filename: str) -> str:
+        """Convert filename to absolute workspace path."""
+        return f"{self._base}/{filename}"
+
+    async def read(self, filename: str) -> Optional[str]:
+        """Read a memory file. Returns None if not found."""
+        path = self._full_path(filename)
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            return rows[0]["content"] if rows else None
+        except Exception as e:
+            logger.warning(f"[USER_MEMORY] Read failed: {path}: {e}")
+            return None
+
+    def read_sync(self, filename: str) -> Optional[str]:
+        """Synchronous read for thread pool use (working_memory.py)."""
+        path = self._full_path(filename)
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            return rows[0]["content"] if rows else None
+        except Exception as e:
+            logger.warning(f"[USER_MEMORY] Read sync failed: {path}: {e}")
+            return None
+
+    async def write(self, filename: str, content: str, summary: str = None) -> bool:
+        """Write a memory file (upsert). Returns True on success."""
+        path = self._full_path(filename)
+        try:
+            data = {
+                "user_id": self._user_id,
+                "path": path,
+                "content": content,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if summary is not None:
+                data["summary"] = summary
+            self._db.table("workspace_files").upsert(
+                data, on_conflict="user_id,path"
+            ).execute()
+            return True
+        except Exception as e:
+            logger.error(f"[USER_MEMORY] Write failed: {path}: {e}")
+            return False
+
+    async def read_all(self) -> dict[str, str]:
+        """Read all three memory files. Returns {filename: content}."""
+        files = {}
+        for filename in ("MEMORY.md", "preferences.md", "notes.md"):
+            content = await self.read(filename)
+            if content:
+                files[filename] = content
+        return files
+
+    def read_all_sync(self) -> dict[str, str]:
+        """Synchronous read_all for thread pool use."""
+        files = {}
+        for filename in ("MEMORY.md", "preferences.md", "notes.md"):
+            content = self.read_sync(filename)
+            if content:
+                files[filename] = content
+        return files
+
+    async def get_profile(self) -> dict:
+        """Parse MEMORY.md into structured profile dict."""
+        content = await self.read("MEMORY.md")
+        return self._parse_memory_md(content)
+
+    async def update_profile(self, updates: dict) -> bool:
+        """Update profile fields in MEMORY.md (read-merge-write)."""
+        current = await self.get_profile()
+        current.update({k: v for k, v in updates.items() if v is not None})
+        # Remove cleared fields
+        for k, v in updates.items():
+            if v is None or v == "":
+                current.pop(k, None)
+        return await self.write("MEMORY.md", self._render_memory_md(current),
+                                summary="User identity and profile")
+
+    async def get_preferences(self) -> dict:
+        """Parse preferences.md into structured dict."""
+        content = await self.read("preferences.md")
+        return self._parse_preferences_md(content)
+
+    async def update_preferences(self, platform: str, updates: dict) -> bool:
+        """Update preferences for a platform (read-merge-write)."""
+        prefs = await self.get_preferences()
+        if not any(v for v in updates.values()):
+            prefs.pop(platform, None)
+        else:
+            prefs.setdefault(platform, {}).update(
+                {k: v for k, v in updates.items() if v}
+            )
+            # Remove cleared sub-keys
+            for k, v in updates.items():
+                if not v and k in prefs.get(platform, {}):
+                    del prefs[platform][k]
+            if platform in prefs and not prefs[platform]:
+                del prefs[platform]
+        return await self.write("preferences.md", self._render_preferences_md(prefs),
+                                summary="Communication and content preferences")
+
+    async def get_notes(self) -> list[dict]:
+        """Parse notes.md into list of {type, content}."""
+        content = await self.read("notes.md")
+        return self._parse_notes_md(content)
+
+    async def add_note(self, note_type: str, content: str) -> bool:
+        """Append a note to notes.md."""
+        notes = await self.get_notes()
+        notes.append({"type": note_type, "content": content})
+        return await self.write("notes.md", self._render_notes_md(notes),
+                                summary="Standing instructions and observed facts")
+
+    async def remove_note(self, content: str) -> bool:
+        """Remove a note by content match."""
+        notes = await self.get_notes()
+        notes = [n for n in notes if n["content"] != content]
+        return await self.write("notes.md", self._render_notes_md(notes),
+                                summary="Standing instructions and observed facts")
+
+    async def replace_notes(self, notes: list[dict]) -> bool:
+        """Replace all notes (used by extraction cron read-merge-write)."""
+        return await self.write("notes.md", self._render_notes_md(notes),
+                                summary="Standing instructions and observed facts")
+
+    # =========================================================================
+    # Markdown parsing/rendering
+    # =========================================================================
+
+    @staticmethod
+    def _parse_memory_md(content: Optional[str]) -> dict:
+        """Parse MEMORY.md YAML-like frontmatter into dict."""
+        if not content:
+            return {}
+        profile = {}
+        for line in content.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+            if ":" in line:
+                key, _, value = line.partition(":")
+                key = key.strip().lower()
+                value = value.strip()
+                if key in ("name", "role", "company", "timezone", "summary"):
+                    profile[key] = value if value else None
+        return profile
+
+    @staticmethod
+    def _render_memory_md(profile: dict) -> str:
+        """Render profile dict as MEMORY.md content."""
+        lines = ["# About Me", ""]
+        field_order = ["name", "role", "company", "timezone", "summary"]
+        for key in field_order:
+            value = profile.get(key)
+            if value:
+                lines.append(f"{key}: {value}")
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _parse_preferences_md(content: Optional[str]) -> dict:
+        """Parse preferences.md into {platform: {tone, verbosity}}."""
+        if not content:
+            return {}
+        prefs = {}
+        current_platform = None
+        for line in content.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("## "):
+                current_platform = line[3:].strip().lower()
+            elif current_platform and ":" in line:
+                key, _, value = line.partition(":")
+                key = key.strip().lower().lstrip("- ")
+                value = value.strip()
+                if key in ("tone", "verbosity") and value:
+                    prefs.setdefault(current_platform, {})[key] = value
+        return prefs
+
+    @staticmethod
+    def _render_preferences_md(prefs: dict) -> str:
+        """Render preferences dict as preferences.md content."""
+        lines = ["# Communication Preferences", ""]
+        for platform in sorted(prefs.keys()):
+            settings = prefs[platform]
+            if not settings:
+                continue
+            lines.append(f"## {platform}")
+            if settings.get("tone"):
+                lines.append(f"- tone: {settings['tone']}")
+            if settings.get("verbosity"):
+                lines.append(f"- verbosity: {settings['verbosity']}")
+            lines.append("")
+        return "\n".join(lines) if any(prefs.values()) else ""
+
+    @staticmethod
+    def _parse_notes_md(content: Optional[str]) -> list[dict]:
+        """Parse notes.md into list of {type, content}."""
+        if not content:
+            return []
+        notes = []
+        for line in content.strip().split("\n"):
+            line = line.strip()
+            if not line.startswith("- "):
+                continue
+            text = line[2:].strip()
+            # Parse type prefix: "Instruction: ...", "Fact: ...", "Preference: ..."
+            for prefix in ("Instruction:", "Fact:", "Preference:"):
+                if text.startswith(prefix):
+                    notes.append({
+                        "type": prefix.rstrip(":").lower(),
+                        "content": text[len(prefix):].strip(),
+                    })
+                    break
+            else:
+                notes.append({"type": "fact", "content": text})
+        return notes
+
+    @staticmethod
+    def _render_notes_md(notes: list[dict]) -> str:
+        """Render notes list as notes.md content."""
+        if not notes:
+            return ""
+        lines = ["# Notes", ""]
+        type_labels = {"instruction": "Instruction", "fact": "Fact", "preference": "Preference"}
+        for note in notes:
+            label = type_labels.get(note.get("type", "fact"), "Fact")
+            lines.append(f"- {label}: {note['content']}")
+        return "\n".join(lines) + "\n"
 
 
 async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:

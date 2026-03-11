@@ -401,22 +401,27 @@ async def generate_draft_inline(
         past_versions="",
     )
 
-    # Fetch lightweight user context for personalized headless output
+    # ADR-108: Read user context from /memory/ files instead of user_memory table
     user_context = None
     try:
-        user_ctx_result = client.table("user_memory").select(
-            "key, value"
-        ).eq("user_id", user_id).in_(
-            "key", [
-                "name", "role", "company", "timezone",
-                "tone_slack", "tone_gmail", "verbosity_slack", "verbosity_gmail",
-            ]
-        ).limit(10).execute()
-        # Also get preference: entries
-        pref_result = client.table("user_memory").select(
-            "key, value"
-        ).eq("user_id", user_id).like("key", "preference:%").limit(5).execute()
-        user_context = (user_ctx_result.data or []) + (pref_result.data or [])
+        from services.workspace import UserMemory
+        um = UserMemory(client, user_id)
+        memory_files = um.read_all_sync()
+        # Build key-value list matching the shape _build_headless_system_prompt expects
+        user_context = []
+        profile = UserMemory._parse_memory_md(memory_files.get("MEMORY.md"))
+        for k, v in profile.items():
+            if v:
+                user_context.append({"key": k, "value": v})
+        prefs = UserMemory._parse_preferences_md(memory_files.get("preferences.md"))
+        for platform, settings in prefs.items():
+            if settings.get("tone"):
+                user_context.append({"key": f"tone_{platform}", "value": settings["tone"]})
+            if settings.get("verbosity"):
+                user_context.append({"key": f"verbosity_{platform}", "value": settings["verbosity"]})
+        notes = UserMemory._parse_notes_md(memory_files.get("notes.md"))
+        for note in notes[:5]:
+            user_context.append({"key": f"preference:{note['content'][:40]}", "value": note["content"]})
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 

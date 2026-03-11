@@ -6,7 +6,7 @@ Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated
 nothing inferred by background jobs.
 
 Sources (Memory + Activity layers only):
-  user_memory   — stated preferences, profile, facts, instructions (Memory)
+  /memory/ files — MEMORY.md, preferences.md, notes.md (ADR-108, replaces user_memory table)
   activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
@@ -75,8 +75,8 @@ async def build_working_memory(
     def _make_client():
         return _create_supabase_client(url, key)
 
-    context_rows, agents, platforms, sessions, system_summary = await asyncio.gather(
-        asyncio.to_thread(_get_user_memory_sync, user_id, _make_client()),
+    memory_files, agents, platforms, sessions, system_summary = await asyncio.gather(
+        asyncio.to_thread(_get_user_memory_files_sync, user_id, _make_client()),
         asyncio.to_thread(_get_active_agents_sync, user_id, _make_client()),
         asyncio.to_thread(_get_connected_platforms_sync, user_id, _make_client()),
         asyncio.to_thread(_get_recent_sessions_sync, user_id, _make_client()),
@@ -84,9 +84,9 @@ async def build_working_memory(
     )
 
     working_memory = {
-        "profile": _extract_profile(context_rows),
-        "preferences": _extract_preferences(context_rows),
-        "known": _extract_known(context_rows),
+        "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
+        "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
+        "known": _extract_known_from_file(memory_files.get("notes.md")),
         "agents": agents,
         "platforms": platforms,
         "recent_sessions": sessions,
@@ -100,73 +100,38 @@ async def build_working_memory(
     return working_memory
 
 
-def _get_user_memory_sync(user_id: str, client: Any) -> list[dict]:
-    """Fetch all user_memory rows (sync, for thread pool)."""
-    try:
-        result = client.table("user_memory").select(
-            "key, value, source, confidence"
-        ).eq("user_id", user_id).limit(MAX_CONTEXT_ENTRIES).execute()
-        return result.data or []
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch user_memory: {e}")
-        return []
+def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
+    """Read /memory/ files from workspace_files (sync, for thread pool). ADR-108."""
+    from services.workspace import UserMemory
+    um = UserMemory(client, user_id)
+    return um.read_all_sync()
 
 
-def _extract_profile(rows: list[dict]) -> dict:
-    """Extract profile keys: name, role, company, timezone, summary."""
-    profile_keys = {"name", "role", "company", "timezone", "summary"}
-    profile: dict[str, Optional[str]] = {k: None for k in profile_keys}
-
-    for row in rows:
-        key = row.get("key", "")
-        if key in profile_keys:
-            profile[key] = row.get("value")
-
+def _extract_profile_from_file(content: Optional[str]) -> dict:
+    """Extract profile from MEMORY.md content. ADR-108."""
+    from services.workspace import UserMemory
+    profile = UserMemory._parse_memory_md(content)
+    # Ensure all expected keys exist
+    for key in ("name", "role", "company", "timezone", "summary"):
+        profile.setdefault(key, None)
     return profile
 
 
-def _extract_preferences(rows: list[dict]) -> list[dict]:
-    """
-    Extract tone/verbosity preferences per platform.
-
-    Keys: tone_slack, tone_gmail, verbosity_slack, verbosity_gmail, etc.
-    """
-    prefs: dict[str, dict] = {}
-
-    for row in rows:
-        key = row.get("key", "")
-        value = row.get("value", "")
-
-        if key.startswith("tone_"):
-            platform = key[5:]  # "tone_slack" → "slack"
-            prefs.setdefault(platform, {})["tone"] = value
-
-        elif key.startswith("verbosity_"):
-            platform = key[10:]  # "verbosity_slack" → "slack"
-            prefs.setdefault(platform, {})["verbosity"] = value
-
-        elif key.startswith("preference:"):
-            # Flat preference entry — group under 'general'
-            prefs.setdefault("general", {}).setdefault("preferences", []).append(value)
-
+def _extract_preferences_from_file(content: Optional[str]) -> list[dict]:
+    """Extract preferences from preferences.md content. ADR-108."""
+    from services.workspace import UserMemory
+    prefs = UserMemory._parse_preferences_md(content)
     return [{"platform": k, **v} for k, v in prefs.items()]
 
 
-def _extract_known(rows: list[dict]) -> list[dict]:
-    """
-    Extract fact/instruction entries: keys starting with 'fact:' or 'instruction:'.
-    """
-    known = []
-    for row in rows:
-        key = row.get("key", "")
-        if key.startswith("fact:") or key.startswith("instruction:") or key.startswith("preference:"):
-            entry_type = key.split(":")[0]
-            known.append({
-                "type": entry_type,
-                "content": row.get("value", ""),
-                "source": row.get("source", ""),
-            })
-    return known
+def _extract_known_from_file(content: Optional[str]) -> list[dict]:
+    """Extract facts/instructions/preferences from notes.md content. ADR-108."""
+    from services.workspace import UserMemory
+    notes = UserMemory._parse_notes_md(content)
+    return [
+        {"type": n["type"], "content": n["content"], "source": "filesystem"}
+        for n in notes
+    ]
 
 
 async def _extract_agent_scope(agent: dict, client: Any) -> dict:

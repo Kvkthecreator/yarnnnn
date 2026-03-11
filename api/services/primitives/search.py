@@ -248,37 +248,37 @@ async def _search_user_memories(
     limit: int,
 ) -> list[dict]:
     """
-    ADR-059: Search user_memory table for user knowledge (fact:/instruction:/preference: keys).
+    ADR-108: Search /memory/notes.md for user knowledge entries.
+    Falls back to workspace full-text search for broader matches.
     """
     try:
-        result = auth.client.table("user_memory").select(
-            "id, key, value, source, confidence, created_at"
-        ).eq(
-            "user_id", auth.user_id
-        ).or_(
-            "key.like.fact:%,key.like.instruction:%,key.like.preference:%"
-        ).ilike(
-            "value", f"%{query}%"
-        ).order(
-            "created_at", desc=True
-        ).limit(limit).execute()
+        from services.workspace import UserMemory
+        um = UserMemory(auth.client, auth.user_id)
+        notes = await um.get_notes()
 
-        if not result.data:
+        if not notes:
             return []
+
+        # Simple substring match against query
+        query_lower = query.lower()
+        matches = [
+            n for n in notes
+            if query_lower in n["content"].lower()
+        ][:limit]
 
         return [
             {
                 "entity_type": "memory",
-                "ref": f"memory:{item['id']}",
+                "ref": f"memory:{n['type']}:{n['content'][:40]}",
                 "data": {
-                    "content": item["value"],
-                    "source": item.get("source"),
-                    "entry_type": item["key"].split(":")[0],
-                    "importance": item.get("confidence", 1.0),
+                    "content": n["content"],
+                    "source": "filesystem",
+                    "entry_type": n["type"],
+                    "importance": 1.0,
                 },
                 "score": 0.5,
             }
-            for item in result.data
+            for n in matches
         ]
 
     except Exception as e:
