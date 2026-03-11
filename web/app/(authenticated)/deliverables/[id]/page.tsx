@@ -220,9 +220,9 @@ export default function DeliverableWorkspacePage() {
   const breadcrumb = (
     <Link
       href="/deliverables"
-      className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
     >
-      <ChevronLeft className="w-3.5 h-3.5" />
+      <ChevronLeft className="w-4 h-4" />
       Deliverables
     </Link>
   );
