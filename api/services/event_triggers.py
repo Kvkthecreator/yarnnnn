@@ -86,7 +86,7 @@ class CooldownConfig:
 @dataclass
 class EventTriggerConfig:
     """
-    Event trigger configuration for a agent.
+    Event trigger configuration for an agent.
 
     Stored in agent.trigger_config when trigger_type='event'.
     """
@@ -137,7 +137,7 @@ async def check_cooldown_db(
     event: PlatformEvent,
 ) -> tuple[bool, Optional[str]]:
     """
-    Check if a agent is in cooldown for this event.
+    Check if an agent is in cooldown for this event.
 
     ADR-040: Uses database (event_trigger_log) instead of in-memory cache.
 
@@ -179,7 +179,7 @@ async def record_trigger_db(
     skip_reason: Optional[str] = None,
 ) -> None:
     """
-    Record that a agent was triggered for cooldown tracking.
+    Record that an agent was triggered for cooldown tracking.
 
     ADR-040: Logs to event_trigger_log table for audit and cooldown tracking.
     """

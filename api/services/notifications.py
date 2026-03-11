@@ -335,7 +335,7 @@ async def notify_agent_delivered(
     delivery_platform: Optional[str] = None,
 ) -> NotificationResult:
     """
-    Send notification when a agent has been delivered.
+    Send notification when an agent has been delivered.
 
     When delivery_platform is "email" or "gmail", the content email already
     landed in the user's inbox — skip the separate notification email to
@@ -385,7 +385,7 @@ async def notify_agent_failed(
     agent_title: str,
     error: str,
 ) -> NotificationResult:
-    """Send notification when a agent generation/delivery fails."""
+    """Send notification when an agent generation/delivery fails."""
     return await send_notification(
         db_client=db_client,
         user_id=user_id,
@@ -407,7 +407,7 @@ async def notify_event_triggered(
     event_type: str,
     platform: str,
 ) -> NotificationResult:
-    """Send notification when an event triggers a agent."""
+    """Send notification when an event triggers an agent."""
     return await send_notification(
         db_client=db_client,
         user_id=user_id,

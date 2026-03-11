@@ -118,7 +118,7 @@ class DestinationExporter(ABC):
         """
         Infer the style context for content generation.
 
-        When a agent has a destination, the platform informs
+        When an agent has a destination, the platform informs
         what style of content to generate:
         - Slack → casual, brief, emoji-friendly
         - Notion → structured, headers, detailed

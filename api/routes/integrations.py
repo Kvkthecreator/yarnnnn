@@ -1050,7 +1050,7 @@ async def export_to_provider(
     auth: UserClient
 ) -> ExportResponse:
     """
-    Export a agent version to a provider.
+    Export an agent version to a provider.
 
     ADR-028: Uses the unified DestinationExporter infrastructure.
 

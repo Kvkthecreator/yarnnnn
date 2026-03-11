@@ -61,7 +61,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 }
 
 
-# Default instructions seeded when a agent is created without explicit instructions.
+# Default instructions seeded when an agent is created without explicit instructions.
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",

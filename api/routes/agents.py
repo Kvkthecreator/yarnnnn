@@ -9,7 +9,7 @@ Endpoints:
 - GET /agents - List user's agents
 - GET /agents/:id - Get agent with version history
 - PATCH /agents/:id - Update agent settings
-- DELETE /agents/:id - Archive a agent
+- DELETE /agents/:id - Archive an agent
 - POST /agents/:id/run - Trigger an ad-hoc run
 - GET /agents/:id/versions - List versions
 - GET /agents/:id/versions/:version_id - Get version detail
@@ -63,7 +63,7 @@ TYPE_TIERS = {
 
 def get_type_classification(agent_type: str) -> dict:
     """
-    ADR-093: Get type_classification for a agent type.
+    ADR-093: Get type_classification for an agent type.
 
     Determines which execution strategy is used:
     - platform_bound: Single platform context — inferred from sources[] for digest
@@ -256,7 +256,7 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
 
 
 def get_default_config(agent_type: AgentType) -> dict:
-    """Get default configuration for a agent type (ADR-093: 7 types)."""
+    """Get default configuration for an agent type (ADR-093: 7 types)."""
     defaults = {
         "digest": DigestConfig(),
         "brief": BriefConfig(),
@@ -487,6 +487,8 @@ class VersionResponse(BaseModel):
     delivery_external_url: Optional[str] = None
     delivered_at: Optional[str] = None
     delivery_error: Optional[str] = None
+    # ADR-032: Platform-centric draft delivery
+    delivery_mode: Optional[str] = None  # draft, direct
     # ADR-030: Source fetch summary
     source_fetch_summary: Optional[SourceFetchSummary] = None
     # ADR-049: Source snapshots for freshness tracking
@@ -989,7 +991,7 @@ async def archive_agent(
     auth: UserClient,
 ) -> dict:
     """
-    Archive a agent (soft delete).
+    Archive an agent (soft delete).
     """
     result = (
         auth.client.table("agents")
@@ -1081,7 +1083,7 @@ async def get_source_freshness(
     auth: UserClient,
 ) -> list[SourceFreshnessItem]:
     """
-    ADR-030: Get freshness info for all sources of a agent.
+    ADR-030: Get freshness info for all sources of an agent.
 
     Returns when each source was last fetched, how many items were retrieved,
     and whether the source is considered stale (>7 days since last fetch).
@@ -1442,7 +1444,7 @@ async def list_agent_sessions(
     limit: int = 10,
 ) -> list[dict]:
     """
-    List scoped chat sessions for a agent.
+    List scoped chat sessions for an agent.
 
     ADR-087: Sessions are scoped to agents via chat_sessions.agent_id FK.
     Returns recent sessions with summary and message count.

@@ -402,13 +402,13 @@ async def _search_versions(
             ).eq("user_id", auth.user_id).execute()
             if not check.data:
                 return []
-            del_ids = [agent_id]
+            agent_ids = [agent_id]
         else:
-            user_dels = auth.client.table("agents").select("id").eq(
+            user_agents = auth.client.table("agents").select("id").eq(
                 "user_id", auth.user_id
             ).execute()
-            del_ids = [d["id"] for d in (user_dels.data or [])]
-            if not del_ids:
+            agent_ids = [d["id"] for d in (user_agents.data or [])]
+            if not agent_ids:
                 return []
 
         # Search both draft_content and final_content for matches
@@ -416,7 +416,7 @@ async def _search_versions(
             "id, agent_id, version_number, status, "
             "draft_content, final_content, "
             "created_at, delivery_status"
-        ).in_("agent_id", del_ids).or_(
+        ).in_("agent_id", agent_ids).or_(
             f"draft_content.ilike.%{query}%,final_content.ilike.%{query}%"
         ).order("created_at", desc=True).limit(limit)
 

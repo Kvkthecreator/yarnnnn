@@ -257,7 +257,7 @@ async def test_6_headless_generation():
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
     auth = MockAuth(USER_ID, client)
 
-    # Use a agent with existing versions
+    # Use an agent with existing versions
     agent = client.table("agents").select("*").eq(
         "id", SCOPED_AGENT_ID
     ).eq("user_id", USER_ID).single().execute()

@@ -343,7 +343,7 @@ async def should_skip_agent(
     agent: dict,
 ) -> tuple[bool, str]:
     """
-    Check if a agent should be skipped due to no new context.
+    Check if an agent should be skipped due to no new context.
 
     ADR-031 Phase 3: Skip generation if no fresh ephemeral context since last run.
 

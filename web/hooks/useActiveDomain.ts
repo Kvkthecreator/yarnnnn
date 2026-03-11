@@ -4,7 +4,7 @@
  * ADR-034: Hook to get the active domain for the current context.
  *
  * Domain is determined by:
- * 1. If viewing a agent, use that agent's domain
+ * 1. If viewing an agent, use that agent's domain
  * 2. If user has only one non-default domain, use it implicitly
  * 3. Otherwise, null (ambiguous)
  */

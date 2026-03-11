@@ -82,7 +82,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Which execution modes are supported?",
         answer:
-          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when a agent decides to run.",
+          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when an agent decides to run.",
       },
       {
         question: "How do agents improve over time?",

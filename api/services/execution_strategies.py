@@ -1,7 +1,7 @@
 """
 Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch + ADR-081 Consolidation
 
-Determines HOW a agent is executed based on its type_classification.binding.
+Determines HOW an agent is executed based on its type_classification.binding.
 
 Strategies:
 - platform_bound: Single platform reader → headless agent

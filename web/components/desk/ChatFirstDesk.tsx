@@ -195,7 +195,7 @@ export function ChatFirstDesk() {
   const { surface } = useDesk();
 
   // ADR-087 Phase 3: Load global (unscoped) history when dashboard mounts
-  // This ensures navigating back from a agent reloads the global thread
+  // This ensures navigating back from an agent reloads the global thread
   useEffect(() => {
     loadScopedHistory();
   }, [loadScopedHistory]);

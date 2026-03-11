@@ -593,7 +593,7 @@ export default function SettingsPage() {
                     <div>
                       <div className="font-medium">Agent Failed</div>
                       <div className="text-sm text-muted-foreground">
-                        Get notified when a agent fails to generate
+                        Get notified when an agent fails to generate
                       </div>
                     </div>
                   </div>
@@ -776,7 +776,7 @@ export default function SettingsPage() {
                           Clear All Content
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.agents} agents and {dangerStats.agent_runs} versions
+                          Delete {dangerStats.agents} agents and {dangerStats.agent_runs} runs
                         </div>
                       </div>
                       <button
@@ -953,7 +953,7 @@ export default function SettingsPage() {
                     Are you sure you want to <strong>clear all content</strong>? This will delete:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.agents} agents and {dangerStats?.agent_runs} versions</li>
+                    <li>{dangerStats?.agents} agents and {dangerStats?.agent_runs} runs</li>
                   </ul>
                   <p className="mt-2 text-sm">You will return to the onboarding flow.</p>
                 </>

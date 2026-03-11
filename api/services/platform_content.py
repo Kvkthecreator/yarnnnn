@@ -675,7 +675,7 @@ async def get_content_for_agent(
     limit_per_source: int = 50,
 ) -> list[PlatformContentItem]:
     """
-    Fetch platform content relevant to a agent's sources.
+    Fetch platform content relevant to an agent's sources.
 
     Args:
         db_client: Supabase client

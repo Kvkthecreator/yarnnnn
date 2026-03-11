@@ -140,7 +140,7 @@ interface TPContextValue {
   respondToClarification: (answer: string) => void;
   closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
-  /** ADR-087 Phase 3: Load history scoped to a agent (or global if undefined) */
+  /** ADR-087 Phase 3: Load history scoped to an agent (or global if undefined) */
   loadScopedHistory: (agentId?: string) => Promise<void>;
 }
 

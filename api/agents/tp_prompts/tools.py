@@ -91,7 +91,7 @@ Format: `<type>:<identifier>`
 
 ## Agent Workspace
 
-Each agent has its own workspace. In a agent-scoped chat, you are its steward —
+Each agent has its own workspace. In an agent-scoped chat, you are its steward —
 see "Agent Workspace Management" in Behaviors for when to proactively update these.
 
 **Instructions** — living behavioral config (like a SKILLS.md per agent).
@@ -112,7 +112,7 @@ Persists across generation runs and shapes both chat and headless output.
 - `Read(ref="version:latest?agent_id={id}")` - read latest generated output
 - `Read(ref="version:{version_uuid}")` - read a specific version
 
-**When in a agent-scoped chat**, your working memory already includes the latest
+**When in an agent-scoped chat**, your working memory already includes the latest
 version preview, instructions, observations, and goal. Use the tools above to dig deeper
 or make updates.
 

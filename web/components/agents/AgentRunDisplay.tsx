@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Version display components for the Agent Workspace panel.
+ * Run display components for the Agent Workspace panel.
  *
- * VersionsPanel: lives in the right panel, two modes:
- * - List mode: compact version list, click to preview
- * - Preview mode: full markdown render of selected version, back to list
+ * RunsPanel: lives in the right panel, two modes:
+ * - List mode: compact run list, click to preview
+ * - Preview mode: full markdown render of selected run, back to list
  *
  * Replaces the former InlineVersionCard (pinned above chat) with panel-based display.
  */
@@ -151,7 +151,7 @@ function VersionFeedbackStrip({
         className="w-full px-3 py-1.5 border-t border-border text-xs text-muted-foreground hover:text-foreground transition-colors text-left flex items-center gap-1.5"
       >
         <MessageSquare className="w-3 h-3" />
-        {saved ? 'Feedback saved' : 'Leave feedback for future versions'}
+        {saved ? 'Feedback saved' : 'Leave feedback for future runs'}
       </button>
     );
   }
@@ -224,7 +224,7 @@ function VersionPreviewFull({
         <button
           onClick={onBack}
           className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-          title="Back to versions"
+          title="Back to runs"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
         </button>
@@ -313,10 +313,10 @@ function VersionPreviewFull({
 }
 
 // =============================================================================
-// VersionsPanel — panel tab with list + preview modes
+// RunsPanel — panel tab with list + preview modes
 // =============================================================================
 
-export function VersionsPanel({
+export function RunsPanel({
   versions,
   agent,
   onRunNow,
@@ -363,7 +363,7 @@ export function VersionsPanel({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-          {isGoalMode ? 'Generate first version' : 'Run now'}
+          {isGoalMode ? 'Generate first run' : 'Run now'}
         </button>
         {missingSourcesWarning && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
@@ -379,7 +379,7 @@ export function VersionsPanel({
       {/* Run Now bar */}
       <div className="px-3 py-2 border-b border-border flex items-center justify-between shrink-0">
         <span className="text-xs text-muted-foreground">
-          {versions.length} version{versions.length !== 1 ? 's' : ''}
+          {versions.length} run{versions.length !== 1 ? 's' : ''}
         </span>
         <button
           onClick={onRunNow}

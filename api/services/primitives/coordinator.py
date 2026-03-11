@@ -32,7 +32,7 @@ in response to a detected condition (e.g. an upcoming meeting, a flagged email t
 a stalled project).
 
 Before creating, check your agent_memory.created_agents to avoid
-duplicating a agent for the same underlying event (use dedup_key for this).
+duplicating an agent for the same underlying event (use dedup_key for this).
 
 The created agent will run once immediately (trigger_type=manual) unless
 you specify a schedule. It appears in the user's agents list with

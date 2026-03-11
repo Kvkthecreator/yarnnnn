@@ -388,7 +388,7 @@ async def get_source_snapshots(
     version_id: str,
 ) -> list[dict]:
     """
-    Get source snapshots from a agent_version.
+    Get source snapshots from an agent_version.
 
     Useful for comparing "what changed since last generation".
     """

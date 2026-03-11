@@ -1071,7 +1071,7 @@ async def admin_trigger_agent(
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
     """
-    Admin endpoint to trigger a agent run.
+    Admin endpoint to trigger an agent run.
     Protected by service key header. Runs full pipeline and returns results.
     """
     from services.agent_execution import execute_agent_generation

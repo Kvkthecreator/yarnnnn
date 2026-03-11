@@ -127,19 +127,19 @@ def cleanup(client):
     dels = client.table("agents").select("id").eq(
         "user_id", TEST_USER_ID
     ).ilike("title", f"{TEST_PREFIX}%").execute()
-    del_ids = [d["id"] for d in (dels.data or [])]
+    agent_ids = [d["id"] for d in (dels.data or [])]
 
-    if del_ids:
+    if agent_ids:
         # Delete versions for test agents
-        for did in del_ids:
+        for did in agent_ids:
             client.table("agent_runs").delete().eq(
                 "agent_id", did
             ).execute()
         # Delete agents
-        for did in del_ids:
+        for did in agent_ids:
             client.table("agents").delete().eq("id", did).execute()
 
-    logger.info(f"Cleanup: removed {len(del_ids)} test agents + versions")
+    logger.info(f"Cleanup: removed {len(agent_ids)} test agents + versions")
 
 
 # =============================================================================

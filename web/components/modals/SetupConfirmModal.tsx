@@ -3,7 +3,7 @@
 /**
  * Setup Confirmation Modal
  *
- * Shown after TP creates a agent to confirm context before first run.
+ * Shown after TP creates an agent to confirm context before first run.
  * Part of the Agent Workflow assurance pattern.
  *
  * ADR-037: Uses router.push for agent navigation

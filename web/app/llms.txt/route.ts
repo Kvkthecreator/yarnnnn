@@ -25,7 +25,7 @@ export async function GET() {
     "",
     "## How yarnnn works",
     "",
-    "1. Define a agent specialist (type + mode + structure)",
+    "1. Define an agent specialist (type + mode + structure)",
     "2. Connect source scope across Slack, Gmail, Notion, and Calendar",
     "3. Specialists run in background and produce versioned output",
     "4. User supervises by refining/approving versions",

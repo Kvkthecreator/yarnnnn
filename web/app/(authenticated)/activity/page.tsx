@@ -396,7 +396,7 @@ export default function ActivityPage() {
           <>
             {metadata.strategy && <DetailRow label="Strategy" value={String(metadata.strategy)} />}
             {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
-            {metadata.version_number && <DetailRow label="Version" value={`v${metadata.version_number}`} />}
+            {metadata.version_number && <DetailRow label="Run" value={`v${metadata.version_number}`} />}
             {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
             {metadata.delivery_error && (
               <DetailRow label="Error" value={<span className="text-red-500">{String(metadata.delivery_error)}</span>} />

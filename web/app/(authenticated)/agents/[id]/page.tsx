@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 import { AgentSettingsPanel } from '@/components/agents/AgentSettingsPanel';
 import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
 import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
-import { VersionsPanel } from '@/components/agents/AgentRunDisplay';
+import { RunsPanel } from '@/components/agents/AgentRunDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/agents/AgentDrawerPanels';
 import { AgentChatArea } from '@/components/agents/AgentChatArea';
 import type { Agent, AgentRun, AgentSession } from '@/types';
@@ -149,10 +149,10 @@ export default function AgentWorkspacePage() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'versions',
-      label: `Versions${versions.length > 0 ? ` (${versions.length})` : ''}`,
+      id: 'runs',
+      label: `Runs${versions.length > 0 ? ` (${versions.length})` : ''}`,
       content: (
-        <VersionsPanel
+        <RunsPanel
           versions={versions}
           agent={agent}
           onRunNow={handleRunNow}

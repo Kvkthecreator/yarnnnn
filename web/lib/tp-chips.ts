@@ -73,7 +73,7 @@ export type ContextScope =
 
 /**
  * Get context scope from surface
- * Context is automatically scoped when viewing a agent
+ * Context is automatically scoped when viewing an agent
  */
 export function getContextScope(surface: DeskSurface): ContextScope {
   switch (surface.type) {

@@ -140,7 +140,7 @@ async def run_agent(
     ctx: Context,
     agent_id: str,
 ) -> dict:
-    """Trigger a agent to execute now and deliver its output.
+    """Trigger an agent to execute now and deliver its output.
 
     Runs the full pipeline: gather context from synced platforms, generate content,
     and deliver to the configured destination (Slack, email, etc.).
@@ -153,7 +153,7 @@ async def run_agent(
 
     # Fetch the agent (with ownership check)
     try:
-        del_result = (
+        agent_result = (
             auth.client.table("agents")
             .select("*")
             .eq("id", agent_id)
@@ -164,7 +164,7 @@ async def run_agent(
     except Exception:
         return {"success": False, "error": "Agent not found"}
 
-    if not del_result.data:
+    if not agent_result.data:
         return {"success": False, "error": "Agent not found"}
 
     from services.agent_execution import execute_agent_generation
@@ -172,7 +172,7 @@ async def run_agent(
     result = await execute_agent_generation(
         client=auth.client,
         user_id=auth.user_id,
-        agent=del_result.data,
+        agent=agent_result.data,
         trigger_context={"type": "mcp"},
     )
 
@@ -185,7 +185,7 @@ async def get_agent_output(
     agent_id: str,
     version: Optional[int] = None,
 ) -> dict:
-    """Get the generated content from a agent's most recent (or specific) version.
+    """Get the generated content from an agent's most recent (or specific) version.
 
     Returns the actual text output that was generated and delivered.
     Use list_agents first to find the agent ID.
@@ -198,7 +198,7 @@ async def get_agent_output(
 
     # Verify ownership
     try:
-        del_check = (
+        agent_check = (
             auth.client.table("agents")
             .select("id")
             .eq("id", agent_id)
@@ -209,7 +209,7 @@ async def get_agent_output(
     except Exception:
         return {"success": False, "error": "Agent not found"}
 
-    if not del_check.data:
+    if not agent_check.data:
         return {"success": False, "error": "Agent not found"}
 
     # Fetch version(s)

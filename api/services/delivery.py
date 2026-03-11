@@ -61,7 +61,7 @@ class DeliveryService:
 
     def should_auto_deliver(self, agent: dict[str, Any]) -> bool:
         """
-        Determine if a agent should auto-deliver.
+        Determine if an agent should auto-deliver.
 
         ADR-066: All agents auto-deliver when destination is set.
 

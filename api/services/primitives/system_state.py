@@ -426,22 +426,22 @@ async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
     """
     try:
         # Get user's agent IDs
-        del_result = (
+        agent_result = (
             client.table("agents")
             .select("id")
             .eq("user_id", user_id)
             .eq("status", "active")
             .execute()
         )
-        del_ids = [d["id"] for d in (del_result.data or [])]
-        if not del_ids:
+        agent_ids = [d["id"] for d in (agent_result.data or [])]
+        if not agent_ids:
             return 0
 
         # Count versions in review states for those agents
         result = (
             client.table("agent_runs")
             .select("id", count="exact")
-            .in_("agent_id", del_ids)
+            .in_("agent_id", agent_ids)
             .in_("status", ["draft"])
             .execute()
         )

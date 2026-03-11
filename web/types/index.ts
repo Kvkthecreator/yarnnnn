@@ -472,6 +472,15 @@ export interface AgentRun {
   delivery_mode?: 'draft' | 'direct';
   // ADR-049: Source snapshots for freshness tracking
   source_snapshots?: SourceSnapshot[];
+  // ADR-030: Source fetch summary
+  source_fetch_summary?: {
+    sources_total: number;
+    sources_succeeded: number;
+    sources_failed: number;
+    delta_mode_used: boolean;
+    time_range_start?: string;
+    time_range_end?: string;
+  };
   // ADR-101: Execution metadata (tokens, model, provenance)
   metadata?: {
     input_tokens?: number;
@@ -488,8 +497,8 @@ export interface AgentRun {
 // ADR-018: Feedback summary for learned preferences
 export interface FeedbackSummary {
   has_feedback: boolean;
-  total_versions: number;
-  approved_versions: number;
+  total_runs: number;
+  approved_runs: number;
   avg_quality?: number;  // Percentage (0-100)
   learned_preferences: string[];  // Human-readable preferences
 }

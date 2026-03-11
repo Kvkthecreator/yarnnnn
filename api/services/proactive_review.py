@@ -47,7 +47,7 @@ def _build_review_system_prompt(agent: dict) -> str:
 
     prompt = f"""You are performing a domain review for a {mode} agent: "{title}" (type: {agent_type}).
 
-Your job is NOT to generate a agent. Your job is to assess whether conditions in your domain
+Your job is NOT to generate an agent. Your job is to assess whether conditions in your domain
 warrant generating one right now.
 
 ## Your Domain Instructions

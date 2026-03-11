@@ -344,7 +344,7 @@ async def _handle_agent_acknowledge(auth, entity, ref, via, params):
     Lightweight context update: append an observation to agent_memory.
 
     ADR-091: Graduated response — lighter than full generation, used when user
-    shares information relevant to a agent that should persist across sessions.
+    shares information relevant to an agent that should persist across sessions.
     Observation cap: 20 most recent (system compacts periodically).
     """
     from datetime import datetime, timezone

@@ -695,7 +695,7 @@ async def load_surface_content(
         surface_type = surface.type
 
         if surface_type == "agent-review" and surface.agentId and surface.versionId:
-            # User is reviewing a agent version - fetch the content
+            # User is reviewing an agent version - fetch the content
             agent_result = client.table("agents")\
                 .select("title, agent_type")\
                 .eq("id", surface.agentId)\

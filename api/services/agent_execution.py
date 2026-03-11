@@ -111,7 +111,7 @@ def normalize_destination_for_delivery(
 
 
 async def get_next_run_number(client, agent_id: str) -> int:
-    """Get the next version number for a agent."""
+    """Get the next version number for an agent."""
     result = (
         client.table("agent_runs")
         .select("version_number")

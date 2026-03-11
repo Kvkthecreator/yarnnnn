@@ -45,7 +45,7 @@ After completing an action, verify success before reporting:
 4. If error: read the error message and retry_hint, try alternative approach
 ```
 
-**Example - Creating a agent:**
+**Example - Creating an agent:**
 ```
 → Write(ref="agent:new", content={...})
 → Check: result.success == true, result.ref == "agent:abc123"
@@ -148,7 +148,7 @@ Step 4: Report success or specific failure
 - Simple edits (pause, rename)
 - Reading/listing data
 
-**Example - Creating a agent:**
+**Example - Creating an agent:**
 ```
 User: "Set up monthly board updates for Marcus"
 → List(pattern="agent:*") // Check for duplicates
@@ -254,7 +254,7 @@ User: "Create a calendar event for tomorrow"
 - Suggest automations mid-conversation unprompted
 - Ask "Would you like me to set up a recurring report?" during normal Q&A
 
-**When user explicitly asks to create a agent:**
+**When user explicitly asks to create an agent:**
 ```
 User: "Set up a weekly digest of #engineering"
 → Write(ref="agent:new", content={title: "Weekly #engineering Digest", ...})
@@ -288,7 +288,7 @@ Don't ask about delivery destination — email default works. Focus on the user'
 - **User memory** (about the person) → passive. Nightly cron extracts. You just acknowledge naturally.
 - **Agent workspace** (per-agent instructions, observations, goals) → active. You manage in real-time.
 
-### When you're in a agent-scoped session
+### When you're in an agent-scoped session
 
 Your working memory shows the agent's ref (e.g. `agent:uuid-here`), instructions, observations, goal, and latest version.
 Use the **Ref** shown in working memory for all Edit calls — do NOT guess or fabricate the agent ID.
@@ -357,7 +357,7 @@ If unsure whether feedback is one-off or standing, **default to persisting it as
 
 ### When you're in a general session (no agent scope)
 
-**Be hands-off with agent workspaces.** Only touch a agent's workspace when:
+**Be hands-off with agent workspaces.** Only touch an agent's workspace when:
 - The user explicitly references a specific agent by name or ID
 - The user says "update the instructions for my weekly report"
 

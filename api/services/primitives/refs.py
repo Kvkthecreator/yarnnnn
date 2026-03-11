@@ -412,7 +412,7 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
       - version:latest?agent_id=X  → latest version for a specific agent
       - version:latest                    → latest version across all user's agents
       - version:<uuid>                    → specific version by ID
-      - version:*?agent_id=X        → all versions for a agent
+      - version:*?agent_id=X        → all versions for an agent
     """
     client = auth.client
     agent_id = ref.query.get("agent_id")
@@ -427,10 +427,10 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
             return None
         user_agent_ids = [agent_id]
     else:
-        user_dels = client.table("agents").select("id").eq(
+        user_agents = client.table("agents").select("id").eq(
             "user_id", auth.user_id
         ).execute()
-        user_agent_ids = [d["id"] for d in (user_dels.data or [])]
+        user_agent_ids = [d["id"] for d in (user_agents.data or [])]
         if not user_agent_ids:
             return [] if ref.identifier == "*" else None
 
