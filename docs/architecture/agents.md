@@ -15,7 +15,8 @@
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
-- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory
+- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory (Phase 2 COMPLETE: workspace as singular source of truth)
+- [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem for agent-produced knowledge (Proposed)
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Agents are Layer 4 (Work)
 
@@ -50,8 +51,8 @@ When a agent executes, it produces a **agent version** — an immutable record o
 | `type_config` | jsonb | Type-specific settings |
 | `type_classification` | jsonb | ADR-044: `{binding, primary_platform, temporal_pattern, freshness_requirement_hours}` |
 | `mode` | text | ADR-092: `recurring` (default) \| `goal` \| `reactive` \| `proactive` \| `coordinator` |
-| `agent_instructions` | text | ADR-087: User-authored behavioral directives for this agent's agent |
-| `agent_memory` | jsonb | ADR-087/092: Accumulated operational knowledge — structure varies by mode |
+| `agent_instructions` | text | **DEPRECATED (ADR-106 Phase 2):** Migrated to workspace `AGENT.md`. DB column no longer read or written. Retained for lazy migration via `ensure_seeded()`. |
+| `agent_memory` | jsonb | **DEPRECATED (ADR-106 Phase 2):** Migrated to workspace `memory/*.md`. DB column no longer read or written. Retained for lazy migration via `ensure_seeded()`. |
 | `origin` | text | ADR-068/092: `user_configured`, `analyst_suggested`, or `coordinator_created` |
 | `trigger_type` | text | `schedule`, `event`, or `manual` |
 | `proactive_next_review_at` | timestamptz | ADR-092: Next review time for `proactive` and `coordinator` mode agents |
@@ -239,6 +240,18 @@ All content comes from `platform_content` (the unified content layer, ADR-073):
 - Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation
 
 `platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by agent execution and signal processing.
+
+### Three storage domains (ADR-107, proposed)
+
+The architecture distinguishes three storage domains, each with its own lifecycle and access model:
+
+| Domain | Backing Store | Scope | Lifecycle | Purpose |
+|--------|--------------|-------|-----------|---------|
+| **External Context** | `platform_content` table | Per-user, shared | TTL-managed (14-90d) | Raw platform data from Slack, Gmail, Notion, Calendar |
+| **Agent Intelligence** | `workspace_files` under `/agents/{slug}/` | Per-agent, private | Persistent | Agent identity, memory, working state (ADR-106) |
+| **Accumulated Knowledge** | `workspace_files` under `/knowledge/` | Per-user, shared | Persistent, version-aware | Agent-produced knowledge artifacts (ADR-107, proposed) |
+
+ADR-107 proposes moving agent-produced outputs from `platform_content` (`platform="yarnnn"`) to structured files under `/knowledge/` — with content-class directories (digests/, research/, analyses/, briefs/, insights/), versioning, and provenance metadata. Outputs enter `/knowledge/` at delivery time, not generation time. See [ADR-107](../adr/ADR-107-knowledge-filesystem-architecture.md) and [Workspace Conventions](workspace-conventions.md).
 
 ### Agent in headless mode (ADR-080)
 
@@ -454,14 +467,14 @@ Destination config (ADR-028):
 
 Every agent carries four layers of knowledge:
 
-| Layer | What it is | Storage (current → workspace) |
+| Layer | What it is | Storage |
 |---|---|---|
 | **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates (unchanged) |
-| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `agent_instructions` TEXT → `/agents/{slug}/AGENT.md` (ADR-106) |
-| **Memory** | What happened — observations, review decisions, goals | `agent_memory` JSONB → `/agents/{slug}/memory/*.md` (ADR-106, topic-scoped) |
-| **Feedback** | How well it's doing — edit patterns from user corrections | `agent_runs` metrics → `/agents/{slug}/memory/preferences.md` (ADR-106) |
+| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `/agents/{slug}/AGENT.md` (workspace file — ADR-106 Phase 2) |
+| **Memory** | What happened — observations, review decisions, goals | `/agents/{slug}/memory/*.md` (workspace files — ADR-106 Phase 2, topic-scoped) |
+| **Feedback** | How well it's doing — edit patterns from user corrections | `agent_runs` metrics → `/agents/{slug}/memory/preferences.md` (future) |
 
-> **ADR-106 migration:** Agent intelligence is moving from DB columns to workspace files. `AGENT.md` mirrors Claude Code's `CLAUDE.md` — a discoverable identity file. `memory/` is topic-scoped (like `.claude/memory/`). `thesis.md` is YARNNN-unique — agents build self-evolving domain understanding. See [Workspace Conventions](workspace-conventions.md).
+> **ADR-106 Phase 2 COMPLETE:** Workspace files are the **singular source of truth** for agent intelligence. DB columns (`agent_instructions`, `agent_memory`) are no longer read or written. `AGENT.md` mirrors Claude Code's `CLAUDE.md`. `memory/` is topic-scoped (like `.claude/memory/`). `thesis.md` is YARNNN-unique — agents build self-evolving domain understanding. `ensure_seeded()` performs one-time lazy migration from DB columns on first workspace access. See [Workspace Conventions](workspace-conventions.md).
 
 Feedback is computed by `feedback_engine.py` when users approve versions with edits, and aggregated by `get_past_versions_context()` into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions (delivery-first model, ADR-066).
 

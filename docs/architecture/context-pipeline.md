@@ -185,6 +185,37 @@ All platforms use Direct API clients from `api/integrations/core/` — no MCP, n
 
 > **ADR-102**: Agent outputs are written to `platform_content` with `platform="yarnnn"` after successful delivery. These are always retained (`retained=true`, `retained_reason="yarnnn_output"`) — generated artifacts don't expire. This closes the accumulation loop: agent outputs become searchable context for TP and other agents.
 
+### Three Storage Domains (ADR-106 + ADR-107)
+
+The platform distinguishes three storage domains with distinct lifecycle and access models:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  EXTERNAL CONTEXT  (platform_content)                        │
+│  Raw platform data — Slack, Gmail, Notion, Calendar          │
+│  TTL-managed (14-90d), flat rows, sync-pipeline-written      │
+│  Includes platform="yarnnn" rows (ADR-102) — to be migrated │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  AGENT INTELLIGENCE  (workspace_files: /agents/{slug}/)      │
+│  AGENT.md, memory/*.md, thesis.md, working/, runs/           │
+│  Singular source of truth — DB columns deprecated (ADR-106)  │
+│  Per-agent, private, persistent                              │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  ACCUMULATED KNOWLEDGE  (workspace_files: /knowledge/)       │
+│  Agent-produced knowledge artifacts (ADR-107, proposed)       │
+│  digests/, research/, analyses/, briefs/, insights/           │
+│  Per-user, shared across agents, version-aware, persistent   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**OS analogy:** `/agents/` = `/home/` (per-process private state), `/knowledge/` = `/var/shared/` (shared knowledge filesystem), `platform_content` = `/dev/` (device drivers — raw external I/O).
+
+**ADR-107 direction:** Agent-produced outputs will migrate from flat `platform_content` rows (`platform="yarnnn"`) to structured `/knowledge/` files — with content-class directories, versioning, and provenance. Outputs enter `/knowledge/` at delivery time. External platform data stays in `platform_content` unchanged. See [ADR-107](../adr/ADR-107-knowledge-filesystem-architecture.md).
+
 ---
 
 ## Agent Execution (ADR-072)

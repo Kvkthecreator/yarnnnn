@@ -10,6 +10,31 @@ Each agent type maps to a job-to-be-done. This document captures the validated o
 
 ---
 
+## Agent Categories (ADR-107 direction)
+
+The knowledge filesystem architecture (ADR-107) reveals two natural agent categories based on data flow:
+
+**Platform Agents** — Read from `platform_content` (raw external data), produce platform-aware knowledge:
+- Digest/Recap agents → read Slack/Gmail/Notion → `/knowledge/digests/`
+- Calendar Brief agents → read Calendar + cross-platform → `/knowledge/briefs/`
+- Watch agents → monitor platform signals → `/knowledge/insights/`
+
+**Synthesis Agents** — Read from `/knowledge/` (digested context) + optionally web, produce cross-cutting analysis:
+- Status/Work Summary agents → read multiple digests → `/knowledge/analyses/`
+- Research agents → read knowledge + web → `/knowledge/research/`
+- Coordinator agents → orchestrate platform + synthesis agents
+
+This is not a rigid taxonomy — it's an emergent pattern from the filesystem structure. Current agent types map as follows:
+
+| Type | Category | Reads from | Produces |
+|------|----------|-----------|----------|
+| `digest` (Recap) | Platform | `platform_content` (single platform) | `/knowledge/digests/` |
+| `brief` (Meeting Prep) | Platform | `platform_content` (calendar + cross-platform) | `/knowledge/briefs/` |
+| `status` (Work Summary) | Synthesis | `platform_content` (cross-platform) | `/knowledge/analyses/` |
+| `deep_research` (Proactive Insights) | Synthesis | `platform_content` + web | `/knowledge/research/` or `/knowledge/insights/` |
+| `watch` | Platform | `platform_content` (domain-specific) | `/knowledge/insights/` |
+| `coordinator` | Meta | `/knowledge/` + `platform_content` | Creates/triggers child agents |
+
 ## Sequencing model
 
 ```

@@ -66,23 +66,34 @@ YARNNN's workspace conventions deliberately mirror Claude Code's filesystem mode
     └── {ref}.md                # Cached content from other agents/sources
 ```
 
-### Knowledge Base (shared, read-only for agents)
+### Knowledge Filesystem (shared, agent-produced — ADR-107)
 
 ```
 /knowledge/
-├── slack/
-│   └── {channel_name}/
-│       └── {date}.md           # Daily content snapshots
-├── gmail/
-│   └── {label}/
-│       └── {date}.md
-├── notion/
-│   └── {page_name}.md
-├── calendar/
-│   └── {date}.md
-└── yarnnn/                     # Agent outputs (always retained)
-    └── {agent_slug}-v{N}.md
+├── digests/                    # Platform-specific recaps
+│   └── {source}-{date}.md     # e.g., slack-engineering-2026-03-11.md
+│
+├── research/                   # Deep research outputs
+│   └── {topic-slug}/
+│       ├── latest.md           # Current version (canonical)
+│       └── v1.md, v2.md        # Historical versions (opt-in)
+│
+├── analyses/                   # Cross-platform synthesis
+│   └── {topic-slug}.md         # e.g., competitive-landscape-q1.md
+│
+├── briefs/                     # Event-driven preparation
+│   └── {event-slug}.md         # e.g., board-meeting-2026-03-15.md
+│
+└── insights/                   # Proactive findings
+    └── {topic-slug}.md         # e.g., engineering-velocity-trend.md
 ```
+
+Agent outputs enter `/knowledge/` at delivery time (not generation). Only approved/delivered
+outputs are written. The filesystem structure IS the content classification — directory
+placement communicates content class, versioning, and provenance.
+
+**External platform data** (Slack, Gmail, Notion, Calendar) stays in `platform_content` table —
+flat, TTL-managed, sync-pipeline-written. `/knowledge/` is for agent-produced knowledge only.
 
 ### User-Level (global)
 
