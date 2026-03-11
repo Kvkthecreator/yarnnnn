@@ -14,6 +14,8 @@ import type {
   DocumentUploadResponse,
   DocumentDownloadResponse,
   DocumentListResponse,
+  KnowledgeFilesResponse,
+  KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
   SubscriptionStatus,
@@ -282,6 +284,27 @@ export const api = {
         `/api/documents/${documentId}`,
         { method: "DELETE" }
       ),
+  },
+
+  // Knowledge filesystem (ADR-107 Phase 3)
+  knowledge: {
+    summary: () =>
+      request<KnowledgeSummaryResponse>("/api/knowledge/summary"),
+
+    listFiles: (
+      options?: {
+        content_class?: "digests" | "analyses" | "briefs" | "research" | "insights";
+        limit?: number;
+      }
+    ) => {
+      const params = new URLSearchParams();
+      if (options?.content_class) params.set("content_class", options.content_class);
+      if (typeof options?.limit === "number") params.set("limit", String(options.limit));
+      const query = params.toString();
+      return request<KnowledgeFilesResponse>(
+        `/api/knowledge/files${query ? `?${query}` : ""}`
+      );
+    },
   },
 
   // Chat endpoints (streaming handled separately in useChat hook)

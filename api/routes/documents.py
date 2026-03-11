@@ -8,7 +8,7 @@ Endpoints:
 - GET /documents - List user's documents
 - GET /documents/{id} - Get document details with stats
 - GET /documents/{id}/download - Get signed download URL
-- DELETE /documents/{id} - Delete document (cascades to chunks, memories)
+- DELETE /documents/{id} - Delete document (cascades to chunks)
 """
 
 import logging
@@ -89,7 +89,7 @@ async def upload_document(
     1. Stored in Supabase Storage
     2. Parsed and chunked
     3. Embeddings generated
-    4. Memories extracted
+    4. Indexed for document search
 
     Args:
         file: The file to upload (PDF, DOCX, TXT, MD)
@@ -194,7 +194,7 @@ async def upload_document(
         document_id=document_id,
         filename=file.filename or f"document.{file_type}",
         processing_status=status,
-        message=f"Processed: {result.get('chunks_created', 0)} chunks, {result.get('memories_extracted', 0)} memories"
+        message=f"Processed: {result.get('chunks_created', 0)} chunks indexed"
         if result.get("success")
         else f"Processing failed: {result.get('error', 'Unknown error')}"
     )
@@ -263,7 +263,7 @@ async def list_documents(
 @router.get("/documents/{document_id}")
 async def get_document(auth: UserClient, document_id: str):
     """
-    Get document details with chunk and memory counts.
+    Get document details with chunk stats.
     """
     # Use the RPC function for stats
     result = auth.client.rpc(

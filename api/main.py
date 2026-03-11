@@ -3,6 +3,7 @@ YARNNN API - Context-aware AI work platform
 
 Single FastAPI application with route groups:
 - /api/memory: Memory layer (profile, styles, entries, activity)
+- /api/knowledge: Knowledge filesystem browsing (/knowledge/* in workspace_files)
 - /api/work: Work ticket lifecycle
 - /api/chat: Thinking Partner conversations
 - /api/domains: Context domains (ADR-034)
@@ -51,7 +52,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system
+from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, knowledge
 
 app = FastAPI(
     title="YARNNN API",
@@ -105,3 +106,6 @@ app.include_router(domains.router, tags=["domains"])
 
 # System/Operations status routes (ADR-072)
 app.include_router(system.router, prefix="/api/system", tags=["system"])
+
+# Knowledge filesystem routes (ADR-107 Phase 3)
+app.include_router(knowledge.router, prefix="/api", tags=["knowledge"])

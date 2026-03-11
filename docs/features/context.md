@@ -1,13 +1,15 @@
 # Context
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
-> **Updated**: 2026-02-25 — ADR-077 sync overhaul, ADR-076 direct API clients
+> **Updated**: 2026-03-11 — ADR-107 Knowledge filesystem surfacing in Context Files UI
 
 ---
 
 ## What it is
 
 Context is the unified content layer — platform content with retention-based accumulation. Emails, Slack messages, Notion pages, calendar events. Content that proves significant (referenced by agents, signal processing, or TP sessions) is retained indefinitely. Unreferenced content expires after TTL.
+
+Context now includes a shared **knowledge filesystem** (`/knowledge/`) for agent-produced artifacts (digests, analyses, briefs, research, insights). In the frontend, Context is surfaced as a Files view with three folders: Platforms, Documents, Knowledge.
 
 Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, via TP primitives (`Search`, `FetchPlatformContent`, `CrossPlatformQuery`).
 
@@ -97,6 +99,10 @@ Stores encrypted OAuth tokens, sync preferences, selected sources, and last_sync
 
 User-uploaded PDFs, DOCX, TXT, MD files are chunked, embedded, and stored in `filesystem_chunks`. Searchable via `Search(scope="document")` — semantic vector search. Documents are Context, not Memory — they are working material, not standing instructions.
 
+### `workspace_files` under `/knowledge/` — Shared agent knowledge
+
+Agent outputs are written to `workspace_files` under `/knowledge/{class}/...` (ADR-107). This is persistent, user-scoped, and shared across agents. Use `QueryKnowledge` to search it from headless execution.
+
 ### `sync_registry` — Per-resource sync state
 
 Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by `platform_worker.py` to track sync progress across runs.
@@ -121,6 +127,11 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 **Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger agents.
 
 **Context page** ("Run sync" button) — triggers `POST /api/integrations/{provider}/sync` for user-initiated refresh.
+
+**Context Files UI** — `/context` surfaces:
+- **Platforms** (external synced content and source management)
+- **Documents** (uploaded files for document search)
+- **Knowledge** (agent-produced filesystem artifacts by class)
 
 ---
 

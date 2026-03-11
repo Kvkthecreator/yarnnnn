@@ -15,7 +15,7 @@
  * Four-Layer Model:
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
  * - Activity (/activity): What YARNNN has done (audit trail)
- * - Context (/context): What's in your platforms (Platforms, Documents)
+ * - Context (/context): Filesystem view of your context (Platforms, Documents, Knowledge)
  * - Work-Agents (/agents): What YARNNN produces (recurring outputs)
  */
 

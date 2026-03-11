@@ -8,8 +8,9 @@
  * Sections:
  * - Platforms: Connected integrations (Slack, Gmail, Notion, Calendar)
  * - Documents: Uploaded files (PDF, DOC, TXT, MD)
+ * - Knowledge: Agent-produced artifacts in /knowledge/ filesystem
  *
- * Data lives in: platform_connections, platform_content, filesystem_documents
+ * Data lives in: platform_connections, platform_content, filesystem_documents, workspace_files(/knowledge/)
  * Written by: OAuth flow, platform_worker sync, document upload
  * Read by: TP via Search tool, agent pipeline via TP execution mode
  *
@@ -32,22 +33,37 @@ import {
   CheckCircle2,
   XCircle,
   FolderOpen,
+  FolderTree,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Document } from '@/types';
+import type { Document, KnowledgeFile, KnowledgeContentClass } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Section = 'platforms' | 'documents';
-const VALID_SECTIONS: readonly Section[] = ['platforms', 'documents'] as const;
+type Section = 'platforms' | 'documents' | 'knowledge';
+const VALID_SECTIONS: readonly Section[] = ['platforms', 'documents', 'knowledge'] as const;
 
 function normalizeSection(value: string | null): Section {
   return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'platforms';
+}
+
+const VALID_KNOWLEDGE_CLASSES: readonly KnowledgeContentClass[] = [
+  'digests',
+  'analyses',
+  'briefs',
+  'research',
+  'insights',
+] as const;
+
+function normalizeKnowledgeClass(value: string | null): KnowledgeContentClass | undefined {
+  return VALID_KNOWLEDGE_CLASSES.includes(value as KnowledgeContentClass)
+    ? (value as KnowledgeContentClass)
+    : undefined;
 }
 
 // =============================================================================
@@ -90,6 +106,7 @@ const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'platforms', label: 'Platforms', icon: <Layers className="w-4 h-4" /> },
   { id: 'documents', label: 'Documents', icon: <FolderOpen className="w-4 h-4" /> },
+  { id: 'knowledge', label: 'Knowledge', icon: <FolderTree className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -285,6 +302,135 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
 }
 
 // =============================================================================
+// Knowledge Section
+// =============================================================================
+
+const KNOWLEDGE_CLASS_LABELS: Record<KnowledgeContentClass, string> = {
+  digests: 'Digests',
+  analyses: 'Analyses',
+  briefs: 'Briefs',
+  research: 'Research',
+  insights: 'Insights',
+};
+
+interface KnowledgeSectionProps {
+  files: KnowledgeFile[];
+  loading: boolean;
+  activeClass?: KnowledgeContentClass;
+  classCounts: Record<string, number>;
+  onClassChange: (contentClass?: KnowledgeContentClass) => void;
+}
+
+function KnowledgeSection({
+  files,
+  loading,
+  activeClass,
+  classCounts,
+  onClassChange,
+}: KnowledgeSectionProps) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const totalFiles = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Knowledge Files</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Shared agent outputs organized by content class in the filesystem.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => onClassChange(undefined)}
+          className={cn(
+            "px-2.5 py-1 text-xs rounded-full border transition-colors",
+            !activeClass
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border hover:bg-muted"
+          )}
+        >
+          All ({totalFiles})
+        </button>
+        {VALID_KNOWLEDGE_CLASSES.map((contentClass) => (
+          <button
+            key={contentClass}
+            onClick={() => onClassChange(contentClass)}
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full border transition-colors",
+              activeClass === contentClass
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border hover:bg-muted"
+            )}
+          >
+            {KNOWLEDGE_CLASS_LABELS[contentClass]} ({classCounts[contentClass] || 0})
+          </button>
+        ))}
+      </div>
+
+      {files.length === 0 ? (
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <FolderTree className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground">
+            {activeClass
+              ? `No ${KNOWLEDGE_CLASS_LABELS[activeClass].toLowerCase()} files yet.`
+              : 'No knowledge files yet. Agent outputs will appear here after successful runs.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file) => {
+            const metadata = (file.metadata || {}) as Record<string, unknown>;
+            const contentClass = (file.content_class in KNOWLEDGE_CLASS_LABELS
+              ? file.content_class
+              : 'analyses') as KnowledgeContentClass;
+
+            return (
+              <div
+                key={file.path}
+                className="bg-card rounded-lg border border-border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <p className="font-medium text-foreground truncate">{file.name}</p>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                        {KNOWLEDGE_CLASS_LABELS[contentClass]}
+                      </span>
+                      {typeof metadata.agent_type === 'string' && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          {metadata.agent_type}
+                        </span>
+                      )}
+                    </div>
+                    {file.summary && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">{file.summary}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{file.path}</p>
+                  </div>
+                  {file.updated_at && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatDistanceToNow(new Date(file.updated_at), { addSuffix: true })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
 // Main Component
 // =============================================================================
 
@@ -294,6 +440,7 @@ export default function ContextPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sectionParam = normalizeSection(searchParams.get('section'));
+  const knowledgeClassParam = normalizeKnowledgeClass(searchParams.get('class'));
   const [activeSection, setActiveSection] = useState<Section>(sectionParam);
 
   const [loading, setLoading] = useState(true);
@@ -301,22 +448,36 @@ export default function ContextPage() {
 
   const [platforms, setPlatforms] = useState<PlatformSummary[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
+  const [knowledgeClassCounts, setKnowledgeClassCounts] = useState<Record<string, number>>({});
 
   const loadData = useCallback(async () => {
     try {
-      const [platformsResult, documentsResult] = await Promise.all([
+      const [platformsResult, documentsResult, knowledgeResult, knowledgeSummary] = await Promise.all([
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.documents.list().catch(() => ({ documents: [] })),
+        api.knowledge.listFiles({
+          content_class: knowledgeClassParam,
+          limit: 60,
+        }).catch(() => ({ files: [] })),
+        api.knowledge.summary().catch(() => ({ classes: [] })),
       ]);
 
       setPlatforms(platformsResult?.platforms || []);
       setDocuments(documentsResult?.documents || []);
+      setKnowledgeFiles(knowledgeResult?.files || []);
+
+      const nextCounts: Record<string, number> = {};
+      for (const row of knowledgeSummary?.classes || []) {
+        nextCounts[row.content_class] = row.count;
+      }
+      setKnowledgeClassCounts(nextCounts);
     } catch (err) {
       console.error('Failed to load context data:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [knowledgeClassParam]);
 
   useEffect(() => {
     loadData();
@@ -331,7 +492,23 @@ export default function ContextPage() {
 
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
-    router.replace(`/context?section=${section}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', section);
+    if (section !== 'knowledge') {
+      params.delete('class');
+    }
+    router.replace(`/context?${params.toString()}`, { scroll: false });
+  };
+
+  const handleKnowledgeClassChange = (contentClass?: KnowledgeContentClass) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', 'knowledge');
+    if (contentClass) {
+      params.set('class', contentClass);
+    } else {
+      params.delete('class');
+    }
+    router.replace(`/context?${params.toString()}`, { scroll: false });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -365,9 +542,9 @@ export default function ContextPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Context</h1>
+            <h1 className="text-2xl font-bold">Files</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              What's in your platforms right now
+              Browse platforms, documents, and knowledge in one filesystem view
             </p>
           </div>
           <button
@@ -415,6 +592,16 @@ export default function ContextPage() {
             documents={documents}
             loading={false}
             onUpload={() => fileInputRef.current?.click()}
+          />
+        )}
+
+        {activeSection === 'knowledge' && (
+          <KnowledgeSection
+            files={knowledgeFiles}
+            loading={false}
+            activeClass={knowledgeClassParam}
+            classCounts={knowledgeClassCounts}
+            onClassChange={handleKnowledgeClassChange}
           />
         )}
       </div>

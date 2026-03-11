@@ -2,7 +2,7 @@
 Document Processing Service
 
 ADR-005: Unified memory with embeddings
-Handles document upload, parsing, chunking, and memory extraction.
+Handles document upload, parsing, chunking, and indexing.
 """
 
 import io
@@ -183,8 +183,7 @@ async def process_document(
     2. Chunk into segments
     3. Generate embeddings for chunks
     4. Store chunks
-    5. Extract memories from chunks
-    6. Update document status
+    5. Update document status
 
     Args:
         document_id: Document UUID
@@ -255,7 +254,7 @@ async def process_document(
                 logger.error(f"Failed to insert chunk {i}: {e}")
 
         # ADR-059: LLM memory extraction from documents removed.
-        # Document content is available via filesystem_chunks for search.
+        # Document content is available via filesystem_chunks for search only.
         memories_inserted = 0
 
         # 6. Update document status
@@ -270,7 +269,7 @@ async def process_document(
         return {
             "success": True,
             "chunks_created": chunks_inserted,
-            "memories_extracted": memories_inserted,
+            "memories_extracted": memories_inserted,  # Legacy response key; always 0.
             "word_count": word_count
         }
 

@@ -116,6 +116,38 @@ export interface DocumentListResponse {
   offset: number;
 }
 
+// Knowledge filesystem (ADR-107)
+export type KnowledgeContentClass =
+  | "digests"
+  | "analyses"
+  | "briefs"
+  | "research"
+  | "insights";
+
+export interface KnowledgeFile {
+  path: string;
+  name: string;
+  content_class: KnowledgeContentClass | string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+  updated_at?: string;
+}
+
+export interface KnowledgeFilesResponse {
+  files: KnowledgeFile[];
+  total: number;
+  content_class?: KnowledgeContentClass | null;
+  limit: number;
+}
+
+export interface KnowledgeSummaryResponse {
+  total: number;
+  classes: Array<{
+    content_class: KnowledgeContentClass | string;
+    count: number;
+  }>;
+}
+
 // Onboarding State
 export type OnboardingState = "cold_start" | "minimal_context" | "active";
 

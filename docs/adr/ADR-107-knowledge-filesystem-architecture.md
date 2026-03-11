@@ -1,6 +1,6 @@
 # ADR-107: Knowledge Filesystem Architecture
 
-**Status:** Implementing (Phase 1 complete)
+**Status:** Implementing (Phase 1 complete; Phase 3 UI surfacing started)
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**
@@ -189,6 +189,11 @@ Agents are processes. Workspace is the filesystem. `platform_content` is the dev
 2. Synthesis agents read from `/knowledge/` (digested context) for cross-cutting analysis
 3. Action framework beyond text output (draft actions, webhooks)
 4. Coordinator orchestration across platform and synthesis agents
+
+### Phase 3A: Context Files UI surfacing (implemented)
+1. Added `/api/knowledge/summary` and `/api/knowledge/files` for user-scoped filesystem browsing
+2. Context sidebar now exposes Knowledge as a first-class folder alongside Platforms and Documents
+3. Context root (`/context`) includes a Knowledge section with content-class filtering
 
 ### Validation & Testing
 
