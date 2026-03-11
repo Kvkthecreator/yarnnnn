@@ -12,6 +12,8 @@ Backing store is `workspace_files` table. Swap to S3/GCS by reimplementing
 these classes — agent code doesn't change.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 from dataclasses import dataclass
