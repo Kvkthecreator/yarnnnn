@@ -9,11 +9,15 @@ const postsDirectory = path.join(process.cwd(), "..", "content", "posts");
 export interface BlogPost {
   slug: string;
   title: string;
+  metaTitle: string;
   description: string;
   date: string;
   author: string;
   category: "core" | "opinion";
   tags: string[];
+  concept?: string;
+  series?: string;
+  seriesPart?: number;
   geoTier: number;
   canonicalUrl: string;
   metaDescription: string;
@@ -70,16 +74,22 @@ export function getPostBySlug(slug: string): BlogPost | null {
   return {
     slug: data.slug || slug,
     title: data.title,
+    metaTitle: data.metaTitle || data.title,
     description: data.description || "",
     date: data.date,
     author: data.author || "yarnnn",
     category: data.category === "opinion" ? "opinion" : "core",
     tags: data.tags || [],
+    concept: data.concept,
+    series: data.series,
+    seriesPart: data.seriesPart,
     geoTier: data.geoTier || 1,
     canonicalUrl: toAbsoluteUrl(
       data.canonicalUrl || `/blog/${data.slug || slug}`
     ),
-    metaDescription: toMetaDescription(data.description || ""),
+    metaDescription: toMetaDescription(
+      data.metaDescription || data.description || ""
+    ),
     imageUrl: toAbsoluteUrl(data.image || BRAND.ogImage),
     lastModified: data.lastModified || data.updatedAt || data.date,
     wordCount: toWordCount(content),
@@ -106,16 +116,22 @@ export function getAllPosts(): BlogPostMeta[] {
       return {
         slug: data.slug || slug,
         title: data.title,
+        metaTitle: data.metaTitle || data.title,
         description: data.description || "",
         date: data.date,
         author: data.author || "yarnnn",
         category: (data.category === "opinion" ? "opinion" : "core") as BlogPost["category"],
         tags: data.tags || [],
+        concept: data.concept,
+        series: data.series,
+        seriesPart: data.seriesPart,
         geoTier: data.geoTier || 1,
         canonicalUrl: toAbsoluteUrl(
           data.canonicalUrl || `/blog/${data.slug || slug}`
         ),
-        metaDescription: toMetaDescription(data.description || ""),
+        metaDescription: toMetaDescription(
+          data.metaDescription || data.description || ""
+        ),
         imageUrl: toAbsoluteUrl(data.image || BRAND.ogImage),
         lastModified: data.lastModified || data.updatedAt || data.date,
         wordCount: toWordCount(content),
@@ -129,4 +145,66 @@ export function getAllPosts(): BlogPostMeta[] {
     );
 
   return posts;
+}
+
+function normalizeTag(tag: string): string {
+  return tag.trim().toLowerCase();
+}
+
+export function getSeriesPosts(series: string): BlogPostMeta[] {
+  return getAllPosts()
+    .filter((post) => post.series === series)
+    .sort((a, b) => {
+      const partA = a.seriesPart ?? Number.MAX_SAFE_INTEGER;
+      const partB = b.seriesPart ?? Number.MAX_SAFE_INTEGER;
+      if (partA !== partB) return partA - partB;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+}
+
+export function getRelatedPosts(slug: string, limit = 3): BlogPostMeta[] {
+  const current = getPostBySlug(slug);
+  if (!current) return [];
+
+  const currentTags = new Set((current.tags || []).map(normalizeTag));
+
+  const scored = getAllPosts()
+    .filter((post) => post.slug !== slug)
+    .map((post) => {
+      let score = 0;
+
+      if (current.series && post.series && current.series === post.series) {
+        score += 6;
+      }
+
+      if (current.concept && post.concept && current.concept === post.concept) {
+        score += 4;
+      }
+
+      if (post.category === current.category) {
+        score += 2;
+      }
+
+      const sharedTags = (post.tags || []).reduce((count, tag) => {
+        return currentTags.has(normalizeTag(tag)) ? count + 1 : count;
+      }, 0);
+      score += Math.min(sharedTags * 2, 8);
+
+      return { post, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.post.date).getTime() - new Date(a.post.date).getTime();
+    })
+    .map((item) => item.post)
+    .slice(0, limit);
+
+  if (scored.length === 0) {
+    return getAllPosts()
+      .filter((post) => post.slug !== slug && post.category === current.category)
+      .slice(0, limit);
+  }
+
+  return scored;
 }

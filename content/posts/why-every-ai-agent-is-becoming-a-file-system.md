@@ -79,4 +79,4 @@ Think of it this way: your laptop presents everything as files and folders. Unde
 
 The same pattern is emerging for agents. The agent thinks in files and directories. The infrastructure underneath can be as sophisticated as it needs to be. But the interface — the thing the agent reads and writes, the thing the developer inspects and debugs, the thing that carries identity and memory — is a file.
 
-*In Part 2: What happens when you take this pattern seriously and extend it from individual agents to shared knowledge — and why the result looks less like a database and more like an operating system.*
+*In [Part 2: The Agent Operating System](/blog/the-agent-operating-system-is-a-filesystem), I extend this pattern from individual agents to shared knowledge and explain why the result looks less like a database and more like an operating system.*
