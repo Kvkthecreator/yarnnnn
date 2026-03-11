@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
-const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar', 'yarnnn'] as const;
+const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 type PlatformKey = typeof ALL_PLATFORMS[number];
 
 const PLATFORM_CONFIG: Record<PlatformKey, { label: string }> = {
@@ -23,7 +23,6 @@ const PLATFORM_CONFIG: Record<PlatformKey, { label: string }> = {
   gmail: { label: 'Email' },
   notion: { label: 'Notion' },
   calendar: { label: 'Calendar' },
-  yarnnn: { label: 'Generated' },
 };
 
 export function ContextSidebar() {
@@ -77,8 +76,7 @@ export function ContextSidebar() {
           {ALL_PLATFORMS.map((platformKey) => {
             const config = PLATFORM_CONFIG[platformKey];
             const summary = platformStatus[platformKey];
-            const isYarnnn = platformKey === 'yarnnn';
-            const isConnected = isYarnnn || summary?.status === 'active';
+            const isConnected = summary?.status === 'active';
             const isActive = activePlatform === platformKey;
 
             return (
@@ -97,11 +95,11 @@ export function ContextSidebar() {
                 <span className="flex items-center gap-2">
                   <span className={cn(
                     "w-1.5 h-1.5 rounded-full shrink-0",
-                    isYarnnn ? "bg-indigo-500" : isConnected ? "bg-green-500" : "bg-muted-foreground/30"
+                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
                   )} />
                   {config.label}
                 </span>
-                {!isYarnnn && isConnected && summary && summary.resource_count > 0 && (
+                {isConnected && summary && summary.resource_count > 0 && (
                   <span className="text-muted-foreground">{summary.resource_count}</span>
                 )}
               </button>

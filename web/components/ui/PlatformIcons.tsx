@@ -56,8 +56,6 @@ export function getPlatformIcon(
     case "google-calendar":
     case "calendar":
       return <GoogleCalendarIcon className={className} />;
-    case "yarnnn":
-      return <YarnnnIcon className={className} />;
     default:
       return null;
   }

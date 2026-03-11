@@ -7,7 +7,6 @@ import {
   Slack,
   FileCode,
   Calendar,
-  Globe,
   ChevronDown,
   Check,
   X,
@@ -22,7 +21,7 @@ import { cn } from '@/lib/utils';
  * Used in Context Browser and Agent List surfaces.
  */
 
-export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'calendar' | 'yarnnn';
+export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'calendar';
 
 interface PlatformFilterProps {
   value: PlatformFilterValue;
@@ -60,17 +59,12 @@ const PLATFORM_CONFIG: Record<
     label: 'Calendar',
     color: 'text-blue-500',
   },
-  yarnnn: {
-    icon: <Globe className="w-3.5 h-3.5" />,
-    label: 'YARNNN',
-    color: 'text-indigo-500',
-  },
 };
 
 export function PlatformFilter({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar', 'yarnnn'],
+  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
   counts,
   compact = false,
   className,
@@ -193,7 +187,7 @@ export function PlatformFilter({
 export function PlatformFilterChips({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar', 'yarnnn'],
+  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
   counts,
   className,
 }: Omit<PlatformFilterProps, 'compact'>) {

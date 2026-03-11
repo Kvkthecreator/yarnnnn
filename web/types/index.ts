@@ -165,7 +165,7 @@ export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "c
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
 
 // Integration import source provider
-export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar" | "yarnnn";
+export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar";
 
 // ADR-093: Agent Types (7 purpose-first types)
 export type AgentType =
@@ -663,9 +663,9 @@ export interface PlatformContentResponse {
 // Context Pages: Shared Platform Types
 // =============================================================================
 
-export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'calendar' | 'yarnnn';
+export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'calendar';
 
-export type ApiProvider = "slack" | "notion" | "gmail" | "calendar" | "yarnnn";
+export type ApiProvider = "slack" | "notion" | "gmail" | "calendar";
 
 /** Map frontend platform names to backend provider names (identity after provider streamlining) */
 export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
@@ -673,7 +673,6 @@ export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
   gmail: ['gmail'],
   notion: ['notion'],
   calendar: ['calendar'],
-  yarnnn: ['yarnnn'],
 };
 
 /** Get the provider to use for API calls (identity mapping) */
