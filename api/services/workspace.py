@@ -78,11 +78,12 @@ class AgentWorkspace:
                 .select("content")
                 .eq("user_id", self._user_id)
                 .eq("path", path)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            if result.data:
-                return result.data["content"]
+            rows = result.data or []
+            if rows:
+                return rows[0]["content"]
             return None
         except Exception as e:
             logger.warning(f"[WORKSPACE] Read failed: {path}: {e}")
@@ -97,11 +98,12 @@ class AgentWorkspace:
                 .select("path, content, summary, content_type, metadata, tags, updated_at")
                 .eq("user_id", self._user_id)
                 .eq("path", path)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            if result.data:
-                return WorkspaceFile(**result.data)
+            rows = result.data or []
+            if rows:
+                return WorkspaceFile(**rows[0])
             return None
         except Exception as e:
             logger.warning(f"[WORKSPACE] Read file failed: {path}: {e}")
@@ -218,10 +220,10 @@ class AgentWorkspace:
                 .select("id")
                 .eq("user_id", self._user_id)
                 .eq("path", path)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            return result.data is not None
+            return bool(result.data)
         except Exception:
             return False
 
@@ -678,11 +680,12 @@ class KnowledgeBase:
                 .select("content")
                 .eq("user_id", self._user_id)
                 .eq("path", full_path)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            if result.data:
-                return result.data["content"]
+            rows = result.data or []
+            if rows:
+                return rows[0]["content"]
             return None
         except Exception as e:
             logger.warning(f"[KNOWLEDGE] Read failed: {full_path}: {e}")

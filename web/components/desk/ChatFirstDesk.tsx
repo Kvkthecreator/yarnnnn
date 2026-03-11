@@ -50,15 +50,92 @@ import type { Agent } from '@/types';
 // =============================================================================
 
 function AgentsPanel() {
+  const { isLoading } = useTP();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnceRef = useRef(false);
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
 
-  useEffect(() => {
-    api.agents.list()
-      .then((data) => setAgents(data))
-      .catch((err) => console.error('Failed to load agents:', err))
-      .finally(() => setLoading(false));
+  const loadAgents = useCallback(async (silent = false) => {
+    const requestSeq = ++requestSeqRef.current;
+
+    // Show blocking spinner only on first load.
+    if (!silent && !hasLoadedOnceRef.current && mountedRef.current) {
+      setLoading(true);
+    }
+
+    try {
+      const data = await api.agents.list();
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      setAgents(data);
+    } catch (err) {
+      console.error('Failed to load agents:', err);
+    } finally {
+      if (!hasLoadedOnceRef.current && mountedRef.current) {
+        hasLoadedOnceRef.current = true;
+        setLoading(false);
+      }
+    }
   }, []);
+
+  // Initial load + unmount guard.
+  useEffect(() => {
+    mountedRef.current = true;
+    void loadAgents();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [loadAgents]);
+
+  // Refresh after each TP turn completes.
+  useEffect(() => {
+    if (!isLoading) {
+      void loadAgents(true);
+    }
+  }, [isLoading, loadAgents]);
+
+  // Poll while TP is actively working so status transitions show up during execution.
+  useEffect(() => {
+    if (!isLoading) return;
+    const intervalId = window.setInterval(() => {
+      void loadAgents(true);
+    }, 4000);
+    return () => window.clearInterval(intervalId);
+  }, [isLoading, loadAgents]);
+
+  // Refresh when tab regains focus/visibility.
+  useEffect(() => {
+    const onFocus = () => void loadAgents(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadAgents(true);
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [loadAgents]);
+
+  const getRunStatusLabel = (agent: Agent): string => {
+    const status = agent.latest_version_status;
+    if (status === 'delivered') return 'Delivered';
+    if (status === 'failed') return 'Failed';
+    if (status === 'generating') return 'Generating...';
+    if (status === 'staged') return 'Ready for review';
+    if (status === 'pending_approval') return 'Pending approval';
+    if (status === 'approved') return 'Approved';
+    if (status === 'draft') return 'Draft';
+
+    if (agent.version_count) {
+      return `${agent.version_count} version${agent.version_count !== 1 ? 's' : ''}`;
+    }
+    return 'No deliveries yet';
+  };
 
   if (loading) {
     return (
@@ -103,11 +180,7 @@ function AgentsPanel() {
                 <span className="text-sm font-medium truncate">{d.title}</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                {d.latest_version_status === 'delivered' ? 'Delivered' :
-                 d.latest_version_status === 'failed' ? 'Failed' :
-                 d.latest_version_status === 'generating' ? 'Generating...' :
-                 d.version_count ? `${d.version_count} version${d.version_count !== 1 ? 's' : ''}` :
-                 'No deliveries yet'}
+                {getRunStatusLabel(d)}
               </span>
             </div>
             <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2" />

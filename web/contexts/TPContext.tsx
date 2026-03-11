@@ -170,7 +170,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ---------------------------------------------------------------------------
-  // Status timeout safety - reset to idle if stuck in loading state for >30s
+  // Status timeout safety - reset to idle if stuck in loading state.
+  // Tool executions can be legitimately long (agent generation, web search),
+  // so use a longer timeout than thinking/streaming.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     // Clear any existing timeout
@@ -179,15 +181,20 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       statusTimeoutRef.current = null;
     }
 
-    // Set timeout for loading states (thinking, tool, streaming)
-    // Don't timeout clarify since that's waiting for user input
-    const loadingStates = ['thinking', 'tool', 'streaming'];
-    if (loadingStates.includes(status.type)) {
+    // Don't timeout clarify since that's waiting for user input.
+    let timeoutMs: number | null = null;
+    if (status.type === 'thinking' || status.type === 'streaming') {
+      timeoutMs = 30000;
+    } else if (status.type === 'tool') {
+      timeoutMs = 120000;
+    }
+
+    if (timeoutMs !== null) {
       statusTimeoutRef.current = setTimeout(() => {
         console.warn('[TPContext] Status timeout - resetting stuck state:', status.type);
         setStatus({ type: 'idle' });
         dispatch({ type: 'SET_LOADING', isLoading: false });
-      }, 30000); // 30 second safety timeout
+      }, timeoutMs);
     }
 
     return () => {
@@ -195,7 +202,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         clearTimeout(statusTimeoutRef.current);
       }
     };
-  }, [status.type]);
+  }, [status]);
 
   // ---------------------------------------------------------------------------
   // Load chat history (ADR-087 Phase 3: supports agent-scoped history)
