@@ -127,9 +127,9 @@ function AgentsPanel() {
     if (status === 'failed') return 'Failed';
     if (status === 'generating') return 'Generating...';
     if (status === 'staged') return 'Ready for review';
-    if (status === 'pending_approval') return 'Pending approval';
+    if (status === 'reviewing') return 'Pending approval';
     if (status === 'approved') return 'Approved';
-    if (status === 'draft') return 'Draft';
+    if (status === 'rejected') return 'Needs revision';
 
     if (agent.version_count) {
       return `${agent.version_count} version${agent.version_count !== 1 ? 's' : ''}`;
