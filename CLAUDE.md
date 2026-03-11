@@ -111,6 +111,15 @@ Use Render MCP tools (`update_environment_variables`) to check/set env vars acro
 - **Share progress** to keep context visible across conversation turns
 - **Mark todos complete immediately** after finishing each step
 
+### 8. Hooks (Automated Reminders)
+
+A `UserPromptSubmit` hook auto-injects execution discipline reminders into every prompt. This replaces the need to manually paste reminder text.
+
+- **Config**: `.claude/settings.json` (committed, shared)
+- **Reminder text**: `.claude/hooks/execution-reminders.txt`
+- **How it works**: On every prompt submit, the hook cats the reminder file into context (exit 0 + stdout)
+- **To edit reminders**: Update `.claude/hooks/execution-reminders.txt` — no need to touch hook config
+
 ---
 
 ## Prompt Change Protocol
