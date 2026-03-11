@@ -11,10 +11,8 @@ import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
+import { postChatWithFallback } from '@/lib/api/chatTransport';
 import { getToolDisplayMessage } from '@/lib/utils';
-
-// API base URL - must match the Python backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // =============================================================================
 // Initial State
@@ -347,14 +345,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         const token = session?.access_token;
 
         // Send to chat endpoint
-        const response = await fetch(`${API_BASE_URL}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          },
+        const response = await postChatWithFallback({
           body: JSON.stringify(body),
-          credentials: 'include',
+          token,
           signal: abortControllerRef.current.signal,
         });
 

@@ -9,9 +9,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { postChatWithFallback } from '@/lib/api/chatTransport';
 
 interface UseContentRefinementOptions {
   agentId: string;
@@ -74,16 +72,12 @@ Please refine this content based on the following instruction: ${instruction}
 
 IMPORTANT: Return ONLY the refined content, no explanations or commentary. The output should be ready to replace the current draft directly.`;
 
-        const response = await fetch(`${API_BASE_URL}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
+        const response = await postChatWithFallback({
           body: JSON.stringify({
             content: prompt,
             include_context: false, // Don't need extra context for refinement
           }),
+          token: session.access_token,
           signal: abortControllerRef.current.signal,
         });
 
