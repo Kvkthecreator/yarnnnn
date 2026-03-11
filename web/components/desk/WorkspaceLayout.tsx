@@ -143,7 +143,7 @@ export function WorkspaceLayout({
     <button
       onClick={() => setPanelOpen(!panelOpen)}
       className={cn(
-        'flex items-center gap-1.5 p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
+        'flex items-center p-1.5 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
         panelOpen && 'bg-muted text-foreground'
       )}
       title={panelOpen ? 'Close panel' : 'Open panel'}
@@ -156,41 +156,42 @@ export function WorkspaceLayout({
     </button>
   ) : null;
 
-  // Chat column header
+  // Chat column header — compact bar with identity + controls
+  // Height is h-10 to match panel tab bar exactly
   const chatHeader = (
-    <div className="flex items-center px-4 py-3 border-b border-border shrink-0">
+    <div className="flex items-center h-10 px-3 border-b border-border shrink-0">
       {/* Left: breadcrumb */}
       {breadcrumb && (
-        <div className="flex items-center gap-3 min-w-0 mr-3">
+        <div className="flex items-center min-w-0 mr-2">
           {breadcrumb}
         </div>
       )}
 
-      {/* Center: identity chip — takes remaining space */}
-      <div className="flex items-center gap-2 min-w-0 flex-1 justify-center">
+      {/* Center: identity chip */}
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <span className="text-muted-foreground shrink-0">{identity.icon}</span>
-        <span className="font-medium truncate">{identity.label}</span>
+        <span className="text-sm font-medium truncate">{identity.label}</span>
         {identity.badge && <span className="shrink-0">{identity.badge}</span>}
       </div>
 
       {/* Right: controls + panel toggle */}
-      <div className="flex items-center gap-2 shrink-0 ml-3">
+      <div className="flex items-center gap-1 shrink-0">
         {headerControls}
         {panelToggle}
       </div>
     </div>
   );
 
-  // Panel tab bar (header for panel column — height matches chat header)
+  // Panel tab bar — same h-10 as chat header for visual alignment
   const panelTabBar = (
-    <div className="flex items-center border-b border-border shrink-0 px-1">
+    <div className="flex items-center h-10 border-b border-border shrink-0 px-1">
       <div className="flex-1 flex overflow-x-auto">
         {panelTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'px-3 py-3 text-xs font-medium whitespace-nowrap transition-colors border-b-2',
+              'px-3 h-10 text-sm font-medium whitespace-nowrap transition-colors border-b-2',
               activeTab === tab.id
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -203,7 +204,7 @@ export function WorkspaceLayout({
       {/* Close button: only on mobile overlay */}
       <button
         onClick={closePanel}
-        className="lg:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md mx-1 shrink-0 transition-colors"
+        className="lg:hidden p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md mx-1 shrink-0 transition-colors"
       >
         <X className="w-3.5 h-3.5" />
       </button>

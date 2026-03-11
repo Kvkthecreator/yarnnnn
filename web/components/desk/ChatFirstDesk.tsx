@@ -360,7 +360,7 @@ export function ChatFirstDesk() {
   return (
     <WorkspaceLayout
       identity={{
-        icon: <Sparkles className="w-5 h-5" />,
+        icon: <Sparkles className="w-4 h-4" />,
         label: identityLabel,
         badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
       }}
