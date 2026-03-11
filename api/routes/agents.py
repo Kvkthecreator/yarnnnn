@@ -606,8 +606,6 @@ async def create_agent(
         "destination": request.destination,
         # ADR-092: Mode taxonomy
         "mode": request.mode,
-        # ADR-087: Agent-scoped context
-        "agent_instructions": request.agent_instructions,
     }
 
     result = (
@@ -622,15 +620,14 @@ async def create_agent(
     agent = result.data[0]
     logger.info(f"[AGENT] Created: {agent['id']} - {agent['title']}")
 
-    # ADR-106: Seed workspace AGENT.md from instructions
+    # ADR-106: Workspace is the singular source of truth for instructions
+    from services.workspace import AgentWorkspace, get_agent_slug, get_agent_intelligence
+    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
     if request.agent_instructions:
-        try:
-            from services.workspace import AgentWorkspace, get_agent_slug
-            ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
-            await ws.write("AGENT.md", request.agent_instructions,
-                           summary="Agent identity and behavioral instructions")
-        except Exception as e:
-            logger.warning(f"[AGENT] Failed to seed workspace: {e}")
+        await ws.write("AGENT.md", request.agent_instructions,
+                       summary="Agent identity and behavioral instructions")
+
+    intelligence = await get_agent_intelligence(auth.client, auth.user_id, agent)
 
     return AgentResponse(
         id=agent["id"],
@@ -653,9 +650,9 @@ async def create_agent(
         destination=agent.get("destination"),
         # ADR-068: Agent origin
         origin=agent.get("origin", "user_configured"),
-        # ADR-087: Agent-scoped context
-        agent_instructions=agent.get("agent_instructions"),
-        agent_memory=agent.get("agent_memory"),
+        # ADR-106: Workspace is source of truth
+        agent_instructions=intelligence.get("agent_instructions"),
+        agent_memory=intelligence.get("agent_memory"),
         mode=agent.get("mode", "recurring"),
         # Legacy: description still consumed by Research/Hybrid strategies
         description=agent.get("description"),
@@ -695,6 +692,25 @@ async def list_agents(
 
     result = query.execute()
     agents = result.data or []
+
+    # ADR-106: Read workspace intelligence for all agents in parallel
+    import asyncio
+    from services.workspace import get_agent_intelligence
+
+    intelligence_map = {}
+    async def _fetch_intelligence(agent_dict):
+        try:
+            return agent_dict["id"], await get_agent_intelligence(
+                auth.client, auth.user_id, agent_dict
+            )
+        except Exception as e:
+            logger.warning(f"[AGENTS] Workspace read failed for {agent_dict.get('id')}: {e}")
+            return agent_dict["id"], {"agent_instructions": None, "agent_memory": None}
+
+    intelligence_results = await asyncio.gather(
+        *[_fetch_intelligence(d) for d in agents]
+    )
+    intelligence_map = dict(intelligence_results)
 
     responses = []
     for d in agents:
@@ -747,6 +763,8 @@ async def list_agents(
                 else:
                     quality_trend = "stable"
 
+        intel = intelligence_map.get(d["id"], {})
+
         # ADR-034: Projects removed, agents are user-scoped
         responses.append(AgentResponse(
             id=d["id"],
@@ -776,9 +794,9 @@ async def list_agents(
             avg_edit_distance=avg_edit_distance,
             # ADR-068: Agent origin
             origin=d.get("origin", "user_configured"),
-            # ADR-087: Agent-scoped context
-            agent_instructions=d.get("agent_instructions"),
-            agent_memory=d.get("agent_memory"),
+            # ADR-106: Workspace is source of truth
+            agent_instructions=intel.get("agent_instructions"),
+            agent_memory=intel.get("agent_memory"),
             mode=d.get("mode", "recurring"),
             # Legacy: description still consumed by Research/Hybrid strategies
             description=d.get("description"),
@@ -827,6 +845,10 @@ async def get_agent(
     approved_versions = [v for v in versions if v.get("status") == "approved"]
     feedback_summary = compute_feedback_summary(approved_versions)
 
+    # ADR-106: Read from workspace (source of truth)
+    from services.workspace import get_agent_intelligence
+    intelligence = await get_agent_intelligence(auth.client, auth.user_id, agent)
+
     return {
         "agent": AgentResponse(
             id=agent["id"],
@@ -852,9 +874,9 @@ async def get_agent(
             destination=agent.get("destination"),
             # ADR-068: Agent origin
             origin=agent.get("origin", "user_configured"),
-            # ADR-087: Agent-scoped context
-            agent_instructions=agent.get("agent_instructions"),
-            agent_memory=agent.get("agent_memory"),
+            # ADR-106: Workspace is source of truth
+            agent_instructions=intelligence.get("agent_instructions"),
+            agent_memory=intelligence.get("agent_memory"),
             mode=agent.get("mode", "recurring"),
             # Legacy: description still consumed by Research/Hybrid strategies
             description=agent.get("description"),
@@ -943,9 +965,7 @@ async def update_agent(
     # ADR-028: Destination-first agents
     if request.destination is not None:
         update_data["destination"] = request.destination
-    # ADR-087: Agent-scoped context
-    if request.agent_instructions is not None:
-        update_data["agent_instructions"] = request.agent_instructions
+    # ADR-106: agent_instructions written to workspace only (not DB column)
     if request.mode is not None:
         update_data["mode"] = request.mode
     if request.proactive_next_review_at is not None:
@@ -966,15 +986,14 @@ async def update_agent(
 
     d = result.data[0]
 
-    # ADR-106: Sync instructions to workspace AGENT.md
+    # ADR-106: Write instructions to workspace (singular source of truth)
+    from services.workspace import AgentWorkspace, get_agent_slug, get_agent_intelligence
     if request.agent_instructions is not None:
-        try:
-            from services.workspace import AgentWorkspace, get_agent_slug
-            ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(d))
-            await ws.write("AGENT.md", request.agent_instructions,
-                           summary="Agent identity and behavioral instructions")
-        except Exception as e:
-            logger.warning(f"[AGENT] Failed to update workspace AGENT.md: {e}")
+        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(d))
+        await ws.write("AGENT.md", request.agent_instructions,
+                       summary="Agent identity and behavioral instructions")
+
+    intelligence = await get_agent_intelligence(auth.client, auth.user_id, d)
 
     return AgentResponse(
         id=d["id"],
@@ -996,9 +1015,9 @@ async def update_agent(
         destination=d.get("destination"),
         # ADR-068: Agent origin
         origin=d.get("origin", "user_configured"),
-        # ADR-087: Agent-scoped context
-        agent_instructions=d.get("agent_instructions"),
-        agent_memory=d.get("agent_memory"),
+        # ADR-106: Workspace is source of truth
+        agent_instructions=intelligence.get("agent_instructions"),
+        agent_memory=intelligence.get("agent_memory"),
         mode=d.get("mode", "recurring"),
         # Legacy: description still consumed by Research/Hybrid strategies
         description=d.get("description"),

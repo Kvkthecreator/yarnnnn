@@ -115,7 +115,6 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             "sources": sources,
             "schedule": {"frequency": "once"},
             "next_run_at": now.isoformat(),  # run immediately
-            "agent_instructions": agent_instructions,
         }
 
         result = (
@@ -129,15 +128,12 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 
         new_id = result.data[0]["id"]
 
-        # ADR-106: Seed workspace AGENT.md for the new child agent
+        # ADR-106: Workspace is singular source of truth for instructions
         if agent_instructions:
-            try:
-                from services.workspace import AgentWorkspace, get_agent_slug
-                child_ws = AgentWorkspace(auth.client, user_id, get_agent_slug(result.data[0]))
-                await child_ws.write("AGENT.md", agent_instructions,
-                                     summary="Agent identity and behavioral instructions")
-            except Exception:
-                pass  # Non-fatal — instructions still in DB column as fallback
+            from services.workspace import AgentWorkspace, get_agent_slug
+            child_ws = AgentWorkspace(auth.client, user_id, get_agent_slug(result.data[0]))
+            await child_ws.write("AGENT.md", agent_instructions,
+                                 summary="Agent identity and behavioral instructions")
 
         logger.info(f"[COORDINATOR] Created agent: {title} ({new_id}), coordinator={coordinator_id}")
 

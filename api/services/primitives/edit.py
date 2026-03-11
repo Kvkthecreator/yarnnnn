@@ -133,10 +133,29 @@ async def handle_edit(auth: Any, input: dict) -> dict:
     ):
         return await _handle_agent_memory_write(auth, parsed, existing, changes)
 
+    # ADR-106: agent_instructions writes go to workspace only (not DB column)
+    if parsed.entity_type == "agent" and "agent_instructions" in changes:
+        from services.workspace import AgentWorkspace, get_agent_slug
+        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(existing))
+        await ws.write("AGENT.md", changes["agent_instructions"],
+                       summary="Agent identity and behavioral instructions")
+        # If this was the only change, return immediately
+        remaining = {k: v for k, v in changes.items() if k != "agent_instructions"}
+        if not remaining:
+            return {
+                "success": True,
+                "data": existing,
+                "ref": ref_str,
+                "entity_type": "agent",
+                "changes_applied": ["agent_instructions"],
+                "message": "Updated agent instructions.",
+            }
+        changes = remaining
+
     # Filter out immutable fields (and scoped memory keys, handled above)
     filtered_changes = {
         k: v for k, v in changes.items()
-        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "agent_memory")
+        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "agent_memory", "agent_instructions")
     }
 
     if not filtered_changes:

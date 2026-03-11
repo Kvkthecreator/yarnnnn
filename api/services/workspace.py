@@ -618,6 +618,45 @@ class KnowledgeBase:
             return []
 
 
+async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
+    """
+    ADR-106: Read agent intelligence from workspace for API responses.
+
+    Returns dict with keys matching AgentResponse fields:
+      - agent_instructions: str (from AGENT.md)
+      - agent_memory: dict (observations, goal, review_log, created_agents, last_generated_at)
+
+    This is the ONLY place agent_instructions/agent_memory should be populated
+    for API responses. DB columns are not read.
+    """
+    ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+    await ws.ensure_seeded(agent)  # Lazy migration from DB columns (one-time)
+
+    instructions = (await ws.read("AGENT.md") or "").strip()
+    observations = await ws.get_observations()
+    goal = await ws.get_goal()
+    review_log = await ws.get_review_log()
+    created_agents = await ws.get_created_agents()
+    last_generated_at = await ws.get_state("last_generated_at")
+
+    memory = {}
+    if observations:
+        memory["observations"] = observations
+    if goal:
+        memory["goal"] = goal
+    if review_log:
+        memory["review_log"] = review_log
+    if created_agents:
+        memory["created_agents"] = created_agents
+    if last_generated_at:
+        memory["last_generated_at"] = last_generated_at
+
+    return {
+        "agent_instructions": instructions or None,
+        "agent_memory": memory or None,
+    }
+
+
 def get_agent_slug(agent: dict) -> str:
     """
     Derive a filesystem-safe slug for an agent.

@@ -144,6 +144,9 @@ async def handle_write(auth: Any, input: dict) -> dict:
     elif parsed.entity_type == "document":
         entity_data = _process_document(entity_data)
 
+    # ADR-106: Extract workspace-only fields before DB insert
+    ws_instructions = entity_data.pop("_workspace_instructions", None)
+
     try:
         result = auth.client.table(table).insert(entity_data).execute()
 
@@ -157,15 +160,15 @@ async def handle_write(auth: Any, input: dict) -> dict:
         created = result.data[0]
         new_ref = f"{parsed.entity_type}:{entity_id}"
 
-        # ADR-106 Phase 2: Seed workspace AGENT.md on creation
-        if parsed.entity_type == "agent" and created.get("agent_instructions"):
-            try:
-                from services.workspace import AgentWorkspace, get_agent_slug
-                ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(created))
-                await ws.write("AGENT.md", created["agent_instructions"], summary="Agent instructions")
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"[WRITE] Workspace seed failed for {entity_id}: {e}")
+        # ADR-106: Seed workspace AGENT.md (singular source of truth)
+        if parsed.entity_type == "agent" and ws_instructions:
+                try:
+                    from services.workspace import AgentWorkspace, get_agent_slug
+                    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(created))
+                    await ws.write("AGENT.md", ws_instructions, summary="Agent instructions")
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"[WRITE] Workspace seed failed for {entity_id}: {e}")
 
         return {
             "success": True,
@@ -257,13 +260,16 @@ def _process_agent(data: dict) -> dict:
     if destination:
         data["destination"] = destination
 
-    # Seed default instructions if not provided (ADR-087)
+    # ADR-106: Instructions go to workspace only (not DB column)
+    # Store temporarily for workspace seeding after DB insert, then remove from DB data
     if not data.get("agent_instructions"):
         from services.agent_pipeline import DEFAULT_INSTRUCTIONS
         dtype = data.get("agent_type", "custom")
         default = DEFAULT_INSTRUCTIONS.get(dtype, DEFAULT_INSTRUCTIONS.get("custom", ""))
         if default:
-            data["agent_instructions"] = default
+            data["_workspace_instructions"] = default
+    else:
+        data["_workspace_instructions"] = data.pop("agent_instructions")
 
     # Calculate next_run_at based on schedule
     if "next_run_at" not in data:
