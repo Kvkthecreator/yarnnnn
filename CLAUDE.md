@@ -105,7 +105,15 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 
 **Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
 
-Use Render MCP tools (`update_environment_variables`) to check/set env vars across services.
+**Impact triggers** — if you change any of these, check the affected services:
+| If you change... | Also check... |
+|-----------------|--------------|
+| Env vars (any) | All 4 services — use Render MCP `update_environment_variables` |
+| OAuth flow / token handling | Unified Scheduler + Platform Sync (they decrypt & use tokens) |
+| Supabase schema (RPC, tables, RLS) | Unified Scheduler + Platform Sync + MCP Server (all use service key) |
+| Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
+| Platform sync logic | Platform Sync cron (runs `platform_worker.py`) |
+| MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
 
 **Note**: All platforms (Slack, Notion, Gmail, Calendar) use Direct API clients — no gateway service needed (ADR-076).
 
