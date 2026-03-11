@@ -232,15 +232,19 @@ PRIMITIVE_MODES = {
 
 ## Implementation Phases
 
-### Phase 1: Foundation (immediate)
+### Phase 1: Foundation ✅ COMPLETE
 
-1. Create `workspace_files` table (migration)
-2. Implement `AgentWorkspace` and `KnowledgeBase` abstraction classes
-3. Add `AnalystStrategy` — loads workspace, doesn't pre-gather platform dump
-4. Wire Proactive Insights (`deep_research` type) to use `AnalystStrategy`
-5. Add workspace headless primitives (`ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`)
-6. Migrate `agent_memory` JSONB → workspace files for existing agents
-7. Review pass writes to workspace; generation pass reads from workspace
+1. ✅ Create `workspace_files` table (migration 100)
+2. ✅ Implement `AgentWorkspace` and `KnowledgeBase` abstraction classes
+3. ✅ Add `AnalystStrategy` — loads workspace, doesn't pre-gather platform dump
+4. ✅ Wire Proactive Insights (`deep_research` type) to use `AnalystStrategy`
+5. ✅ Add workspace headless primitives (`ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`)
+6. ✅ Migrate `agent_memory` JSONB → workspace files (lazy migration via `ensure_seeded()`)
+7. ✅ Review pass writes to workspace; generation pass reads from workspace
+8. ✅ All reads/writes migrated: agent_execution, proactive_review, trigger_dispatch, primitives (edit, execute, coordinator, write), routes/agents, working_memory
+9. ✅ Convention alignment: `AGENT.md` + `memory/` directory (mirrors Claude Code patterns)
+
+**DB columns `agent_instructions` and `agent_memory` remain in schema but are no longer read for intelligence. Workspace files are the singular source of truth. Only `proactive_next_review_at` stays as a DB write (scheduling, not intelligence).**
 
 ### Phase 2: Knowledge Base Migration
 

@@ -97,7 +97,7 @@ async def _dispatch_high(
 
 
 # =============================================================================
-# Medium — observation append to agent_memory
+# Medium — observation append to workspace (ADR-106 Phase 2)
 # =============================================================================
 
 async def _dispatch_medium(
@@ -106,43 +106,22 @@ async def _dispatch_medium(
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """Append an observation to agent_memory without generating a version."""
+    """Append an observation to workspace without generating a version."""
     from services.activity_log import write_activity
+    from services.workspace import AgentWorkspace, get_agent_slug
 
     agent_id = agent.get("id")
     user_id = agent.get("user_id")
     title = agent.get("title", "Untitled")
 
-    logger.info(f"[DISPATCH] medium → memory update: {title} ({agent_id}), trigger={trigger_type}")
+    logger.info(f"[DISPATCH] medium → workspace update: {title} ({agent_id}), trigger={trigger_type}")
 
     try:
         observation = _build_observation(trigger_type, trigger_context)
 
-        # Fresh read — optimistic concurrency (safe at single-user scale)
-        fresh = (
-            client.table("agents")
-            .select("agent_memory")
-            .eq("id", agent_id)
-            .single()
-            .execute()
-        )
-        current_memory = (fresh.data or {}).get("agent_memory") or {}
-
-        observations = current_memory.get("observations", [])
-        observations.append({
-            "date": datetime.now(timezone.utc).date().isoformat(),
-            "source": trigger_type,
-            "note": observation,
-        })
-        # Cap at 20, keep most recent
-        if len(observations) > 20:
-            observations = observations[-20:]
-
-        updated_memory = {**current_memory, "observations": observations}
-
-        client.table("agents").update(
-            {"agent_memory": updated_memory}
-        ).eq("id", agent_id).execute()
+        # ADR-106: Write to workspace (source of truth)
+        ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+        await ws.append_observation(observation, source=trigger_type)
 
         try:
             await write_activity(
@@ -156,7 +135,7 @@ async def _dispatch_medium(
         except Exception:
             pass  # Non-fatal
 
-        logger.info(f"[DISPATCH] ✓ memory updated: {title}")
+        logger.info(f"[DISPATCH] ✓ workspace updated: {title}")
         return {"action": "memory_updated", "success": True, "agent_id": agent_id}
 
     except Exception as e:
@@ -172,12 +151,14 @@ async def _dispatch_medium_reactive(
 ) -> dict:
     """
     ADR-092: Reactive mode medium dispatch.
+    ADR-106 Phase 2: Writes to workspace files (source of truth).
 
-    Appends an observation to agent_memory.observations.
-    When len(observations) >= threshold (default 5), upgrades to high — generates a
+    Appends an observation to workspace memory/observations.md.
+    When observation count >= threshold (default 5), upgrades to high — generates a
     version and clears the observation queue.
     """
     from services.activity_log import write_activity
+    from services.workspace import AgentWorkspace, get_agent_slug
 
     agent_id = agent.get("id")
     user_id = agent.get("user_id")
@@ -190,54 +171,28 @@ async def _dispatch_medium_reactive(
     try:
         observation = _build_observation(trigger_type, trigger_context)
 
-        # Fresh read
-        fresh = (
-            client.table("agents")
-            .select("agent_memory")
-            .eq("id", agent_id)
-            .single()
-            .execute()
-        )
-        current_memory = (fresh.data or {}).get("agent_memory") or {}
+        # ADR-106: Write to workspace, get count for threshold
+        ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+        count = await ws.append_observation(observation, source=trigger_type)
 
-        observations = current_memory.get("observations", [])
-        observations.append({
-            "date": datetime.now(timezone.utc).date().isoformat(),
-            "source": trigger_type,
-            "note": observation,
-        })
-        if len(observations) > 20:
-            observations = observations[-20:]
-
-        if len(observations) >= threshold:
+        if count >= threshold:
             # Threshold met — upgrade to generation, clear queue
-            logger.info(f"[DISPATCH] reactive threshold met ({len(observations)}/{threshold}) → generate: {title}")
-            updated_memory = {
-                **current_memory,
-                "observations": [],  # cleared after generation
-                "last_generated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            client.table("agents").update(
-                {"agent_memory": updated_memory}
-            ).eq("id", agent_id).execute()
+            logger.info(f"[DISPATCH] reactive threshold met ({count}/{threshold}) → generate: {title}")
+            await ws.clear_observations()
+            await ws.set_state("last_generated_at", datetime.now(timezone.utc).isoformat())
 
             result = await _dispatch_high(client, agent, trigger_type, trigger_context)
             result["reactive_threshold_met"] = True
-            result["observations_cleared"] = len(observations)
+            result["observations_cleared"] = count
             return result
         else:
             # Below threshold — accumulate and wait
-            updated_memory = {**current_memory, "observations": observations}
-            client.table("agents").update(
-                {"agent_memory": updated_memory}
-            ).eq("id", agent_id).execute()
-
             try:
                 await write_activity(
                     client=client,
                     user_id=user_id,
                     event_type="memory_written",
-                    summary=f"Reactive observation ({len(observations)}/{threshold}): {title}",
+                    summary=f"Reactive observation ({count}/{threshold}): {title}",
                     event_ref=agent_id,
                     metadata={
                         "trigger_type": trigger_type,

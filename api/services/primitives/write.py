@@ -157,6 +157,16 @@ async def handle_write(auth: Any, input: dict) -> dict:
         created = result.data[0]
         new_ref = f"{parsed.entity_type}:{entity_id}"
 
+        # ADR-106 Phase 2: Seed workspace AGENT.md on creation
+        if parsed.entity_type == "agent" and created.get("agent_instructions"):
+            try:
+                from services.workspace import AgentWorkspace, get_agent_slug
+                ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(created))
+                await ws.write("AGENT.md", created["agent_instructions"], summary="Agent instructions")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"[WRITE] Workspace seed failed for {entity_id}: {e}")
+
         return {
             "success": True,
             "data": created,

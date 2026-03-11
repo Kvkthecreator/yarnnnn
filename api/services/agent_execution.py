@@ -367,12 +367,35 @@ async def generate_draft_inline(
     # Get past versions context for feedback patterns
     past_versions = await get_past_versions_context(client, agent_id) if agent_id else ""
 
+    # ADR-106 Phase 2: Load intelligence from workspace (source of truth)
+    from services.workspace import AgentWorkspace, get_agent_slug
+    ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+    await ws.ensure_seeded(agent)  # Lazy migration from DB columns
+
+    # Read workspace-based intelligence
+    ws_instructions = await ws.read("AGENT.md") or ""
+    ws_observations = await ws.get_observations()
+    ws_review_log = await ws.get_review_log()
+    ws_goal = await ws.get_goal()
+
+    # Build workspace-sourced agent dict for prompt building
+    # (replaces reading from agent["agent_instructions"] / agent["agent_memory"])
+    workspace_agent = {
+        **agent,
+        "agent_instructions": ws_instructions,
+        "agent_memory": {
+            "observations": ws_observations,
+            "review_log": ws_review_log,
+            **({"goal": ws_goal} if ws_goal else {}),
+        },
+    }
+
     # Build type-specific prompt (user message)
     # ADR-101: past_versions moved to system prompt as learned_preferences
     prompt = build_type_prompt(
         agent_type=agent_type,
         config=type_config,
-        agent=agent,
+        agent=workspace_agent,
         gathered_context=gathered_context,
         recipient_text=recipient_str,
         past_versions="",
@@ -397,10 +420,9 @@ async def generate_draft_inline(
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
-    # ADR-080/081/087/101: Headless system prompt with tool usage, research directive,
-    # agent-scoped instructions + memory, learned preferences, and user context
+    # ADR-080/081/087/101/106: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
-        agent_type, trigger_context, research_directive, agent, user_context,
+        agent_type, trigger_context, research_directive, workspace_agent, user_context,
         learned_preferences=past_versions,
     )
 
@@ -841,7 +863,7 @@ async def execute_agent_generation(
             "run_id": version_id,
             "version_number": next_version,
             "status": final_status,
-            "message": f"Version {next_version} {final_status}" + (f": {delivery_error}" if delivery_error else ""),
+            "message": f"Run {next_version} {final_status}" + (f": {delivery_error}" if delivery_error else ""),
             "delivery": delivery_result.model_dump() if delivery_result else None,
             "strategy": strategy.strategy_name,  # ADR-045: Track which strategy was used
         }

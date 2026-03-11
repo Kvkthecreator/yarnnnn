@@ -287,7 +287,7 @@ async def process_proactive_agent(supabase_client, agent: dict) -> bool:
         if action == "generate":
             # Update memory + proactive_next_review_at BEFORE generation
             # so scheduler doesn't re-pick this agent while generation runs
-            apply_review_decision(supabase_client, agent, decision)
+            await apply_review_decision(supabase_client, agent, decision)
 
             # Full generation path — reuse existing dispatch
             from services.trigger_dispatch import dispatch_trigger
@@ -315,7 +315,7 @@ async def process_proactive_agent(supabase_client, agent: dict) -> bool:
 
         else:
             # observe or sleep — update memory, no generation
-            apply_review_decision(supabase_client, agent, decision)
+            await apply_review_decision(supabase_client, agent, decision)
             note = decision.get("note", "")
 
             try:

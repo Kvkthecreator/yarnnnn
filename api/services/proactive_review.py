@@ -32,18 +32,28 @@ REVIEW_MAX_TOKENS = 1024
 REVIEW_MAX_TOOL_ROUNDS = 5  # Enough for broad scan + focused lookups + final decision
 
 
-def _build_review_system_prompt(agent: dict) -> str:
+async def _build_review_system_prompt(agent: dict, client=None) -> str:
     """
     Build the review pass system prompt.
 
-    Instructs the agent to assess its domain and return a structured
-    JSON decision — not to generate content.
+    ADR-106 Phase 2: Reads instructions and memory from workspace files
+    (source of truth), not from agent DB columns.
     """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
     title = agent.get("title", "Untitled")
     agent_type = agent.get("agent_type", "custom")
-    instructions = (agent.get("agent_instructions") or "").strip()
-    memory = agent.get("agent_memory") or {}
     mode = agent.get("mode", "proactive")
+
+    # ADR-106: Load from workspace (source of truth)
+    ws = AgentWorkspace(client, agent.get("user_id"), get_agent_slug(agent))
+    await ws.ensure_seeded(agent)  # Lazy migration
+
+    instructions = (await ws.read("AGENT.md") or "").strip()
+    observations = await ws.get_observations()
+    review_log = await ws.get_review_log()
+    created_agents = await ws.get_created_agents()
+    last_generated_at = await ws.get_state("last_generated_at")
 
     prompt = f"""You are performing a domain review for a {mode} agent: "{title}" (type: {agent_type}).
 
@@ -139,36 +149,27 @@ Your JSON decision still controls the overall outcome — use `generate` only if
 agent should itself produce a new version (rare). Use `observe` or `sleep` for most cycles,
 creating/advancing child agents as needed via tools during the review pass."""
 
-    # Inject memory context
-    review_log = memory.get("review_log", [])
-    observations = memory.get("observations", [])
-    last_generated_at = memory.get("last_generated_at")
-
+    # ADR-106: Inject memory from workspace files (source of truth)
     memory_parts = []
     if last_generated_at:
         memory_parts.append(f"**Last generated:** {last_generated_at}")
     if review_log:
         memory_parts.append("**Recent review log (last 5):**")
         for entry in review_log[-5:]:
-            date = entry.get("date", "")
-            action = entry.get("action", "")
-            note = entry.get("note", "")
-            memory_parts.append(f"- {date} [{action}]: {note}")
+            memory_parts.append(f"- {entry.get('date', '')} [{entry.get('action', '')}]: {entry.get('note', '')}")
     if observations:
         memory_parts.append("**Pending observations:**")
         for obs in observations[-5:]:
             memory_parts.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
 
-    # Coordinator mode: inject created_agents dedup log
-    if mode == "coordinator":
-        created_agents = memory.get("created_agents", [])
-        if created_agents:
-            memory_parts.append("**Created agents (dedup log — last 10):**")
-            for cd in created_agents[-10:]:
-                memory_parts.append(
-                    f"- [{cd.get('date', '')}] {cd.get('title', '')} "
-                    f"(key: {cd.get('dedup_key', 'none')})"
-                )
+    # Coordinator mode: inject created_agents dedup log from workspace
+    if mode == "coordinator" and created_agents:
+        memory_parts.append("**Created agents (dedup log — last 10):**")
+        for cd in created_agents[-10:]:
+            memory_parts.append(
+                f"- [{cd.get('date', '')}] {cd.get('title', '')} "
+                f"(key: {cd.get('dedup_key', 'none')})"
+            )
 
     if memory_parts:
         prompt += "\n\n## Your Accumulated Memory\n" + "\n".join(memory_parts)
@@ -242,7 +243,7 @@ async def run_proactive_review(
     logger.info(f"[PROACTIVE_REVIEW] Starting review: {title} ({agent_id})")
 
     try:
-        system_prompt = _build_review_system_prompt(agent)
+        system_prompt = await _build_review_system_prompt(agent, client=client)
 
         # Review prompt: ask the agent to assess its domain and decide
         user_message = (
@@ -326,32 +327,24 @@ async def run_proactive_review(
         return {"action": "observe", "note": f"Review error: {e}"}
 
 
-def apply_review_decision(
+async def apply_review_decision(
     client,
     agent: dict,
     decision: dict,
 ) -> None:
     """
-    Apply the review decision to agent_memory and proactive_next_review_at.
+    Apply the review decision to workspace files and scheduling.
 
+    ADR-106 Phase 2: Writes to workspace (source of truth).
+    Only updates proactive_next_review_at on the agents table (scheduling, not intelligence).
     Does NOT trigger generation — caller handles that based on action=="generate".
-
-    Args:
-        client: Supabase service client
-        agent: Full agent dict
-        decision: Parsed decision from run_proactive_review()
     """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
     agent_id = agent.get("id")
     action = decision.get("action", "observe")
     note = decision.get("note", "")
     now = datetime.now(timezone.utc)
-
-    # Build review log entry
-    log_entry: dict = {
-        "date": now.date().isoformat(),
-        "action": action,
-        "note": note,
-    }
 
     # Compute next review time
     if action == "sleep" and decision.get("until"):
@@ -360,54 +353,30 @@ def apply_review_decision(
         except (ValueError, TypeError):
             next_review = now + timedelta(hours=24)
     elif action == "generate":
-        # After generation, review again in 24h by default
         next_review = now + timedelta(hours=24)
     else:
-        # observe: check again in 24h
         next_review = now + timedelta(hours=24)
 
-    log_entry["next_review_at"] = next_review.isoformat()
+    # Write to workspace (source of truth)
+    ws = AgentWorkspace(client, agent.get("user_id"), get_agent_slug(agent))
 
-    # Read fresh memory, append log entry, cap at 50
-    try:
-        fresh = (
-            client.table("agents")
-            .select("agent_memory")
-            .eq("id", agent_id)
-            .single()
-            .execute()
-        )
-        current_memory = (fresh.data or {}).get("agent_memory") or {}
-    except Exception:
-        current_memory = {}
+    # Append to review log
+    await ws.append_review_log({
+        "date": now.date().isoformat(),
+        "action": action,
+        "note": note,
+        "next_review_at": next_review.isoformat(),
+    })
 
-    review_log = current_memory.get("review_log", [])
-    review_log.append(log_entry)
-    if len(review_log) > 50:
-        review_log = review_log[-50:]
-
-    updated_memory = {**current_memory, "review_log": review_log}
+    # Update operational state
     if action == "generate":
-        updated_memory["last_generated_at"] = now.isoformat()
+        await ws.set_state("last_generated_at", now.isoformat())
 
+    # Record observation for context
+    if note:
+        await ws.record_observation(note, source=f"review/{action}")
+
+    # Update scheduling on agents table (scheduling is DB, not workspace)
     client.table("agents").update({
-        "agent_memory": updated_memory,
         "proactive_next_review_at": next_review.isoformat(),
     }).eq("id", agent_id).execute()
-
-    # ADR-106: Also write observation to workspace for reasoning agents
-    try:
-        from services.workspace import AgentWorkspace, get_agent_slug
-        import asyncio
-
-        ws = AgentWorkspace(client, agent.get("user_id"), get_agent_slug(agent))
-        observation = f"- [{now.strftime('%Y-%m-%d %H:%M UTC')}] (review/{action}) {note}"
-
-        # Use sync-compatible approach since apply_review_decision is sync
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(ws.append("memory/observations.md", observation))
-        else:
-            loop.run_until_complete(ws.append("memory/observations.md", observation))
-    except Exception as e:
-        logger.warning(f"[PROACTIVE] Failed to write workspace observation: {e}")

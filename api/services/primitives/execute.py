@@ -335,51 +335,30 @@ async def _handle_agent_approve(auth, entity, ref, via, params):
     return {
         "status": "approved",
         "run_id": run_id,
-        "message": "Version approved",
+        "message": "Run approved",
     }
 
 
 async def _handle_agent_acknowledge(auth, entity, ref, via, params):
     """
-    Lightweight context update: append an observation to agent_memory.
+    Lightweight context update: append an observation to workspace.
 
-    ADR-091: Graduated response — lighter than full generation, used when user
-    shares information relevant to an agent that should persist across sessions.
-    Observation cap: 20 most recent (system compacts periodically).
+    ADR-106 Phase 2: Writes to workspace memory/observations.md (source of truth).
+    ADR-091: Graduated response — lighter than full generation.
     """
-    from datetime import datetime, timezone
-    import json
-
     note = params.get("note", "").strip()
     if not note:
         raise ValueError("params.note is required for agent.acknowledge")
 
-    agent_id = entity.get("id")
-    current_memory = entity.get("agent_memory") or {}
-    if isinstance(current_memory, str):
-        try:
-            current_memory = json.loads(current_memory)
-        except Exception:
-            current_memory = {}
+    from services.workspace import AgentWorkspace, get_agent_slug
 
-    updated_memory = dict(current_memory)
-    observations = list(updated_memory.get("observations") or [])
-    observations.append({
-        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "source": "user",
-        "note": note,
-    })
-    updated_memory["observations"] = observations[-20:]
-
-    auth.client.table("agents").update({
-        "agent_memory": updated_memory,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", agent_id).eq("user_id", auth.user_id).execute()
+    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(entity))
+    count = await ws.append_observation(note, source="user")
 
     return {
         "status": "acknowledged",
         "note": note,
-        "observations_total": len(updated_memory["observations"]),
+        "observations_total": count,
         "message": f"Noted: \"{note[:80]}{'...' if len(note) > 80 else ''}\"",
     }
 

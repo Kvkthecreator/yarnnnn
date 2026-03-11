@@ -179,9 +179,14 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     Session summaries are queried from chat_sessions by agent_id FK,
     NOT duplicated into agent_memory JSONB.
     """
-    instructions = (agent.get("agent_instructions") or "").strip()
-    memory = agent.get("agent_memory") or {}
     agent_id = agent.get("id")
+
+    # ADR-106 Phase 2: Read from workspace (source of truth)
+    from services.workspace import AgentWorkspace, get_agent_slug
+    ws = AgentWorkspace(client, agent.get("user_id"), get_agent_slug(agent))
+    await ws.ensure_seeded(agent)  # Lazy migration
+
+    instructions = (await ws.read("AGENT.md") or "").strip()
 
     scope = {
         "id": agent_id,

@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.11.4] - ADR-106 Phase 2: Workspace as singular source of truth
+
+### Changed
+- `api/services/workspace.py`: Added `ensure_seeded()` (lazy migration from DB columns), structured read methods (`get_observations()`, `get_review_log()`, `get_created_agents()`, `get_goal()`, `get_state()`), write helpers (`append_observation()`, `clear_observations()`, `append_review_log()`, `append_created_agent()`, `set_state()`, `record_observation()`).
+- `api/services/agent_execution.py`: `generate_draft_inline()` reads instructions and memory from workspace via `AgentWorkspace`, not from `agent["agent_instructions"]` / `agent["agent_memory"]`.
+- `api/services/proactive_review.py`: `_build_review_system_prompt()` and `apply_review_decision()` changed to async. All reads/writes use workspace files. `agent_memory` JSONB no longer read or written.
+- `api/jobs/unified_scheduler.py`: Updated to `await apply_review_decision()`.
+- `api/services/trigger_dispatch.py`: `_dispatch_medium()` and `_dispatch_medium_reactive()` use `ws.append_observation()` instead of JSONB manipulation.
+- `api/services/primitives/edit.py`: `_handle_agent_memory_write()` writes to workspace files (observations.md, goal.md), not `agent_memory` JSONB.
+- `api/services/primitives/execute.py`: `_handle_agent_acknowledge()` uses workspace observation.
+- `api/services/primitives/coordinator.py`: Coordinator dedup log uses `ws.append_created_agent()`.
+- `api/services/primitives/write.py`: Agent creation seeds workspace `AGENT.md`.
+- `api/routes/agents.py`: Create/update endpoints seed/sync workspace `AGENT.md`.
+- `api/services/working_memory.py`: `_extract_agent_scope()` reads from workspace.
+- Expected behavior: All agent intelligence flows through workspace files. DB columns (`agent_instructions`, `agent_memory`) are write-through for backwards compat but never read for prompt injection or decision-making. Lazy migration seeds workspace from DB on first access.
+
+---
+
 ## [2026.03.11.3] - ADR-106: Workspace convention alignment — AGENT.md + topic-scoped memory
 
 ### Changed

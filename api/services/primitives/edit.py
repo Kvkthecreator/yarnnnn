@@ -194,85 +194,70 @@ async def handle_edit(auth: Any, input: dict) -> dict:
 
 async def _handle_agent_memory_write(auth: Any, parsed: Any, existing: dict, changes: dict) -> dict:
     """
-    Scoped write to agent_memory JSONB.
+    Scoped write to agent workspace files.
 
-    ADR-091: append_observation appends to observations list (never replaces).
-    set_goal replaces the goal object only (observations untouched).
-    Raw agent_memory writes are blocked to avoid clobbering system-accumulated memory.
+    ADR-106 Phase 2: Writes to workspace (source of truth), not agent_memory JSONB.
+    ADR-091: append_observation appends to memory/observations.md.
+    set_goal replaces memory/goal.md.
     """
-    import json
-
-    current_memory = existing.get("agent_memory") or {}
-    if isinstance(current_memory, str):
-        try:
-            current_memory = json.loads(current_memory)
-        except Exception:
-            current_memory = {}
-
-    updated_memory = dict(current_memory)
-    applied = []
-
-    if "append_observation" in changes:
-        obs = changes["append_observation"]
-        if not isinstance(obs, dict) or "note" not in obs:
-            return {
-                "success": False,
-                "error": "invalid_observation",
-                "message": "append_observation requires {note: '...', source: '...' (optional)}",
-            }
-        observation = {
-            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "source": obs.get("source", "user"),
-            "note": obs["note"],
-        }
-        observations = list(updated_memory.get("observations") or [])
-        observations.append(observation)
-        # Cap at 20 — headless extraction compacts periodically
-        updated_memory["observations"] = observations[-20:]
-        applied.append("append_observation")
-
-    if "set_goal" in changes:
-        goal = changes["set_goal"]
-        if not isinstance(goal, dict) or "description" not in goal:
-            return {
-                "success": False,
-                "error": "invalid_goal",
-                "message": "set_goal requires {description: '...', status: '...', milestones: [...] (optional)}",
-            }
-        updated_memory["goal"] = {
-            "description": goal["description"],
-            "status": goal.get("status", "in_progress"),
-            "milestones": goal.get("milestones", []),
-        }
-        applied.append("set_goal")
+    from services.workspace import AgentWorkspace, get_agent_slug
 
     try:
-        result = auth.client.table("agents").update({
-            "agent_memory": updated_memory,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", parsed.identifier).eq("user_id", auth.user_id).execute()
+        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(existing))
+        applied = []
 
-        if not result.data:
+        if "append_observation" in changes:
+            obs = changes["append_observation"]
+            if not isinstance(obs, dict) or "note" not in obs:
+                return {
+                    "success": False,
+                    "error": "invalid_observation",
+                    "message": "append_observation requires {note: '...', source: '...' (optional)}",
+                }
+            source = obs.get("source", "user")
+            await ws.append_observation(obs["note"], source=source)
+            applied.append("append_observation")
+
+        if "set_goal" in changes:
+            goal = changes["set_goal"]
+            if not isinstance(goal, dict) or "description" not in goal:
+                return {
+                    "success": False,
+                    "error": "invalid_goal",
+                    "message": "set_goal requires {description: '...', status: '...', milestones: [...] (optional)}",
+                }
+            desc = goal["description"]
+            status = goal.get("status", "in_progress")
+            milestones = goal.get("milestones", [])
+            content = f"# Goal\n\n{desc}\n\n**Status:** {status}"
+            if milestones:
+                content += "\n\n## Milestones\n"
+                for m in milestones:
+                    content += f"- {m}\n"
+            await ws.write("memory/goal.md", content, summary="Agent goal and milestones")
+            applied.append("set_goal")
+
+        if applied:
             return {
-                "success": False,
-                "error": "update_failed",
-                "message": "Failed to update agent memory",
+                "success": True,
+                "data": existing,
+                "ref": f"agent:{parsed.identifier}",
+                "entity_type": "agent",
+                "changes_applied": applied,
+                "message": _format_memory_write_message(applied, changes),
             }
-
-        return {
-            "success": True,
-            "data": result.data[0],
-            "ref": f"agent:{parsed.identifier}",
-            "entity_type": "agent",
-            "changes_applied": applied,
-            "message": _format_memory_write_message(applied, changes),
-        }
     except Exception as e:
         return {
             "success": False,
             "error": "memory_write_failed",
             "message": str(e),
         }
+
+    return {
+        "success": False,
+        "error": "no_memory_changes",
+        "message": "No recognized memory write keys. Use append_observation or set_goal.",
+    }
 
 
 def _format_memory_write_message(applied: list, changes: dict) -> str:

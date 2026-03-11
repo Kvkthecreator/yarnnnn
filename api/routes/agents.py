@@ -622,6 +622,16 @@ async def create_agent(
     agent = result.data[0]
     logger.info(f"[AGENT] Created: {agent['id']} - {agent['title']}")
 
+    # ADR-106: Seed workspace AGENT.md from instructions
+    if request.agent_instructions:
+        try:
+            from services.workspace import AgentWorkspace, get_agent_slug
+            ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+            await ws.write("AGENT.md", request.agent_instructions,
+                           summary="Agent identity and behavioral instructions")
+        except Exception as e:
+            logger.warning(f"[AGENT] Failed to seed workspace: {e}")
+
     return AgentResponse(
         id=agent["id"],
         title=agent["title"],
@@ -955,6 +965,16 @@ async def update_agent(
         raise HTTPException(status_code=500, detail="Failed to update agent")
 
     d = result.data[0]
+
+    # ADR-106: Sync instructions to workspace AGENT.md
+    if request.agent_instructions is not None:
+        try:
+            from services.workspace import AgentWorkspace, get_agent_slug
+            ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(d))
+            await ws.write("AGENT.md", request.agent_instructions,
+                           summary="Agent identity and behavioral instructions")
+        except Exception as e:
+            logger.warning(f"[AGENT] Failed to update workspace AGENT.md: {e}")
 
     return AgentResponse(
         id=d["id"],

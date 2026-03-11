@@ -129,6 +129,16 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 
         new_id = result.data[0]["id"]
 
+        # ADR-106: Seed workspace AGENT.md for the new child agent
+        if agent_instructions:
+            try:
+                from services.workspace import AgentWorkspace, get_agent_slug
+                child_ws = AgentWorkspace(auth.client, user_id, get_agent_slug(result.data[0]))
+                await child_ws.write("AGENT.md", agent_instructions,
+                                     summary="Agent identity and behavioral instructions")
+            except Exception:
+                pass  # Non-fatal — instructions still in DB column as fallback
+
         logger.info(f"[COORDINATOR] Created agent: {title} ({new_id}), coordinator={coordinator_id}")
 
         # Write activity log
@@ -150,29 +160,19 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
         except Exception:
             pass  # Non-fatal
 
-        # Append to coordinator's created_agents dedup log
+        # ADR-106: Append to coordinator's workspace dedup log
         if coordinator_id:
             try:
-                fresh = (
-                    auth.client.table("agents")
-                    .select("agent_memory")
-                    .eq("id", coordinator_id)
-                    .single()
-                    .execute()
-                )
-                coord_memory = (fresh.data or {}).get("agent_memory") or {}
-                created_log = coord_memory.get("created_agents", [])
-                created_log.append({
-                    "date": now.date().isoformat(),
-                    "title": title,
-                    "agent_id": new_id,
-                    "dedup_key": dedup_key,
-                })
-                if len(created_log) > 100:
-                    created_log = created_log[-100:]
-                auth.client.table("agents").update({
-                    "agent_memory": {**coord_memory, "created_agents": created_log},
-                }).eq("id", coordinator_id).execute()
+                from services.workspace import AgentWorkspace
+                # Need coordinator's slug — fetch title
+                coord_result = auth.client.table("agents").select("title").eq("id", coordinator_id).single().execute()
+                coord_title = (coord_result.data or {}).get("title", "")
+                coord_slug = coord_title.lower().strip()
+                coord_slug = "".join(c if c.isalnum() or c == "-" else "-" for c in coord_slug)
+                coord_slug = "-".join(p for p in coord_slug.split("-") if p)[:50] or str(coordinator_id)[:36]
+
+                coord_ws = AgentWorkspace(auth.client, user_id, coord_slug)
+                await coord_ws.append_created_agent(title, dedup_key)
             except Exception:
                 pass  # Non-fatal
 
