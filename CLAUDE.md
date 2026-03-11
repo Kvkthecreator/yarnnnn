@@ -46,6 +46,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-103**: Agentic Framework Reframe - terminology migration from "deliverable" to "agent" throughout codebase. Agents are persistent autonomous entities, not document generators.
 - **ADR-104**: Agent Instructions as Unified Targeting - `agent_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
 - **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
+- **ADR-106**: Agent Workspace Architecture - virtual filesystem over Postgres (`workspace_files` table); agents interact via path-based operations; archetype-driven strategies (reporter/analyst/researcher/operator); reasoning agents drive own context gathering from workspace instead of receiving platform dumps; replaces `agent_memory` JSONB; storage-agnostic abstraction layer preserves optionality for cloud storage
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -192,8 +193,9 @@ You MUST:
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103)
 - `agent_runs` — execution history per agent (was `deliverable_versions`, renamed ADR-103)
-- `agent_instructions` — column on `agents` table, user-authored behavioral directives
-- `agent_memory` — column on `agents` table, system-accumulated state
+- `agent_instructions` — column on `agents` table, user-authored behavioral directives (migrating to workspace files in ADR-106)
+- `agent_memory` — column on `agents` table, system-accumulated state (migrating to workspace files in ADR-106)
+- `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
@@ -221,6 +223,22 @@ You MUST:
 - **Tier limits**: Free=5/5/10, Pro=unlimited (slack/gmail/notion sources) — ADR-100 2-tier model
 - **Google split**: Single `platform="google"` connection provides both Gmail and Calendar. Worker splits `selected_sources` by `metadata.platform` from landscape resources.
 
+### ADR-106: Agent Workspace Architecture
+
+**Virtual filesystem over Postgres** — agents interact with workspace via path-based operations (`read`, `write`, `list`, `search`). Storage-agnostic abstraction layer.
+
+- **Schema**: `workspace_files` table with `path`, `content`, `embedding`, `tags`
+- **Path conventions**: `/agents/{slug}/thesis.md`, `/agents/{slug}/memory.md`, `/knowledge/slack/{channel}/{date}.md`
+- **Agent archetypes**: Reporter (platform dump, unchanged), Analyst (workspace-driven search), Researcher (workspace + WebSearch), Operator (future)
+- **Key change**: Reasoning agents drive own context gathering from workspace. No pre-gathered platform dump.
+- **Replaces**: `agent_memory` JSONB blob, `user_memory` KV pairs (phased migration)
+- **Abstraction**: `AgentWorkspace` class — swap backing store without changing agent code
+
+**Key files** (to be created in Phase 1):
+- `api/services/workspace.py` — AgentWorkspace + KnowledgeBase abstraction
+- `api/services/primitives/workspace.py` — ReadWorkspace, WriteWorkspace, SearchWorkspace, QueryKnowledge
+- `api/services/execution_strategies.py` — AnalystStrategy, ResearcherStrategy additions
+
 ### ADR-057: Streamlined Onboarding
 
 - OAuth redirects to `/dashboard?provider=X&status=connected`
@@ -244,6 +262,8 @@ You MUST:
 | Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
+| Agent Workspace | `api/services/workspace.py` (ADR-106) |
+| Workspace Primitives | `api/services/primitives/workspace.py` (ADR-106) |
 | Agent Execution | `api/services/agent_execution.py` |
 | Agent Pipeline | `api/services/agent_pipeline.py` |
 | Agent Routes | `api/routes/agents.py` |
