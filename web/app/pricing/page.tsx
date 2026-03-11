@@ -108,7 +108,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>2 active agents</span>
+                    <span>2 active work-agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -154,7 +154,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 active agents</span>
+                    <span>10 active work-agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
