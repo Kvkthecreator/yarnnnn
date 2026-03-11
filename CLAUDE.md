@@ -228,7 +228,7 @@ You MUST:
 **Virtual filesystem over Postgres** — agents interact with workspace via path-based operations (`read`, `write`, `list`, `search`). Storage-agnostic abstraction layer.
 
 - **Schema**: `workspace_files` table with `path`, `content`, `embedding`, `tags`
-- **Path conventions**: `/agents/{slug}/thesis.md`, `/agents/{slug}/memory.md`, `/knowledge/slack/{channel}/{date}.md`
+- **Path conventions**: `/agents/{slug}/AGENT.md` (like CLAUDE.md), `/agents/{slug}/thesis.md`, `/agents/{slug}/memory/*.md` (topic-scoped), `/knowledge/slack/{channel}/{date}.md`
 - **Agent archetypes**: Reporter (platform dump, unchanged), Analyst (workspace-driven search), Researcher (workspace + WebSearch), Operator (future)
 - **Key change**: Reasoning agents drive own context gathering from workspace. No pre-gathered platform dump.
 - **Replaces**: `agent_memory` JSONB blob, `user_memory` KV pairs (phased migration)

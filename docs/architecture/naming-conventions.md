@@ -46,10 +46,12 @@ These names appear in code, API documentation, and architecture docs. They shoul
 
 | Concept | YARNNN name | DB/code location | Market equivalent |
 |---------|------------|-------------------|-------------------|
-| Per-agent behavioral directives | **`agent_instructions`** | `agents.agent_instructions` (TEXT) | OpenClaw AGENTS.md, Cowork skills, CLAUDE.md rules |
-| Per-agent accumulated knowledge | **`agent_memory`** | `agents.agent_memory` (JSONB) | OpenClaw MEMORY.md + daily logs |
+| Per-agent behavioral directives | **`AGENT.md`** | Workspace: `/agents/{slug}/AGENT.md` (migrating from `agents.agent_instructions` TEXT) | CLAUDE.md, OpenClaw AGENTS.md |
+| Per-agent accumulated knowledge | **`memory/`** | Workspace: `/agents/{slug}/memory/*.md` (migrating from `agents.agent_memory` JSONB) | `.claude/memory/`, OpenClaw MEMORY.md |
+| Per-agent domain understanding | **`thesis.md`** | Workspace: `/agents/{slug}/thesis.md` | (YARNNN-unique — no equivalent) |
 | Global user knowledge | **`user_memory`** | `user_memory` table (renamed from `user_context` in ADR-087 migration) | OpenClaw USER.md + SOUL.md |
 | Raw platform input | **`platform_content`** | `platform_content` table | Source files, filesystem |
+| Agent workspace | **Workspace** | `workspace_files` table, path-based access via `AgentWorkspace` class | `.claude/` directory, AgentFS |
 | Assembled prompt input per turn | **Working memory** | `build_working_memory()` output | Context assembly, bootstrap context |
 | Agent capabilities | **Primitives** | `api/services/primitives/` | Tools (intentionally distinct — see below) |
 | Background content generation | **Headless mode** | `mode="headless"` in agent execution | Background jobs, cron tasks |
@@ -78,19 +80,23 @@ These appear only in ADRs and architecture documentation. They help contributors
 How the names connect across layers:
 
 ```
-User sees:                  Developer sees:              DB stores:
+User sees:                  Developer sees:              Stores:
 ─────────                   ──────────────               ─────────
 Agent          →      agent              →   agents (table)
-  └─ Instructions    →      agent_instructions →   agents.agent_instructions
-  └─ Memory          →      agent_memory       →   agents.agent_memory
-  └─ Sources         →      sources                  →   agents.sources (JSONB)
-  └─ Schedule        →      schedule + trigger_config →  agents.schedule (JSONB)
-  └─ Versions        →      agent_runs     →   agent_runs (table)
+  └─ Instructions    →      AGENT.md           →   workspace_files (path-based)
+  └─ Memory          →      memory/*.md        →   workspace_files (path-based)
+  └─ Thesis          →      thesis.md          →   workspace_files (path-based)
+  └─ Sources         →      sources            →   agents.sources (JSONB)
+  └─ Schedule        →      schedule           →   agents.schedule (JSONB)
+  └─ Versions        →      agent_runs         →   agent_runs (table)
+  └─ Workspace       →      AgentWorkspace     →   workspace_files (virtual filesystem)
 
 Context (page)       →      platform_content         →   platform_content (table)
 Memory (page)        →      user_memory              →   user_memory (table)
 Agent                →      TP / chat mode           →   chat_sessions + session_messages
 ```
+
+> **Note (ADR-106):** Agent intelligence is migrating from DB columns (`agent_instructions`, `agent_memory`) to workspace files (`AGENT.md`, `memory/*.md`). During Phase 1, both exist. Phase 2 will make workspace files the source of truth. See [Workspace Conventions](workspace-conventions.md).
 
 ---
 
@@ -104,6 +110,8 @@ Existing names that don't follow these conventions. Each has a migration plan.
 | `template_structure` + `type_config` + `recipient_context` (agent columns) | Partially consolidated (2026-03-09): `recipient_context` and `template_structure.format_notes` surfaced in Instructions panel alongside `agent_instructions`. `type_config` remains in Settings (type-specific execution parameters). | Backend fields unchanged; frontend Instructions panel now owns `recipient_context` + `template_structure` | Done (UI consolidation). Full schema merge deferred — fields stay separate, UI unifies them. |
 | `filesystem_items` references in code | Should all be `platform_content` | Grep + replace (table already renamed per ADR-072) | Immediate cleanup |
 | `surface_context` (frontend → backend) | `chat_context` or rename to match `agent_id` routing | Frontend API call + backend handler | ADR-087 Phase 1 (when we wire `agent_id`) |
+| `agents.agent_instructions` (column) | `AGENT.md` workspace file | Workspace file becomes source of truth; column kept for read fallback | ADR-106 Phase 2 |
+| `agents.agent_memory` (JSONB column) | `memory/*.md` workspace files | Topic-scoped workspace files replace opaque JSONB | ADR-106 Phase 2 |
 
 ---
 
@@ -195,4 +203,6 @@ When explaining to someone non-technical:
 - [Agent Model Comparison](agent-model-comparison.md) — why YARNNN has its own model
 - [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention origin
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat mode / headless mode naming
+- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace path conventions
+- [Workspace Conventions](workspace-conventions.md) — canonical workspace path reference
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — implementation sequence

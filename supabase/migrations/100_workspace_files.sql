@@ -4,15 +4,16 @@
 -- Agents interact via path-based operations through a storage-agnostic abstraction.
 --
 -- Path conventions:
---   /workspace.md                          — global user context
---   /preferences.md                        — learned preferences
---   /knowledge/slack/{channel}/{date}.md   — perception pipeline output
---   /agents/{slug}/directives.md           — user-authored instructions
---   /agents/{slug}/thesis.md               — self-evolving domain understanding
---   /agents/{slug}/memory.md               — accumulated observations
---   /agents/{slug}/feedback.md             — learned from edit history
---   /agents/{slug}/runs/v{N}.md            — output per run
---   /agents/{slug}/working/{topic}.md      — intermediate research
+--   /workspace.md                              — global user context
+--   /preferences.md                            — learned preferences
+--   /knowledge/slack/{channel}/{date}.md       — perception pipeline output
+--   /agents/{slug}/AGENT.md                    — identity + instructions (like CLAUDE.md)
+--   /agents/{slug}/thesis.md                   — self-evolving domain understanding
+--   /agents/{slug}/memory/observations.md      — accumulated observations
+--   /agents/{slug}/memory/preferences.md       — learned from edit history
+--   /agents/{slug}/memory/{topic}.md           — topic-scoped memory
+--   /agents/{slug}/runs/v{N}.md                — output per run
+--   /agents/{slug}/working/{topic}.md          — intermediate research
 
 -- =============================================================================
 -- 1. workspace_files table

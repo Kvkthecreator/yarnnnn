@@ -229,25 +229,28 @@ class AgentWorkspace:
     async def load_context(self) -> str:
         """
         Load the agent's working context for generation.
-        Returns a formatted string of thesis + memory + feedback.
+        Returns a formatted string of AGENT.md + thesis + memory + working notes.
         """
         parts = []
+
+        # AGENT.md first — identity and directives (like CLAUDE.md)
+        agent_md = await self.read("AGENT.md")
+        if agent_md:
+            parts.append(f"## Agent Directives\n{agent_md}")
 
         thesis = await self.read("thesis.md")
         if thesis:
             parts.append(f"## Current Thesis\n{thesis}")
 
-        memory = await self.read("memory.md")
-        if memory:
-            parts.append(f"## Accumulated Observations\n{memory}")
-
-        feedback = await self.read("feedback.md")
-        if feedback:
-            parts.append(f"## Learned Preferences\n{feedback}")
-
-        directives = await self.read("directives.md")
-        if directives:
-            parts.append(f"## Agent Directives\n{directives}")
+        # Load all memory files (topic-scoped, like Claude Code's memory/)
+        memory_files = await self.list("memory/")
+        for filename in memory_files:
+            if filename.endswith("/"):
+                continue
+            content = await self.read(f"memory/{filename}")
+            if content:
+                label = filename.replace(".md", "").replace("-", " ").title()
+                parts.append(f"## Memory: {label}\n{content}")
 
         # Load recent working notes
         working = await self.list("working/")
@@ -261,10 +264,10 @@ class AgentWorkspace:
         return "\n\n---\n\n".join(parts) if parts else ""
 
     async def record_observation(self, note: str, source: str = "review") -> bool:
-        """Append an observation to memory.md with timestamp."""
+        """Append an observation to memory/observations.md with timestamp."""
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         entry = f"- [{timestamp}] ({source}) {note}"
-        return await self.append("memory.md", entry)
+        return await self.append("memory/observations.md", entry)
 
     async def update_thesis(self, thesis: str) -> bool:
         """Update the agent's thesis (full replacement)."""

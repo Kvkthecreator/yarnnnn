@@ -25,10 +25,11 @@ READ_WORKSPACE_TOOL = {
     "description": """Read a file from your workspace.
 
 Your workspace contains your accumulated knowledge:
+- AGENT.md — your identity and behavioral instructions (like CLAUDE.md)
 - thesis.md — your current understanding of your domain
-- memory.md — observations from past review passes
-- feedback.md — learned preferences from user edits
-- directives.md — user-authored behavioral instructions
+- memory/observations.md — observations from past review passes
+- memory/preferences.md — learned preferences from user edits
+- memory/{topic}.md — topic-scoped memory files
 - working/{topic}.md — your intermediate research notes
 - runs/v{N}.md — your past outputs
 
@@ -53,7 +54,8 @@ WRITE_WORKSPACE_TOOL = {
 Use this to persist insights that should survive across runs:
 - Update thesis.md with refined domain understanding
 - Save working/{topic}.md with research notes
-- Append observations to memory.md
+- Append observations to memory/observations.md
+- Save topic-scoped memory to memory/{topic}.md
 
 Your workspace persists between runs. What you write now, you can read in future executions.""",
     "input_schema": {

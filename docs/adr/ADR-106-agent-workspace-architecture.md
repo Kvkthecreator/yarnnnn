@@ -86,11 +86,12 @@ The path structure IS the schema. New agent types don't need schema changes — 
 
   /agents/
     /{agent_slug}/
-      agent.md                          # Identity, configuration, schedule
-      directives.md                     # User-authored behavioral instructions
+      AGENT.md                          # Identity + behavioral instructions (like CLAUDE.md)
       thesis.md                         # Current domain understanding (self-evolving)
-      memory.md                         # Accumulated observations from review passes
-      feedback.md                       # Learned preferences from edit history
+      /memory/                          # Topic-scoped memory (like Claude Code's .claude/memory/)
+        observations.md                 # Accumulated observations from review passes
+        preferences.md                  # Learned preferences from user edits
+        {topic}.md                      # Topic-scoped memory files
       /runs/
         v{N}.md                         # Output + metadata per run
       /working/                         # Intermediate research, saved searches
@@ -205,9 +206,9 @@ No change. Reporter agents continue to receive platform content dumps. Their wor
 | Layer | Before | After |
 |---|---|---|
 | Skills | Hardcoded per type | Hardcoded per archetype (same) |
-| Directives | `agent_instructions` column | `/agents/{slug}/directives.md` |
-| Memory | `agent_memory` JSONB | `/agents/{slug}/memory.md` + `/agents/{slug}/working/*.md` |
-| Feedback | `get_past_versions_context()` | `/agents/{slug}/feedback.md` |
+| Directives | `agent_instructions` column | `/agents/{slug}/AGENT.md` |
+| Memory | `agent_memory` JSONB | `/agents/{slug}/memory/*.md` (topic-scoped) + `/agents/{slug}/working/*.md` |
+| Feedback | `get_past_versions_context()` | `/agents/{slug}/memory/preferences.md` |
 
 ### New Primitives (headless mode)
 
@@ -264,6 +265,73 @@ PRIMITIVE_MODES = {
 3. **Cross-agent intelligence.** Coordinator reads child agents' theses. Agents reference each other's workspace items.
 4. **Protocol-native interop.** Workspace files map directly to MCP resources and A2A capabilities.
 5. **Storage-agnostic future.** Abstraction layer preserves optionality. Swap Postgres for S3 without changing agent code.
+
+---
+
+## Workspace Convention Spec (v1)
+
+This section defines the naming conventions for workspace paths. Conventions are **v1 — expected to evolve** as the AI landscape and YARNNN's architecture mature. Paths are strings in a database column; renaming is a single UPDATE statement.
+
+### Design Principles
+
+1. **Align with industry where possible.** Claude Code uses `CLAUDE.md`, `.claude/memory/`, `.claude/hooks/`. MCP uses `.well-known/`. A2A uses `agent-card.json`. YARNNN mirrors these patterns so future agent-to-agent interop requires minimal translation.
+2. **Differentiate where YARNNN adds value.** `thesis.md` (self-evolving domain understanding) has no Claude Code equivalent — it's YARNNN-specific and is a core differentiator.
+3. **Topic-scoped memory over monolith.** Claude Code's memory directory pattern (`memory/MEMORY.md` + `memory/debugging.md`) is better than a single `memory.md`. Agents can accumulate domain-specific memory without one file growing unbounded.
+4. **Capitalized identity files.** `AGENT.md` (like `CLAUDE.md`, `README.md`) signals "this is the entry point" — discoverable, conventional.
+5. **Paths are the schema.** New agent capabilities don't need migrations. New file paths extend the convention, not the database.
+
+### Convention Mapping: YARNNN ↔ Claude Code
+
+| Purpose | Claude Code | YARNNN Workspace | Notes |
+|---------|------------|-------------------|-------|
+| Identity + instructions | `CLAUDE.md` | `AGENT.md` | Root-level, capitalized, discoverable |
+| Memory (general) | `.claude/memory/MEMORY.md` | `memory/observations.md` | Default memory file |
+| Memory (topic-scoped) | `.claude/memory/{topic}.md` | `memory/{topic}.md` | Same pattern — unbounded topics |
+| Event behaviors | `.claude/hooks/` | (future) `hooks/` | Deferred to Phase 3 |
+| Config/settings | `.claude/settings.json` | Agent DB config (not workspace) | Config stays in DB; workspace is for intelligence |
+| Domain understanding | (no equivalent) | `thesis.md` | **YARNNN-unique** — agents build evolving theses |
+| Research notes | (no equivalent) | `working/{topic}.md` | **YARNNN-unique** — intermediate research |
+| Past outputs | (no equivalent) | `runs/v{N}.md` | **YARNNN-unique** — versioned output history |
+
+### Reserved Paths
+
+These paths have defined semantics. Agents and tooling should respect them.
+
+| Path | Semantics | Mutability |
+|------|-----------|------------|
+| `AGENT.md` | Agent identity, behavioral directives, user-authored instructions | User-writable, agent-readable |
+| `thesis.md` | Agent's current domain understanding | Agent-writable (self-evolving) |
+| `memory/observations.md` | Timestamped observations from review passes | Agent-appendable |
+| `memory/preferences.md` | Learned preferences from user edit patterns | System-writable (feedback engine) |
+| `memory/{topic}.md` | Topic-scoped memory (agent decides topics) | Agent-writable |
+| `working/{topic}.md` | Intermediate research notes | Agent-writable (ephemeral across runs) |
+| `runs/v{N}.md` | Immutable output per run | System-writable (orchestration) |
+
+### Extensibility
+
+New conventions extend the path tree — no schema changes needed:
+
+```
+# Future: hooks (Phase 3)
+/agents/{slug}/hooks/on-review.md       # instructions for review pass behavior
+
+# Future: agent-to-agent references
+/agents/{slug}/references/{other-slug}/thesis.md  # cached thesis from another agent
+
+# Future: A2A interop
+/agents/{slug}/agent-card.json          # A2A Agent Card (auto-generated from AGENT.md + thesis)
+
+# Future: MCP resource mapping
+workspace://agents/{slug}/AGENT.md      # MCP resource URI (1:1 with path)
+```
+
+### Evolution Contract
+
+When renaming paths:
+1. Update the abstraction layer (`workspace.py`) — agent code uses relative paths via `AgentWorkspace`
+2. Run `UPDATE workspace_files SET path = replace(path, old, new) WHERE path LIKE old%` for existing data
+3. Update this convention spec + `docs/architecture/workspace-conventions.md`
+4. No migration needed — paths are data, not schema
 
 ---
 

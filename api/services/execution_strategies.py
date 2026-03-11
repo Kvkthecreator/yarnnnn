@@ -440,7 +440,7 @@ Investigation approach:
 - After investigating, update your workspace:
   - Write refined thesis to thesis.md (your evolving domain understanding)
   - Save research notes to working/{topic}.md
-  - Append key observations to memory.md
+  - Append key observations to memory/observations.md
 - Then generate your output based on what you found"""
     return directive
 

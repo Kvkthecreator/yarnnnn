@@ -15,6 +15,7 @@
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
+- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Agents are Layer 4 (Work)
 
@@ -453,12 +454,14 @@ Destination config (ADR-028):
 
 Every agent carries four layers of knowledge:
 
-| Layer | What it is | Schema field(s) |
+| Layer | What it is | Storage (current → workspace) |
 |---|---|---|
-| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates in `agent_pipeline.py` |
-| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `agent_instructions` TEXT + `recipient_context` JSONB (ADR-104: instructions are the unified targeting layer — dual-injected into system prompt and user message) |
-| **Memory** | What happened — observations, review decisions, goals | `agent_memory` JSONB |
-| **Feedback** | How well it's doing — edit patterns from user corrections | `edit_distance_score`, `edit_categories`, `feedback_notes` on `agent_runs` |
+| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates (unchanged) |
+| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `agent_instructions` TEXT → `/agents/{slug}/AGENT.md` (ADR-106) |
+| **Memory** | What happened — observations, review decisions, goals | `agent_memory` JSONB → `/agents/{slug}/memory/*.md` (ADR-106, topic-scoped) |
+| **Feedback** | How well it's doing — edit patterns from user corrections | `agent_runs` metrics → `/agents/{slug}/memory/preferences.md` (ADR-106) |
+
+> **ADR-106 migration:** Agent intelligence is moving from DB columns to workspace files. `AGENT.md` mirrors Claude Code's `CLAUDE.md` — a discoverable identity file. `memory/` is topic-scoped (like `.claude/memory/`). `thesis.md` is YARNNN-unique — agents build self-evolving domain understanding. See [Workspace Conventions](workspace-conventions.md).
 
 Feedback is computed by `feedback_engine.py` when users approve versions with edits, and aggregated by `get_past_versions_context()` into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions (delivery-first model, ADR-066).
 

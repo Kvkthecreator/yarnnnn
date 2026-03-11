@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.11.3] - ADR-106: Workspace convention alignment — AGENT.md + topic-scoped memory
+
+### Changed
+- `api/services/primitives/workspace.py`: Tool descriptions updated to reflect new conventions.
+  - `ReadWorkspace`: `directives.md` → `AGENT.md`, `memory.md` → `memory/observations.md` + `memory/{topic}.md`
+  - `WriteWorkspace`: References `memory/observations.md` and `memory/{topic}.md`
+- `api/services/workspace.py`: `load_context()` reads `AGENT.md` (was `directives.md`), loads all files from `memory/` directory (was single `memory.md`). AGENT.md loaded first as identity context.
+- `api/services/workspace.py`: `record_observation()` writes to `memory/observations.md` (was `memory.md`).
+- `api/services/proactive_review.py`: Workspace observation writes target `memory/observations.md`.
+- `api/services/execution_strategies.py`: Analyst directive references `memory/observations.md`.
+- Expected behavior: Agents see AGENT.md as their identity file (like CLAUDE.md). Memory is topic-scoped — agents can create memory files on any topic. Convention alignment with Claude Code's filesystem patterns for future agent-to-agent interop.
+
+---
+
+## [2026.03.11.2] - ADR-103: Terminology guardrail — ban "deliverable" from TP output
+
+### Changed
+- `api/agents/tp_prompts/base.py`: Added terminology directive to Tone and Style section. TP must use "agent" or "work-agent" for recurring work entities, "runs" for outputs. Never say "deliverable" or "version".
+- Expected behavior: TP chat responses will stop echoing "deliverable" language from training data. New conversations will use consistent agent/run terminology.
+
+---
+
 ## [2026.03.11.1] - ADR-106: Agent Workspace Architecture — workspace primitives and analyst strategy
 
 ### Added

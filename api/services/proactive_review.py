@@ -406,8 +406,8 @@ def apply_review_decision(
         # Use sync-compatible approach since apply_review_decision is sync
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            asyncio.ensure_future(ws.append("memory.md", observation))
+            asyncio.ensure_future(ws.append("memory/observations.md", observation))
         else:
-            loop.run_until_complete(ws.append("memory.md", observation))
+            loop.run_until_complete(ws.append("memory/observations.md", observation))
     except Exception as e:
         logger.warning(f"[PROACTIVE] Failed to write workspace observation: {e}")
