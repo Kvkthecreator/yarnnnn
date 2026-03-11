@@ -367,6 +367,7 @@ export function ChatFirstDesk() {
         badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
       }}
       panelTabs={panelTabs}
+      panelDefaultOpen={true}
     >
       {/* Drop zone container — wraps messages + input */}
       <div className="relative flex flex-col flex-1 min-h-0" {...dropZoneProps}>

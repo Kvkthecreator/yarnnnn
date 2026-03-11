@@ -3,18 +3,16 @@
 /**
  * ADR-091: Deliverable Workspace
  *
- * Chat-first layout with drawer overlay:
- * - Main: scoped TP chat (full width) with inline version preview
- * - Drawer: Settings | Versions | Memory | Instructions | Sessions tabs
- * - Header: breadcrumb + identity chip + mode badge + active/paused toggle + drawer trigger
+ * Chat-first layout with persistent right panel:
+ * - Main: scoped TP chat (left, full height)
+ * - Panel: persistent right panel (≥lg) with tabs: Versions | Instructions | Memory | Sessions | Settings
+ * - Header: breadcrumb + identity chip + mode badge + active/paused toggle + panel toggle
+ *
+ * Versions display has moved from inline (above chat) to the panel.
+ * Panel defaults to open with Versions tab showing the latest version preview.
  *
  * Chat is scoped via surface_context { type: 'deliverable-detail', deliverableId }
  * which sets deliverable_id on the chat_sessions row (ADR-087).
- *
- * Sub-components extracted to web/components/deliverables/:
- * - DeliverableVersionDisplay.tsx (VersionsPanel, InlineVersionCard, VersionPreview, SourcePills)
- * - DeliverableDrawerPanels.tsx (MemoryPanel, InstructionsPanel, SessionsPanel)
- * - DeliverableChatArea.tsx (DeliverableChatArea)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -53,7 +51,6 @@ export default function DeliverableWorkspacePage() {
   const [sessions, setSessions] = useState<DeliverableSession[]>([]);
 
   // UI
-  const [selectedIdx, setSelectedIdx] = useState(0);
   const [running, setRunning] = useState(false);
 
   // Ref for prefilling chat input from drawer (e.g. "Edit in chat" button)
@@ -104,12 +101,10 @@ export default function DeliverableWorkspacePage() {
       created_at: new Date().toISOString(),
     };
     setVersions((prev) => [placeholder, ...prev]);
-    setSelectedIdx(0);
 
     try {
       await api.deliverables.run(id);
       await loadDeliverable();
-      setSelectedIdx(0);
     } catch (err) {
       console.error('Failed to run deliverable:', err);
       // Remove optimistic placeholder on failure
@@ -159,8 +154,9 @@ export default function DeliverableWorkspacePage() {
       content: (
         <VersionsPanel
           versions={versions}
-          selectedIdx={selectedIdx}
-          onSelect={setSelectedIdx}
+          deliverable={deliverable}
+          onRunNow={handleRunNow}
+          running={running}
         />
       ),
     },
@@ -240,15 +236,11 @@ export default function DeliverableWorkspacePage() {
         }}
         breadcrumb={breadcrumb}
         panelTabs={panelTabs}
-        panelDefaultOpen={false}
+        panelDefaultOpen={true}
       >
         <DeliverableChatArea
           deliverableId={id}
           deliverableTitle={deliverable.title}
-          versions={versions}
-          selectedIdx={selectedIdx}
-          onSelectIdx={setSelectedIdx}
-          deliverable={deliverable}
           onRunNow={handleRunNow}
           running={running}
           prefillChatRef={prefillChatRef}

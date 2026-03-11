@@ -3,7 +3,7 @@
 /**
  * Scoped chat area for the Deliverable Workspace page.
  *
- * Extracted from deliverables/[id]/page.tsx for maintainability.
+ * Pure chat — no version display. Versions are shown in the persistent right panel.
  * Reuses TP context, scoped to a specific deliverable.
  */
 
@@ -25,26 +25,16 @@ import { SkillPicker } from '@/components/tp/SkillPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import { InlineVersionCard } from './DeliverableVersionDisplay';
-import type { Deliverable, DeliverableVersion } from '@/types';
 
 export function DeliverableChatArea({
   deliverableId,
   deliverableTitle,
-  versions,
-  selectedIdx,
-  onSelectIdx,
-  deliverable,
   onRunNow,
   running,
   prefillChatRef,
 }: {
   deliverableId: string;
   deliverableTitle: string;
-  versions: DeliverableVersion[];
-  selectedIdx: number;
-  onSelectIdx: (idx: number) => void;
-  deliverable: Deliverable;
   onRunNow: () => void;
   running: boolean;
   prefillChatRef?: React.MutableRefObject<((text: string) => void) | null>;
@@ -187,20 +177,6 @@ export function DeliverableChatArea({
       {fileError && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
           {fileError}
-        </div>
-      )}
-
-      {/* Pinned deliverable content — stays visible above chat */}
-      {versions.length > 0 && (
-        <div className="shrink-0 px-4 pt-3 pb-1 border-b border-border">
-          <InlineVersionCard
-            versions={versions}
-            selectedIdx={selectedIdx}
-            onSelectIdx={onSelectIdx}
-            deliverable={deliverable}
-            onRunNow={onRunNow}
-            running={running}
-          />
         </div>
       )}
 

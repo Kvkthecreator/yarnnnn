@@ -73,7 +73,7 @@ Mixing them creates confusion: a form field for instructions looks like configur
 |------|------|-----|
 | Set/update instructions | prompt | User says it → TP persists to `deliverable_instructions` |
 | Define audience | prompt | User describes recipient → TP persists to `recipient_context` |
-| Give version feedback | inline | Feedback input on InlineVersionCard |
+| Give version feedback | panel | Feedback strip on version preview in panel |
 | Request generation | execute | + menu "Generate new version" |
 | Ask about deliverable | chat | Scoped conversation (TP has deliverable context) |
 | Create new deliverable | show | Type selector cards from + menu |
@@ -91,13 +91,14 @@ Mixing them creates confusion: a form field for instructions looks like configur
 | Memory/observations | Memory | Read-only timeline |
 | Sessions | Sessions | Navigation list |
 
-### Inline (pinned above chat)
+### Panel (persistent right panel)
 
 | What | Purpose |
 |------|---------|
-| InlineVersionCard | Latest version preview at full chat width |
-| Source pills | What sources contributed (visual summary) |
-| Older versions toggle | Collapsed list, expands inline |
+| Version preview | Full markdown render of selected version |
+| Version list | Compact list, click to preview |
+| Source pills | What sources contributed (in version preview) |
+| Feedback strip | Leave feedback on delivered versions |
 
 ---
 
