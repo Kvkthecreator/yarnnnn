@@ -179,7 +179,7 @@ class DeliveryService:
                 )
 
             # 6. Mark delivery as in-progress
-            self._update_delivery_status(run_id, "delivering")
+            self._update_delivery_status(version_id, "delivering")
 
             # 7. Deliver
             content = version.data.get("final_content") or version.data.get("draft_content", "")
@@ -191,7 +191,7 @@ class DeliveryService:
                 title=title,
                 metadata={
                     "agent_id": agent.data["id"],
-                    "run_id": run_id,
+                    "version_id": version_id,
                     "version_number": version.data.get("version_number"),
                     "agent_type": agent.data.get("agent_type"),
                     "mode": agent.data.get("mode"),
@@ -203,13 +203,13 @@ class DeliveryService:
             # 8. Update delivery status and send notifications (ADR-040)
             if result.status == ExportStatus.SUCCESS:
                 self._update_delivery_status(
-                    run_id,
+                    version_id,
                     "delivered",
                     external_id=result.external_id,
                     external_url=result.external_url
                 )
                 self._log_export(
-                    run_id=run_id,
+                    version_id=version_id,
                     user_id=user_id,
                     platform=platform,
                     destination=destination,
@@ -227,7 +227,7 @@ class DeliveryService:
                 )
             else:
                 self._update_delivery_status(
-                    run_id,
+                    version_id,
                     "failed",
                     error=result.error_message
                 )
@@ -247,7 +247,7 @@ class DeliveryService:
 
         except Exception as e:
             logger.error(f"[DELIVERY] Failed for version {version_id}: {e}")
-            self._update_delivery_status(run_id, "failed", error=str(e))
+            self._update_delivery_status(version_id, "failed", error=str(e))
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message=str(e)
@@ -349,7 +349,7 @@ class DeliveryService:
         """Log export to export_log table."""
         try:
             self.client.table("export_log").insert({
-                "agent_run_id": run_id,
+                "agent_run_id": version_id,
                 "user_id": user_id,
                 "provider": platform,
                 "destination": destination,
@@ -519,7 +519,7 @@ class DeliveryService:
                     title=title,
                     metadata={
                         "agent_id": version.data["agent_id"],
-                        "run_id": run_id,
+                        "version_id": version_id,
                         "version_number": version.data.get("version_number"),
                         "agent_type": agent.data.get("agent_type") if agent.data else None,
                         "mode": agent.data.get("mode") if agent.data else None,
@@ -542,7 +542,7 @@ class DeliveryService:
 
                     # Log to destination_delivery_log
                     self._log_destination_delivery(
-                        run_id=run_id,
+                        version_id=version_id,
                         agent_id=version.data["agent_id"],
                         user_id=user_id,
                         destination_index=idx,
@@ -571,11 +571,11 @@ class DeliveryService:
 
         # Update version delivery status based on overall result
         if succeeded == len(destinations):
-            self._update_delivery_status(run_id, "delivered")
+            self._update_delivery_status(version_id, "delivered")
         elif succeeded > 0:
-            self._update_delivery_status(run_id, "partial")
+            self._update_delivery_status(version_id, "partial")
         else:
-            self._update_delivery_status(run_id, "failed")
+            self._update_delivery_status(version_id, "failed")
 
         logger.info(
             f"[DELIVERY] Multi-destination: {succeeded}/{len(destinations)} succeeded"
@@ -601,7 +601,7 @@ class DeliveryService:
         """Log a multi-destination delivery to the destination_delivery_log table."""
         try:
             self.client.table("destination_delivery_log").insert({
-                "run_id": run_id,
+                "run_id": version_id,
                 "agent_id": agent_id,
                 "user_id": user_id,
                 "destination_index": destination_index,
