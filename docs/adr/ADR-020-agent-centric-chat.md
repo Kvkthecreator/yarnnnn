@@ -38,7 +38,7 @@ See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  DELIVERABLE VIEW (what user supervises)            │
+│  AGENT VIEW (what user supervises)                  │
 │  ─────────────────────────────────────────────────  │
 │                                                      │
 │  ## Weekly Status Report                             │
@@ -155,7 +155,7 @@ Context types:
 
 Add `create_agent` tool:
 ```python
-CREATE_DELIVERABLE_TOOL = {
+CREATE_AGENT_TOOL = {
     "name": "create_agent",
     "description": """
     Create a new recurring agent for the user.

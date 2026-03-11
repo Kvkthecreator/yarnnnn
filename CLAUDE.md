@@ -191,8 +191,8 @@ You MUST:
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
 - `api/services/extraction.py` — replaced by `memory.py`
 - `api/services/work_execution.py` — replaced by `agent_execution.py`
-- `api/agents/factory.py`, `api/agents/deliverable.py` — replaced by `generate_draft_inline()`
-- `api/routes/work.py` — work_tickets endpoints removed
+- `api/agents/factory.py` — replaced by `generate_draft_inline()`
+- `api/routes/work.py`, `api/routes/agents.py` (old) — work_tickets endpoints removed
 - `api/services/signal_extraction.py`, `api/services/signal_processing.py` — dissolved in ADR-092
 - `api/routes/signal_processing.py` — dissolved in ADR-092
 - `api/integrations/readers/` — deprecated module, zero imports

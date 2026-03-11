@@ -246,7 +246,7 @@ All phases completed 2026-02-27.
 - Removed 24 deprecated TypeScript interfaces (Section + Config for each deprecated type)
 - `SynthesizerType` removed
 - TypeConfig union reduced to 6 active types + `Record<string, unknown>` fallback
-- DELIVERABLE_TYPE_LABELS in AgentSettingsModal and IdleSurface reduced to 8 active types
+- AGENT_TYPE_LABELS in AgentSettingsModal and IdleSurface reduced to 8 active types
 
 ### Phase 4 — Signal processing alignment ✅
 

@@ -398,13 +398,13 @@ As agents accumulate history, learnings should persist per-agent:
 
 ### Phase 2: Wizard & UI ✅ COMPLETE
 
-- [x] Add destination params to CREATE_DELIVERABLE_TOOL (TP asks during creation)
+- [x] Add destination params to CREATE_AGENT_TOOL (TP asks during creation)
 - [x] Add governance selector to AgentSettingsModal
 - [x] Show destination badge on agent list cards
 - [x] Semi-auto behavior triggers on version approval (Phase 1)
 
 **Key Files:**
-- `api/services/project_tools.py` - CREATE_DELIVERABLE_TOOL with destination_platform, destination_target, governance
+- `api/services/project_tools.py` - CREATE_AGENT_TOOL with destination_platform, destination_target, governance
 - `web/types/index.ts` - Destination, GovernanceLevel, DeliveryStatus types
 - `web/components/modals/AgentSettingsModal.tsx` - Destination & governance UI
 - `web/components/surfaces/AgentListSurface.tsx` - Destination badge display
