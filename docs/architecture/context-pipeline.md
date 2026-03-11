@@ -98,46 +98,48 @@ This is how YARNNN builds intelligence over time. A user with 6 months of agent 
 
 ---
 
-## Memory Layer: user_memory
+## Memory Layer
 
-**Table**: `user_memory`
-**ADR**: ADR-059
+**Store**: `workspace_files` under `/memory/` (ADR-108, migrating from `user_memory` table)
+**ADR**: ADR-059 (original), ADR-108 (filesystem migration)
 
-A single flat key-value store for everything TP knows *about the user*. Replaces the prior four-table inference pipeline (`knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`).
+Everything TP knows *about the user* — identity, preferences, standing instructions. Three files:
 
-| Key pattern | Meaning | Example |
+| File | Contains | Primary writer |
 |---|---|---|
-| `name`, `role`, `company`, `timezone` | Profile fields | `role = "Head of Growth"` |
-| `tone_{platform}`, `verbosity_{platform}` | Style preferences | `tone_slack = "casual"` |
-| `fact:...` | Noted facts | `fact:prefers bullet points` |
-| `instruction:...` | Standing instructions | `instruction:always include TL;DR` |
-| `preference:...` | Stated preferences | `preference:no jargon in reports` |
+| `MEMORY.md` | Name, role, company, timezone, bio | User directly |
+| `preferences.md` | Tone, verbosity, format preferences (per-platform) | System (extraction), user (overrides) |
+| `notes.md` | Standing instructions, observed facts | Both (extraction appends, user edits) |
+
+> **ADR-108 (proposed):** Migrates from `user_memory` key-value table (ADR-059) to `/memory/` filesystem in `workspace_files`. Fixes duplication, enables document-level coherence, unifies storage with `/agents/` and `/knowledge/`. See [ADR-108](../adr/ADR-108-user-memory-filesystem-migration.md).
 
 **Written by**:
-- User directly via the Context page (Profile, Styles, Entries sections)
-- User Memory Service (`api/services/memory.py`) via nightly cron (ADR-064, ADR-087 Phase 2):
-  - `process_conversation()` — nightly cron (midnight UTC), processes prior day's sessions in batch
+- User directly via Memory page (file editing)
+- User Memory Service (`api/services/memory.py`) via nightly cron (ADR-064):
+  - `process_conversation()` — reads existing files, merges new observations, writes back deduplicated content
 
-**Never written by**: TP directly during conversation. The explicit `create_memory` / `update_memory` tools were removed in ADR-064. Conversation memory extraction is a **batch nightly job**, not a real-time session-end hook. A preference stated today is available in working memory the next morning.
+**Never written by**: TP directly during conversation. Conversation memory extraction is a **batch nightly job**, not a real-time session-end hook. A preference stated today is available in working memory the next morning.
 
-**Read by**: `working_memory.py → build_working_memory()` — assembled into the system prompt block injected at the start of every TP session (~2,000 token budget).
+**Read by**: `working_memory.py → build_working_memory()` — reads `/memory/` files, concatenates into the system prompt block injected at the start of every TP session (~2,000 token budget).
 
 ### Working memory format
 
 ```
-### About you
+## Working Memory
+
+### About you                    ← from /memory/MEMORY.md
 {name, role, company, timezone}
 
-### Your preferences
-{tone_*, verbosity_*, preference:*}
+### Preferences                  ← from /memory/preferences.md
+{tone, verbosity, format prefs}
 
-### What you've told me
-{fact:*, instruction:*}
+### Notes                        ← from /memory/notes.md
+{standing instructions, facts}
 
-### Active agents
-{title, destination, sources, schedule — max 5}
+### Active agents                ← from agents table
+{title, destination, schedule — max 5}
 
-### Connected platforms
+### Connected platforms           ← from platform_connections + sync_registry
 {name, status, last_synced, freshness}
 ```
 
@@ -181,11 +183,18 @@ All platforms use Direct API clients from `api/integrations/core/` — no MCP, n
 | Gmail | 30 days |
 | Notion | 90 days |
 | Calendar | 2 days |
-### Three Storage Domains (ADR-106 + ADR-107)
+### Four Storage Domains (ADR-106 + ADR-107 + ADR-108)
 
-The platform distinguishes three storage domains with distinct lifecycle and access models:
+The platform distinguishes four storage domains with distinct lifecycle and access models:
 
 ```
+┌─────────────────────────────────────────────────────────────┐
+│  USER MEMORY  (workspace_files: /memory/)                    │
+│  MEMORY.md, preferences.md, notes.md  (ADR-108)             │
+│  Global user identity, preferences, standing instructions    │
+│  Injected into every TP session as working memory            │
+└─────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────┐
 │  EXTERNAL CONTEXT  (platform_content)                        │
 │  Raw platform data — Slack, Gmail, Notion, Calendar          │
@@ -208,9 +217,11 @@ The platform distinguishes three storage domains with distinct lifecycle and acc
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**OS analogy:** `/agents/` = `/home/` (per-process private state), `/knowledge/` = `/var/shared/` (shared knowledge filesystem), `platform_content` = `/dev/` (device drivers — raw external I/O).
+**OS analogy:** `/memory/` = `/etc/` (system config), `/agents/` = `/home/` (per-process private state), `/knowledge/` = `/var/shared/` (shared knowledge filesystem), `platform_content` = `/dev/` (device drivers — raw external I/O).
 
 > **ADR-107 (implemented):** Agent-produced outputs write to `/knowledge/` filesystem in `workspace_files` — organized by content class (digests, analyses, briefs, research, insights) with structured metadata. Outputs enter `/knowledge/` at delivery time. The previous `platform="yarnnn"` rows in `platform_content` (ADR-102) have been superseded and deleted. See [ADR-107](../adr/ADR-107-knowledge-filesystem-architecture.md).
+
+> **ADR-108 (proposed):** User memory migrates from `user_memory` key-value table to `/memory/` filesystem in `workspace_files`. Three files (MEMORY.md, preferences.md, notes.md) replace ~30 key-value rows. Extraction cron shifts to read-merge-write pattern, eliminating duplication. See [ADR-108](../adr/ADR-108-user-memory-filesystem-migration.md).
 
 ---
 

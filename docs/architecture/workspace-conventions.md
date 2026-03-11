@@ -95,12 +95,24 @@ placement communicates content class, versioning, and provenance.
 **External platform data** (Slack, Gmail, Notion, Calendar) stays in `platform_content` table —
 flat, TTL-managed, sync-pipeline-written. `/knowledge/` is for agent-produced knowledge only.
 
-### User-Level (global)
+### User Memory (global — ADR-108)
 
 ```
-/workspace.md                   # Global user context
-/preferences.md                 # User-level learned preferences
+/memory/
+├── MEMORY.md                   # Identity: name, role, company, timezone, bio
+│                               # Like CLAUDE.md's MEMORY.md — the user entry point
+│                               # User-writable (primary), system-bootstrapped
+│
+├── preferences.md              # Communication and content preferences
+│                               # Per-platform tone/verbosity, format preferences
+│                               # System-written (extraction), user-overridable
+│
+└── notes.md                    # Standing instructions, observed facts
+                                # Accumulated by extraction cron, compacted periodically
+                                # User-editable (additions, deletions, corrections)
 ```
+
+Replaces `user_memory` key-value table (ADR-059). See [ADR-108](../adr/ADR-108-user-memory-filesystem-migration.md).
 
 ---
 
@@ -206,7 +218,7 @@ When extending the workspace with new file types:
 ### Phase 2 (planned)
 - Perception pipeline writes to `/knowledge/` instead of (or alongside) `platform_content` table
 - `agent_instructions` column migrated to `AGENT.md` as source of truth
-- `user_memory` KV pairs migrated to `/workspace.md` and `/preferences.md`
+- `user_memory` KV table migrated to `/memory/` filesystem (ADR-108)
 
 ### Phase 3 (planned)
 - `hooks/` directory for agent-level event triggers
@@ -224,6 +236,8 @@ When extending the workspace with new file types:
 ## References
 
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR with convention spec
+- [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` shared filesystem
+- [ADR-108: User Memory Filesystem Migration](../adr/ADR-108-user-memory-filesystem-migration.md) — `/memory/` global user state
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer model mapped to workspace
 - [Naming Conventions](naming-conventions.md) — broader YARNNN naming system
 - [Agent Execution Model](agent-execution-model.md) — how orchestration invokes agents
