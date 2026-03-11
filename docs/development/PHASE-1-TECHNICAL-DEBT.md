@@ -115,10 +115,10 @@ Not breaking today, but will break at growth. Plus quick cleanups.
 - **File**: `api/jobs/unified_scheduler.py`
 - **Issues**:
   - ~line 1000: Loads ALL users with no pagination
-  - ~lines 1087, 1208: Joins `deliverable_versions` with no `.limit()` — can return 1000+ rows per user
+  - ~lines 1087, 1208: Joins `agent_runs` with no `.limit()` — can return 1000+ rows per user
 - **Fix**:
   - Add `.limit(100)` pagination for user queries (process in batches)
-  - Add `.limit(5)` on the deliverable versions join (only need most recent for signal reasoning)
+  - Add `.limit(5)` on the agent versions join (only need most recent for signal reasoning)
 
 ### 3.5 Duplicate signal processing blocks
 
@@ -140,7 +140,7 @@ Not breaking today, but will break at growth. Plus quick cleanups.
 
 ### 3.8 Dead code removal
 
-- **File**: `api/routes/deliverables.py` (~line 35)
+- **File**: `api/routes/agents.py` (~line 35)
 - **Issue**: `_trigger_domain_recomputation()` is a no-op per ADR-059, never called.
 - **Fix**: Delete the function entirely per CLAUDE.md Discipline #2 (Singular Implementation — delete legacy code).
 
@@ -165,10 +165,10 @@ All items verified across 3 sessions:
 - [x] `working_memory.py` — All 12 exception handlers now log (Session 2)
 - [x] `main.py` — Startup env validation with `_validate_environment()` (Session 2)
 - [x] `google_client.py` — Token caching, `_request_with_retry` (backoff on 429/5xx), `_GOOGLE_API_TIMEOUT` (Session 3)
-- [x] `unified_scheduler.py` — Bounded user query (activity_log), `.limit(20)` on deliverables join, signal blocks deduplicated into shared loop (Session 3)
-- [x] `datetime.utcnow()` fixed in: `signal_extraction.py`, `delivery.py`, `google_client.py`, `oauth.py` (Sessions 2-3). Note: other files (`deliverable_pipeline.py`, `integrations.py`, etc.) still have occurrences — tracked as follow-up
+- [x] `unified_scheduler.py` — Bounded user query (activity_log), `.limit(20)` on agents join, signal blocks deduplicated into shared loop (Session 3)
+- [x] `datetime.utcnow()` fixed in: `signal_extraction.py`, `delivery.py`, `google_client.py`, `oauth.py` (Sessions 2-3). Note: other files (`agent_pipeline.py`, `integrations.py`, etc.) still have occurrences — tracked as follow-up
 - [x] `signal_processing.py` — Model changed to `claude-haiku-4-5-20251001`, comment updated (Session 3)
-- [x] `deliverables.py` — `_trigger_domain_recomputation` removed + `BackgroundTasks` import cleaned (Session 3)
+- [x] `agents.py` — `_trigger_domain_recomputation` removed + `BackgroundTasks` import cleaned (Session 3)
 - [x] `oauth.py` — In-memory limitation documented in comment block (Session 3)
 
 ---

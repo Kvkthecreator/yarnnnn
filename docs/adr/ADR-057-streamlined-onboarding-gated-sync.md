@@ -107,7 +107,7 @@ After first platform is connected, welcome screen changes:
 │  │ Connect  │ │ Connect  │ │ Connect  │                        │
 │  └──────────┘ └──────────┘ └──────────┘                        │
 │                                                                 │
-│  [Create a deliverable] [What can you do?]                     │
+│  [Create a agent] [What can you do?]                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

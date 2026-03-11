@@ -14,7 +14,7 @@ ADR-072 Key Changes:
 Usage:
 - Writer: Store synced platform data with TTL (retained=false, expires_at set)
 - Retention: Mark content retained when referenced (retained=true, expires_at=NULL)
-- Reader: Fetch content for TP search, deliverable execution, signal processing
+- Reader: Fetch content for TP search, agent execution, signal processing
 - Cleanup: Delete expired non-retained entries (run periodically)
 """
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 PlatformType = Literal["slack", "gmail", "notion", "calendar", "yarnnn"]
-RetainedReason = Literal["deliverable_execution", "tp_session", "yarnnn_output"]
+RetainedReason = Literal["agent_execution", "tp_session", "yarnnn_output"]
 
 
 @dataclass
@@ -477,7 +477,7 @@ async def mark_content_retained(
     Mark content items as retained.
 
     Called by:
-    - Deliverable execution after synthesis (reason='deliverable_execution')
+    - Agent execution after synthesis (reason='agent_execution')
     - TP session when content is accessed (reason='tp_session')
 
     Args:
@@ -668,19 +668,19 @@ async def search_platform_content(
     return items
 
 
-async def get_content_for_deliverable(
+async def get_content_for_agent(
     db_client,
     user_id: str,
-    deliverable_sources: list[dict],
+    agent_sources: list[dict],
     limit_per_source: int = 50,
 ) -> list[PlatformContentItem]:
     """
-    Fetch platform content relevant to a deliverable's sources.
+    Fetch platform content relevant to a agent's sources.
 
     Args:
         db_client: Supabase client
         user_id: User UUID
-        deliverable_sources: List of source configs from deliverable
+        agent_sources: List of source configs from agent
         limit_per_source: Max items per source
 
     Returns:
@@ -688,7 +688,7 @@ async def get_content_for_deliverable(
     """
     all_items = []
 
-    for source in deliverable_sources:
+    for source in agent_sources:
         provider = source.get("provider") or source.get("platform")
         # DataSource model uses "source" field; legacy/manual entries may use "resource_id"
         resource_id = source.get("source") or source.get("resource_id")
@@ -698,7 +698,7 @@ async def get_content_for_deliverable(
 
         # Normalize provider → platform_content.platform
         # The "google" connection provides both "gmail" and "calendar" content.
-        # Deliverable sources may reference provider="google" for calendar,
+        # Agent sources may reference provider="google" for calendar,
         # or provider="gmail" for email — but platform_content stores
         # platform="calendar" and platform="gmail" respectively.
         platform = provider
@@ -714,7 +714,7 @@ async def get_content_for_deliverable(
             else:
                 platform = "calendar"
 
-        # Normalize gmail resource_id: deliverable sources may use "INBOX"
+        # Normalize gmail resource_id: agent sources may use "INBOX"
         # but platform_content stores "label:INBOX"
         query_resource_id = resource_id
         if platform == "gmail" and not resource_id.startswith("label:"):
@@ -789,7 +789,7 @@ async def get_content_for_deliverable(
 async def get_content_summary_for_generation(
     db_client,
     user_id: str,
-    deliverable_sources: list[dict],
+    agent_sources: list[dict],
     max_items: int = 100,
 ) -> tuple[str, list[str]]:
     """
@@ -799,11 +799,11 @@ async def get_content_summary_for_generation(
         Tuple of (formatted_string, list_of_content_ids)
         The content_ids can be used to mark content as retained after synthesis.
     """
-    items = await get_content_for_deliverable(
+    items = await get_content_for_agent(
         db_client=db_client,
         user_id=user_id,
-        deliverable_sources=deliverable_sources,
-        limit_per_source=max_items // max(len(deliverable_sources), 1),
+        agent_sources=agent_sources,
+        limit_per_source=max_items // max(len(agent_sources), 1),
     )
 
     if not items:
@@ -905,7 +905,7 @@ async def cleanup_expired_content(db_client, batch_size: int = 1000) -> int:
 async def has_fresh_content_since(
     db_client,
     user_id: str,
-    deliverable_sources: list[dict],
+    agent_sources: list[dict],
     since: datetime,
 ) -> tuple[bool, int]:
     """
@@ -914,17 +914,17 @@ async def has_fresh_content_since(
     Args:
         db_client: Supabase client
         user_id: User UUID
-        deliverable_sources: List of source configs from deliverable
+        agent_sources: List of source configs from agent
         since: Timestamp to check against
 
     Returns:
         Tuple of (has_fresh_content, count_of_new_items)
     """
-    if not deliverable_sources:
+    if not agent_sources:
         return False, 0
 
     source_filters = []
-    for source in deliverable_sources:
+    for source in agent_sources:
         provider = source.get("provider") or source.get("platform")
         resource_id = source.get("resource_id")
         if provider and resource_id:

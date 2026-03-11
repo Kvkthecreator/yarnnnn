@@ -31,8 +31,8 @@ MEMORY_ENTRY_FILTER = "key.like.fact:%,key.like.instruction:%,key.like.preferenc
 FULL_RESET_USER_TABLES: tuple[str, ...] = (
     "activity_log",
     "chat_sessions",
-    "deliverable_proposals",
-    "deliverables",  # Cascades deliverable_versions/export prefs/delivery logs
+    "agent_proposals",
+    "agents",  # Cascades agent_runs/export prefs/delivery logs
     "destination_delivery_log",
     "event_trigger_log",
     "export_log",
@@ -45,7 +45,7 @@ FULL_RESET_USER_TABLES: tuple[str, ...] = (
     "project_resources",
     "slack_user_cache",
     "sync_registry",
-    "synthesizer_context_log",
+    "agent_context_log",
     "user_interaction_patterns",
     "user_memory",
     "user_notification_preferences",
@@ -76,8 +76,8 @@ class DangerZoneStats(BaseModel):
     documents: int
 
     # Content subtotals
-    deliverables: int
-    deliverable_versions: int
+    agents: int
+    agent_runs: int
 
     # Platform content (ADR-072)
     platform_content: int
@@ -100,15 +100,15 @@ class OperationResult(BaseModel):
 
 class NotificationPreferences(BaseModel):
     """User notification preferences for email."""
-    email_deliverable_ready: bool = True
-    email_deliverable_failed: bool = True
+    email_agent_ready: bool = True
+    email_agent_failed: bool = True
     email_suggestion_created: bool = True
 
 
 class NotificationPreferencesUpdate(BaseModel):
     """Partial update for notification preferences."""
-    email_deliverable_ready: Optional[bool] = None
-    email_deliverable_failed: Optional[bool] = None
+    email_agent_ready: Optional[bool] = None
+    email_agent_failed: Optional[bool] = None
     email_suggestion_created: Optional[bool] = None
 
 
@@ -184,29 +184,29 @@ def _delete_rows_for_user(
         raise
 
 
-def _get_user_deliverable_ids(client, user_id: str) -> list[str]:
-    result = client.table("deliverables").select("id").eq("user_id", user_id).execute()
+def _get_user_agent_ids(client, user_id: str) -> list[str]:
+    result = client.table("agents").select("id").eq("user_id", user_id).execute()
     return [d["id"] for d in (result.data or [])]
 
 
 def _delete_export_preferences_for_user(client, user_id: str) -> int:
     """
-    Delete deliverable_export_preferences for all deliverables owned by user.
-    Table has no user_id column, so we resolve via deliverable IDs.
+    Delete agent_export_preferences for all agents owned by user.
+    Table has no user_id column, so we resolve via agent IDs.
     """
-    deliverable_ids = _get_user_deliverable_ids(client, user_id)
-    if not deliverable_ids:
+    agent_ids = _get_user_agent_ids(client, user_id)
+    if not agent_ids:
         return 0
 
     count_result = (
-        client.table("deliverable_export_preferences")
+        client.table("agent_export_preferences")
         .select("*", count="exact")
-        .in_("deliverable_id", deliverable_ids)
+        .in_("agent_id", agent_ids)
         .execute()
     )
     deleted_count = count_result.count or 0
     if deleted_count > 0:
-        client.table("deliverable_export_preferences").delete().in_("deliverable_id", deliverable_ids).execute()
+        client.table("agent_export_preferences").delete().in_("agent_id", agent_ids).execute()
     return deleted_count
 
 
@@ -228,8 +228,8 @@ async def get_notification_preferences(auth: UserClient) -> NotificationPreferen
         if result.data and len(result.data) > 0:
             prefs = result.data[0]
             return NotificationPreferences(
-                email_deliverable_ready=prefs.get("email_deliverable_ready", True),
-                email_deliverable_failed=prefs.get("email_deliverable_failed", True),
+                email_agent_ready=prefs.get("email_agent_ready", True),
+                email_agent_failed=prefs.get("email_agent_failed", True),
                 email_suggestion_created=prefs.get("email_suggestion_created", True),
             )
 
@@ -273,8 +273,8 @@ async def update_notification_preferences(
             # Insert new row with defaults + updates
             insert_data = {
                 "user_id": user_id,
-                "email_deliverable_ready": True,
-                "email_deliverable_failed": True,
+                "email_agent_ready": True,
+                "email_agent_failed": True,
                 "email_suggestion_created": True,
                 **update_data
             }
@@ -324,24 +324,24 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         documents = client.table("filesystem_documents").select("*", count="exact").eq("user_id", user_id).execute()
         documents_count = documents.count or 0
 
-        # Count deliverables (exclude archived)
-        deliverables = (
-            client.table("deliverables")
+        # Count agents (exclude archived)
+        agents = (
+            client.table("agents")
             .select("*", count="exact")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
         )
-        deliverables_count = deliverables.count or 0
+        agents_count = agents.count or 0
 
-        # Count deliverable versions (single query instead of N+1).
-        deliverable_ids = _get_user_deliverable_ids(client, user_id)
+        # Count agent versions (single query instead of N+1).
+        agent_ids = _get_user_agent_ids(client, user_id)
         versions_count = 0
-        if deliverable_ids:
+        if agent_ids:
             versions = (
-                client.table("deliverable_versions")
+                client.table("agent_runs")
                 .select("*", count="exact")
-                .in_("deliverable_id", deliverable_ids)
+                .in_("agent_id", agent_ids)
                 .execute()
             )
             versions_count = versions.count or 0
@@ -370,8 +370,8 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             chat_sessions=chat_sessions_count,
             memories=memories_count,
             documents=documents_count,
-            deliverables=deliverables_count,
-            deliverable_versions=versions_count,
+            agents=agents_count,
+            agent_runs=versions_count,
             platform_content=platform_content_count,
             platform_connections=integrations_count,
             integration_import_jobs=import_jobs_count,
@@ -473,7 +473,7 @@ async def clear_all_documents(auth: UserClient) -> OperationResult:
 @router.delete("/account/content")
 async def clear_all_content(auth: UserClient) -> OperationResult:
     """
-    Delete content-generation artifacts and deliverables.
+    Delete content-generation artifacts and agents.
     Keeps context sources and account-level settings intact.
     """
     user_id = auth.user_id
@@ -482,20 +482,20 @@ async def clear_all_content(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
-        # Deliverable-related planning and execution traces.
-        deleted["deliverable_proposals"] = _delete_rows_for_user(client, "deliverable_proposals", user_id)
+        # Agent-related planning and execution traces.
+        deleted["agent_proposals"] = _delete_rows_for_user(client, "agent_proposals", user_id)
         deleted["user_interaction_patterns"] = _delete_rows_for_user(client, "user_interaction_patterns", user_id)
         deleted["event_trigger_log"] = _delete_rows_for_user(client, "event_trigger_log", user_id)
         deleted["trigger_event_log"] = _delete_rows_for_user(client, "trigger_event_log", user_id, optional=True)
 
-        # Deliverables cascade to versions + export preferences + delivery logs.
-        deleted["deliverables"] = _delete_rows_for_user(client, "deliverables", user_id)
+        # Agents cascade to versions + export preferences + delivery logs.
+        deleted["agents"] = _delete_rows_for_user(client, "agents", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all content: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['deliverables']} deliverables and related content history",
+            message=f"Cleared {deleted['agents']} agents and related content history",
             deleted=deleted
         )
     except Exception as e:

@@ -17,10 +17,10 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
-### 085 — Deliverable Scoped Context (2026-03-03) ✅
+### 085 — Agent Scoped Context (2026-03-03) ✅
 
-- Adds `deliverable_instructions` (TEXT), `deliverable_memory` (JSONB), `mode` (TEXT) to `deliverables`
-- Adds `deliverable_id` (UUID FK → deliverables) to `chat_sessions` with partial index
+- Adds `agent_instructions` (TEXT), `agent_memory` (JSONB), `mode` (TEXT) to `agents`
+- Adds `agent_id` (UUID FK → agents) to `chat_sessions` with partial index
 - CHECK constraint: `mode IN ('recurring', 'goal')`
 - ADR-087 Phase 1: Schema + read path wiring
 
@@ -91,8 +91,8 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ### 073 — Drop governance columns (2026-02-19) ✅
 
-- Removes `governance` and `governance_ceiling` columns from `deliverables`
-- ADR-066 removed governance gates (delivery-first for all deliverables)
+- Removes `governance` and `governance_ceiling` columns from `agents`
+- ADR-066 removed governance gates (delivery-first for all agents)
 - Columns were marked deprecated on 2026-02-19, now fully removed
 - CLAUDE.md discipline: "Delete legacy code when replacing with new implementation"
 
@@ -110,15 +110,15 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ### 071 — Signal history table (2026-02-19) ✅
 
 - Creates `signal_history` table for per-signal deduplication tracking
-- Schema: `(user_id, signal_type, signal_ref, last_triggered_at, deliverable_id, metadata)`
+- Schema: `(user_id, signal_type, signal_ref, last_triggered_at, agent_id, metadata)`
 - UNIQUE constraint on `(user_id, signal_type, signal_ref)`
-- Prevents re-creating signal-emergent deliverables for same signal within deduplication windows
+- Prevents re-creating signal-emergent agents for same signal within deduplication windows
 - Deduplication windows: meeting_prep (24h), silence_alert (7d), contact_drift (14d)
 - ADR-068 Phase 4
 
 ---
 
-### 070 — ADR-068 deliverables.origin column (2026-02-19) ✅
+### 070 — ADR-068 agents.origin column (2026-02-19) ✅
 
 - Adds `origin TEXT NOT NULL DEFAULT 'user_configured'` with CHECK constraint `('user_configured', 'analyst_suggested', 'signal_emergent')`
 - All existing rows default to `user_configured`
@@ -135,24 +135,24 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
-### 064 — Extend deliverable_type CHECK constraint (2026-02-19) ✅
+### 064 — Extend agent_type CHECK constraint (2026-02-19) ✅
 
-- Drops and recreates `deliverables_deliverable_type_check` with all 25 types from `TYPE_TIERS`
+- Drops and recreates `agents_agent_type_check` with all 25 types from `TYPE_TIERS`
 - Previously missing: `slack_channel_digest`, `slack_standup`, `gmail_inbox_brief`, `notion_page_summary`, `meeting_prep`, `weekly_calendar_preview`, `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`, `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`
-- These were accepted by backend/frontend but rejected by DB, causing 500 on deliverable create
+- These were accepted by backend/frontend but rejected by DB, causing 500 on agent create
 
 ---
 
 ### 063 — Extend activity_log event_type CHECK constraint (2026-02-19) ✅
 
-- Adds `integration_connected`, `integration_disconnected`, `deliverable_approved`, `deliverable_rejected` to `activity_log_event_type_check`
-- ADR-063: Activity log lifecycle events for OAuth and deliverable review
+- Adds `integration_connected`, `integration_disconnected`, `agent_approved`, `agent_rejected` to `activity_log_event_type_check`
+- ADR-063: Activity log lifecycle events for OAuth and agent review
 
 ---
 
 ### 062 — Delivery-first status (2026-02-19) ✅
 
-- Adds `delivered` and `failed` statuses to `deliverable_versions_status_check`
+- Adds `delivered` and `failed` statuses to `agent_runs_status_check`
 - ADR-066: Delivery-First, No Governance
 
 ---
@@ -169,7 +169,7 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ### 060 — Create activity_log table (2026-02-18) ✅
 
 - Creates `activity_log(user_id, event_type, event_ref, summary, metadata, created_at)`
-- event_types: `deliverable_run`, `memory_written`, `platform_synced`, `chat_session`
+- event_types: `agent_run`, `memory_written`, `platform_synced`, `chat_session`
 - RLS: users SELECT own rows; INSERT/UPDATE/DELETE service-role only (append-only)
 - ADR-063: Activity layer in four-layer model
 
@@ -183,7 +183,7 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ### 058 — Fix SECURITY DEFINER view (2026-02-18) ✅
 
-- Recreates `deliverable_type_metrics` view with `security_invoker = true`
+- Recreates `agent_type_metrics` view with `security_invoker = true`
 
 ---
 
@@ -197,8 +197,8 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ### 051–054 — ADR-060 Background Conversation Analyst (2026-02-16/17) ✅
 
-- Adds `suggested` status to `deliverable_versions`
-- Adds notification preference for suggested deliverables
+- Adds `suggested` status to `agent_runs`
+- Adds notification preference for suggested agents
 - Adds `get_active_users_for_analysis()` RPC
 - Adds cold-start tracking to `user_notification_preferences`
 
@@ -228,4 +228,4 @@ Note: knowledge_* tables created here were dropped in 055–057.
 Notable milestones:
 - 041: `notifications` + `event_trigger_log` tables (ADR-040)
 - 039: Calendar type classification (`meeting_prep`, `weekly_calendar_preview`)
-- 037: Deliverable type classification + `deliverable_proposals` + `user_interaction_patterns`
+- 037: Agent type classification + `agent_proposals` + `user_interaction_patterns`

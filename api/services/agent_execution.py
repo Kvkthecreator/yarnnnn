@@ -1,11 +1,11 @@
 """
-Deliverable Execution Service - ADR-042 Simplified Flow + ADR-066 Delivery-First
+Agent Execution Service - ADR-042 Simplified Flow + ADR-066 Delivery-First
 
-Single Execute call for deliverable generation with immediate delivery (no approval gate).
+Single Execute call for agent generation with immediate delivery (no approval gate).
 
 Flow:
-  Execute(action="deliverable.generate", target="deliverable:uuid")
-    → check_deliverable_freshness() (ADR-049)
+  Execute(action="agent.generate", target="agent:uuid")
+    → check_agent_freshness() (ADR-049)
     → strategy.gather_context() (ADR-045 + ADR-073)
     → generate_draft_inline()
     → mark_content_retained() (ADR-073)
@@ -19,17 +19,17 @@ ADR-049 Integration:
 - Source snapshots recorded for audit trail
 
 ADR-066 Integration:
-- No governance/approval gate - deliverables deliver immediately
+- No governance/approval gate - agents deliver immediately
 - Version status: generating → delivered | failed
 - Governance field ignored (backwards compatibility)
 
 This module replaces:
-- execute_deliverable_pipeline() - 3-step orchestrator
+- execute_agent_pipeline() - 3-step orchestrator
 - execute_gather_step() - separate gather work_ticket
 - execute_synthesize_step() - separate synthesize work_ticket
 - execute_stage_step() - validation/staging step
 
-Preserves from deliverable_pipeline.py:
+Preserves from agent_pipeline.py:
 - Type-specific prompts (TYPE_PROMPTS, build_type_prompt)
 - Output validation (validate_output)
 - Past versions context (get_past_versions_context)
@@ -69,7 +69,7 @@ def normalize_destination_for_delivery(
     fall back to sending to user's registered email address.
 
     Args:
-        destination: The deliverable's destination config
+        destination: The agent's destination config
         user_email: User's email address
 
     Returns:
@@ -110,12 +110,12 @@ def normalize_destination_for_delivery(
     return destination
 
 
-async def get_next_version_number(client, deliverable_id: str) -> int:
-    """Get the next version number for a deliverable."""
+async def get_next_run_number(client, agent_id: str) -> int:
+    """Get the next version number for a agent."""
     result = (
-        client.table("deliverable_versions")
+        client.table("agent_runs")
         .select("version_number")
-        .eq("deliverable_id", deliverable_id)
+        .eq("agent_id", agent_id)
         .order("version_number", desc=True)
         .limit(1)
         .execute()
@@ -127,7 +127,7 @@ async def get_next_version_number(client, deliverable_id: str) -> int:
 
 async def create_version_record(
     client,
-    deliverable_id: str,
+    agent_id: str,
     version_number: int,
 ) -> dict:
     """Create a new version record in 'generating' status."""
@@ -135,10 +135,10 @@ async def create_version_record(
     now = datetime.now(timezone.utc).isoformat()
 
     result = (
-        client.table("deliverable_versions")
+        client.table("agent_runs")
         .insert({
-            "id": version_id,
-            "deliverable_id": deliverable_id,
+            "id": run_id,
+            "agent_id": agent_id,
             "version_number": version_number,
             "status": "generating",
             "created_at": now,
@@ -155,10 +155,10 @@ async def create_version_record(
 
 
 def _build_headless_system_prompt(
-    deliverable_type: str,
+    agent_type: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
-    deliverable: Optional[dict] = None,
+    agent: Optional[dict] = None,
     user_context: Optional[list] = None,
     learned_preferences: Optional[str] = None,
 ) -> str:
@@ -168,24 +168,24 @@ def _build_headless_system_prompt(
     ADR-101 prompt composition order:
       1. Output Rules
       2. User Context (profile + preferences from user_memory)
-      3. Directives (deliverable_instructions)
+      3. Directives (agent_instructions)
       4. Memory (observations, goal, review_log)
       5. Feedback (learned preferences from past version edits)
       6. Tool Usage guidance
       7. Trigger Context (signal/proactive)
 
     Args:
-        deliverable_type: The deliverable type (digest, brief, status, etc.)
+        agent_type: The agent type (digest, brief, status, etc.)
         trigger_context: Optional trigger info with signal reasoning
         research_directive: Optional research instruction for research/hybrid types
-        deliverable: Optional deliverable dict with deliverable_instructions and deliverable_memory
+        agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
         learned_preferences: Optional formatted string from get_past_versions_context()
 
     Returns:
         Complete system prompt string
     """
-    prompt = f"""You are generating a {deliverable_type} deliverable.
+    prompt = f"""You are generating a {agent_type} agent.
 
 ## Output Rules
 - Follow the format and instructions in the user message exactly.
@@ -210,20 +210,20 @@ def _build_headless_system_prompt(
         if context_lines:
             prompt += "\n\n## User Context\n" + "\n".join(context_lines)
 
-    # ADR-087: Inject deliverable-scoped instructions and memory
-    if deliverable:
-        instructions = (deliverable.get("deliverable_instructions") or "").strip()
+    # ADR-087: Inject agent-scoped instructions and memory
+    if agent:
+        instructions = (agent.get("agent_instructions") or "").strip()
         if instructions:
             prompt += f"""
 
-## Deliverable Instructions
-The user has set these behavioral directives for this deliverable:
+## Agent Instructions
+The user has set these behavioral directives for this agent:
 {instructions}"""
 
-        memory = deliverable.get("deliverable_memory") or {}
+        memory = agent.get("agent_memory") or {}
         memory_parts = []
 
-        # Goal (for goal-mode deliverables)
+        # Goal (for goal-mode agents)
         goal = memory.get("goal")
         if goal:
             desc = goal.get("description", "")
@@ -247,7 +247,7 @@ The user has set these behavioral directives for this deliverable:
                 memory_parts.append(f"- {entry.get('date', '')}: {entry.get('note', '')}")
 
         if memory_parts:
-            prompt += "\n\n## Deliverable Memory\n" + "\n".join(memory_parts)
+            prompt += "\n\n## Agent Memory\n" + "\n".join(memory_parts)
 
     # ADR-101: Inject learned preferences (feedback from past version edits)
     if learned_preferences:
@@ -264,15 +264,15 @@ The user has set these behavioral directives for this deliverable:
 You have investigation tools available: Search, Read, List, WebSearch, GetSystemState.
 - Use **WebSearch** to conduct web research as described above.
 - Use **Search** or **Read** to cross-reference with the user's platform data if provided.
-- Conduct 2-4 targeted searches, then synthesize findings into the deliverable format.
-- After researching, generate the deliverable in a single pass — do not search further."""
+- Conduct 2-4 targeted searches, then synthesize findings into the agent format.
+- After researching, generate the agent in a single pass — do not search further."""
     else:
         prompt += """
 
 ## Tool Usage (Headless Mode)
 You have read-only investigation tools available: Search, Read, List, WebSearch, GetSystemState.
-- Use tools ONLY if the gathered context in the user message is clearly insufficient to produce the deliverable.
-- Prefer generating from the provided context — most deliverables have enough.
+- Use tools ONLY if the gathered context in the user message is clearly insufficient to produce the agent.
+- Prefer generating from the provided context — most agents have enough.
 - If you do use a tool, do so in the first turn, then generate in the next.
 - NEVER use tools to stall — if context is adequate, generate immediately."""
 
@@ -285,13 +285,13 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
             review_decision = trigger_context.get("review_decision", {})
             review_note = review_decision.get("note", "")
             if review_note:
-                prompt += f"\n\n## Review Context\nThis deliverable was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point. The review pass already identified these themes — focus on synthesizing insights from the gathered context above rather than re-investigating."
+                prompt += f"\n\n## Review Context\nThis agent was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point. The review pass already identified these themes — focus on synthesizing insights from the gathered context above rather than re-investigating."
 
         # Signal processing: forward signal reasoning
         signal_reasoning = trigger_context.get("signal_reasoning", "")
         signal_ctx = trigger_context.get("signal_context", {})
         if signal_reasoning:
-            prompt += f"\n\n## Signal Context\nThis deliverable was triggered by signal processing because:\n{signal_reasoning}"
+            prompt += f"\n\n## Signal Context\nThis agent was triggered by signal processing because:\n{signal_reasoning}"
         if signal_ctx:
             entity = signal_ctx.get("entity", "")
             platforms = signal_ctx.get("platforms", [])
@@ -315,7 +315,7 @@ HEADLESS_TOOL_ROUNDS = {
 async def generate_draft_inline(
     client,
     user_id: str,
-    deliverable: dict,
+    agent: dict,
     gathered_context: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
@@ -325,7 +325,7 @@ async def generate_draft_inline(
 
     The agent has read-only tools (Search, Read, List, WebSearch,
     GetSystemState) available for investigation when gathered context
-    is insufficient. Most deliverables generate in a single turn
+    is insufficient. Most agents generate in a single turn
     without tool use.
 
     ADR-042: Replaces execute_synthesize_step(). No separate work_ticket.
@@ -339,16 +339,16 @@ async def generate_draft_inline(
         get_tools_for_mode,
         create_headless_executor,
     )
-    from services.deliverable_pipeline import (
+    from services.agent_pipeline import (
         build_type_prompt,
         validate_output,
         get_past_versions_context,
     )
 
-    deliverable_id = deliverable.get("id")
-    deliverable_type = deliverable.get("deliverable_type", "custom")
-    type_config = deliverable.get("type_config", {})
-    recipient_context = deliverable.get("recipient_context", {})
+    agent_id = agent.get("id")
+    agent_type = agent.get("agent_type", "custom")
+    type_config = agent.get("type_config", {})
+    recipient_context = agent.get("recipient_context", {})
 
     # Format recipient context
     recipient_str = ""
@@ -364,14 +364,14 @@ async def generate_draft_inline(
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
     # Get past versions context for feedback patterns
-    past_versions = await get_past_versions_context(client, deliverable_id) if deliverable_id else ""
+    past_versions = await get_past_versions_context(client, agent_id) if agent_id else ""
 
     # Build type-specific prompt (user message)
     # ADR-101: past_versions moved to system prompt as learned_preferences
     prompt = build_type_prompt(
-        deliverable_type=deliverable_type,
+        agent_type=agent_type,
         config=type_config,
-        deliverable=deliverable,
+        agent=agent,
         gathered_context=gathered_context,
         recipient_text=recipient_str,
         past_versions="",
@@ -397,25 +397,25 @@ async def generate_draft_inline(
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
     # ADR-080/081/087/101: Headless system prompt with tool usage, research directive,
-    # deliverable-scoped instructions + memory, learned preferences, and user context
+    # agent-scoped instructions + memory, learned preferences, and user context
     system_prompt = _build_headless_system_prompt(
-        deliverable_type, trigger_context, research_directive, deliverable, user_context,
+        agent_type, trigger_context, research_directive, agent, user_context,
         learned_preferences=past_versions,
     )
 
     # ADR-081: Binding-aware tool round limit
-    classification = deliverable.get("type_classification", {})
+    classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
     max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(binding, 3)
 
     # Brief (meeting prep) needs more rounds for per-attendee research + WebSearch
-    if deliverable_type == "brief":
+    if agent_type == "brief":
         max_tool_rounds = max(max_tool_rounds, 5)
 
     # ADR-080: Mode-gated tools and executor
-    # ADR-092: Pass deliverable sources so headless RefreshPlatformContent can scope to them
+    # ADR-092: Pass agent sources so headless RefreshPlatformContent can scope to them
     headless_tools = get_tools_for_mode("headless")
-    executor = create_headless_executor(client, user_id, deliverable_sources=deliverable.get("sources"))
+    executor = create_headless_executor(client, user_id, agent_sources=agent.get("sources"))
 
     import json
 
@@ -468,7 +468,7 @@ async def generate_draft_inline(
                 # Force a final synthesis call with no tools available
                 logger.info("[GENERATE] Forcing final synthesis call (no tools)")
                 messages.append({"role": "assistant", "content": response.text or ""})
-                messages.append({"role": "user", "content": "You have reached the tool limit. Please synthesize all the information gathered so far and produce the final deliverable now. Do not request any more tools."})
+                messages.append({"role": "user", "content": "You have reached the tool limit. Please synthesize all the information gathered so far and produce the final agent now. Do not request any more tools."})
                 final_response = await chat_completion_with_tools(
                     messages=messages,
                     system=system_prompt,
@@ -517,11 +517,11 @@ async def generate_draft_inline(
             raise ValueError("Agent produced empty draft")
 
         # Validate output (non-blocking - just log warnings)
-        validation = validate_output(deliverable_type, draft, type_config)
+        validation = validate_output(agent_type, draft, type_config)
         if not validation.get("valid"):
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
 
-        # ADR-101: Return draft + token usage for per-deliverable cost tracking
+        # ADR-101: Return draft + token usage for per-agent cost tracking
         usage = {
             "input_tokens": total_input_tokens,
             "output_tokens": total_output_tokens,
@@ -553,21 +553,21 @@ async def update_version_for_delivery(
     }
     if metadata:
         update["metadata"] = metadata
-    client.table("deliverable_versions").update(update).eq("id", version_id).execute()
+    client.table("agent_runs").update(update).eq("id", version_id).execute()
 
 
 # =============================================================================
 # Main Entry Point - ADR-042, ADR-045, ADR-066 Delivery-First
 # =============================================================================
 
-async def execute_deliverable_generation(
+async def execute_agent_generation(
     client,
     user_id: str,
-    deliverable: dict,
+    agent: dict,
     trigger_context: Optional[dict] = None,
 ) -> dict:
     """
-    Execute deliverable generation with immediate delivery (no approval gate).
+    Execute agent generation with immediate delivery (no approval gate).
 
     ADR-042: Simplified single-call flow
     ADR-045: Strategy selection based on type_classification.binding
@@ -577,28 +577,28 @@ async def execute_deliverable_generation(
     Args:
         client: Supabase client
         user_id: User UUID
-        deliverable: Full deliverable dict (from database)
+        agent: Full agent dict (from database)
         trigger_context: Optional trigger info (schedule, event, manual)
 
     Returns:
-        Result dict with version_id, status, message
+        Result dict with run_id, status, message
         Status is 'delivered' or 'failed' (no 'staged' per ADR-066)
     """
     from services.execution_strategies import get_execution_strategy
     from services.freshness import (
-        check_deliverable_freshness,
+        check_agent_freshness,
         record_source_snapshots,
     )
 
-    deliverable_id = deliverable.get("id")
-    deliverable_type = deliverable.get("deliverable_type", "custom")
-    title = deliverable.get("title", "Untitled")
+    agent_id = agent.get("id")
+    agent_type = agent.get("agent_type", "custom")
+    title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
-    classification = deliverable.get("type_classification", {})
+    classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
 
     logger.info(
-        f"[EXEC] Starting: {title} ({deliverable_id}), "
+        f"[EXEC] Starting: {title} ({agent_id}), "
         f"trigger={trigger_type}, binding={binding}"
     )
 
@@ -607,7 +607,7 @@ async def execute_deliverable_generation(
 
     try:
         # ADR-049: Check source freshness before generation
-        freshness_result = await check_deliverable_freshness(client, user_id, deliverable)
+        freshness_result = await check_agent_freshness(client, user_id, agent)
         if not freshness_result["all_fresh"]:
             stale_count = len(freshness_result["stale_sources"])
             never_synced_count = len(freshness_result["never_synced"])
@@ -618,15 +618,15 @@ async def execute_deliverable_generation(
             # Targeted sync is handled separately if user requests it
 
         # 1. Get next version number
-        next_version = await get_next_version_number(client, deliverable_id)
+        next_version = await get_next_run_number(client, agent_id)
 
         # 2. Create version record (generating)
-        version = await create_version_record(client, deliverable_id, next_version)
+        version = await create_version_record(client, agent_id, next_version)
         version_id = version["id"]
 
         # 3. ADR-045: Select and execute strategy for context gathering
-        strategy = get_execution_strategy(deliverable)
-        gathered_result = await strategy.gather_context(client, user_id, deliverable)
+        strategy = get_execution_strategy(agent)
+        gathered_result = await strategy.gather_context(client, user_id, agent)
 
         # Convert strategy result to legacy format for compatibility
         gathered_context = gathered_result.content
@@ -642,7 +642,7 @@ async def execute_deliverable_generation(
         # 4. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
         research_directive = context_summary.get("research_directive")
         draft, usage = await generate_draft_inline(
-            client, user_id, deliverable, gathered_context,
+            client, user_id, agent, gathered_context,
             trigger_context, research_directive,
         )
 
@@ -658,7 +658,7 @@ async def execute_deliverable_generation(
             "sources_used": gathered_result.sources_used,
             "strategy": context_summary.get("strategy", "unknown"),
         }
-        await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
+        await update_version_for_delivery(client, run_id, draft, metadata=version_metadata)
 
         # ADR-073: Mark consumed platform content as retained
         if gathered_result.platform_content_ids:
@@ -667,17 +667,17 @@ async def execute_deliverable_generation(
                 await mark_content_retained(
                     client,
                     gathered_result.platform_content_ids,
-                    reason="deliverable_execution",
-                    ref=version_id,
+                    reason="agent_execution",
+                    ref=run_id,
                 )
             except Exception as e:
                 logger.warning(f"[EXEC] Failed to mark content retained: {e}")
 
         # ADR-049: Record source snapshots for audit trail
         # sources_used is a list of strings like "platform:slack", "other:document"
-        # Build snapshot from the deliverable's source configs
+        # Build snapshot from the agent's source configs
         sources_for_snapshot = []
-        for source in deliverable.get("sources", []):
+        for source in agent.get("sources", []):
             if source.get("type") == "integration_import":
                 sources_for_snapshot.append({
                     "platform": source.get("provider"),
@@ -686,30 +686,30 @@ async def execute_deliverable_generation(
                     "user_id": user_id,
                 })
         await record_source_snapshots(
-            client, version_id, sources_for_snapshot,
+            client, run_id, sources_for_snapshot,
             content_ids=gathered_result.platform_content_ids,
         )
 
-        # 6. Update deliverable last_run_at
-        client.table("deliverables").update({
+        # 6. Update agent last_run_at
+        client.table("agents").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", deliverable_id).execute()
+        }).eq("id", agent_id).execute()
 
         # 7. ADR-066: Always attempt delivery (no governance check)
         # Email-first: normalize/fallback to user's email if destination incomplete
         # get_user_email requires service role (auth.admin API)
         from services.supabase import get_service_client as _get_svc
         user_email = get_user_email(_get_svc(), user_id)
-        raw_destination = deliverable.get("destination")
+        raw_destination = agent.get("destination")
         destination = normalize_destination_for_delivery(raw_destination, user_email)
 
-        # Update deliverable with normalized destination if it changed
+        # Update agent with normalized destination if it changed
         if destination and destination != raw_destination:
             try:
-                client.table("deliverables").update({
+                client.table("agents").update({
                     "destination": destination,
-                }).eq("id", deliverable_id).execute()
-                logger.info(f"[EXEC] Updated deliverable destination to email-first default")
+                }).eq("id", agent_id).execute()
+                logger.info(f"[EXEC] Updated agent destination to email-first default")
             except Exception:
                 pass  # Non-fatal
 
@@ -724,21 +724,21 @@ async def execute_deliverable_generation(
                 from services.delivery import get_delivery_service
                 delivery_service = get_delivery_service(client)
                 delivery_result = await delivery_service.deliver_version(
-                    version_id=version_id,
+                    run_id=run_id,
                     user_id=user_id,
                 )
                 if delivery_result.status.value == "success":
                     final_status = "delivered"
                     # Update version status to delivered
                     now = datetime.now(timezone.utc).isoformat()
-                    client.table("deliverable_versions").update({
+                    client.table("agent_runs").update({
                         "status": "delivered",
                         "delivered_at": now,
                     }).eq("id", version_id).execute()
                 else:
                     final_status = "failed"
                     delivery_error = delivery_result.error_message
-                    client.table("deliverable_versions").update({
+                    client.table("agent_runs").update({
                         "status": "failed",
                         "delivery_error": delivery_error,
                     }).eq("id", version_id).execute()
@@ -747,21 +747,21 @@ async def execute_deliverable_generation(
                 logger.error(f"[EXEC] Delivery failed: {e}")
                 final_status = "failed"
                 delivery_error = str(e)
-                client.table("deliverable_versions").update({
+                client.table("agent_runs").update({
                     "status": "failed",
                     "delivery_error": delivery_error,
                 }).eq("id", version_id).execute()
         else:
             # No destination configured - mark as delivered (content generated successfully)
             now = datetime.now(timezone.utc).isoformat()
-            client.table("deliverable_versions").update({
+            client.table("agent_runs").update({
                 "status": "delivered",
                 "delivered_at": now,
             }).eq("id", version_id).execute()
             logger.info(f"[EXEC] No destination - content ready (version={version_id})")
 
-        # ADR-102: Write deliverable output as yarnnn platform_content
-        # Closes the accumulation loop — deliverable outputs become searchable context
+        # ADR-102: Write agent output as yarnnn platform_content
+        # Closes the accumulation loop — agent outputs become searchable context
         if final_status == "delivered" and draft:
             try:
                 from services.platform_content import store_platform_content
@@ -770,24 +770,24 @@ async def execute_deliverable_generation(
                     db_client=_get_svc3(),
                     user_id=user_id,
                     platform="yarnnn",
-                    resource_id=str(deliverable_id),
-                    item_id=str(version_id),
+                    resource_id=str(agent_id),
+                    item_id=str(run_id),
                     content=draft,
-                    content_type=deliverable_type,
+                    content_type=agent_type,
                     resource_name=title,
                     title=f"{title} v{next_version}",
                     author="yarnnn",
                     is_user_authored=False,
                     metadata={
-                        "deliverable_type": deliverable_type,
-                        "mode": deliverable.get("mode"),
+                        "agent_type": agent_type,
+                        "mode": agent.get("mode"),
                         "version_number": next_version,
                         "strategy": strategy.strategy_name,
                     },
                     source_timestamp=datetime.now(timezone.utc),
                     retained=True,
                     retained_reason="yarnnn_output",
-                    retained_ref=str(version_id),
+                    retained_ref=str(run_id),
                 )
                 logger.info(f"[EXEC] ADR-102: Stored yarnnn_content for {title} v{next_version}")
             except Exception as e:
@@ -799,7 +799,7 @@ async def execute_deliverable_generation(
             f"status={final_status}, strategy={strategy.strategy_name}"
         )
 
-        # Activity log: record this deliverable run (ADR-063)
+        # Activity log: record this agent run (ADR-063)
         # Requires service role — activity_log has no user INSERT policy
         try:
             from services.activity_log import write_activity
@@ -807,13 +807,13 @@ async def execute_deliverable_generation(
             await write_activity(
                 client=_get_svc2(),
                 user_id=user_id,
-                event_type="deliverable_run",
+                event_type="agent_run",
                 summary=f"{title} v{next_version} {final_status}",
-                event_ref=version_id,
+                event_ref=run_id,
                 metadata={
-                    "deliverable_id": str(deliverable_id),
+                    "agent_id": str(agent_id),
                     "version_number": next_version,
-                    "deliverable_type": deliverable_type,  # ADR-064: For pattern detection
+                    "agent_type": agent_type,  # ADR-064: For pattern detection
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
                     "delivery_error": delivery_error,
@@ -826,7 +826,7 @@ async def execute_deliverable_generation(
 
         return {
             "success": final_status == "delivered",
-            "version_id": version_id,
+            "run_id": run_id,
             "version_number": next_version,
             "status": final_status,
             "message": f"Version {next_version} {final_status}" + (f": {delivery_error}" if delivery_error else ""),
@@ -840,7 +840,7 @@ async def execute_deliverable_generation(
         # ADR-066: Mark version as failed (not rejected)
         if version:
             try:
-                client.table("deliverable_versions").update({
+                client.table("agent_runs").update({
                     "status": "failed",
                     "delivery_error": str(e),
                 }).eq("id", version["id"]).execute()
@@ -849,7 +849,7 @@ async def execute_deliverable_generation(
 
         return {
             "success": False,
-            "version_id": version["id"] if version else None,
+            "run_id": version["id"] if version else None,
             "status": "failed",
             "message": str(e),
         }

@@ -35,12 +35,12 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   update_memory: "Updating memory",
   delete_memory: "Removing memory",
 
-  // Deliverable tools
-  list_deliverables: "Listing deliverables",
-  get_deliverable: "Getting deliverable",
-  create_deliverable: "Creating deliverable",
-  update_deliverable: "Updating deliverable",
-  run_deliverable: "Running deliverable",
+  // Agent tools
+  list_agents: "Listing agents",
+  get_agent: "Getting agent",
+  create_agent: "Creating agent",
+  update_agent: "Updating agent",
+  run_agent: "Running agent",
 
   // Platform operation tools (ADR-039)
   list_integrations: "Checking connected platforms",

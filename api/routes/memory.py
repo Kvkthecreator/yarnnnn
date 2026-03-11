@@ -71,8 +71,8 @@ class ContextEntry(BaseModel):
     value: str
     source: str
     confidence: float
-    source_ref: Optional[UUID] = None  # ADR-072: FK to source record (deliverable_version_id, session_id)
-    source_type: Optional[str] = None  # ADR-072: type of source (deliverable_feedback, conversation_extraction, pattern_analysis)
+    source_ref: Optional[UUID] = None  # ADR-072: FK to source record (agent_run_id, session_id)
+    source_type: Optional[str] = None  # ADR-072: type of source (agent_feedback, conversation_extraction, pattern_analysis)
     created_at: datetime
     updated_at: datetime
 
@@ -483,7 +483,7 @@ async def list_activity(
     Args:
         limit: Max items to return (default 50)
         days: Lookback window in days (default 30)
-        event_type: Filter by type (deliverable_run, memory_written, platform_synced, chat_session)
+        event_type: Filter by type (agent_run, memory_written, platform_synced, chat_session)
     """
     from datetime import timedelta
     from services.supabase import get_service_client

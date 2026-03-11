@@ -21,7 +21,7 @@ Building the MCP server surfaced an architectural insight: yarnnn is already a d
 
 LLMs — Claude, ChatGPT, Gemini — are already capable reasoners. What they lack is the user's accumulated work context. YARNNN has it because it does the unglamorous work of syncing, retaining, and compounding it. Surfaces — TP, MCP, Scheduler, REST API — are interchangeable ways to access and act on the platform's data.
 
-**Convergence proof:** `execute_deliverable_generation()` is called from 7+ locations across all surfaces. No surface has its own execution logic. The MCP server reuses platform services identically to TP.
+**Convergence proof:** `execute_agent_generation()` is called from 7+ locations across all surfaces. No surface has its own execution logic. The MCP server reuses platform services identically to TP.
 
 See `docs/architecture/platform-architecture.md` for the canonical architecture doc.
 
@@ -32,12 +32,12 @@ See `docs/architecture/platform-architecture.md` for the canonical architecture 
 The platform powers two distinct but complementary propositions:
 
 ### 1. Integrated Agent (TP)
-Full-loop execution with recursion. User stays inside yarnnn. Deliverables improve with each edit cycle because the system learns from corrections. The flywheel completes: **Connect → Accumulate → Produce → Learn.**
+Full-loop execution with recursion. User stays inside yarnnn. Agents improve with each edit cycle because the system learns from corrections. The flywheel completes: **Connect → Accumulate → Produce → Learn.**
 
 ### 2. Context Consolidation Layer (MCP / A2A)
-Yarnnn as the single source of truth across every LLM the user touches. External LLMs access accumulated context, signal processing, and deliverable execution via MCP tools. The flywheel runs **Connect → Accumulate → Produce**, with recursion attenuated (but potentially closable via future A2A protocols).
+Yarnnn as the single source of truth across every LLM the user touches. External LLMs access accumulated context, signal processing, and agent execution via MCP tools. The flywheel runs **Connect → Accumulate → Produce**, with recursion attenuated (but potentially closable via future A2A protocols).
 
-**Key difference — recursion:** TP has it, MCP doesn't. In TP, user edits to deliverables feed back into the system, improving subsequent versions. MCP users' edits happen in external LLMs and don't flow back to yarnnn. This means the two propositions are commercially distinct, not just different interfaces to the same thing.
+**Key difference — recursion:** TP has it, MCP doesn't. In TP, user edits to agents feed back into the system, improving subsequent versions. MCP users' edits happen in external LLMs and don't flow back to yarnnn. This means the two propositions are commercially distinct, not just different interfaces to the same thing.
 
 **Why MCP is still a moat despite missing recursion:** The consolidated backend orchestration — shared signal processing, unified data handling, cross-platform context semantics — creates value even without recursion. A user who connects yarnnn to both Claude and ChatGPT gets the same accumulated context in both, with shared memory and signals. No other tool does this.
 
@@ -56,7 +56,7 @@ Yarnnn as the single source of truth across every LLM the user touches. External
 ### Why TP as product experience:
 
 - **Recursion is TP-exclusive (for now).** The compounding quality thesis only works when the system observes user corrections.
-- **Feature expansion path.** Signal-emergent deliverables, cross-deliverable learning, workflow chaining require end-to-end observation.
+- **Feature expansion path.** Signal-emergent agents, cross-agent learning, workflow chaining require end-to-end observation.
 - **Universal fallback.** Not all users have MCP-enabled LLMs. TP works for anyone with a browser.
 
 ### The user journey:
@@ -68,7 +68,7 @@ MCP gets them in → platform accumulation creates stickiness → TP is the upgr
 
 **Layer 1 — Accumulation (universal):** Every day on yarnnn, the platform syncs, retains, and compounds work context. After 90 days, this doesn't exist anywhere else. Applies to all surfaces.
 
-**Layer 2 — Recursion (TP-specific):** Users who produce deliverables inside TP and edit them create a feedback loop. System learns preferences and correction patterns. Unavailable to MCP-only users today.
+**Layer 2 — Recursion (TP-specific):** Users who produce agents inside TP and edit them create a feedback loop. System learns preferences and correction patterns. Unavailable to MCP-only users today.
 
 **For investors:** Lead with accumulation (universal moat). Frame recursion as what deepens it for power users.
 
@@ -82,7 +82,7 @@ MCP gets them in → platform accumulation creates stickiness → TP is the upgr
 
 - **Know** (activation): Connect your tools to yarnnn. Connect yarnnn to Claude or ChatGPT. Your AI now knows your clients, your projects, your history. This is the first value moment — immediate, visceral, no new interface to learn.
 
-- **Do** (retention/expansion): Once your AI knows your work, it can do your work. Scheduled deliverables — status reports, client updates, meeting briefs — written from real activity, delivered on autopilot. This is the TP expansion path.
+- **Do** (retention/expansion): Once your AI knows your work, it can do your work. Scheduled agents — status reports, client updates, meeting briefs — written from real activity, delivered on autopilot. This is the TP expansion path.
 
 **"Know" is the hook. "Do" is what makes them pay and stay.**
 
@@ -182,7 +182,7 @@ These changes are NOT yet applied. They document what would change if the qualit
 
 2. **Activation sequencing UX:** Where does MCP connector setup appear in onboarding? (Open Question #3 in MCP-CONNECTORS.md.) If validated, Option B — but UX design is TBD.
 
-3. **Ad-hoc synthesis via MCP:** Should `search_content` return raw data or trigger ad-hoc deliverables? (Open Question #4.)
+3. **Ad-hoc synthesis via MCP:** Should `search_content` return raw data or trigger ad-hoc agents? (Open Question #4.)
 
 4. **Recursion gap:** Is there a lightweight mechanism to capture feedback from MCP interactions? Future A2A may close this, but should yarnnn build a bridge?
 

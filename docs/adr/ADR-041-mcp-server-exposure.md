@@ -14,7 +14,7 @@
 
 ## Context
 
-ADR-038 identified exposing YARNNN as an MCP server as an enhancement opportunity. This would enable Claude Code and other MCP clients to access YARNNN's context, deliverables, and execution capabilities.
+ADR-038 identified exposing YARNNN as an MCP server as an enhancement opportunity. This would enable Claude Code and other MCP clients to access YARNNN's context, agents, and execution capabilities.
 
 ### Current State
 
@@ -67,7 +67,7 @@ YARNNN MCP Server
 
 | Tier | Tools | Purpose | Priority |
 |------|-------|---------|----------|
-| **Tier 1** | 8 tools | Core value (context + deliverables) | MVP |
+| **Tier 1** | 8 tools | Core value (context + agents) | MVP |
 | **Tier 2** | 7 tools | Extended (work execution, domains) | Phase 2 |
 | **Tier 3** | 5+ tools | Advanced (sessions, integrations) | Future |
 
@@ -84,13 +84,13 @@ from mcp import Server, Tool, Resource
 from mcp.transports import StdioTransport
 
 class YarnnnMCPServer(Server):
-    """YARNNN MCP Server exposing context and deliverable tools."""
+    """YARNNN MCP Server exposing context and agent tools."""
 
     def __init__(self):
         super().__init__(
             name="yarnnn",
             version="1.0.0",
-            description="Access YARNNN context, memories, and deliverables"
+            description="Access YARNNN context, memories, and agents"
         )
         self._register_tools()
 
@@ -138,10 +138,10 @@ class YarnnnMCPServer(Server):
             }
         ))
 
-        # Deliverable tools
+        # Agent tools
         self.register_tool(Tool(
-            name="list_deliverables",
-            description="List user's recurring deliverables",
+            name="list_agents",
+            description="List user's recurring agents",
             parameters={
                 "type": "object",
                 "properties": {
@@ -153,38 +153,38 @@ class YarnnnMCPServer(Server):
         ))
 
         self.register_tool(Tool(
-            name="get_deliverable",
-            description="Get deliverable details with version history",
+            name="get_agent",
+            description="Get agent details with version history",
             parameters={
                 "type": "object",
                 "properties": {
-                    "deliverable_id": {"type": "string"}
+                    "agent_id": {"type": "string"}
                 },
-                "required": ["deliverable_id"]
+                "required": ["agent_id"]
             }
         ))
 
         self.register_tool(Tool(
             name="get_latest_version",
-            description="Get the latest generated version of a deliverable",
+            description="Get the latest generated version of a agent",
             parameters={
                 "type": "object",
                 "properties": {
-                    "deliverable_id": {"type": "string"}
+                    "agent_id": {"type": "string"}
                 },
-                "required": ["deliverable_id"]
+                "required": ["agent_id"]
             }
         ))
 
         self.register_tool(Tool(
-            name="run_deliverable",
-            description="Trigger ad-hoc deliverable generation",
+            name="run_agent",
+            description="Trigger ad-hoc agent generation",
             parameters={
                 "type": "object",
                 "properties": {
-                    "deliverable_id": {"type": "string"}
+                    "agent_id": {"type": "string"}
                 },
-                "required": ["deliverable_id"]
+                "required": ["agent_id"]
             }
         ))
 
@@ -235,9 +235,9 @@ def get_auth_from_env() -> AuthenticatedClient:
 from services.project_tools import (
     handle_list_memories,
     handle_create_memory,
-    handle_list_deliverables,
-    handle_get_deliverable,
-    handle_run_deliverable,
+    handle_list_agents,
+    handle_get_agent,
+    handle_run_agent,
 )
 
 class ToolHandlers:
@@ -268,9 +268,9 @@ class ToolHandlers:
         result.pop("ui_action", None)
         return result
 
-    async def list_deliverables(self, arguments: dict) -> dict:
-        """Adapter for list_deliverables."""
-        result = await handle_list_deliverables(self.auth, {
+    async def list_agents(self, arguments: dict) -> dict:
+        """Adapter for list_agents."""
+        result = await handle_list_agents(self.auth, {
             "status": arguments.get("status", "active"),
             "type": arguments.get("type"),
             "limit": arguments.get("limit", 20),
@@ -278,18 +278,18 @@ class ToolHandlers:
         result.pop("ui_action", None)
         return result
 
-    async def get_deliverable(self, arguments: dict) -> dict:
-        """Adapter for get_deliverable."""
-        result = await handle_get_deliverable(self.auth, {
-            "deliverable_id": arguments["deliverable_id"],
+    async def get_agent(self, arguments: dict) -> dict:
+        """Adapter for get_agent."""
+        result = await handle_get_agent(self.auth, {
+            "agent_id": arguments["agent_id"],
         })
         result.pop("ui_action", None)
         return result
 
-    async def run_deliverable(self, arguments: dict) -> dict:
-        """Adapter for run_deliverable."""
-        result = await handle_run_deliverable(self.auth, {
-            "deliverable_id": arguments["deliverable_id"],
+    async def run_agent(self, arguments: dict) -> dict:
+        """Adapter for run_agent."""
+        result = await handle_run_agent(self.auth, {
+            "agent_id": arguments["agent_id"],
         })
         result.pop("ui_action", None)
         return result
@@ -350,10 +350,10 @@ if __name__ == "__main__":
 | `get_memories` | handle_list_memories | Retrieve context |
 | `add_memory` | handle_create_memory | Store context |
 | `search_memories` | handle_list_memories + search | Semantic search |
-| `list_deliverables` | handle_list_deliverables | Discover deliverables |
-| `get_deliverable` | handle_get_deliverable | Full deliverable info |
-| `get_latest_version` | handle_get_deliverable | Latest output content |
-| `run_deliverable` | handle_run_deliverable | Trigger generation |
+| `list_agents` | handle_list_agents | Discover agents |
+| `get_agent` | handle_get_agent | Full agent info |
+| `get_latest_version` | handle_get_agent | Latest output content |
+| `run_agent` | handle_run_agent | Trigger generation |
 | `list_domains` | domains.list_domains | Context scopes |
 
 ### Tier 2: Extended Capabilities
@@ -363,8 +363,8 @@ if __name__ == "__main__":
 | `create_work` | Trigger work agents |
 | `get_work_status` | Check work progress |
 | `get_work_output` | Retrieve work results |
-| `create_deliverable` | Set up new recurring deliverable |
-| `update_deliverable` | Modify deliverable settings |
+| `create_agent` | Set up new recurring agent |
+| `update_agent` | Modify agent settings |
 | `get_domain_context` | Domain-specific memories |
 | `update_memory` | Modify existing memory |
 
@@ -387,7 +387,7 @@ if __name__ == "__main__":
 1. Create `/api/mcp/` directory structure
 2. Implement MCP server with stdio transport
 3. Implement authentication bridge
-4. Add 3 tools for POC: get_memories, list_deliverables, run_deliverable
+4. Add 3 tools for POC: get_memories, list_agents, run_agent
 5. Test with Claude Desktop manually
 
 ### Phase 2: Tier 1 Tools (2 weeks)
@@ -410,7 +410,7 @@ if __name__ == "__main__":
 
 1. Add Tier 2 tools (7 more)
 2. Add work execution tools
-3. Add deliverable creation
+3. Add agent creation
 4. Extended testing
 
 ---

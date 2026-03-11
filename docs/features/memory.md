@@ -22,7 +22,7 @@ Memory formation is **implicit** — TP doesn't announce when it's remembering s
 - Not a log of what YARNNN has done — that is Activity
 - Not generated output — that is Work
 - Not visible during conversation — memory writes happen in the background
-- Not deliverable-specific knowledge — that lives in `deliverable_instructions` (user-authored) and `deliverable_memory` (agent observations). See ADR-087.
+- Not agent-specific knowledge — that lives in `agent_instructions` (user-authored) and `agent_memory` (agent observations). See ADR-087.
 
 ---
 
@@ -53,7 +53,7 @@ Single flat key-value store. One row per fact. Defined in ADR-059.
 
 ## How Memory is written
 
-ADR-064, ADR-087 Phase 2: Memory is written by the **User Memory Service** (`api/services/memory.py`), explicitly scoped to global (cross-deliverable) user knowledge.
+ADR-064, ADR-087 Phase 2: Memory is written by the **User Memory Service** (`api/services/memory.py`), explicitly scoped to global (cross-agent) user knowledge.
 
 ### Write sources
 
@@ -67,8 +67,8 @@ ADR-064, ADR-087 Phase 2: Memory is written by the **User Memory Service** (`api
 **Conversation extraction** (`process_conversation()`): The nightly cron (`unified_scheduler.py`, midnight UTC) processes all TP sessions from the previous day. The User Memory Service reviews each conversation via LLM and extracts stable personal facts worth remembering. This is **not** triggered at real-time session end — it's a batch job. A preference stated in a conversation today will be in working memory by the next morning.
 
 **What was removed** (ADR-087 Phase 2):
-- `process_feedback()` — edit-diff heuristics from deliverable approvals. Superseded by the conversational iteration model: users refine output through TP chat and `deliverable_instructions`, not through approval-gate review.
-- `process_patterns()` — activity log pattern detection ("runs deliverables on Mondays"). Marginal value, speculative inference not worth the complexity.
+- `process_feedback()` — edit-diff heuristics from agent approvals. Superseded by the conversational iteration model: users refine output through TP chat and `agent_instructions`, not through approval-gate review.
+- `process_patterns()` — activity log pattern detection ("runs agents on Mondays"). Marginal value, speculative inference not worth the complexity.
 
 **Never written by**: Real-time tool calls during conversation. The explicit `create_memory` tool was removed in ADR-064.
 
@@ -106,7 +106,7 @@ This block is injected as part of the TP system prompt (~2,000 token budget tota
 | Does Memory grow automatically? | Yes — through implicit extraction from conversation |
 | What happens when a key conflicts? | Upsert on `(user_id, key)` — last write wins, with source priority (user_stated > tp_extracted) |
 | Is Memory persistent across sessions? | Yes — it's the only layer that is explicitly persistent and stable |
-| What about deliverable-specific learning? | Deliverable-specific context lives in `deliverable_instructions` (user-authored) and `deliverable_memory` JSONB (observations, goal). See ADR-087. |
+| What about agent-specific learning? | Agent-specific context lives in `agent_instructions` (user-authored) and `agent_memory` JSONB (observations, goal). See ADR-087. |
 
 ---
 
@@ -160,7 +160,7 @@ Users can add, edit, and delete Memory entries directly. Changes are immediate.
 ## Related
 
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Unified Memory Service (original three-source design)
-- [ADR-087](../adr/ADR-087-workspace-scoping-architecture.md) — Deliverable Scoped Context (Phase 2: simplified to conversation extraction only)
+- [ADR-087](../adr/ADR-087-workspace-scoping-architecture.md) — Agent Scoped Context (Phase 2: simplified to conversation extraction only)
 - [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design (user_memory)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview

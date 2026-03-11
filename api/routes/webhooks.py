@@ -223,7 +223,7 @@ async def process_slack_event(event_payload: dict):
     """
     Process a Slack event in the background.
 
-    Finds matching deliverables and triggers execution.
+    Finds matching agents and triggers execution.
     """
     from supabase import create_client
     from services.event_triggers import (
@@ -242,7 +242,7 @@ async def process_slack_event(event_payload: dict):
     try:
         supabase = create_client(supabase_url, supabase_key)
 
-        # Find matching deliverables
+        # Find matching agents
         matches = await handle_slack_event(supabase, event_payload)
 
         if matches:
@@ -340,7 +340,7 @@ async def process_gmail_notification(notification: dict, user_id: str):
     """
     Process a Gmail push notification in the background.
 
-    Finds matching deliverables and triggers execution.
+    Finds matching agents and triggers execution.
     """
     from supabase import create_client
     from services.event_triggers import (
@@ -359,7 +359,7 @@ async def process_gmail_notification(notification: dict, user_id: str):
     try:
         supabase = create_client(supabase_url, supabase_key)
 
-        # Find matching deliverables
+        # Find matching agents
         matches = await handle_gmail_event(supabase, notification, user_id)
 
         if matches:

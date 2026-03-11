@@ -1,22 +1,22 @@
-# ADR-031: Platform-Native Deliverable Architecture
+# ADR-031: Platform-Native Agent Architecture
 
 > **Status**: Accepted
 > **Created**: 2026-02-08
 > **Updated**: 2026-02-08 (Decisions hardened from discourse)
-> **Related**: ADR-028 (Destination-First), ADR-019 (Deliverable Types), ADR-030 (Context Extraction)
-> **Analysis**: [platform-native-deliverables.md](../analysis/platform-native-deliverables.md)
+> **Related**: ADR-028 (Destination-First), ADR-019 (Agent Types), ADR-030 (Context Extraction)
+> **Analysis**: [platform-native-agents.md](../analysis/platform-native-agents.md)
 
 ---
 
 ## Context
 
-YARNNN's current deliverable model treats platforms (Slack, Notion, Gmail) as:
+YARNNN's current agent model treats platforms (Slack, Notion, Gmail) as:
 1. **Input sources**: Places to extract context from
 2. **Output destinations**: Places to export content to
 
 This architecture is platform-agnostic by design—a status report is generated as markdown and converted for export. However, through building integration reads (ADR-027, ADR-030), a limitation emerged:
 
-**The deliverable doesn't understand the platform it's interacting with.**
+**The agent doesn't understand the platform it's interacting with.**
 
 This manifests as:
 - Generic outputs that don't feel native to their destination
@@ -28,7 +28,7 @@ This manifests as:
 
 ## Decision
 
-Evolve the deliverable model to be **platform-native**: deliverables that understand, respond to, and produce content native to their source and destination platforms.
+Evolve the agent model to be **platform-native**: agents that understand, respond to, and produce content native to their source and destination platforms.
 
 ### Core Principles
 
@@ -56,16 +56,16 @@ Extraction prompts (ADR-030) should capture platform-specific signals, not just 
 
 ### 2. Archetype Granularity (Hybrid)
 
-**Decision**: Use hybrid approach for deliverable types.
+**Decision**: Use hybrid approach for agent types.
 
 **New types** for conceptually-distinct archetypes:
 ```python
-deliverable_type: "slack_auto_reply" | "gmail_triage" | "slack_thread_synthesizer"
+agent_type: "slack_auto_reply" | "gmail_triage" | "slack_thread_synthesizer"
 ```
 
 **Variants** for platform-specific versions of existing types:
 ```python
-deliverable_type: "status_report"
+agent_type: "status_report"
 platform_variant: "slack_digest"
 ```
 
@@ -84,7 +84,7 @@ platform_variant: "slack_digest"
 - Calendar/schedule events
 - Session context
 - Time-bounded user notes
-- Recent deliverable outputs
+- Recent agent outputs
 
 ### 4. Implementation Sequence (Slack First, Vertical)
 
@@ -95,7 +95,7 @@ First archetype: **Slack Digest** (scheduled, read-only, low risk)
 - No event trigger infrastructure needed
 - Validates the model before higher-risk archetypes
 
-### 5. Deliverable-Specific Scoping
+### 5. Agent-Specific Scoping
 
 **Decision**: Each archetype has one primary trigger type and scoped targets.
 
@@ -126,11 +126,11 @@ effective_governance = min(user_configured, destination_ceiling)
 
 ## Architecture
 
-### 1. Platform-Variant Deliverable Types
+### 1. Platform-Variant Agent Types
 
 ```python
-class DeliverableTypeConfig(BaseModel):
-    type: DeliverableType  # status_report, slack_auto_reply, etc.
+class AgentTypeConfig(BaseModel):
+    type: AgentType  # status_report, slack_auto_reply, etc.
     platform_variant: Optional[Literal["slack_digest", "email_summary", ...]] = None
     config: dict  # Type-specific config
 ```
@@ -163,8 +163,8 @@ class EventTrigger(BaseModel):
 The context model separates data by **lifespan**, not by source. Ephemeral context is a general-purpose temporal layer; platform imports are one source category within it.
 
 ```python
-class DeliverableContext(BaseModel):
-    """Context assembled for deliverable generation"""
+class AgentContext(BaseModel):
+    """Context assembled for agent generation"""
 
     # Time-bounded, source-attributed (TTL-based cleanup)
     # Sources: platform imports, calendar, session, time-bounded notes
@@ -174,8 +174,8 @@ class DeliverableContext(BaseModel):
     # Sources: user memories, promoted ephemeral, document extractions
     persistent: list[UserMemory]
 
-    # Deliverable-specific learnings
-    deliverable_learnings: list[DeliverableLearning]
+    # Agent-specific learnings
+    agent_learnings: list[AgentLearning]
 ```
 
 ### 4. Platform-Native Output
@@ -231,20 +231,20 @@ CREATE TABLE user_platform_styles (
     UNIQUE(user_id, platform)
 );
 
--- Add platform_variant to deliverables
-ALTER TABLE deliverables ADD COLUMN platform_variant TEXT;
+-- Add platform_variant to agents
+ALTER TABLE agents ADD COLUMN platform_variant TEXT;
 
 -- Add governance_ceiling (system-enforced max)
-ALTER TABLE deliverables ADD COLUMN governance_ceiling TEXT;
+ALTER TABLE agents ADD COLUMN governance_ceiling TEXT;
 ```
 
 ### Phase 2: Archetype-Specific Triggers
 
 ```sql
 -- Archetype triggers (replaces generic schedule for some types)
-CREATE TABLE deliverable_triggers (
+CREATE TABLE agent_triggers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    deliverable_id UUID REFERENCES deliverables(id) ON DELETE CASCADE,
+    agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
     trigger_type TEXT NOT NULL,  -- 'schedule', 'event'
     platform TEXT,  -- NULL for schedule, 'slack'/'gmail'/'notion' for events
     event_config JSONB,  -- Event-specific: scope, thresholds, cooldowns
@@ -257,12 +257,12 @@ CREATE TABLE deliverable_triggers (
 -- Trigger execution log
 CREATE TABLE trigger_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    trigger_id UUID REFERENCES deliverable_triggers(id),
+    trigger_id UUID REFERENCES agent_triggers(id),
     fired_at TIMESTAMPTZ DEFAULT now(),
     trigger_reason JSONB,  -- What condition was met
     skipped BOOLEAN DEFAULT false,
     skip_reason TEXT,
-    version_id UUID REFERENCES deliverable_versions(id)
+    version_id UUID REFERENCES agent_runs(id)
 );
 ```
 
@@ -277,7 +277,7 @@ ALTER TABLE export_log ADD COLUMN outcome_observed_at TIMESTAMPTZ;
 
 ---
 
-## Deliverable Archetypes
+## Agent Archetypes
 
 ### Tier 1: Platform Monitors (Phase 2)
 
@@ -307,43 +307,43 @@ ALTER TABLE export_log ADD COLUMN outcome_observed_at TIMESTAMPTZ;
 
 ### Phase 0: Foundation (Current) ✅
 - Context extraction works (ADR-030)
-- Destination-first deliverables work (ADR-028)
+- Destination-first agents work (ADR-028)
 - Platform source visibility in UI
 
 ### Phase 1: Platform-Semantic Extraction
 - Extend extraction prompts for platform-specific signals
 - Add platform metadata to extractions (thread depth, reactions, etc.)
 - Create `ephemeral_context` table
-- **Deliverable**: Richer extracted context
+- **Agent**: Richer extracted context
 
 ### Phase 2: Slack Digest Archetype
 - Implement Slack Digest as `status_report` with `platform_variant: "slack_digest"`
 - Scheduled trigger with skip conditions
 - Native Slack block output generation
-- **Deliverable**: First working platform-native archetype
+- **Agent**: First working platform-native archetype
 
 ### Phase 3: Temporal Context Integration
 - Generation pulls ephemeral + persistent context
 - TTL-based cleanup job for ephemeral entries
 - Platform provenance in generation prompts
-- **Deliverable**: Digests feel "fresh"
+- **Agent**: Digests feel "fresh"
 
 ### Phase 4: Event Trigger Infrastructure
 - Polling service for platform activity
 - Trigger evaluation and firing
 - Cooldown enforcement
-- **Deliverable**: Event-triggered archetypes possible
+- **Agent**: Event-triggered archetypes possible
 
 ### Phase 5: Gmail Archetypes
 - Gmail Triage (scheduled)
 - Email Drafter (event-triggered, manual only)
-- **Deliverable**: Gmail workflow value
+- **Agent**: Gmail workflow value
 
 ### Phase 6: Cross-Platform Synthesizers
 - Multi-source context assembly
 - Project-to-resource mapping
 - Multi-destination output
-- **Deliverable**: Holy grail synthesis
+- **Agent**: Holy grail synthesis
 
 ---
 
@@ -389,7 +389,7 @@ This ADR **builds on** ADR-030:
 - Source metadata enables platform-aware generation
 - Ephemeral context layer for temporal data
 
-### ADR-019 (Deliverable Types)
+### ADR-019 (Agent Types)
 
 This ADR **extends** ADR-019:
 - New types for conceptually-distinct archetypes
@@ -405,13 +405,13 @@ This ADR **extends** ADR-019:
 | Platform fit score | 70%+ | 85%+ |
 | Style match rate | 60%+ | 75%+ |
 | Event trigger adoption | N/A | 30%+ |
-| User time per deliverable | -20% | -50% |
+| User time per agent | -20% | -50% |
 
 ---
 
 ## Conclusion
 
-Platform-native deliverables represent a significant evolution of YARNNN's value proposition—from "AI that writes content" to "AI that understands and participates in your workflow across platforms."
+Platform-native agents represent a significant evolution of YARNNN's value proposition—from "AI that writes content" to "AI that understands and participates in your workflow across platforms."
 
 Key decisions:
 1. **Radical interpretation**: Platforms inform reasoning, not just formatting
@@ -425,8 +425,8 @@ Key decisions:
 
 ## References
 
-- [Analysis: Platform-Native Deliverables](../analysis/platform-native-deliverables.md)
-- [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
-- [ADR-019: Deliverable Types System](./ADR-019-deliverable-types.md)
+- [Analysis: Platform-Native Agents](../analysis/platform-native-agents.md)
+- [ADR-028: Destination-First Agents](./ADR-028-destination-first-agents.md)
+- [ADR-019: Agent Types System](./ADR-019-agent-types.md)
 - [ADR-030: Context Extraction Methodology](./ADR-030-context-extraction-methodology.md)
 - [Integration-First Onboarding](../design/INTEGRATION_FIRST_ONBOARDING.md)

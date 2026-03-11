@@ -3,10 +3,10 @@
 /**
  * Setup Confirmation Modal
  *
- * Shown after TP creates a deliverable to confirm context before first run.
- * Part of the Deliverable Workflow assurance pattern.
+ * Shown after TP creates a agent to confirm context before first run.
+ * Part of the Agent Workflow assurance pattern.
  *
- * ADR-037: Uses router.push for deliverable navigation
+ * ADR-037: Uses router.push for agent navigation
  * ADR-034: Context browser deprecated - removed "Edit context" functionality
  */
 
@@ -24,12 +24,12 @@ import {
 import { api } from "@/lib/api/client";
 
 export interface SetupConfirmData {
-  deliverableId: string;
+  agentId: string;
   title: string;
   schedule: string;
   context: {
     user_memory_count: number;
-    deliverable_memory_count: number;
+    agent_memory_count: number;
     document_count: number;
     sample_memories: string[];
   };
@@ -55,16 +55,16 @@ export function SetupConfirmModal({
     if (runNow) {
       setIsRunning(true);
       try {
-        await api.deliverables.run(data.deliverableId);
+        await api.agents.run(data.agentId);
       } catch (err) {
-        console.error("Failed to run deliverable:", err);
+        console.error("Failed to run agent:", err);
         // Continue to navigation even if run fails - user can retry from detail page
       }
       setIsRunning(false);
     }
 
-    // ADR-037: Navigate to deliverable detail route
-    router.push(`/deliverables/${data.deliverableId}`);
+    // ADR-037: Navigate to agent detail route
+    router.push(`/agents/${data.agentId}`);
     onClose();
   };
 
@@ -125,10 +125,10 @@ export function SetupConfirmModal({
                 <span className="font-medium">Your context:</span>{" "}
                 {data.context.user_memory_count} memories
               </div>
-              {data.context.deliverable_memory_count > 0 && (
+              {data.context.agent_memory_count > 0 && (
                 <div>
-                  <span className="font-medium">Deliverable context:</span>{" "}
-                  {data.context.deliverable_memory_count} memories
+                  <span className="font-medium">Agent context:</span>{" "}
+                  {data.context.agent_memory_count} memories
                 </div>
               )}
               {data.context.document_count > 0 && (

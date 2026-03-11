@@ -3,16 +3,16 @@
 > **Status**: Accepted (Phase 3 Complete)
 > **Created**: 2026-02-09
 > **Updated**: 2026-02-09 (Phase 3 Platform Resources UI complete)
-> **Related**: ADR-028 (Destination-First), ADR-031 (Platform-Native Deliverables), ADR-023 (Supervisor Desk)
+> **Related**: ADR-028 (Destination-First), ADR-031 (Platform-Native Agents), ADR-023 (Supervisor Desk)
 > **Builds On**: All 6 phases of ADR-031 now implemented in backend
 
 ---
 
 ## Context
 
-ADR-028 and ADR-031 established a platform-native vision for deliverables:
+ADR-028 and ADR-031 established a platform-native vision for agents:
 
-- **ADR-028**: "The deliverable isn't the markdown. The deliverable is the act of putting something in Slack/Notion/Email at the right time."
+- **ADR-028**: "The agent isn't the markdown. The agent is the act of putting something in Slack/Notion/Email at the right time."
 - **ADR-031**: "Platforms inform *what's worth saying*, not just *how to say it*."
 
 The backend now implements all 6 phases of this vision:
@@ -35,7 +35,7 @@ Analysis of the existing UI reveals a **content-first mental model**:
 | **Destination** | Optional (last step, nullable) | Required (first-class, informs everything) |
 | **Sources** | Generic inputs ("URLs, documents, or integration data") | Platform-aware context ("Slack channels linked to this project") |
 | **Project Resources** | Not surfaced | Central to cross-platform synthesis |
-| **Synthesizers** | Flag on deliverable (`is_synthesizer`) | First-class creation path |
+| **Synthesizers** | Flag on agent (`is_synthesizer`) | First-class creation path |
 
 ---
 
@@ -56,7 +56,7 @@ After stress-testing multiple approaches, we confirmed that **platform-first is 
    - UI should feel like "configuring what appears in my platforms"
 
 3. **The output location is the commitment**
-   - When someone sets up a recurring deliverable, they're committing to:
+   - When someone sets up a recurring agent, they're committing to:
      - Not: "Run this synthesis every Friday"
      - But: "Every Friday, something should appear in #leadership-updates"
 
@@ -299,7 +299,7 @@ New Model:  YARNNN generates → Draft pushed to platform → User reviews/sends
 2. YARNNN calls Gmail API drafts.create()
 3. Draft appears in user's Gmail Drafts folder
 4. User opens Gmail, sees draft with:
-   - To: prefilled (recipient from deliverable)
+   - To: prefilled (recipient from agent)
    - Subject: prefilled
    - Body: full content ready
 5. User reviews, edits if needed, clicks Send
@@ -523,7 +523,7 @@ YARNNN Drafts (Database)
 ├── Status (select): Draft | Sent | Archived
 ├── Target Location (url): Link to destination page
 ├── Target Name (rich_text): "/Product Spec"
-├── Deliverable (relation): Link to YARNNN deliverable
+├── Agent (relation): Link to YARNNN agent
 ├── Created (created_time)
 └── Content (page body)
 ```
@@ -668,7 +668,7 @@ This complexity is deferred. Phase 1 = blanket platform-centric draft mode.
 
 ### Phase 2: Platform-First UI Restructure ✅
 
-**Goal**: Restructure deliverable creation to destination-first.
+**Goal**: Restructure agent creation to destination-first.
 
 **Previous State** (before Phase 2):
 ```
@@ -691,7 +691,7 @@ New flow:
 ```
 
 **Completed UI Changes**:
-- ✅ Restructured DeliverableSettingsModal: Destination → Title → Schedule → Sources → Recipient
+- ✅ Restructured AgentSettingsModal: Destination → Title → Schedule → Sources → Recipient
 - ✅ Made destination required (validation prevents save without destination)
 - ✅ Defaulted governance to "manual" (platform-centric draft mode)
 - ✅ Simplified governance (hidden, fixed to manual)
@@ -710,10 +710,10 @@ New flow:
 - ✅ `DraftStatusBadge` - Compact version for list views
 
 **Components Modified**:
-- ✅ `DeliverableSettingsModal.tsx` - Destination-first flow, required validation
-- ✅ `DeliverableReviewSurface.tsx` - Shows DraftStatusIndicator after approval
-- ✅ `DeliverableDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
-- ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to DeliverableVersion
+- ✅ `AgentSettingsModal.tsx` - Destination-first flow, required validation
+- ✅ `AgentReviewSurface.tsx` - Shows DraftStatusIndicator after approval
+- ✅ `AgentDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
+- ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to AgentVersion
 
 ### Phase 3: Platform Resources UI ✅
 
@@ -739,11 +739,11 @@ New flow:
 - `useResourceSuggestions` - Auto-suggest resources
 - `useContextSummary` - Context availability stats
 
-**Benefit**: When creating a deliverable, sources can be auto-suggested from linked platform resources instead of manual entry.
+**Benefit**: When creating a agent, sources can be auto-suggested from linked platform resources instead of manual entry.
 
 ### Phase 4: TP Platform-First Flow (Future)
 
-**Goal**: Teach TP to guide platform-first deliverable creation.
+**Goal**: Teach TP to guide platform-first agent creation.
 
 **TP Capabilities**:
 - "Set up a weekly update to #leadership" → destination-first flow
@@ -790,8 +790,8 @@ The synthesis is **invisible**. Users see the outcome.
 
 | Metric | Target |
 |--------|--------|
-| Deliverables with destination configured | >80% of new deliverables |
-| Time to first deliverable | <3 minutes |
+| Agents with destination configured | >80% of new agents |
+| Time to first agent | <3 minutes |
 | Draft-to-send completion rate | >90% (users actually send after copying) |
 | Platform coverage (Slack + Gmail + Notion) | >60% of users connect 2+ |
 
@@ -807,7 +807,7 @@ The synthesis is **invisible**. Users see the outcome.
 
 3. ~~**Draft location strategy**~~: Resolved. Drafts pushed to platforms (Gmail Drafts, Slack DM, Notion DB).
 
-4. ~~**Migration**~~: Existing deliverables continue working. Platform-centric drafts for new deliverables.
+4. ~~**Migration**~~: Existing agents continue working. Platform-centric drafts for new agents.
 
 ### Open
 
@@ -817,8 +817,8 @@ The synthesis is **invisible**. Users see the outcome.
    - **Recommendation**: Start with (b), iterate based on feedback
 
 6. **Notion Drafts database setup**:
-   - When to create? On first Notion integration, or first Notion-targeted deliverable?
-   - **Recommendation**: On first Notion-targeted deliverable (lazy creation)
+   - When to create? On first Notion integration, or first Notion-targeted agent?
+   - **Recommendation**: On first Notion-targeted agent (lazy creation)
 
 7. **Slack user ID resolution**:
    - Need to DM user, but have email not Slack user ID
@@ -908,8 +908,8 @@ Key shifts:
 
 ## References
 
-- [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
-- [ADR-031: Platform-Native Deliverables](./ADR-031-platform-native-deliverables.md)
+- [ADR-028: Destination-First Agents](./ADR-028-destination-first-agents.md)
+- [ADR-031: Platform-Native Agents](./ADR-031-platform-native-agents.md)
 - [ADR-023: Supervisor Desk Architecture](./ADR-023-supervisor-desk-architecture.md)
 - [useProjectResources Hook](../../web/hooks/useProjectResources.ts)
 - [Gmail Exporter](../api/integrations/exporters/gmail.py)

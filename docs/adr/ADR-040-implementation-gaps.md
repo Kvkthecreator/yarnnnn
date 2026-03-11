@@ -22,36 +22,36 @@ This document maps the current state of each component to the required changes f
 ```diff
 # After staging (manual governance)
 + await send_notification(
-+     user_id=deliverable.user_id,
-+     message=f"'{deliverable.title}' is ready for review",
++     user_id=agent.user_id,
++     message=f"'{agent.title}' is ready for review",
 +     channel="in_app",
-+     source_type="deliverable",
++     source_type="agent",
 +     source_id=instance_id
 + )
 
 # After delivery (semi_auto governance)
 + await send_notification(
-+     user_id=deliverable.user_id,
-+     message=f"'{deliverable.title}' delivered to {destination}",
++     user_id=agent.user_id,
++     message=f"'{agent.title}' delivered to {destination}",
 +     channel="in_app",
 +     urgency="low",
-+     source_type="deliverable",
++     source_type="agent",
 +     source_id=instance_id
 + )
 
 # On delivery failure
 + await send_notification(
-+     user_id=deliverable.user_id,
-+     message=f"Delivery failed for '{deliverable.title}': {error}",
++     user_id=agent.user_id,
++     message=f"Delivery failed for '{agent.title}': {error}",
 +     channel="in_app",
 +     urgency="high",
-+     source_type="deliverable",
++     source_type="agent",
 +     source_id=instance_id
 + )
 ```
 
 ### Full-Auto Governance
-Currently, even `full_auto` deliverables require approval. Need to add:
+Currently, even `full_auto` agents require approval. Need to add:
 
 ```python
 if governance == "full_auto":
@@ -69,11 +69,11 @@ if governance == "full_auto":
 
 ### Current State
 - `PlatformEvent` dataclass for normalized events
-- `get_deliverables_for_event()` matches events to deliverables
-- `execute_event_triggers()` runs matched deliverables
+- `get_agents_for_event()` matches events to agents
+- `execute_event_triggers()` runs matched agents
 - Cooldown in-memory (`_cooldown_cache` dict)
 - No event logging
-- Only triggers deliverables, not notifications
+- Only triggers agents, not notifications
 
 ### Required Changes
 
@@ -83,7 +83,7 @@ if governance == "full_auto":
 CREATE TABLE event_trigger_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
-    deliverable_id UUID,
+    agent_id UUID,
     monitor_id UUID,
 
     -- Event info
@@ -106,8 +106,8 @@ CREATE INDEX idx_trigger_log_cooldown ON event_trigger_log(cooldown_key, trigger
 
 ```python
 # Replace _cooldown_cache with database queries
-async def check_cooldown(db_client, deliverable_id, cooldown, event):
-    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
+async def check_cooldown(db_client, agent_id, cooldown, event):
+    key = _get_cooldown_key(agent_id, cooldown.type, event)
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=cooldown.duration_minutes)
 
     result = db_client.table("event_trigger_log")\
@@ -127,9 +127,9 @@ async def check_cooldown(db_client, deliverable_id, cooldown, event):
 ```python
 @dataclass
 class TriggerMatch:
-    deliverable_id: Optional[str]  # Now optional
+    agent_id: Optional[str]  # Now optional
     notification_template: Optional[str]  # New field
-    action_type: Literal["trigger_deliverable", "send_notification", "both"]
+    action_type: Literal["trigger_agent", "send_notification", "both"]
     # ... existing fields
 ```
 
@@ -140,7 +140,7 @@ async def log_trigger_event(db_client, event, match, result):
     """Log every trigger for audit trail."""
     db_client.table("event_trigger_log").insert({
         "user_id": event.user_id,
-        "deliverable_id": match.deliverable_id,
+        "agent_id": match.agent_id,
         "monitor_id": match.monitor_id,
         "platform": event.platform,
         "event_type": event.event_type,
@@ -159,7 +159,7 @@ async def log_trigger_event(db_client, event, match, result):
 ### Current State
 - `THINKING_PARTNER_TOOLS` includes platform operation tools (ADR-039)
 - No notification-sending capability
-- TP can create deliverables but not send lightweight alerts
+- TP can create agents but not send lightweight alerts
 
 ### Required Changes
 
@@ -173,14 +173,14 @@ SEND_NOTIFICATION_TOOL = {
     Use this for:
     - Alerting about something you noticed
     - Confirming an action completed
-    - Proactive insights that don't need a full deliverable
+    - Proactive insights that don't need a full agent
 
     WHEN TO USE:
     - Quick alerts: "Your Slack sync completed"
     - Observations: "I noticed 3 urgent emails from Sarah"
     - Confirmations: "I've updated your weekly digest settings"
 
-    WHEN NOT TO USE (use deliverables instead):
+    WHEN NOT TO USE (use agents instead):
     - Recurring content (digests, summaries)
     - Content that needs review/approval
     - Anything that should be scheduled
@@ -205,7 +205,7 @@ SEND_NOTIFICATION_TOOL = {
             },
             "context": {
                 "type": "object",
-                "description": "Related context (deliverable_id, url, etc.)"
+                "description": "Related context (agent_id, url, etc.)"
             }
         },
         "required": ["message"]
@@ -250,7 +250,7 @@ async def handle_send_notification(auth, input: dict) -> dict:
 """
 Notification Service - ADR-040
 
-Lightweight notification delivery separate from deliverables.
+Lightweight notification delivery separate from agents.
 """
 
 import logging
@@ -276,7 +276,7 @@ async def send_notification(
     channel: Literal["in_app", "email", "slack_dm", "push"] = "in_app",
     urgency: Literal["low", "normal", "high"] = "normal",
     context: Optional[dict] = None,
-    source_type: Literal["system", "monitor", "tp", "deliverable"] = "system",
+    source_type: Literal["system", "monitor", "tp", "agent"] = "system",
     source_id: Optional[str] = None,
 ) -> NotificationResult:
     """
@@ -468,7 +468,7 @@ CREATE TABLE notifications (
     channel TEXT NOT NULL CHECK (channel IN ('push', 'email', 'slack_dm', 'in_app')),
     urgency TEXT DEFAULT 'normal' CHECK (urgency IN ('low', 'normal', 'high')),
 
-    source_type TEXT NOT NULL CHECK (source_type IN ('system', 'monitor', 'tp', 'deliverable')),
+    source_type TEXT NOT NULL CHECK (source_type IN ('system', 'monitor', 'tp', 'agent')),
     source_id UUID,
 
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'dismissed')),
@@ -501,7 +501,7 @@ CREATE POLICY "Users can update their own notifications"
 CREATE TABLE event_trigger_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id),
-    deliverable_id UUID REFERENCES deliverables(id),
+    agent_id UUID REFERENCES agents(id),
     monitor_id UUID,
 
     platform TEXT NOT NULL,

@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * DeliverableSettingsPanel - ADR-066: Simplified Settings
+ * AgentSettingsPanel - ADR-066: Simplified Settings
  *
  * Configuration panel rendered inside the workspace drawer.
- * Refactored from DeliverableSettingsModal — modal wrapper removed,
+ * Refactored from AgentSettingsModal — modal wrapper removed,
  * same form state and save logic preserved.
  *
  * Sections:
@@ -36,8 +36,8 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type {
-  Deliverable,
-  DeliverableUpdate,
+  Agent,
+  AgentUpdate,
   DataSource,
   DataSourceType,
   IntegrationProvider,
@@ -46,9 +46,9 @@ import type {
   Destination,
 } from '@/types';
 
-interface DeliverableSettingsPanelProps {
-  deliverable: Deliverable;
-  onSaved: (updated: Deliverable) => void;
+interface AgentSettingsPanelProps {
+  agent: Agent;
+  onSaved: (updated: Agent) => void;
   onArchived?: () => void;
 }
 
@@ -69,11 +69,11 @@ const DAY_OPTIONS = [
   { value: 'sunday', label: 'Sunday' },
 ];
 
-export function DeliverableSettingsPanel({
-  deliverable,
+export function AgentSettingsPanel({
+  agent,
   onSaved,
   onArchived,
-}: DeliverableSettingsPanelProps) {
+}: AgentSettingsPanelProps) {
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -83,14 +83,14 @@ export function DeliverableSettingsPanel({
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Form state
-  const [title, setTitle] = useState(deliverable.title);
+  const [title, setTitle] = useState(agent.title);
   const [schedule, setSchedule] = useState<ScheduleConfig>(
-    deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' }
+    agent.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' }
   );
-  const [sources, setSources] = useState<DataSource[]>(deliverable.sources || []);
+  const [sources, setSources] = useState<DataSource[]>(agent.sources || []);
   // recipient_context moved to Instructions panel (ADR-087 Phase 3)
   const [destination, setDestination] = useState<Destination | undefined>(
-    deliverable.destination
+    agent.destination
   );
   // New source input
   const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
@@ -115,12 +115,12 @@ export function DeliverableSettingsPanel({
     loadUserEmail();
   }, []);
 
-  // Reset form when deliverable changes
+  // Reset form when agent changes
   useEffect(() => {
-    setTitle(deliverable.title);
-    setSchedule(deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' });
-    setSources(deliverable.sources || []);
-    const dest = deliverable.destination;
+    setTitle(agent.title);
+    setSchedule(agent.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' });
+    setSources(agent.sources || []);
+    const dest = agent.destination;
     if (!dest || !dest.target) {
       if (userEmail) {
         setDestination({
@@ -135,7 +135,7 @@ export function DeliverableSettingsPanel({
       setDestination(dest);
     }
     setError(null);
-  }, [deliverable, userEmail]);
+  }, [agent, userEmail]);
 
   const handleSave = async () => {
     let finalDestination = destination;
@@ -156,21 +156,21 @@ export function DeliverableSettingsPanel({
     setError(null);
 
     try {
-      const update: DeliverableUpdate = {
+      const update: AgentUpdate = {
         title,
         schedule,
         sources,
         destination: finalDestination,
       };
 
-      await api.deliverables.update(deliverable.id, update);
+      await api.agents.update(agent.id, update);
 
       onSaved({
-        ...deliverable,
+        ...agent,
         ...update,
       });
     } catch (err) {
-      console.error('Failed to update deliverable:', err);
+      console.error('Failed to update agent:', err);
       setError('Failed to save changes. Please try again.');
     } finally {
       setSaving(false);
@@ -182,10 +182,10 @@ export function DeliverableSettingsPanel({
     setError(null);
 
     try {
-      await api.deliverables.delete(deliverable.id);
+      await api.agents.delete(agent.id);
       onArchived?.();
     } catch (err) {
-      console.error('Failed to archive deliverable:', err);
+      console.error('Failed to archive agent:', err);
       setError('Failed to archive. Please try again.');
     } finally {
       setArchiving(false);
@@ -223,7 +223,7 @@ export function DeliverableSettingsPanel({
     setSources(sources.filter((_, i) => i !== index));
   };
 
-  const showSchedule = !['proactive', 'coordinator'].includes(deliverable.mode || 'recurring');
+  const showSchedule = !['proactive', 'coordinator'].includes(agent.mode || 'recurring');
   const showDaySelector = schedule.frequency === 'weekly' || schedule.frequency === 'biweekly';
 
   return (
@@ -261,7 +261,7 @@ export function DeliverableSettingsPanel({
 
           <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-            <span>Deliverables will be sent to your email</span>
+            <span>Agents will be sent to your email</span>
           </div>
         </div>
 
@@ -327,7 +327,7 @@ export function DeliverableSettingsPanel({
         <div>
           <label className="block text-sm font-medium mb-1.5">Data Sources</label>
           <p className="text-xs text-muted-foreground mb-3">
-            What context should inform this deliverable?
+            What context should inform this agent?
           </p>
 
           {sources.length > 0 && (
@@ -494,7 +494,7 @@ export function DeliverableSettingsPanel({
               className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1.5"
             >
               <Trash2 className="w-4 h-4" />
-              Archive this deliverable
+              Archive this agent
             </button>
           ) : (
             <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md">

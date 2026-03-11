@@ -1,4 +1,4 @@
-# ADR-093: Deliverable Type Taxonomy Revision
+# ADR-093: Agent Type Taxonomy Revision
 
 **Status:** Implemented
 **Date:** 2026-03-04
@@ -8,9 +8,9 @@
 
 ## Context
 
-The deliverable type system accumulated 27 types across ADR phases 029–082, consolidated to 8 "active" types in ADR-082. Those 8 types (`slack_channel_digest`, `gmail_inbox_brief`, `notion_page_summary`, `weekly_calendar_preview`, `meeting_prep`, `status_report`, `research_brief`, `custom`) were named for **architectural origins** — which platform they read from, which ADR introduced them — not for user intent.
+The agent type system accumulated 27 types across ADR phases 029–082, consolidated to 8 "active" types in ADR-082. Those 8 types (`slack_channel_digest`, `gmail_inbox_brief`, `notion_page_summary`, `weekly_calendar_preview`, `meeting_prep`, `status_report`, `research_brief`, `custom`) were named for **architectural origins** — which platform they read from, which ADR introduced them — not for user intent.
 
-After ADR-092 (five execution modes), the type/mode separation is clean: **mode answers when/how a deliverable decides to act; type answers what the user is building**. The old type names violated this separation by encoding platform binding and temporal pattern into the type name itself (`slack_channel_digest` implies recurring + platform_bound + slack). With modes now handling execution character, types are free to be pure user vocabulary.
+After ADR-092 (five execution modes), the type/mode separation is clean: **mode answers when/how a agent decides to act; type answers what the user is building**. The old type names violated this separation by encoding platform binding and temporal pattern into the type name itself (`slack_channel_digest` implies recurring + platform_bound + slack). With modes now handling execution character, types are free to be pure user vocabulary.
 
 Additionally, a production bug existed: the creation wizard labeled `research_brief` as "Notion Changelog" — the wrong type showing under the wrong label.
 
@@ -46,7 +46,7 @@ Replace 8 legacy active types with 7 purpose-first types. Delete all deprecated 
 
 **`deep_research` replaces `research_brief`.** Renamed to match common LLM vocabulary (ChatGPT's "Deep Research" framing) and to clearly distinguish from `watch`. Deep Research = bounded investigation with a clear end (goal mode). Watch = ongoing monitoring with no end (proactive/reactive).
 
-**`coordinator` as a type makes the mode discoverable.** The coordinator mode is architecturally real but invisible without a matching type. Users creating a "coordinator" deliverable understand they're configuring a meta-specialist, not a content producer.
+**`coordinator` as a type makes the mode discoverable.** The coordinator mode is architecturally real but invisible without a matching type. Users creating a "coordinator" agent understand they're configuring a meta-specialist, not a content producer.
 
 ### Backfill map (old → new)
 
@@ -93,7 +93,7 @@ Replace 8 legacy active types with 7 purpose-first types. Delete all deprecated 
 
 ### Negative
 - Platform-specific prompt customization for `digest` must be inferred from sources (minor complexity)
-- Existing test deliverables get backfilled — no content impact since all test data
+- Existing test agents get backfilled — no content impact since all test data
 
 ### Neutral
 - `custom` unchanged — still the safety valve for user-defined intent

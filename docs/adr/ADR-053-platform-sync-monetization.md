@@ -63,7 +63,7 @@ LIMITS.md defines generous free tier limits (5 Slack channels, 3 Gmail labels, e
 | **Calendars** | 1 | 3 | 10 |
 | **Sync frequency** | 2x/day | 4x/day | Hourly |
 | **TP conversations** | 20/mo | 100/mo | Unlimited |
-| **Deliverables** | 3 active | 10 active | Unlimited |
+| **Agents** | 3 active | 10 active | Unlimited |
 
 **Price Point Rationale:**
 - **$9/mo Starter**: Solo users who want "enough" - comparable to Notion/Slack premium
@@ -201,11 +201,11 @@ Sync-only (no LLM) makes this highly profitable at the infrastructure layer.
 
 ### LLM Costs (Separate)
 
-TP conversations and deliverables consume LLM tokens:
+TP conversations and agents consume LLM tokens:
 - Average conversation: ~$0.02-0.05
-- Average deliverable generation: ~$0.05-0.10
+- Average agent generation: ~$0.05-0.10
 
-These are covered by conversation/deliverable limits per tier, not sync limits.
+These are covered by conversation/agent limits per tier, not sync limits.
 
 ---
 
@@ -216,7 +216,7 @@ These are covered by conversation/deliverable limits per tier, not sync limits.
 1. ✅ Update `LIMITS.md` with new tier structure
 2. ✅ Update `api/services/platform_limits.py` with new values
 3. ✅ Add `sync_frequency` to tier configuration
-4. ✅ Add `tp_conversations_per_month` and `active_deliverables` limits
+4. ✅ Add `tp_conversations_per_month` and `active_agents` limits
 
 ### Phase 2: Onboarding Flow ✅ Complete
 
@@ -234,7 +234,7 @@ These are covered by conversation/deliverable limits per tier, not sync limits.
 ### Phase 4: Limit Enforcement ✅ Complete
 
 1. ✅ TP conversation limit enforced at chat endpoint (`api/routes/chat.py`)
-2. ✅ Deliverable limit enforced at creation endpoint (`api/routes/deliverables.py`)
+2. ✅ Agent limit enforced at creation endpoint (`api/routes/agents.py`)
 3. ✅ 429 responses with upgrade prompts
 
 ### Phase 5: Billing Integration 🔲 Not Started
@@ -284,7 +284,7 @@ These are covered by conversation/deliverable limits per tier, not sync limits.
 
 **Rejected**: A connection without synced sources provides no value. Sources are the value unit.
 
-### D. Deliverable-based Monetization Only
+### D. Agent-based Monetization Only
 
 **Rejected**: LLM costs are variable and harder to predict. Sync limits are predictable and low-cost to serve.
 

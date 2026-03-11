@@ -3,7 +3,7 @@
 /**
  * YARNNN Context Page (ADR-102)
  *
- * Shows deliverable outputs stored as platform_content with platform="yarnnn".
+ * Shows agent outputs stored as platform_content with platform="yarnnn".
  * Unlike other context pages, yarnnn has no OAuth connection, no source selection,
  * and no sync — content is written internally after each successful delivery.
  */
@@ -78,7 +78,7 @@ export default function YarnnnContextPage() {
           <div>
             <h1 className="text-lg font-semibold text-foreground">Generated Content</h1>
             <p className="text-xs text-muted-foreground">
-              Deliverable outputs stored as searchable context
+              Agent outputs stored as searchable context
             </p>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function YarnnnContextPage() {
             <div>
               <p className="text-sm font-medium text-foreground">No generated content yet</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Deliverable outputs will appear here after their first successful delivery.
+                Agent outputs will appear here after their first successful delivery.
               </p>
             </div>
           </div>

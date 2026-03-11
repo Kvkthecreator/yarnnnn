@@ -134,7 +134,7 @@ class DownloadExporter(DestinationExporter):
         # Limit length
         if len(sanitized) > 100:
             sanitized = sanitized[:100]
-        return sanitized or "deliverable"
+        return sanitized or "agent"
 
     def _get_extension(self, fmt: str) -> str:
         """Get file extension for format."""

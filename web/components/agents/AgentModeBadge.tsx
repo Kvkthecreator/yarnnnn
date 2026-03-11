@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Shared mode badge for deliverables.
+ * Shared mode badge for agents.
  *
  * Renders the execution mode (recurring, goal, reactive, proactive, coordinator)
  * as a colored icon+label pill or icon-only indicator.
@@ -10,10 +10,10 @@
  */
 
 import { Repeat, Target, Zap, Eye, Bot } from 'lucide-react';
-import type { DeliverableMode } from '@/types';
+import type { AgentMode } from '@/types';
 
-interface DeliverableModeBadgeProps {
-  mode?: DeliverableMode;
+interface AgentModeBadgeProps {
+  mode?: AgentMode;
   variant?: 'pill' | 'icon' | 'inline';
 }
 
@@ -55,7 +55,7 @@ const MODE_CONFIG: Record<string, {
   },
 };
 
-export function DeliverableModeBadge({ mode, variant = 'pill' }: DeliverableModeBadgeProps) {
+export function AgentModeBadge({ mode, variant = 'pill' }: AgentModeBadgeProps) {
   const config = MODE_CONFIG[mode || 'recurring'];
   const Icon = config.icon;
 

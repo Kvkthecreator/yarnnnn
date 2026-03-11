@@ -14,7 +14,7 @@ The v13 deck has strong content — the ClawdBot origin story, compounding loop 
 
 2. **TP is undersold.** "Thinking Partner" appears in isolation repeatedly (slides 5, 6, 13) instead of "TP, your autonomous agent." The four-pillar footer on slide 13 presents TP as one feature among four, violating the anti-pattern of feature-list presentation and the IC Analysis finding that "TP is undersold as Day 1 hero."
 
-3. **Agent framing is inconsistent.** The problem slides say "AI tool" when they should say "AI agent" — we're positioning against the agent wave, not the generic AI landscape. The old two-path separation (Thinking Partner vs. Deliverable Engine) persists when ADR-080 established "one agent, two modes."
+3. **Agent framing is inconsistent.** The problem slides say "AI tool" when they should say "AI agent" — we're positioning against the agent wave, not the generic AI landscape. The old two-path separation (Thinking Partner vs. Agent Engine) persists when ADR-080 established "one agent, two modes."
 
 ---
 
@@ -69,7 +69,7 @@ This is the second strongest slide. The demand → barrier → opening structure
 ---
 
 ### Slide 5 — "yarnnn: Autonomous AI powered by your accumulated work context"
-**Current**: Day 1 / Day 30 / Day 90 cards showing "Thinking Partner" → "Autonomous Deliverables" → "Compounding Moat". Bottom: "Connect → Accumulate → Automate → Supervise" + deliverable examples list.
+**Current**: Day 1 / Day 30 / Day 90 cards showing "Thinking Partner" → "Autonomous Agents" → "Compounding Moat". Bottom: "Connect → Accumulate → Automate → Supervise" + agent examples list.
 **Beat**: Currently trying to be Beat 3 + Beat 4 + Beat 5 simultaneously
 **Verdict**: 🔴 RESTRUCTURE — this slide does too much
 
@@ -78,11 +78,11 @@ This is the slide that needs the most work. It's trying to introduce the product
 **Problems**:
 - "Thinking Partner" appears in isolation — violates vocabulary rule ("TP, your autonomous agent")
 - Day 1/30/90 timeline treats TP as one feature among three, not as the primary product identity
-- "Deliverable Engine" as a separate concept contradicts ADR-080 (one agent, two modes)
-- The deliverable examples list at bottom is feature-list presentation (anti-pattern)
+- "Agent Engine" as a separate concept contradicts ADR-080 (one agent, two modes)
+- The agent examples list at bottom is feature-list presentation (anti-pattern)
 
 **Recommended restructure**: Split into two slides:
-- **New Slide 5**: "Meet TP — your autonomous AI agent." Hero product introduction. TP is the product. It already knows your work. It produces deliverables on schedule. It gets smarter every cycle. You supervise. This is Beat 3 — pure product identity.
+- **New Slide 5**: "Meet TP — your autonomous AI agent." Hero product introduction. TP is the product. It already knows your work. It produces agents on schedule. It gets smarter every cycle. You supervise. This is Beat 3 — pure product identity.
 - The compounding timeline (Day 1/30/90) moves to or near the Insight slide (Beat 4) where it belongs — it explains *why* this works, not *what* the product is.
 
 ---
@@ -131,7 +131,7 @@ Well-aligned with NARRATIVE.md Beat 5. The incumbent comparison is the right con
 ---
 
 ### Slide 9 — "Four-layer intelligence model."
-**Current**: Under the Hood. Architecture diagram with Memory Layer (user_context), Activity Layer (activity_log), Context Layer (platform_content), Work Layer (deliverables). "72 Architecture Decision Records document every design choice."
+**Current**: Under the Hood. Architecture diagram with Memory Layer (user_context), Activity Layer (activity_log), Context Layer (platform_content), Work Layer (agents). "72 Architecture Decision Records document every design choice."
 **Beat**: Beat 5 (The Moat — Architecture as defensibility)
 **Verdict**: ⚠️ SIMPLIFY or MERGE with slide 8
 
@@ -150,7 +150,7 @@ Per NARRATIVE.md: "Architecture appears here — not in the product introduction
 
 The headline is excellent. The comparison table is useful but has two issues:
 
-1. **Row labels are feature-centric, not experience-centric.** Per vocabulary rules, translate: "Persistent context" → "Already knows your work." "Autonomous output" → "Produces deliverables on schedule." "Improves with tenure" → "Gets smarter every cycle."
+1. **Row labels are feature-centric, not experience-centric.** Per vocabulary rules, translate: "Persistent context" → "Already knows your work." "Autonomous output" → "Produces agents on schedule." "Improves with tenure" → "Gets smarter every cycle."
 
 2. **Position**: Three consecutive moat/defensibility slides (8, 9, 10) is heavy. Consider whether this table can be merged into slide 8 or whether slide 9 (architecture) gets cut to keep the rhythm tighter.
 
@@ -179,7 +179,7 @@ Strong slide that shows yarnnn's category is investable. The "What yarnnn adds" 
 ---
 
 ### Slide 13 — "Built and live at yarnnn.com"
-**Current**: Product screenshot + four pillars (01 Thinking Partner / 02 Deliverable Engine / 03 4 Integrations / 04 Signal Processing).
+**Current**: Product screenshot + four pillars (01 Thinking Partner / 02 Agent Engine / 03 4 Integrations / 04 Signal Processing).
 **Beat**: Currently Beat 3 but positioned as slide 13
 **Verdict**: 🔴 MOVE EARLIER + REFRAME
 
@@ -187,7 +187,7 @@ This is the biggest structural problem in the deck. The live product screenshot 
 
 **Problems**:
 - **Position**: Should be slides 5-6 range (immediately after ClawdBot proof of demand)
-- **Four pillars**: "01 Thinking Partner / 02 Deliverable Engine / 03 4 Integrations / 04 Signal Processing" is the feature-list anti-pattern. It also preserves the old two-path architecture (ADR-061) instead of ADR-080's "one agent, two modes."
+- **Four pillars**: "01 Thinking Partner / 02 Agent Engine / 03 4 Integrations / 04 Signal Processing" is the feature-list anti-pattern. It also preserves the old two-path architecture (ADR-061) instead of ADR-080's "one agent, two modes."
 - **Title**: "Built and live" is a traction claim, not a product identity statement
 
 **Recommended changes**:
@@ -291,7 +291,7 @@ Based on the audit, here's the recommended restructure mapped to NARRATIVE.md be
 |---|---|
 | "Thinking Partner" (in isolation) | "TP, your autonomous agent" |
 | "AI tool" (in problem framing) | "AI agent" |
-| "Deliverable Engine" | "TP works for you in the background" or "autonomous deliverables" |
+| "Agent Engine" | "TP works for you in the background" or "autonomous agents" |
 | "Context-aware AI agent" | "TP already knows your work" |
 | "Human-in-the-loop" | "You supervise, TP operates" |
 | "72 ADRs" | "80+ ADRs" (verify current count) |
@@ -313,19 +313,19 @@ Based on the audit, here's the recommended restructure mapped to NARRATIVE.md be
   - Total: 16 slides (down from 17)
 - [x] Product screenshots integrated — 4 real service screenshots replace mockup on product slide
   - `page_TP(chat).png` → Chat Mode pillar
-  - `page_deliverables.png` → Headless Mode pillar
+  - `page_agents.png` → Headless Mode pillar
   - `page_system.png` → 4 Integrations pillar
   - `page_context(details).png` → Context Engine pillar
 - [x] Visual QA passed (text overlap on insight slide caught and fixed)
 
-**Deliverable**: `docs/working_docs/IR Deck - yarnnn v14.pptx`
+**Agent**: `docs/working_docs/IR Deck - yarnnn v14.pptx`
 
 ### Phase 2: VC Application Materials — COMPLETE (2026-03-01)
 
 **Approach**: Canonical, VC-agnostic answer bank. Version per application (PearX, YC, etc.) as needed.
 **Template used for scoping**: PearX S26 (pear.vc/pearx-application, deadline Apr 12, 2026)
 
-#### Deliverables Produced
+#### Agents Produced
 
 - [x] **Video script** — `docs/working_docs/PEARX_VIDEO_SCRIPT_v1.md`
   - ~155 words, 60 seconds. Founder intro → problem → product → insight → CTA

@@ -17,7 +17,7 @@ export default function robots(): MetadataRoute.Robots {
           "/context/",
           "/system/",
           "/settings/",
-          "/deliverables/",
+          "/agents/",
           "/docs/",
           "/integrations/",
           // Legacy routes (removed — prevent crawl attempts)

@@ -1,20 +1,20 @@
-# Deliverable Modes
+# Agent Modes
 
 **Status:** Canonical
 **Date:** 2026-03-04
-**Related:** [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md)
+**Related:** [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
 
-This document is the user-facing and product framing for deliverable modes. For implementation contracts, see ADR-092.
+This document is the user-facing and product framing for agent modes. For implementation contracts, see ADR-092.
 
 ---
 
 ## What modes are
 
-Every deliverable has a **mode** — its execution character. Mode determines not just *when* a deliverable runs, but *how it decides* when to run and what kind of intelligence it applies.
+Every agent has a **mode** — its execution character. Mode determines not just *when* a agent runs, but *how it decides* when to run and what kind of intelligence it applies.
 
 Think of modes as the personality of a specialist agent. A clockwork assistant shows up every Monday without fail. An on-call assistant waits for the right conditions to accumulate. A proactive advisor notices things on your behalf and reaches out when something's worth surfacing. A coordinator keeps watch over a whole domain and dispatches work when needed.
 
-All modes share the same foundation: each deliverable has its own `deliverable_instructions` (how it should behave) and `deliverable_memory` (what it has learned). This is what makes each deliverable a specialist rather than a generic template — and what makes it get better over time.
+All modes share the same foundation: each agent has its own `agent_instructions` (how it should behave) and `agent_memory` (what it has learned). This is what makes each agent a specialist rather than a generic template — and what makes it get better over time.
 
 ---
 
@@ -24,7 +24,7 @@ All modes share the same foundation: each deliverable has its own `deliverable_i
 
 > "Show up reliably. Do the same job, better each time."
 
-The default mode. A recurring deliverable runs on a fixed schedule — daily, weekly, biweekly, monthly, or a custom cron expression. Every scheduled run produces a new version. No judgment call: if the time has come, it runs.
+The default mode. A recurring agent runs on a fixed schedule — daily, weekly, biweekly, monthly, or a custom cron expression. Every scheduled run produces a new version. No judgment call: if the time has come, it runs.
 
 **Memory role:** Accumulates learned preferences from prior runs — what the user edits, what formats work, what context tends to be most relevant. Each generation is better-informed than the last.
 
@@ -38,11 +38,11 @@ The default mode. A recurring deliverable runs on a fixed schedule — daily, we
 
 > "Work toward a clear objective. Stop when it's done."
 
-A goal deliverable runs on a schedule, but it tracks progress toward a stated completion point. After each generation, it assesses whether the goal has been met. When it determines the goal is complete, it stops running — no more versions, no more noise.
+A goal agent runs on a schedule, but it tracks progress toward a stated completion point. After each generation, it assesses whether the goal has been met. When it determines the goal is complete, it stops running — no more versions, no more noise.
 
-**Memory role:** Maintains a structured goal record: description, status, milestones, and a completion assessment written after each generation. When `status = complete`, the deliverable pauses itself.
+**Memory role:** Maintains a structured goal record: description, status, milestones, and a completion assessment written after each generation. When `status = complete`, the agent pauses itself.
 
-**Best for:** Time-bounded work with a clear end. You don't want a weekly "competitor research" deliverable running forever — you want it to run until it's covered the ground you specified.
+**Best for:** Time-bounded work with a clear end. You don't want a weekly "competitor research" agent running forever — you want it to run until it's covered the ground you specified.
 
 *Examples:* "Research and brief me on these 4 competitors — stop when each has been covered." "Prepare board materials for Q1 — stop after the board meeting date."
 
@@ -52,9 +52,9 @@ A goal deliverable runs on a schedule, but it tracks progress toward a stated co
 
 > "Watch. Accumulate. Act when the picture is complete."
 
-A reactive deliverable doesn't run on a schedule. It watches a configured source for events. When events arrive, it doesn't generate immediately — instead, it writes a brief agent-authored observation to its memory. When enough observations have accumulated (a configurable threshold, default 5), it generates a version and clears its observation queue.
+A reactive agent doesn't run on a schedule. It watches a configured source for events. When events arrive, it doesn't generate immediately — instead, it writes a brief agent-authored observation to its memory. When enough observations have accumulated (a configurable threshold, default 5), it generates a version and clears its observation queue.
 
-This means a reactive deliverable is always aware of what's happening in its domain, but only produces output when there's enough to say something meaningful.
+This means a reactive agent is always aware of what's happening in its domain, but only produces output when there's enough to say something meaningful.
 
 **Memory role:** `observations` array — each entry is a brief note the agent authored from an incoming event. Not raw platform data — the agent's own interpretation. Cleared after each generation.
 
@@ -68,9 +68,9 @@ This means a reactive deliverable is always aware of what's happening in its dom
 
 > "Stay aware. Surface things before you're asked."
 
-A proactive deliverable doesn't wait for a schedule or an event. It runs on a slow periodic review cadence — configurable, typically daily or slower. On each review cycle, the agent reads its sources and its own accumulated memory, then decides: is there something worth generating? If yes, it produces a version. If not, it records an observation and goes back to sleep. If conditions are unusually quiet, it can schedule itself to check back later.
+A proactive agent doesn't wait for a schedule or an event. It runs on a slow periodic review cadence — configurable, typically daily or slower. On each review cycle, the agent reads its sources and its own accumulated memory, then decides: is there something worth generating? If yes, it produces a version. If not, it records an observation and goes back to sleep. If conditions are unusually quiet, it can schedule itself to check back later.
 
-Most review cycles produce no version. This is by design — the deliverable stays informed without generating noise.
+Most review cycles produce no version. This is by design — the agent stays informed without generating noise.
 
 **Memory role:** A running `review_log` — the agent's own self-authored assessments from each review cycle. Over time, this log captures the agent's evolving understanding of its domain: what's normal, what's significant, what the user has responded to.
 
@@ -88,19 +88,19 @@ Most review cycles produce no version. This is by design — the deliverable sta
 
 > "Watch the whole domain. Dispatch the right work at the right time."
 
-A coordinator deliverable is a proactive specialist with one additional capability: it can create new deliverables on your behalf and advance the schedule of existing ones when conditions warrant.
+A coordinator agent is a proactive specialist with one additional capability: it can create new agents on your behalf and advance the schedule of existing ones when conditions warrant.
 
-A coordinator runs on a slow review cadence. When it finds something in its domain that needs attention, it decides: does an existing deliverable handle this? If yes, it advances that deliverable's schedule to run now. If not, it creates a new one-time deliverable and executes it — then logs what it created so it doesn't do it again for the same event.
+A coordinator runs on a slow review cadence. When it finds something in its domain that needs attention, it decides: does an existing agent handle this? If yes, it advances that agent's schedule to run now. If not, it creates a new one-time agent and executes it — then logs what it created so it doesn't do it again for the same event.
 
 This is YARNNN doing work on your behalf that you didn't explicitly configure. You tell the coordinator what domain it's responsible for; it handles the rest.
 
-**Memory role:** A `review_log` (like proactive) plus a `created_deliverables` deduplication log. The log prevents the coordinator from creating duplicate deliverables for the same underlying event.
+**Memory role:** A `review_log` (like proactive) plus a `created_agents` deduplication log. The log prevents the coordinator from creating duplicate agents for the same underlying event.
 
 **Best for:** Domains where the right response to a signal is a specific piece of work — not just a summary. Calendar coordination, relationship management, project monitoring.
 
 *Examples:* "Watch my calendar. When I have an upcoming meeting with external attendees I haven't corresponded with recently, create a meeting prep brief." "Watch for Gmail threads with clients that have gone quiet. Draft a follow-up when you see one." "Monitor project Slack channels. When you see signs of a blocker or a stalled decision, create a status brief."
 
-**What makes a coordinator different from signal processing (dissolved):** Signal processing was invisible infrastructure that scanned everything for all users. A coordinator is a deliverable you configure with specific instructions for a specific domain. You can see its review log. You can edit its instructions. You can pause it. Multiple coordinators are multiple independent specialists — each accountable for its own scope.
+**What makes a coordinator different from signal processing (dissolved):** Signal processing was invisible infrastructure that scanned everything for all users. A coordinator is a agent you configure with specific instructions for a specific domain. You can see its review log. You can edit its instructions. You can pause it. Multiple coordinators are multiple independent specialists — each accountable for its own scope.
 
 ---
 
@@ -112,20 +112,20 @@ This is YARNNN doing work on your behalf that you didn't explicitly configure. Y
 | Output toward a defined objective, then stop | `goal` |
 | Output triggered by accumulated events, not schedule | `reactive` |
 | A specialist that watches its domain and acts when warranted | `proactive` |
-| A specialist that creates and triggers other deliverables for you | `coordinator` |
+| A specialist that creates and triggers other agents for you | `coordinator` |
 
 ---
 
 ## What all modes share
 
-Regardless of mode, every deliverable carries four layers of knowledge (ADR-101):
+Regardless of mode, every agent carries four layers of knowledge (ADR-101):
 
 - **Skills** — type-specific format and structure (e.g., a digest always leads with highlights, a status report always has cross-platform synthesis). Built into the type system.
 - **Directives** — your behavioral instructions and audience context. "Use formal tone." "The audience is the exec team." Set via the Instructions panel or TP chat.
-- **Memory** — what the deliverable has observed and decided. Structured differently per mode (observations, goals, review log — see ADR-092), but always accumulating per specialist.
+- **Memory** — what the agent has observed and decided. Structured differently per mode (observations, goals, review log — see ADR-092), but always accumulating per specialist.
 - **Feedback** — what it learned from your edits. When you modify a delivered version, the edit patterns feed into future generations as "learned preferences."
 
-Every deliverable also:
+Every agent also:
 
 - Produces **versioned, immutable output** — every generation is a permanent record you can review.
 - **Sleeps** between executions — zero resource cost when not running.
@@ -137,11 +137,11 @@ The mode shapes how the agent decides *when* to act. The four knowledge layers s
 
 ## The "living agent" experience
 
-Coordinator and proactive deliverables together enable what feels like a living agent: something that watches your world, notices things, and surfaces work before you ask for it.
+Coordinator and proactive agents together enable what feels like a living agent: something that watches your world, notices things, and surfaces work before you ask for it.
 
 This is not an always-on background process. It's a network of sleeping specialists that wake up at the right time, assess their domain, act if warranted, and go back to sleep. The quality of each specialist's output compounds with every execution — because each one carries forward everything it has learned about its specific job.
 
-That compounding per specialist — not per conversation, not per session, but per deliverable — is the core of YARNNN's model.
+That compounding per specialist — not per conversation, not per session, but per agent — is the core of YARNNN's model.
 
 ---
 
@@ -159,4 +159,4 @@ Types and modes are orthogonal — any combination is valid — but some pairing
 | `coordinator` | coordinator | A type and mode in one. The coordinator type makes the coordinator mode discoverable. |
 | `custom` | any | User defines both intent and execution character. |
 
-**The key insight:** mode answers *when/how* a deliverable decides to act. Type answers *what the user is building*. They are independent dimensions. A `digest` can be recurring or reactive. A `brief` can be coordinator-triggered or goal-driven. The names don't imply a mode.
+**The key insight:** mode answers *when/how* a agent decides to act. Type answers *what the user is building*. They are independent dimensions. A `digest` can be recurring or reactive. A `brief` can be coordinator-triggered or goal-driven. The names don't imply a mode.

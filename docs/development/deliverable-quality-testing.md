@@ -1,7 +1,7 @@
-# Deliverable Quality Testing Framework
+# Agent Quality Testing Framework
 
 **Date**: 2026-03-06
-**Objective**: Validate whether each deliverable type produces output that justifies the product's value proposition.
+**Objective**: Validate whether each agent type produces output that justifies the product's value proposition.
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### The question per type
 
-Do YARNNN's deliverable types represent jobs-to-be-done that people struggle with enough to pay for — and does the current pipeline produce output that proves it?
+Do YARNNN's agent types represent jobs-to-be-done that people struggle with enough to pay for — and does the current pipeline produce output that proves it?
 
 ### Evaluation criteria (wedge assessment)
 
@@ -24,7 +24,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 ### Testing protocol
 
 1. **Select type** — evaluate against criteria above, pick the next type to validate
-2. **Create deliverable** — use a real production account with real platform data
+2. **Create agent** — use a real production account with real platform data
 3. **Run through full pipeline** — context gathering → headless agent → output
 4. **Assess output** — does it deliver on the job-to-be-done? Would a user send this without editing?
 5. **Iterate prompt** — refine until output reliably meets the bar
@@ -51,7 +51,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 - **User**: kvkthecreator@gmail.com (real production account)
 - **Platforms**: Slack (active, synced today), Gmail (active, synced Mar 1), Notion (active, synced Feb 25)
 - **Content volume**: Slack 229 items / Gmail 120 emails / Notion 25 pages
-- **Deliverable**: `status` type, `recurring` mode, `cross_platform` binding, audience "leadership and stakeholders"
+- **Agent**: `status` type, `recurring` mode, `cross_platform` binding, audience "leadership and stakeholders"
 
 ### Issues discovered (and fixed)
 
@@ -63,7 +63,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 
 **Issue 2: Resource ID mismatch (Slack + Notion)**
 - Symptom: Gmail content fetched correctly but Slack and Notion returned nothing.
-- Root cause: `get_content_for_deliverable()` queried by `resource_id` field, but DataSource model uses `source` field. Slack stores channel IDs (`C096DH6TMU3`), not names.
+- Root cause: `get_content_for_agent()` queried by `resource_id` field, but DataSource model uses `source` field. Slack stores channel IDs (`C096DH6TMU3`), not names.
 - Fix: Read `source.get("source") or source.get("resource_id")` + `resource_name` fallback query.
 
 **Issue 3: Python 3.9 datetime parsing**
@@ -72,8 +72,8 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 
 **Issue 4: Failed versions still delivered (production scheduler)**
 - Symptom: User received email with tool-call text instead of actual synthesis.
-- Root cause: Setting `next_run_at = NOW()` caused scheduler to pick up deliverable before local testing completed.
-- Lesson: Set `next_run_at` far in the future when creating test deliverables in production.
+- Root cause: Setting `next_run_at = NOW()` caused scheduler to pick up agent before local testing completed.
+- Lesson: Set `next_run_at` far in the future when creating test agents in production.
 
 ### Prompt evolution
 
@@ -120,7 +120,7 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 
 - **User**: kvkthecreator@gmail.com
 - **Platform**: Slack (all synced channels)
-- **Deliverable**: `digest` type, `recurring` mode, `platform_bound` binding, primary_platform="slack"
+- **Agent**: `digest` type, `recurring` mode, `platform_bound` binding, primary_platform="slack"
 
 ### Issues discovered
 
@@ -146,7 +146,7 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 
 - **User**: kvkthecreator@gmail.com (real production account)
 - **Platforms**: Google Calendar (synced), Slack, Gmail, Notion (all connected)
-- **Deliverable**: `brief` type, `recurring` mode, `cross_platform` binding, daily frequency
+- **Agent**: `brief` type, `recurring` mode, `cross_platform` binding, daily frequency
 - **Sources**: All calendar sources + all connected platform sources
 
 ### Prompt evolution
@@ -196,7 +196,7 @@ Auto Meeting Prep validated at v3. Key insight: prompt BAD/GOOD examples + expli
 
 ### Reframe from first principles
 
-Deep research as "one-shot web research" was assessed as commoditized (ChatGPT Deep Research, Perplexity do it better). After thorough audit of YARNNN's lifecycle infrastructure (deliverable_memory, proactive review, scoped sessions), we reframed the type:
+Deep research as "one-shot web research" was assessed as commoditized (ChatGPT Deep Research, Perplexity do it better). After thorough audit of YARNNN's lifecycle infrastructure (agent_memory, proactive review, scoped sessions), we reframed the type:
 
 **Old:** "User tells YARNNN what to research" → generic report → done.
 **New:** "YARNNN notices themes in the user's platforms → researches externally → delivers intelligence the user didn't ask for."
@@ -214,7 +214,7 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 
 - **User**: kvkthecreator@gmail.com (real production account)
 - **Platforms**: Slack (synced), Gmail (synced), Notion (synced), Calendar (synced)
-- **Deliverable**: `deep_research` type, `proactive` mode, `hybrid` binding
+- **Agent**: `deep_research` type, `proactive` mode, `hybrid` binding
 - **Sources**: All connected platforms
 - **Schedule**: `proactive_next_review_at` set to trigger review pass
 
@@ -247,7 +247,7 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 **Test 2 (post-fix, v2 prompt, 5 tool rounds):**
 - Round 1: List tool — checked activity_log, platform_connections, sync_registry for Slack/Notion/Gmail (landscape overview)
 - Round 2: 7 parallel Search calls — "decision", "blocked", "competitor", "market", "launch", "investor", "technology evaluation" — several returned real results
-- Round 3: 4 targeted Search calls — "agentic AI", "architecture platform evolution", "KPI metrics signals", "product roadmap next" — plus List for existing deliverables
+- Round 3: 4 targeted Search calls — "agentic AI", "architecture platform evolution", "KPI metrics signals", "product roadmap next" — plus List for existing agents
 - Round 4: Final analysis turn (no tools) → produced clean JSON
 - Decision: `observe` with substantive 3-theme note
 - Duration: ~25 seconds
@@ -260,7 +260,7 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 - All 3 themes are real — grounded in actual platform data (Slack discussions, Notion docs, email patterns)
 - Decision logic sound — "themes present but not at inflection point" is a reasonable `observe`
 - Forward-looking tracking — "Monitor for: Episode Zero metrics inflection" shows progressive intelligence
-- `deliverable_memory.review_log` accumulates correctly across cycles (2 entries after 2 runs)
+- `agent_memory.review_log` accumulates correctly across cycles (2 entries after 2 runs)
 
 ### Prompt evolution
 
@@ -276,12 +276,12 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 - Haiku successfully scans platform_content with targeted queries
 - Identifies real themes from actual user data (not hallucinated)
 - Makes reasonable observe/generate decisions based on signal strength
-- Accumulates observations in deliverable_memory.review_log
+- Accumulates observations in agent_memory.review_log
 - Forward-looking "Monitor for:" notes demonstrate progressive intelligence
 
 **Generation output (tested via admin trigger, 2026-03-07):**
 
-Triggered full Sonnet generation via `POST /api/admin/trigger-deliverable/{id}`. Version 1 generated and delivered to kvkthecreator@gmail.com.
+Triggered full Sonnet generation via `POST /api/admin/trigger-agent/{id}`. Version 1 generated and delivered to kvkthecreator@gmail.com.
 
 **Output: 3,945 chars, 3 signals + "What I'm Watching" section.**
 
@@ -296,7 +296,7 @@ Triggered full Sonnet generation via `POST /api/admin/trigger-deliverable/{id}`.
 
 **Three signals produced:**
 1. **Infrastructure cost pressures** — Render build minutes + Slack dead code cleanup → enterprise infra optimization trend
-2. **Context OS architecture + agentic era** — Notion V2.0 + Slack deliverables focus → "Agentic Era" inflection from financial sources
+2. **Context OS architecture + agentic era** — Notion V2.0 + Slack agents focus → "Agentic Era" inflection from financial sources
 3. **IR deck + funding activity** — Slack IR deck mentions + VC follow-up → AI Infrastructure Supercycle narrative
 
 **"What I'm Watching" section:**
@@ -308,22 +308,22 @@ Triggered full Sonnet generation via `POST /api/admin/trigger-deliverable/{id}`.
 ### Issues discovered during end-to-end test
 
 **Issue 4: Timing bug — apply_review_decision after dispatch_trigger**
-- Symptom: If generation takes 2+ minutes and scheduler runs every 5 minutes, `proactive_next_review_at` hasn't been updated yet — same deliverable could be picked up and reviewed/generated twice.
-- Root cause: `apply_review_decision()` was called AFTER `dispatch_trigger()` in `process_proactive_deliverable()`.
+- Symptom: If generation takes 2+ minutes and scheduler runs every 5 minutes, `proactive_next_review_at` hasn't been updated yet — same agent could be picked up and reviewed/generated twice.
+- Root cause: `apply_review_decision()` was called AFTER `dispatch_trigger()` in `process_proactive_agent()`.
 - Fix: Moved `apply_review_decision()` BEFORE `dispatch_trigger()` so `proactive_next_review_at` is set before generation begins.
 
 ### Outcome
 
 Proactive Insights fully validated at v2.1. Both phases of the two-phase execution model tested end-to-end:
 
-- **Phase 1 — Haiku review** (~$0.002/cycle, 25 seconds): Scans platforms with targeted queries, identifies real themes, makes smart observe/generate decisions, accumulates forward-looking tracking notes in `deliverable_memory.review_log`
+- **Phase 1 — Haiku review** (~$0.002/cycle, 25 seconds): Scans platforms with targeted queries, identifies real themes, makes smart observe/generate decisions, accumulates forward-looking tracking notes in `agent_memory.review_log`
 - **Decision gate**: generate/observe/sleep routing works correctly. Observations accumulate across cycles.
 - **Phase 2 — Sonnet generation** (~$0.05/generation, 6 tool rounds): Full generation with WebSearch. Internal signals + external context woven into intelligence brief. "What I'm Watching" shows progressive learning.
 - **Email delivery**: Version delivered to user's email successfully.
 
 Key architectural validations:
 1. `proactive_next_review_at` scheduling works correctly
-2. `deliverable_memory.review_log` accumulates across cycles (2 reviews + 1 generation tested)
+2. `agent_memory.review_log` accumulates across cycles (2 reviews + 1 generation tested)
 3. Search primitive responds well to short, specific queries
 4. Forced final turn ensures JSON decision even when all tool rounds used
 5. Trigger context forwarding: review decision → dispatch_trigger → headless agent (verified in code, ready for natural generate trigger)

@@ -4,7 +4,7 @@
 **Architecture**: ADR-063 Four-Layer Model (Memory / Activity / Context / Work)
 **Extensions**: pgvector (for embeddings on platform_content, filesystem_chunks)
 **Last Updated**: 2026-03-03
-**Key ADRs**: ADR-072 (Unified Content Layer), ADR-087 (Deliverable Scoped Context — proposed)
+**Key ADRs**: ADR-072 (Unified Content Layer), ADR-087 (Agent Scoped Context — proposed)
 
 ---
 
@@ -17,12 +17,12 @@ user      1──n filesystem_documents    (uploaded files)
 user      1──n user_memory             (Memory — what TP knows about the user)
 user      1──n activity_log            (Activity — what YARNNN has done)
 user      1──n chat_sessions           (TP conversations)
-user      1──n deliverables            (scheduled outputs)
+user      1──n agents            (scheduled outputs)
 
 platform_content    n──1 platform_content   (version chain via version_of)
 filesystem_documents 1──n filesystem_chunks  (document segments)
 chat_sessions 1──n session_messages          (conversation turns)
-deliverables 1──n deliverable_versions       (generated outputs)
+agents 1──n agent_runs       (generated outputs)
 ```
 
 ---
@@ -43,7 +43,7 @@ What YARNNN has done — system provenance log. Append-only. Recent events injec
 
 | Table | Purpose |
 |-------|---------|
-| `activity_log` | Timestamped event log across all pipelines (deliverable runs, syncs, memory writes, chat sessions) |
+| `activity_log` | Timestamped event log across all pipelines (agent runs, syncs, memory writes, chat sessions) |
 
 ### Layer 3: Context (Platform Content)
 
@@ -63,8 +63,8 @@ What TP produces.
 
 | Table | Purpose |
 |-------|---------|
-| `deliverables` | Scheduled output configurations |
-| `deliverable_versions` | Generated outputs |
+| `agents` | Scheduled output configurations |
+| `agent_runs` | Generated outputs |
 
 ---
 
@@ -83,7 +83,7 @@ Single flat key-value Memory store. Renamed from `user_context` in ADR-087 migra
 | source | TEXT | `user_stated`, `tp_extracted`, `document`, `feedback`, `pattern` |
 | confidence | FLOAT | 0.0–1.0. user_stated = 1.0, feedback = 0.7, pattern = 0.6 |
 | source_ref | UUID | ADR-072: FK to source record (session_id, version_id, etc.) |
-| source_type | TEXT | ADR-072: Type of source: `session_message`, `deliverable_version`, `platform_content`, `activity_log` |
+| source_type | TEXT | ADR-072: Type of source: `session_message`, `agent_version`, `platform_content`, `activity_log` |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto |
 
@@ -120,7 +120,7 @@ Append-only system provenance log. Records what YARNNN has done across all pipel
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | UUID | FK → auth.users |
-| event_type | TEXT | `deliverable_run`, `memory_written`, `platform_synced`, `chat_session` |
+| event_type | TEXT | `agent_run`, `memory_written`, `platform_synced`, `chat_session` |
 | event_ref | UUID | FK reference to related record (version_id, session_id, etc.) |
 | summary | TEXT | Human-readable one-liner for working memory injection |
 | metadata | JSONB | Event-specific structured detail |
@@ -132,7 +132,7 @@ Append-only system provenance log. Records what YARNNN has done across all pipel
 
 | event_type | Written by | summary example |
 |---|---|---|
-| `deliverable_run` | `deliverable_execution.py` | `"Weekly Digest v3 generated (staged)"` |
+| `agent_run` | `agent_execution.py` | `"Weekly Digest v3 generated (staged)"` |
 | `memory_written` | TP memory tools | `"Noted: prefers bullet points"` |
 | `platform_synced` | `platform_worker.py` | `"Synced gmail/INBOX: 12 items"` |
 | `chat_session` | `chat.py` | `"Chat session (8 turns)"` |
@@ -170,7 +170,7 @@ OAuth connections to external platforms.
 
 ADR-072: Unified content layer with retention-based accumulation. Replaces `filesystem_items`.
 
-Content that proves significant (referenced by deliverables, signals, or TP) is retained indefinitely.
+Content that proves significant (referenced by agents, signals, or TP) is retained indefinitely.
 Unreferenced content expires after TTL.
 
 | Column | Type | Notes |
@@ -189,7 +189,7 @@ Unreferenced content expires after TTL.
 | version_of | UUID | FK → platform_content (version chain) |
 | fetched_at | TIMESTAMPTZ | When fetched from platform |
 | retained | BOOLEAN | When true, content never expires |
-| retained_reason | TEXT | `deliverable_execution`, `tp_session` |
+| retained_reason | TEXT | `agent_execution`, `tp_session` |
 | retained_ref | UUID | FK to the record that marked this retained |
 | retained_at | TIMESTAMPTZ | When marked retained |
 | expires_at | TIMESTAMPTZ | NULL if retained=true, otherwise TTL |
@@ -207,7 +207,7 @@ Unreferenced content expires after TTL.
 | Condition | `retained` | `expires_at` | Outcome |
 |---|---|---|---|
 | Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
-| Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
+| Referenced by agent_version | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
 **TTL by platform** (ADR-077, extended from original values):
@@ -296,7 +296,7 @@ TP conversation containers. Inactivity-based session boundary (ADR-067).
 | compaction_summary | TEXT | In-session compaction summary (ADR-067 Phase 3) |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Bumped on every message append — doubles as last_message_at |
-| deliverable_id | UUID | ADR-087: FK → deliverables (nullable, ON DELETE SET NULL). Routes session to a specific deliverable for scoped memory accumulation. |
+| agent_id | UUID | ADR-087: FK → agents (nullable, ON DELETE SET NULL). Routes session to a specific agent for scoped memory accumulation. |
 
 **Session boundary**: `get_or_create_chat_session()` reuses sessions active within 4h inactivity window (ADR-067 Phase 2).
 
@@ -322,18 +322,18 @@ Note: `knowledge_extracted` and `knowledge_extracted_at` columns were dropped in
 
 ## Work Tables
 
-### 10. deliverables
+### 10. agents
 
-Scheduled output configurations. The unit of work in YARNNN — each deliverable is a self-contained specialist (see [Agent Model Comparison](../architecture/agent-model-comparison.md)).
+Scheduled output configurations. The unit of work in YARNNN — each agent is a self-contained specialist (see [Agent Model Comparison](../architecture/agent-model-comparison.md)).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | UUID | FK → auth.users |
 | project_id | UUID | FK → projects (nullable, currently unused — all values NULL) |
-| title | TEXT | Deliverable name |
+| title | TEXT | Agent name |
 | description | TEXT | Optional description |
-| deliverable_type | TEXT | Type identifier (8 active types — ADR-082) |
+| agent_type | TEXT | Type identifier (8 active types — ADR-082) |
 | type_config | JSONB | Type-specific settings `{}` |
 | type_classification | JSONB | `{binding, temporal_pattern}` (ADR-044) |
 | status | TEXT | `active`, `paused`, `archived` |
@@ -352,21 +352,21 @@ Scheduled output configurations. The unit of work in YARNNN — each deliverable
 | last_run_at | TIMESTAMPTZ | Last execution |
 | next_run_at | TIMESTAMPTZ | Next scheduled run |
 | last_triggered_at | TIMESTAMPTZ | Last event trigger |
-| deliverable_instructions | TEXT | ADR-087: User-authored behavioral directives (default `''`) |
-| deliverable_memory | JSONB | ADR-087: System-accumulated knowledge `{}` |
+| agent_instructions | TEXT | ADR-087: User-authored behavioral directives (default `''`) |
+| agent_memory | JSONB | ADR-087: System-accumulated knowledge `{}` |
 | mode | TEXT | ADR-087: `recurring` (default) or `goal` |
 
 ---
 
-### 11. deliverable_versions
+### 11. agent_runs
 
 Generated outputs. Each version captures the draft, the user's final edit, and structured feedback.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
-| deliverable_id | UUID | FK → deliverables |
-| version_number | INTEGER | Sequence number (unique per deliverable) |
+| agent_id | UUID | FK → agents |
+| version_number | INTEGER | Sequence number (unique per agent) |
 | status | TEXT | `generating`, `staged`, `reviewing`, `approved`, `rejected`, `suggested` |
 | draft_content | TEXT | What YARNNN produced |
 | final_content | TEXT | What the user approved/sent (after edits) |
@@ -399,7 +399,7 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 ### What you've told me
 {fact:*, instruction:*}
 
-### Active deliverables
+### Active agents
 {title, destination, sources, schedule — max 5}
 
 ### Connected platforms
@@ -407,13 +407,13 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 
 ### Recent activity
 {last 10 events from activity_log, last 7 days}
-### Current deliverable: {title} ({type})   ← ADR-087, only when session is scoped
-{instructions, session_summaries (queried via deliverable_id FK), observations, goal}
+### Current agent: {title} ({type})   ← ADR-087, only when session is scoped
+{instructions, session_summaries (queried via agent_id FK), observations, goal}
 ```
 
-Injected into TP's system prompt (~2,000 token budget + ~500 for deliverable scope). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
+Injected into TP's system prompt (~2,000 token budget + ~500 for agent scope). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
 
-**ADR-087:** When a session is in deliverable scope (via `surface_context.deliverableId`), the scoped deliverable's instructions and memory are injected into the working memory prompt. Session summaries are queried from `chat_sessions` by `deliverable_id` FK (not duplicated in JSONB). The headless generation prompt also receives the same context.
+**ADR-087:** When a session is in agent scope (via `surface_context.agentId`), the scoped agent's instructions and memory are injected into the working memory prompt. Session summaries are queried from `chat_sessions` by `agent_id` FK (not duplicated in JSONB). The headless generation prompt also receives the same context.
 
 ---
 
@@ -433,8 +433,8 @@ Injected into TP's system prompt (~2,000 token budget + ~500 for deliverable sco
 | 059 | ADR-059: Drop dead columns from session_messages | Applied |
 | 060 | ADR-063: Create activity_log table | Applied |
 | 061 | ADR-067: Session compaction — summary, compaction_summary, inactivity-based boundary | Applied |
-| 064 | Deliverable type constraint expansion | Applied |
-| 070 | ADR-068: Deliverable origin column (signal_emergent) | Applied |
+| 064 | Agent type constraint expansion | Applied |
+| 070 | ADR-068: Agent origin column (signal_emergent) | Applied |
 | 071 | ADR-068: Signal history table | Applied |
 | 073 | ADR-066: Drop governance/governance_ceiling columns | Applied |
 | 075 | Phase 2 strategic types — type constraint update | Applied |
@@ -446,7 +446,7 @@ Injected into TP's system prompt (~2,000 token budget + ~500 for deliverable sco
 | 082 | MCP OAuth tables (ADR-075) | Applied |
 | 083 | Sync registry error columns | Applied |
 | 084 | ADR-087: Rename user_context → user_memory | Pending |
-| 085 | ADR-087: Deliverable scoped context (instructions, memory, mode, deliverable_id) | Pending |
+| 085 | ADR-087: Agent scoped context (instructions, memory, mode, agent_id) | Pending |
 
 ---
 
@@ -458,7 +458,7 @@ Per ADR-072 (migration 077):
 Per ADR-059 (migration 057):
 - `knowledge_profile` — replaced by `user_memory` keys: `name`, `role`, `company`, `timezone`, `summary`
 - `knowledge_styles` — replaced by `user_memory` keys: `tone_{platform}`, `verbosity_{platform}`
-- `knowledge_domains` — removed entirely (deliverable.sources carries source context directly)
+- `knowledge_domains` — removed entirely (agent.sources carries source context directly)
 - `knowledge_entries` — replaced by `user_memory` with key pattern `{type}:{content}`
 
 Per ADR-058 (migration 045):

@@ -22,22 +22,22 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs deliverable specialists that produce real output for you in the background.",
+          "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs agent specialists that produce real output for you in the background.",
       },
       {
         question: "What is the Agent?",
         answer:
-          "The Agent is yarnnn's interactive interface. You use it to define deliverables, refine outputs, and supervise the system. The agent and background execution share the same underlying context and intelligence.",
+          "The Agent is yarnnn's interactive interface. You use it to define agents, refine outputs, and supervise the system. The agent and background execution share the same underlying context and intelligence.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "Chat tools are primarily session-centric. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based deliverables, and improves those specialists over time through versioned supervision.",
+          "Chat tools are primarily session-centric. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based agents, and improves those specialists over time through versioned supervision.",
       },
       {
         question: "Is yarnnn an AI agent platform?",
         answer:
-          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the deliverable specialist with explicit type, mode, source scope, and version history.",
+          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the agent specialist with explicit type, mode, source scope, and version history.",
       },
     ],
   },
@@ -67,25 +67,25 @@ const faqSections: FaqSection[] = [
     ],
   },
   {
-    category: "Deliverables",
+    category: "Agents",
     items: [
       {
-        question: "What are deliverables?",
+        question: "What are agents?",
         answer:
-          "Deliverables are autonomous specialists that generate versioned outputs for recurring or triggered work. Each has its own instructions, memory, and source scope.",
+          "Agents are autonomous specialists that generate versioned outputs for recurring or triggered work. Each has its own instructions, memory, and source scope.",
       },
       {
-        question: "Which deliverable types are supported?",
+        question: "Which agent types are supported?",
         answer:
           "Current intent-first types are: digest, brief, status, watch, deep_research, coordinator, and custom.",
       },
       {
         question: "Which execution modes are supported?",
         answer:
-          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when a deliverable decides to run.",
+          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when a agent decides to run.",
       },
       {
-        question: "How do deliverables improve over time?",
+        question: "How do agents improve over time?",
         answer:
           "Each approved/edit-reviewed version becomes signal for future runs. Specialists learn your preferred structure, emphasis, and tone as they execute.",
       },
@@ -97,12 +97,12 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include Slack, Gmail, Notion, and Calendar integration. Pro adds unlimited messages, more deliverables, faster sync, and unlimited sources.",
+          "yarnnn has Free and Pro plans. Both include Slack, Gmail, Notion, and Calendar integration. Pro adds unlimited messages, more agents, faster sync, and unlimited sources.",
       },
       {
-        question: "What are current deliverable limits?",
+        question: "What are current agent limits?",
         answer:
-          "Free supports 2 active deliverables. Pro supports 10.",
+          "Free supports 2 active agents. Pro supports 10.",
       },
       {
         question: "How does sync frequency differ by plan?",
@@ -122,7 +122,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up, connect one platform, then define your first deliverable through TP or the deliverable UI. You can usually have a first run quickly.",
+          "Sign up, connect one platform, then define your first agent through TP or the agent UI. You can usually have a first run quickly.",
       },
       {
         question: "Do I need to configure everything up front?",
@@ -130,7 +130,7 @@ const faqSections: FaqSection[] = [
           "No. Start with one specialist and one high-signal source. Expand type coverage and mode sophistication as you build confidence.",
       },
       {
-        question: "What is the best first deliverable?",
+        question: "What is the best first agent?",
         answer:
           "Most teams start with a recurring digest or status update. These give fast value and create clean supervision signal for future improvements.",
       },
@@ -143,12 +143,12 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: product model, integrations, deliverable types and modes, pricing, and getting started.",
+    "Frequently asked questions about yarnnn: product model, integrations, agent types and modes, pricing, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
     "autonomous ai faq",
-    "deliverable modes",
+    "agent modes",
     "thinking partner faq",
     "context powered ai",
   ],
@@ -204,7 +204,7 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start with one deliverable, then expand from real usage signal.</p>
+              <p className="text-white/50 mb-8">Start with one agent, then expand from real usage signal.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"

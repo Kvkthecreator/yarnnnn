@@ -1,11 +1,11 @@
 # Notion Integration
 
-Connect Notion so YARNNN can read your documents and databases, and include them in deliverables and AI assistant responses.
+Connect Notion so YARNNN can read your documents and databases, and include them in agents and AI assistant responses.
 
 ## What YARNNN can do with Notion
 
 - **Answer questions** — "What's the current status of Project Alpha according to our Notion tracker?"
-- **Reference docs** — pull information from your pages when generating deliverables
+- **Reference docs** — pull information from your pages when generating agents
 - **Search your knowledge base** — find relevant content using meaning-based search, not just keywords
 - **Cross-reference** — combine Notion content with Slack, Gmail, and Calendar
 
@@ -24,7 +24,7 @@ Connect Notion so YARNNN can read your documents and databases, and include them
 - Content updates are picked up on each sync cycle
 - You can change your page selection at any time
 
-## Example deliverables using Notion
+## Example agents using Notion
 
 - **Project status report** — pulls current status from a Notion database
 - **Weekly knowledge digest** — summarizes updates to key Notion pages

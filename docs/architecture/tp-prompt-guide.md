@@ -69,7 +69,7 @@ User's workspace (the "codebase"):
 ├── platform:slack       → synced Slack content (source directory)
 ├── platform:notion      → synced Notion content (source directory)
 ├── document:*           → uploaded files (source files)
-├── deliverable:*        → generated outputs (build artifacts)
+├── agent:*        → generated outputs (build artifacts)
 ├── work:*               → execution records (CI logs)
 └── {context}            → user profile + summaries (CLAUDE.md equivalent)
 ```
@@ -83,7 +83,7 @@ At session start, TP receives pre-loaded context (eliminating most runtime searc
 ```python
 {context} = {
     "user_profile": { name, role, preferences, timezone },
-    "active_deliverables": [ { title, frequency, recipient, next_run } ],
+    "active_agents": [ { title, frequency, recipient, next_run } ],
     "connected_platforms": [ { provider, status, last_synced, freshness } ],
     "recent_sessions": [ { date, summary } ]
 }
@@ -101,8 +101,8 @@ At session start, TP receives pre-loaded context (eliminating most runtime searc
 User: "Create a weekly report for my team"
 
 ✅ v5.1 behavior:
-1. Check {context} → sees existing deliverables for "Product Team"
-2. List(pattern="deliverable:?status=active") → confirms pattern
+1. Check {context} → sees existing agents for "Product Team"
+2. List(pattern="agent:?status=active") → confirms pattern
 3. "I'll create a Weekly Report for the Product Team. Sound good?"
 
 Only if {context} is empty AND exploration finds nothing:
@@ -112,7 +112,7 @@ Only if {context} is empty AND exploration finds nothing:
 ### Prompt Structure (9 Primitives + Platform Tools)
 
 ```
-1. Context injection ({context}) - user profile, deliverables, platforms, sessions
+1. Context injection ({context}) - user profile, agents, platforms, sessions
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
 4. Available Tools - 9 primitives (Read, Write, Edit, List, Search, Execute, WebSearch, list_integrations, Clarify)
@@ -170,8 +170,8 @@ Each platform has a "default landing zone" so user owns the output:
 ### Good Response Examples
 
 ```
-User: "How many deliverables do I have?"
-→ [List] → "You have 3 active deliverables."
+User: "How many agents do I have?"
+→ [List] → "You have 3 active agents."
 
 User: "Pause my weekly report"
 → [Edit] → "Paused."
@@ -186,7 +186,7 @@ User: "What platforms are connected?"
 |-------|-----|
 | "I'll help you with that! Let me check..." | Just check and respond |
 | "Done! Let me know if you need anything else!" | "Done." or "Paused." |
-| Immediately create deliverable on request | Confirm intent first |
+| Immediately create agent on request | Confirm intent first |
 | Ask 3 clarifying questions | Ask ONE, infer the rest |
 
 ---
@@ -290,10 +290,10 @@ PROMPT_VERSIONS = {
 **Changes:**
 - Added "Explore Before Asking" principle (Claude Code pattern)
 - TP now uses List/Search to find existing patterns before Clarify
-- Infer recipient, frequency, type from existing deliverables and memories
+- Infer recipient, frequency, type from existing agents and memories
 - Clarify is last resort, not first action
 
-**Rationale:** Claude Code doesn't ask clarifying questions about intent - it explores to find the answer. For YARNNN, this means checking existing deliverables and memories before asking "Who receives this?" or "What type?"
+**Rationale:** Claude Code doesn't ask clarifying questions about intent - it explores to find the answer. For YARNNN, this means checking existing agents and memories before asking "Who receives this?" or "What type?"
 
 **Pattern:**
 ```
@@ -310,7 +310,7 @@ Ambiguous request → List existing entities → Search memories → Infer → C
 - Added explicit `Clarify` tool examples
 - Added `/create` skill
 
-**Rationale:** Audit revealed TP prompt referenced non-existent tools (`list_deliverables`, `create_deliverable`). Streamlined to use only the 9 primitives consistently.
+**Rationale:** Audit revealed TP prompt referenced non-existent tools (`list_agents`, `create_agent`). Streamlined to use only the 9 primitives consistently.
 
 **Breaking:** Skills completely rewritten to use primitives
 
@@ -365,7 +365,7 @@ Pattern: Answer the question → Offer to act → Act on confirmation
 
 ### Why Confirm Before Creating?
 
-Creating entities (deliverables, work) without confirmation leads to:
+Creating entities (agents, work) without confirmation leads to:
 - Duplicates when user meant something else
 - Wrong parameters from misunderstood intent
 - User feeling loss of control
@@ -377,7 +377,7 @@ Simple pattern: Check duplicates → Confirm → Create (no verbose gate phases 
 The key insight from Claude Code: **the filesystem is explorable**. When Claude Code faces ambiguity ("Where are errors handled?"), it doesn't ask - it searches.
 
 YARNNN's entity space is also explorable:
-- Existing deliverables show patterns (recipient roles, frequency preferences)
+- Existing agents show patterns (recipient roles, frequency preferences)
 - Memories contain facts about the user's workflow
 - Platform data reveals context
 
@@ -408,7 +408,7 @@ When modifying the TP prompt:
 4. **Test action requests** - Should confirm before creating
 
 Example test cases:
-- "How many deliverables?" → `List` → Short answer (no todos)
+- "How many agents?" → `List` → Short answer (no todos)
 - "/create" → `Clarify(options=[...])` → User picks → Create
 - "Make me a report" → `Clarify` asking what type
 - "yes" (after confirmation) → `Write` immediately

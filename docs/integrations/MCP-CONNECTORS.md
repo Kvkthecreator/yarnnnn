@@ -23,11 +23,11 @@ This document is a living working doc, not a decision record.
 
 YARNNN's current activation requires users to adopt a new product interface (yarnnn.com → Thinking Partner). MCP connectors invert this: **YARNNN goes to where the user already works** (Claude Desktop, ChatGPT).
 
-The user's daily AI interaction doesn't change. They stay in their existing LLM. But now that LLM has access to YARNNN's accumulated context and deliverable pipeline.
+The user's daily AI interaction doesn't change. They stay in their existing LLM. But now that LLM has access to YARNNN's accumulated context and agent pipeline.
 
 ```
 WITHOUT MCP:
-User → yarnnn.com → TP interface → deliverables → value
+User → yarnnn.com → TP interface → agents → value
 
 WITH MCP:
 User → Claude/ChatGPT (already open) → YARNNN tools → same pipeline → same value
@@ -37,16 +37,16 @@ The backend is identical. The activation friction is dramatically lower.
 
 ### MCP as Top of Funnel
 
-The MCP connector is a **surface**, not the product. The product is the backend: platform sync, content accumulation, signal processing, memory extraction, deliverable execution. These run regardless of which surface triggers them.
+The MCP connector is a **surface**, not the product. The product is the backend: platform sync, content accumulation, signal processing, memory extraction, agent execution. These run regardless of which surface triggers them.
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                  YARNNN BACKEND                      │
 │                                                      │
 │  Platform Sync ──→ platform_content (accumulation)   │
-│  Signal Processing ──→ signal-emergent deliverables  │
+│  Signal Processing ──→ signal-emergent agents  │
 │  Memory Extraction ──→ user_context (compounding)    │
-│  Deliverable Scheduler ──→ autonomous delivery       │
+│  Agent Scheduler ──→ autonomous delivery       │
 │                                                      │
 ├──────────────┬──────────────┬────────────────────────┤
 │  Surface 1   │  Surface 2   │  Surface 3             │
@@ -56,15 +56,15 @@ The MCP connector is a **surface**, not the product. The product is the backend:
 └──────────────┴──────────────┴────────────────────────┘
 ```
 
-The upgrade path is natural: start with MCP (low friction) → see value → configure deliverables on yarnnn.com for autonomous scheduling → full product adoption.
+The upgrade path is natural: start with MCP (low friction) → see value → configure agents on yarnnn.com for autonomous scheduling → full product adoption.
 
 ---
 
 ## What Works Today (Prerequisite Understanding)
 
-### The Deliverable Content Architecture
+### The Agent Content Architecture
 
-Deliverables have two orthogonal classification axes. The MCP connector interacts with the **trigger** axis, not the **content** axis:
+Agents have two orthogonal classification axes. The MCP connector interacts with the **trigger** axis, not the **content** axis:
 
 **Content Binding** (where context comes from — unchanged by MCP):
 
@@ -84,7 +84,7 @@ Deliverables have two orthogonal classification axes. The MCP connector interact
 | `signal_emergent` | Signal processing pipeline | Yes |
 | `mcp` | User via Claude/ChatGPT tool call | **New** |
 
-The `mcp` trigger calls the same `execute_deliverable_generation()` as all other triggers. No new pipeline. No different content strategy. A `cross_platform` status report triggered via MCP reads from the same `platform_content` table and produces the same output.
+The `mcp` trigger calls the same `execute_agent_generation()` as all other triggers. No new pipeline. No different content strategy. A `cross_platform` status report triggered via MCP reads from the same `platform_content` table and produces the same output.
 
 ### What the User Must Still Do on yarnnn.com
 
@@ -94,15 +94,15 @@ MCP connectors do not eliminate the web UI. They eliminate the need to **stay** 
 |--------|-------|-----|
 | Sign up | yarnnn.com | Account creation |
 | Connect platforms (OAuth) | yarnnn.com | OAuth redirects require web browser |
-| Configure deliverables | yarnnn.com | Type selection, source mapping, schedule, destination — too complex for MCP tool parameters |
+| Configure agents | yarnnn.com | Type selection, source mapping, schedule, destination — too complex for MCP tool parameters |
 | Select sources per platform | yarnnn.com Context pages | Tier-gated source limits |
 
 **Note**: Claude.ai and ChatGPT authenticate via OAuth 2.1 automatically — no API token generation step. Claude Desktop/Code use a static bearer token (set via env var).
 
 | Action | Where | Why |
 |--------|-------|-----|
-| Trigger deliverable execution | Claude/ChatGPT (MCP) | On-demand, in-flow |
-| Read deliverable output | Claude/ChatGPT (MCP) | In-context with conversation |
+| Trigger agent execution | Claude/ChatGPT (MCP) | On-demand, in-flow |
+| Read agent output | Claude/ChatGPT (MCP) | In-context with conversation |
 | Query accumulated context | Claude/ChatGPT (MCP) | "What do you know about X?" |
 | Check system status | Claude/ChatGPT (MCP) | Transparency |
 
@@ -119,9 +119,9 @@ ADR-075 proposes 6 tools for MVP. This section captures the reasoning and open q
 | Tool | Rationale | Open Questions |
 |------|-----------|----------------|
 | `get_status` | Essential for transparency; also serves as hello-world validation | None — straightforward |
-| `list_deliverables` | Users need to discover what's configured before triggering | How much detail? Just titles, or include schedule/destination? |
-| `run_deliverable` | Core value — trigger execution from LLM | Async vs sync? Current plan: async (returns immediately). Is polling UX acceptable? |
-| `get_deliverable_output` | Read the generated content | Should this include delivery status? Past versions? |
+| `list_agents` | Users need to discover what's configured before triggering | How much detail? Just titles, or include schedule/destination? |
+| `run_agent` | Core value — trigger execution from LLM | Async vs sync? Current plan: async (returns immediately). Is polling UX acceptable? |
+| `get_agent_output` | Read the generated content | Should this include delivery status? Past versions? |
 
 **Probable but needs validation:**
 
@@ -134,7 +134,7 @@ ADR-075 proposes 6 tools for MVP. This section captures the reasoning and open q
 
 | Tool | Why Interesting | Why Deferred |
 |------|----------------|-------------|
-| `create_deliverable` | "Set up a weekly Slack digest" from within Claude — very natural | Configuration complexity: type selection, source mapping, schedule, destination. Would need a multi-step conversation flow, not a single tool call. Revisit after seeing how users interact with MVP tools. |
+| `create_agent` | "Set up a weekly Slack digest" from within Claude — very natural | Configuration complexity: type selection, source mapping, schedule, destination. Would need a multi-step conversation flow, not a single tool call. Revisit after seeing how users interact with MVP tools. |
 | `add_memory` | "Remember that Acme's contract renews in March" — natural | Memory is implicit (ADR-064). Adding explicit memory writing via MCP contradicts the extraction-based model. But users may want it. Product decision needed. |
 | Platform tools (Slack, Gmail, etc.) | "Send this to #general" from Claude via YARNNN | Native platform MCP servers already exist. YARNNN shouldn't duplicate. But: YARNNN has the user's OAuth tokens already. Is there a convenience argument? |
 
@@ -146,19 +146,19 @@ This is the least resolved area. The host LLM (Claude/ChatGPT) decides which too
 
 | User says (in Claude/ChatGPT) | Expected tool sequence |
 |-------------------------------|----------------------|
-| "Run my weekly status report" | `list_deliverables()` → identify match → `run_deliverable(id)` → `get_deliverable_output(id)` |
+| "Run my weekly status report" | `list_agents()` → identify match → `run_agent(id)` → `get_agent_output(id)` |
 | "What do you know about Project Acme?" | `get_context(search="Acme")` + `search_content(query="Acme")` |
 | "What happened in #engineering this week?" | `search_content(query="engineering", platform="slack", days=7)` |
 | "Is my data fresh?" | `get_status()` |
-| "Show me the last client update you generated" | `list_deliverables()` → identify match → `get_deliverable_output(id)` |
+| "Show me the last client update you generated" | `list_agents()` → identify match → `get_agent_output(id)` |
 
 **Unresolved flows:**
 
 | User says | Problem |
 |-----------|---------|
-| "Write me a status update for the Acme project" | Is this a deliverable trigger (existing deliverable) or a new request? If no matching deliverable exists, what happens? Should the MCP connector suggest creating one on yarnnn.com? |
-| "Send this report to my team on Slack" | Delivery is part of the deliverable pipeline (destination is pre-configured). Should MCP allow ad-hoc delivery to arbitrary destinations? This is a significant scope expansion. |
-| "What's new since yesterday?" | Maps to `search_content(days=1)` but across all platforms. Is this a deliverable request in disguise (daily digest)? Or a content query? |
+| "Write me a status update for the Acme project" | Is this a agent trigger (existing agent) or a new request? If no matching agent exists, what happens? Should the MCP connector suggest creating one on yarnnn.com? |
+| "Send this report to my team on Slack" | Delivery is part of the agent pipeline (destination is pre-configured). Should MCP allow ad-hoc delivery to arbitrary destinations? This is a significant scope expansion. |
+| "What's new since yesterday?" | Maps to `search_content(days=1)` but across all platforms. Is this a agent request in disguise (daily digest)? Or a content query? |
 | "Remember that I prefer bullet points" | Memory writing — deferred. But the user expects it to work. What's the graceful fallback? |
 
 ### 3. Activation Sequencing — When Does MCP Get Offered?
@@ -180,27 +180,27 @@ Option C: **Separate discovery, post-activation**
 
 Each option has different implications for onboarding flow, Settings page, and messaging. Not decided yet.
 
-### 4. Cross-Platform Synthesis Without Explicit Deliverable
+### 4. Cross-Platform Synthesis Without Explicit Agent
 
 The most interesting (and unresolved) value proposition:
 
-A user in Claude Desktop says "Give me a summary of what happened across my projects this week." They don't have a deliverable configured for this. But YARNNN has the synced content across Slack, Gmail, Notion, and Calendar.
+A user in Claude Desktop says "Give me a summary of what happened across my projects this week." They don't have a agent configured for this. But YARNNN has the synced content across Slack, Gmail, Notion, and Calendar.
 
 **Options:**
 
 A. **MCP returns raw content, host LLM synthesizes.** `search_content()` returns platform content; Claude/ChatGPT does the synthesis. YARNNN is a data pipe.
 
-B. **MCP triggers an ad-hoc deliverable.** Create a temporary `cross_platform` deliverable, execute it, return the output. YARNNN does the synthesis with its prompt engineering.
+B. **MCP triggers an ad-hoc agent.** Create a temporary `cross_platform` agent, execute it, return the output. YARNNN does the synthesis with its prompt engineering.
 
-C. **Not supported in MVP.** User must configure a deliverable on yarnnn.com first, then trigger it via MCP.
+C. **Not supported in MVP.** User must configure a agent on yarnnn.com first, then trigger it via MCP.
 
-Option A is simplest but loses YARNNN's prompt engineering. Option B is powerful but adds complexity (temporary deliverable lifecycle). Option C is restrictive but clean.
+Option A is simplest but loses YARNNN's prompt engineering. Option B is powerful but adds complexity (temporary agent lifecycle). Option C is restrictive but clean.
 
 **This is a key product decision that affects the tool surface design.** If we choose B, we need a `generate_ad_hoc` tool. If A, `search_content` is sufficient. If C, current 6-tool surface is correct.
 
 ### 5. Token Budget and Tier Implications
 
-MCP tool calls that trigger `run_deliverable` consume token budget (same as any execution trigger). But `get_context` and `search_content` are database reads — no LLM tokens consumed.
+MCP tool calls that trigger `run_agent` consume token budget (same as any execution trigger). But `get_context` and `search_content` are database reads — no LLM tokens consumed.
 
 **Open question:** Should MCP tool calls have separate rate limits? Or just respect existing tier budgets?
 
@@ -219,7 +219,7 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 | Multi-turn state | Session-based, compacted (ADR-067) | Stateless per tool call |
 | Platform tools | Full set (Slack, Gmail, Notion, Calendar via Direct API clients — ADR-076) | Not exposed — use native platform MCPs |
 | Memory writing | Implicit extraction at session end (ADR-064) | Not available (deferred) |
-| Deliverable creation | Full UI with type selection, source mapping, schedule | Not available (deferred) |
+| Agent creation | Full UI with type selection, source mapping, schedule | Not available (deferred) |
 
 **Key insight:** The MCP connector is deliberately less capable than TP. It's a focused tool surface, not a TP replica. The host LLM provides the conversational intelligence; YARNNN provides the data and execution.
 
@@ -228,8 +228,8 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 | Dimension | Scheduler (Cron) | MCP Connector |
 |-----------|-------------------|---------------|
 | Trigger | Time-based, autonomous | User-initiated, on-demand |
-| Frequency | Per deliverable schedule (daily, weekly, etc.) | Ad-hoc |
-| Signal processing | Runs independently, creates signal-emergent deliverables | Not involved |
+| Frequency | Per agent schedule (daily, weekly, etc.) | Ad-hoc |
+| Signal processing | Runs independently, creates signal-emergent agents | Not involved |
 | Delivery | Automatic to configured destination | Same pipeline (delivers to configured destination) |
 | Content freshness | Checks freshness before execution (ADR-049) | Same check applies |
 
@@ -242,8 +242,8 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 1. ~~**Validate technical wiring** — Phase 0 in ADR-075: `get_status` tool via Streamable HTTP~~ **Done** — OAuth 2.1 live, Claude.ai connector confirmed working
 2. **Resolve Open Question #4** (ad-hoc synthesis) — Affects tool surface design
 3. **Resolve Open Question #3** (activation sequencing) — Affects onboarding flow
-4. ~~**Build MVP tool surface** — Phase 1 in ADR-075: 6 tools~~ **Done** — `get_status`, `list_deliverables`, `run_deliverable`, `get_deliverable_output`, `get_context`, `search_content`
-5. **User testing** — Real user triggers deliverable from Claude.ai/ChatGPT, evaluates experience
+4. ~~**Build MVP tool surface** — Phase 1 in ADR-075: 6 tools~~ **Done** — `get_status`, `list_agents`, `run_agent`, `get_agent_output`, `get_context`, `search_content`
+5. **User testing** — Real user triggers agent from Claude.ai/ChatGPT, evaluates experience
 6. **Iterate on tool descriptions** — How host LLMs actually use the tools may differ from expectations
 7. **ChatGPT integration test** — OAuth flow should work, needs verification
 
@@ -255,5 +255,5 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 - [ADR-050: MCP Gateway Architecture](../adr/ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076 (Direct API clients)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Backend that MCP surfaces
 - [ADR-064: Unified Memory Service](../adr/ADR-064-unified-memory-service.md) — Why memory writing is implicit
-- [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) — Backend-only, not exposed via MCP
+- [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md) — Backend-only, not exposed via MCP
 - [ACTIVATION_PLAYBOOK.md](../ACTIVATION_PLAYBOOK.md) — Current activation strategy (pre-MCP)

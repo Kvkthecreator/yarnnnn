@@ -30,11 +30,11 @@ This analysis evaluates YARNNN's strategy for third-party integrations (Slack, N
 
 **Answer: Integrations.** Here's why:
 
-1. **The supervisor model** - Users set up deliverables, review outputs, and approve/refine via conversation with TP. They don't need to be document editors.
+1. **The supervisor model** - Users set up agents, review outputs, and approve/refine via conversation with TP. They don't need to be document editors.
 
 2. **Quality loop is conversational** - When output needs improvement, user gives feedback to TP ("make it more concise", "add metrics section"). TP refines. This is fundamentally different from manually editing.
 
-3. **Exit velocity matters** - A successful session ends with the user getting their deliverable OUT of YARNNN into their workflow. Friction to export = failed experience.
+3. **Exit velocity matters** - A successful session ends with the user getting their agent OUT of YARNNN into their workflow. Friction to export = failed experience.
 
 4. **Competitive positioning** - Notion is a document tool. Slack is a communication tool. YARNNN is an intelligence layer. Don't compete on document editing.
 
@@ -46,7 +46,7 @@ This analysis evaluates YARNNN's strategy for third-party integrations (Slack, N
 
 | Feature | Current State | Needed for MVP |
 |---------|--------------|----------------|
-| View deliverable content | ✅ Plain text display | ✅ |
+| View agent content | ✅ Plain text display | ✅ |
 | Basic formatting | ❌ None | ⚠️ Markdown preview |
 | Rich text editing | ❌ None | ❌ Not needed |
 | Export (copy) | ✅ Implicit (select + copy) | ⚠️ One-click copy |
@@ -55,7 +55,7 @@ This analysis evaluates YARNNN's strategy for third-party integrations (Slack, N
 | Export (Slack) | ❌ Not implemented | 🎯 Priority |
 | Export (Notion) | ❌ Not implemented | 🎯 Priority |
 
-### Deliverable Workflow (Phase 4 Gap)
+### Agent Workflow (Phase 4 Gap)
 
 From `DELIVERABLE-WORKFLOW.md`, Phase 4 "Post-Approval Actions" shows export options but is marked **❌ Not implemented**:
 
@@ -82,21 +82,21 @@ From `DELIVERABLE-WORKFLOW.md`, Phase 4 "Post-Approval Actions" shows export opt
 
 ### Tier 1: Essential (P1)
 
-| Integration | Why | Deliverable Types | User Story |
+| Integration | Why | Agent Types | User Story |
 |-------------|-----|-------------------|------------|
 | **Slack** | Most common professional communication tool. Low friction, high value. | All types | "Send my status report to #team-updates" |
 | **Notion** | Popular for knowledge bases, project tracking. Many users already store documents there. | research_brief, meeting_summary, changelog | "Add this meeting summary to my Engineering Decisions wiki" |
 
 ### Tier 2: Strategic (P2)
 
-| Integration | Why | Deliverable Types | User Story |
+| Integration | Why | Agent Types | User Story |
 |-------------|-----|-------------------|------------|
 | **Google Docs** | Common for collaborative document editing | client_proposal, board_update | "Create a Google Doc I can share with my board" |
 | **Email (enhanced)** | Direct delivery to external recipients | stakeholder_update, board_update | "Email this directly to sarah@client.com" |
 
 ### Tier 3: Future (P3)
 
-| Integration | Why | Deliverable Types | User Story |
+| Integration | Why | Agent Types | User Story |
 |-------------|-----|-------------------|------------|
 | **Microsoft 365** | Enterprise market | All | "Send to my OneDrive" |
 | **Linear/Jira** | Dev tool integration | changelog, status_report | "Create a Linear issue from this" |
@@ -202,9 +202,9 @@ Beyond consuming MCP servers, YARNNN can **expose** an MCP server:
 class YarnnnMCPServer:
     tools = [
         "get_user_memories",      # Access user's memory bank
-        "get_deliverable",        # Fetch deliverable content
-        "list_deliverables",      # List user's deliverables
-        "export_deliverable",     # Export in various formats
+        "get_agent",        # Fetch agent content
+        "list_agents",      # List user's agents
+        "export_agent",     # Export in various formats
     ]
 ```
 
@@ -223,11 +223,11 @@ This enables:
 
 ---
 
-## Deliverable Type → Integration Mapping
+## Agent Type → Integration Mapping
 
-Based on `api/services/deliverable_pipeline.py` and `web/components/modals/DeliverableSettingsModal.tsx`:
+Based on `api/services/agent_pipeline.py` and `web/components/modals/AgentSettingsModal.tsx`:
 
-| Deliverable Type | Primary Export | Secondary Export | Notes |
+| Agent Type | Primary Export | Secondary Export | Notes |
 |-----------------|----------------|------------------|-------|
 | `status_report` | Slack | Email | Team-wide visibility |
 | `stakeholder_update` | Email | Slack | Often external recipients |
@@ -274,7 +274,7 @@ Instead of building a rich editor, the review surface needs:
 
 ### Phase 1: Foundation (Current Sprint)
 
-1. **Markdown preview** in DeliverableReviewSurface
+1. **Markdown preview** in AgentReviewSurface
 2. **Copy to clipboard** button with formatting
 3. **Email enhancement** - Current email flow polish
 
@@ -283,14 +283,14 @@ Instead of building a rich editor, the review surface needs:
 1. **OAuth flow** for Slack workspace connection
 2. **Channel selector** in export flow
 3. **Message formatting** (Slack blocks/mrkdwn)
-4. **Default channel per deliverable** (optional setting)
+4. **Default channel per agent** (optional setting)
 
 ### Phase 3: Notion Integration
 
 1. **OAuth flow** for Notion workspace connection
 2. **Page/database selector**
 3. **Notion block formatting**
-4. **Template mapping** (deliverable type → Notion template)
+4. **Template mapping** (agent type → Notion template)
 
 ### Phase 4: MCP Exploration
 
@@ -317,10 +317,10 @@ CREATE TABLE user_integrations (
     expires_at TIMESTAMPTZ
 );
 
--- Deliverable export preferences
-CREATE TABLE deliverable_export_preferences (
+-- Agent export preferences
+CREATE TABLE agent_export_preferences (
     id UUID PRIMARY KEY,
-    deliverable_id UUID REFERENCES deliverables(id),
+    agent_id UUID REFERENCES agents(id),
     provider TEXT NOT NULL,
     destination JSONB,  -- { channel: "#team-updates" } or { page_id: "..." }
     auto_export BOOLEAN DEFAULT false,
@@ -370,7 +370,7 @@ User clicks [Slack] button
 
 | Metric | Definition | Target |
 |--------|------------|--------|
-| **Export rate** | % of approved deliverables exported | >60% |
+| **Export rate** | % of approved agents exported | >60% |
 | **Integration adoption** | % of users with ≥1 integration | >40% |
 | **Time to export** | Seconds from approval to export | <10s |
 | **Return rate** | Users returning after first export | >50% |

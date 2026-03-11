@@ -48,9 +48,9 @@ class ContextImportAgent:
     (decisions, technical context, stakeholder info).
     """
 
-    SYSTEM_PROMPT = """You are a context extraction agent for YARNNN, a work platform that helps users manage recurring deliverables.
+    SYSTEM_PROMPT = """You are a context extraction agent for YARNNN, a work platform that helps users manage recurring agents.
 
-Your job is to analyze raw content from external platforms (Slack or Notion) and extract meaningful context that will help generate better deliverables.
+Your job is to analyze raw content from external platforms (Slack or Notion) and extract meaningful context that will help generate better agents.
 
 ## What to Extract
 

@@ -554,11 +554,11 @@ Context extraction is similar to Claude Code's deep research flow:
 
 ---
 
-## Deliverable-Specific Context Handling
+## Agent-Specific Context Handling
 
 ### The Two Context Modes
 
-Deliverables need context from integrations, but the timing and scope differ:
+Agents need context from integrations, but the timing and scope differ:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -567,16 +567,16 @@ Deliverables need context from integrations, but the timing and scope differ:
 
 MODE 1: USER-IMPORTED CONTEXT (Pre-extracted)
 ─────────────────────────────────────────────
-User explicitly imports → Stored as memories → Deliverable uses cached context
+User explicitly imports → Stored as memories → Agent uses cached context
 
 Flow:
   User clicks "Import #engineering"
     → Background job extracts
     → Memories created (source_type='import')
-    → Deliverable retrieves relevant memories at runtime
+    → Agent retrieves relevant memories at runtime
 
 Characteristics:
-  ✓ Fast at deliverable runtime (no API calls)
+  ✓ Fast at agent runtime (no API calls)
   ✓ User has full control over what's included
   ✗ Can become stale
   ✗ Requires user action to set up
@@ -584,42 +584,42 @@ Characteristics:
 
 MODE 2: DELIVERABLE-SCOPED FETCH (On-demand)
 ────────────────────────────────────────────
-Deliverable configured with sources → Fresh fetch at each run
+Agent configured with sources → Fresh fetch at each run
 
 Flow:
-  Deliverable runs
+  Agent runs
     → Gather step fetches from Gmail/Slack/Notion
     → Agent processes fresh data
     → Content generated with current context
 
 Characteristics:
   ✓ Always fresh
-  ✓ Scope tied to deliverable purpose
+  ✓ Scope tied to agent purpose
   ✗ Slower (API + processing at runtime)
   ✗ Unpredictable duration
 ```
 
-### Recurring Deliverables: Special Considerations
+### Recurring Agents: Special Considerations
 
-Recurring deliverables (daily status report, weekly digest) have different needs:
+Recurring agents (daily status report, weekly digest) have different needs:
 
-| Aspect | One-time Deliverable | Recurring Deliverable |
+| Aspect | One-time Agent | Recurring Agent |
 |--------|---------------------|----------------------|
 | **Context freshness** | "Now" is fine | Need "since last run" |
 | **Scope** | User-defined once | Should be consistent |
 | **Duration tolerance** | User waits | Should be predictable |
 | **Failure impact** | User retries | Missed delivery = problem |
 
-### Delta Extraction for Recurring Deliverables
+### Delta Extraction for Recurring Agents
 
-For recurring deliverables, we should fetch **only what's new since last run**:
+For recurring agents, we should fetch **only what's new since last run**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    DELTA EXTRACTION MODEL                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Deliverable: "Daily Inbox Summary"
+Agent: "Daily Inbox Summary"
 Schedule: Every day at 8am
 Sources: Gmail inbox
 
@@ -641,7 +641,7 @@ RUN 3 (Wednesday 8am):
 
 **Implementation**:
 ```python
-# In deliverable sources config
+# In agent sources config
 {
     "type": "integration_import",
     "provider": "gmail",
@@ -654,7 +654,7 @@ RUN 3 (Wednesday 8am):
 }
 ```
 
-### Deliverable Source Configuration UI
+### Agent Source Configuration UI
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -685,12 +685,12 @@ RUN 3 (Wednesday 8am):
 
 ### Context Freshness Indicators
 
-For deliverables using pre-imported context, show freshness:
+For agents using pre-imported context, show freshness:
 
 ```
 ┌─ Context Status ────────────────────────────────────────────────────────────┐
 │                                                                              │
-│  This deliverable uses context from:                                         │
+│  This agent uses context from:                                         │
 │                                                                              │
 │  ✓ Gmail inbox         Last synced: 2 hours ago       ● Fresh               │
 │  ✓ #engineering        Last synced: 1 day ago         ◐ Getting stale       │
@@ -703,14 +703,14 @@ For deliverables using pre-imported context, show freshness:
 
 ### Runtime Behavior: Pre-imported vs. On-demand
 
-| Deliverable Type | Context Mode | Behavior |
+| Agent Type | Context Mode | Behavior |
 |------------------|--------------|----------|
 | **Daily Inbox Summary** | On-demand delta | Fetches new emails since last run |
 | **Weekly Status Report** | Mixed | On-demand for Slack, pre-imported for Notion |
 | **Project Brief** | Pre-imported | Uses cached context from imports |
 | **Reply Draft** | On-demand | Fetches specific thread fresh |
 
-### Failure Handling for Recurring Deliverables
+### Failure Handling for Recurring Agents
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -730,7 +730,7 @@ OPTION B: Retry with Backoff
 
 OPTION C: Partial Generation
   - If Slack works but Gmail fails
-  - Generate partial deliverable with available context
+  - Generate partial agent with available context
   - Note: "Gmail context unavailable for this run"
 
 RECOMMENDATION: Option B with fallback to A
@@ -772,21 +772,21 @@ RECOMMENDATION: Option B with fallback to A
 - [x] Progress polling via existing `GET /integrations/import/{job_id}` endpoint
 - [x] Frontend progress indicator with phase labels and progress bar
 
-### Phase 5: Deliverable Source Configuration ✅
+### Phase 5: Agent Source Configuration ✅
 
-- [x] Delta extraction mode for recurring deliverables
+- [x] Delta extraction mode for recurring agents
   - `SourceFetchResult` class with time range tracking
   - `last_run_at` based delta extraction in `fetch_integration_source_data`
   - `IntegrationSourceScope` schema with `mode: 'delta' | 'fixed_window'`
-- [x] Source scope configuration UI (`DeliverableSettingsModal`)
+- [x] Source scope configuration UI (`AgentSettingsModal`)
   - Extraction mode selector (delta vs fixed window)
   - Fallback days / window size configuration
   - Max items limit
-- [x] Freshness indicators on deliverable sources
-  - `deliverable_source_runs` table for tracking fetches
-  - `GET /deliverables/{id}/sources/freshness` API endpoint
+- [x] Freshness indicators on agent sources
+  - `agent_source_runs` table for tracking fetches
+  - `GET /agents/{id}/sources/freshness` API endpoint
   - `source_fetch_summary` on versions
-- [x] Failure handling for recurring deliverables
+- [x] Failure handling for recurring agents
   - Source run status tracking (pending/fetching/completed/failed/skipped)
   - Error message capture in source runs
   - Partial success handling (some sources fail, others succeed)
@@ -807,7 +807,7 @@ RECOMMENDATION: Option B with fallback to A
 - [x] Caching layer for repeated imports
   - In-memory TTL cache (15 min default) for source fetch results
   - Cache key: hash of (user_id, provider, source_query, time_range_start)
-  - Cached results still tracked in `deliverable_source_runs` (marked as cached)
+  - Cached results still tracked in `agent_source_runs` (marked as cached)
   - Max 100 cached entries with LRU eviction
 
 ---
@@ -831,10 +831,10 @@ RECOMMENDATION: Option B with fallback to A
    - Store partial results? Retry from checkpoint?
 
 5. **Delta extraction: what if user misses runs?**
-   - Deliverable scheduled daily but user is offline for 3 days
+   - Agent scheduled daily but user is offline for 3 days
    - Should we catch up with 3 days of context or just last 24h?
 
-6. **Cross-platform context for single deliverable?**
+6. **Cross-platform context for single agent?**
    - "Weekly update" pulls from Gmail + Slack + Notion
    - Unified progress? Parallel or sequential fetches?
 

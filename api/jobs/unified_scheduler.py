@@ -2,8 +2,8 @@
 YARNNN v5 - Unified Scheduler
 
 Consolidates all scheduled job processing:
-- Recurring deliverables (ADR-018)
-- Proactive/coordinator deliverables (ADR-092)
+- Recurring agents (ADR-018)
+- Proactive/coordinator agents (ADR-092)
 - Import jobs
 - Nightly conversation analysis + memory extraction
 - Platform content cleanup (ADR-072)
@@ -170,15 +170,15 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
     Args:
         supabase_client: Supabase client
         user_id: User ID
-        notification_type: 'deliverable_ready', 'deliverable_failed', 'suggestion_created'
+        notification_type: 'agent_ready', 'agent_failed', 'suggestion_created'
 
     Returns:
         True if should send email (defaults to True if no preferences set)
     """
     # Map notification type to column name
     column_map = {
-        "deliverable_ready": "email_deliverable_ready",
-        "deliverable_failed": "email_deliverable_failed",
+        "agent_ready": "email_agent_ready",
+        "agent_failed": "email_agent_failed",
         "suggestion_created": "email_suggestion_created",
     }
 
@@ -209,23 +209,23 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 
 
 # =============================================================================
-# Deliverable Processing (ADR-018)
+# Agent Processing (ADR-018)
 # =============================================================================
 
-async def get_due_deliverables(supabase_client) -> list[dict]:
+async def get_due_agents(supabase_client) -> list[dict]:
     """
-    Query deliverables due for generation.
+    Query agents due for generation.
 
-    Returns active deliverables where next_run_at <= now.
+    Returns active agents where next_run_at <= now.
     Includes last_run_at for freshness check (ADR-031).
     """
     now = datetime.now(timezone.utc)
 
-    # ADR-092: Exclude reactive and proactive/coordinator deliverables — they have
+    # ADR-092: Exclude reactive and proactive/coordinator agents — they have
     # their own trigger paths (event_triggers.py and proactive_next_review_at).
     result = (
-        supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory, mode, trigger_config")
+        supabase_client.table("agents")
+        .select("id, user_id, title, agent_type, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, agent_memory, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["recurring", "goal"])
         .lte("next_run_at", now.isoformat())
@@ -235,18 +235,18 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
     return result.data or []
 
 
-async def get_due_proactive_deliverables(supabase_client) -> list[dict]:
+async def get_due_proactive_agents(supabase_client) -> list[dict]:
     """
-    ADR-092 Phase 4: Query proactive and coordinator deliverables due for review.
+    ADR-092 Phase 4: Query proactive and coordinator agents due for review.
 
-    Returns active proactive/coordinator deliverables where
+    Returns active proactive/coordinator agents where
     proactive_next_review_at <= now (or is NULL — never reviewed before).
     """
     now = datetime.now(timezone.utc)
 
     result = (
-        supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory, mode, trigger_config")
+        supabase_client.table("agents")
+        .select("id, user_id, title, agent_type, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, agent_memory, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["proactive", "coordinator"])
         .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
@@ -256,9 +256,9 @@ async def get_due_proactive_deliverables(supabase_client) -> list[dict]:
     return result.data or []
 
 
-async def process_proactive_deliverable(supabase_client, deliverable: dict) -> bool:
+async def process_proactive_agent(supabase_client, agent: dict) -> bool:
     """
-    ADR-092 Phase 4: Process a single proactive/coordinator deliverable.
+    ADR-092 Phase 4: Process a single proactive/coordinator agent.
 
     Runs a lightweight Haiku review pass. On "generate", proceeds to full generation.
     On "observe" or "sleep", updates memory and proactive_next_review_at only.
@@ -268,32 +268,32 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
     from services.proactive_review import run_proactive_review, apply_review_decision
     from services.activity_log import write_activity
 
-    deliverable_id = deliverable["id"]
-    user_id = deliverable["user_id"]
-    title = deliverable["title"]
-    mode = deliverable.get("mode", "proactive")
+    agent_id = agent["id"]
+    user_id = agent["user_id"]
+    title = agent["title"]
+    mode = agent.get("mode", "proactive")
 
-    logger.info(f"[PROACTIVE] Reviewing: {title} ({deliverable_id}), mode={mode}")
+    logger.info(f"[PROACTIVE] Reviewing: {title} ({agent_id}), mode={mode}")
 
     try:
         decision = await run_proactive_review(
             client=supabase_client,
             user_id=user_id,
-            deliverable=deliverable,
+            agent=agent,
         )
 
         action = decision.get("action", "observe")
 
         if action == "generate":
             # Update memory + proactive_next_review_at BEFORE generation
-            # so scheduler doesn't re-pick this deliverable while generation runs
-            apply_review_decision(supabase_client, deliverable, decision)
+            # so scheduler doesn't re-pick this agent while generation runs
+            apply_review_decision(supabase_client, agent, decision)
 
             # Full generation path — reuse existing dispatch
             from services.trigger_dispatch import dispatch_trigger
             result = await dispatch_trigger(
                 client=supabase_client,
-                deliverable=deliverable,
+                agent=agent,
                 trigger_type="schedule",
                 trigger_context={"type": "proactive_review", "review_decision": decision},
                 signal_strength="high",
@@ -303,9 +303,9 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
                 await write_activity(
                     client=supabase_client,
                     user_id=user_id,
-                    event_type="deliverable_scheduled",
+                    event_type="agent_scheduled",
                     summary=f"Proactive generation: {title}",
-                    event_ref=deliverable_id,
+                    event_ref=agent_id,
                     metadata={"mode": mode, "review_action": "generate"},
                 )
             except Exception:
@@ -315,7 +315,7 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
 
         else:
             # observe or sleep — update memory, no generation
-            apply_review_decision(supabase_client, deliverable, decision)
+            apply_review_decision(supabase_client, agent, decision)
             note = decision.get("note", "")
 
             try:
@@ -324,7 +324,7 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
                     user_id=user_id,
                     event_type="memory_written",
                     summary=f"Proactive review [{action}]: {title}",
-                    event_ref=deliverable_id,
+                    event_ref=agent_id,
                     metadata={"mode": mode, "review_action": action, "note": note[:200] if note else ""},
                 )
             except Exception:
@@ -338,31 +338,31 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
         return False
 
 
-async def should_skip_deliverable(
+async def should_skip_agent(
     supabase_client,
-    deliverable: dict,
+    agent: dict,
 ) -> tuple[bool, str]:
     """
-    Check if a deliverable should be skipped due to no new context.
+    Check if a agent should be skipped due to no new context.
 
     ADR-031 Phase 3: Skip generation if no fresh ephemeral context since last run.
 
     Args:
         supabase_client: Supabase client
-        deliverable: Deliverable dict with sources and last_run_at
+        agent: Agent dict with sources and last_run_at
 
     Returns:
         Tuple of (should_skip, reason)
     """
     from services.platform_content import has_fresh_content_since
 
-    sources = deliverable.get("sources", [])
+    sources = agent.get("sources", [])
     if not sources:
         # No sources configured - can't skip based on freshness
         return False, ""
 
     # Get last_run_at - if never run, don't skip
-    last_run_at = deliverable.get("last_run_at")
+    last_run_at = agent.get("last_run_at")
     if not last_run_at:
         return False, ""
 
@@ -379,8 +379,8 @@ async def should_skip_deliverable(
     try:
         has_fresh, count = await has_fresh_content_since(
             db_client=supabase_client,
-            user_id=deliverable["user_id"],
-            deliverable_sources=sources,
+            user_id=agent["user_id"],
+            agent_sources=sources,
             since=last_run_at,
         )
 
@@ -395,39 +395,39 @@ async def should_skip_deliverable(
         return False, ""
 
 
-async def process_deliverable(supabase_client, deliverable: dict) -> bool:
+async def process_agent(supabase_client, agent: dict) -> bool:
     """
-    Process a single deliverable: generate version, send email, update schedule.
+    Process a single agent: generate version, send email, update schedule.
 
-    ADR-042: Uses simplified execute_deliverable_generation() instead of 3-step pipeline.
+    ADR-042: Uses simplified execute_agent_generation() instead of 3-step pipeline.
 
     Returns True if successful.
     """
     from services.trigger_dispatch import dispatch_trigger
     from services.activity_log import write_activity
 
-    deliverable_id = deliverable["id"]
-    user_id = deliverable["user_id"]
-    title = deliverable["title"]
-    deliverable_type = deliverable["deliverable_type"]
-    schedule = deliverable.get("schedule", {})
+    agent_id = agent["id"]
+    user_id = agent["user_id"]
+    title = agent["title"]
+    agent_type = agent["agent_type"]
+    schedule = agent.get("schedule", {})
 
-    logger.info(f"[DELIVERABLE] Processing: {title} ({deliverable_id})")
+    logger.info(f"[DELIVERABLE] Processing: {title} ({agent_id})")
 
-    # ADR-072: Write deliverable_scheduled event when queued for execution
+    # ADR-072: Write agent_scheduled event when queued for execution
     try:
         next_run = calculate_next_run_from_schedule(schedule)
         await write_activity(
             client=supabase_client,
             user_id=user_id,
-            event_type="deliverable_scheduled",
+            event_type="agent_scheduled",
             summary=f"Queued: {title}",
-            event_ref=deliverable_id,
+            event_ref=agent_id,
             metadata={
-                "deliverable_id": deliverable_id,
+                "agent_id": agent_id,
                 "scheduled_for": datetime.now(timezone.utc).isoformat(),
                 "trigger_reason": "schedule",
-                "deliverable_type": deliverable_type,
+                "agent_type": agent_type,
             },
         )
     except Exception as e:
@@ -437,7 +437,7 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         # ADR-088: Route through dispatch — schedule triggers always generate (high)
         result = await dispatch_trigger(
             client=supabase_client,
-            deliverable=deliverable,
+            agent=agent,
             trigger_type="schedule",
             trigger_context={"type": "schedule"},
             signal_strength="high",
@@ -447,10 +447,10 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
 
         # 3. Calculate and update next_run_at
         next_run = calculate_next_run_from_schedule(schedule)
-        supabase_client.table("deliverables").update({
+        supabase_client.table("agents").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "next_run_at": next_run.isoformat(),
-        }).eq("id", deliverable_id).execute()
+        }).eq("id", agent_id).execute()
 
         # Notifications handled by delivery service (delivery.py → notifications.py)
         # No scheduler-level email — single notification path via ADR-040.
@@ -461,12 +461,12 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
                 await write_activity(
                     client=supabase_client,
                     user_id=user_id,
-                    event_type="deliverable_generated",
+                    event_type="agent_generated",
                     summary=f"Generated: {title}",
-                    event_ref=deliverable_id,
+                    event_ref=agent_id,
                     metadata={
-                        "deliverable_type": deliverable_type,
-                        "version_id": result.get("version_id"),
+                        "agent_type": agent_type,
+                        "run_id": result.get("run_id"),
                     },
                 )
             except Exception as e:
@@ -482,21 +482,21 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         # Still update next_run_at to prevent retry storm
         try:
             next_run = calculate_next_run_from_schedule(schedule)
-            supabase_client.table("deliverables").update({
+            supabase_client.table("agents").update({
                 "next_run_at": next_run.isoformat(),
-            }).eq("id", deliverable_id).execute()
+            }).eq("id", agent_id).execute()
         except Exception as e:
             logger.warning(f"[DELIVERABLE] Failed to update next_run_at for {title}: {e}")
 
         # Notify failure via delivery service's single notification path
         try:
-            from services.notifications import notify_deliverable_failed
+            from services.notifications import notify_agent_failed
             from services.supabase import get_service_client
-            await notify_deliverable_failed(
+            await notify_agent_failed(
                 db_client=get_service_client(),
                 user_id=user_id,
-                deliverable_id=deliverable_id,
-                deliverable_title=title,
+                agent_id=agent_id,
+                agent_title=title,
                 error=str(e),
             )
         except Exception as e2:
@@ -513,7 +513,7 @@ async def run_unified_scheduler():
     """
     Main scheduler entry point.
 
-    Processes deliverables, proactive/coordinator reviews, imports, and memory extraction.
+    Processes agents, proactive/coordinator reviews, imports, and memory extraction.
     Called by Render cron every 5 minutes.
     """
     from supabase import create_client
@@ -532,30 +532,30 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # Process Deliverables (ADR-018)
+    # Process Agents (ADR-018)
     # -------------------------------------------------------------------------
-    deliverables = await get_due_deliverables(supabase)
-    logger.info(f"[DELIVERABLE] Found {len(deliverables)} due for generation")
+    agents = await get_due_agents(supabase)
+    logger.info(f"[DELIVERABLE] Found {len(agents)} due for generation")
 
-    deliverable_success = 0
-    deliverable_skipped = 0
-    for deliverable in deliverables:
+    agent_success = 0
+    agent_skipped = 0
+    for agent in agents:
         try:
             # ADR-031 Phase 3: Skip if no new context since last run
-            should_skip, skip_reason = await should_skip_deliverable(supabase, deliverable)
+            should_skip, skip_reason = await should_skip_agent(supabase, agent)
             if should_skip:
-                logger.info(f"[DELIVERABLE] Skipping '{deliverable['title']}': {skip_reason}")
-                deliverable_skipped += 1
+                logger.info(f"[DELIVERABLE] Skipping '{agent['title']}': {skip_reason}")
+                agent_skipped += 1
                 # Still update next_run_at to prevent re-checking every 5 minutes
-                schedule = deliverable.get("schedule", {})
+                schedule = agent.get("schedule", {})
                 next_run = calculate_next_run_from_schedule(schedule)
-                supabase.table("deliverables").update({
+                supabase.table("agents").update({
                     "next_run_at": next_run.isoformat(),
-                }).eq("id", deliverable["id"]).execute()
+                }).eq("id", agent["id"]).execute()
                 continue
 
-            if await process_deliverable(supabase, deliverable):
-                deliverable_success += 1
+            if await process_agent(supabase, agent):
+                agent_success += 1
         except Exception as e:
             logger.error(f"[DELIVERABLE] Unexpected error: {e}")
 
@@ -564,12 +564,12 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     proactive_reviewed = 0
     proactive_generated = 0
-    proactive_deliverables = await get_due_proactive_deliverables(supabase)
-    logger.info(f"[PROACTIVE] Found {len(proactive_deliverables)} due for review")
+    proactive_agents = await get_due_proactive_agents(supabase)
+    logger.info(f"[PROACTIVE] Found {len(proactive_agents)} due for review")
 
-    for deliverable in proactive_deliverables:
+    for agent in proactive_agents:
         try:
-            success = await process_proactive_deliverable(supabase, deliverable)
+            success = await process_proactive_agent(supabase, agent)
             if success:
                 proactive_reviewed += 1
         except Exception as e:
@@ -747,12 +747,12 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
-    deliverable_summary = f"{deliverable_success}/{len(deliverables)}"
-    if deliverable_skipped > 0:
-        deliverable_summary += f" ({deliverable_skipped} skipped)"
+    agent_summary = f"{agent_success}/{len(agents)}"
+    if agent_skipped > 0:
+        agent_summary += f" ({agent_skipped} skipped)"
 
     summary_parts = [
-        f"deliverables={deliverable_summary}",
+        f"agents={agent_summary}",
         f"imports={import_success}/{import_count}",
     ]
     if memory_extracted > 0:
@@ -770,17 +770,17 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        total_checked = len(deliverables) + import_count
-        total_triggered = deliverable_success + import_success
+        total_checked = len(agents) + import_count
+        total_triggered = agent_success + import_success
 
         heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
 
         # Write per-user heartbeat for all users with active connections
         # so the system page can show scheduler status per user
         heartbeat_metadata = {
-            "deliverables_checked": len(deliverables),
-            "deliverables_triggered": deliverable_success,
-            "deliverables_skipped": deliverable_skipped,
+            "agents_checked": len(agents),
+            "agents_triggered": agent_success,
+            "agents_skipped": agent_skipped,
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "proactive_reviewed": proactive_reviewed,

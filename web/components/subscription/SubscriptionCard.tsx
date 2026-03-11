@@ -47,7 +47,7 @@ const FEATURE_ROWS: Array<{ label: string; values: Record<PlanTier, string> }> =
   { label: "Calendars", values: { free: "Unlimited", pro: "Unlimited" } },
   { label: "Sync frequency", values: { free: "1x daily", pro: "Hourly" } },
   { label: "Monthly messages", values: { free: "50", pro: "Unlimited" } },
-  { label: "Active deliverables", values: { free: "2", pro: "10" } },
+  { label: "Active agents", values: { free: "2", pro: "10" } },
   { label: "Priority support", values: { free: "No", pro: "Yes" } },
 ];
 
@@ -162,7 +162,7 @@ export function SubscriptionCard() {
                 <div>
                   <p className="text-sm font-medium">Upgrade to Pro</p>
                   <p className="text-sm text-muted-foreground">
-                    Unlimited messages, 10 deliverables, hourly sync, unlimited sources.
+                    Unlimited messages, 10 agents, hourly sync, unlimited sources.
                   </p>
                 </div>
                 <Button

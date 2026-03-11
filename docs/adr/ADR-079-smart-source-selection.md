@@ -12,7 +12,7 @@ The test user had 252 available resources across 4 platforms but only 6 selected
 
 The root cause: source selection is fully manual. After OAuth connect, users see an empty checklist and must explicitly pick sources. Most users select minimally and never return to expand.
 
-API fetch costs are negligible — the real cost gates are LLM calls (deliverables, signals), not platform API reads. Broadening content capture has near-zero marginal cost.
+API fetch costs are negligible — the real cost gates are LLM calls (agents, signals), not platform API reads. Broadening content capture has near-zero marginal cost.
 
 ## Decision
 

@@ -1,4 +1,4 @@
-# ADR-067: Deliverable Creation & List Simplification — User-Driven with Platform Grouping
+# ADR-067: Agent Creation & List Simplification — User-Driven with Platform Grouping
 
 **Status**: Partially Implemented
 **Date**: 2026-02-19
@@ -6,7 +6,7 @@
 
 ### Implementation Status
 
-**List Page** (`web/app/(authenticated)/deliverables/page.tsx`):
+**List Page** (`web/app/(authenticated)/agents/page.tsx`):
 - ✅ Platform grouping (Slack, Email, Notion, Synthesis)
 - ✅ Platform badges on every card
 - ✅ Delivery status (delivered/failed) per ADR-066
@@ -14,7 +14,7 @@
 - ✅ Destination visibility with arrow indicator
 - ✅ Uppercase group headers with separator lines
 
-**Create Page** (`web/components/surfaces/DeliverableCreateSurface.tsx`):
+**Create Page** (`web/components/surfaces/AgentCreateSurface.tsx`):
 - ✅ Platform-agnostic delivery options (Email/Slack DM/Channel)
 - ✅ Instant run on creation
 - ⏳ Simplified type selection (still has 12+ options)
@@ -24,7 +24,7 @@
 
 ## Context
 
-The current `/deliverables/new` page (DeliverableCreateSurface) is a 928-line wizard that attempts to handle:
+The current `/agents/new` page (AgentCreateSurface) is a 928-line wizard that attempts to handle:
 
 1. Type selection from 12+ options across "waves"
 2. Title input
@@ -52,7 +52,7 @@ The current `/deliverables/new` page (DeliverableCreateSurface) is a 928-line wi
 - Current wizard doesn't synthesize these into coherent UX
 
 **No Logical Grouping:**
-- List page shows deliverables in flat order
+- List page shows agents in flat order
 - No distinction between platform-specific monitors and cross-platform synthesis
 
 ### Separation of Concerns
@@ -61,7 +61,7 @@ YARNNN has two interaction modes:
 - **Chat (TP)**: Where AI-driven work happens — conversations, proposals, generation
 - **Surfaces/Routes**: Where users *see* and *manage* what exists — explicit, user-driven UI
 
-The creation flow should be **user-driven** (explicit form), not chat-first. Any TP-driven creation happens in chat, not on `/deliverables/new`.
+The creation flow should be **user-driven** (explicit form), not chat-first. Any TP-driven creation happens in chat, not on `/agents/new`.
 
 ---
 
@@ -78,13 +78,13 @@ The creation flow should be **user-driven** (explicit form), not chat-first. Any
 
 ## New Create Flow
 
-### `/deliverables/new` — Two Clear Paths
+### `/agents/new` — Two Clear Paths
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ ← Back                                        Create        │
 │                                                             │
-│ Create Deliverable                                          │
+│ Create Agent                                          │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
@@ -165,11 +165,11 @@ When user selects a type (e.g., "Slack Digest"):
 
 ## New List View
 
-### `/deliverables` — Grouped by Platform with Visual Emphasis
+### `/agents` — Grouped by Platform with Visual Emphasis
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Deliverables                                    [+ New]     │
+│ Agents                                    [+ New]     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │ 💬 SLACK ──────────────────────────────────────────────     │
@@ -207,7 +207,7 @@ When user selects a type (e.g., "Slack Digest"):
 ### Visual Emphasis Principles
 
 **Platform badges on every card** — not just group headers:
-- Each deliverable card shows its platform icon (💬/📧/📝/📊)
+- Each agent card shows its platform icon (💬/📧/📝/📊)
 - Provides instant visual differentiation even when scrolling
 - Maintains identity when groups are collapsed or filtered
 
@@ -221,12 +221,12 @@ When user selects a type (e.g., "Slack Digest"):
 - `⏸ Paused` — automated runs disabled
 
 **Destination visibility**:
-- Show where deliverables go: `→ #channel`, `→ email@domain.com`, `→ Slack DM`
+- Show where agents go: `→ #channel`, `→ email@domain.com`, `→ Slack DM`
 - This reinforces the "scheduled automation with delivery" mental model
 
 **Grouping logic:**
-- Platform-bound deliverables grouped under their platform (Slack, Gmail, Notion)
-- Cross-platform/synthesis deliverables grouped under "Synthesis"
+- Platform-bound agents grouped under their platform (Slack, Gmail, Notion)
+- Cross-platform/synthesis agents grouped under "Synthesis"
 - Use `type_classification.binding` and `type_classification.primary_platform` from ADR-044
 - Group headers are uppercase with visual separator line
 
@@ -234,13 +234,13 @@ When user selects a type (e.g., "Slack Digest"):
 
 ## Implementation
 
-### Phase 1: Simplify DeliverableCreateSurface
+### Phase 1: Simplify AgentCreateSurface
 
 Replace 928-line wizard with ~300-line two-step form:
 
 ```tsx
 // Step 1: Type selection (Platform Monitor vs Synthesis)
-function TypeSelection({ onSelect }: { onSelect: (type: DeliverableType) => void }) {
+function TypeSelection({ onSelect }: { onSelect: (type: AgentType) => void }) {
   return (
     <div className="space-y-6">
       <section>
@@ -267,7 +267,7 @@ function TypeSelection({ onSelect }: { onSelect: (type: DeliverableType) => void
 }
 
 // Step 2: Config form (shown after type selection)
-function ConfigForm({ type }: { type: DeliverableType }) {
+function ConfigForm({ type }: { type: AgentType }) {
   // Load resources only for selected type's platform
   const { resources, loading } = usePlatformResources(type);
 
@@ -285,35 +285,35 @@ function ConfigForm({ type }: { type: DeliverableType }) {
 ### Phase 2: Update List with Platform Grouping and Visual Emphasis
 
 ```tsx
-function DeliverableList({ deliverables }: { deliverables: Deliverable[] }) {
+function AgentList({ agents }: { agents: Agent[] }) {
   // Group by platform or "synthesis"
-  const grouped = groupDeliverables(deliverables);
+  const grouped = groupAgents(agents);
 
   return (
     <div className="space-y-8">
       {grouped.slack.length > 0 && (
-        <DeliverableGroup
+        <AgentGroup
           icon={<Slack />}
           label="SLACK"
           items={grouped.slack}
         />
       )}
       {grouped.email.length > 0 && (
-        <DeliverableGroup
+        <AgentGroup
           icon={<Mail />}
           label="EMAIL"
           items={grouped.email}
         />
       )}
       {grouped.notion.length > 0 && (
-        <DeliverableGroup
+        <AgentGroup
           icon={<FileText />}
           label="NOTION"
           items={grouped.notion}
         />
       )}
       {grouped.synthesis.length > 0 && (
-        <DeliverableGroup
+        <AgentGroup
           icon={<BarChart3 />}
           label="SYNTHESIS"
           items={grouped.synthesis}
@@ -324,9 +324,9 @@ function DeliverableList({ deliverables }: { deliverables: Deliverable[] }) {
 }
 
 // Individual card with platform badge
-function DeliverableCard({ deliverable }: { deliverable: Deliverable }) {
-  const icon = getPlatformIcon(deliverable);
-  const latestVersion = deliverable.versions?.[0];
+function AgentCard({ agent }: { agent: Agent }) {
+  const icon = getPlatformIcon(agent);
+  const latestVersion = agent.versions?.[0];
 
   return (
     <div className="p-4 border rounded-lg">
@@ -335,18 +335,18 @@ function DeliverableCard({ deliverable }: { deliverable: Deliverable }) {
         <span className="text-xl">{icon}</span>
 
         <div className="flex-1">
-          <h3 className="font-medium">{deliverable.title}</h3>
+          <h3 className="font-medium">{agent.title}</h3>
 
           {/* Schedule + destination */}
           <p className="text-sm text-muted-foreground">
-            {formatSchedule(deliverable)} → {formatDestination(deliverable)}
+            {formatSchedule(agent)} → {formatDestination(agent)}
           </p>
 
           {/* Last delivery + schedule status */}
           <div className="flex items-center gap-4 mt-1 text-sm">
             <span>Last: {formatLastDelivery(latestVersion)}</span>
             <DeliveryStatusBadge version={latestVersion} />
-            <ScheduleStatusBadge isPaused={deliverable.is_paused} />
+            <ScheduleStatusBadge isPaused={agent.is_paused} />
           </div>
         </div>
       </div>
@@ -370,22 +370,22 @@ function ScheduleStatusBadge({ isPaused }) {
     : <span className="text-green-500">▶ Active</span>;
 }
 
-function groupDeliverables(deliverables: Deliverable[]) {
+function groupAgents(agents: Agent[]) {
   return {
-    slack: deliverables.filter(d =>
+    slack: agents.filter(d =>
       d.type_classification?.primary_platform === 'slack' &&
       d.type_classification?.binding === 'platform_bound'
     ),
-    email: deliverables.filter(d =>
+    email: agents.filter(d =>
       d.destination?.platform === 'email' ||
       (d.type_classification?.primary_platform === 'gmail' &&
        d.type_classification?.binding === 'platform_bound')
     ),
-    notion: deliverables.filter(d =>
+    notion: agents.filter(d =>
       d.type_classification?.primary_platform === 'notion' &&
       d.type_classification?.binding === 'platform_bound'
     ),
-    synthesis: deliverables.filter(d =>
+    synthesis: agents.filter(d =>
       d.type_classification?.binding === 'cross_platform' ||
       d.type_classification?.binding === 'hybrid' ||
       d.type_classification?.binding === 'research'
@@ -399,7 +399,7 @@ function groupDeliverables(deliverables: Deliverable[]) {
 Load platform resources only after type selection:
 
 ```tsx
-function usePlatformResources(type: DeliverableType) {
+function usePlatformResources(type: AgentType) {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -433,10 +433,10 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 ## Routes
 
 ### Keep
-- `/deliverables` — List page (with platform grouping)
-- `/deliverables/[id]` — Detail page (ADR-066 redesign)
-- `/deliverables/new` — Simplified create page
-- `/deliverables/new?type=slack_channel_digest` — Direct to config step
+- `/agents` — List page (with platform grouping)
+- `/agents/[id]` — Detail page (ADR-066 redesign)
+- `/agents/new` — Simplified create page
+- `/agents/new?type=slack_channel_digest` — Direct to config step
 
 ### Remove
 - None (same routes, simpler implementation)
@@ -451,9 +451,9 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 | Wave 1/2/3 categorization | Internal complexity, not user-facing |
 | Eager platform resource loading | Load only after type selection |
 | Platform context sidebar | Remove (detail page shows sources) |
-| Flat deliverable list | Grouped by platform with visual emphasis |
+| Flat agent list | Grouped by platform with visual emphasis |
 | "Pending Review" status in list | Replaced with delivery status (ADR-066) |
-| Governance-related status badges | Deliverables deliver immediately, no approval |
+| Governance-related status badges | Agents deliver immediately, no approval |
 
 ---
 
@@ -463,7 +463,7 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 - **Faster creation**: 2 steps (type → config) not 5
 - **Resilient loading**: No 500 on page load
 - **Consistent philosophy**: Simple create + grouped list + delivery-first detail
-- **Platform-first organization**: List reflects how users think about deliverables
+- **Platform-first organization**: List reflects how users think about agents
 - **Visual differentiation**: Platform badges on every card, not just group headers
 - **True automation clarity**: Delivery + schedule status, not governance status
 
@@ -474,19 +474,19 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 | Surface | Driven By | Purpose |
 |---------|-----------|---------|
 | Chat | TP (AI) | Conversation, proposals, generation |
-| `/deliverables` | User | See and manage deliverables (grouped by platform) |
-| `/deliverables/new` | User | Explicit creation form |
-| `/deliverables/[id]` | User | View delivery history, manage automation |
+| `/agents` | User | See and manage agents (grouped by platform) |
+| `/agents/new` | User | Explicit creation form |
+| `/agents/[id]` | User | View delivery history, manage automation |
 
-TP can still create deliverables via chat — that's the AI-driven path. The `/deliverables/new` route is the user-driven path.
+TP can still create agents via chat — that's the AI-driven path. The `/agents/new` route is the user-driven path.
 
-Note: Governance/approval workflow has been removed per ADR-066. Deliverables run on schedule and deliver immediately.
+Note: Governance/approval workflow has been removed per ADR-066. Agents run on schedule and deliver immediately.
 
 ---
 
 ## Migration
 
-1. Replace `DeliverableCreateSurface.tsx` with simplified version
+1. Replace `AgentCreateSurface.tsx` with simplified version
 2. Update list page to group by platform
 3. No database changes (uses existing `type_classification` from ADR-044)
 4. No API changes
@@ -499,11 +499,11 @@ Note: Governance/approval workflow has been removed per ADR-066. Deliverables ru
 ### Resolved
 - **What about power users?** "Custom" type allows full configuration
 - **How to determine platform grouping?** Use `type_classification.primary_platform` + `binding`
-- **What if no deliverables in a group?** Don't show the group header
+- **What if no agents in a group?** Don't show the group header
 
 ### Deferred
-- **Edit deliverable config inline?** Keep in settings modal for now
-- **Reorder deliverables within groups?** Future feature
+- **Edit agent config inline?** Keep in settings modal for now
+- **Reorder agents within groups?** Future feature
 
 ---
 
@@ -511,7 +511,7 @@ Note: Governance/approval workflow has been removed per ADR-066. Deliverables ru
 
 | Metric | Target |
 |--------|--------|
-| Time to create first deliverable | < 45 seconds (from > 2 minutes) |
+| Time to create first agent | < 45 seconds (from > 2 minutes) |
 | Page load errors | 0 (no eager API calls) |
 | Lines of code (create) | < 350 (from 928) |
 | Type selection clarity | User testing feedback |
@@ -520,8 +520,8 @@ Note: Governance/approval workflow has been removed per ADR-066. Deliverables ru
 
 ## Related
 
-- [ADR-028](ADR-028-destination-first-deliverables.md) — Destination-first model
-- [ADR-044](ADR-044-deliverable-type-reconceptualization.md) — Type classification (provides grouping data)
-- [ADR-066](ADR-066-deliverable-detail-redesign.md) — Detail page simplification
-- `web/components/surfaces/DeliverableCreateSurface.tsx` — Current implementation
-- `web/app/(authenticated)/deliverables/page.tsx` — List page
+- [ADR-028](ADR-028-destination-first-agents.md) — Destination-first model
+- [ADR-044](ADR-044-agent-type-reconceptualization.md) — Type classification (provides grouping data)
+- [ADR-066](ADR-066-agent-detail-redesign.md) — Detail page simplification
+- `web/components/surfaces/AgentCreateSurface.tsx` — Current implementation
+- `web/app/(authenticated)/agents/page.tsx` — List page

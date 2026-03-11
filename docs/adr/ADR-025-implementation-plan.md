@@ -36,7 +36,7 @@ TODO_WRITE_TOOL = {
 ADR-025: Claude Code Agentic Alignment - Use this for visibility and accountability.
 
 Use this when:
-- Setting up a new deliverable (multiple steps involved)
+- Setting up a new agent (multiple steps involved)
 - Executing a complex user request
 - Any work requiring 3+ steps
 
@@ -147,7 +147,7 @@ TOOL_HANDLERS = {
 
 ## Task Progress Tracking (ADR-025)
 
-For multi-step work (deliverable setup, complex requests), use `todo_write` to:
+For multi-step work (agent setup, complex requests), use `todo_write` to:
 1. **Plan** — Create todos at the start showing your intended steps
 2. **Update** — Mark tasks in_progress as you work on them, completed when done
 3. **Revise** — If assumptions are wrong, update the todo list
@@ -158,19 +158,19 @@ User: "Set up a monthly board update"
 → todo_write([
     {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
     {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-    {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
-    {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+    {content: "Confirm agent setup", status: "pending", activeForm: "Confirming agent setup"},
+    {content: "Create agent", status: "pending", activeForm: "Creating agent"},
     {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
   ])
 ```
 
 **When to use:**
-- ✅ Creating a deliverable (4-6 steps)
+- ✅ Creating a agent (4-6 steps)
 - ✅ Complex user request with multiple actions
 - ✅ Any work requiring 3+ steps
 - ❌ Simple navigation ("show my memories")
 - ❌ Single-turn conversation
-- ❌ Quick actions (pause deliverable, create memory)
+- ❌ Quick actions (pause agent, create memory)
 
 **Rules:**
 - Only ONE task can be `in_progress` at a time
@@ -201,19 +201,19 @@ from typing import Optional, Dict, Any
 SKILLS: Dict[str, Dict[str, Any]] = {
     "board-update": {
         "name": "board-update",
-        "description": "Create a recurring board update deliverable",
+        "description": "Create a recurring board update agent",
         "trigger_patterns": ["board update", "investor update", "board report", "investor report"],
-        "deliverable_type": "board_update",
+        "agent_type": "board_update",
         "system_prompt_addition": """
 ## Active Skill: Board Update Creation
 
-You are helping the user create a recurring board update deliverable.
+You are helping the user create a recurring board update agent.
 
 **Expected workflow (use todo_write to track):**
 1. Parse intent (board update, extract frequency if mentioned)
 2. Gather required details (company name, stage, recipient, frequency)
-3. Confirm deliverable setup with user
-4. Create deliverable with create_deliverable
+3. Confirm agent setup with user
+4. Create agent with create_agent
 5. Offer to generate first draft
 
 **Required information:**
@@ -224,7 +224,7 @@ You are helping the user create a recurring board update deliverable.
 
 **Use clarify() for missing required info. Don't guess.**
 
-**After creation, the deliverable will include these sections:**
+**After creation, the agent will include these sections:**
 - Executive Summary
 - Key Metrics & KPIs
 - Progress & Milestones
@@ -236,19 +236,19 @@ You are helping the user create a recurring board update deliverable.
 
     "status-report": {
         "name": "status-report",
-        "description": "Create a recurring status report deliverable",
+        "description": "Create a recurring status report agent",
         "trigger_patterns": ["status report", "weekly report", "progress report", "status update"],
-        "deliverable_type": "status_report",
+        "agent_type": "status_report",
         "system_prompt_addition": """
 ## Active Skill: Status Report Creation
 
-You are helping the user create a recurring status report deliverable.
+You are helping the user create a recurring status report agent.
 
 **Expected workflow (use todo_write to track):**
 1. Parse intent (status report, extract frequency/recipient if mentioned)
 2. Gather required details (recipient, frequency, what to cover)
-3. Confirm deliverable setup with user
-4. Create deliverable with create_deliverable
+3. Confirm agent setup with user
+4. Create agent with create_agent
 5. Offer to generate first draft
 
 **Required information:**
@@ -262,19 +262,19 @@ You are helping the user create a recurring status report deliverable.
 
     "research-brief": {
         "name": "research-brief",
-        "description": "Create a recurring research brief deliverable",
+        "description": "Create a recurring research brief agent",
         "trigger_patterns": ["research brief", "competitive intel", "market research", "competitor analysis"],
-        "deliverable_type": "research_brief",
+        "agent_type": "research_brief",
         "system_prompt_addition": """
 ## Active Skill: Research Brief Creation
 
-You are helping the user create a recurring research brief deliverable.
+You are helping the user create a recurring research brief agent.
 
 **Expected workflow (use todo_write to track):**
 1. Parse intent (research topic, extract frequency if mentioned)
 2. Gather required details (topic focus, competitors/areas, frequency)
-3. Confirm deliverable setup with user
-4. Create deliverable with create_deliverable
+3. Confirm agent setup with user
+4. Create agent with create_agent
 5. Offer to generate first draft
 
 **Required information:**
@@ -610,7 +610,7 @@ function TodoItem({ todo }: { todo: Todo }) {
 
 ### 1.7 Integrate TPWorkPanel into Surfaces
 
-**File:** `web/components/surfaces/DeliverableDetailSurface.tsx`
+**File:** `web/components/surfaces/AgentDetailSurface.tsx`
 
 Add conditional rendering of TPWorkPanel:
 
@@ -653,18 +653,18 @@ The work panel can overlay as a card on the idle surface when active.
 Before proceeding to Phase 2:
 
 - [ ] `todo_write` tool defined and handler works
-- [ ] TP uses `todo_write` for deliverable creation (prompted by system prompt)
+- [ ] TP uses `todo_write` for agent creation (prompted by system prompt)
 - [ ] Frontend displays todos via `UPDATE_TODOS` ui_action
 - [ ] TPWorkPanel renders correctly
 - [ ] `/board-update` skill detected and injects prompt
-- [ ] End-to-end: user types "/board-update" → TP tracks progress with todos → deliverable created
+- [ ] End-to-end: user types "/board-update" → TP tracks progress with todos → agent created
 - [ ] "Receipt" is visible: user can see todo history after completion
 
 ---
 
 ## Phase 2: Full Rollout (After Validation)
 
-### 2.1 Port All Deliverable Types as Skills
+### 2.1 Port All Agent Types as Skills
 
 Add to `api/services/skills.py`:
 
@@ -696,7 +696,7 @@ CREATE TABLE skill_executions (
     session_id UUID,
     todos JSONB,
     tool_calls JSONB,
-    deliverable_id UUID REFERENCES deliverables(id),
+    agent_id UUID REFERENCES agents(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
@@ -721,7 +721,7 @@ CREATE TABLE skill_executions (
 | `types/desk.ts` | MODIFY | Add `Todo` interface |
 | `contexts/TPContext.tsx` | MODIFY | Add `todos`, `activeSkill`, `workPanelExpanded` state + handlers |
 | `components/tp/TPWorkPanel.tsx` | CREATE | New component for todo + chat panel |
-| `components/surfaces/DeliverableDetailSurface.tsx` | MODIFY | Integrate TPWorkPanel |
+| `components/surfaces/AgentDetailSurface.tsx` | MODIFY | Integrate TPWorkPanel |
 | `components/surfaces/IdleSurface.tsx` | MODIFY | Integrate TPWorkPanel (overlay) |
 
 ---

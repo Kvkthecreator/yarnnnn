@@ -1,7 +1,7 @@
 """
 Delivery Service - ADR-028, ADR-031 Phase 6, ADR-040, ADR-066
 
-Delivery orchestration for destination-first deliverables.
+Delivery orchestration for destination-first agents.
 
 This service handles:
 1. Orchestrating delivery via exporters
@@ -10,7 +10,7 @@ This service handles:
 4. Multi-destination delivery for synthesizers (ADR-031 Phase 6)
 5. Sending notifications on delivery events (ADR-040)
 
-ADR-066: All deliverables auto-deliver immediately after generation.
+ADR-066: All agents auto-deliver immediately after generation.
 Governance was removed - delivery is always automatic when destination is set.
 """
 
@@ -44,8 +44,8 @@ class DeliveryService:
         service = DeliveryService(supabase_client)
 
         # Check if delivery should auto-trigger
-        if service.should_auto_deliver(deliverable):
-            result = await service.deliver_version(version_id, user_id)
+        if service.should_auto_deliver(agent):
+            result = await service.deliver_version(run_id, user_id)
     """
 
     def __init__(self, client):
@@ -59,28 +59,28 @@ class DeliveryService:
         self.registry = get_exporter_registry()
         self.token_manager = get_token_manager()
 
-    def should_auto_deliver(self, deliverable: dict[str, Any]) -> bool:
+    def should_auto_deliver(self, agent: dict[str, Any]) -> bool:
         """
-        Determine if a deliverable should auto-deliver.
+        Determine if a agent should auto-deliver.
 
-        ADR-066: All deliverables auto-deliver when destination is set.
+        ADR-066: All agents auto-deliver when destination is set.
 
         Args:
-            deliverable: The deliverable record
+            agent: The agent record
 
         Returns:
             True if auto-delivery should occur
         """
-        destination = deliverable.get("destination")
+        destination = agent.get("destination")
 
         # Must have destination configured
         if not destination:
             return False
 
-        # ADR-066: All deliverables auto-deliver
+        # ADR-066: All agents auto-deliver
         return True
 
-    def get_style_context(self, deliverable: dict[str, Any]) -> Optional[str]:
+    def get_style_context(self, agent: dict[str, Any]) -> Optional[str]:
         """
         Infer style context from destination platform.
 
@@ -88,12 +88,12 @@ class DeliveryService:
         This lets content generation adapt to the destination format.
 
         Args:
-            deliverable: The deliverable record
+            agent: The agent record
 
         Returns:
             Style context string, or None if no destination
         """
-        destination = deliverable.get("destination")
+        destination = agent.get("destination")
         if not destination:
             return None
 
@@ -117,7 +117,7 @@ class DeliveryService:
         Deliver an approved version to its destination.
 
         Args:
-            version_id: The deliverable version ID
+            version_id: The agent version ID
             user_id: The user ID (for auth)
             retry_count: Number of retries attempted
 
@@ -125,9 +125,9 @@ class DeliveryService:
             ExportResult with delivery status
         """
         try:
-            # 1. Get version and deliverable
-            version = self.client.table("deliverable_versions").select(
-                "id, deliverable_id, final_content, status, delivery_status, version_number"
+            # 1. Get version and agent
+            version = self.client.table("agent_runs").select(
+                "id, agent_id, final_content, status, delivery_status, version_number"
             ).eq("id", version_id).single().execute()
 
             if not version.data:
@@ -136,19 +136,19 @@ class DeliveryService:
                     error_message="Version not found"
                 )
 
-            # 2. Get deliverable with destination
-            deliverable = self.client.table("deliverables").select(
-                "id, title, destination, user_id, deliverable_type, mode"
-            ).eq("id", version.data["deliverable_id"]).single().execute()
+            # 2. Get agent with destination
+            agent = self.client.table("agents").select(
+                "id, title, destination, user_id, agent_type, mode"
+            ).eq("id", version.data["agent_id"]).single().execute()
 
-            if not deliverable.data:
+            if not agent.data:
                 return ExportResult(
                     status=ExportStatus.FAILED,
-                    error_message="Deliverable not found"
+                    error_message="Agent not found"
                 )
 
             # 3. Verify destination is configured
-            destination = deliverable.data.get("destination")
+            destination = agent.data.get("destination")
             if not destination:
                 return ExportResult(
                     status=ExportStatus.FAILED,
@@ -179,22 +179,22 @@ class DeliveryService:
                 )
 
             # 6. Mark delivery as in-progress
-            self._update_delivery_status(version_id, "delivering")
+            self._update_delivery_status(run_id, "delivering")
 
             # 7. Deliver
             content = version.data.get("final_content") or version.data.get("draft_content", "")
-            title = deliverable.data.get("title", "YARNNN Deliverable")
+            title = agent.data.get("title", "YARNNN Agent")
 
             result = await exporter.deliver(
                 destination=destination,
                 content=content,
                 title=title,
                 metadata={
-                    "deliverable_id": deliverable.data["id"],
-                    "version_id": version_id,
+                    "agent_id": agent.data["id"],
+                    "run_id": run_id,
                     "version_number": version.data.get("version_number"),
-                    "deliverable_type": deliverable.data.get("deliverable_type"),
-                    "mode": deliverable.data.get("mode"),
+                    "agent_type": agent.data.get("agent_type"),
+                    "mode": agent.data.get("mode"),
                     "retry_count": retry_count,
                 },
                 context=context
@@ -203,13 +203,13 @@ class DeliveryService:
             # 8. Update delivery status and send notifications (ADR-040)
             if result.status == ExportStatus.SUCCESS:
                 self._update_delivery_status(
-                    version_id,
+                    run_id,
                     "delivered",
                     external_id=result.external_id,
                     external_url=result.external_url
                 )
                 self._log_export(
-                    version_id=version_id,
+                    run_id=run_id,
                     user_id=user_id,
                     platform=platform,
                     destination=destination,
@@ -219,7 +219,7 @@ class DeliveryService:
                 # email-platform skip internally (content email IS the notification)
                 await self._notify_delivered(
                     user_id=user_id,
-                    deliverable_id=deliverable.data["id"],
+                    agent_id=agent.data["id"],
                     title=title,
                     platform=platform,
                     target=destination.get("target"),
@@ -227,14 +227,14 @@ class DeliveryService:
                 )
             else:
                 self._update_delivery_status(
-                    version_id,
+                    run_id,
                     "failed",
                     error=result.error_message
                 )
                 # ADR-040: Send failure notification
                 await self._notify_failed(
                     user_id=user_id,
-                    deliverable_id=deliverable.data["id"],
+                    agent_id=agent.data["id"],
                     title=title,
                     error=result.error_message or "Unknown error",
                 )
@@ -247,7 +247,7 @@ class DeliveryService:
 
         except Exception as e:
             logger.error(f"[DELIVERY] Failed for version {version_id}: {e}")
-            self._update_delivery_status(version_id, "failed", error=str(e))
+            self._update_delivery_status(run_id, "failed", error=str(e))
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message=str(e)
@@ -334,7 +334,7 @@ class DeliveryService:
         if status == "delivered":
             update["delivered_at"] = datetime.now(timezone.utc).isoformat()
 
-        self.client.table("deliverable_versions").update(update).eq(
+        self.client.table("agent_runs").update(update).eq(
             "id", version_id
         ).execute()
 
@@ -349,7 +349,7 @@ class DeliveryService:
         """Log export to export_log table."""
         try:
             self.client.table("export_log").insert({
-                "deliverable_version_id": version_id,
+                "agent_run_id": run_id,
                 "user_id": user_id,
                 "provider": platform,
                 "destination": destination,
@@ -369,24 +369,24 @@ class DeliveryService:
     async def _notify_delivered(
         self,
         user_id: str,
-        deliverable_id: str,
+        agent_id: str,
         title: str,
         platform: str,
         target: Optional[str],
         external_url: Optional[str],
     ) -> None:
-        """Send notification when deliverable is delivered."""
+        """Send notification when agent is delivered."""
         try:
-            from services.notifications import notify_deliverable_delivered
+            from services.notifications import notify_agent_delivered
             from services.supabase import get_service_client
             destination_str = f"{platform}"
             if target:
                 destination_str += f" ({target})"
-            await notify_deliverable_delivered(
+            await notify_agent_delivered(
                 db_client=get_service_client(),
                 user_id=user_id,
-                deliverable_id=deliverable_id,
-                deliverable_title=title,
+                agent_id=agent_id,
+                agent_title=title,
                 destination=destination_str,
                 external_url=external_url,
                 delivery_platform=platform,
@@ -397,19 +397,19 @@ class DeliveryService:
     async def _notify_failed(
         self,
         user_id: str,
-        deliverable_id: str,
+        agent_id: str,
         title: str,
         error: str,
     ) -> None:
         """Send notification when delivery fails."""
         try:
-            from services.notifications import notify_deliverable_failed
+            from services.notifications import notify_agent_failed
             from services.supabase import get_service_client
-            await notify_deliverable_failed(
+            await notify_agent_failed(
                 db_client=get_service_client(),
                 user_id=user_id,
-                deliverable_id=deliverable_id,
-                deliverable_title=title,
+                agent_id=agent_id,
+                agent_title=title,
                 error=error,
             )
         except Exception as e:
@@ -432,7 +432,7 @@ class DeliveryService:
         (e.g., Slack AND email) from a single generation.
 
         Args:
-            version_id: The deliverable version ID
+            version_id: The agent version ID
             user_id: The user ID (for auth)
             destinations: List of destination configs
 
@@ -449,8 +449,8 @@ class DeliveryService:
             )
 
         # Get version content
-        version = self.client.table("deliverable_versions").select(
-            "id, deliverable_id, final_content, draft_content"
+        version = self.client.table("agent_runs").select(
+            "id, agent_id, final_content, draft_content"
         ).eq("id", version_id).single().execute()
 
         if not version.data:
@@ -462,14 +462,14 @@ class DeliveryService:
                 all_succeeded=False,
             )
 
-        # Get deliverable title
-        deliverable = self.client.table("deliverables").select(
-            "id, title, platform_variant, deliverable_type, mode"
-        ).eq("id", version.data["deliverable_id"]).single().execute()
+        # Get agent title
+        agent = self.client.table("agents").select(
+            "id, title, platform_variant, agent_type, mode"
+        ).eq("id", version.data["agent_id"]).single().execute()
 
         content = version.data.get("final_content") or version.data.get("draft_content", "")
-        title = deliverable.data.get("title", "YARNNN Deliverable") if deliverable.data else "Deliverable"
-        platform_variant = deliverable.data.get("platform_variant") if deliverable.data else None
+        title = agent.data.get("title", "YARNNN Agent") if agent.data else "Agent"
+        platform_variant = agent.data.get("platform_variant") if agent.data else None
 
         results = []
         succeeded = 0
@@ -518,11 +518,11 @@ class DeliveryService:
                     content=content,
                     title=title,
                     metadata={
-                        "deliverable_id": version.data["deliverable_id"],
-                        "version_id": version_id,
+                        "agent_id": version.data["agent_id"],
+                        "run_id": run_id,
                         "version_number": version.data.get("version_number"),
-                        "deliverable_type": deliverable.data.get("deliverable_type") if deliverable.data else None,
-                        "mode": deliverable.data.get("mode") if deliverable.data else None,
+                        "agent_type": agent.data.get("agent_type") if agent.data else None,
+                        "mode": agent.data.get("mode") if agent.data else None,
                         "destination_index": idx,
                         "platform_variant": platform_variant,
                     },
@@ -542,8 +542,8 @@ class DeliveryService:
 
                     # Log to destination_delivery_log
                     self._log_destination_delivery(
-                        version_id=version_id,
-                        deliverable_id=version.data["deliverable_id"],
+                        run_id=run_id,
+                        agent_id=version.data["agent_id"],
                         user_id=user_id,
                         destination_index=idx,
                         destination=destination,
@@ -571,11 +571,11 @@ class DeliveryService:
 
         # Update version delivery status based on overall result
         if succeeded == len(destinations):
-            self._update_delivery_status(version_id, "delivered")
+            self._update_delivery_status(run_id, "delivered")
         elif succeeded > 0:
-            self._update_delivery_status(version_id, "partial")
+            self._update_delivery_status(run_id, "partial")
         else:
-            self._update_delivery_status(version_id, "failed")
+            self._update_delivery_status(run_id, "failed")
 
         logger.info(
             f"[DELIVERY] Multi-destination: {succeeded}/{len(destinations)} succeeded"
@@ -592,7 +592,7 @@ class DeliveryService:
     def _log_destination_delivery(
         self,
         version_id: str,
-        deliverable_id: str,
+        agent_id: str,
         user_id: str,
         destination_index: int,
         destination: dict[str, Any],
@@ -601,8 +601,8 @@ class DeliveryService:
         """Log a multi-destination delivery to the destination_delivery_log table."""
         try:
             self.client.table("destination_delivery_log").insert({
-                "version_id": version_id,
-                "deliverable_id": deliverable_id,
+                "run_id": run_id,
+                "agent_id": agent_id,
                 "user_id": user_id,
                 "destination_index": destination_index,
                 "destination": destination,

@@ -16,11 +16,11 @@ ADR-053 established a 3-tier model (Free/$9 Starter/$19 Pro) with 6+ gating dime
 - Source limits per platform (Slack/Gmail/Notion)
 - Sync frequency (1x/4x/hourly)
 - Daily token budget (50k/250k/unlimited)
-- Active deliverables (2/5/unlimited)
+- Active agents (2/5/unlimited)
 
 This creates several problems for MVP beta:
 
-1. **User confusion** — Nobody thinks in "50k tokens/day." Users understand "messages" and "deliverables."
+1. **User confusion** — Nobody thinks in "50k tokens/day." Users understand "messages" and "agents."
 2. **Decision paralysis** — Two paid tiers means two decisions. At beta, you want one: "free or paid?"
 3. **Compressed revenue** — $9 and $19 are too close. Most who'd pay $9 would pay $19.
 4. **Over-engineering** — 6 dimensions of gating = 6 enforcement surfaces to maintain.
@@ -42,7 +42,7 @@ Need 50–100 users with conversion data to demonstrate product-market fit. Earl
 | | Free | Pro |
 |---|------|-----|
 | **TP messages** | 50/month | Unlimited |
-| **Active deliverables** | 2 | 10 |
+| **Active agents** | 2 | 10 |
 | **Platforms** | All 4 | All 4 |
 | **Sources** | 5/5/10 (Slack/Gmail/Notion) | Unlimited |
 | **Sync frequency** | 1x/day | Hourly |
@@ -73,22 +73,22 @@ Need 50–100 users with conversion data to demonstrate product-market fit. Earl
 
 ## Cost Analysis
 
-### Free User (50 msgs/month, 2 deliverables)
+### Free User (50 msgs/month, 2 agents)
 
 | Component | Estimate |
 |-----------|----------|
 | TP messages (realistic ~30 msgs × $0.04) | $1.20/mo |
-| Deliverables (2 active, ~1 run/day each = 60 runs × $0.08) | $4.80/mo |
+| Agents (2 active, ~1 run/day each = 60 runs × $0.08) | $4.80/mo |
 | Sync infrastructure | $0.05/mo |
 | **Active free user total** | **~$6/mo** |
 | **Blended (40% active)** | **~$3/mo** |
 
-### Pro User (unlimited msgs, 10 deliverables)
+### Pro User (unlimited msgs, 10 agents)
 
 | Component | Estimate |
 |-----------|----------|
 | TP messages (power user ~240 msgs × $0.04) | $9.60/mo |
-| Deliverables (~100 runs/mo × $0.08) | $8.00/mo |
+| Agents (~100 runs/mo × $0.08) | $8.00/mo |
 | Sync infrastructure | $0.50/mo |
 | **Heavy Pro user** | **~$18/mo** |
 | **Moderate Pro user** | **~$7/mo** |

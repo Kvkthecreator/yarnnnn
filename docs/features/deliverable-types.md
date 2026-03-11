@@ -1,12 +1,12 @@
-# Deliverable Types — Feature Reference
+# Agent Types — Feature Reference
 
 **Status:** Living document
 **Date:** 2026-03-06
-**Related:** [ADR-093: Deliverable Type Taxonomy](../adr/ADR-093-deliverable-type-taxonomy.md), [Quality Testing Framework](../development/deliverable-quality-testing.md)
+**Related:** [ADR-093: Agent Type Taxonomy](../adr/ADR-093-agent-type-taxonomy.md), [Quality Testing Framework](../development/agent-quality-testing.md)
 
-Each deliverable type maps to a job-to-be-done. This document captures the validated output format, execution details, and design decisions per type. Types are added here as they go through quality validation (see testing framework).
+Each agent type maps to a job-to-be-done. This document captures the validated output format, execution details, and design decisions per type. Types are added here as they go through quality validation (see testing framework).
 
-**Targeting (ADR-104):** All user intent for "what this deliverable should focus on" flows through `deliverable_instructions`. Instructions are dual-injected: into the headless system prompt (behavioral constraints) and into the type prompt user message (priority lens for the gathered context). There are no per-source filters or structured scope fields — instructions are the unified targeting layer. ADR-105 migrates instruction editing to the chat surface (directives via chat, configuration in drawer).
+**Targeting (ADR-104):** All user intent for "what this agent should focus on" flows through `agent_instructions`. Instructions are dual-injected: into the headless system prompt (behavioral constraints) and into the type prompt user message (priority lens for the gathered context). There are no per-source filters or structured scope fields — instructions are the unified targeting layer. ADR-105 migrates instruction editing to the chat surface (directives via chat, configuration in drawer).
 
 ---
 
@@ -183,7 +183,7 @@ The following types are implemented in the backend (type keys, strategies, promp
 | Type | Reason hidden | Restore when |
 |------|--------------|--------------|
 | **Watch** (`watch`) | Promises real-time monitoring but architecture is polling-based (1-24hr sync). Misleading UX. | Sub-5-minute sync or webhook infrastructure in place |
-| **Coordinator** (`coordinator`) | Power-user meta-feature. Not needed for initial adoption. | User base has power users creating 5+ deliverables |
+| **Coordinator** (`coordinator`) | Power-user meta-feature. Not needed for initial adoption. | User base has power users creating 5+ agents |
 | **Custom** (`custom`) | Adds ambiguity. Users should choose from validated types pre-launch. | Post-launch, if users request flexibility beyond the 4 active types |
 
 ---
@@ -192,10 +192,10 @@ The following types are implemented in the backend (type keys, strategies, promp
 
 | Concern | Location |
 |---------|----------|
-| Type prompts | `api/services/deliverable_pipeline.py` (TYPE_PROMPTS) |
-| Default instructions | `api/services/deliverable_pipeline.py` (DEFAULT_INSTRUCTIONS) |
+| Type prompts | `api/services/agent_pipeline.py` (TYPE_PROMPTS) |
+| Default instructions | `api/services/agent_pipeline.py` (DEFAULT_INSTRUCTIONS) |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Content fetching | `api/services/platform_content.py` |
-| Generation pipeline | `api/services/deliverable_execution.py` |
-| Targeting architecture | [ADR-104](../adr/ADR-104-deliverable-instructions-unified-targeting.md) |
-| Quality testing | `docs/development/deliverable-quality-testing.md` |
+| Generation pipeline | `api/services/agent_execution.py` |
+| Targeting architecture | [ADR-104](../adr/ADR-104-agent-instructions-unified-targeting.md) |
+| Quality testing | `docs/development/agent-quality-testing.md` |

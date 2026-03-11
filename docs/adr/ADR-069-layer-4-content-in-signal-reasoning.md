@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-20
 **Status**: Accepted
-**Extends**: ADR-068 (Signal-Emergent Deliverables)
+**Extends**: ADR-068 (Signal-Emergent Agents)
 **Relates to**: ADR-063 (Four-Layer Model), ADR-061 (Two-Path Architecture)
 
 ---
@@ -12,21 +12,21 @@
 ### The Gap
 
 Signal processing (ADR-068) currently reads Layer 4 (Work) **metadata only**:
-- `id`, `title`, `deliverable_type`, `next_run_at`, `status`
+- `id`, `title`, `agent_type`, `next_run_at`, `status`
 
 It does NOT read:
-- `deliverable_versions.draft_content` — LLM-generated output
-- `deliverable_versions.final_content` — User-edited or final version
+- `agent_runs.draft_content` — LLM-generated output
+- `agent_runs.final_content` — User-edited or final version
 - Version creation timestamps
 - Quality metrics
 
-This means signal reasoning operates on deliverable **existence**, not deliverable **output**.
+This means signal reasoning operates on agent **existence**, not agent **output**.
 
 ### Why This Matters
 
 The signal processing LLM cannot:
-1. **Assess staleness**: Is the existing meeting_prep deliverable configured for different attendees from 2 weeks ago?
-2. **Determine coverage**: Did a recent deliverable already address this signal?
+1. **Assess staleness**: Is the existing meeting_prep agent configured for different attendees from 2 weeks ago?
+2. **Determine coverage**: Did a recent agent already address this signal?
 3. **Make quality-aware decisions**: Should we trigger_existing (reuse configuration) or create_signal_emergent (novel one-time work)?
 4. **Reference accumulated intelligence**: What has the system already synthesized about this topic/person/context?
 
@@ -47,15 +47,15 @@ Signal processing must read Layer 4 content to implement this weighting shift.
 
 ### What Changes
 
-Signal processing now fetches and reasons over recent deliverable version content.
+Signal processing now fetches and reasons over recent agent version content.
 
 **Database Query** (unified_scheduler.py):
 ```python
-existing_deliverables = (
-    supabase.table("deliverables")
+existing_agents = (
+    supabase.table("agents")
     .select("""
-        id, title, deliverable_type, next_run_at, status,
-        deliverable_versions!inner(
+        id, title, agent_type, next_run_at, status,
+        agent_runs!inner(
             final_content,
             draft_content,
             created_at,
@@ -64,13 +64,13 @@ existing_deliverables = (
     """)
     .eq("user_id", user_id)
     .in_("status", ["active", "paused"])
-    .order("deliverable_versions(created_at)", desc=True)
+    .order("agent_runs(created_at)", desc=True)
     .execute()
 )
 ```
 
 **Content Extraction**:
-- Most recent version per deliverable
+- Most recent version per agent
 - Prefer `final_content` (user-edited) over `draft_content`
 - Include version creation timestamp for recency assessment
 
@@ -85,11 +85,11 @@ existing_deliverables = (
 
 ### Token Budget Impact
 
-Each deliverable with recent content adds **~250-350 tokens** to the reasoning prompt:
+Each agent with recent content adds **~250-350 tokens** to the reasoning prompt:
 - Content preview: 200-300 tokens (400 chars ≈ 100-150 tokens, formatted adds overhead)
 - Metadata: 50 tokens
 
-For a user with 10 active deliverables, this adds **~2,500-3,500 tokens** to the signal processing LLM call.
+For a user with 10 active agents, this adds **~2,500-3,500 tokens** to the signal processing LLM call.
 
 This is acceptable. The quality improvement from content-aware reasoning justifies the cost.
 
@@ -112,7 +112,7 @@ EXISTING DELIVERABLES:
     Last output (14 days ago): Weekly standup agenda for internal team...
 
 Signal: Meeting with Alice tomorrow (external attendee)
-Decision: create_signal_emergent (existing deliverable is for different context)
+Decision: create_signal_emergent (existing agent is for different context)
 Reasoning: The recurring meeting_prep is for weekly internal standup (last output confirms this).
            This signal warrants a one-time prep brief specific to Alice meeting.
 ```
@@ -125,14 +125,14 @@ This implements a foundational strategic principle:
 
 > **Signal processing reasoning quality is a function of Layer 4 content depth.**
 
-As the user accumulates deliverable history:
+As the user accumulates agent history:
 - Signal processing can reference what the system has previously synthesized
 - Decisions improve from type-based matching to content-based relevance
 - The system builds on its own accumulated intelligence
 
 This is the **learning loop** in action:
-1. Signal processing creates deliverable
-2. Deliverable execution produces Layer 4 content
+1. Signal processing creates agent
+2. Agent execution produces Layer 4 content
 3. Future signal processing cycles read that content
 4. Reasoning improves
 
@@ -142,8 +142,8 @@ This is the **learning loop** in action:
 
 **Files Changed**:
 1. `api/jobs/unified_scheduler.py` (~line 1023)
-   - Updated deliverable query to join deliverable_versions
-   - Extract most recent version content per deliverable
+   - Updated agent query to join agent_runs
+   - Extract most recent version content per agent
 
 2. `api/services/signal_processing.py` (~line 379)
    - Enhanced prompt formatting to include content preview
@@ -151,7 +151,7 @@ This is the **learning loop** in action:
    - Updated system prompt with Layer 4 usage guidance
 
 **Backwards Compatibility**:
-- If a deliverable has no versions, content fields are `None`
+- If a agent has no versions, content fields are `None`
 - Prompt gracefully handles missing content (no preview shown)
 - No schema changes required
 
@@ -162,22 +162,22 @@ This is the **learning loop** in action:
 ### Positive
 
 1. **Quality-aware orchestration**: `trigger_existing` vs `create_signal_emergent` decisions based on content relevance, not just type matching
-2. **Staleness detection**: System knows when recurring deliverable configuration has drifted from current signals
+2. **Staleness detection**: System knows when recurring agent configuration has drifted from current signals
 3. **Intelligence accumulation**: Signal processing builds on past synthesis, not just raw platform signals
 4. **Mature user value**: As Layer 4 grows, signal reasoning improves automatically
 5. **Deduplication improvement**: "Did recent work already cover this?" becomes answerable
 
 ### Negative
 
-1. **Token cost**: +2,500-3,500 tokens per user per signal processing cycle (10 deliverables with content)
-2. **Query complexity**: Join on deliverable_versions adds database overhead (mitigated by index on deliverable_id + created_at)
-3. **Prompt length**: Longer prompts may approach context limits for users with 20+ active deliverables (rare)
+1. **Token cost**: +2,500-3,500 tokens per user per signal processing cycle (10 agents with content)
+2. **Query complexity**: Join on agent_runs adds database overhead (mitigated by index on agent_id + created_at)
+3. **Prompt length**: Longer prompts may approach context limits for users with 20+ active agents (rare)
 
 ### Mitigations
 
 - Token cost is acceptable for the quality gain
-- Database query uses existing indexes (deliverable_id, created_at already indexed)
-- Prompt length capped at 10 deliverables max (reasonable limit)
+- Database query uses existing indexes (agent_id, created_at already indexed)
+- Prompt length capped at 10 agents max (reasonable limit)
 
 ---
 
@@ -185,19 +185,19 @@ This is the **learning loop** in action:
 
 ### Option A: Metadata-only with version count
 
-Add `version_count` and `last_version_date` to deliverable metadata without fetching content.
+Add `version_count` and `last_version_date` to agent metadata without fetching content.
 
-**Rejected**: Doesn't solve the staleness or coverage problem. We still can't assess what the deliverable produces.
+**Rejected**: Doesn't solve the staleness or coverage problem. We still can't assess what the agent produces.
 
 ### Option B: Full version history (last 5 versions)
 
-Fetch last 5 versions per deliverable to show trend.
+Fetch last 5 versions per agent to show trend.
 
 **Rejected**: Excessive token cost (~10,000+ tokens). Most recent version is sufficient for staleness assessment.
 
 ### Option C: Separate content summary table
 
-Pre-compute 100-char summaries of deliverable outputs in a separate table, query that instead of raw content.
+Pre-compute 100-char summaries of agent outputs in a separate table, query that instead of raw content.
 
 **Rejected**: Adds schema complexity. Content preview extraction is cheap and doesn't require pre-computation.
 
@@ -205,8 +205,8 @@ Pre-compute 100-char summaries of deliverable outputs in a separate table, query
 
 ## Open Questions
 
-1. **Content length limit**: 400 chars is a heuristic. Should this be tunable per deliverable type?
-2. **Summarization**: For very long deliverables (5,000+ word research briefs), should we pre-summarize instead of truncating?
+1. **Content length limit**: 400 chars is a heuristic. Should this be tunable per agent type?
+2. **Summarization**: For very long agents (5,000+ word research briefs), should we pre-summarize instead of truncating?
 3. **Quality metrics**: Should we also pass `quality_score` (edit distance) to inform confidence?
 
 These are deferred. Current implementation is sufficient for Phase 1.
@@ -215,7 +215,7 @@ These are deferred. Current implementation is sufficient for Phase 1.
 
 ## Related
 
-- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md)
+- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md)
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md)
 - [Four-Layer Model Architecture](../architecture/four-layer-model.md)
 - [Signal Taxonomy](../architecture/signal-taxonomy.md)

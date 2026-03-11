@@ -452,7 +452,7 @@ Building on companion AI patterns for push-based engagement:
 |-------|---------|
 | `work_intents` | What user wants to accomplish |
 | `work_executions` | Individual runs of work |
-| `work_outputs` | Agent-produced deliverables |
+| `work_outputs` | Agent-produced agents |
 | `work_schedules` | Recurring work configuration |
 | `delivery_preferences` | User notification settings |
 | `work_notifications` | Delivery tracking |

@@ -1,18 +1,18 @@
-# ADR-028: Destination-First Deliverables & Governance Model
+# ADR-028: Destination-First Agents & Governance Model
 
 > **Status**: Accepted (Phases 1-3 Complete)
 > **Created**: 2026-02-06
 > **Updated**: 2026-02-06 (Phases 1-3 implementation complete)
-> **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-018 (Deliverable Pipeline)
+> **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-018 (Agent Pipeline)
 
 ---
 
 ## Context
 
-YARNNN is a recurring deliverables platform where AI produces scheduled work artifacts. The current architecture treats deliverables as:
+YARNNN is a recurring agents platform where AI produces scheduled work artifacts. The current architecture treats agents as:
 
 ```
-Deliverable = Content artifact that YARNNN produces
+Agent = Content artifact that YARNNN produces
 Integration = Optional export destination (user clicks button after approval)
 ```
 
@@ -65,15 +65,15 @@ Through building integration reads (ADR-027) and observing the MCP ecosystem (Cl
                                         └──────────────┘
 ```
 
-**Deliverable** = Commitment to deliver something to a destination on a schedule
-**Destination** = First-class part of the deliverable definition
+**Agent** = Commitment to deliver something to a destination on a schedule
+**Destination** = First-class part of the agent definition
 **Content** = Intermediate artifact shaped by destination
 
 ---
 
 ## The Key Reframe
 
-> **The deliverable isn't the markdown. The deliverable is the act of putting something in Slack/Notion/Email at the right time for the right person.**
+> **The agent isn't the markdown. The agent is the act of putting something in Slack/Notion/Email at the right time for the right person.**
 
 This reframe has implications:
 
@@ -109,7 +109,7 @@ The user is supervising "Did my update land in the right place, at the right tim
 
 ```python
 # Current
-Deliverable = {
+Agent = {
     "title": "Weekly Status Report",
     "schedule": {...},
     "type": "status_report",
@@ -118,7 +118,7 @@ Deliverable = {
 }
 
 # Proposed
-Deliverable = {
+Agent = {
     "title": "Weekly Status Report",
     "schedule": {...},
     "type": "status_report",
@@ -142,7 +142,7 @@ Proposed: Gather → Synthesize → Stage → [Approve] → AUTO-DELIVER
 
 ### Governance Levels
 
-Not all deliverables should auto-deliver. Introduce governance as first-class:
+Not all agents should auto-deliver. Introduce governance as first-class:
 
 | Level | Behavior | Use Case |
 |-------|----------|----------|
@@ -151,7 +151,7 @@ Not all deliverables should auto-deliver. Introduce governance as first-class:
 | **Full-auto** | Generate → Deliver (no review) | Self-reference: personal notes, internal logs |
 
 ```python
-Deliverable = {
+Agent = {
     ...
     "destination": {...},
     "governance": "semi_auto",  # manual | semi_auto | full_auto
@@ -170,7 +170,7 @@ Governance level could be inferred or configured:
 | Type | Notes, logs | Proposals, reports |
 | History | High approval rate | Frequent edits |
 
-**Default**: Semi-auto (approve triggers delivery). User can override per deliverable.
+**Default**: Semi-auto (approve triggers delivery). User can override per agent.
 
 ---
 
@@ -202,19 +202,19 @@ Proposed wizard: Type → **Destination** → Recipient → Sources → Schedule
 
 ### 3. Export Preferences Collapse
 
-Current `deliverable_export_preferences` table becomes unnecessary—destination is on the deliverable itself.
+Current `agent_export_preferences` table becomes unnecessary—destination is on the agent itself.
 
 ```sql
 -- Current
-CREATE TABLE deliverable_export_preferences (
-    deliverable_id UUID,
+CREATE TABLE agent_export_preferences (
+    agent_id UUID,
     provider TEXT,
     destination TEXT,
     auto_export BOOLEAN
 );
 
 -- With destination-first
--- This data lives on deliverables.destination
+-- This data lives on agents.destination
 ```
 
 ### 4. Edit Distance Extends
@@ -242,7 +242,7 @@ User supervises content: "Is this draft good?"
 User supervises delivery commitment: "Is this thing doing what I set it up to do?"
 
 This aligns with recurring nature:
-- One-time setup (configure deliverable + destination + governance)
+- One-time setup (configure agent + destination + governance)
 - Ongoing supervision (spot-check versions, adjust as needed)
 - Trust builds (governance level can increase over time)
 
@@ -253,21 +253,21 @@ This aligns with recurring nature:
 ### Phase 1: Add Destination (Non-Breaking)
 
 ```sql
-ALTER TABLE deliverables ADD COLUMN destination JSONB;
+ALTER TABLE agents ADD COLUMN destination JSONB;
 -- {"platform": "slack", "target": "#team-updates", "format": "message"}
 
-ALTER TABLE deliverables ADD COLUMN governance TEXT DEFAULT 'manual';
+ALTER TABLE agents ADD COLUMN governance TEXT DEFAULT 'manual';
 -- manual | semi_auto | full_auto
 ```
 
-Existing deliverables continue working (destination = NULL means manual export).
+Existing agents continue working (destination = NULL means manual export).
 
 ### Phase 2: Wizard Integration
 
-Update deliverable creation wizard to:
+Update agent creation wizard to:
 1. Show destination step (requires OAuth connection)
 2. Set governance level (with smart defaults)
-3. Store destination on deliverable
+3. Store destination on agent
 
 ### Phase 3: Auto-Delivery
 
@@ -289,8 +289,8 @@ Update pipeline to:
 
 ### Benefits
 
-1. **Reduced friction**: No manual export step for recurring deliverables
-2. **Clearer mental model**: Deliverable = commitment to destination
+1. **Reduced friction**: No manual export step for recurring agents
+2. **Clearer mental model**: Agent = commitment to destination
 3. **Style coherence**: Destination implies appropriate style
 4. **Supervision alignment**: User supervises outcome, not process
 
@@ -299,7 +299,7 @@ Update pipeline to:
 1. **OAuth dependency**: Destination requires valid integration
 2. **Failure handling**: What if export fails? Retry? Notify?
 3. **Governance complexity**: Another setting to configure
-4. **Migration**: Existing deliverables don't have destination
+4. **Migration**: Existing agents don't have destination
 
 ### Mitigations
 
@@ -315,7 +315,7 @@ Update pipeline to:
 ### Bidirectional Awareness
 
 With destination-first:
-- **Export**: Deliverable → Destination (push)
+- **Export**: Agent → Destination (push)
 - **Import**: Destination → Context (pull)
 
 The same channel can be both:
@@ -336,7 +336,7 @@ Example: "Don't repeat what was discussed in #team-updates this week" requires r
 
 ### 1. Multi-Destination
 
-Can a deliverable have multiple destinations?
+Can a agent have multiple destinations?
 - Status report → Slack + Email
 - Research brief → Notion + PDF download
 
@@ -346,7 +346,7 @@ Proposal: Support array of destinations, deliver to all.
 
 What if destination changes (channel renamed, page moved)?
 - Detect and warn user
-- Allow destination update without creating new deliverable
+- Allow destination update without creating new agent
 
 ### 3. Recipient vs. Destination
 
@@ -356,20 +356,20 @@ Are these redundant?
 
 Proposal: Keep both. Recipient informs content; destination informs delivery.
 
-### 4. Ad Hoc Deliverables
+### 4. Ad Hoc Agents
 
-For one-off deliverables, is destination required?
+For one-off agents, is destination required?
 - No—download/copy remains valid
 - Destination is optional, not required
 
-### 5. Deliverable-Scoped Context (Future)
+### 5. Agent-Scoped Context (Future)
 
-As deliverables accumulate history, learnings should persist per-deliverable:
+As agents accumulate history, learnings should persist per-agent:
 - What edits the user consistently makes
 - Research findings that remain relevant
 - Recipient preferences inferred from approvals
 
-**Status**: Deferred. See [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md) for exploration. Will revisit after destination-first architecture is stable.
+**Status**: Deferred. See [Analysis: Agent-Scoped Context](../analysis/agent-scoped-context.md) for exploration. Will revisit after destination-first architecture is stable.
 
 ---
 
@@ -377,8 +377,8 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 
 ### Phase 1: Schema & Backend (Foundation) ✅ COMPLETE
 
-- [x] Add `destination` and `governance` columns to deliverables
-- [x] Add delivery tracking columns to deliverable_versions
+- [x] Add `destination` and `governance` columns to agents
+- [x] Add delivery tracking columns to agent_runs
 - [x] Add destination to create/update endpoints
 - [x] Create DestinationExporter interface (`api/integrations/exporters/base.py`)
 - [x] Create ExporterRegistry (`api/integrations/exporters/registry.py`)
@@ -393,21 +393,21 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 - `supabase/migrations/025_destination_first.sql` - Schema changes
 - `api/integrations/exporters/` - Exporter infrastructure
 - `api/services/delivery.py` - Governance-aware delivery
-- `api/routes/deliverables.py` - Updated with destination/governance fields
+- `api/routes/agents.py` - Updated with destination/governance fields
 - `api/routes/integrations.py` - Refactored export endpoint
 
 ### Phase 2: Wizard & UI ✅ COMPLETE
 
 - [x] Add destination params to CREATE_DELIVERABLE_TOOL (TP asks during creation)
-- [x] Add governance selector to DeliverableSettingsModal
-- [x] Show destination badge on deliverable list cards
+- [x] Add governance selector to AgentSettingsModal
+- [x] Show destination badge on agent list cards
 - [x] Semi-auto behavior triggers on version approval (Phase 1)
 
 **Key Files:**
 - `api/services/project_tools.py` - CREATE_DELIVERABLE_TOOL with destination_platform, destination_target, governance
 - `web/types/index.ts` - Destination, GovernanceLevel, DeliveryStatus types
-- `web/components/modals/DeliverableSettingsModal.tsx` - Destination & governance UI
-- `web/components/surfaces/DeliverableListSurface.tsx` - Destination badge display
+- `web/components/modals/AgentSettingsModal.tsx` - Destination & governance UI
+- `web/components/surfaces/AgentListSurface.tsx` - Destination badge display
 
 ### Phase 3: Style Inference ✅ COMPLETE
 
@@ -416,7 +416,7 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 - [x] Platform names match style profile names (slack, notion, etc.)
 
 **Key Files:**
-- `api/services/deliverable_pipeline.py` - Style inference in synthesize step
+- `api/services/agent_pipeline.py` - Style inference in synthesize step
 
 ### Phase 4: Full-Auto & Monitoring
 
@@ -430,8 +430,8 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 
 | Metric | Target |
 |--------|--------|
-| Deliverables with destination configured | >50% of new deliverables |
-| Semi-auto adoption | >30% of deliverables with destination |
+| Agents with destination configured | >50% of new agents |
+| Semi-auto adoption | >30% of agents with destination |
 | Export step eliminated | 90% reduction in manual export clicks |
 | Delivery success rate | >99% |
 
@@ -439,11 +439,11 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 
 ## Conclusion
 
-This ADR proposes elevating destination from an afterthought to a first-class part of the deliverable model. This aligns with:
+This ADR proposes elevating destination from an afterthought to a first-class part of the agent model. This aligns with:
 
 1. YARNNN's identity as an orchestration layer (not an editor)
 2. The supervision model (user oversees delivery commitment)
-3. The recurring nature of deliverables (destination is as stable as schedule)
+3. The recurring nature of agents (destination is as stable as schedule)
 4. Industry trajectory (MCP, agent-first architectures)
 
 The change is evolutionary (additive columns, optional migration) but conceptually significant. It reframes what YARNNN is: not a content generator, but a **delivery automation platform**.
@@ -454,6 +454,6 @@ The change is evolutionary (additive columns, optional migration) but conceptual
 
 - [ADR-026: Integration Architecture](./ADR-026-integration-architecture.md)
 - [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
-- [ADR-018: Deliverable Pipeline](./ADR-018-deliverable-pipeline.md)
+- [ADR-018: Agent Pipeline](./ADR-018-agent-pipeline.md)
 - [ESSENCE.md](../ESSENCE.md)
-- [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md)
+- [Analysis: Agent-Scoped Context](../analysis/agent-scoped-context.md)

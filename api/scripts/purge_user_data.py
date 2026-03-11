@@ -7,8 +7,8 @@ Usage:
     python scripts/purge_user_data.py seulkim88@gmail.com
 
 This will:
-1. Delete all deliverable_versions for user's deliverables
-2. Delete all deliverables
+1. Delete all agent_runs for user's agents
+2. Delete all agents
 3. Delete all chat_sessions (and cascade to session_messages)
 4. Delete all user_memory rows (ADR-059)
 
@@ -67,25 +67,25 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"✓ Found user_id: {user_id}")
     action = "Would delete" if dry_run else "Deleting"
 
-    # 1. Delete deliverable_versions and deliverables
-    print(f"\n📦 Fetching deliverables...")
-    deliverables = client.table("deliverables").select("id, title").eq("user_id", user_id).execute()
-    deliverable_ids = [d["id"] for d in (deliverables.data or [])]
-    print(f"   Found {len(deliverable_ids)} deliverables")
+    # 1. Delete agent_runs and agents
+    print(f"\n📦 Fetching agents...")
+    agents = client.table("agents").select("id, title").eq("user_id", user_id).execute()
+    agent_ids = [d["id"] for d in (agents.data or [])]
+    print(f"   Found {len(agent_ids)} agents")
 
-    if deliverable_ids:
-        print(f"\n🗑️  {action} deliverable_versions...")
-        for did in deliverable_ids:
+    if agent_ids:
+        print(f"\n🗑️  {action} agent_runs...")
+        for did in agent_ids:
             if not dry_run:
-                client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
+                client.table("agent_runs").delete().eq("agent_id", did).execute()
             print(f"   - Versions for {did[:8]}...")
 
-    print(f"\n🗑️  {action} deliverables...")
+    print(f"\n🗑️  {action} agents...")
     if not dry_run:
-        result = client.table("deliverables").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} deliverables")
+        result = client.table("agents").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} agents")
     else:
-        print(f"   Would delete {len(deliverable_ids)} deliverables")
+        print(f"   Would delete {len(agent_ids)} agents")
 
     # 2. Delete chat_sessions (session_messages cascade automatically)
     print(f"\n🗑️  {action} chat_sessions...")
@@ -108,7 +108,7 @@ def purge_user_data(email: str, dry_run: bool = False):
     # knowledge_domains removed (ADR-059); work_tickets removed (ADR-090).
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
-    print(f"User {email} is now in cold-start state (zero deliverables, no chat history).")
+    print(f"User {email} is now in cold-start state (zero agents, no chat history).")
 
 
 if __name__ == "__main__":
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     if not dry_run:
         print(f"\n⚠️  WARNING: This will permanently delete ALL data for {email}")
-        print("This includes: deliverables, chat history, memories")
+        print("This includes: agents, chat history, memories")
         confirm = input("Type 'yes' to confirm: ")
         if confirm.lower() != "yes":
             print("Aborted.")

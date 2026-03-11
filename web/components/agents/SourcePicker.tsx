@@ -216,7 +216,7 @@ export function SourcePicker({ value, onChange, suggestedPlatform }: SourcePicke
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Select sources to inform this deliverable. Content from these sources will be used to
+        Select sources to inform this agent. Content from these sources will be used to
         generate your output.
       </p>
 

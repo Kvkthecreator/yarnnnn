@@ -4,7 +4,7 @@
 
 ## Problem
 
-Both chat surfaces (`ChatFirstDesk.tsx` dashboard, `DeliverableChatArea.tsx` deliverable workspace) have basic file upload via a paperclip button, but lack standard interaction patterns users expect from modern chat interfaces.
+Both chat surfaces (`ChatFirstDesk.tsx` dashboard, `AgentChatArea.tsx` agent workspace) have basic file upload via a paperclip button, but lack standard interaction patterns users expect from modern chat interfaces.
 
 ### Current state
 
@@ -50,7 +50,7 @@ Images are **ephemeral** — base64-encoded on the client, sent inline with the 
 
 **File:** `web/hooks/useFileAttachments.ts`
 
-Extract the duplicated file handling logic from both chat components into a single hook. Both `ChatFirstDesk.tsx` and `DeliverableChatArea.tsx` currently have identical implementations of:
+Extract the duplicated file handling logic from both chat components into a single hook. Both `ChatFirstDesk.tsx` and `AgentChatArea.tsx` currently have identical implementations of:
 - `attachments` / `attachmentPreviews` state
 - `handleFileSelect` (onChange handler)
 - `removeAttachment`
@@ -140,7 +140,7 @@ Before adding a file to attachments, check `file.size <= 5 * 1024 * 1024`. If ex
 |---|---|
 | **NEW** `web/hooks/useFileAttachments.ts` | Shared hook with all file handling logic |
 | `web/components/desk/ChatFirstDesk.tsx` | Replace inline file logic with `useFileAttachments`, add drag/paste handlers and drop zone overlay |
-| `web/components/deliverables/DeliverableChatArea.tsx` | Same as above |
+| `web/components/agents/AgentChatArea.tsx` | Same as above |
 
 ## Verification
 
@@ -152,5 +152,5 @@ Before adding a file to attachments, check `file.size <= 5 * 1024 * 1024`. If ex
 - [ ] Paperclip button still works as before
 - [ ] Remove attachment via X button still works
 - [ ] Send message with attachments → images appear in chat and reach Claude API
-- [ ] All above work on both dashboard and deliverable workspace
+- [ ] All above work on both dashboard and agent workspace
 - [ ] Drop zone overlay disappears when dragging out of the chat area

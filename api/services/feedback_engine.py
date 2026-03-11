@@ -6,8 +6,8 @@ Computes edit metrics between draft and final content:
 - Edit categories (additions, deletions, restructures, rewrites)
 - Structured diff for review
 
-These metrics feed the Feedback layer of the deliverable intelligence model
-(ADR-101). get_past_versions_context() in deliverable_pipeline.py aggregates
+These metrics feed the Feedback layer of the agent intelligence model
+(ADR-101). get_past_versions_context() in agent_pipeline.py aggregates
 them into "learned preferences" injected into the headless system prompt.
 """
 

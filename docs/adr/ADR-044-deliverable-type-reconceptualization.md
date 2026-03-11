@@ -1,8 +1,8 @@
-# ADR-044: Deliverable Type Reconceptualization
+# ADR-044: Agent Type Reconceptualization
 
 **Date**: 2026-02-11
-**Status**: Amended by ADR-082 (Deliverable Type Consolidation — type surface reduced to 8 active types)
-**Supersedes**: ADR-019 (Deliverable Types System) - conceptual direction
+**Status**: Amended by ADR-082 (Agent Type Consolidation — type surface reduced to 8 active types)
+**Supersedes**: ADR-019 (Agent Types System) - conceptual direction
 **Relates to**: ADR-031 (Platform-Native), ADR-034 (Emergent Domains), DECISION-001 (Platform Sync), ADR-082 (Type Consolidation)
 
 ---
@@ -11,7 +11,7 @@
 
 ### Legacy Model (ADR-019)
 
-The original deliverable type system was **format-centric**:
+The original agent type system was **format-centric**:
 
 ```
 status_report, stakeholder_update, research_brief, meeting_summary, custom
@@ -20,7 +20,7 @@ status_report, stakeholder_update, research_brief, meeting_summary, custom
 These types describe **output shape**, not:
 - Where the value comes from (which platform context)
 - How fresh the context needs to be (temporal requirements)
-- Whether the deliverable should emerge vs. be declared
+- Whether the agent should emerge vs. be declared
 - Whether platforms inform reasoning or just formatting
 
 ### New Reality
@@ -38,9 +38,9 @@ Our architecture has evolved:
    - Cost implications of sync frequency
 
 3. **Emergent domains** (ADR-034)
-   - Domains emerge from deliverable source patterns
+   - Domains emerge from agent source patterns
    - TP discovers context boundaries organically
-   - Suggests: deliverables themselves might emerge
+   - Suggests: agents themselves might emerge
 
 4. **Platform-native generation** (ADR-031)
    - Slack digests surface hot threads, not just summarize
@@ -63,11 +63,11 @@ Current types don't capture:
 
 ## Decision
 
-Reconceptualize deliverable types as a **two-dimensional classification** with **emergent discovery support**.
+Reconceptualize agent types as a **two-dimensional classification** with **emergent discovery support**.
 
 ### Dimension 1: Context Binding
 
-How the deliverable relates to platform context:
+How the agent relates to platform context:
 
 | Binding | Description | Examples |
 |---------|-------------|----------|
@@ -78,7 +78,7 @@ How the deliverable relates to platform context:
 
 ### Dimension 2: Temporal Pattern
 
-How the deliverable relates to time:
+How the agent relates to time:
 
 | Pattern | Description | Freshness Requirement |
 |---------|-------------|----------------------|
@@ -89,7 +89,7 @@ How the deliverable relates to time:
 
 ### Dimension 3: Emergence Support
 
-Deliverables can be:
+Agents can be:
 
 | Mode | Description |
 |------|-------------|
@@ -196,8 +196,8 @@ competitive_analysis + gmail_grounding =
 
 **Composition pattern**:
 ```typescript
-interface DeliverableConfig {
-  primary_type: string;  // The core deliverable type
+interface AgentConfig {
+  primary_type: string;  // The core agent type
   platform_grounding?: {
     platform: "slack" | "gmail" | "notion";
     sources: string[];  // Channel IDs, labels, page IDs
@@ -208,15 +208,15 @@ interface DeliverableConfig {
 
 ---
 
-## Emergent Deliverable Discovery
+## Emergent Agent Discovery
 
-### TP as Deliverable Proposer
+### TP as Agent Proposer
 
-The TP should recognize opportunities to create deliverables:
+The TP should recognize opportunities to create agents:
 
 **Trigger patterns**:
 
-| Pattern | Example | Proposed Deliverable |
+| Pattern | Example | Proposed Agent |
 |---------|---------|---------------------|
 | Repeated requests | "Summarize Slack for me" 3x | Propose `slack_digest` |
 | Context need | "What did we decide about X?" often | Propose `slack_decision_log` |
@@ -240,8 +240,8 @@ TP: [Provides catch-up summary]
 ### Emergence Mechanics
 
 ```python
-# TP tracks patterns that suggest deliverable value
-class DeliverablePatternDetector:
+# TP tracks patterns that suggest agent value
+class AgentPatternDetector:
     patterns = [
         {
             "trigger": "repeated_platform_summary_request",
@@ -312,17 +312,17 @@ Pre-generation check:
 | `custom` | Preserved as escape hatch |
 
 **Migration approach**:
-- Existing deliverables keep `deliverable_type` field
+- Existing agents keep `agent_type` field
 - Add `type_classification` field for new system
-- Gradual migration as users edit deliverables
+- Gradual migration as users edit agents
 
 ---
 
 ## Data Model Changes
 
 ```sql
--- Extend deliverables table
-ALTER TABLE deliverables ADD COLUMN type_classification JSONB;
+-- Extend agents table
+ALTER TABLE agents ADD COLUMN type_classification JSONB;
 -- {
 --   "binding": "platform_bound" | "cross_platform" | "research" | "hybrid",
 --   "temporal_pattern": "reactive" | "scheduled" | "on_demand" | "emergent",
@@ -333,8 +333,8 @@ ALTER TABLE deliverables ADD COLUMN type_classification JSONB;
 --   "freshness_requirement_hours": 4
 -- }
 
--- Emergent deliverable tracking
-CREATE TABLE deliverable_proposals (
+-- Emergent agent tracking
+CREATE TABLE agent_proposals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id),
     proposed_type TEXT NOT NULL,
@@ -355,7 +355,7 @@ CREATE TABLE user_interaction_patterns (
     occurrence_count INTEGER DEFAULT 1,
     first_seen_at TIMESTAMPTZ DEFAULT now(),
     last_seen_at TIMESTAMPTZ DEFAULT now(),
-    proposed_deliverable_id UUID REFERENCES deliverable_proposals(id),
+    proposed_agent_id UUID REFERENCES agent_proposals(id),
 
     UNIQUE(user_id, pattern_type, pattern_data)
 );
@@ -370,7 +370,7 @@ CREATE TABLE user_interaction_patterns (
 Replace flat type list with **binding-first selection**:
 
 ```
-Step 1: What kind of deliverable?
+Step 1: What kind of agent?
 ┌─────────────────────────────────────────────────────────────┐
 │ 📊 Platform Monitor                                         │
 │    Stay on top of a specific platform                       │
@@ -417,13 +417,13 @@ What do you want to monitor?
 Step 4: Select channels (respects limits from ADR-043)
 ```
 
-### Emergent Deliverable UI
+### Emergent Agent UI
 
-TP can propose deliverables inline:
+TP can propose agents inline:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 💡 Deliverable Suggestion                                   │
+│ 💡 Agent Suggestion                                   │
 ├─────────────────────────────────────────────────────────────┤
 │ I notice you often ask for Slack catch-ups on Mondays.      │
 │                                                             │
@@ -439,10 +439,10 @@ TP can propose deliverables inline:
 ## Implementation Phases
 
 ### Phase 1: Type Classification Metadata
-- [ ] Add `type_classification` JSONB to deliverables
+- [ ] Add `type_classification` JSONB to agents
 - [ ] Define classification schema
-- [ ] Backfill existing deliverables with inferred classification
-- [ ] Update deliverable creation to capture classification
+- [ ] Backfill existing agents with inferred classification
+- [ ] Update agent creation to capture classification
 
 ### Phase 2: Platform-Bound Type Refinement
 - [ ] Implement platform-specific signal extraction (beyond ADR-030)
@@ -450,11 +450,11 @@ TP can propose deliverables inline:
 - [ ] Add freshness checking to generation flow
 - [ ] Platform-bound type selection in wizard
 
-### Phase 3: Emergent Deliverable Discovery
+### Phase 3: Emergent Agent Discovery
 - [ ] Track user interaction patterns in TP
 - [ ] Implement pattern detection for proposal triggers
 - [ ] Create proposal UI component
-- [ ] TP behavior for suggesting deliverables
+- [ ] TP behavior for suggesting agents
 
 ### Phase 4: Hybrid Composition
 - [ ] Platform grounding configuration in wizard
@@ -467,11 +467,11 @@ TP can propose deliverables inline:
 
 | Metric | Target | Rationale |
 |--------|--------|-----------|
-| Deliverable adoption by type | Track distribution | Validates type usefulness |
+| Agent adoption by type | Track distribution | Validates type usefulness |
 | Emergent proposal acceptance | > 30% | Proposals are valuable |
 | Freshness-related regenerations | < 10% | Freshness UX works |
 | Platform-bound output quality | > 70% approval | Platform signals improve output |
-| Time to first deliverable | < 3 min | Simplified flow |
+| Time to first agent | < 3 min | Simplified flow |
 
 ---
 
@@ -484,14 +484,14 @@ TP can propose deliverables inline:
    - Leaning: Not in v1, use custom type with platform grounding
 
 3. **How do we handle platform types when platform disconnected?**
-   - Deliverable becomes "stale" with reconnect prompt
+   - Agent becomes "stale" with reconnect prompt
 
 ---
 
 ## Related
 
-- ADR-019: Deliverable Types System (superseded direction)
-- ADR-031: Platform-Native Deliverables
+- ADR-019: Agent Types System (superseded direction)
+- ADR-031: Platform-Native Agents
 - ADR-034: Emergent Context Domains
 - ADR-043: Platform Settings Frontend
 - DECISION-001: Platform Sync Strategy

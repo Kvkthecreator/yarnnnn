@@ -50,7 +50,7 @@ Implement a **two-layer memory architecture**:
 
 ### Layer 2: Project Memory
 
-**Purpose:** Capture what's specific to THIS project/deliverable.
+**Purpose:** Capture what's specific to THIS project/agent.
 
 **Semantic Types** (6 total, extended from ADR-003 + audit):
 
@@ -138,7 +138,7 @@ DUAL_EXTRACTION_PROMPT = """Analyze this conversation and extract TWO types of c
    - relationship: People in their professional orbit (colleagues, mentors)
 
 2. PROJECT CONTEXT - Things specific to THIS task/project:
-   - requirement: Must-have for this deliverable
+   - requirement: Must-have for this agent
    - fact: Project-specific information
    - guideline: Rules for this project
    - insight: Conclusions about this project

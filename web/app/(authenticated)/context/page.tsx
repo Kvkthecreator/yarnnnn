@@ -11,7 +11,7 @@
  *
  * Data lives in: platform_connections, platform_content, filesystem_documents
  * Written by: OAuth flow, platform_worker sync, document upload
- * Read by: TP via Search tool, deliverable pipeline via TP execution mode
+ * Read by: TP via Search tool, agent pipeline via TP execution mode
  *
  * Note: Profile, Styles, and Entries moved to /memory (Memory layer)
  */
@@ -173,7 +173,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                       {config.label}
                     </span>
                     {isYarnnn && (
-                      <p className="text-xs text-muted-foreground">Deliverable outputs</p>
+                      <p className="text-xs text-muted-foreground">Agent outputs</p>
                     )}
                     {!isYarnnn && isConnected && summary?.workspace_name && (
                       <p className="text-xs text-muted-foreground truncate max-w-[140px]">

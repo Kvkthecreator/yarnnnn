@@ -2,7 +2,7 @@
 
 > **Status**: Accepted
 > **Created**: 2026-02-09
-> **Decision**: Context domains emerge from deliverable source patterns, not upfront user definition
+> **Decision**: Context domains emerge from agent source patterns, not upfront user definition
 > **Related**: ADR-005 (Unified Memory), ADR-015 (Unified Context Model), ADR-024 (Context Classification), ADR-032 (Platform-Native Frontend)
 > **Supersedes**: ADR-024 classification layer approach
 
@@ -46,15 +46,15 @@ Users' existing platform organization is messy:
 
 ## Decision
 
-### Core Principle: Deliverables First, Domains Emerge
+### Core Principle: Agents First, Domains Emerge
 
-**Context domains are not declared upfront. They emerge from patterns in how users configure deliverable sources.**
+**Context domains are not declared upfront. They emerge from patterns in how users configure agent sources.**
 
 ```
 USER BEHAVIOR                          SYSTEM INFERENCE
 ─────────────────────────────────────────────────────────────────────────
 
-User creates deliverables:             YARNNN observes source patterns:
+User creates agents:             YARNNN observes source patterns:
 
 "Weekly Status to Sarah"
   Sources: #engineering, #product      ─┐
@@ -81,7 +81,7 @@ User creates deliverables:             YARNNN observes source patterns:
 │  ├── Base preferences (formatting, verbosity)                           │
 │  └── Expertise (domains they know)                                      │
 │                                                                          │
-│  Always available. Applied to ALL deliverables regardless of domain.    │
+│  Always available. Applied to ALL agents regardless of domain.    │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     │ owns
@@ -104,7 +104,7 @@ User creates deliverables:             YARNNN observes source patterns:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          DELIVERABLES                                    │
 │                                                                          │
-│  The PRIMARY user interaction. Each deliverable defines:                │
+│  The PRIMARY user interaction. Each agent defines:                │
 │  ├── Destination: where output goes (email, Slack channel, Notion page) │
 │  ├── Sources: which resources feed it (explicit selection)              │
 │  ├── Schedule: when it runs                                             │
@@ -119,7 +119,7 @@ User creates deliverables:             YARNNN observes source patterns:
 │  │   Governance: Draft (review before send)                         │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
-│  Users create deliverables to GET VALUE. This is the entry point.       │
+│  Users create agents to GET VALUE. This is the entry point.       │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     │ YARNNN observes source patterns
@@ -127,15 +127,15 @@ User creates deliverables:             YARNNN observes source patterns:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    EMERGENT CONTEXT DOMAINS                              │
 │                                                                          │
-│  System-inferred from deliverable source overlap:                       │
+│  System-inferred from agent source overlap:                       │
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Domain: "Acme Work" (auto-named, user can rename)                │   │
 │  │                                                                   │   │
-│  │ Sources (union of related deliverables):                         │   │
+│  │ Sources (union of related agents):                         │   │
 │  │   #engineering, #product, #client-acme, sarah@, acme@            │   │
 │  │                                                                   │   │
-│  │ Deliverables in this domain:                                     │   │
+│  │ Agents in this domain:                                     │   │
 │  │   - Weekly Status to Sarah                                       │   │
 │  │   - Acme Project Update                                          │   │
 │  │   - Engineering Digest                                           │   │
@@ -154,7 +154,7 @@ User creates deliverables:             YARNNN observes source patterns:
 │  │ Domain: "BigCo Advisory" (auto-named)                            │   │
 │  │                                                                   │   │
 │  │ Sources: #client-bigco, bigco@                                   │   │
-│  │ Deliverables: BigCo Advisory Report                              │   │
+│  │ Agents: BigCo Advisory Report                              │   │
 │  │ Accumulated context: scoped to BigCo sources                     │   │
 │  │ Style profile: learned from BigCo communications                 │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
@@ -169,9 +169,9 @@ User creates deliverables:             YARNNN observes source patterns:
 
 ## How It Works
 
-### 1. Deliverable Creation (User Action)
+### 1. Agent Creation (User Action)
 
-User creates a deliverable by specifying:
+User creates a agent by specifying:
 - **Destination**: Where the output goes
 - **Sources**: Which platform resources inform it
 - **Schedule**: When it runs
@@ -189,29 +189,29 @@ User selects: #engineering, #product, email threads with Sarah
 YARNNN: "When should this run?"
 User: Fridays at 4pm
 
-→ Deliverable created. User gets value immediately.
+→ Agent created. User gets value immediately.
 ```
 
 ### 2. Domain Inference (System Behavior)
 
-YARNNN analyzes source overlap across deliverables:
+YARNNN analyzes source overlap across agents:
 
 ```python
 # Pseudo-algorithm for domain inference
 
-def infer_domains(user_deliverables):
+def infer_domains(user_agents):
     # Build source graph
-    source_to_deliverables = {}
-    for d in user_deliverables:
+    source_to_agents = {}
+    for d in user_agents:
         for source in d.sources:
-            source_to_deliverables[source].add(d)
+            source_to_agents[source].add(d)
 
     # Find connected components (sources that appear together)
     domains = []
-    for component in find_connected_components(source_to_deliverables):
+    for component in find_connected_components(source_to_agents):
         domain = Domain(
             sources=component.sources,
-            deliverables=component.deliverables,
+            agents=component.agents,
             name=auto_generate_name(component)  # e.g., "Acme Work"
         )
         domains.append(domain)
@@ -220,8 +220,8 @@ def infer_domains(user_deliverables):
 ```
 
 **Source overlap creates implicit grouping**:
-- Deliverable A uses: #engineering, #product
-- Deliverable B uses: #engineering, #client-acme
+- Agent A uses: #engineering, #product
+- Agent B uses: #engineering, #client-acme
 - Overlap on #engineering → same domain
 
 ### 3. Context Accumulation (Scoped to Domains)
@@ -235,8 +235,8 @@ Import from #engineering:
 
 Context: "Decided to use PostgreSQL for new service"
   → Scoped to "Acme Work" domain
-  → Available to all deliverables in that domain
-  → NOT available to BigCo deliverables
+  → Available to all agents in that domain
+  → NOT available to BigCo agents
 ```
 
 ### 4. TP Conversations (Domain-Scoped)
@@ -245,7 +245,7 @@ When user converses with TP, context is pulled from the relevant domain:
 
 **Domain determination** (in priority order):
 
-1. **Deliverable-anchored**: User is viewing/editing a deliverable → use that deliverable's domain
+1. **Agent-anchored**: User is viewing/editing a agent → use that agent's domain
 2. **Explicit selection**: User has selected a domain context
 3. **Inferred from conversation**: User mentions "Sarah" or "engineering" → infer domain
 4. **Ask when ambiguous**: "Are you asking about Acme or BigCo?"
@@ -271,7 +271,7 @@ TP retrieves from BigCo domain:
 
 ### 5. Style Learning (Per-Domain)
 
-Style is learned from each domain's sources and applied to that domain's deliverables:
+Style is learned from each domain's sources and applied to that domain's agents:
 
 ```
 Domain: "Acme Work"
@@ -296,7 +296,7 @@ Domain: "BigCo Advisory"
     - Detailed appendices
 ```
 
-Deliverables automatically use their domain's style profile.
+Agents automatically use their domain's style profile.
 
 ---
 
@@ -313,7 +313,7 @@ STEP 1: Connect platforms
 → Integrations created at user level
 → No domain/basket configuration needed
 
-STEP 2: Create first deliverable
+STEP 2: Create first agent
 ─────────────────────────────────────────────────────────────────────────
 "What do you need YARNNN to produce for you?"
 
@@ -328,11 +328,11 @@ STEP 2: Create first deliverable
 "When?"
 → Fridays at 4pm
 
-DONE. First deliverable created. First domain emerges implicitly.
+DONE. First agent created. First domain emerges implicitly.
 
-STEP 3: Create more deliverables (ongoing)
+STEP 3: Create more agents (ongoing)
 ─────────────────────────────────────────────────────────────────────────
-Each new deliverable either:
+Each new agent either:
   - Joins an existing domain (source overlap)
   - Creates a new domain (distinct sources)
 
@@ -343,9 +343,9 @@ User never explicitly manages domains unless they want to.
 
 | Approach | Steps to First Value | User Burden |
 |----------|---------------------|-------------|
-| **Basket-first** | Connect → Create baskets → Map resources → Create deliverable | High |
-| **Deliverable-first (no domains)** | Connect → Create deliverable | Low, but context bleeds |
-| **Emergent domains** | Connect → Create deliverable | Low, AND context is bounded |
+| **Basket-first** | Connect → Create baskets → Map resources → Create agent | High |
+| **Agent-first (no domains)** | Connect → Create agent | Low, but context bleeds |
+| **Emergent domains** | Connect → Create agent | Low, AND context is bounded |
 
 ### Optional Domain Management
 
@@ -360,16 +360,16 @@ Settings → Context Domains
 │                                                                          │
 │ ● Acme Work                                               [Rename]      │
 │   Sources: #engineering, #product, #client-acme, sarah@, acme@          │
-│   Deliverables: 3                                                       │
+│   Agents: 3                                                       │
 │   Context items: 847                                                    │
 │                                                                          │
 │ ● BigCo Advisory                                          [Rename]      │
 │   Sources: #client-bigco, bigco@                                        │
-│   Deliverables: 1                                                       │
+│   Agents: 1                                                       │
 │   Context items: 124                                                    │
 │                                                                          │
 │ ● Uncategorized                                                         │
-│   Sources not yet in any deliverable                                    │
+│   Sources not yet in any agent                                    │
 │                                                                          │
 │ [+ Create manual domain]  ← For power users who want explicit control   │
 │                                                                          │
@@ -399,7 +399,7 @@ CREATE TABLE context_domains (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Source-to-domain mapping (computed from deliverable sources)
+-- Source-to-domain mapping (computed from agent sources)
 CREATE TABLE domain_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     domain_id UUID NOT NULL REFERENCES context_domains(id) ON DELETE CASCADE,
@@ -417,12 +417,12 @@ CREATE TABLE domain_sources (
     UNIQUE(domain_id, provider, resource_id)
 );
 
--- Deliverable-to-domain relationship (computed, not user-managed)
-CREATE TABLE deliverable_domains (
-    deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+-- Agent-to-domain relationship (computed, not user-managed)
+CREATE TABLE agent_domains (
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     domain_id UUID NOT NULL REFERENCES context_domains(id) ON DELETE CASCADE,
 
-    PRIMARY KEY (deliverable_id, domain_id)
+    PRIMARY KEY (agent_id, domain_id)
 );
 
 -- Memories now reference domains instead of projects
@@ -465,7 +465,7 @@ SET domain_id = (
 )
 WHERE m.domain_id IS NULL;
 
--- Phase 3: Existing projects become deliverable groupings (optional)
+-- Phase 3: Existing projects become agent groupings (optional)
 -- Projects table can be deprecated or repurposed for UI organization
 ```
 
@@ -479,22 +479,22 @@ WHERE m.domain_id IS NULL;
 from collections import defaultdict
 from typing import Set, List
 
-def compute_domains(deliverables: List[Deliverable]) -> List[Domain]:
+def compute_domains(agents: List[Agent]) -> List[Domain]:
     """
-    Compute context domains from deliverable source patterns.
+    Compute context domains from agent source patterns.
 
     Uses connected components algorithm:
-    - Sources that appear together in ANY deliverable are connected
+    - Sources that appear together in ANY agent are connected
     - Connected components become domains
     """
 
     # Build adjacency: which sources appear together?
     source_connections = defaultdict(set)
 
-    for deliverable in deliverables:
-        sources = set(deliverable.sources)
+    for agent in agents:
+        sources = set(agent.sources)
         for source in sources:
-            # Each source is connected to all other sources in same deliverable
+            # Each source is connected to all other sources in same agent
             source_connections[source].update(sources - {source})
 
     # Find connected components
@@ -516,29 +516,29 @@ def compute_domains(deliverables: List[Deliverable]) -> List[Domain]:
                 queue.extend(source_connections[current] - visited)
 
             # Create domain from component
-            component_deliverables = [
-                d for d in deliverables
+            component_agents = [
+                d for d in agents
                 if set(d.sources) & component_sources
             ]
 
             domain = Domain(
                 sources=component_sources,
-                deliverables=component_deliverables,
-                name=generate_domain_name(component_sources, component_deliverables)
+                agents=component_agents,
+                name=generate_domain_name(component_sources, component_agents)
             )
             domains.append(domain)
 
     return domains
 
 
-def generate_domain_name(sources: Set[str], deliverables: List[Deliverable]) -> str:
+def generate_domain_name(sources: Set[str], agents: List[Agent]) -> str:
     """
-    Auto-generate a domain name from its sources/deliverables.
+    Auto-generate a domain name from its sources/agents.
 
     Heuristics:
     1. If all sources share a common prefix (e.g., "#client-acme", "acme@")
        → Use that prefix ("Acme")
-    2. If deliverables have common theme in titles
+    2. If agents have common theme in titles
        → Use that theme
     3. Fallback: Use most common source name
     """
@@ -551,17 +551,17 @@ def generate_domain_name(sources: Set[str], deliverables: List[Deliverable]) -> 
 
 ### Incremental Updates
 
-When a deliverable is created/updated:
+When a agent is created/updated:
 
 ```python
-async def on_deliverable_change(deliverable: Deliverable, user_id: str):
-    """Recompute domains when deliverable sources change."""
+async def on_agent_change(agent: Agent, user_id: str):
+    """Recompute domains when agent sources change."""
 
-    # Get all user's deliverables
-    all_deliverables = await get_user_deliverables(user_id)
+    # Get all user's agents
+    all_agents = await get_user_agents(user_id)
 
     # Recompute domains
-    new_domains = compute_domains(all_deliverables)
+    new_domains = compute_domains(all_agents)
 
     # Diff against existing domains
     existing_domains = await get_user_domains(user_id)
@@ -586,7 +586,7 @@ async def get_active_domain(
 
     Priority:
     1. Explicit user selection (if user chose a domain)
-    2. Active deliverable (if viewing/editing one)
+    2. Active agent (if viewing/editing one)
     3. Conversation inference (mentions, entities)
     4. Ambiguous → ask user
     """
@@ -595,9 +595,9 @@ async def get_active_domain(
     if conversation_context.explicit_domain_id:
         return await get_domain(conversation_context.explicit_domain_id)
 
-    # 2. Active deliverable
-    if conversation_context.active_deliverable_id:
-        return await get_deliverable_domain(conversation_context.active_deliverable_id)
+    # 2. Active agent
+    if conversation_context.active_agent_id:
+        return await get_agent_domain(conversation_context.active_agent_id)
 
     # 3. Conversation inference
     domains = await get_user_domains(user_id)
@@ -699,8 +699,8 @@ Boundary prevents incorrect context from surfacing.
 
 | Metric | Target | Rationale |
 |--------|--------|-----------|
-| **Time to first deliverable** | < 5 minutes | Low friction onboarding |
-| **Deliverables with working context** | > 90% | Emergent domains capture relevant sources |
+| **Time to first agent** | < 5 minutes | Low friction onboarding |
+| **Agents with working context** | > 90% | Emergent domains capture relevant sources |
 | **Context bleed incidents** | < 5% | Domains effectively prevent mixing |
 | **User domain adjustments** | < 20% | Auto-inference is good enough |
 | **TP context relevance** | > 85% | Domain scoping improves retrieval |
@@ -711,15 +711,15 @@ Boundary prevents incorrect context from surfacing.
 
 ### Phase 1: Schema & Infrastructure
 
-1. Create `context_domains`, `domain_sources`, `deliverable_domains` tables
+1. Create `context_domains`, `domain_sources`, `agent_domains` tables
 2. Implement domain inference algorithm
 3. Add `domain_id` to memories table
 4. Create default domain for existing users
 
-### Phase 2: Deliverable Integration
+### Phase 2: Agent Integration
 
-1. Update deliverable creation to trigger domain recomputation
-2. Link deliverables to computed domains
+1. Update agent creation to trigger domain recomputation
+2. Link agents to computed domains
 3. Update context retrieval to be domain-scoped
 
 ### Phase 3: TP Integration
@@ -732,12 +732,12 @@ Boundary prevents incorrect context from surfacing.
 
 1. Add optional domain management UI (Settings)
 2. Show domain indicator in TP conversations
-3. Add domain context to deliverable detail views
+3. Add domain context to agent detail views
 
 ### Phase 5: Style Integration
 
 1. Implement per-domain style learning
-2. Apply domain style to deliverable generation
+2. Apply domain style to agent generation
 3. UI for viewing/adjusting style profiles
 
 ---
@@ -752,8 +752,8 @@ Boundary prevents incorrect context from surfacing.
    - Detect based on source count threshold
    - Suggest split to user
 
-3. **Cross-domain deliverables**: Can a deliverable pull from multiple domains?
-   - Start with: No, one domain per deliverable
+3. **Cross-domain agents**: Can a agent pull from multiple domains?
+   - Start with: No, one domain per agent
    - Future: Allow with explicit user consent
 
 4. **Shared domains**: Can domains be shared between users (teams)?
@@ -769,12 +769,12 @@ Emergent Context Domains solve the fundamental tension between:
 - **Flexibility** (not burdening users with upfront taxonomy)
 
 **Key insights**:
-1. Users define deliverables to get value (primary interaction)
-2. Domains emerge from deliverable source patterns (no setup burden)
+1. Users define agents to get value (primary interaction)
+2. Domains emerge from agent source patterns (no setup burden)
 3. Domains create implicit boundaries (context stays relevant)
 4. Users can adjust if needed (optional control)
 
-**The result**: Low-friction onboarding, bounded context, accumulated knowledge, and trustworthy deliverables.
+**The result**: Low-friction onboarding, bounded context, accumulated knowledge, and trustworthy agents.
 
 ---
 
@@ -786,15 +786,15 @@ Emergent Context Domains solve the fundamental tension between:
 ### Completed
 
 #### Phase 1: Schema & Infrastructure
-- [x] Migration 034: `context_domains`, `domain_sources`, `deliverable_domains`, `domain_style_profiles` tables
+- [x] Migration 034: `context_domains`, `domain_sources`, `agent_domains`, `domain_style_profiles` tables
 - [x] `domain_id` column added to `memories` table
-- [x] Helper functions: `get_or_create_default_domain`, `find_domain_for_source`, `get_deliverable_domain`
+- [x] Helper functions: `get_or_create_default_domain`, `find_domain_for_source`, `get_agent_domain`
 - [x] Default domain created for existing users via migration
 
-#### Phase 2: Deliverable Integration
+#### Phase 2: Agent Integration
 - [x] Domain inference service (`api/services/domain_inference.py`)
 - [x] Connected components algorithm for source overlap detection
-- [x] Domain recomputation trigger on deliverable creation/update (`api/routes/deliverables.py`)
+- [x] Domain recomputation trigger on agent creation/update (`api/routes/agents.py`)
 - [x] Import flow updated to route memories to domains (`api/jobs/import_jobs.py`)
 
 #### Phase 3: TP Integration
@@ -802,7 +802,7 @@ Emergent Context Domains solve the fundamental tension between:
 - [x] New `get_memories_by_importance` function for non-semantic fallback
 - [x] `Memory` and `ContextBundle` refactored to use `domain_id` (`api/agents/base.py`)
 - [x] `load_memories` function updated for domain scoping (`api/routes/chat.py`)
-- [x] Active domain detection from surface context (deliverable being viewed)
+- [x] Active domain detection from surface context (agent being viewed)
 - [x] Extraction service updated to route to domains (`api/services/extraction.py` — deleted in ADR-064, replaced by `api/services/memory.py`)
 
 ### Remaining
@@ -812,22 +812,22 @@ Emergent Context Domains solve the fundamental tension between:
 - [x] Context v2: DomainSelector replaces ProjectSelector
 - [ ] Domain management UI in Settings (power user feature)
 - [ ] Domain indicator in TP conversations
-- [ ] Domain context display in deliverable views
+- [ ] Domain context display in agent views
 
 #### Phase 5: Style Integration
 - [ ] Per-domain style learning implementation
-- [ ] Style profile application in deliverable generation
+- [ ] Style profile application in agent generation
 - [ ] Style profile UI
 
 ### Key Files Modified
 
 | File | Changes |
 |------|---------|
-| `supabase/migrations/034_emergent_context_domains.sql` | Schema for domains, sources, deliverable mapping |
+| `supabase/migrations/034_emergent_context_domains.sql` | Schema for domains, sources, agent mapping |
 | `supabase/migrations/035_domain_scoped_search.sql` | Updated search functions for domain scoping |
 | `api/services/domain_inference.py` | Domain inference algorithm and reconciliation |
 | `api/jobs/import_jobs.py` | Memory routing to domains during import |
-| `api/routes/deliverables.py` | Domain recomputation on deliverable changes |
+| `api/routes/agents.py` | Domain recomputation on agent changes |
 | `api/routes/chat.py` | Domain-scoped context loading in TP |
 | `api/agents/base.py` | Memory/ContextBundle now use domain_id |
 | `api/services/memory.py` | Unified Memory Service (replaced `extraction.py` per ADR-064) |
@@ -836,7 +836,7 @@ Emergent Context Domains solve the fundamental tension between:
 
 - Existing users automatically receive a default domain via migration
 - Legacy `project_id` on memories is deprecated but preserved for backwards compatibility
-- Domain inference runs on deliverable creation/update - existing deliverables need manual trigger
+- Domain inference runs on agent creation/update - existing agents need manual trigger
 - Style profiles table created but learning not yet implemented
 
 ---

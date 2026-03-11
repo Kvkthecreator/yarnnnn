@@ -1,19 +1,19 @@
 """
-Deliverables routes - Recurring deliverable management
+Agents routes - Recurring agent management
 
-ADR-018: Recurring Deliverables Product Pivot
-ADR-019: Deliverable Types System
+ADR-018: Recurring Agents Product Pivot
+ADR-019: Agent Types System
 
 Endpoints:
-- POST /deliverables - Create a new deliverable
-- GET /deliverables - List user's deliverables
-- GET /deliverables/:id - Get deliverable with version history
-- PATCH /deliverables/:id - Update deliverable settings
-- DELETE /deliverables/:id - Archive a deliverable
-- POST /deliverables/:id/run - Trigger an ad-hoc run
-- GET /deliverables/:id/versions - List versions
-- GET /deliverables/:id/versions/:version_id - Get version detail
-- PATCH /deliverables/:id/versions/:version_id - Update version (approve, reject, save edits)
+- POST /agents - Create a new agent
+- GET /agents - List user's agents
+- GET /agents/:id - Get agent with version history
+- PATCH /agents/:id - Update agent settings
+- DELETE /agents/:id - Archive a agent
+- POST /agents/:id/run - Trigger an ad-hoc run
+- GET /agents/:id/versions - List versions
+- GET /agents/:id/versions/:version_id - Get version detail
+- PATCH /agents/:id/versions/:version_id - Update version (approve, reject, save edits)
 """
 
 import logging
@@ -32,10 +32,10 @@ router = APIRouter()
 
 
 # =============================================================================
-# ADR-093: Deliverable Type Definitions (7 purpose-first types)
+# ADR-093: Agent Type Definitions (7 purpose-first types)
 # =============================================================================
 
-DeliverableType = Literal[
+AgentType = Literal[
     "digest",        # Synthesis of what's happening in a specific place (platform inferred from sources)
     "brief",         # Situation-specific document before a key event
     "status",        # Regular cross-platform summary for a person or audience
@@ -61,9 +61,9 @@ TYPE_TIERS = {
 # ADR-044/045: Type Classification for Strategy Selection
 # =============================================================================
 
-def get_type_classification(deliverable_type: str) -> dict:
+def get_type_classification(agent_type: str) -> dict:
     """
-    ADR-093: Get type_classification for a deliverable type.
+    ADR-093: Get type_classification for a agent type.
 
     Determines which execution strategy is used:
     - platform_bound: Single platform context — inferred from sources[] for digest
@@ -74,38 +74,38 @@ def get_type_classification(deliverable_type: str) -> dict:
     Returns:
         dict with binding, temporal_pattern, and optional primary_platform
     """
-    if deliverable_type == "digest":
+    if agent_type == "digest":
         # Platform inferred from sources[] at assembly time, not from type
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
         }
 
-    if deliverable_type == "brief":
+    if agent_type == "brief":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
         }
 
-    if deliverable_type == "status":
+    if agent_type == "status":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
         }
 
-    if deliverable_type == "watch":
+    if agent_type == "watch":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "on_demand",
         }
 
-    if deliverable_type == "deep_research":
+    if agent_type == "deep_research":
         return {
             "binding": "hybrid",
             "temporal_pattern": "proactive",
         }
 
-    if deliverable_type == "coordinator":
+    if agent_type == "coordinator":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "on_demand",
@@ -160,7 +160,7 @@ class CoordinatorConfig(BaseModel):
 
 
 class CustomConfig(BaseModel):
-    """Configuration for custom/freeform deliverable type."""
+    """Configuration for custom/freeform agent type."""
     description: str = ""
     structure_notes: Optional[str] = None
 
@@ -255,8 +255,8 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
     )
 
 
-def get_default_config(deliverable_type: DeliverableType) -> dict:
-    """Get default configuration for a deliverable type (ADR-093: 7 types)."""
+def get_default_config(agent_type: AgentType) -> dict:
+    """Get default configuration for a agent type (ADR-093: 7 types)."""
     defaults = {
         "digest": DigestConfig(),
         "brief": BriefConfig(),
@@ -266,7 +266,7 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
         "coordinator": CoordinatorConfig(),
         "custom": CustomConfig(),
     }
-    return defaults.get(deliverable_type, defaults["custom"]).model_dump()
+    return defaults.get(agent_type, defaults["custom"]).model_dump()
 
 
 # =============================================================================
@@ -274,7 +274,7 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
 # =============================================================================
 
 class RecipientContext(BaseModel):
-    """Who receives the deliverable and what they care about."""
+    """Who receives the agent and what they care about."""
     name: Optional[str] = None
     role: Optional[str] = None
     priorities: list[str] = Field(default_factory=list)
@@ -303,7 +303,7 @@ class CooldownConfig(BaseModel):
 
 class EventTriggerConfig(BaseModel):
     """
-    Event trigger configuration for deliverables.
+    Event trigger configuration for agents.
 
     Used when trigger_type='event'.
     """
@@ -319,10 +319,10 @@ class EventTriggerConfig(BaseModel):
 
 
 class DataSource(BaseModel):
-    """A source of information for the deliverable.
+    """A source of information for the agent.
 
     ADR-104: scope and filters fields removed — never consumed by execution pipeline.
-    Targeting is handled entirely by deliverable_instructions.
+    Targeting is handled entirely by agent_instructions.
     """
     type: Literal["url", "document", "description", "integration_import"]
     value: str  # URL, document_id, or description text
@@ -332,10 +332,10 @@ class DataSource(BaseModel):
     source: Optional[str] = None  # inbox, query:..., channel_id, page_id
 
 
-class DeliverableCreate(BaseModel):
-    """Create deliverable request - ADR-019 type-first approach."""
+class AgentCreate(BaseModel):
+    """Create agent request - ADR-019 type-first approach."""
     title: str
-    deliverable_type: DeliverableType = "custom"
+    agent_type: AgentType = "custom"
     type_config: Optional[dict] = None  # Type-specific config, validated per type
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
@@ -347,7 +347,7 @@ class DeliverableCreate(BaseModel):
     schedule: Optional[ScheduleConfig] = None  # Required if trigger_type='schedule'
     trigger_config: Optional[EventTriggerConfig] = None  # Required if trigger_type='event'
     sources: list[DataSource] = Field(default_factory=list)
-    # ADR-028: Destination-first deliverables
+    # ADR-028: Destination-first agents
     destination: Optional[dict] = None  # { platform, target, format, options }
     # ADR-031 Phase 6: Multi-destination support for synthesizers
     destinations: Optional[list[dict]] = None  # Array of destination configs
@@ -355,16 +355,16 @@ class DeliverableCreate(BaseModel):
     is_synthesizer: bool = False  # If true, uses cross-platform context assembly
     # ADR-092: Mode taxonomy
     mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
-    # ADR-087: Deliverable-scoped context
-    deliverable_instructions: Optional[str] = None
+    # ADR-087: Agent-scoped context
+    agent_instructions: Optional[str] = None
     # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
 
 
-class DeliverableUpdate(BaseModel):
-    """Update deliverable request."""
+class AgentUpdate(BaseModel):
+    """Update agent request."""
     title: Optional[str] = None
-    deliverable_type: Optional[DeliverableType] = None
+    agent_type: Optional[AgentType] = None
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
@@ -375,14 +375,14 @@ class DeliverableUpdate(BaseModel):
     trigger_config: Optional[EventTriggerConfig] = None
     sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
-    # ADR-028: Destination-first deliverables
+    # ADR-028: Destination-first agents
     destination: Optional[dict] = None
     # ADR-031 Phase 6: Multi-destination support
     destinations: Optional[list[dict]] = None
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: Optional[bool] = None
-    # ADR-087: Deliverable-scoped context
-    deliverable_instructions: Optional[str] = None
+    # ADR-087: Agent-scoped context
+    agent_instructions: Optional[str] = None
     # ADR-092: Mode taxonomy extended
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
     # ADR-092: Proactive/coordinator review scheduling
@@ -391,11 +391,11 @@ class DeliverableUpdate(BaseModel):
     description: Optional[str] = None
 
 
-class DeliverableResponse(BaseModel):
-    """Deliverable response - includes ADR-019 type fields."""
+class AgentResponse(BaseModel):
+    """Agent response - includes ADR-019 type fields."""
     id: str
     title: str
-    deliverable_type: str = "custom"
+    agent_type: str = "custom"
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
@@ -417,7 +417,7 @@ class DeliverableResponse(BaseModel):
     last_triggered_at: Optional[str] = None  # ADR-031: Last event trigger
     version_count: int = 0
     latest_version_status: Optional[str] = None
-    # ADR-028: Destination-first deliverables
+    # ADR-028: Destination-first agents
     destination: Optional[dict] = None  # { platform, target, format, options }
     # ADR-031 Phase 6: Multi-destination support
     destinations: list[dict] = Field(default_factory=list)  # Array of destination configs
@@ -430,12 +430,12 @@ class DeliverableResponse(BaseModel):
     avg_edit_distance: Optional[float] = None  # Average over last 5 versions
     # ADR-030: Source freshness
     source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
-    # ADR-068: Deliverable origin (how it came to exist)
+    # ADR-068: Agent origin (how it came to exist)
     # ADR-092: coordinator_created added
     origin: str = "user_configured"  # user_configured | coordinator_created
-    # ADR-087: Deliverable-scoped context
-    deliverable_instructions: Optional[str] = None
-    deliverable_memory: Optional[dict] = None
+    # ADR-087: Agent-scoped context
+    agent_instructions: Optional[str] = None
+    agent_memory: Optional[dict] = None
     # ADR-092: Mode taxonomy extended
     mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
     # ADR-092: Proactive/coordinator review scheduling
@@ -468,9 +468,9 @@ class SourceSnapshot(BaseModel):
 
 
 class VersionResponse(BaseModel):
-    """Deliverable version response."""
+    """Agent version response."""
     id: str
-    deliverable_id: str
+    agent_id: str
     version_number: int
     status: str  # generating, staged, reviewing, approved, rejected
     draft_content: Optional[str] = None
@@ -536,28 +536,28 @@ def _parse_source_snapshots(snapshots_list: Optional[list]) -> Optional[list[Sou
 
 
 # =============================================================================
-# Deliverable CRUD Routes
+# Agent CRUD Routes
 # =============================================================================
 
 @router.post("")
-async def create_deliverable(
-    request: DeliverableCreate,
+async def create_agent(
+    request: AgentCreate,
     auth: UserClient,
-) -> DeliverableResponse:
+) -> AgentResponse:
     """
-    Create a new recurring deliverable.
+    Create a new recurring agent.
 
-    ADR-053: Enforces active deliverable limits based on user tier.
+    ADR-053: Enforces active agent limits based on user tier.
     """
-    from services.platform_limits import check_deliverable_limit
+    from services.platform_limits import check_agent_limit
 
-    # ADR-053: Check deliverable limit before creation
-    allowed, message = check_deliverable_limit(auth.client, auth.user_id)
+    # ADR-053: Check agent limit before creation
+    allowed, message = check_agent_limit(auth.client, auth.user_id)
     if not allowed:
         raise HTTPException(
             status_code=429,
             detail={
-                "error": "deliverable_limit_reached",
+                "error": "agent_limit_reached",
                 "message": message,
                 "upgrade_url": "/settings?tab=billing",
             }
@@ -570,25 +570,25 @@ async def create_deliverable(
     type_config = request.type_config
     if type_config is None:
         # For custom type with legacy fields, migrate them
-        if request.deliverable_type == "custom" and request.description:
+        if request.agent_type == "custom" and request.description:
             type_config = {
                 "description": request.description or "",
             }
         else:
-            type_config = get_default_config(request.deliverable_type)
+            type_config = get_default_config(request.agent_type)
 
     # Validate type_config against the type
-    validated_config = validate_type_config(request.deliverable_type, type_config)
+    validated_config = validate_type_config(request.agent_type, type_config)
 
-    # ADR-044/045: Use provided type_classification or compute from deliverable_type
-    type_classification = request.type_classification or get_type_classification(request.deliverable_type)
+    # ADR-044/045: Use provided type_classification or compute from agent_type
+    type_classification = request.type_classification or get_type_classification(request.agent_type)
 
-    # Create deliverable
-    deliverable_data = {
+    # Create agent
+    agent_data = {
         "user_id": auth.user_id,
         "title": request.title,
-        "deliverable_type": request.deliverable_type,
-        "type_tier": TYPE_TIERS.get(request.deliverable_type, "stable"),
+        "agent_type": request.agent_type,
+        "type_tier": TYPE_TIERS.get(request.agent_type, "stable"),
         "type_config": validated_config,
         # ADR-044/045: Type classification for execution strategy
         "type_classification": type_classification,
@@ -600,64 +600,64 @@ async def create_deliverable(
         "sources": [s.model_dump() for s in request.sources],
         "status": "active",
         "next_run_at": next_run_at,
-        # ADR-028: Destination-first deliverables
+        # ADR-028: Destination-first agents
         "destination": request.destination,
         # ADR-092: Mode taxonomy
         "mode": request.mode,
-        # ADR-087: Deliverable-scoped context
-        "deliverable_instructions": request.deliverable_instructions,
+        # ADR-087: Agent-scoped context
+        "agent_instructions": request.agent_instructions,
     }
 
     result = (
-        auth.client.table("deliverables")
-        .insert(deliverable_data)
+        auth.client.table("agents")
+        .insert(agent_data)
         .execute()
     )
 
     if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create deliverable")
+        raise HTTPException(status_code=500, detail="Failed to create agent")
 
-    deliverable = result.data[0]
-    logger.info(f"[DELIVERABLE] Created: {deliverable['id']} - {deliverable['title']}")
+    agent = result.data[0]
+    logger.info(f"[DELIVERABLE] Created: {agent['id']} - {agent['title']}")
 
-    return DeliverableResponse(
-        id=deliverable["id"],
-        title=deliverable["title"],
-        deliverable_type=deliverable.get("deliverable_type", "custom"),
-        type_config=deliverable.get("type_config"),
+    return AgentResponse(
+        id=agent["id"],
+        title=agent["title"],
+        agent_type=agent.get("agent_type", "custom"),
+        type_config=agent.get("type_config"),
         # ADR-031: Platform-native variants
-        platform_variant=deliverable.get("platform_variant"),
+        platform_variant=agent.get("platform_variant"),
         # ADR-044: Type classification
-        type_classification=deliverable.get("type_classification"),
+        type_classification=agent.get("type_classification"),
         project_id=None,  # ADR-034: Deprecated
-        recipient_context=deliverable.get("recipient_context"),
-        schedule=deliverable["schedule"],
-        sources=deliverable.get("sources", []),
-        status=deliverable["status"],
-        created_at=deliverable["created_at"],
-        updated_at=deliverable["updated_at"],
-        next_run_at=deliverable.get("next_run_at"),
-        # ADR-028: Destination-first deliverables
-        destination=deliverable.get("destination"),
-        # ADR-068: Deliverable origin
-        origin=deliverable.get("origin", "user_configured"),
-        # ADR-087: Deliverable-scoped context
-        deliverable_instructions=deliverable.get("deliverable_instructions"),
-        deliverable_memory=deliverable.get("deliverable_memory"),
-        mode=deliverable.get("mode", "recurring"),
+        recipient_context=agent.get("recipient_context"),
+        schedule=agent["schedule"],
+        sources=agent.get("sources", []),
+        status=agent["status"],
+        created_at=agent["created_at"],
+        updated_at=agent["updated_at"],
+        next_run_at=agent.get("next_run_at"),
+        # ADR-028: Destination-first agents
+        destination=agent.get("destination"),
+        # ADR-068: Agent origin
+        origin=agent.get("origin", "user_configured"),
+        # ADR-087: Agent-scoped context
+        agent_instructions=agent.get("agent_instructions"),
+        agent_memory=agent.get("agent_memory"),
+        mode=agent.get("mode", "recurring"),
         # Legacy: description still consumed by Research/Hybrid strategies
-        description=deliverable.get("description"),
+        description=agent.get("description"),
     )
 
 
 @router.get("")
-async def list_deliverables(
+async def list_agents(
     auth: UserClient,
     status: Optional[str] = None,
     limit: int = 20,
-) -> list[DeliverableResponse]:
+) -> list[AgentResponse]:
     """
-    List user's deliverables with quality metrics.
+    List user's agents with quality metrics.
 
     Args:
         status: Filter by status (active, paused, archived)
@@ -668,11 +668,11 @@ async def list_deliverables(
     - quality_trend: "improving" | "stable" | "declining"
     - avg_edit_distance: Average over recent versions
     """
-    # Fetch deliverables with versions
-    # Note: ADR-034 removed projects table, deliverables are now user-scoped
+    # Fetch agents with versions
+    # Note: ADR-034 removed projects table, agents are now user-scoped
     query = (
-        auth.client.table("deliverables")
-        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at)")
+        auth.client.table("agents")
+        .select("*, agent_runs(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -682,11 +682,11 @@ async def list_deliverables(
         query = query.eq("status", status)
 
     result = query.execute()
-    deliverables = result.data or []
+    agents = result.data or []
 
     responses = []
-    for d in deliverables:
-        versions = d.get("deliverable_versions", [])
+    for d in agents:
+        versions = d.get("agent_runs", [])
         version_count = len(versions)
         latest_version = max(versions, key=lambda v: v["version_number"]) if versions else None
 
@@ -735,11 +735,11 @@ async def list_deliverables(
                 else:
                     quality_trend = "stable"
 
-        # ADR-034: Projects removed, deliverables are user-scoped
-        responses.append(DeliverableResponse(
+        # ADR-034: Projects removed, agents are user-scoped
+        responses.append(AgentResponse(
             id=d["id"],
             title=d["title"],
-            deliverable_type=d.get("deliverable_type", "custom"),
+            agent_type=d.get("agent_type", "custom"),
             type_config=d.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=d.get("platform_variant"),
@@ -757,16 +757,16 @@ async def list_deliverables(
             next_run_at=d.get("next_run_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
-            # ADR-028: Destination-first deliverables
+            # ADR-028: Destination-first agents
             destination=d.get("destination"),
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
-            # ADR-068: Deliverable origin
+            # ADR-068: Agent origin
             origin=d.get("origin", "user_configured"),
-            # ADR-087: Deliverable-scoped context
-            deliverable_instructions=d.get("deliverable_instructions"),
-            deliverable_memory=d.get("deliverable_memory"),
+            # ADR-087: Agent-scoped context
+            agent_instructions=d.get("agent_instructions"),
+            agent_memory=d.get("agent_memory"),
             mode=d.get("mode", "recurring"),
             # Legacy: description still consumed by Research/Hybrid strategies
             description=d.get("description"),
@@ -775,35 +775,35 @@ async def list_deliverables(
     return responses
 
 
-@router.get("/{deliverable_id}")
-async def get_deliverable(
-    deliverable_id: UUID,
+@router.get("/{agent_id}")
+async def get_agent(
+    agent_id: UUID,
     auth: UserClient,
 ) -> dict:
     """
-    Get deliverable with recent version history.
+    Get agent with recent version history.
     """
-    # Get deliverable with project name
-    # ADR-034: Projects removed, deliverables are user-scoped
+    # Get agent with project name
+    # ADR-034: Projects removed, agents are user-scoped
     result = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("*")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not result.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    deliverable = result.data
+    agent = result.data
 
     # Get recent versions
     versions_result = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .select("*")
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("agent_id", str(agent_id))
         .order("version_number", desc=True)
         .limit(10)
         .execute()
@@ -816,41 +816,41 @@ async def get_deliverable(
     feedback_summary = compute_feedback_summary(approved_versions)
 
     return {
-        "deliverable": DeliverableResponse(
-            id=deliverable["id"],
-            title=deliverable["title"],
-            deliverable_type=deliverable.get("deliverable_type", "custom"),
-            type_config=deliverable.get("type_config"),
+        "agent": AgentResponse(
+            id=agent["id"],
+            title=agent["title"],
+            agent_type=agent.get("agent_type", "custom"),
+            type_config=agent.get("type_config"),
             # ADR-031: Platform-native variants
-            platform_variant=deliverable.get("platform_variant"),
+            platform_variant=agent.get("platform_variant"),
             # ADR-044: Type classification
-            type_classification=deliverable.get("type_classification"),
+            type_classification=agent.get("type_classification"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
-            recipient_context=deliverable.get("recipient_context"),
-            schedule=deliverable["schedule"],
-            sources=deliverable.get("sources", []),
-            status=deliverable["status"],
-            created_at=deliverable["created_at"],
-            updated_at=deliverable["updated_at"],
-            last_run_at=deliverable.get("last_run_at"),
-            next_run_at=deliverable.get("next_run_at"),
+            recipient_context=agent.get("recipient_context"),
+            schedule=agent["schedule"],
+            sources=agent.get("sources", []),
+            status=agent["status"],
+            created_at=agent["created_at"],
+            updated_at=agent["updated_at"],
+            last_run_at=agent.get("last_run_at"),
+            next_run_at=agent.get("next_run_at"),
             version_count=len(versions),
-            # ADR-028: Destination-first deliverables
-            destination=deliverable.get("destination"),
-            # ADR-068: Deliverable origin
-            origin=deliverable.get("origin", "user_configured"),
-            # ADR-087: Deliverable-scoped context
-            deliverable_instructions=deliverable.get("deliverable_instructions"),
-            deliverable_memory=deliverable.get("deliverable_memory"),
-            mode=deliverable.get("mode", "recurring"),
+            # ADR-028: Destination-first agents
+            destination=agent.get("destination"),
+            # ADR-068: Agent origin
+            origin=agent.get("origin", "user_configured"),
+            # ADR-087: Agent-scoped context
+            agent_instructions=agent.get("agent_instructions"),
+            agent_memory=agent.get("agent_memory"),
+            mode=agent.get("mode", "recurring"),
             # Legacy: description still consumed by Research/Hybrid strategies
-            description=deliverable.get("description"),
+            description=agent.get("description"),
         ),
         "versions": [
             VersionResponse(
                 id=v["id"],
-                deliverable_id=v["deliverable_id"],
+                agent_id=v["agent_id"],
                 version_number=v["version_number"],
                 status=v["status"],
                 draft_content=v.get("draft_content"),
@@ -880,41 +880,41 @@ async def get_deliverable(
     }
 
 
-@router.patch("/{deliverable_id}")
-async def update_deliverable(
-    deliverable_id: UUID,
-    request: DeliverableUpdate,
+@router.patch("/{agent_id}")
+async def update_agent(
+    agent_id: UUID,
+    request: AgentUpdate,
     auth: UserClient,
-) -> DeliverableResponse:
+) -> AgentResponse:
     """
-    Update deliverable settings.
+    Update agent settings.
     """
     # Verify ownership
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     # Build update data
     update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
     if request.title is not None:
         update_data["title"] = request.title
-    if request.deliverable_type is not None:
-        update_data["deliverable_type"] = request.deliverable_type
+    if request.agent_type is not None:
+        update_data["agent_type"] = request.agent_type
         # If type changes but no new config provided, reset to defaults
         if request.type_config is None:
-            update_data["type_config"] = get_default_config(request.deliverable_type)
+            update_data["type_config"] = get_default_config(request.agent_type)
     if request.type_config is not None:
         # Validate against current or new type
-        target_type = request.deliverable_type or check.data.get("deliverable_type", "custom")
+        target_type = request.agent_type or check.data.get("agent_type", "custom")
         update_data["type_config"] = validate_type_config(target_type, request.type_config)
     # ADR-031: Platform-native variants
     if request.platform_variant is not None:
@@ -928,12 +928,12 @@ async def update_deliverable(
         update_data["sources"] = [s.model_dump() for s in request.sources]
     if request.status is not None:
         update_data["status"] = request.status
-    # ADR-028: Destination-first deliverables
+    # ADR-028: Destination-first agents
     if request.destination is not None:
         update_data["destination"] = request.destination
-    # ADR-087: Deliverable-scoped context
-    if request.deliverable_instructions is not None:
-        update_data["deliverable_instructions"] = request.deliverable_instructions
+    # ADR-087: Agent-scoped context
+    if request.agent_instructions is not None:
+        update_data["agent_instructions"] = request.agent_instructions
     if request.mode is not None:
         update_data["mode"] = request.mode
     if request.proactive_next_review_at is not None:
@@ -943,21 +943,21 @@ async def update_deliverable(
         update_data["description"] = request.description
 
     result = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .update(update_data)
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .execute()
     )
 
     if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to update deliverable")
+        raise HTTPException(status_code=500, detail="Failed to update agent")
 
     d = result.data[0]
 
-    return DeliverableResponse(
+    return AgentResponse(
         id=d["id"],
         title=d["title"],
-        deliverable_type=d.get("deliverable_type", "custom"),
+        agent_type=d.get("agent_type", "custom"),
         type_config=d.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=d.get("platform_variant"),
@@ -970,90 +970,90 @@ async def update_deliverable(
         updated_at=d["updated_at"],
         last_run_at=d.get("last_run_at"),
         next_run_at=d.get("next_run_at"),
-        # ADR-028: Destination-first deliverables
+        # ADR-028: Destination-first agents
         destination=d.get("destination"),
-        # ADR-068: Deliverable origin
+        # ADR-068: Agent origin
         origin=d.get("origin", "user_configured"),
-        # ADR-087: Deliverable-scoped context
-        deliverable_instructions=d.get("deliverable_instructions"),
-        deliverable_memory=d.get("deliverable_memory"),
+        # ADR-087: Agent-scoped context
+        agent_instructions=d.get("agent_instructions"),
+        agent_memory=d.get("agent_memory"),
         mode=d.get("mode", "recurring"),
         # Legacy: description still consumed by Research/Hybrid strategies
         description=d.get("description"),
     )
 
 
-@router.delete("/{deliverable_id}")
-async def archive_deliverable(
-    deliverable_id: UUID,
+@router.delete("/{agent_id}")
+async def archive_agent(
+    agent_id: UUID,
     auth: UserClient,
 ) -> dict:
     """
-    Archive a deliverable (soft delete).
+    Archive a agent (soft delete).
     """
     result = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .update({"status": "archived", "updated_at": datetime.now(timezone.utc).isoformat()})
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .execute()
     )
 
     if not result.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    logger.info(f"[DELIVERABLE] Archived: {deliverable_id}")
+    logger.info(f"[DELIVERABLE] Archived: {agent_id}")
 
-    return {"success": True, "message": "Deliverable archived"}
+    return {"success": True, "message": "Agent archived"}
 
 
 # =============================================================================
 # Pipeline Execution Routes
 # =============================================================================
 
-@router.post("/{deliverable_id}/run")
+@router.post("/{agent_id}/run")
 async def trigger_run(
-    deliverable_id: UUID,
+    agent_id: UUID,
     auth: UserClient,
 ) -> dict:
     """
-    Trigger an ad-hoc deliverable run.
+    Trigger an ad-hoc agent run.
 
-    ADR-042: Uses simplified single-call execute_deliverable_generation().
+    ADR-042: Uses simplified single-call execute_agent_generation().
     """
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.agent_execution import execute_agent_generation
 
-    # Get deliverable
+    # Get agent
     result = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("*")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not result.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    deliverable = result.data
+    agent = result.data
 
-    if deliverable["status"] == "archived":
-        raise HTTPException(status_code=400, detail="Cannot run archived deliverable")
+    if agent["status"] == "archived":
+        raise HTTPException(status_code=400, detail="Cannot run archived agent")
 
-    logger.info(f"[DELIVERABLE] Triggering run: {deliverable_id}")
+    logger.info(f"[DELIVERABLE] Triggering run: {agent_id}")
 
     # ADR-042: Execute with simplified single-call flow
-    exec_result = await execute_deliverable_generation(
+    exec_result = await execute_agent_generation(
         client=auth.client,
         user_id=auth.user_id,
-        deliverable=deliverable,
+        agent=agent,
         trigger_context={"type": "manual"},
     )
 
     return {
         "success": exec_result.get("success", False),
-        "version_id": exec_result.get("version_id"),
+        "run_id": exec_result.get("run_id"),
         "version_number": exec_result.get("version_number"),
         "status": exec_result.get("status"),
         "message": exec_result.get("message"),
@@ -1075,38 +1075,38 @@ class SourceFreshnessItem(BaseModel):
     is_stale: bool = True
 
 
-@router.get("/{deliverable_id}/sources/freshness")
+@router.get("/{agent_id}/sources/freshness")
 async def get_source_freshness(
-    deliverable_id: UUID,
+    agent_id: UUID,
     auth: UserClient,
 ) -> list[SourceFreshnessItem]:
     """
-    ADR-030: Get freshness info for all sources of a deliverable.
+    ADR-030: Get freshness info for all sources of a agent.
 
     Returns when each source was last fetched, how many items were retrieved,
     and whether the source is considered stale (>7 days since last fetch).
     """
     # Verify ownership
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id, sources")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    deliverable = check.data
-    sources = deliverable.get("sources", [])
+    agent = check.data
+    sources = agent.get("sources", [])
 
     # Get latest source run for each source
     runs_result = (
-        auth.client.table("deliverable_source_runs")
+        auth.client.table("agent_source_runs")
         .select("source_index, source_type, provider, completed_at, status, items_fetched")
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("agent_id", str(agent_id))
         .order("completed_at", desc=True)
         .execute()
     )
@@ -1170,35 +1170,35 @@ async def get_source_freshness(
 
 
 # =============================================================================
-# Version Management Routes
+# Run Management Routes
 # =============================================================================
 
-@router.get("/{deliverable_id}/versions")
-async def list_versions(
-    deliverable_id: UUID,
+@router.get("/{agent_id}/runs")
+async def list_runs(
+    agent_id: UUID,
     auth: UserClient,
     limit: int = 20,
 ) -> list[VersionResponse]:
     """
-    List all versions for a deliverable.
+    List all runs for an agent.
     """
     # Verify ownership
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     result = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .select("*")
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("agent_id", str(agent_id))
         .order("version_number", desc=True)
         .limit(limit)
         .execute()
@@ -1209,7 +1209,7 @@ async def list_versions(
     return [
         VersionResponse(
             id=v["id"],
-            deliverable_id=v["deliverable_id"],
+            agent_id=v["agent_id"],
             version_number=v["version_number"],
             status=v["status"],
             draft_content=v.get("draft_content"),
@@ -1230,33 +1230,33 @@ async def list_versions(
     ]
 
 
-@router.get("/{deliverable_id}/versions/{version_id}")
-async def get_version(
-    deliverable_id: UUID,
-    version_id: UUID,
+@router.get("/{agent_id}/runs/{run_id}")
+async def get_run(
+    agent_id: UUID,
+    run_id: UUID,
     auth: UserClient,
 ) -> VersionResponse:
     """
     Get a specific version with full content.
     """
-    # Verify ownership through deliverable
+    # Verify ownership through agent
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     result = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .select("*")
-        .eq("id", str(version_id))
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("id", str(run_id))
+        .eq("agent_id", str(agent_id))
         .single()
         .execute()
     )
@@ -1268,7 +1268,7 @@ async def get_version(
 
     return VersionResponse(
         id=v["id"],
-        deliverable_id=v["deliverable_id"],
+        agent_id=v["agent_id"],
         version_number=v["version_number"],
         status=v["status"],
         draft_content=v.get("draft_content"),
@@ -1292,10 +1292,10 @@ async def get_version(
     )
 
 
-@router.patch("/{deliverable_id}/versions/{version_id}")
-async def update_version(
-    deliverable_id: UUID,
-    version_id: UUID,
+@router.patch("/{agent_id}/runs/{run_id}")
+async def update_run(
+    agent_id: UUID,
+    run_id: UUID,
     request: VersionUpdate,
     auth: UserClient,
 ) -> VersionResponse:
@@ -1306,25 +1306,25 @@ async def update_version(
     """
     from services.feedback_engine import compute_edit_metrics
 
-    # Verify ownership through deliverable
+    # Verify ownership through agent
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id, title, destination")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
 
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     # Get current version
     version_result = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .select("*")
-        .eq("id", str(version_id))
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("id", str(run_id))
+        .eq("agent_id", str(agent_id))
         .single()
         .execute()
     )
@@ -1362,9 +1362,9 @@ async def update_version(
         raise HTTPException(status_code=400, detail="No updates provided")
 
     result = (
-        auth.client.table("deliverable_versions")
+        auth.client.table("agent_runs")
         .update(update_data)
-        .eq("id", str(version_id))
+        .eq("id", str(run_id))
         .execute()
     )
 
@@ -1381,14 +1381,14 @@ async def update_version(
             from services.activity_log import write_activity
             from services.supabase import get_service_client
             import asyncio
-            deliverable_title = check.data.get("title") or str(deliverable_id)
-            event_type = "deliverable_approved" if request.status == "approved" else "deliverable_rejected"
+            agent_title = check.data.get("title") or str(agent_id)
+            event_type = "agent_approved" if request.status == "approved" else "agent_rejected"
 
             # ADR-064: Enhanced metadata for pattern detection
             metadata = {
-                "deliverable_id": str(deliverable_id),
-                "version_id": str(version_id),
-                "deliverable_type": check.data.get("deliverable_type"),
+                "agent_id": str(agent_id),
+                "run_id": str(run_id),
+                "agent_type": check.data.get("agent_type"),
             }
 
             # Track edit patterns for memory extraction
@@ -1403,8 +1403,8 @@ async def update_version(
                 client=get_service_client(),
                 user_id=auth.user_id,
                 event_type=event_type,
-                summary=f"{request.status.capitalize()} version of {deliverable_title}",
-                event_ref=str(version_id),
+                summary=f"{request.status.capitalize()} version of {agent_title}",
+                event_ref=str(run_id),
                 metadata=metadata,
             ))
         except Exception:
@@ -1412,7 +1412,7 @@ async def update_version(
 
     return VersionResponse(
         id=v["id"],
-        deliverable_id=v["deliverable_id"],
+        agent_id=v["agent_id"],
         version_number=v["version_number"],
         status=v["status"],
         draft_content=v.get("draft_content"),
@@ -1435,35 +1435,35 @@ async def update_version(
 # =============================================================================
 
 
-@router.get("/{deliverable_id}/sessions")
-async def list_deliverable_sessions(
-    deliverable_id: UUID,
+@router.get("/{agent_id}/sessions")
+async def list_agent_sessions(
+    agent_id: UUID,
     auth: UserClient,
     limit: int = 10,
 ) -> list[dict]:
     """
-    List scoped chat sessions for a deliverable.
+    List scoped chat sessions for a agent.
 
-    ADR-087: Sessions are scoped to deliverables via chat_sessions.deliverable_id FK.
+    ADR-087: Sessions are scoped to agents via chat_sessions.agent_id FK.
     Returns recent sessions with summary and message count.
     """
     # Verify ownership
     check = (
-        auth.client.table("deliverables")
+        auth.client.table("agents")
         .select("id")
-        .eq("id", str(deliverable_id))
+        .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
         .execute()
     )
     if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     # Query scoped sessions
     result = (
         auth.client.table("chat_sessions")
         .select("id, created_at, summary")
-        .eq("deliverable_id", str(deliverable_id))
+        .eq("agent_id", str(agent_id))
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -1494,9 +1494,9 @@ async def list_deliverable_sessions(
 # Helper Functions
 # =============================================================================
 
-def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dict:
+def validate_type_config(agent_type: AgentType, config: dict) -> dict:
     """
-    Validate and normalize type_config for a given deliverable type.
+    Validate and normalize type_config for a given agent type.
     Returns the validated config dict.
 
     ADR-093: Maps the 7 purpose-first types to their config classes.
@@ -1512,12 +1512,12 @@ def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dic
     }
 
     try:
-        config_class = config_classes.get(deliverable_type, CustomConfig)
+        config_class = config_classes.get(agent_type, CustomConfig)
         validated = config_class(**config)
         return validated.model_dump()
     except Exception as e:
-        logger.warning(f"[DELIVERABLE] Invalid type_config for {deliverable_type}: {e}")
-        return get_default_config(deliverable_type)
+        logger.warning(f"[DELIVERABLE] Invalid type_config for {agent_type}: {e}")
+        return get_default_config(agent_type)
 
 
 def calculate_next_run(schedule: ScheduleConfig) -> str:

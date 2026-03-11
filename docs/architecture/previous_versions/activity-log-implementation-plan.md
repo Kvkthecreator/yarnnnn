@@ -41,7 +41,7 @@ New module. Single public function: `write_activity()`. All write points import 
 Activity Log — ADR-063
 
 Append-only system provenance log. Records what YARNNN has done across all pipelines.
-Written by: deliverable execution, platform sync, chat pipeline, TP memory tools.
+Written by: agent execution, platform sync, chat pipeline, TP memory tools.
 Read by: working_memory.py (recent 10 events injected into TP session prompt).
 
 Never called by users directly. All writes are service-role.
@@ -68,7 +68,7 @@ async def write_activity(
     Args:
         client: Supabase service-role client
         user_id: The user this event belongs to
-        event_type: One of 'deliverable_run', 'memory_written', 'platform_synced', 'chat_session'
+        event_type: One of 'agent_run', 'memory_written', 'platform_synced', 'chat_session'
         summary: Human-readable one-liner (shown in working memory block)
         event_ref: UUID of related record (version_id, session_id, etc.) — optional
         metadata: Structured detail dict — optional
@@ -76,7 +76,7 @@ async def write_activity(
     Returns:
         activity_log row id, or None on error (non-fatal — caller should continue regardless)
     """
-    if event_type not in {"deliverable_run", "memory_written", "platform_synced", "chat_session"}:
+    if event_type not in {"agent_run", "memory_written", "platform_synced", "chat_session"}:
         logger.warning(f"[activity_log] Unknown event_type: {event_type}")
         return None
 
@@ -141,29 +141,29 @@ async def get_recent_activity(
 
 ---
 
-## Step 3: Write Point — Deliverable Execution
+## Step 3: Write Point — Agent Execution
 
-**File**: [api/services/deliverable_execution.py](../../api/services/deliverable_execution.py)
+**File**: [api/services/agent_execution.py](../../api/services/agent_execution.py)
 
-**Where**: After step 9 ("Update deliverable last_run_at"), before step 10 (full_auto governance).
-Current context: `deliverable_execution.py` around line 542.
+**Where**: After step 9 ("Update agent last_run_at"), before step 10 (full_auto governance).
+Current context: `agent_execution.py` around line 542.
 
-**Add** (after `client.table("deliverables").update(...).execute()` at line 542):
+**Add** (after `client.table("agents").update(...).execute()` at line 542):
 
 ```python
-# Activity log: record this deliverable run
+# Activity log: record this agent run
 try:
     from services.activity_log import write_activity
     status_label = final_status if 'final_status' in dir() else 'staged'
-    deliverable_title = deliverable.get("title", "Deliverable")
+    agent_title = agent.get("title", "Agent")
     await write_activity(
         client=client,
         user_id=user_id,
-        event_type="deliverable_run",
-        summary=f"{deliverable_title} v{next_version} generated ({status_label})",
+        event_type="agent_run",
+        summary=f"{agent_title} v{next_version} generated ({status_label})",
         event_ref=version_id,
         metadata={
-            "deliverable_id": str(deliverable_id),
+            "agent_id": str(agent_id),
             "version_number": next_version,
             "strategy": strategy.strategy_name,
             "sources_count": len(gathered_result.sources_used),
@@ -177,18 +177,18 @@ Note: the `final_status` variable is set during step 10 (full_auto). Insert the 
 
 **Correct placement** (after line 575, before `logger.info`):
 ```python
-# Activity log: record this deliverable run (ADR-063)
+# Activity log: record this agent run (ADR-063)
 try:
     from services.activity_log import write_activity
-    deliverable_title = deliverable.get("title", "Deliverable")
+    agent_title = agent.get("title", "Agent")
     await write_activity(
         client=client,
         user_id=user_id,
-        event_type="deliverable_run",
-        summary=f"{deliverable_title} v{next_version} generated ({final_status})",
+        event_type="agent_run",
+        summary=f"{agent_title} v{next_version} generated ({final_status})",
         event_ref=version_id,
         metadata={
-            "deliverable_id": str(deliverable_id),
+            "agent_id": str(agent_id),
             "version_number": next_version,
             "strategy": strategy.strategy_name,
             "final_status": final_status,
@@ -307,7 +307,7 @@ working_memory = {
     "profile": _extract_profile(context_rows),
     "preferences": _extract_preferences(context_rows),
     "known": _extract_known(context_rows),
-    "deliverables": await _get_active_deliverables(user_id, client),
+    "agents": await _get_active_agents(user_id, client),
     "platforms": await _get_connected_platforms(user_id, client),
     "recent_sessions": await _get_recent_sessions(user_id, client),
     "recent_activity": await _get_recent_activity(user_id, client),   # NEW
@@ -349,13 +349,13 @@ Find the system prompt builder that reads `working_memory` and add the new secti
 |---|---|---|---|
 | 1 | `supabase/migrations/060_activity_log.sql` | Schema | Now |
 | 2 | `api/services/activity_log.py` | New module | Now |
-| 3 | `api/services/deliverable_execution.py` | Write point | High |
+| 3 | `api/services/agent_execution.py` | Write point | High |
 | 4 | `api/workers/platform_worker.py` | Write point | High |
 | 7 | `api/services/working_memory.py` | Read point | After 3+4 have data |
 | 5 | TP memory tools | Write point | Medium |
 | 6 | `api/routes/chat.py` | Write point | Low |
 
-Steps 3 and 4 first — they generate the most useful events (deliverable runs and syncs). Step 7 after production data exists so the prompt injection is meaningful on first use. Step 6 last — chat events are the lowest signal.
+Steps 3 and 4 first — they generate the most useful events (agent runs and syncs). Step 7 after production data exists so the prompt injection is meaningful on first use. Step 6 last — chat events are the lowest signal.
 
 ---
 
@@ -365,7 +365,7 @@ Current working memory: ~2,000 tokens
 New `recent_activity` section: ~300 tokens (10 events × ~30 tokens each)
 Remaining budget: unchanged — the section replaces the underused `recent_sessions` block (sessions currently have no summaries, so the block renders empty).
 
-Consider removing or collapsing `recent_sessions` once `recent_activity` is live, since deliverable runs and chat_session events cover the same ground with more signal.
+Consider removing or collapsing `recent_sessions` once `recent_activity` is live, since agent runs and chat_session events cover the same ground with more signal.
 
 ---
 
@@ -373,8 +373,8 @@ Consider removing or collapsing `recent_sessions` once `recent_activity` is live
 
 - `filesystem_items` — unchanged
 - `sync_registry` — unchanged (continues to track per-resource cursor/state)
-- `deliverable_versions` — unchanged
+- `agent_runs` — unchanged
 - `session_messages` — unchanged
 - `work_execution_log` — unchanged (step-level execution trace, ephemeral)
 - Platform sync logic — only adds one INSERT call after a successful batch
-- Deliverable execution logic — only adds one INSERT call after generation completes
+- Agent execution logic — only adds one INSERT call after generation completes

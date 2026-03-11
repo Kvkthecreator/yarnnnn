@@ -115,7 +115,7 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 **Architecture**:
 - TP has 7 primitives: Read, Write, Edit, Search, List, Execute, Clarify
-- Execute is for YARNNN orchestration only (deliverable.generate, platform.sync, etc.)
+- Execute is for YARNNN orchestration only (agent.generate, platform.sync, etc.)
 - MCP tools exposed directly to TP as first-class tools
 - `Search` primitive searches synced content (ephemeral_context)
 - MCP tools search/interact with platforms directly

@@ -47,7 +47,7 @@ The four-layer model (ADR-063) is conceptually sound. Each layer works internall
 │  signal_processing ──→ LLM reasoning pass             ✅        │
 │       │                                                         │
 │       ▼                                                         │
-│  deliverable_execution ──→ generates output           ✅        │
+│  agent_execution ──→ generates output           ✅        │
 │       │                      marks retention           ⚠️        │
 │       ▼                                                         │
 │  delivery ──→ exports to destination                  ✅        │
@@ -151,7 +151,7 @@ The remaining ADR-072 items are **ordered dependencies**:
    └─ 2. Signal processing reads from platform_content ← Requires #1
        └─ 3. Signal processing marks retained=true ← Requires #2
            └─ 4. TP primitives read from platform_content ← Requires #1
-               └─ 5. Deliverable execution uses TP headless mode ← Requires #4
+               └─ 5. Agent execution uses TP headless mode ← Requires #4
                    └─ 6. Drop filesystem_items ← Requires all above
 ```
 

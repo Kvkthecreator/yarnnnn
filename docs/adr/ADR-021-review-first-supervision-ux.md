@@ -2,18 +2,18 @@
 
 **Status:** Accepted
 **Date:** 2026-02-02
-**Builds On:** ADR-018 (Recurring Deliverables), ADR-020 (Deliverable-Centric Chat)
+**Builds On:** ADR-018 (Recurring Agents), ADR-020 (Agent-Centric Chat)
 **Supersedes:** docs/development/UX_TRANSITION_PLAN.md (delete)
 
 ## Context
 
 We established two axiomatic principles:
 
-1. **Deliverables are first-class data entities** - the objects users supervise
+1. **Agents are first-class data entities** - the objects users supervise
 2. **TP is the first-class interaction surface** - the method of supervision
 
 The current implementation separates these across multiple screens:
-- Dashboard: Shows deliverables (objects) but no TP
+- Dashboard: Shows agents (objects) but no TP
 - Detail: Shows content but TP is just a button
 - Review: Finally has both, but user had to navigate there
 
@@ -26,7 +26,7 @@ This navigation-centric model is a legacy web paradigm. A supervisor doesn't "na
 **When a user logs in with something needing attention, they land directly on the review screen - not a list.**
 
 The primary view unites both first-class entities:
-- The **deliverable content** (object of supervision) is visible and editable
+- The **agent content** (object of supervision) is visible and editable
 - **TP interaction** (method of supervision) is embedded, not hidden behind navigation
 
 ### Screen Architecture
@@ -35,7 +35,7 @@ The primary view unites both first-class entities:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Weekly Status Report                         [All Deliverables] │
+│ Weekly Status Report                         [All Agents] │
 │ Ready for your review • Due tomorrow                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
@@ -61,7 +61,7 @@ Key elements:
 - **TP refinement chips are visible** - not hidden behind "Refine with AI" button
 - **Custom TP input is visible** - user can type instructions without opening anything
 - **Feedback summary is visible** - shows what YARNNN has learned
-- **[All Deliverables]** provides escape to list view
+- **[All Agents]** provides escape to list view
 - **[Skip for now]** moves to next item or dashboard
 
 #### Secondary: Dashboard View (When Nothing Needs Attention)
@@ -78,7 +78,7 @@ Key elements:
 │ ─────────────────────────────────────────────────────────────── │
 │                                                                 │
 │  Need something?                                                │
-│  [Set up new deliverable]                                       │
+│  [Set up new agent]                                       │
 │                                                                 │
 │  Or ask me anything:                                            │
 │  ┌─────────────────────────────────────────────────────────────┐│
@@ -96,7 +96,7 @@ Key elements:
 
 #### Tertiary: Browse View (When User Explicitly Wants to Browse)
 
-Accessible via [All Deliverables] or clicking a specific deliverable from the dashboard list.
+Accessible via [All Agents] or clicking a specific agent from the dashboard list.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -117,7 +117,7 @@ Accessible via [All Deliverables] or clicking a specific deliverable from the da
 │ ▶ Week of Jan 13 - 85% match                                    │
 │                                                                 │
 │ ─────────────────────────────────────────────────────────────── │
-│ Ask about this deliverable:                                     │
+│ Ask about this agent:                                     │
 │ ┌─────────────────────────────────────────────────────────────┐ │
 │ │ _                                                           │ │
 │ └─────────────────────────────────────────────────────────────┘ │
@@ -125,7 +125,7 @@ Accessible via [All Deliverables] or clicking a specific deliverable from the da
 ```
 
 Key elements:
-- **TP input at bottom** - can ask questions about this deliverable
+- **TP input at bottom** - can ask questions about this agent
 - **History accessible** - expandable previous versions
 - **[Run Now]** for manual trigger - but not prominent
 
@@ -137,7 +137,7 @@ Key elements:
 |--------|------------------|
 | Review (primary) | Refinement chips + custom input inline |
 | Dashboard (idle) | Text input for conversation |
-| Browse (detail) | Text input scoped to deliverable |
+| Browse (detail) | Text input scoped to agent |
 | Onboarding | Conversational flow (TP guides setup) |
 
 There is no screen where the user cannot interact with TP without navigation.
@@ -151,11 +151,11 @@ Login
   │                              │
   │                              ├─→ [Approve] ─→ Next staged OR Dashboard
   │                              ├─→ [Skip] ─→ Next staged OR Dashboard
-  │                              └─→ [All Deliverables] ─→ Dashboard
+  │                              └─→ [All Agents] ─→ Dashboard
   │
   └─→ [Nothing staged?] ─→ Dashboard View
                               │
-                              ├─→ [Click deliverable] ─→ Browse View
+                              ├─→ [Click agent] ─→ Browse View
                               ├─→ [Set up new] ─→ Onboarding
                               └─→ [Type in TP input] ─→ Conversation
 ```
@@ -190,7 +190,7 @@ The onboarding **ends in the review view**, not a dashboard. User's first action
 
 ### Positive
 
-- **Unified first-class entities**: Every screen shows both deliverable (object) AND TP (method)
+- **Unified first-class entities**: Every screen shows both agent (object) AND TP (method)
 - **Supervision-native**: User lands on what needs attention, not a list
 - **Reduced navigation**: One less click to supervise
 - **TP always available**: No need to find/open chat
@@ -222,5 +222,5 @@ The onboarding **ends in the review view**, not a dashboard. User's first action
 
 - [ESSENCE.md](../ESSENCE.md) - Core principles
 - [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
-- [ADR-018: Recurring Deliverables](ADR-018-recurring-deliverables.md)
-- [ADR-020: Deliverable-Centric Chat](ADR-020-deliverable-centric-chat.md)
+- [ADR-018: Recurring Agents](ADR-018-recurring-agents.md)
+- [ADR-020: Agent-Centric Chat](ADR-020-agent-centric-chat.md)

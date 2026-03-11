@@ -1,17 +1,17 @@
 """
 Proactive Review Pass — ADR-092 Phase 4
 
-Lightweight Haiku review for proactive and coordinator deliverables.
+Lightweight Haiku review for proactive and coordinator agents.
 Called by the scheduler on each proactive_next_review_at tick.
 
 The agent reads its domain (via headless tools) and returns one of:
   {"action": "generate"}            → orchestration proceeds to full generation
-  {"action": "observe", "note": …}  → note appended to deliverable_memory, no version
+  {"action": "observe", "note": …}  → note appended to agent_memory, no version
   {"action": "sleep", "until": …}   → proactive_next_review_at set to specified time
 
 This is a two-phase execution model for proactive/coordinator modes:
   Phase A (this module): lightweight Haiku review — decide whether to act
-  Phase B (deliverable_execution.py): full generation if Phase A returns "generate"
+  Phase B (agent_execution.py): full generation if Phase A returns "generate"
 
 The review pass is intentionally cheap. Most cycles produce "observe" or "sleep".
 Full Opus/Sonnet generation only runs when warranted.
@@ -32,26 +32,26 @@ REVIEW_MAX_TOKENS = 1024
 REVIEW_MAX_TOOL_ROUNDS = 5  # Enough for broad scan + focused lookups + final decision
 
 
-def _build_review_system_prompt(deliverable: dict) -> str:
+def _build_review_system_prompt(agent: dict) -> str:
     """
     Build the review pass system prompt.
 
     Instructs the agent to assess its domain and return a structured
     JSON decision — not to generate content.
     """
-    title = deliverable.get("title", "Untitled")
-    deliverable_type = deliverable.get("deliverable_type", "custom")
-    instructions = (deliverable.get("deliverable_instructions") or "").strip()
-    memory = deliverable.get("deliverable_memory") or {}
-    mode = deliverable.get("mode", "proactive")
+    title = agent.get("title", "Untitled")
+    agent_type = agent.get("agent_type", "custom")
+    instructions = (agent.get("agent_instructions") or "").strip()
+    memory = agent.get("agent_memory") or {}
+    mode = agent.get("mode", "proactive")
 
-    prompt = f"""You are performing a domain review for a {mode} deliverable: "{title}" (type: {deliverable_type}).
+    prompt = f"""You are performing a domain review for a {mode} agent: "{title}" (type: {agent_type}).
 
-Your job is NOT to generate a deliverable. Your job is to assess whether conditions in your domain
+Your job is NOT to generate a agent. Your job is to assess whether conditions in your domain
 warrant generating one right now.
 
 ## Your Domain Instructions
-{instructions if instructions else "No specific instructions set. Use your judgment based on deliverable type and available context."}
+{instructions if instructions else "No specific instructions set. Use your judgment based on agent type and available context."}
 
 ## How to Decide
 
@@ -90,7 +90,7 @@ Respond with ONLY a JSON object — no prose before or after:
 The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hours from now if unsure."""
 
     # Deep research (Proactive Insights): signal-driven review
-    if deliverable_type == "deep_research":
+    if agent_type == "deep_research":
         prompt += """
 
 ## Proactive Insights — Signal Detection
@@ -128,16 +128,16 @@ Then use **WebSearch** on the most promising theme to check: is there relevant e
 
 As a coordinator, you also have access to:
 
-**CreateDeliverable** — create a new child deliverable when you detect a condition that warrants it
+**CreateAgent** — create a new child agent when you detect a condition that warrants it
 (e.g. an upcoming meeting needing prep, a stalled project, an emerging issue).
-Check deliverable_memory.created_deliverables before creating to avoid duplicates.
+Check agent_memory.created_agents before creating to avoid duplicates.
 
-**AdvanceDeliverableSchedule** — advance an existing deliverable to run now when conditions warrant it.
+**AdvanceAgentSchedule** — advance an existing agent to run now when conditions warrant it.
 
-Use List or Search to find existing deliverables before creating or advancing.
+Use List or Search to find existing agents before creating or advancing.
 Your JSON decision still controls the overall outcome — use `generate` only if THIS coordinator
-deliverable should itself produce a new version (rare). Use `observe` or `sleep` for most cycles,
-creating/advancing child deliverables as needed via tools during the review pass."""
+agent should itself produce a new version (rare). Use `observe` or `sleep` for most cycles,
+creating/advancing child agents as needed via tools during the review pass."""
 
     # Inject memory context
     review_log = memory.get("review_log", [])
@@ -159,12 +159,12 @@ creating/advancing child deliverables as needed via tools during the review pass
         for obs in observations[-5:]:
             memory_parts.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
 
-    # Coordinator mode: inject created_deliverables dedup log
+    # Coordinator mode: inject created_agents dedup log
     if mode == "coordinator":
-        created_deliverables = memory.get("created_deliverables", [])
-        if created_deliverables:
-            memory_parts.append("**Created deliverables (dedup log — last 10):**")
-            for cd in created_deliverables[-10:]:
+        created_agents = memory.get("created_agents", [])
+        if created_agents:
+            memory_parts.append("**Created agents (dedup log — last 10):**")
+            for cd in created_agents[-10:]:
                 memory_parts.append(
                     f"- [{cd.get('date', '')}] {cd.get('title', '')} "
                     f"(key: {cd.get('dedup_key', 'none')})"
@@ -219,15 +219,15 @@ def _parse_review_response(text: str) -> dict:
 async def run_proactive_review(
     client,
     user_id: str,
-    deliverable: dict,
+    agent: dict,
 ) -> dict:
     """
-    Run the lightweight Haiku review pass for a proactive/coordinator deliverable.
+    Run the lightweight Haiku review pass for a proactive/coordinator agent.
 
     Args:
         client: Supabase service client
         user_id: User UUID
-        deliverable: Full deliverable dict from DB
+        agent: Full agent dict from DB
 
     Returns:
         Parsed decision dict: {"action": "generate"|"observe"|"sleep", "note": ..., "until": ...}
@@ -236,17 +236,17 @@ async def run_proactive_review(
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_tools_for_mode, create_headless_executor
 
-    title = deliverable.get("title", "Untitled")
-    deliverable_id = deliverable.get("id")
+    title = agent.get("title", "Untitled")
+    agent_id = agent.get("id")
 
-    logger.info(f"[PROACTIVE_REVIEW] Starting review: {title} ({deliverable_id})")
+    logger.info(f"[PROACTIVE_REVIEW] Starting review: {title} ({agent_id})")
 
     try:
-        system_prompt = _build_review_system_prompt(deliverable)
+        system_prompt = _build_review_system_prompt(agent)
 
         # Review prompt: ask the agent to assess its domain and decide
         user_message = (
-            f"Review your domain for deliverable: {title}\n\n"
+            f"Review your domain for agent: {title}\n\n"
             "Use your tools to check current conditions, then respond with your JSON decision."
         )
 
@@ -254,8 +254,8 @@ async def run_proactive_review(
         executor = create_headless_executor(
             client,
             user_id,
-            deliverable_sources=deliverable.get("sources"),
-            coordinator_deliverable_id=deliverable.get("id"),
+            agent_sources=agent.get("sources"),
+            coordinator_agent_id=agent.get("id"),
         )
 
         # Tool-use loop — agent may look at sources before deciding
@@ -328,20 +328,20 @@ async def run_proactive_review(
 
 def apply_review_decision(
     client,
-    deliverable: dict,
+    agent: dict,
     decision: dict,
 ) -> None:
     """
-    Apply the review decision to deliverable_memory and proactive_next_review_at.
+    Apply the review decision to agent_memory and proactive_next_review_at.
 
     Does NOT trigger generation — caller handles that based on action=="generate".
 
     Args:
         client: Supabase service client
-        deliverable: Full deliverable dict
+        agent: Full agent dict
         decision: Parsed decision from run_proactive_review()
     """
-    deliverable_id = deliverable.get("id")
+    agent_id = agent.get("id")
     action = decision.get("action", "observe")
     note = decision.get("note", "")
     now = datetime.now(timezone.utc)
@@ -371,13 +371,13 @@ def apply_review_decision(
     # Read fresh memory, append log entry, cap at 50
     try:
         fresh = (
-            client.table("deliverables")
-            .select("deliverable_memory")
-            .eq("id", deliverable_id)
+            client.table("agents")
+            .select("agent_memory")
+            .eq("id", agent_id)
             .single()
             .execute()
         )
-        current_memory = (fresh.data or {}).get("deliverable_memory") or {}
+        current_memory = (fresh.data or {}).get("agent_memory") or {}
     except Exception:
         current_memory = {}
 
@@ -390,7 +390,7 @@ def apply_review_decision(
     if action == "generate":
         updated_memory["last_generated_at"] = now.isoformat()
 
-    client.table("deliverables").update({
-        "deliverable_memory": updated_memory,
+    client.table("agents").update({
+        "agent_memory": updated_memory,
         "proactive_next_review_at": next_review.isoformat(),
-    }).eq("id", deliverable_id).execute()
+    }).eq("id", agent_id).execute()

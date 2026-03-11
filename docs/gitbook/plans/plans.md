@@ -12,7 +12,7 @@ Plan limits below are aligned to current backend enforcement as of **March 4, 20
 | Gmail labels | 5 | 10 | Unlimited |
 | Notion pages | 10 | 25 | Unlimited |
 | Calendar sources | Automatic | Automatic | Automatic |
-| Active deliverables | 2 | 5 | Unlimited |
+| Active agents | 2 | 5 | Unlimited |
 | Sync frequency | 1x daily | 4x daily | Hourly |
 | Daily token budget | 50,000 | 250,000 | Unlimited |
 

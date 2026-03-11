@@ -119,9 +119,9 @@ YARNNN's domain differs from Claude Code's only in **what** it operates on, not 
 
 | Claude Code Target | YARNNN Target |
 |-------------------|---------------|
-| Files | Deliverables, Platforms, Memories |
+| Files | Agents, Platforms, Memories |
 | Directories | Collections, Lists |
-| File content | Deliverable content, Platform config |
+| File content | Agent content, Platform config |
 | Codebase | Knowledge base / Context |
 | Git/npm/shell | Platform APIs (Twitter, Slack, etc.) |
 
@@ -131,7 +131,7 @@ The **operations** are identical. The **substrate** differs.
 
 **Can we literally wrap Claude Code?**
 
-Technically no. Claude Code is a CLI tool that operates on files. You can't call `claude read` to read a deliverable from Supabase.
+Technically no. Claude Code is a CLI tool that operates on files. You can't call `claude read` to read a agent from Supabase.
 
 **Can we adopt the same primitives?**
 
@@ -144,7 +144,7 @@ Absolutely yes. We can:
 claude.Read(file_path="/src/main.py")
 
 # YARNNN: Read operates on entities
-yarnnn.Read(ref="deliverable:uuid-123")
+yarnnn.Read(ref="agent:uuid-123")
 yarnnn.Read(ref="platform:twitter")
 yarnnn.Read(ref="memory:uuid-456")
 ```
@@ -164,7 +164,7 @@ This is the key architectural insight:
 
 **Different between Claude Code and YARNNN:**
 - Substrate: filesystem vs database + external APIs
-- Entities: files vs deliverables/platforms/memories
+- Entities: files vs agents/platforms/memories
 - External systems: git/npm vs Twitter/Slack/Gmail
 
 ---
@@ -177,9 +177,9 @@ YARNNN's current TP tools are **composed operations**:
 
 ```python
 # Current tools are high-level operations
-create_deliverable(type, platform, schedule, ...)
+create_agent(type, platform, schedule, ...)
 list_platforms()
-publish_content(deliverable_id, ...)
+publish_content(agent_id, ...)
 fetch_latest_content(platform, channel, ...)
 ```
 
@@ -204,10 +204,10 @@ These are useful but they're not primitives. They're conveniences built on impli
 
 ```python
 # Instead of:
-publish_content(deliverable_id)
+publish_content(agent_id)
 
 # Becomes:
-Execute(action="publish", target="deliverable:uuid", platform="twitter")
+Execute(action="publish", target="agent:uuid", platform="twitter")
 
 # Instead of:
 fetch_latest_content(platform, channel)
@@ -221,8 +221,8 @@ Execute(action="sync", target="platform:slack", scope="channel:C123")
 A key implementation detail: **entity references** that work like file paths:
 
 ```
-deliverable:uuid-123          # Specific deliverable
-deliverable:*                 # All deliverables
+agent:uuid-123          # Specific agent
+agent:*                 # All agents
 platform:twitter              # Platform by name
 platform:twitter/posts        # Sub-entity
 memory:uuid-456               # Specific memory
@@ -259,16 +259,16 @@ This aligns perfectly with ADR-036's vision: infrastructure invisible, results i
 Complex workflows become primitive compositions:
 
 ```
-"Create a weekly standup deliverable for Twitter"
+"Create a weekly standup agent for Twitter"
 
 TP composes:
 1. Read(ref="platform:twitter")           # Check platform exists
-2. Write(ref="deliverable:new", content={
+2. Write(ref="agent:new", content={
      type: "thread",
      platform: "twitter",
      schedule: "weekly"
-   })                                      # Create the deliverable
-3. Todo([{content: "Created deliverable", status: "completed"}])
+   })                                      # Create the agent
+3. Todo([{content: "Created agent", status: "completed"}])
 ```
 
 The TP decides the composition. We provide the primitives.
@@ -311,7 +311,7 @@ Claude Code operates on files. We operate on entities. The substrate is differen
 
 ### Not: Abandoning Domain Semantics
 
-References like `deliverable:uuid` and actions like `publish` still encode domain knowledge. We're not making users think in primitives—we're making TP think in primitives.
+References like `agent:uuid` and actions like `publish` still encode domain knowledge. We're not making users think in primitives—we're making TP think in primitives.
 
 ### Not: Breaking Existing Patterns
 
@@ -319,7 +319,7 @@ Current tools can coexist during migration. They can be reimplemented as primiti
 
 ### Not: Over-Abstracting
 
-Primitives should be thin wrappers. `Read("deliverable:123")` should just fetch from database. No magic.
+Primitives should be thin wrappers. `Read("agent:123")` should just fetch from database. No magic.
 
 ---
 
@@ -337,8 +337,8 @@ Grammar mirrors file path semantics:
 <type>:<identifier>[/<subpath>][?<query>]
 
 Examples:
-deliverable:uuid-123              # Specific by ID
-deliverable:latest                # Most recent
+agent:uuid-123              # Specific by ID
+agent:latest                # Most recent
 platform:twitter                  # By name
 platform:twitter/credentials      # Sub-entity
 memory:*                          # All memories
@@ -347,7 +347,7 @@ session:current                   # Special reference
 ```
 
 **Entity types** (the `<type>` segment):
-- `deliverable` - Content deliverables
+- `agent` - Content agents
 - `platform` - Connected platforms
 - `memory` - Context memories
 - `session` - Conversation sessions
@@ -367,9 +367,9 @@ Actions follow MCP-style namespacing:
 
 ```python
 Execute(action="platform.sync", target="platform:slack")
-Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
-Execute(action="deliverable.generate", target="deliverable:uuid")
-Execute(action="deliverable.schedule", target="deliverable:uuid", cron="0 9 * * 1")
+Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")
+Execute(action="agent.generate", target="agent:uuid")
+Execute(action="agent.schedule", target="agent:uuid", cron="0 9 * * 1")
 ```
 
 **Core actions**:
@@ -378,9 +378,9 @@ Execute(action="deliverable.schedule", target="deliverable:uuid", cron="0 9 * * 
 | `platform.sync` | Pull latest from platform |
 | `platform.publish` | Push content to platform |
 | `platform.auth` | Initiate OAuth flow |
-| `deliverable.generate` | Run content generation |
-| `deliverable.schedule` | Set/update schedule |
-| `deliverable.approve` | Approve pending version |
+| `agent.generate` | Run content generation |
+| `agent.schedule` | Set/update schedule |
+| `agent.approve` | Approve pending version |
 | `memory.extract` | Extract from conversation |
 | `session.summarize` | Summarize for context window |
 
@@ -394,8 +394,8 @@ Errors return structured results (same as Claude Code):
 {
   "success": False,
   "error": "not_found",
-  "message": "Deliverable uuid-123 does not exist",
-  "ref": "deliverable:uuid-123"
+  "message": "Agent uuid-123 does not exist",
+  "ref": "agent:uuid-123"
 }
 ```
 
@@ -433,20 +433,20 @@ No migration needed. Pre-launch clean slate:
 TP receives entity schema in system prompt (like Claude Code receives file structure):
 
 ```
-Available entity types: deliverable, platform, memory, session, domain, document, work
-Available actions: platform.sync, platform.publish, deliverable.generate, ...
+Available entity types: agent, platform, memory, session, domain, document, work
+Available actions: platform.sync, platform.publish, agent.generate, ...
 
 Use Read(ref) to retrieve, Write(ref, content) to create, Edit(ref, changes) to modify.
 ```
 
-Dynamic discovery via `List(ref="action:*")` or `List(ref="deliverable:*")`.
+Dynamic discovery via `List(ref="action:*")` or `List(ref="agent:*")`.
 
 **3. Batching**
 
 Yes, primitives support arrays (like Claude Code parallel reads):
 
 ```python
-Read(refs=["deliverable:uuid-1", "deliverable:uuid-2"])
+Read(refs=["agent:uuid-1", "agent:uuid-2"])
 # Returns: [{ ref, content }, { ref, content }]
 ```
 
@@ -503,7 +503,7 @@ Multiple AI agent systems are converging on the same primitive set. This isn't c
 
 ### On Layering
 
-Domain-specific convenience should layer on universal primitives, not replace them. `create_deliverable` is a convenience that composes `Read` + `Write` + `Todo`. Both can coexist.
+Domain-specific convenience should layer on universal primitives, not replace them. `create_agent` is a convenience that composes `Read` + `Write` + `Todo`. Both can coexist.
 
 ### On Future-Proofing
 
@@ -566,7 +566,7 @@ Before committing, we stress-tested the direction:
 
 **Concern 1: "Claude Code primitives are optimized for code, not content"**
 - Counter: Primitives are about structured data manipulation, not code specifically
-- Deliverables, platforms, memories are all structured data
+- Agents, platforms, memories are all structured data
 - **Conclusion**: Low concern, primitives are substrate-agnostic
 
 **Concern 2: "Domain-specific tools have better LLM ergonomics"**
@@ -622,13 +622,13 @@ With commitment made, here is the concrete implementation plan:
 ```python
 @dataclass
 class EntityRef:
-    entity_type: str      # deliverable, platform, memory, etc.
+    entity_type: str      # agent, platform, memory, etc.
     identifier: str       # uuid, name, or special (new, current, latest, *)
     subpath: str | None   # optional sub-entity path
     query: dict | None    # optional filter params
 
 def parse_ref(ref: str) -> EntityRef:
-    """Parse 'deliverable:uuid-123/versions?limit=5' into EntityRef"""
+    """Parse 'agent:uuid-123/versions?limit=5' into EntityRef"""
     ...
 
 async def resolve_ref(ref: EntityRef, auth: Auth) -> Entity | list[Entity]:
@@ -660,7 +660,7 @@ PRIMITIVES = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "ref": {"type": "string", "description": "Entity reference (e.g., 'deliverable:uuid-123')"},
+                "ref": {"type": "string", "description": "Entity reference (e.g., 'agent:uuid-123')"},
                 "refs": {"type": "array", "items": {"type": "string"}, "description": "Multiple refs for batch read"}
             }
         }
@@ -680,17 +680,17 @@ You have 8 primitives for interacting with the user's workspace:
 
 ### Read(ref)
 Retrieve any entity. Examples:
-- `Read(ref="deliverable:latest")` - most recent deliverable
+- `Read(ref="agent:latest")` - most recent agent
 - `Read(ref="platform:twitter")` - Twitter platform config
 - `Read(refs=["memory:uuid-1", "memory:uuid-2"])` - batch read
 
 ### Write(ref, content)
 Create new entity. Use ref ending in `:new`:
-- `Write(ref="deliverable:new", content={title: "Weekly Update", ...})`
+- `Write(ref="agent:new", content={title: "Weekly Update", ...})`
 
 ### Edit(ref, changes)
 Modify existing entity:
-- `Edit(ref="deliverable:uuid-123", changes={schedule: "weekly"})`
+- `Edit(ref="agent:uuid-123", changes={schedule: "weekly"})`
 
 ### Search(query)
 Find by content (semantic search):
@@ -698,13 +698,13 @@ Find by content (semantic search):
 
 ### List(pattern)
 Find by structure:
-- `List(pattern="deliverable:*")` - all deliverables
+- `List(pattern="agent:*")` - all agents
 - `List(pattern="action:platform.*")` - all platform actions
 
 ### Execute(action, target, ...)
 External operations:
 - `Execute(action="platform.sync", target="platform:slack")`
-- `Execute(action="deliverable.generate", target="deliverable:uuid")`
+- `Execute(action="agent.generate", target="agent:uuid")`
 
 ### Task(prompt)
 Delegate to sub-agent for complex work.
@@ -719,7 +719,7 @@ Each primitive maps to inline display:
 
 | Primitive | Inline Render |
 |-----------|---------------|
-| Read | Entity card (deliverable preview, platform status, etc.) |
+| Read | Entity card (agent preview, platform status, etc.) |
 | Write | Confirmation card with created entity preview |
 | Edit | Diff view showing changes |
 | Search | Results list with relevance scores |
@@ -731,9 +731,9 @@ Each primitive maps to inline display:
 ### Phase 4: Remove Legacy Tools
 
 Delete from `project_tools.py`:
-- `handle_create_deliverable` → becomes Write + Execute
-- `handle_list_deliverables` → becomes List
-- `handle_get_deliverable` → becomes Read
+- `handle_create_agent` → becomes Write + Execute
+- `handle_list_agents` → becomes List
+- `handle_get_agent` → becomes Read
 - `handle_list_platforms` → becomes List
 - (etc. for all 15+ existing tools)
 

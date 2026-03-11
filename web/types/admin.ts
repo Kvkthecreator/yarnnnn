@@ -86,8 +86,8 @@ export interface AdminPipelineStats {
   content_retained_by_reason: Record<string, number>;
   last_heartbeat_at: string | null;
   heartbeats_24h: number;
-  deliverables_scheduled_24h: number;
-  deliverables_executed_24h: number;
+  agents_scheduled_24h: number;
+  agents_executed_24h: number;
   signals_processed_24h: number;
   signals_processed_7d: number;
   triggers_executed_24h: number;

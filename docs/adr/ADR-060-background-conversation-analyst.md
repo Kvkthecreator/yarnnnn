@@ -3,7 +3,7 @@
 **Date**: 2026-02-16
 **Status**: Proposed
 **Supersedes**: None
-**Relates to**: ADR-045 (Deliverable Orchestration), ADR-049 (Context Freshness), ADR-057 (Onboarding), ADR-061 (Two-Path Architecture)
+**Relates to**: ADR-045 (Agent Orchestration), ADR-049 (Context Freshness), ADR-057 (Onboarding), ADR-061 (Two-Path Architecture)
 
 ---
 
@@ -16,7 +16,7 @@ Users have conversations with Thinking Partner (TP) that contain implicit work p
 - "Can you summarize what happened in #engineering this week?"
 - "I should probably track competitor funding news"
 
-Currently, TP can create deliverables mid-conversation, but this creates friction:
+Currently, TP can create agents mid-conversation, but this creates friction:
 1. **Interrupts flow**: User is thinking, not configuring
 2. **Blurs responsibility**: Is TP a conversational assistant or work orchestrator?
 3. **Timing problem**: Research shows 62% of mid-task suggestions are dismissed
@@ -53,12 +53,12 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 - Answer questions
 - Execute platform actions
 - Remember facts about user
-- **NOT**: Create deliverables mid-conversation
+- **NOT**: Create agents mid-conversation
 
 **Background Conversation Analyst handles work detection:**
 - Runs asynchronously (not during conversation)
 - Analyzes conversation patterns
-- Creates "suggested" deliverables
+- Creates "suggested" agents
 - User manages via frontend, not chat
 
 ### Architecture
@@ -97,7 +97,7 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 │           ▼                                                     │
 │  ┌──────────────────┐                                           │
 │  │ Suggested        │ ← status: "suggested"                     │
-│  │ Deliverables     │   Not auto-enabled                        │
+│  │ Agents     │   Not auto-enabled                        │
 │  └──────────────────┘                                           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -108,7 +108,7 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 │ User Notification                                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  On visit to /deliverables:                                     │
+│  On visit to /agents:                                     │
 │    → Badge/indicator for new suggestions                        │
 │    → "Suggested" section at top                                 │
 │    → One-click: enable, edit, dismiss                           │
@@ -127,9 +127,9 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 |----------|-----------|---------|
 | Analyst runs | Daily | Background (silent) |
 | Suggestions created | As detected | `status: "suggested"` in DB |
-| In-app notification | On visit | Badge in `/deliverables` |
+| In-app notification | On visit | Badge in `/agents` |
 | Email digest | Weekly | Rollup of week's suggestions |
-| Deliverable outputs | Per schedule | Separate email cadence |
+| Agent outputs | Per schedule | Separate email cadence |
 
 **Rationale**: Analyst is write-heavy, notify-light. Users who visit daily see suggestions immediately; others get weekly rollup. Avoids notification fatigue.
 
@@ -137,29 +137,29 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 
 ## Schema Changes
 
-### Deliverable Version Status
+### Agent Version Status
 
 Add `"suggested"` to version status enum:
 
 ```sql
--- Migration: 0XX_suggested_deliverable_status.sql
-ALTER TABLE deliverable_versions
-DROP CONSTRAINT IF EXISTS deliverable_versions_status_check;
+-- Migration: 0XX_suggested_agent_status.sql
+ALTER TABLE agent_runs
+DROP CONSTRAINT IF EXISTS agent_runs_status_check;
 
-ALTER TABLE deliverable_versions
-ADD CONSTRAINT deliverable_versions_status_check
+ALTER TABLE agent_runs
+ADD CONSTRAINT agent_runs_status_check
 CHECK (status IN ('generating', 'staged', 'reviewing', 'approved', 'rejected', 'suggested'));
 
 -- Index for quick filtering
 CREATE INDEX idx_versions_suggested
-ON deliverable_versions(user_id, status)
+ON agent_runs(user_id, status)
 WHERE status = 'suggested';
 ```
 
 ### Suggested Version Metadata
 
 ```sql
--- In deliverable_versions.metadata (JSONB)
+-- In agent_runs.metadata (JSONB)
 {
   "analyst_confidence": 0.75,
   "detected_pattern": "weekly_status_to_board",
@@ -178,7 +178,7 @@ WHERE status = 'suggested';
 class AnalystInput:
     user_id: str
     sessions: list[ChatSession]  # Last 7 days of conversations
-    existing_deliverables: list[Deliverable]  # To avoid duplicates
+    existing_agents: list[Agent]  # To avoid duplicates
     user_knowledge: list[KnowledgeEntry]  # User preferences
 ```
 
@@ -187,7 +187,7 @@ class AnalystInput:
 ```python
 class AnalystSuggestion:
     confidence: float  # 0.0 - 1.0
-    deliverable_type: str  # e.g., "status_report", "slack_channel_digest"
+    agent_type: str  # e.g., "status_report", "slack_channel_digest"
     title: str
     description: str
     suggested_frequency: str
@@ -206,7 +206,7 @@ class AnalystSuggestion:
 
 ### Pattern Detection Examples
 
-| User Says | Detected Pattern | Suggested Deliverable |
+| User Says | Detected Pattern | Suggested Agent |
 |-----------|------------------|----------------------|
 | "I update the board monthly" | Explicit frequency + audience | Monthly Board Update (status_report) |
 | "What happened in #engineering?" (3x) | Repeated channel query | Weekly #engineering Digest (slack_channel_digest) |
@@ -217,7 +217,7 @@ class AnalystSuggestion:
 
 ## TP Prompt Changes
 
-Remove deliverable creation from TP's active responsibilities:
+Remove agent creation from TP's active responsibilities:
 
 ```python
 # In tp_prompts/behaviors.py - ADD
@@ -234,11 +234,11 @@ You are a conversational assistant, NOT a work orchestrator.
 - Remember facts for future conversations
 
 **DON'T:**
-- Suggest creating recurring deliverables mid-conversation
+- Suggest creating recurring agents mid-conversation
 - Ask "Would you like me to set up a weekly report?"
 - Proactively offer automation during chat
 
-If user explicitly asks to create a deliverable, help them.
+If user explicitly asks to create a agent, help them.
 But don't suggest it - that's the Analyst's job (runs in background).
 
 This separation keeps conversations focused and reduces interruption.
@@ -249,11 +249,11 @@ This separation keeps conversations focused and reduces interruption.
 
 ## Frontend Changes
 
-### /deliverables Page Enhancement
+### /agents Page Enhancement
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Deliverables                                        [+ Create]  │
+│ Agents                                        [+ Create]  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │ ┌─────────────────────────────────────────────────────────────┐ │
@@ -283,7 +283,7 @@ This separation keeps conversations focused and reduces interruption.
 | Action | Effect |
 |--------|--------|
 | Enable | Moves to Active, schedules first run |
-| Edit | Opens deliverable editor with pre-filled values |
+| Edit | Opens agent editor with pre-filled values |
 | Dismiss (×) | Removes suggestion, logs for learning |
 | Dismiss all | Clears suggestions section |
 
@@ -292,19 +292,19 @@ This separation keeps conversations focused and reduces interruption.
 ## Implementation Phases
 
 ### Phase 1: Schema + API Foundation ✅ (2026-02-16)
-- [x] Add `status: "suggested"` migration (`051_suggested_deliverable_status.sql`)
-- [x] Add `analyst_metadata` column to `deliverable_versions`
-- [x] API endpoints: `GET /deliverables/suggested`, `POST .../enable`, `DELETE .../dismiss`
+- [x] Add `status: "suggested"` migration (`051_suggested_agent_status.sql`)
+- [x] Add `analyst_metadata` column to `agent_runs`
+- [x] API endpoints: `GET /agents/suggested`, `POST .../enable`, `DELETE .../dismiss`
 - [x] Frontend types: `SuggestedVersion`, `AnalystMetadata`, updated `VersionStatus`
 - [x] API client methods: `listSuggested`, `enableSuggested`, `dismissSuggested`
-- [ ] Enhance `/deliverables` page with Suggested section (deferred - needs full CRUD revamp)
+- [ ] Enhance `/agents` page with Suggested section (deferred - needs full CRUD revamp)
 - [ ] Track dismissals for future learning
 
 ### Phase 2: Conversation Analysis Service (ADR-061) ✅ (2026-02-16)
 - [x] Create `analyze_conversation_patterns()` service function (`api/services/conversation_analysis.py`)
 - [x] Add to `unified_scheduler.py` as Analysis Phase (daily at 6 AM UTC)
 - [x] Implement pattern detection logic with structured LLM output
-- [x] Create suggested deliverables with metadata
+- [x] Create suggested agents with metadata
 
 **Note**: Per ADR-061, conversation analysis is implemented as a service function
 within the Backend Orchestrator's Analysis Phase, not as a separate agent class.
@@ -318,7 +318,7 @@ This aligns with the Two-Path Architecture (TP real-time, Orchestrator async).
 ### Phase 4: Learning Loop (Future)
 - [ ] Track acceptance/dismissal rates per pattern type
 - [ ] Adjust confidence thresholds based on user behavior
-- [ ] Personalize detection based on user's deliverable history
+- [ ] Personalize detection based on user's agent history
 
 ---
 
@@ -327,14 +327,14 @@ This aligns with the Two-Path Architecture (TP real-time, Orchestrator async).
 ### For Existing Users
 
 No breaking changes:
-- Existing deliverables continue working
-- TP can still create deliverables if user explicitly asks
+- Existing agents continue working
+- TP can still create agents if user explicitly asks
 - Suggestions are additive, not replacing manual creation
 
 ### For New Users (ADR-057 Onboarding)
 
 Onboarding flow unchanged:
-- New users still guided through first deliverable creation
+- New users still guided through first agent creation
 - Analyst starts working after first week of conversations
 - Suggestions augment, not replace, explicit setup
 
@@ -357,7 +357,7 @@ Onboarding flow unchanged:
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | Suggestion acceptance rate | > 30% | Enabled / (Enabled + Dismissed) |
-| Time to first deliverable | < 7 days | For users with suggestions |
+| Time to first agent | < 7 days | For users with suggestions |
 | Suggestion precision | > 70% | Enabled suggestions that run > 2 times |
 | Notification opt-out rate | < 20% | Users disabling weekly digest |
 
@@ -369,7 +369,7 @@ Onboarding flow unchanged:
    - **Proposed**: Daily cron (simpler), can refine later
 
 2. **Duplicate detection**: How to avoid suggesting what user already has?
-   - **Proposed**: Match on deliverable_type + sources before creating
+   - **Proposed**: Match on agent_type + sources before creating
 
 3. **Analyst model**: Claude Sonnet (fast) or Opus (better reasoning)?
    - **Proposed**: Sonnet for cost efficiency; upgrade if precision suffers
@@ -381,7 +381,7 @@ Onboarding flow unchanged:
 
 ## Related ADRs
 
-- **ADR-045**: Deliverable Orchestration Redesign (execution strategies)
+- **ADR-045**: Agent Orchestration Redesign (execution strategies)
 - **ADR-049**: Context Freshness Model (no history compression philosophy)
 - **ADR-057**: Streamlined Onboarding (new user flow)
 - **ADR-058**: Knowledge Base Architecture (user preferences storage)

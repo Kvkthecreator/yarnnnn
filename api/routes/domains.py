@@ -2,7 +2,7 @@
 Domain routes - ADR-034 Emergent Context Domains
 
 Endpoints for domain management and memory access.
-Domains emerge from deliverable source patterns - users don't manage them directly,
+Domains emerge from agent source patterns - users don't manage them directly,
 but can view and rename them.
 
 Context v2: Domains replace project-based context scoping.
@@ -32,7 +32,7 @@ class DomainSummary(BaseModel):
     name_source: str  # 'auto' or 'user'
     is_default: bool
     source_count: int
-    deliverable_count: int
+    agent_count: int
     memory_count: int
     created_at: str
 
@@ -44,7 +44,7 @@ class DomainDetail(BaseModel):
     name_source: str
     is_default: bool
     sources: list[dict]  # [{provider, resource_id, resource_name}]
-    deliverable_ids: list[str]
+    agent_ids: list[str]
     memory_count: int
     created_at: str
     updated_at: str
@@ -92,7 +92,7 @@ class MemoryUpdate(BaseModel):
 async def list_domains(auth: UserClient):
     """
     ADR-059: Domains removed as a DB concept.
-    Returns empty list — domain grouping is a UI concept on deliverables.
+    Returns empty list — domain grouping is a UI concept on agents.
     """
     return {"domains": [], "total": 0}
 
@@ -100,7 +100,7 @@ async def list_domains(auth: UserClient):
 @router.get("/active")
 async def get_active_domain(
     auth: UserClient,
-    deliverable_id: Optional[str] = None
+    agent_id: Optional[str] = None
 ):
     """
     ADR-059: Domains removed as a DB concept.
@@ -126,10 +126,10 @@ async def trigger_recompute(auth: UserClient):
     """
     Manually trigger domain recomputation.
 
-    Normally domains are recomputed automatically when deliverables change.
+    Normally domains are recomputed automatically when agents change.
     This endpoint is for admin/debug purposes or after bulk operations.
     """
-    # ADR-059: Domain inference removed — domains are a UI concept on deliverables
+    # ADR-059: Domain inference removed — domains are a UI concept on agents
     return {
         "success": True,
         "changes": {}

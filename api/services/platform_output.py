@@ -395,11 +395,11 @@ def generate_gmail_html(
 
 
 def _email_footer_html(metadata: dict) -> str:
-    """Shared footer for deliverable emails: feedback nudge + view button + settings link."""
+    """Shared footer for agent emails: feedback nudge + view button + settings link."""
     import os
     app_url = os.environ.get("APP_URL", "https://yarnnn.com")
-    deliverable_id = metadata.get("deliverable_id", "")
-    view_url = f"{app_url}/deliverables/{deliverable_id}" if deliverable_id else app_url
+    agent_id = metadata.get("agent_id", "")
+    view_url = f"{app_url}/agents/{agent_id}" if agent_id else app_url
     settings_url = f"{app_url}/settings"
 
     return f"""

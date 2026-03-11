@@ -307,7 +307,7 @@ Body (Insight): 1-2 paragraphs. Introduce named concept naturally, not as market
 Body (Implication): 1-2 paragraphs. What it means. Where things are heading.
 
 Close: Engagement prompt (question that invites comments).
-  Example: "What's the most tedious recurring deliverable in your work?"
+  Example: "What's the most tedious recurring agent in your work?"
 
 Hashtags: Max 3. Only if genuinely relevant.
 ```

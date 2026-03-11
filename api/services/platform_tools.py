@@ -281,7 +281,7 @@ Defaults to user's own email if 'to' is omitted.""",
     },
     {
         "name": "platform_gmail_create_draft",
-        "description": """Create an email draft for user review. PREFERRED for deliverables.
+        "description": """Create an email draft for user review. PREFERRED for agents.
 
 Defaults to user's own email if 'to' is omitted. User can then edit/forward the draft.""",
         "input_schema": {

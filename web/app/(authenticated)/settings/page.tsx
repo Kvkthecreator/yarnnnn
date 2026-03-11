@@ -36,8 +36,8 @@ interface DangerZoneStats {
   memories: number;
   documents: number;
   // Content subtotals
-  deliverables: number;
-  deliverable_versions: number;
+  agents: number;
+  agent_runs: number;
   // Platform content (ADR-072)
   platform_content: number;
   // Integrations
@@ -49,8 +49,8 @@ interface DangerZoneStats {
 }
 
 interface NotificationPreferences {
-  email_deliverable_ready: boolean;
-  email_deliverable_failed: boolean;
+  email_agent_ready: boolean;
+  email_agent_failed: boolean;
 }
 
 // ADR-039: Removed "memory" tab - facts now live in unified Context page
@@ -99,7 +99,7 @@ export default function SettingsPage() {
 
   // Usage metrics state
   const [usageMetrics, setUsageMetrics] = useState<{
-    deliverables: number;
+    agents: number;
     documents: number;
     platforms: { connected: number; total: number };
     facts: number;
@@ -136,8 +136,8 @@ export default function SettingsPage() {
     setIsLoadingUsage(true);
     try {
       // Fetch counts from various endpoints in parallel
-      const [deliverables, documents, summary, facts] = await Promise.all([
-        api.deliverables.list().catch(() => []),
+      const [agents, documents, summary, facts] = await Promise.all([
+        api.agents.list().catch(() => []),
         api.documents.list().catch(() => ({ documents: [] })),
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.userMemories.list().catch(() => []),
@@ -160,7 +160,7 @@ export default function SettingsPage() {
       ).length;
 
       setUsageMetrics({
-        deliverables: Array.isArray(deliverables) ? deliverables.length : 0,
+        agents: Array.isArray(agents) ? agents.length : 0,
         documents: documents.documents?.length || 0,
         platforms: {
           connected: connectedCount,
@@ -337,7 +337,7 @@ export default function SettingsPage() {
               Subscription activated!
             </p>
             <p className="text-sm text-green-700 dark:text-green-300">
-              Your subscription is now active. Enjoy expanded sources, faster syncs, and more deliverables.
+              Your subscription is now active. Enjoy expanded sources, faster syncs, and more agents.
             </p>
           </div>
         </div>
@@ -444,7 +444,7 @@ export default function SettingsPage() {
                   { label: "Gmail labels", used: limits.usage.gmail_labels, limit: limits.limits.gmail_labels },
                   { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
                   { label: "Monthly messages", used: limits.usage.monthly_messages_used, limit: limits.limits.monthly_messages },
-                  { label: "Active deliverables", used: limits.usage.active_deliverables, limit: limits.limits.active_deliverables },
+                  { label: "Active agents", used: limits.usage.active_agents, limit: limits.limits.active_agents },
                 ].map((row) => {
                   const percent = row.limit === -1 ? 0 : Math.min(100, Math.round((row.used / Math.max(1, row.limit)) * 100));
                   const formatUsage = (used: number, limit: number) =>
@@ -482,11 +482,11 @@ export default function SettingsPage() {
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Deliverables</h3>
+                  <h3 className="font-medium">Agents</h3>
                 </div>
-                <p className="text-2xl font-semibold">{usageMetrics.deliverables}</p>
+                <p className="text-2xl font-semibold">{usageMetrics.agents}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {usageMetrics.deliverables === 1 ? "Active deliverable" : "Active deliverables"}
+                  {usageMetrics.agents === 1 ? "Active agent" : "Active agents"}
                 </p>
               </div>
 
@@ -557,56 +557,56 @@ export default function SettingsPage() {
             </div>
           ) : notificationPrefs ? (
             <div className="space-y-4">
-              {/* Deliverable Ready */}
+              {/* Agent Ready */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Mail className="w-5 h-5 text-muted-foreground" />
                     <div>
-                      <div className="font-medium">Deliverable Ready</div>
+                      <div className="font-medium">Agent Ready</div>
                       <div className="text-sm text-muted-foreground">
-                        Get notified when a scheduled deliverable is ready for review
+                        Get notified when a scheduled agent is ready for review
                       </div>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleNotificationToggle("email_deliverable_ready", !notificationPrefs.email_deliverable_ready)}
+                    onClick={() => handleNotificationToggle("email_agent_ready", !notificationPrefs.email_agent_ready)}
                     disabled={isSavingNotifications}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_deliverable_ready ? "bg-primary" : "bg-muted"
+                      notificationPrefs.email_agent_ready ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_deliverable_ready ? "translate-x-6" : "translate-x-1"
+                        notificationPrefs.email_agent_ready ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
                 </div>
               </div>
 
-              {/* Deliverable Failed */}
+              {/* Agent Failed */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <AlertTriangle className="w-5 h-5 text-muted-foreground" />
                     <div>
-                      <div className="font-medium">Deliverable Failed</div>
+                      <div className="font-medium">Agent Failed</div>
                       <div className="text-sm text-muted-foreground">
-                        Get notified when a deliverable fails to generate
+                        Get notified when a agent fails to generate
                       </div>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleNotificationToggle("email_deliverable_failed", !notificationPrefs.email_deliverable_failed)}
+                    onClick={() => handleNotificationToggle("email_agent_failed", !notificationPrefs.email_agent_failed)}
                     disabled={isSavingNotifications}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_deliverable_failed ? "bg-primary" : "bg-muted"
+                      notificationPrefs.email_agent_failed ? "bg-primary" : "bg-muted"
                     }`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_deliverable_failed ? "translate-x-6" : "translate-x-1"
+                        notificationPrefs.email_agent_failed ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
@@ -674,8 +674,8 @@ export default function SettingsPage() {
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
                   <Package className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.deliverables}</div>
-                  <div className="text-xs text-muted-foreground">Deliverables</div>
+                  <div className="text-2xl font-bold">{dangerStats.agents}</div>
+                  <div className="text-xs text-muted-foreground">Agents</div>
                 </div>
               </div>
 
@@ -776,12 +776,12 @@ export default function SettingsPage() {
                           Clear All Content
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.deliverables} deliverables and {dangerStats.deliverable_versions} versions
+                          Delete {dangerStats.agents} agents and {dangerStats.agent_runs} versions
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("content")}
-                        disabled={dangerStats.deliverables === 0}
+                        disabled={dangerStats.agents === 0}
                         className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Clear All
@@ -953,7 +953,7 @@ export default function SettingsPage() {
                     Are you sure you want to <strong>clear all content</strong>? This will delete:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.deliverables} deliverables and {dangerStats?.deliverable_versions} versions</li>
+                    <li>{dangerStats?.agents} agents and {dangerStats?.agent_runs} versions</li>
                   </ul>
                   <p className="mt-2 text-sm">You will return to the onboarding flow.</p>
                 </>
@@ -994,7 +994,7 @@ export default function SettingsPage() {
                     Are you sure you want to <strong>reset your entire account</strong>? This will delete:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.deliverables} deliverables</li>
+                    <li>{dangerStats?.agents} agents</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
@@ -1011,7 +1011,7 @@ export default function SettingsPage() {
                   </p>
                   <p className="mb-2">All your data will be permanently deleted:</p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>All deliverables, memories, documents, and chat history</li>
+                    <li>All agents, memories, documents, and chat history</li>
                     <li>All platform connections and synced content</li>
                     <li>Your account will be removed from the system</li>
                   </ul>

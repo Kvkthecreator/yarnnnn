@@ -5,9 +5,9 @@
 
 ## Overview
 
-YARNNN integrates with four external platforms. All platform data flows through a **single fetch path** that writes to `platform_content` (ADR-072). All downstream consumers (TP, deliverables, scheduling heuristics) read from `platform_content` — they do not call external APIs.
+YARNNN integrates with four external platforms. All platform data flows through a **single fetch path** that writes to `platform_content` (ADR-072). All downstream consumers (TP, agents, scheduling heuristics) read from `platform_content` — they do not call external APIs.
 
-| Platform | OAuth Provider | Transport | Fetch → `platform_content` | TP Tools (Real-Time) | Deliverable Source | Deliverable Export |
+| Platform | OAuth Provider | Transport | Fetch → `platform_content` | TP Tools (Real-Time) | Agent Source | Agent Export |
 |----------|---------------|-----------|---------------------------|---------------------|-------------------|-------------------|
 | Slack | slack | MCP Gateway | Yes | Yes | Yes (reads `platform_content`) | Yes |
 | Gmail | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
@@ -21,7 +21,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 | Platform connections | All 4 | All 4 | All 4 |
 | Sources per platform | 2 | 5 | Unlimited |
 | Sync frequency | 1x/day (8am) | 4x/day | Hourly |
-| Active deliverables | 2 | 5 | Unlimited |
+| Active agents | 2 | 5 | Unlimited |
 | Signal processing | Off | On | On |
 | TP daily token budget | 50k | 250k | Unlimited |
 | Calendar source selection | N/A (all calendars) | N/A | N/A |
@@ -29,7 +29,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 **Primary cost gates** (ordered by cost impact):
 1. **Signal processing** — Haiku + potential Sonnet spend per user per cycle; off for free tier
 2. **Daily token budget** — TP conversations consume tokens; direct mapping to Anthropic API spend
-3. **Active deliverables** — Each deliverable run consumes Sonnet tokens
+3. **Active agents** — Each agent run consumes Sonnet tokens
 4. **Sources per platform** — More sources = more API calls and storage
 5. **Sync frequency** — More frequent syncs = more API calls
 
@@ -37,7 +37,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 - Source limits: `platform_limits.py` → `check_source_limit()`, `validate_sources_update()`
 - Token budget: `chat.py` → `check_daily_token_budget()` via SQL RPC `get_daily_token_usage()`
 - Signal processing: `unified_scheduler.py` (skip free), `signal_processing.py` route (403)
-- Deliverable limits: `signal_processing.py` service → `check_deliverable_limit()`
+- Agent limits: `signal_processing.py` service → `check_agent_limit()`
 - Sync frequency: `platform_limits.py` → `SYNC_SCHEDULES`, checked in scheduler
 
 ---
@@ -65,7 +65,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 │ CONTENT LAYER (platform_content — single source of truth)           │
 │                                                                     │
 │ Storage:   store_platform_content(), batch writers                   │
-│ Readers:   get_platform_content(), get_content_for_deliverable(),   │
+│ Readers:   get_platform_content(), get_content_for_agent(),   │
 │            get_content_summary_for_generation(),                     │
 │            search_platform_content() (pgvector semantic search)      │
 │ Retention: mark_content_retained() when content is consumed         │
@@ -74,7 +74,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 └──────────┬──────────────────┬────────────────────┬──────────────────┘
            │                  │                    │
            ▼                  ▼                    ▼
-   TP Chat (Sonnet)    Deliverable Exec     Scheduling Heuristics
+   TP Chat (Sonnet)    Agent Exec     Scheduling Heuristics
    (real-time,         (Sonnet synthesis,    (rules + freshness,
     user-initiated)     system-triggered)     no LLM — decides
                                               WHEN to trigger)
@@ -294,7 +294,7 @@ platform_sync_scheduler.py
 ```
 Fetched → Stored (ephemeral, TTL set)
               ↓
-         Consumed by deliverable/TP → mark_content_retained()
+         Consumed by agent/TP → mark_content_retained()
               ↓
          Retained (no TTL, persists)
 
@@ -355,7 +355,7 @@ With ADR-073, new platforms follow a single pattern:
 5. **TP Tools** (optional): Add to `platform_tools.py` for real-time user actions
 6. **Delivery** (optional): Add exporter for write-back operations
 
-All read operations by TP and deliverables automatically work via `platform_content` — no per-platform integration needed for reads.
+All read operations by TP and agents automatically work via `platform_content` — no per-platform integration needed for reads.
 
 ---
 

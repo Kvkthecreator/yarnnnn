@@ -273,7 +273,7 @@ Examples of SCOPE classification:
 - "Prefers bullet points" → user (style preference, applies everywhere)
 - "Report due Tuesday" → project (specific deadline for this work)
 - "Works at Acme Corp" → user (fact about the person)
-- "Client wants 3 sections" → project (requirement for this deliverable)
+- "Client wants 3 sections" → project (requirement for this agent)
 
 Return JSON:
 {

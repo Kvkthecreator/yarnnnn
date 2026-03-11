@@ -31,8 +31,8 @@ const FEATURE_COPY = {
     description: "You've used all your free messages this month. Upgrade to Pro for unlimited conversations.",
   },
   agents: {
-    title: "Unlock more deliverables",
-    description: "You've reached the deliverable limit. Upgrade to Pro for up to 10 active deliverables.",
+    title: "Unlock more agents",
+    description: "You've reached the agent limit. Upgrade to Pro for up to 10 active agents.",
   },
   documents: {
     title: "Upload more documents",
@@ -54,7 +54,7 @@ export function UpgradePrompt({
   const copy = FEATURE_COPY[feature];
   const limit = SUBSCRIPTION_LIMITS.free[
     feature === "messages" ? "monthlyMessages" :
-    feature === "agents" ? "activeDeliverables" :
+    feature === "agents" ? "activeAgents" :
     feature
   ];
 
@@ -65,7 +65,7 @@ export function UpgradePrompt({
 
   const proFeatures = [
     "Unlimited messages",
-    "10 active deliverables",
+    "10 active agents",
     "Unlimited sources",
     "Hourly sync",
     "Priority support",

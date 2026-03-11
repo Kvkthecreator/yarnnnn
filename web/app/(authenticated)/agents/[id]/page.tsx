@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ADR-091: Deliverable Workspace
+ * ADR-091: Agent Workspace
  *
  * Chat-first layout with persistent right panel:
  * - Main: scoped TP chat (left, full height)
@@ -11,8 +11,8 @@
  * Versions display has moved from inline (above chat) to the panel.
  * Panel defaults to open with Versions tab showing the latest version preview.
  *
- * Chat is scoped via surface_context { type: 'deliverable-detail', deliverableId }
- * which sets deliverable_id on the chat_sessions row (ADR-087).
+ * Chat is scoped via surface_context { type: 'agent-detail', agentId }
+ * which sets agent_id on the chat_sessions row (ADR-087).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -27,28 +27,28 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { DeliverableSettingsPanel } from '@/components/deliverables/DeliverableSettingsPanel';
+import { AgentSettingsPanel } from '@/components/agents/AgentSettingsPanel';
 import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeBadge';
-import { VersionsPanel } from '@/components/deliverables/DeliverableVersionDisplay';
-import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/deliverables/DeliverableDrawerPanels';
-import { DeliverableChatArea } from '@/components/deliverables/DeliverableChatArea';
-import type { Deliverable, DeliverableVersion, DeliverableSession } from '@/types';
+import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
+import { VersionsPanel } from '@/components/agents/AgentRunDisplay';
+import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/agents/AgentDrawerPanels';
+import { AgentChatArea } from '@/components/agents/AgentChatArea';
+import type { Agent, AgentRun, AgentSession } from '@/types';
 
 // =============================================================================
 // Main Component
 // =============================================================================
 
-export default function DeliverableWorkspacePage() {
+export default function AgentWorkspacePage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const router = useRouter();
 
   // Data
   const [loading, setLoading] = useState(true);
-  const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
-  const [versions, setVersions] = useState<DeliverableVersion[]>([]);
-  const [sessions, setSessions] = useState<DeliverableSession[]>([]);
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [versions, setVersions] = useState<AgentRun[]>([]);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
 
   // UI
   const [running, setRunning] = useState(false);
@@ -56,46 +56,46 @@ export default function DeliverableWorkspacePage() {
   // Ref for prefilling chat input from drawer (e.g. "Edit in chat" button)
   const prefillChatRef = useRef<((text: string) => void) | null>(null);
 
-  const loadDeliverable = useCallback(async () => {
+  const loadAgent = useCallback(async () => {
     try {
       const [detail, sessionData] = await Promise.all([
-        api.deliverables.get(id),
-        api.deliverables.listSessions(id).catch(() => []),
+        api.agents.get(id),
+        api.agents.listSessions(id).catch(() => []),
       ]);
-      setDeliverable(detail.deliverable);
+      setAgent(detail.agent);
       setVersions(detail.versions);
       setSessions(sessionData);
     } catch (err) {
-      console.error('Failed to load deliverable:', err);
+      console.error('Failed to load agent:', err);
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    loadDeliverable();
-  }, [loadDeliverable]);
+    loadAgent();
+  }, [loadAgent]);
 
   const handleTogglePause = async () => {
-    if (!deliverable) return;
+    if (!agent) return;
     try {
-      const newStatus = deliverable.status === 'paused' ? 'active' : 'paused';
-      await api.deliverables.update(id, { status: newStatus });
-      setDeliverable({ ...deliverable, status: newStatus });
+      const newStatus = agent.status === 'paused' ? 'active' : 'paused';
+      await api.agents.update(id, { status: newStatus });
+      setAgent({ ...agent, status: newStatus });
     } catch (err) {
       console.error('Failed to update status:', err);
     }
   };
 
   const handleRunNow = async () => {
-    if (!deliverable) return;
+    if (!agent) return;
     setRunning(true);
 
     // Optimistic: show a "generating" placeholder immediately
     const nextVersion = (versions[0]?.version_number ?? 0) + 1;
-    const placeholder: DeliverableVersion = {
+    const placeholder: AgentRun = {
       id: `generating-${Date.now()}`,
-      deliverable_id: id,
+      agent_id: id,
       version_number: nextVersion,
       status: 'generating',
       created_at: new Date().toISOString(),
@@ -103,10 +103,10 @@ export default function DeliverableWorkspacePage() {
     setVersions((prev) => [placeholder, ...prev]);
 
     try {
-      await api.deliverables.run(id);
-      await loadDeliverable();
+      await api.agents.run(id);
+      await loadAgent();
     } catch (err) {
-      console.error('Failed to run deliverable:', err);
+      console.error('Failed to run agent:', err);
       // Remove optimistic placeholder on failure
       setVersions((prev) => prev.filter((v) => v.id !== placeholder.id));
     } finally {
@@ -126,19 +126,19 @@ export default function DeliverableWorkspacePage() {
     );
   }
 
-  if (!deliverable) {
+  if (!agent) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
         <FileText className="w-8 h-8 text-muted-foreground" />
-        <p className="text-muted-foreground">Deliverable not found</p>
-        <button onClick={() => router.push('/deliverables')} className="text-sm text-primary hover:underline">
-          Back to Deliverables
+        <p className="text-muted-foreground">Agent not found</p>
+        <button onClick={() => router.push('/agents')} className="text-sm text-primary hover:underline">
+          Back to Agents
         </button>
       </div>
     );
   }
 
-  const memory = deliverable.deliverable_memory;
+  const memory = agent.agent_memory;
   const observations = memory?.observations || [];
   const reviewLog = memory?.review_log || [];
   const memoryCount = observations.length + reviewLog.length;
@@ -154,7 +154,7 @@ export default function DeliverableWorkspacePage() {
       content: (
         <VersionsPanel
           versions={versions}
-          deliverable={deliverable}
+          agent={agent}
           onRunNow={handleRunNow}
           running={running}
         />
@@ -165,15 +165,15 @@ export default function DeliverableWorkspacePage() {
       label: 'Instructions',
       content: (
         <InstructionsPanel
-          deliverable={deliverable}
-          onEditInChat={() => prefillChatRef.current?.('I want to update the instructions for this deliverable')}
+          agent={agent}
+          onEditInChat={() => prefillChatRef.current?.('I want to update the instructions for this agent')}
         />
       ),
     },
     {
       id: 'memory',
       label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ''}`,
-      content: <MemoryPanel deliverable={deliverable} />,
+      content: <MemoryPanel agent={agent} />,
     },
     {
       id: 'sessions',
@@ -184,10 +184,10 @@ export default function DeliverableWorkspacePage() {
       id: 'settings',
       label: 'Settings',
       content: (
-        <DeliverableSettingsPanel
-          deliverable={deliverable}
-          onSaved={(updated) => setDeliverable(updated)}
-          onArchived={() => router.push('/deliverables')}
+        <AgentSettingsPanel
+          agent={agent}
+          onSaved={(updated) => setAgent(updated)}
+          onArchived={() => router.push('/agents')}
         />
       ),
     },
@@ -199,48 +199,48 @@ export default function DeliverableWorkspacePage() {
 
   const inlineMeta = (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <DeliverableModeBadge mode={deliverable.mode} variant="inline" />
+      <AgentModeBadge mode={agent.mode} variant="inline" />
       <span className="select-none">·</span>
       <button
         onClick={handleTogglePause}
         className={cn(
           'inline-flex items-center gap-1 hover:underline transition-colors',
-          deliverable.status === 'paused'
+          agent.status === 'paused'
             ? 'text-amber-600 dark:text-amber-400'
             : 'text-green-600 dark:text-green-400'
         )}
-        title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
+        title={agent.status === 'paused' ? 'Resume' : 'Pause'}
       >
-        {deliverable.status === 'paused' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-        {deliverable.status === 'paused' ? 'Paused' : 'Active'}
+        {agent.status === 'paused' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+        {agent.status === 'paused' ? 'Paused' : 'Active'}
       </button>
     </span>
   );
 
   const breadcrumb = (
     <Link
-      href="/deliverables"
+      href="/agents"
       className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
     >
       <ChevronLeft className="w-4 h-4" />
-      Deliverables
+      Agents
     </Link>
   );
 
   return (
     <WorkspaceLayout
         identity={{
-          icon: <DeliverableModeBadge mode={deliverable.mode} variant="icon" />,
-          label: deliverable.title,
+          icon: <AgentModeBadge mode={agent.mode} variant="icon" />,
+          label: agent.title,
           badge: inlineMeta,
         }}
         breadcrumb={breadcrumb}
         panelTabs={panelTabs}
         panelDefaultOpen={true}
       >
-        <DeliverableChatArea
-          deliverableId={id}
-          deliverableTitle={deliverable.title}
+        <AgentChatArea
+          agentId={id}
+          agentTitle={agent.title}
           onRunNow={handleRunNow}
           running={running}
           prefillChatRef={prefillChatRef}

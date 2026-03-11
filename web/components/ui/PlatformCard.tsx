@@ -11,7 +11,7 @@ import { Card, CardContent } from './card';
  * Shows summary of a single platform integration:
  * - Connection status
  * - Resource count (channels, labels, pages)
- * - Deliverable count targeting this platform
+ * - Agent count targeting this platform
  * - Recent activity stats
  */
 
@@ -22,7 +22,7 @@ export interface PlatformSummary {
   connected_at: string;
   resource_count: number;
   resource_type: string; // channels, labels, pages
-  deliverable_count: number;
+  agent_count: number;
   activity_7d: number;
 }
 
@@ -158,11 +158,11 @@ export function PlatformCard({ platform, onClick, className }: PlatformCardProps
             </div>
           </div>
 
-          {/* Deliverables */}
+          {/* Agents */}
           <div className="bg-muted/50 rounded-lg p-2">
-            <div className="text-muted-foreground">deliverables</div>
+            <div className="text-muted-foreground">agents</div>
             <div className="font-semibold text-foreground">
-              {platform.deliverable_count}
+              {platform.agent_count}
             </div>
           </div>
         </div>

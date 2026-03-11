@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Version display components for the Deliverable Workspace panel.
+ * Version display components for the Agent Workspace panel.
  *
  * VersionsPanel: lives in the right panel, two modes:
  * - List mode: compact version list, click to preview
@@ -29,7 +29,7 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
-import type { Deliverable, DeliverableVersion, SourceSnapshot } from '@/types';
+import type { Agent, AgentRun, SourceSnapshot } from '@/types';
 
 // =============================================================================
 // Helpers
@@ -44,7 +44,7 @@ const PLATFORM_EMOJI: Record<string, string> = {
   synthesis: '\u{1F4CA}',
 };
 
-export function getStatusBadge(version: DeliverableVersion) {
+export function getStatusBadge(version: AgentRun) {
   const status = version.delivery_status || version.status;
   if (status === 'delivered') {
     return (
@@ -73,7 +73,7 @@ export function getStatusBadge(version: DeliverableVersion) {
   return <span className="text-xs text-muted-foreground">{status}</span>;
 }
 
-export function getVersionTimestamp(version: DeliverableVersion): string {
+export function getRunTimestamp(version: AgentRun): string {
   const ts = version.delivered_at || version.created_at;
   return format(new Date(ts), 'MMM d, h:mm a');
 }
@@ -111,11 +111,11 @@ export function SourcePills({ snapshots }: { snapshots: SourceSnapshot[] }) {
 // =============================================================================
 
 function VersionFeedbackStrip({
-  deliverableId,
+  agentId,
   version,
 }: {
-  deliverableId: string;
-  version: DeliverableVersion;
+  agentId: string;
+  version: AgentRun;
 }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(version.feedback_notes || '');
@@ -127,7 +127,7 @@ function VersionFeedbackStrip({
     if (!trimmed || saving) return;
     setSaving(true);
     try {
-      await api.deliverables.updateVersion(deliverableId, version.id, {
+      await api.agents.updateRun(agentId, version.id, {
         feedback_notes: trimmed,
       });
       setSaved(true);
@@ -137,7 +137,7 @@ function VersionFeedbackStrip({
     } finally {
       setSaving(false);
     }
-  }, [note, saving, deliverableId, version.id]);
+  }, [note, saving, agentId, version.id]);
 
   // Only show for delivered/approved versions with content
   const hasContent = !!(version.final_content || version.draft_content);
@@ -196,13 +196,13 @@ function VersionFeedbackStrip({
 
 function VersionPreviewFull({
   version,
-  deliverable,
+  agent,
   onBack,
   onRunNow,
   running,
 }: {
-  version: DeliverableVersion;
-  deliverable: Deliverable;
+  version: AgentRun;
+  agent: Agent;
   onBack: () => void;
   onRunNow: () => void;
   running: boolean;
@@ -230,16 +230,16 @@ function VersionPreviewFull({
         </button>
         <span className="text-xs font-medium">v{version.version_number}</span>
         {getStatusBadge(version)}
-        <span className="text-xs text-muted-foreground">{getVersionTimestamp(version)}</span>
+        <span className="text-xs text-muted-foreground">{getRunTimestamp(version)}</span>
 
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={onRunNow}
-            disabled={running || deliverable.status === 'archived'}
+            disabled={running || agent.status === 'archived'}
             className="inline-flex items-center gap-1 px-2 py-0.5 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-            <span className="hidden sm:inline">{deliverable.mode === 'goal' ? 'Generate' : 'Run Now'}</span>
+            <span className="hidden sm:inline">{agent.mode === 'goal' ? 'Generate' : 'Run Now'}</span>
           </button>
           {content && (
             <button
@@ -306,7 +306,7 @@ function VersionPreviewFull({
         )}
 
         {/* Feedback strip */}
-        <VersionFeedbackStrip deliverableId={deliverable.id} version={version} />
+        <VersionFeedbackStrip agentId={agent.id} version={version} />
       </div>
     </div>
   );
@@ -318,12 +318,12 @@ function VersionPreviewFull({
 
 export function VersionsPanel({
   versions,
-  deliverable,
+  agent,
   onRunNow,
   running,
 }: {
-  versions: DeliverableVersion[];
-  deliverable: Deliverable;
+  versions: AgentRun[];
+  agent: Agent;
   onRunNow: () => void;
   running: boolean;
 }) {
@@ -333,9 +333,9 @@ export function VersionsPanel({
     versions.length > 0 ? 0 : null
   );
 
-  const isGoalMode = deliverable.mode === 'goal';
-  const isPlatformBound = deliverable.type_classification?.binding === 'platform_bound';
-  const hasSources = (deliverable.sources?.length ?? 0) > 0;
+  const isGoalMode = agent.mode === 'goal';
+  const isPlatformBound = agent.type_classification?.binding === 'platform_bound';
+  const hasSources = (agent.sources?.length ?? 0) > 0;
   const missingSourcesWarning = isPlatformBound && !hasSources;
 
   // Preview mode: show full version
@@ -343,7 +343,7 @@ export function VersionsPanel({
     return (
       <VersionPreviewFull
         version={versions[previewIdx]}
-        deliverable={deliverable}
+        agent={agent}
         onBack={() => setPreviewIdx(null)}
         onRunNow={onRunNow}
         running={running}
@@ -359,7 +359,7 @@ export function VersionsPanel({
         <p className="text-sm text-muted-foreground mb-3">No deliveries yet</p>
         <button
           onClick={onRunNow}
-          disabled={running || deliverable.status === 'archived' || missingSourcesWarning}
+          disabled={running || agent.status === 'archived' || missingSourcesWarning}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
@@ -383,7 +383,7 @@ export function VersionsPanel({
         </span>
         <button
           onClick={onRunNow}
-          disabled={running || deliverable.status === 'archived' || missingSourcesWarning}
+          disabled={running || agent.status === 'archived' || missingSourcesWarning}
           title={missingSourcesWarning ? 'Add sources in Settings before running' : (isGoalMode ? 'Generate' : 'Run Now')}
           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
@@ -409,7 +409,7 @@ export function VersionsPanel({
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-xs text-muted-foreground shrink-0">v{version.version_number}</span>
-              <span className="text-xs truncate">{getVersionTimestamp(version)}</span>
+              <span className="text-xs truncate">{getRunTimestamp(version)}</span>
               {getStatusBadge(version)}
             </div>
             <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground -rotate-180 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />

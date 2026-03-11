@@ -25,7 +25,7 @@ Each action has a **verb type** that determines what happens when selected. Acti
 
 | Verb | Behavior | Example |
 |---|---|---|
-| **show** | Renders an inline UI component in the chat area | "Create deliverable" → show type selection cards |
+| **show** | Renders an inline UI component in the chat area | "Create agent" → show type selection cards |
 | **execute** | Fires a function immediately, no chat involved | "Generate new version" → calls `onRunNow` |
 | **prompt** | Pre-fills input for user to refine before sending | "Search platforms" → pre-fills "Search for ..." |
 | **attach** | Opens a system dialog (file picker, etc.) | "Attach image" → file picker |
@@ -64,16 +64,16 @@ Rules:
 | Action | Verb | Icon | Behavior |
 |---|---|---|---|
 | Attach image | **attach** | ImagePlus | Opens file picker |
-| Create deliverable | **show** | Sparkles | Toggles deliverable type cards inline (same cards as empty state) |
+| Create agent | **show** | Sparkles | Toggles agent type cards inline (same cards as empty state) |
 | Search platforms | **prompt** | Search | Pre-fills: "Search across my connected platforms for " |
 
-### Deliverable workspace (`DeliverableChatArea.tsx`)
+### Agent workspace (`AgentChatArea.tsx`)
 
 | Action | Verb | Icon | Behavior |
 |---|---|---|---|
 | Attach image | **attach** | ImagePlus | Opens file picker |
 | Generate new version | **execute** | Play | Calls `onRunNow` directly |
-| Update instructions | **prompt** | Pencil | Pre-fills: "I want to update the instructions for this deliverable" |
+| Update instructions | **prompt** | Pencil | Pre-fills: "I want to update the instructions for this agent" |
 
 ## Component architecture
 
@@ -102,9 +102,9 @@ Each surface defines its own action array. The `onSelect` callback implements th
 - **execute**: `() => onRunNow()` — fires the function
 - **prompt**: `() => { setInput('...'); textareaRef.current?.focus(); }`
 
-### "Create deliverable" show behavior
+### "Create agent" show behavior
 
-When toggled, renders the `STARTER_CARDS` grid (same component as empty state) below the messages, above the input bar. Works whether messages exist or not. Clicking a card sends the message immediately (not pre-fill). Dismissed after selection or by toggling `+` → "Create deliverable" again.
+When toggled, renders the `STARTER_CARDS` grid (same component as empty state) below the messages, above the input bar. Works whether messages exist or not. Clicking a card sends the message immediately (not pre-fill). Dismissed after selection or by toggling `+` → "Create agent" again.
 
 ## Files
 
@@ -112,7 +112,7 @@ When toggled, renders the `STARTER_CARDS` grid (same component as empty state) b
 |---|---|
 | `web/components/tp/PlusMenu.tsx` | Reusable plus-menu component |
 | `web/components/desk/ChatFirstDesk.tsx` | Dashboard surface — attach, show (create), prompt (search) |
-| `web/components/deliverables/DeliverableChatArea.tsx` | Deliverable surface — attach, execute (generate), prompt (update) |
+| `web/components/agents/AgentChatArea.tsx` | Agent surface — attach, execute (generate), prompt (update) |
 
 ## Supersedes
 
@@ -123,7 +123,7 @@ When toggled, renders the `STARTER_CARDS` grid (same component as empty state) b
 
 - [ ] `+` button visible in input bar on both surfaces
 - [ ] "Attach image" opens file picker
-- [ ] "Create deliverable" toggles inline type cards in chat area
+- [ ] "Create agent" toggles inline type cards in chat area
 - [ ] Clicking a type card sends the message and dismisses the cards
 - [ ] "Generate new version" triggers execution immediately (no chat)
 - [ ] "Search platforms" pre-fills input with cursor at end

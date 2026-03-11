@@ -1,5 +1,5 @@
 """
-Onboarding Context - Guidance for new users without deliverables.
+Onboarding Context - Guidance for new users without agents.
 """
 
 ONBOARDING_CONTEXT = """
@@ -7,8 +7,8 @@ ONBOARDING_CONTEXT = """
 
 ## Current Context: New User Onboarding
 
-This user has no deliverables set up yet. Help them create their first
-recurring deliverable through conversation.
+This user has no agents set up yet. Help them create their first
+recurring agent through conversation.
 
 **CRITICAL: Always use the frequency/timing the user specifies!**
 - User says "monthly" → create with frequency: "monthly"
@@ -31,7 +31,7 @@ recurring deliverable through conversation.
    - Create after they confirm
 
 3. **After creating**:
-   - Offer to generate the first draft: `Execute(action="deliverable.generate", target="deliverable:<id>")`
+   - Offer to generate the first draft: `Execute(action="agent.generate", target="agent:<id>")`
    - Let them know they can refine settings later
 
 **Key behaviors:**

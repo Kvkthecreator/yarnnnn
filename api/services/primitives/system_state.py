@@ -6,7 +6,7 @@ snapshot. Gives TP the same visibility into system state that a human operator
 would have.
 
 Data sources:
-  - activity_log: Last platform_synced per platform, scheduler_heartbeat, deliverable runs
+  - activity_log: Last platform_synced per platform, scheduler_heartbeat, agent runs
   - sync_registry: Per-resource sync freshness
   - integration_import_jobs: Active/failed job state
   - platform_connections: Available resources (landscape)
@@ -31,14 +31,14 @@ GET_SYSTEM_STATE_TOOL = {
     "description": """Get a snapshot of YARNNN's operational state.
 
 Use when the user asks about system status, sync state, or "what happened":
-- "What happened last night?" → check scheduler_heartbeat, deliverable runs
-- "Why didn't my digest run?" → check deliverable execution state
+- "What happened last night?" → check scheduler_heartbeat, agent runs
+- "Why didn't my digest run?" → check agent execution state
 - "Is Slack syncing?" → check per-platform sync freshness
 - "What platforms are connected?" → check platform connections with landscape
 
 Returns structured SystemStateSnapshot with:
 - platform_sync_status: Per-platform sync freshness with resource details
-- pending_reviews: Count of deliverable versions awaiting review
+- pending_reviews: Count of agent versions awaiting review
 - failed_jobs: Any failed import jobs in last 24 hours
 - scheduler_health: Last heartbeat, items processed
 
@@ -69,7 +69,7 @@ class SignalPassSummary:
     last_run_at: Optional[str] = None
     signals_evaluated: int = 0
     actions_taken: list[str] = field(default_factory=list)
-    deliverables_triggered: list[str] = field(default_factory=list)
+    agents_triggered: list[str] = field(default_factory=list)
     reasoning_summary: Optional[str] = None
 
 
@@ -89,8 +89,8 @@ class SchedulerHealth:
     """Health of the unified scheduler."""
     last_heartbeat_at: Optional[str] = None
     last_cycle_summary: Optional[str] = None
-    deliverables_checked: int = 0
-    deliverables_triggered: int = 0
+    agents_checked: int = 0
+    agents_triggered: int = 0
     signals_created: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -123,7 +123,7 @@ class SystemStateSnapshot:
                 "last_run_at": self.last_signal_pass.last_run_at,
                 "signals_evaluated": self.last_signal_pass.signals_evaluated,
                 "actions_taken": self.last_signal_pass.actions_taken,
-                "deliverables_triggered": self.last_signal_pass.deliverables_triggered,
+                "agents_triggered": self.last_signal_pass.agents_triggered,
                 "reasoning_summary": self.last_signal_pass.reasoning_summary,
             } if self.last_signal_pass else None,
             "platform_sync_status": [
@@ -151,8 +151,8 @@ class SystemStateSnapshot:
             "scheduler_health": {
                 "last_heartbeat_at": self.scheduler_health.last_heartbeat_at,
                 "last_cycle_summary": self.scheduler_health.last_cycle_summary,
-                "deliverables_checked": self.scheduler_health.deliverables_checked,
-                "deliverables_triggered": self.scheduler_health.deliverables_triggered,
+                "agents_checked": self.scheduler_health.agents_checked,
+                "agents_triggered": self.scheduler_health.agents_triggered,
                 "signals_created": self.scheduler_health.signals_created,
                 "errors": self.scheduler_health.errors,
             } if self.scheduler_health else None,
@@ -235,7 +235,7 @@ async def _get_last_signal_pass(client: Any, user_id: str) -> Optional[SignalPas
                 last_run_at=row.get("created_at"),
                 signals_evaluated=metadata.get("signals_evaluated", 0),
                 actions_taken=metadata.get("actions_taken", []),
-                deliverables_triggered=metadata.get("deliverables_triggered", []),
+                agents_triggered=metadata.get("agents_triggered", []),
                 reasoning_summary=metadata.get("reasoning_summary"),
             )
 
@@ -405,8 +405,8 @@ async def _get_scheduler_health(client: Any, user_id: str) -> Optional[Scheduler
             return SchedulerHealth(
                 last_heartbeat_at=row.get("created_at"),
                 last_cycle_summary=row.get("summary"),
-                deliverables_checked=metadata.get("deliverables_checked", 0),
-                deliverables_triggered=metadata.get("deliverables_triggered", 0),
+                agents_checked=metadata.get("agents_checked", 0),
+                agents_triggered=metadata.get("agents_triggered", 0),
                 signals_created=metadata.get("signals_created", 0),
                 errors=metadata.get("errors", []) or [],
             )
@@ -419,15 +419,15 @@ async def _get_scheduler_health(client: Any, user_id: str) -> Optional[Scheduler
 
 
 async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
-    """Count deliverable versions awaiting review (status=draft).
+    """Count agent versions awaiting review (status=draft).
 
-    deliverable_versions has no user_id — must find user's deliverable IDs first,
-    then count versions in review states for those deliverables.
+    agent_runs has no user_id — must find user's agent IDs first,
+    then count versions in review states for those agents.
     """
     try:
-        # Get user's deliverable IDs
+        # Get user's agent IDs
         del_result = (
-            client.table("deliverables")
+            client.table("agents")
             .select("id")
             .eq("user_id", user_id)
             .eq("status", "active")
@@ -437,11 +437,11 @@ async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
         if not del_ids:
             return 0
 
-        # Count versions in review states for those deliverables
+        # Count versions in review states for those agents
         result = (
-            client.table("deliverable_versions")
+            client.table("agent_runs")
             .select("id", count="exact")
-            .in_("deliverable_id", del_ids)
+            .in_("agent_id", del_ids)
             .in_("status", ["draft"])
             .execute()
         )

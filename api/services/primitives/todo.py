@@ -15,7 +15,7 @@ TODO_TOOL = {
     "description": """Track progress for multi-step work.
 
 Use when:
-- Setting up a new deliverable (multiple steps)
+- Setting up a new agent (multiple steps)
 - Executing a complex request
 - Any work requiring 3+ steps
 
@@ -25,7 +25,7 @@ States:
 - completed: Finished
 
 Examples:
-- Todo(items=[{content: "Create deliverable", status: "in_progress", activeForm: "Creating deliverable"}])
+- Todo(items=[{content: "Create agent", status: "in_progress", activeForm: "Creating agent"}])
 - Todo(items=[...existing..., {content: "Done", status: "completed"}])
 
 Always include both content (imperative: "Create X") and activeForm (present continuous: "Creating X").""",
@@ -39,7 +39,7 @@ Always include both content (imperative: "Create X") and activeForm (present con
                     "properties": {
                         "content": {
                             "type": "string",
-                            "description": "Task in imperative form (e.g., 'Create deliverable')"
+                            "description": "Task in imperative form (e.g., 'Create agent')"
                         },
                         "status": {
                             "type": "string",
@@ -47,7 +47,7 @@ Always include both content (imperative: "Create X") and activeForm (present con
                         },
                         "activeForm": {
                             "type": "string",
-                            "description": "Task in present continuous (e.g., 'Creating deliverable')"
+                            "description": "Task in present continuous (e.g., 'Creating agent')"
                         }
                     },
                     "required": ["content", "status"]

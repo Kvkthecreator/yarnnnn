@@ -9,14 +9,14 @@
  * ADR-037 Migration Complete:
  * - Document surfaces → /docs route
  * - Platform surfaces → /integrations route
- * - Deliverable list/detail → /deliverables route
+ * - Agent list/detail → /agents route
  * - Context browser → deprecated (ADR-034)
  *
  * ADR-066 Migration:
- * - deliverable-review → /deliverables/[id] (inline review)
+ * - agent-review → /agents/[id] (inline review)
  *
  * ADR-067 Migration:
- * - deliverable-create → DELETED (creation handled by TP chat — /dashboard?create)
+ * - agent-create → DELETED (creation handled by TP chat — /dashboard?create)
  *
  * Remaining surfaces (TP-invoked only):
  * - context-editor: Edit specific memory
@@ -56,16 +56,16 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
         router.replace(`/integrations/${surface.platform}`);
         break;
 
-      // Deliverable list/detail/review → /deliverables
-      case 'deliverable-list':
-        router.replace('/deliverables');
+      // Agent list/detail/review → /agents
+      case 'agent-list':
+        router.replace('/agents');
         break;
-      case 'deliverable-detail':
-        router.replace(`/deliverables/${surface.deliverableId}`);
+      case 'agent-detail':
+        router.replace(`/agents/${surface.agentId}`);
         break;
       // ADR-066: Review now happens inline on detail page
-      case 'deliverable-review':
-        router.replace(`/deliverables/${surface.deliverableId}`);
+      case 'agent-review':
+        router.replace(`/agents/${surface.agentId}`);
         break;
       // Context browser deprecated
       case 'context-browser':
@@ -79,8 +79,8 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
   // Render the surface content
   const renderSurface = () => {
     switch (surface.type) {
-      // ADR-066: deliverable-review redirects via useEffect, show idle as fallback
-      case 'deliverable-review':
+      // ADR-066: agent-review redirects via useEffect, show idle as fallback
+      case 'agent-review':
         return <IdleSurface />;
 
       case 'context-editor':
@@ -91,8 +91,8 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       case 'document-viewer':
       case 'platform-list':
       case 'platform-detail':
-      case 'deliverable-list':
-      case 'deliverable-detail':
+      case 'agent-list':
+      case 'agent-detail':
       case 'context-browser':
       case 'idle':
       default:

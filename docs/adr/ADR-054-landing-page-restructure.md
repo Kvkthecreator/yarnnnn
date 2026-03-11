@@ -10,12 +10,12 @@
 
 ## Context
 
-The current landing pages (Landing, How It Works, About) were structured around the Integration-First Positioning (Feb 8, 2026). While the positioning is correct—yarnnn as a supervision layer between platforms and deliverables—the pages have significant overlap and miss a crucial element: **introducing TP (Thinking Partner)**.
+The current landing pages (Landing, How It Works, About) were structured around the Integration-First Positioning (Feb 8, 2026). While the positioning is correct—yarnnn as a supervision layer between platforms and agents—the pages have significant overlap and miss a crucial element: **introducing TP (Thinking Partner)**.
 
 ### Current State Problems
 
 1. **Massive overlap between Landing and How It Works**
-   - Both explain: Connect tools → Configure deliverables → Review → Learn
+   - Both explain: Connect tools → Configure agents → Review → Learn
    - Same 4-step flow, same messaging, different layouts
    - User reads the same story twice
 
@@ -48,7 +48,7 @@ But HOW do you configure? HOW do you communicate with yarnnn?
 
 | Page | Purpose | Core Message |
 |------|---------|--------------|
-| **Landing** | Hook + Value Prop | "Your work platforms → deliverables" (integration animation) |
+| **Landing** | Hook + Value Prop | "Your work platforms → agents" (integration animation) |
 | **How It Works** | Meet TP + The Flow | "Meet your Thinking Partner" (introduce the conversational interface) |
 | **About** | Philosophy + Origin | "Why we built yarnnn" (the story, the differentiation) |
 
@@ -60,7 +60,7 @@ But HOW do you configure? HOW do you communicate with yarnnn?
 
 **Keep**:
 - IntegrationHub animation (platforms flowing to outputs)
-- Hero: "Your work platforms, turned into deliverables"
+- Hero: "Your work platforms, turned into agents"
 - Integration showcase
 - Simple CTA flow
 
@@ -75,7 +75,7 @@ But HOW do you configure? HOW do you communicate with yarnnn?
 
 1. **Hero: "Meet TP, your Thinking Partner"**
    - This is who you talk to
-   - TP understands your work, learns your preferences, produces your deliverables
+   - TP understands your work, learns your preferences, produces your agents
 
 2. **The Conversation Model**
    - You don't fill forms. You talk.
@@ -85,7 +85,7 @@ But HOW do you configure? HOW do you communicate with yarnnn?
 3. **What TP Does For You**
    - Connects to your platforms (mentions integrations briefly)
    - Pulls fresh context on schedule
-   - Drafts deliverables in your voice
+   - Drafts agents in your voice
    - Learns from your feedback
 
 4. **The Flow (Simplified)**
@@ -107,7 +107,7 @@ But HOW do you configure? HOW do you communicate with yarnnn?
 
 **Keep**:
 - Origin story ("We built yarnnn because...")
-- The insight (platforms have context, deliverables need it)
+- The insight (platforms have context, agents need it)
 - What makes yarnnn different (not a chatbot, not a template tool)
 
 **Remove/Move**:

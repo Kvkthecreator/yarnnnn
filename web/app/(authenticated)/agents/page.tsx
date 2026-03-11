@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Deliverables List Page — Flat, Mode-Anchored
+ * Agents List Page — Flat, Mode-Anchored
  *
  * Replaces platform-grouped layout with a flat list where mode (the execution
  * character) is the primary visual signal. Each card shows:
@@ -29,22 +29,22 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
-import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeBadge';
-import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
-import type { Deliverable, DeliverableStatus } from '@/types';
+import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
+import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/agents';
+import type { Agent, AgentStatus } from '@/types';
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
-function getModeStatusLine(d: Deliverable): string {
+function getModeStatusLine(d: Agent): string {
   switch (d.mode) {
     case 'goal': {
-      const goalStatus = d.deliverable_memory?.goal?.status;
+      const goalStatus = d.agent_memory?.goal?.status;
       return goalStatus ? `Goal: ${goalStatus}` : 'Goal mode';
     }
     case 'reactive': {
-      const count = d.deliverable_memory?.observations?.length || 0;
+      const count = d.agent_memory?.observations?.length || 0;
       return count > 0 ? `${count} observation${count === 1 ? '' : 's'}` : 'Watching';
     }
     case 'proactive':
@@ -86,7 +86,7 @@ function getModeStatusLine(d: Deliverable): string {
   }
 }
 
-function formatDestination(d: Deliverable): string | null {
+function formatDestination(d: Agent): string | null {
   const dest = d.destination;
   if (!dest) return null;
   const target = dest.target;
@@ -101,20 +101,20 @@ function formatDestination(d: Deliverable): string | null {
 // Components
 // =============================================================================
 
-function DeliverableCard({
-  deliverable,
+function AgentCard({
+  agent,
   onClick,
 }: {
-  deliverable: Deliverable;
+  agent: Agent;
   onClick: () => void;
 }) {
-  const typeLabel = DELIVERABLE_TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type;
-  const statusLine = getModeStatusLine(deliverable);
-  const destination = formatDestination(deliverable);
-  const latestStatus = deliverable.latest_version_status;
+  const typeLabel = DELIVERABLE_TYPE_LABELS[agent.agent_type] || agent.agent_type;
+  const statusLine = getModeStatusLine(agent);
+  const destination = formatDestination(agent);
+  const latestStatus = agent.latest_version_status;
 
-  const lastDeliveryTime = deliverable.last_run_at
-    ? formatDistanceToNow(new Date(deliverable.last_run_at), { addSuffix: true })
+  const lastDeliveryTime = agent.last_run_at
+    ? formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })
     : null;
 
   return (
@@ -125,14 +125,14 @@ function DeliverableCard({
       <div className="flex items-start gap-3">
         {/* Mode icon as primary visual */}
         <div className="mt-1 shrink-0">
-          <DeliverableModeBadge mode={deliverable.mode} variant="icon" />
+          <AgentModeBadge mode={agent.mode} variant="icon" />
         </div>
 
         <div className="flex-1 min-w-0">
           {/* Title row */}
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium truncate">{deliverable.title}</h3>
-            {deliverable.origin === 'coordinator_created' && (
+            <h3 className="text-sm font-medium truncate">{agent.title}</h3>
+            {agent.origin === 'coordinator_created' && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                 <Sparkles className="w-2.5 h-2.5" />
                 Auto
@@ -182,7 +182,7 @@ function DeliverableCard({
               </>
             )}
             {/* Schedule status */}
-            {deliverable.status === 'paused' ? (
+            {agent.status === 'paused' ? (
               <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                 <Pause className="w-3 h-3" />
                 Paused
@@ -204,37 +204,37 @@ function DeliverableCard({
 // Main Page
 // =============================================================================
 
-export default function DeliverablesPage() {
+export default function AgentsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
-  const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>('all');
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [currentFilter, setCurrentFilter] = useState<AgentStatus | 'all'>('all');
 
   useEffect(() => {
-    loadDeliverables();
+    loadAgents();
   }, [currentFilter]);
 
-  const loadDeliverables = async () => {
+  const loadAgents = async () => {
     setLoading(true);
     try {
       const statusParam = currentFilter !== 'all' ? currentFilter : undefined;
-      const data = await api.deliverables.list(statusParam);
-      setDeliverables(data);
+      const data = await api.agents.list(statusParam);
+      setAgents(data);
     } catch (err) {
-      console.error('Failed to load deliverables:', err);
+      console.error('Failed to load agents:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const totalCount = deliverables.length;
+  const totalCount = agents.length;
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Deliverables</h1>
+          <h1 className="text-2xl font-bold">Agents</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Recurring outputs your agent produces on schedule.{' '}
             <Link href="/dashboard?create" className="text-primary hover:underline">
@@ -261,7 +261,7 @@ export default function DeliverablesPage() {
           ))}
           {!loading && (
             <span className="text-xs text-muted-foreground ml-2">
-              {totalCount} deliverable{totalCount === 1 ? '' : 's'}
+              {totalCount} agent{totalCount === 1 ? '' : 's'}
             </span>
           )}
         </div>
@@ -273,22 +273,22 @@ export default function DeliverablesPage() {
           </div>
         ) : totalCount === 0 ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No deliverables yet</p>
+            <p className="text-muted-foreground mb-4">No agents yet</p>
             <button
               onClick={() => router.push('/dashboard?create')}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <Plus className="w-4 h-4" />
-              Create your first deliverable
+              Create your first agent
             </button>
           </div>
         ) : (
           <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-            {deliverables.map((d) => (
-              <DeliverableCard
+            {agents.map((d) => (
+              <AgentCard
                 key={d.id}
-                deliverable={d}
-                onClick={() => router.push(`/deliverables/${d.id}`)}
+                agent={d}
+                onClick={() => router.push(`/agents/${d.id}`)}
               />
             ))}
           </div>

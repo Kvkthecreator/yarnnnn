@@ -22,7 +22,7 @@ The framework defines context as "the complete state available to a language mod
 |---|---|---|
 | **Context as finite resource** | Working memory capped at ~2,000 tokens. Platform content never injected into prompt. Lazy evaluation via Search primitive. | ⭐ |
 | **Progressive disclosure** | Four-layer model (Memory → Activity → Context → Work) loads incrementally. TP fetches platform content on demand, not preloaded. | 🟢 |
-| **Informativity over exhaustiveness** | Working memory: max 20 known facts, 5 deliverables, 10 activity events, 3 session summaries. Strict caps prevent bloat. | 🟢 |
+| **Informativity over exhaustiveness** | Working memory: max 20 known facts, 5 agents, 10 activity events, 3 session summaries. Strict caps prevent bloat. | 🟢 |
 | **Position-aware placement** | Working memory injected at system prompt level (beginning of context). Recent sessions and system summary at end of working memory block. | 🟡 |
 | **File-system-based access** | Not applicable — YARNNN uses DB-backed primitives (Search/Read) rather than filesystem. Functionally equivalent but different mechanism. | 🟢 |
 
@@ -59,7 +59,7 @@ The framework describes three approaches (anchored iterative, opaque, regenerati
 | **Tokens-per-task optimization** | Not measured. No metrics on total tokens from task start to completion. | 🔴 |
 | **Probe-based evaluation** | No compression quality evaluation framework. | 🔴 |
 
-**Assessment**: YARNNN implements the right compaction mechanics but lacks the framework's quality measurement. The artifact trail gap is significant — when TP compacts a long session, the trail of which platform content was searched, which deliverables were referenced, and what tool outputs were produced gets compressed into generic prose. The framework specifically warns this is the universal weakness and recommends separate artifact indices.
+**Assessment**: YARNNN implements the right compaction mechanics but lacks the framework's quality measurement. The artifact trail gap is significant — when TP compacts a long session, the trail of which platform content was searched, which agents were referenced, and what tool outputs were produced gets compressed into generic prose. The framework specifically warns this is the universal weakness and recommends separate artifact indices.
 
 ---
 
@@ -69,7 +69,7 @@ The framework compares production memory architectures (Mem0, Zep, Letta, LangMe
 
 | Layer | YARNNN Implementation | Score |
 |---|---|---|
-| **Working memory** | `build_working_memory()` injects ~2K tokens at system prompt. Profile, preferences, known facts, deliverables, platforms, sessions, system summary. | 🟢 |
+| **Working memory** | `build_working_memory()` injects ~2K tokens at system prompt. Profile, preferences, known facts, agents, platforms, sessions, system summary. | 🟢 |
 | **Short-term (session)** | Message history in `chat_messages`. Compaction at 80%. Session summaries bridge sessions. | 🟢 |
 | **Long-term (cross-session)** | `user_context` table with confidence scoring. Nightly extraction from conversations, feedback, patterns. | 🟢 |
 | **Entity memory** | No entity registry. Facts stored as flat key-value pairs (`fact:*`). No entity relationships or graph structure. | 🟡 |
@@ -106,9 +106,9 @@ The framework describes three patterns (supervisor/orchestrator, peer-to-peer, h
 |---|---|---|
 | **Architecture choice** | Single-agent (TP) with async backend orchestration. No multi-agent loop. | 🟡 |
 | **Context isolation** | Four independent scheduled jobs share data via DB tables, not context passing. Each operates in clean context. | ⭐ |
-| **Headless TP mode** | Deliverable execution reuses TP agent in non-streaming mode. Same primitives, different behavioral constraints. | 🟢 |
-| **Coordination** | Pure data dependency through shared tables. No inter-job calling. Platform sync → platform_content → signal processing → deliverables. | 🟢 |
-| **Telephone game avoidance** | Single agent means no supervisor paraphrasing. Deliverable output goes directly to user. | ⭐ |
+| **Headless TP mode** | Agent execution reuses TP agent in non-streaming mode. Same primitives, different behavioral constraints. | 🟢 |
+| **Coordination** | Pure data dependency through shared tables. No inter-job calling. Platform sync → platform_content → signal processing → agents. | 🟢 |
+| **Telephone game avoidance** | Single agent means no supervisor paraphrasing. Agent output goes directly to user. | ⭐ |
 
 **Assessment**: YARNNN sidesteps multi-agent complexity entirely by using a single TP agent with async backend orchestration. This is arguably superior to the framework's multi-agent patterns for YARNNN's use case. The framework warns about supervisor bottlenecks, telephone game problems, and coordination overhead — none of which apply. The four independent scheduled jobs achieve context isolation through data dependency (shared tables) without any of the multi-agent failure modes. The framework's own data shows token usage explains 80% of performance variance, and YARNNN's single-agent model minimizes tokens by avoiding inter-agent communication entirely.
 

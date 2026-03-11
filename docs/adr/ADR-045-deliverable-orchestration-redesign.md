@@ -1,9 +1,9 @@
-# ADR-045: Deliverable Orchestration Redesign
+# ADR-045: Agent Orchestration Redesign
 
 **Date**: 2026-02-11
 **Status**: Accepted — type-awareness and execution strategy model implemented; old 3-step pipeline superseded by ADR-042
 **Supersedes**: ADR-016 (Layered Agent Architecture) - execution model
-**Superseded by (execution)**: ADR-042 (Deliverable Execution Simplification) — replaced execute_gather_step/execute_synthesize_step/execute_stage_step with inline execution in deliverable_execution.py
+**Superseded by (execution)**: ADR-042 (Agent Execution Simplification) — replaced execute_gather_step/execute_synthesize_step/execute_stage_step with inline execution in agent_execution.py
 **Relates to**: ADR-044 (Type Reconceptualization), ADR-038 (Primitives), ADR-042
 
 ---
@@ -16,7 +16,7 @@ The current pipeline was designed for ADR-019's format-centric types:
 
 ```python
 # Current: One-size-fits-all pipeline
-async def execute_pipeline(deliverable_id):
+async def execute_pipeline(agent_id):
     gather_result = await execute_gather_step(...)      # Always ResearchAgent
     synthesize_result = await execute_synthesize_step(...) # Always ContentAgent
     stage_result = await execute_stage_step(...)
@@ -35,7 +35,7 @@ This ignores:
 │ Agents (api/agents/)                                            │
 ├─────────────────────────────────────────────────────────────────┤
 │ SynthesizerAgent  - Synthesizes pre-fetched context             │
-│ DeliverableAgent  - Generates deliverable output (primary)      │
+│ AgentAgent  - Generates agent output (primary)      │
 │ ReportAgent       - Generates standalone reports                │
 │ ThinkingPartner   - Chat agent with primitives                  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -46,7 +46,7 @@ This ignores:
 
 **Agent Type Mapping** (old → new):
 - `research` → `synthesizer`
-- `content` → `deliverable`
+- `content` → `agent`
 - `reporting` → `report`
 
 **Problem**: Agents are passive processors, not active gatherers. The pipeline hardcodes gather logic in Python, not in agent reasoning.
@@ -72,11 +72,11 @@ Each subagent:
 
 ## Decision
 
-Redesign deliverable orchestration with **type-aware execution strategies** and **tool-equipped agents**.
+Redesign agent orchestration with **type-aware execution strategies** and **tool-equipped agents**.
 
 ### Principle 1: Type Classification Drives Orchestration
 
-The `type_classification` from ADR-044 determines HOW the deliverable is executed:
+The `type_classification` from ADR-044 determines HOW the agent is executed:
 
 | Binding | Orchestration Strategy |
 |---------|----------------------|
@@ -86,12 +86,12 @@ The `type_classification` from ADR-044 determines HOW the deliverable is execute
 | `hybrid` | Research + Platform gatherers → Hybrid synthesizer |
 
 ```python
-async def execute_pipeline(deliverable):
-    classification = deliverable.get("type_classification", {})
+async def execute_pipeline(agent):
+    classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
 
     strategy = get_strategy(binding)
-    return await strategy.execute(deliverable)
+    return await strategy.execute(agent)
 ```
 
 ### Principle 2: Agents Get Tools Based on Role
@@ -333,7 +333,7 @@ PLATFORM_FETCH_TOOL = {
 
 ---
 
-## New Deliverable Types
+## New Agent Types
 
 With web search capability, add the ADR-044 research types:
 
@@ -350,12 +350,12 @@ With web search capability, add the ADR-044 research types:
 
 ### Phase 1: Type-Aware Strategy Selection ✅ (2026-02-11)
 - [x] Add strategy dispatcher based on `type_classification.binding`
-- [x] Keep existing agents (now DeliverableAgent), route via strategy
+- [x] Keep existing agents (now AgentAgent), route via strategy
 - [x] Parallel source fetching within cross-platform strategy
 
 **Implementation:**
 - `api/services/execution_strategies.py` - Strategy classes and dispatcher
-- `api/services/deliverable_execution.py` - Updated to use `get_execution_strategy()`
+- `api/services/agent_execution.py` - Updated to use `get_execution_strategy()`
 
 **Strategies implemented:**
 - `PlatformBoundStrategy` - Single platform focus
@@ -375,7 +375,7 @@ With web search capability, add the ADR-044 research types:
 
 **Key design decisions:**
 - Anthropic's native `web_search` is a server-side tool (no client execution)
-- Research runs before deliverable generation (context gathering phase)
+- Research runs before agent generation (context gathering phase)
 - HybridStrategy runs web research and platform fetch concurrently via `asyncio.gather`
 
 ### Phase 3: Additional Research Types (Future)
@@ -407,7 +407,7 @@ The Phase 2 work enables it to function with real web research.
 
 ## Migration
 
-Existing deliverables continue to work:
+Existing agents continue to work:
 - Default `binding` is `cross_platform`
 - Default strategy is current ResearchAgent → ContentAgent chain
 - No breaking changes to API
@@ -430,7 +430,7 @@ New types and strategies are additive.
 
 ## Related
 
-- ADR-044: Deliverable Type Reconceptualization
+- ADR-044: Agent Type Reconceptualization
 - ADR-038: TP Primitives (Execute, Search)
 - ADR-016: Layered Agent Architecture (partially superseded)
 - ADR-030: Platform Sync (source fetching mechanics)

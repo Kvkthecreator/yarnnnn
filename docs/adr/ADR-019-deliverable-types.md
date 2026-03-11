@@ -1,26 +1,26 @@
-# ADR-019: Deliverable Types System
+# ADR-019: Agent Types System
 
-**Status:** Superseded by [ADR-082](ADR-082-deliverable-type-consolidation.md) — type system consolidated from 27 to 8 active types
+**Status:** Superseded by [ADR-082](ADR-082-agent-type-consolidation.md) — type system consolidated from 27 to 8 active types
 **Date:** 2026-02-02
-**Extends:** ADR-018 (Recurring Deliverables Product Pivot)
+**Extends:** ADR-018 (Recurring Agents Product Pivot)
 
 ## Context
 
-ADR-018 established the recurring deliverables model but left deliverable creation freeform—users describe what they want in text. This creates two problems:
+ADR-018 established the recurring agents model but left agent creation freeform—users describe what they want in text. This creates two problems:
 
-1. **Quality unpredictability**: We can't guarantee quality for arbitrary deliverable types
+1. **Quality unpredictability**: We can't guarantee quality for arbitrary agent types
 2. **Expectation mismatch**: Users may expect outputs we can't reliably produce (dashboards, slide decks, etc.)
 
-We need to constrain the product to deliverable types we can confidently produce, enabling:
+We need to constrain the product to agent types we can confidently produce, enabling:
 - Clear user expectations (positioning)
 - Type-specific generation (quality)
 - Measurable success criteria (validation)
 
 ## Decision
 
-### Deliverable Type System
+### Agent Type System
 
-Replace freeform deliverable creation with a **type-first** approach. Users select from supported types, each with:
+Replace freeform agent creation with a **type-first** approach. Users select from supported types, each with:
 - Defined structure and sections
 - Type-specific configuration options
 - Quality criteria and validation
@@ -209,8 +209,8 @@ interface CustomConfig {
 ### Data Model Changes
 
 ```typescript
-// New deliverable type enum
-type DeliverableType =
+// New agent type enum
+type AgentType =
   | 'status_report'
   | 'stakeholder_update'
   | 'research_brief'
@@ -225,20 +225,20 @@ type TypeConfig =
   | { type: 'meeting_summary'; config: MeetingSummaryConfig }
   | { type: 'custom'; config: CustomConfig };
 
-// Updated Deliverable interface
-interface Deliverable {
+// Updated Agent interface
+interface Agent {
   id: string;
   title: string;
 
   // NEW: Type system
-  deliverable_type: DeliverableType;
+  agent_type: AgentType;
   type_config: TypeConfig['config'];
 
   // Preserved from ADR-018
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
   sources: DataSource[];
-  status: DeliverableStatus;
+  status: AgentStatus;
 
   // Metadata
   project_id?: string;
@@ -252,7 +252,7 @@ interface Deliverable {
 ```
 
 **Database migration:**
-- Add `deliverable_type` column (default: 'custom' for existing)
+- Add `agent_type` column (default: 'custom' for existing)
 - Add `type_config` JSONB column
 - Migrate existing `template_structure` to `type_config` for 'custom' type
 - Deprecate `description` field (absorbed into type_config)
@@ -287,7 +287,7 @@ interface Deliverable {
 - Tone/formality (may be pre-filled from type)
 
 **Step 4: Sources** (unchanged, but type-aware hints)
-- What informs this deliverable?
+- What informs this agent?
 - Type-specific suggestions (e.g., "For competitive briefs, add competitor websites")
 
 **Step 5: Schedule** (unchanged)
@@ -349,7 +349,7 @@ Write the stakeholder update now:
 Before staging a version, run type-specific validation:
 
 ```python
-def validate_output(deliverable_type: str, content: str, config: dict) -> ValidationResult:
+def validate_output(agent_type: str, content: str, config: dict) -> ValidationResult:
     """
     Returns: { valid: bool, issues: list[str], score: float }
     """
@@ -361,7 +361,7 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> Valida
         'custom': lambda c, cfg: ValidationResult(valid=True, issues=[], score=0.5),
     }
 
-    return validators[deliverable_type](content, config)
+    return validators[agent_type](content, config)
 
 def validate_status_report(content: str, config: dict) -> ValidationResult:
     issues = []
@@ -414,13 +414,13 @@ Per-type tracking:
 - **Foundation for expansion**: Easy to add Tier 2 types later
 
 ### Negative
-- **Constrained scope**: Users can't request arbitrary deliverables
-- **Migration complexity**: Existing deliverables need type assignment
+- **Constrained scope**: Users can't request arbitrary agents
+- **Migration complexity**: Existing agents need type assignment
 - **Prompt engineering**: Each type needs tuned prompts
 - **More code paths**: Type-specific UI, validation, generation
 
 ### Technical Debt
-- Current freeform deliverables become 'custom' type
+- Current freeform agents become 'custom' type
 - May need to revisit 'custom' type if overused (indicates missing type)
 
 ---
@@ -428,9 +428,9 @@ Per-type tracking:
 ## Implementation Plan
 
 ### Phase 1: Data Model (Backend)
-1. Add `deliverable_type` and `type_config` columns
+1. Add `agent_type` and `type_config` columns
 2. Create Pydantic models for each type config
-3. Migrate existing deliverables to 'custom' type
+3. Migrate existing agents to 'custom' type
 4. Update create/update endpoints to handle types
 
 ### Phase 2: Wizard Refactor (Frontend)
@@ -456,7 +456,7 @@ Per-type tracking:
 
 1. **Should 'custom' be hidden or discouraged?**
    - Option A: Available but with "experimental" label
-   - Option B: Require explicit unlock (e.g., after 3 typed deliverables)
+   - Option B: Require explicit unlock (e.g., after 3 typed agents)
    - Recommendation: Option A for now, monitor usage
 
 2. **How to handle type changes?**
@@ -486,7 +486,7 @@ Recurring proposals for consultants, agencies, freelancers.
 - Executive summary
 - Understanding of needs
 - Proposed approach
-- Deliverables & timeline
+- Agents & timeline
 - Investment/pricing
 - Why us / social proof
 
@@ -500,7 +500,7 @@ interface ClientProposalConfig {
     executive_summary: boolean;
     needs_understanding: boolean;
     approach: boolean;
-    deliverables: boolean;
+    agents: boolean;
     timeline: boolean;
     investment: boolean;
     social_proof: boolean;
@@ -513,7 +513,7 @@ interface ClientProposalConfig {
 **Quality criteria:**
 - Personalized to client context (not generic)
 - Clear value proposition
-- Specific deliverables, not vague promises
+- Specific agents, not vague promises
 - Professional but not stiff
 
 ---

@@ -1,7 +1,7 @@
 """
 Resend Exporter - ADR-066 Email-First Delivery
 
-Delivers deliverable content via Resend API (server-side, no user OAuth required).
+Delivers agent content via Resend API (server-side, no user OAuth required).
 
 This is the default email delivery channel. Unlike GmailExporter (which requires
 the user's Google OAuth refresh_token), ResendExporter works for all users
@@ -90,7 +90,7 @@ class ResendExporter(DestinationExporter):
 
         # Generate HTML from markdown content
         platform_variant = metadata.get("platform_variant")
-        deliverable_id = metadata.get("deliverable_id", "")
+        agent_id = metadata.get("agent_id", "")
         try:
             html_body = generate_gmail_html(
                 content=content,
@@ -98,7 +98,7 @@ class ResendExporter(DestinationExporter):
                 metadata={
                     "title": title,
                     "recipient": target,
-                    "deliverable_id": deliverable_id,
+                    "agent_id": agent_id,
                     "version_number": metadata.get("version_number"),
                     "mode": metadata.get("mode"),
                     "date": options.get("date", ""),

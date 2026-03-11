@@ -8,8 +8,8 @@
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — supersedes ADR-061
 - [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md) — historical (superseded by ADR-080)
 - [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md)
-- [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
-- [ADR-020: Deliverable-Centric Chat](../adr/ADR-020-deliverable-centric-chat.md)
+- [ADR-018: Recurring Agents](../adr/ADR-018-recurring-agents.md)
+- [ADR-020: Agent-Centric Chat](../adr/ADR-020-agent-centric-chat.md)
 - [Strategic Direction](../strategy/YARNNN_STRATEGIC_DIRECTION.md)
 
 ---
@@ -21,22 +21,22 @@ YARNNN's architecture serves a fundamental shift in how users relate to AI-assis
 **From**: User as operator (does the work, AI assists)
 **To**: User as supervisor (AI does the work, user oversees)
 
-This shift has specific implications for how we think about deliverables and TP (Thinking Partner).
+This shift has specific implications for how we think about agents and TP (Thinking Partner).
 
 ---
 
 ## The Two Dimensions
 
-### Deliverables: Objects of Supervision
+### Agents: Objects of Supervision
 
-Deliverables are **first-class data entities**. They represent:
+Agents are **first-class data entities**. They represent:
 
 - What the system produces
 - What the user supervises
 - What accumulates value over time
 - The units of measurable quality
 
-From a data and workflow perspective, deliverables are the core product. They have:
+From a data and workflow perspective, agents are the core product. They have:
 - Versions (each execution produces a new one)
 - Feedback (user edits captured and categorized)
 - Quality metrics (edit distance decreasing over time)
@@ -63,7 +63,7 @@ From a UI/UX perspective, TP is how users interact with the system. It provides:
 
 These two dimensions are not in conflict—they're complementary:
 
-| Dimension | Deliverables | TP |
+| Dimension | Agents | TP |
 |-----------|--------------|-----|
 | **Role** | Data entities | Interaction surface |
 | **What they hold** | Artifacts, versions, metrics | Context, memory, preferences |
@@ -87,7 +87,7 @@ These two dimensions are not in conflict—they're complementary:
 │              ▲                        │                        │
 │              │                        │                        │
 │              └────────────────────────┘                        │
-│              TP manipulates deliverables                       │
+│              TP manipulates agents                       │
 │              on user's behalf                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -98,9 +98,9 @@ These two dimensions are not in conflict—they're complementary:
 
 When making UI/UX decisions, ask these questions:
 
-### 1. Is this about displaying/organizing deliverable data?
+### 1. Is this about displaying/organizing agent data?
 
-**Use deliverable-centric patterns:**
+**Use agent-centric patterns:**
 - Dashboard views (what's due, what's staged, quality trends)
 - Detail pages (version history, content, metadata)
 - List/grid layouts for browsing
@@ -118,8 +118,8 @@ When making UI/UX decisions, ask these questions:
 
 **Apply the supervision principle:**
 - TP surfaces capabilities
-- User exercises them on deliverables
-- The deliverable is visible; TP is the mechanism for change
+- User exercises them on agents
+- The agent is visible; TP is the mechanism for change
 
 ---
 
@@ -129,7 +129,7 @@ When making UI/UX decisions, ask these questions:
 
 The review page exemplifies the supervision model:
 
-- **Deliverable-centric**: The draft content is displayed prominently for review
+- **Agent-centric**: The draft content is displayed prominently for review
 - **TP-centric**: Inline refinement chips ("Shorter", "More formal") and custom instruction input
 - **Supervision in action**: User reviews (sees the artifact), then uses TP to refine, then approves/rejects
 
@@ -151,20 +151,20 @@ The review page exemplifies the supervision model:
 └────────────────────────────────────────────────────────┘
 ```
 
-### Deliverables Dashboard
+### Agents Dashboard
 
-The dashboard is primarily deliverable-centric with TP available:
+The dashboard is primarily agent-centric with TP available:
 
-- **Deliverable-centric**: Cards showing each deliverable, status, next due date, quality trend
-- **TP-centric**: Floating chat trigger for "Create a new deliverable" or questions
+- **Agent-centric**: Cards showing each agent, status, next due date, quality trend
+- **TP-centric**: Floating chat trigger for "Create a new agent" or questions
 - **Supervision in action**: User scans what needs attention, can ask TP to help
 
 ### Onboarding Flow
 
 Onboarding can use either dimension:
 
-- **Deliverable-centric path**: Wizard that walks through creating first deliverable
-- **TP-centric path**: Conversational flow where TP asks questions and scaffolds deliverable
+- **Agent-centric path**: Wizard that walks through creating first agent
+- **TP-centric path**: Conversational flow where TP asks questions and scaffolds agent
 - **Both valid**: User chooses their preferred interaction style
 
 ---
@@ -175,13 +175,13 @@ Onboarding can use either dimension:
 
 **Wrong**: Making `/dashboard/chat` the primary landing page
 **Why**: Chat is an interaction method, not the thing being supervised
-**Right**: Dashboard shows deliverables; chat is available everywhere
+**Right**: Dashboard shows agents; chat is available everywhere
 
-### Anti-pattern 2: Hiding Deliverables Behind Chat
+### Anti-pattern 2: Hiding Agents Behind Chat
 
-**Wrong**: User must ask TP to see their deliverables
+**Wrong**: User must ask TP to see their agents
 **Why**: Supervisors need direct visibility into what they supervise
-**Right**: Deliverables are directly visible; TP helps manipulate them
+**Right**: Agents are directly visible; TP helps manipulate them
 
 ### Anti-pattern 3: Direct Manipulation Only
 
@@ -191,7 +191,7 @@ Onboarding can use either dimension:
 
 ### Anti-pattern 4: Separate Contexts
 
-**Wrong**: Chat in one place, deliverables in another, no connection
+**Wrong**: Chat in one place, agents in another, no connection
 **Why**: TP loses context, user must re-explain
 **Right**: TP is contextually aware of what user is viewing
 
@@ -201,11 +201,11 @@ Onboarding can use either dimension:
 
 When building a new feature, verify:
 
-- [ ] Deliverable data is visible and accessible (not hidden behind chat)
+- [ ] Agent data is visible and accessible (not hidden behind chat)
 - [ ] TP interaction is available in context (not requiring navigation)
 - [ ] User can supervise (review, approve, reject, track quality)
 - [ ] User can delegate/refine via TP (natural language, quick actions)
-- [ ] Context flows between deliverable view and TP interaction
+- [ ] Context flows between agent view and TP interaction
 
 ---
 
@@ -214,22 +214,22 @@ When building a new feature, verify:
 ### ADR-013: Conversation + Surfaces
 
 ADR-013 established the drawer pattern. The supervision model clarifies:
-- Surfaces = deliverable views (the objects of supervision)
+- Surfaces = agent views (the objects of supervision)
 - Conversation = TP interaction (the method of supervision)
-- Drawer = TP appearing in context of deliverables
+- Drawer = TP appearing in context of agents
 
-### ADR-018: Recurring Deliverables
+### ADR-018: Recurring Agents
 
-ADR-018 established deliverables as the product. The supervision model clarifies:
-- Deliverables are first-class **data entities**
+ADR-018 established agents as the product. The supervision model clarifies:
+- Agents are first-class **data entities**
 - TP is repositioned as the **interaction layer** for supervision
 - Both are first-class, in their respective dimensions
 
-### ADR-020: Deliverable-Centric Chat
+### ADR-020: Agent-Centric Chat
 
 ADR-020 proposed inverting chat and content. The supervision model refines this:
 - Not "content primary, chat secondary"
-- Rather: "deliverables are objects, TP is interaction method"
+- Rather: "agents are objects, TP is interaction method"
 - Both are essential; neither is subordinate
 
 ---
@@ -238,8 +238,8 @@ ADR-020 proposed inverting chat and content. The supervision model refines this:
 
 **The supervision model provides a unified framework:**
 
-1. **Deliverables** = what user supervises (data, artifacts, quality)
+1. **Agents** = what user supervises (data, artifacts, quality)
 2. **TP** = how user supervises (interaction, refinement, delegation)
 3. **User** = supervisor who oversees AI-produced work
 
-This resolves the apparent tension between "deliverables as first-class" and "TP as primary interface" by recognizing they operate in different dimensions—one is data, one is interaction. Both are first-class in their domain.
+This resolves the apparent tension between "agents as first-class" and "TP as primary interface" by recognizing they operate in different dimensions—one is data, one is interaction. Both are first-class in their domain.

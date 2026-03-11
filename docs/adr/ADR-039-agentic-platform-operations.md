@@ -84,7 +84,7 @@ List available resources from a connected platform.
 ### 3. `sync_platform_resource`
 Trigger a sync/import for a specific resource.
 
-**Use case**: Fetch latest content from a channel/label before creating a deliverable.
+**Use case**: Fetch latest content from a channel/label before creating a agent.
 
 ```json
 {
@@ -125,7 +125,7 @@ TP thinks:
 2. Find "daily work" channel → list_platform_resources(slack)
 3. Check if recently synced → get_sync_status(slack, C456)
 4. If stale, sync it → sync_platform_resource(slack, C456)
-5. Create the deliverable → create_deliverable(...)
+5. Create the agent → create_agent(...)
 
 TP says:
 "I found your #daily-work channel and I'm syncing the last 7 days of messages.

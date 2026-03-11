@@ -24,8 +24,8 @@ from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import (
-    CREATE_DELIVERABLE_TOOL, handle_create_deliverable,
-    ADVANCE_DELIVERABLE_SCHEDULE_TOOL, handle_advance_deliverable_schedule,
+    CREATE_DELIVERABLE_TOOL, handle_create_agent,
+    ADVANCE_DELIVERABLE_SCHEDULE_TOOL, handle_advance_agent_schedule,
 )
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
@@ -203,8 +203,8 @@ HANDLERS: dict[str, Callable] = {
     "Respond": handle_respond,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
-    "CreateDeliverable": handle_create_deliverable,
-    "AdvanceDeliverableSchedule": handle_advance_deliverable_schedule,
+    "CreateAgent": handle_create_agent,
+    "AdvanceAgentSchedule": handle_advance_agent_schedule,
 }
 
 
@@ -281,8 +281,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Clarify":          ["chat"],
     "list_integrations": ["chat"],
     # Coordinator write primitives — headless only (ADR-092)
-    "CreateDeliverable":            ["headless"],
-    "AdvanceDeliverableSchedule":   ["headless"],
+    "CreateAgent":            ["headless"],
+    "AdvanceAgentSchedule":   ["headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
@@ -307,7 +307,7 @@ def get_tools_for_mode(mode: str) -> list[dict]:
     return tools
 
 
-def create_headless_executor(client: Any, user_id: str, deliverable_sources: Optional[list] = None, coordinator_deliverable_id: Optional[str] = None):
+def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[list] = None, coordinator_agent_id: Optional[str] = None):
     """
     Create a tool executor function for headless mode.
 
@@ -318,21 +318,21 @@ def create_headless_executor(client: Any, user_id: str, deliverable_sources: Opt
     Args:
         client: Supabase client (service role)
         user_id: User UUID for data scoping
-        deliverable_sources: ADR-092 — deliverable's configured sources list, used by
+        agent_sources: ADR-092 — agent's configured sources list, used by
                              RefreshPlatformContent to scope headless refreshes
-        coordinator_deliverable_id: ADR-092 — ID of the coordinator deliverable running this
-                                    executor, used by CreateDeliverable for attribution
+        coordinator_agent_id: ADR-092 — ID of the coordinator agent running this
+                                    executor, used by CreateAgent for attribution
     """
     class HeadlessAuth:
         """Minimal auth context for headless execution."""
-        def __init__(self, client, user_id, deliverable_sources=None, coordinator_deliverable_id=None):
+        def __init__(self, client, user_id, agent_sources=None, coordinator_agent_id=None):
             self.client = client
             self.user_id = user_id
             self.headless = True  # ADR-092: signals headless mode to primitives
-            self.deliverable_sources = deliverable_sources  # ADR-092: source scoping
-            self.coordinator_deliverable_id = coordinator_deliverable_id  # ADR-092: attribution
+            self.agent_sources = agent_sources  # ADR-092: source scoping
+            self.coordinator_agent_id = coordinator_agent_id  # ADR-092: attribution
 
-    auth = HeadlessAuth(client, user_id, deliverable_sources, coordinator_deliverable_id)
+    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id)
 
     async def executor(tool_name: str, tool_input: dict) -> dict:
         # Verify tool is allowed in headless mode

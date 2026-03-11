@@ -1,7 +1,7 @@
 """
 Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch + ADR-081 Consolidation
 
-Determines HOW a deliverable is executed based on its type_classification.binding.
+Determines HOW a agent is executed based on its type_classification.binding.
 
 Strategies:
 - platform_bound: Single platform reader → headless agent
@@ -41,7 +41,7 @@ class ExecutionStrategy(ABC):
         self,
         client,
         user_id: str,
-        deliverable: dict,
+        agent: dict,
     ) -> GatheredContext:
         """Gather context according to strategy."""
         pass
@@ -55,7 +55,7 @@ class ExecutionStrategy(ABC):
 
 class PlatformBoundStrategy(ExecutionStrategy):
     """
-    Strategy for platform_bound deliverables (e.g., digest).
+    Strategy for platform_bound agents (e.g., digest).
     Fetches from one platform, uses platform-specific synthesis.
     """
 
@@ -67,14 +67,14 @@ class PlatformBoundStrategy(ExecutionStrategy):
         self,
         client,
         user_id: str,
-        deliverable: dict,
+        agent: dict,
     ) -> GatheredContext:
         from services.platform_content import get_content_summary_for_generation
 
-        classification = deliverable.get("type_classification", {})
+        classification = agent.get("type_classification", {})
         primary_platform = classification.get("primary_platform")
-        sources = deliverable.get("sources", [])
-        deliverable_id = deliverable.get("id")
+        sources = agent.get("sources", [])
+        agent_id = agent.get("id")
 
         context_parts = []
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
@@ -117,7 +117,7 @@ class PlatformBoundStrategy(ExecutionStrategy):
                 content_text, content_ids = await get_content_summary_for_generation(
                     db_client=client,
                     user_id=user_id,
-                    deliverable_sources=platform_sources,
+                    agent_sources=platform_sources,
                 )
                 if content_text:
                     context_parts.append(content_text)
@@ -135,7 +135,7 @@ class PlatformBoundStrategy(ExecutionStrategy):
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
         # Add past version feedback
-        past_context = await _get_past_versions_context(client, deliverable_id)
+        past_context = await _get_past_versions_context(client, agent_id)
         if past_context:
             context_parts.append(past_context)
 
@@ -154,7 +154,7 @@ class PlatformBoundStrategy(ExecutionStrategy):
 
 class CrossPlatformStrategy(ExecutionStrategy):
     """
-    Strategy for cross_platform deliverables (e.g., status, brief, watch).
+    Strategy for cross_platform agents (e.g., status, brief, watch).
     Fetches from multiple platforms in parallel, then synthesizes.
     """
 
@@ -166,12 +166,12 @@ class CrossPlatformStrategy(ExecutionStrategy):
         self,
         client,
         user_id: str,
-        deliverable: dict,
+        agent: dict,
     ) -> GatheredContext:
         from services.platform_content import get_content_summary_for_generation
 
-        sources = deliverable.get("sources", [])
-        deliverable_id = deliverable.get("id")
+        sources = agent.get("sources", [])
+        agent_id = agent.get("id")
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
@@ -201,7 +201,7 @@ class CrossPlatformStrategy(ExecutionStrategy):
                 content_text, content_ids = await get_content_summary_for_generation(
                     db_client=client,
                     user_id=user_id,
-                    deliverable_sources=integration_sources,
+                    agent_sources=integration_sources,
                 )
                 if content_text:
                     context_parts.append(content_text)
@@ -225,7 +225,7 @@ class CrossPlatformStrategy(ExecutionStrategy):
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
         # Add past version feedback
-        past_context = await _get_past_versions_context(client, deliverable_id)
+        past_context = await _get_past_versions_context(client, agent_id)
         if past_context:
             context_parts.append(past_context)
 
@@ -244,7 +244,7 @@ class CrossPlatformStrategy(ExecutionStrategy):
 
 class ResearchStrategy(ExecutionStrategy):
     """
-    Strategy for research deliverables.
+    Strategy for research agents.
 
     ADR-081: No longer runs web research during context gathering.
     Gathers optional platform grounding, then passes a research_directive
@@ -259,11 +259,11 @@ class ResearchStrategy(ExecutionStrategy):
         self,
         client,
         user_id: str,
-        deliverable: dict,
+        agent: dict,
     ) -> GatheredContext:
-        title = deliverable.get("title", "")
-        description = deliverable.get("description", "")
-        sources = deliverable.get("sources", [])
+        title = agent.get("title", "")
+        description = agent.get("description", "")
+        sources = agent.get("sources", [])
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
         context_parts = []
@@ -273,7 +273,7 @@ class ResearchStrategy(ExecutionStrategy):
         if integration_sources:
             logger.info(f"[RESEARCH] Adding platform grounding from {len(integration_sources)} sources")
             platform_strategy = CrossPlatformStrategy()
-            platform_result = await platform_strategy.gather_context(client, user_id, deliverable)
+            platform_result = await platform_strategy.gather_context(client, user_id, agent)
 
             if platform_result.content and platform_result.content != "(No context available)":
                 context_parts.append(f"[PLATFORM GROUNDING]\n{platform_result.content}")
@@ -287,7 +287,7 @@ class ResearchStrategy(ExecutionStrategy):
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
         # 3. Add past version feedback
-        past_context = await _get_past_versions_context(client, deliverable.get("id"))
+        past_context = await _get_past_versions_context(client, agent.get("id"))
         if past_context:
             context_parts.append(past_context)
 
@@ -309,7 +309,7 @@ class ResearchStrategy(ExecutionStrategy):
 
 class HybridStrategy(ExecutionStrategy):
     """
-    Strategy for hybrid deliverables.
+    Strategy for hybrid agents.
 
     ADR-081: Gathers platform context, then passes a research_directive
     so the headless agent combines web research with platform grounding.
@@ -324,16 +324,16 @@ class HybridStrategy(ExecutionStrategy):
         self,
         client,
         user_id: str,
-        deliverable: dict,
+        agent: dict,
     ) -> GatheredContext:
-        title = deliverable.get("title", "")
-        description = deliverable.get("description", "")
+        title = agent.get("title", "")
+        description = agent.get("description", "")
 
         logger.info(f"[HYBRID] Gathering platform context: {title[:50]}...")
 
         # Delegate platform context gathering to CrossPlatformStrategy
         platform_strategy = CrossPlatformStrategy()
-        result = await platform_strategy.gather_context(client, user_id, deliverable)
+        result = await platform_strategy.gather_context(client, user_id, agent)
 
         # Override strategy name
         result.summary["strategy"] = self.strategy_name
@@ -357,7 +357,7 @@ def _build_research_directive(title: str, description: str) -> str:
     This replaces the standalone RESEARCH_SYSTEM_PROMPT from web_research.py.
     The headless agent receives this and uses WebSearch to investigate.
     """
-    directive = f"This deliverable requires web research. Use WebSearch to investigate.\n\nResearch objective: {title}"
+    directive = f"This agent requires web research. Use WebSearch to investigate.\n\nResearch objective: {title}"
     if description:
         directive += f"\n{description}"
     directive += """
@@ -375,17 +375,17 @@ Research approach:
 # Strategy Selection
 # =============================================================================
 
-def get_execution_strategy(deliverable: dict) -> ExecutionStrategy:
+def get_execution_strategy(agent: dict) -> ExecutionStrategy:
     """
     Select execution strategy based on type_classification.binding.
 
     Args:
-        deliverable: Deliverable dict with type_classification
+        agent: Agent dict with type_classification
 
     Returns:
         Appropriate ExecutionStrategy instance
     """
-    classification = deliverable.get("type_classification", {})
+    classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
 
     strategy_map = {
@@ -436,14 +436,14 @@ async def _get_user_memories(client, user_id: str) -> str:
         return ""
 
 
-async def _get_past_versions_context(client, deliverable_id: str) -> str:
+async def _get_past_versions_context(client, agent_id: str) -> str:
     """Get past version feedback for learning."""
-    if not deliverable_id:
+    if not agent_id:
         return ""
 
     try:
-        from services.deliverable_pipeline import get_past_versions_context
-        return await get_past_versions_context(client, deliverable_id)
+        from services.agent_pipeline import get_past_versions_context
+        return await get_past_versions_context(client, agent_id)
     except Exception as e:
         logger.warning(f"[STRATEGY] Failed to get past versions: {e}")
         return ""

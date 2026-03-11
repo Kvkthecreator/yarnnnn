@@ -44,9 +44,9 @@ Mixing them creates confusion: a form field for instructions looks like configur
 - Feedback on output ("too verbose", "missing the Notion updates")
 - Priority signals ("focus on the #engineering channel this week")
 
-→ These belong in **chat/inline**. TP processes them, acknowledges, and persists to `deliverable_instructions` or `deliverable_memory`.
+→ These belong in **chat/inline**. TP processes them, acknowledges, and persists to `agent_instructions` or `agent_memory`.
 
-**Configuration** — structural settings that define the deliverable's operating parameters:
+**Configuration** — structural settings that define the agent's operating parameters:
 - Schedule (frequency, day, time, timezone)
 - Data sources (which channels, labels, pages to read)
 - Destination (where to deliver: email, Slack, Notion)
@@ -71,12 +71,12 @@ Mixing them creates confusion: a form field for instructions looks like configur
 
 | What | Verb | How |
 |------|------|-----|
-| Set/update instructions | prompt | User says it → TP persists to `deliverable_instructions` |
+| Set/update instructions | prompt | User says it → TP persists to `agent_instructions` |
 | Define audience | prompt | User describes recipient → TP persists to `recipient_context` |
 | Give version feedback | panel | Feedback strip on version preview in panel |
 | Request generation | execute | + menu "Generate new version" |
-| Ask about deliverable | chat | Scoped conversation (TP has deliverable context) |
-| Create new deliverable | show | Type selector cards from + menu |
+| Ask about agent | chat | Scoped conversation (TP has agent context) |
+| Create new agent | show | Type selector cards from + menu |
 
 ### Drawer surface
 
@@ -133,7 +133,7 @@ The current Instructions drawer tab (behavior textarea + audience fields + promp
 
 2. **Bulk source changes** — "Add all my Slack channels" is conversational, but the visual SourcePicker grid is better for selecting specific channels. Configuration UIs can still be the best tool — the principle is about where the interaction *starts*, not that everything must be a chat message.
 
-3. **First-time setup** — During deliverable creation, the user needs to set everything at once (type, sources, schedule, instructions). This is a wizard flow that mixes configuration and directives. The creation flow is its own surface that doesn't need to follow the steady-state mapping.
+3. **First-time setup** — During agent creation, the user needs to set everything at once (type, sources, schedule, instructions). This is a wizard flow that mixes configuration and directives. The creation flow is its own surface that doesn't need to follow the steady-state mapping.
 
 ---
 

@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * Drawer panel components for the Deliverable Workspace page.
+ * Drawer panel components for the Agent Workspace page.
  *
- * Extracted from deliverables/[id]/page.tsx for maintainability.
+ * Extracted from agents/[id]/page.tsx for maintainability.
  * Includes: MemoryPanel, InstructionsPanel, SessionsPanel
  *
  * InstructionsPanel is a read-only reference view (ADR-105):
- * - Behavior Directives (deliverable_instructions) — read-only display
+ * - Behavior Directives (agent_instructions) — read-only display
  * - Audience (recipient_context) — read-only summary
  * - Prompt Preview (client-side composition of what the agent sees)
  * - "Edit in chat" affordance to direct users to the chat surface
@@ -26,18 +26,18 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type {
-  Deliverable,
-  DeliverableSession,
+  Agent,
+  AgentSession,
   RecipientContext,
-  DeliverableMemory,
+  AgentMemory,
 } from '@/types';
 
 // =============================================================================
 // MemoryPanel
 // =============================================================================
 
-export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
-  const memory = deliverable.deliverable_memory;
+export function MemoryPanel({ agent }: { agent: Agent }) {
+  const memory = agent.agent_memory;
   const observations = memory?.observations || [];
   const reviewLog = memory?.review_log || [];
   const goal = memory?.goal;
@@ -46,7 +46,7 @@ export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
-          No observations yet. The agent accumulates knowledge as it processes content for this deliverable.
+          No observations yet. The agent accumulates knowledge as it processes content for this agent.
         </p>
       </div>
     );
@@ -123,18 +123,18 @@ export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
 function composePromptPreview(
   instructions: string,
   recipient: RecipientContext,
-  memory?: DeliverableMemory,
+  memory?: AgentMemory,
 ): string {
   const parts: string[] = [];
 
   // System prompt: instructions section
   if (instructions.trim()) {
-    parts.push('## Deliverable Instructions');
-    parts.push('The user has set these behavioral directives for this deliverable:');
+    parts.push('## Agent Instructions');
+    parts.push('The user has set these behavioral directives for this agent:');
     parts.push(instructions.trim());
   }
 
-  // System prompt: memory section (read-only, from deliverable_memory)
+  // System prompt: memory section (read-only, from agent_memory)
   if (memory) {
     const memParts: string[] = [];
     if (memory.goal) {
@@ -155,7 +155,7 @@ function composePromptPreview(
     }
     if (memParts.length) {
       parts.push('');
-      parts.push('## Deliverable Memory');
+      parts.push('## Agent Memory');
       parts.push(memParts.join('\n'));
     }
   }
@@ -184,15 +184,15 @@ function composePromptPreview(
 // =============================================================================
 
 export function InstructionsPanel({
-  deliverable,
+  agent,
   onEditInChat,
 }: {
-  deliverable: Deliverable;
+  agent: Agent;
   onEditInChat?: () => void;
 }) {
-  const instructions = deliverable.deliverable_instructions || '';
-  const recipient = deliverable.recipient_context || {};
-  const memory = deliverable.deliverable_memory;
+  const instructions = agent.agent_instructions || '';
+  const recipient = agent.recipient_context || {};
+  const memory = agent.agent_memory;
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const hasAnyContent = !!(
@@ -228,7 +228,7 @@ export function InstructionsPanel({
           </div>
         ) : (
           <p className="px-3 py-2 text-sm text-muted-foreground italic border border-border rounded-md bg-muted/10">
-            No instructions set — tell the agent in chat what this deliverable should focus on.
+            No instructions set — tell the agent in chat what this agent should focus on.
           </p>
         )}
       </div>
@@ -294,7 +294,7 @@ export function InstructionsPanel({
 // SessionsPanel
 // =============================================================================
 
-export function SessionsPanel({ sessions }: { sessions: DeliverableSession[] }) {
+export function SessionsPanel({ sessions }: { sessions: AgentSession[] }) {
   if (sessions.length === 0) {
     return (
       <div className="p-4 text-center">

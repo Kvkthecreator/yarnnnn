@@ -1,6 +1,6 @@
-# Creating Your First Deliverable
+# Creating Your First Agent
 
-A deliverable is a specialist that runs in the background and produces recurring or trigger-based output for you.
+A agent is a specialist that runs in the background and produces recurring or trigger-based output for you.
 
 ## Step 1: Pick a type (what you're building)
 
@@ -11,7 +11,7 @@ Choose the job you want done:
 - **Status**: structured update for an audience
 - **Watch**: monitor a domain and surface signal
 - **Deep Research**: investigate a focused question until complete
-- **Coordinator**: monitor and dispatch other deliverables
+- **Coordinator**: monitor and dispatch other agents
 - **Custom**: define your own structure and behavior
 
 ## Step 2: Pick a mode (how it should act)
@@ -24,7 +24,7 @@ Choose the job you want done:
 
 ## Step 3: Choose sources
 
-Select the context the deliverable should use:
+Select the context the agent should use:
 
 - Slack channels
 - Gmail labels

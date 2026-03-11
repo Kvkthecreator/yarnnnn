@@ -93,7 +93,7 @@ We can't predict the future with certainty. But we can read the structural patte
 
 **Role**: Introduce YARNNN and TP as a concrete, living product — the application layer that Beat 1 said was missing.
 
-**The claim**: Meet TP — your autonomous AI agent. It connects to the platforms where your work lives (Slack, Gmail, Notion, Calendar), accumulates context from every sync cycle, and uses that accumulated understanding to operate autonomously. It produces deliverables on schedule. It gets smarter every cycle. You supervise — it operates.
+**The claim**: Meet TP — your autonomous AI agent. It connects to the platforms where your work lives (Slack, Gmail, Notion, Calendar), accumulates context from every sync cycle, and uses that accumulated understanding to operate autonomously. It produces agents on schedule. It gets smarter every cycle. You supervise — it operates.
 
 This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: your AI, powered by your accumulated context, producing your work.
 
@@ -103,11 +103,11 @@ This isn't a better chatbot or a memory add-on for existing LLMs. It's a new lay
 
 **(b) Day 1 proof**: TP already knows your work from first sync. Before/after demonstration — the same request with and without accumulated context. The point: value is immediate, not theoretical.
 
-**(c) Value trajectory**: How the experience improves over time. Day 1: the agent already knows your work. Day 30: autonomous deliverables running on schedule, improving through your feedback. Day 90: the system's understanding of your work is deep enough that a competitor starting from zero can't replicate it.
+**(c) Value trajectory**: How the experience improves over time. Day 1: the agent already knows your work. Day 30: autonomous agents running on schedule, improving through your feedback. Day 90: the system's understanding of your work is deep enough that a competitor starting from zero can't replicate it.
 
 **Key vocabulary rules**:
 - Always introduce TP within agent framing: "TP, your autonomous agent" — never just "Thinking Partner" in isolation
-- Lead with what the agent does (knows your work, produces deliverables), not how it works (sync pipelines, memory extraction)
+- Lead with what the agent does (knows your work, produces agents), not how it works (sync pipelines, memory extraction)
 - "Autonomous" is the lead adjective. Not "context-aware" (too passive), not "intelligent" (too generic)
 - The supervision model ("you supervise, it operates") is part of the product identity
 
@@ -123,7 +123,7 @@ This isn't a better chatbot or a memory add-on for existing LLMs. It's a new lay
 
 But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work. YARNNN is building that substrate.
 
-**The compounding loop**: Connect your tools → context accumulates from every sync → autonomous deliverables powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf.
+**The compounding loop**: Connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf.
 
 **Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
 
@@ -172,11 +172,11 @@ These apply across all surfaces — deck, website, video, applications:
 | "Your autonomous AI agent" | "Thinking Partner" alone | Agent framing positions against the market, not as a chatbot |
 | "TP, your autonomous agent" | "The Thinking Partner" | TP is the name; "autonomous agent" is the category |
 | "Already knows your work" | "Context-aware" | Active and concrete vs. passive and abstract |
-| "Produces deliverables on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
+| "Produces agents on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
 | "Gets smarter every cycle" | "Accumulated intelligence" | Human language vs. technical jargon |
 | "You supervise, it operates" | "Human-in-the-loop" | Frames the user as powerful, not as a safety mechanism |
 | "Accumulated context" | "Persistent memory" | Memory is one input; context is the whole picture |
-| "One agent, two modes" | "Chat + deliverable engine" | Unified architecture story, not two separate systems |
+| "One agent, two modes" | "Chat + agent engine" | Unified architecture story, not two separate systems |
 | "The application layer for work" | "AI wrapper" or "middleware" | Category language, not diminishing language |
 | "Built for the transition" | "Future-proof" | Specific and directional vs. generic marketing speak |
 
@@ -215,10 +215,10 @@ All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensi
 Beat 1 (headline — contrarian or problem statement) → Beat 3 (hero + how it works) → Beat 4 (why it's different / the insight) → Beat 6 (CTA). Proof of demand and moat are secondary sections or social proof elements.
 
 ### Elevator Pitch (30 seconds)
-Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar, accumulates your work context, and produces your deliverables on schedule. It's the application layer for work — and no one else is building it."
+Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar, accumulates your work context, and produces your agents on schedule. It's the application layer for work — and no one else is building it."
 
 ### Creative Supplement (1-pager, visual asset)
-Beat 3 + Beat 4 as visual: product screenshot or mockup showing TP pulling from connected sources and producing a deliverable. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
+Beat 3 + Beat 4 as visual: product screenshot or mockup showing TP pulling from connected sources and producing a agent. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
 
 ---
 
@@ -234,7 +234,7 @@ Patterns that have been explicitly rejected and why:
 
 **Architecture-first sequencing**: Leading with the four-layer model or unified agent architecture. Rejected because it positions YARNNN as infrastructure, not as a product. Architecture is a defensibility argument, not a product description.
 
-**Feature-list presentation**: "We have integrations, we have a chat agent, we have scheduled deliverables, we have memory." Rejected because it sounds like any other AI tool. The narrative arc (problem → demand → product → insight → moat → opportunity) creates a story. A feature list doesn't.
+**Feature-list presentation**: "We have integrations, we have a chat agent, we have scheduled agents, we have memory." Rejected because it sounds like any other AI tool. The narrative arc (problem → demand → product → insight → moat → opportunity) creates a story. A feature list doesn't.
 
 **"Better ChatGPT" positioning**: Comparing directly to ChatGPT as the primary competitor. Rejected because it commoditizes YARNNN. The comparison is against the *category* landscape — application layers, not chatbot features. "Not another chatbot, not another agent framework" — something structurally different.
 

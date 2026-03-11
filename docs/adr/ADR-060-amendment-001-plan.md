@@ -44,9 +44,9 @@ async def get_user_stage(client, user_id: str) -> str:
 
     Stages:
     - onboarding: < 7 days old OR < 3 sessions (skip analysis)
-    - exploring: 3-10 sessions, no deliverables (high threshold)
-    - active: 10+ sessions OR 1+ deliverables (normal threshold)
-    - power_user: 5+ deliverables (normal + gap analysis future)
+    - exploring: 3-10 sessions, no agents (high threshold)
+    - active: 10+ sessions OR 1+ agents (normal threshold)
+    - power_user: 5+ agents (normal + gap analysis future)
     """
     from datetime import datetime, timezone
 
@@ -70,22 +70,22 @@ async def get_user_stage(client, user_id: str) -> str:
         )
         session_count = session_result.count or 0
 
-        # Check deliverable count
-        deliverable_result = (
-            client.table("deliverables")
+        # Check agent count
+        agent_result = (
+            client.table("agents")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .in_("status", ["active", "paused"])
             .execute()
         )
-        deliverable_count = deliverable_result.count or 0
+        agent_count = agent_result.count or 0
 
         # Determine stage
         if account_age_days < 7 or session_count < 3:
             return "onboarding"
-        elif deliverable_count >= 5:
+        elif agent_count >= 5:
             return "power_user"
-        elif deliverable_count >= 1 or session_count >= 10:
+        elif agent_count >= 1 or session_count >= 10:
             return "active"
         else:
             return "exploring"
@@ -134,17 +134,17 @@ ANALYSIS_SYSTEM_PROMPT = """You are analyzing user conversation BEHAVIOR pattern
 3. **Temporal Information Needs** (2+ occurrences)
    - Phrases indicating time-based catchup: "yesterday", "this week", "catch me up", "what happened"
    - Example: "What happened in Slack while I was out?"
-   - Suggests: Recurring summary deliverable
+   - Suggests: Recurring summary agent
 
 4. **Context Re-establishment** (2+ sessions)
    - User repeatedly explains the same background information
    - Example: "I'm working on Project X for Client Y" restated in multiple sessions
-   - Suggests: This should be stored context or deliverable template
+   - Suggests: This should be stored context or agent template
 
 ## What NOT to Look For
 
 - **Explicit scheduling language**: "every Monday", "weekly", "monthly"
-  (Users who say this would create deliverables themselves)
+  (Users who say this would create agents themselves)
 - **One-time queries**: Single questions about a topic
 - **Exploration/testing**: Questions about system capabilities, feature discovery
 - **System status checks**: "Is my Slack connected?", "What documents do I have?"
@@ -162,7 +162,7 @@ Return a JSON array of suggestions. Each suggestion:
 ```json
 {
   "confidence": 0.75,
-  "deliverable_type": "slack_channel_digest",
+  "agent_type": "slack_channel_digest",
   "title": "Weekly #engineering Digest",
   "description": "Summary of key discussions and decisions from #engineering",
   "suggested_frequency": "weekly",
@@ -219,7 +219,7 @@ async def run_analysis_for_user(
     if len(sessions) < 2:
         return 0, stage
 
-    existing = await get_user_deliverables(client, user_id)
+    existing = await get_user_agents(client, user_id)
     knowledge = await get_user_knowledge(client, user_id)
 
     # Analyze
@@ -231,7 +231,7 @@ async def run_analysis_for_user(
     created = 0
     for suggestion in suggestions:
         if suggestion.confidence >= threshold:
-            result = await create_suggested_deliverable(client, user_id, suggestion)
+            result = await create_suggested_agent(client, user_id, suggestion)
             if result:
                 created += 1
 
@@ -278,7 +278,7 @@ async def notify_analyst_cold_start(
     message = (
         "I've started analyzing your conversations to detect patterns that could "
         "benefit from automation. I haven't found any recurring needs yet, but as "
-        "you use YARNNN more, I'll suggest deliverables when I notice you repeatedly "
+        "you use YARNNN more, I'll suggest agents when I notice you repeatedly "
         "asking about the same topics or resources."
     )
 

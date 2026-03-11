@@ -4,7 +4,7 @@ Read Primitive
 Retrieve entity by reference.
 
 Usage:
-  Read(ref="deliverable:uuid-123")
+  Read(ref="agent:uuid-123")
   Read(ref="platform:twitter")
   Read(refs=["memory:uuid-1", "memory:uuid-2"])  # Batch
 """
@@ -22,14 +22,14 @@ IMPORTANT: Use the exact `ref` value returned by Search or List. The ref contain
 
 Examples:
 - Read(ref="document:abc12345-def6-7890-ghij-klmnopqrstuv") - document by UUID from Search results
-- Read(ref="deliverable:latest") - most recent deliverable
+- Read(ref="agent:latest") - most recent agent
 - Read(ref="platform:slack") - platform by provider name
 - Read(ref="memory:uuid-123") - specific memory
 
 For documents: Returns full content from all pages, not just metadata.
 
 Reference format: <type>:<UUID>
-Types: deliverable, platform, memory, session, domain, document, work
+Types: agent, platform, memory, session, domain, document, work
 
 Workflow:
 1. Search(query="...", scope="document") → returns results with `ref` field
@@ -109,8 +109,8 @@ async def handle_read(auth: Any, input: dict) -> dict:
                 retry_hint = "Use Search(scope='document') first to find documents and get their UUID refs."
             elif parsed.entity_type == "memory":
                 retry_hint = "Use Search(scope='memory') to find memories by content."
-            elif parsed.entity_type == "deliverable":
-                retry_hint = "Use List(pattern='deliverable:*') to see available deliverables."
+            elif parsed.entity_type == "agent":
+                retry_hint = "Use List(pattern='agent:*') to see available agents."
             else:
                 retry_hint = f"Use Search or List to find valid {parsed.entity_type} refs."
 
@@ -137,7 +137,7 @@ async def handle_read(auth: Any, input: dict) -> dict:
             "error": "invalid_ref",
             "message": str(e),
             "ref": ref_str,
-            "retry_hint": "Refs must be in format '<type>:<uuid>' where type is deliverable, document, memory, etc. Use Search to get valid refs.",
+            "retry_hint": "Refs must be in format '<type>:<uuid>' where type is agent, document, memory, etc. Use Search to get valid refs.",
         }
     except PermissionError as e:
         return {
@@ -161,10 +161,10 @@ def _format_read_message(parsed, data) -> str:
         return f"Found {len(data)} {parsed.entity_type}(s)"
 
     # Single entity messages
-    if parsed.entity_type == "deliverable":
+    if parsed.entity_type == "agent":
         title = data.get("title", "Untitled")
         status = data.get("status", "unknown")
-        return f"Deliverable: {title} ({status})"
+        return f"Agent: {title} ({status})"
 
     elif parsed.entity_type == "platform":
         provider = data.get("provider", "unknown")

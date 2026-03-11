@@ -32,14 +32,14 @@ unified_scheduler (hourly, minute < 5)
 
 The Haiku call (`signal_processing.py:78`) reasons over the `SignalSummary` and returns one of three actions:
 
-1. **`trigger_existing`** — an active deliverable should regenerate based on fresh content
-2. **`create_signal_emergent`** — new content warrants creating a new deliverable (e.g., meeting_prep)
+1. **`trigger_existing`** — an active agent should regenerate based on fresh content
+2. **`create_signal_emergent`** — new content warrants creating a new agent (e.g., meeting_prep)
 3. **`no_action`** — nothing significant, skip
 
 The decision inputs are:
 - Platform content summaries (email subjects, calendar events, Slack messages)
 - User context (memory entries)
-- Active deliverables (titles, types, last generated)
+- Active agents (titles, types, last generated)
 - Recent activity log
 
 ## Proposal: Deterministic Heuristics
@@ -48,20 +48,20 @@ Replace the Haiku LLM call with rule-based heuristics that use the same data but
 
 ### Heuristic Rules
 
-#### Rule 1: Freshness-Based Deliverable Triggering (`trigger_existing`)
+#### Rule 1: Freshness-Based Agent Triggering (`trigger_existing`)
 
-**Already partially implemented** in `unified_scheduler.py:should_skip_deliverable()` via `has_fresh_content_since()`.
+**Already partially implemented** in `unified_scheduler.py:should_skip_agent()` via `has_fresh_content_since()`.
 
 Extend to fully replace `trigger_existing`:
 ```
-For each active deliverable:
-  1. Get deliverable's source list (platforms + resource_ids)
+For each active agent:
+  1. Get agent's source list (platforms + resource_ids)
   2. Check has_fresh_content_since(last_generated_at) for those sources
   3. If fresh content exists AND enough time has passed since last generation:
      → trigger regeneration
 ```
 
-This replaces the LLM's judgment of "is this content significant enough to trigger?" with "is there new content for this deliverable's sources?"
+This replaces the LLM's judgment of "is this content significant enough to trigger?" with "is there new content for this agent's sources?"
 
 #### Rule 2: Schedule-Based Meeting Prep (`create_signal_emergent`)
 
@@ -69,30 +69,30 @@ The primary emergent signal type is `meeting_prep`:
 ```
 For each calendar event in next 24 hours:
   1. Has ≥2 external attendees
-  2. No existing meeting_prep deliverable for this event
+  2. No existing meeting_prep agent for this event
   3. User has relevant platform content (emails from attendees, Slack threads)
-  → create meeting_prep deliverable
+  → create meeting_prep agent
 ```
 
 #### Rule 3: Volume Spike Detection (future)
 
 ```
 If message_count(last_2h) > 3× average(last_7d) for a source:
-  → flag for user attention (notification, not deliverable)
+  → flag for user attention (notification, not agent)
 ```
 
 ### What We Lose
 
 The LLM can reason about content **semantics** — e.g., "this email from the CEO about Q3 results is more important than routine HR updates." Heuristics cannot make this judgment.
 
-**Mitigation**: The content itself still goes through a full LLM generation pass when a deliverable is triggered. The heuristic only decides *whether* to trigger — the *quality* of the output is unchanged.
+**Mitigation**: The content itself still goes through a full LLM generation pass when a agent is triggered. The heuristic only decides *whether* to trigger — the *quality* of the output is unchanged.
 
 ### Implementation Approach
 
 #### Phase 1: Replace `trigger_existing` with Freshness Check
 
-- Move `should_skip_deliverable()` logic from scheduler into a dedicated `signal_heuristics.py` service
-- Add source-aware freshness checking (per-deliverable, not per-user)
+- Move `should_skip_agent()` logic from scheduler into a dedicated `signal_heuristics.py` service
+- Add source-aware freshness checking (per-agent, not per-user)
 - Remove the `process_signal()` → Haiku call for `trigger_existing` actions
 - Keep `extract_signal_summary()` as-is (it already reads from platform_content)
 
@@ -100,7 +100,7 @@ The LLM can reason about content **semantics** — e.g., "this email from the CE
 
 - Calendar event scanner: check events in next 24h window
 - Attendee cross-reference: check for related platform content
-- Auto-create `meeting_prep` deliverables when criteria match
+- Auto-create `meeting_prep` agents when criteria match
 
 #### Phase 3: Remove Signal Processing LLM Path
 
@@ -124,7 +124,7 @@ These already exist and support the heuristic approach:
 
 - `platform_content.has_fresh_content_since()` — freshness check per user/platform/resource
 - `sync_registry` — tracks last sync time and cursor per source
-- `should_skip_deliverable()` — partial freshness gate already in scheduler
+- `should_skip_agent()` — partial freshness gate already in scheduler
 - `extract_signal_summary()` — reads platform_content (ADR-073 compliant)
 
 ## Decision
@@ -139,7 +139,7 @@ Recommended phased approach: Phase 1 first (eliminate majority of Haiku calls), 
 - **~$190/month savings** at 100 users (scales linearly)
 - **Lower latency** — heuristic evaluation is <10ms vs ~500ms for Haiku call
 - **Deterministic behavior** — same inputs always produce same scheduling decisions
-- **Debuggable** — can trace exactly why a deliverable was/wasn't triggered
+- **Debuggable** — can trace exactly why a agent was/wasn't triggered
 
 ### Negative
 - **Loss of semantic reasoning** at triage level — may miss nuanced signals

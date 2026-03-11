@@ -19,9 +19,9 @@ YARNNN connects to your work tools to provide context-aware AI. Here's exactly w
 
 When you ask a question, the assistant searches your synced content to give you answers grounded in your actual work — not generic internet results.
 
-### Produces deliverables
+### Produces agents
 
-When a deliverable runs (e.g., your weekly digest), YARNNN reads the relevant synced content and generates a draft.
+When a agent runs (e.g., your weekly digest), YARNNN reads the relevant synced content and generates a draft.
 
 ### Learns your preferences
 
@@ -39,7 +39,7 @@ YARNNN extracts preferences from your interactions (like "prefers bullet points"
 
 Your synced content is kept as long as it's useful:
 
-- Content actively used by deliverables or the AI assistant is kept long-term
+- Content actively used by agents or the AI assistant is kept long-term
 - Content that's never referenced naturally expires
 - When you disconnect a platform, syncing stops and content expires on its own
 

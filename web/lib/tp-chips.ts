@@ -14,12 +14,12 @@ export function getSurfaceLabel(surface: DeskSurface): string {
   switch (surface.type) {
     case 'idle':
       return 'Agent';
-    case 'deliverable-review':
+    case 'agent-review':
       return 'Review';
-    case 'deliverable-detail':
-      return 'Deliverable';
-    case 'deliverable-list':
-      return 'Deliverables';
+    case 'agent-detail':
+      return 'Agent';
+    case 'agent-list':
+      return 'Agents';
     case 'context-browser':
       return 'Context';
     case 'context-editor':
@@ -44,10 +44,10 @@ export function getSurfaceIcon(surface: DeskSurface): string {
   switch (surface.type) {
     case 'idle':
       return 'LayoutDashboard';
-    case 'deliverable-review':
+    case 'agent-review':
       return 'FileCheck';
-    case 'deliverable-detail':
-    case 'deliverable-list':
+    case 'agent-detail':
+    case 'agent-list':
       return 'Calendar';
     case 'context-browser':
     case 'context-editor':
@@ -65,31 +65,31 @@ export function getSurfaceIcon(surface: DeskSurface): string {
 
 /**
  * Context scope - what context TP is working under
- * ADR-034: Context is the user's accumulated knowledge, auto-scoped by deliverable
+ * ADR-034: Context is the user's accumulated knowledge, auto-scoped by agent
  */
 export type ContextScope =
   | { type: 'user'; label: 'Your context' }
-  | { type: 'deliverable'; label: string; deliverableId: string };
+  | { type: 'agent'; label: string; agentId: string };
 
 /**
  * Get context scope from surface
- * Context is automatically scoped when viewing a deliverable
+ * Context is automatically scoped when viewing a agent
  */
 export function getContextScope(surface: DeskSurface): ContextScope {
   switch (surface.type) {
-    case 'deliverable-review':
-    case 'deliverable-detail':
+    case 'agent-review':
+    case 'agent-detail':
       return {
-        type: 'deliverable',
-        label: 'Deliverable context',
-        deliverableId: surface.deliverableId,
+        type: 'agent',
+        label: 'Agent context',
+        agentId: surface.agentId,
       };
     case 'context-browser':
-      if (surface.scope === 'deliverable' && surface.scopeId) {
+      if (surface.scope === 'agent' && surface.scopeId) {
         return {
-          type: 'deliverable',
-          label: 'Deliverable context',
-          deliverableId: surface.scopeId,
+          type: 'agent',
+          label: 'Agent context',
+          agentId: surface.scopeId,
         };
       }
       return { type: 'user', label: 'Your context' };
@@ -109,8 +109,8 @@ export interface TPStateIndicators {
   };
   /** What context TP is working under */
   context: ContextScope;
-  /** Deliverable focus (if any) */
-  deliverable: {
+  /** Agent focus (if any) */
+  agent: {
     active: boolean;
     label: string;
     id?: string;
@@ -125,23 +125,23 @@ export function getTPStateIndicators(surface: DeskSurface): TPStateIndicators {
   const surfaceIcon = getSurfaceIcon(surface);
   const context = getContextScope(surface);
 
-  // Determine deliverable focus
-  let deliverable: TPStateIndicators['deliverable'] = {
+  // Determine agent focus
+  let agent: TPStateIndicators['agent'] = {
     active: false,
-    label: 'No deliverable',
+    label: 'No agent',
   };
 
-  if (surface.type === 'deliverable-detail' || surface.type === 'deliverable-review') {
-    deliverable = {
+  if (surface.type === 'agent-detail' || surface.type === 'agent-review') {
+    agent = {
       active: true,
       label: 'Active',
-      id: surface.deliverableId,
+      id: surface.agentId,
     };
   }
 
   return {
     surface: { label: surfaceLabel, icon: surfaceIcon },
     context,
-    deliverable,
+    agent,
   };
 }

@@ -113,7 +113,7 @@ export function PlatformCardGrid({
       {/* Empty state message when no platforms connected */}
       {platforms.length === 0 && (
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Connect your first platform to see activity and manage deliverables.
+          Connect your first platform to see activity and manage agents.
         </p>
       )}
     </div>

@@ -13,7 +13,7 @@ Run every 5 minutes via Render cron (checks if any syncs are due):
   command: cd api && python -m jobs.platform_sync_scheduler
 
 This is separate from unified_scheduler.py to:
-1. Keep sync logic isolated from deliverable/work processing
+1. Keep sync logic isolated from agent/work processing
 2. Allow independent scaling of sync jobs
 3. Maintain clear separation of concerns (ADR-053)
 """

@@ -58,9 +58,9 @@ Tools are invoked via the model's `tool_use` block, executed, and results fed ba
 ```
 api/services/project_tools.py (2800 lines)
 ├── Communication: respond, clarify, todo_write
-├── Navigation: list_memories, list_deliverables, get_work
-├── CRUD: create_memory, update_deliverable, delete_work
-└── Execution: run_deliverable, create_work
+├── Navigation: list_memories, list_agents, get_work
+├── CRUD: create_memory, update_agent, delete_work
+└── Execution: run_agent, create_work
 ```
 
 **Key differences:**
@@ -78,10 +78,10 @@ YARNNN tools return `ui_action` to drive frontend state:
 ```python
 {
     "success": True,
-    "deliverables": [...],
+    "agents": [...],
     "ui_action": {
         "type": "OPEN_SURFACE",
-        "surface": "deliverable-list",
+        "surface": "agent-list",
         "data": { "status": "active" }
     }
 }
@@ -143,7 +143,7 @@ result = await research_agent.execute(
 
 YARNNN could benefit from background agent capability for long-running tasks like:
 - Deep research on a topic
-- Comprehensive deliverable generation
+- Comprehensive agent generation
 - Batch processing across multiple sources
 
 ---
@@ -193,16 +193,16 @@ api/integrations/
 | `mcp__slack__read_channel` | `SlackReader.fetch_channel_messages()` |
 | `mcp__notion__create_page` | `NotionExporter.create_page()` |
 
-**Key difference: Deliverable-mediated access**
+**Key difference: Agent-mediated access**
 
 YARNNN doesn't expose platforms as raw tools. Instead:
-1. User creates a deliverable linked to platform sources
+1. User creates a agent linked to platform sources
 2. Pipeline extracts from sources → generates output
 3. Output optionally exported back to platform
 
 This is more constrained than MCP's "any tool anytime" model, but provides:
 - Predictable recurring workflows
-- Audit trail via deliverable history
+- Audit trail via agent history
 - Approval gates before platform writes
 
 ---
@@ -327,7 +327,7 @@ SKILLS = {
     "board-update": {
         "name": "board-update",
         "trigger_patterns": ["board update", "investor update"],
-        "deliverable_type": "board_update",
+        "agent_type": "board_update",
         "system_prompt_addition": """
         ## Active Skill: Board Update Creation
 
@@ -357,7 +357,7 @@ system = build_system_prompt(..., skill_prompt=skill_prompt)
 | - | /research-brief | YARNNN-specific |
 | - | /stakeholder-update | YARNNN-specific |
 
-**Key insight:** YARNNN skills are deliverable-creation workflows, not code workflows. Same pattern, different domain.
+**Key insight:** YARNNN skills are agent-creation workflows, not code workflows. Same pattern, different domain.
 
 ---
 
@@ -390,7 +390,7 @@ ADR-025 specifies four-phase workflow:
 
 **Opportunity: Modal Approval UI**
 
-For high-stakes operations (delete, bulk changes), YARNNN could benefit from a modal confirmation similar to Claude Code's ExitPlanMode — currently implemented as `SetupConfirmModal` for deliverable setup.
+For high-stakes operations (delete, bulk changes), YARNNN could benefit from a modal confirmation similar to Claude Code's ExitPlanMode — currently implemented as `SetupConfirmModal` for agent setup.
 
 ---
 
@@ -442,7 +442,7 @@ class Memory:
 | Codebase files | Uploaded documents |
 | File search | Memory search |
 | Working directory | Active domain |
-| Git state | Deliverable state |
+| Git state | Agent state |
 | - | Platform extracts |
 
 **YARNNN addition: Platform extracts**
@@ -452,7 +452,7 @@ YARNNN enriches context with data pulled from connected platforms:
 - Gmail inbox items
 - Notion page content
 
-This is similar to MCP resource reading but mediated through the deliverable system.
+This is similar to MCP resource reading but mediated through the agent system.
 
 ---
 
@@ -510,7 +510,7 @@ Unlike Claude Code, YARNNN extracts durable context:
 
 | Capability | YARNNN | Claude Code Gap |
 |------------|--------|-----------------|
-| Recurring execution | Scheduled deliverables | One-shot only |
+| Recurring execution | Scheduled agents | One-shot only |
 | Approval queues | Staged review surface | None |
 | Platform integration | OAuth + readers/exporters | MCP (similar) |
 | Preference learning | Feedback → memory | Stateless |
@@ -568,8 +568,8 @@ Claude Code's Task tool with Explore agent maps to YARNNN's ResearchAgent:
 
 Future direction: YARNNN's platform integrations could expose an MCP interface:
 ```
-mcp__yarnnn__list_deliverables
-mcp__yarnnn__run_deliverable
+mcp__yarnnn__list_agents
+mcp__yarnnn__run_agent
 mcp__yarnnn__get_memories
 ```
 

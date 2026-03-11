@@ -822,8 +822,8 @@ class AdminPipelineStats(BaseModel):
     # Scheduler
     last_heartbeat_at: Optional[str] = None
     heartbeats_24h: int = 0
-    deliverables_scheduled_24h: int = 0
-    deliverables_executed_24h: int = 0
+    agents_scheduled_24h: int = 0
+    agents_executed_24h: int = 0
     # Event triggers
     triggers_executed_24h: int = 0
     triggers_skipped_24h: int = 0
@@ -935,7 +935,7 @@ async def get_pipeline_stats(admin: AdminAuth):
 
         # By retention reason
         content_retained_by_reason = {}
-        for reason in ["deliverable_execution", "tp_session", "yarnnn_output"]:
+        for reason in ["agent_execution", "tp_session", "yarnnn_output"]:
             r_result = client.table("platform_content").select(
                 "id", count="exact"
             ).eq("retained", True).eq("retained_reason", reason).execute()
@@ -958,21 +958,21 @@ async def get_pipeline_stats(admin: AdminAuth):
         ).execute()
         heartbeats_24h = hb_24h.count or 0
 
-        # Deliverables scheduled 24h
+        # Agents scheduled 24h
         ds_24h = client.table("activity_log").select(
             "id", count="exact"
-        ).eq("event_type", "deliverable_scheduled").gte(
+        ).eq("event_type", "agent_scheduled").gte(
             "created_at", cutoff_24h
         ).execute()
-        deliverables_scheduled_24h = ds_24h.count or 0
+        agents_scheduled_24h = ds_24h.count or 0
 
-        # Deliverables executed 24h
+        # Agents executed 24h
         de_24h = client.table("activity_log").select(
             "id", count="exact"
-        ).eq("event_type", "deliverable_run").gte(
+        ).eq("event_type", "agent_run").gte(
             "created_at", cutoff_24h
         ).execute()
-        deliverables_executed_24h = de_24h.count or 0
+        agents_executed_24h = de_24h.count or 0
 
         # ─── Event Triggers ───────────────────────────────────────────────────
         triggers_executed = 0
@@ -1007,8 +1007,8 @@ async def get_pipeline_stats(admin: AdminAuth):
             content_retained_by_reason=content_retained_by_reason,
             last_heartbeat_at=last_heartbeat,
             heartbeats_24h=heartbeats_24h,
-            deliverables_scheduled_24h=deliverables_scheduled_24h,
-            deliverables_executed_24h=deliverables_executed_24h,
+            agents_scheduled_24h=agents_scheduled_24h,
+            agents_executed_24h=agents_executed_24h,
             triggers_executed_24h=triggers_executed,
             triggers_skipped_24h=triggers_skipped,
             triggers_failed_24h=triggers_failed,
@@ -1062,19 +1062,19 @@ async def admin_trigger_sync(
 
 
 # =============================================================================
-# Admin Deliverable Run Trigger (for testing)
+# Admin Agent Run Trigger (for testing)
 # =============================================================================
 
-@router.post("/trigger-deliverable/{deliverable_id}")
-async def admin_trigger_deliverable(
-    deliverable_id: str,
+@router.post("/trigger-agent/{agent_id}")
+async def admin_trigger_agent(
+    agent_id: str,
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
     """
-    Admin endpoint to trigger a deliverable run.
+    Admin endpoint to trigger a agent run.
     Protected by service key header. Runs full pipeline and returns results.
     """
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.agent_execution import execute_agent_generation
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
     if not x_service_key or x_service_key != supabase_key:
@@ -1087,27 +1087,27 @@ async def admin_trigger_deliverable(
     from supabase import create_client
     client = create_client(supabase_url, supabase_key)
 
-    # Fetch deliverable
-    result = client.table("deliverables").select("*").eq("id", deliverable_id).single().execute()
+    # Fetch agent
+    result = client.table("agents").select("*").eq("id", agent_id).single().execute()
     if not result.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    deliverable = result.data
-    user_id = deliverable["user_id"]
+    agent = result.data
+    user_id = agent["user_id"]
 
     try:
-        exec_result = await execute_deliverable_generation(
+        exec_result = await execute_agent_generation(
             client=client,
             user_id=user_id,
-            deliverable=deliverable,
+            agent=agent,
             trigger_context={"type": "admin_test"},
         )
         return {
-            "deliverable_id": deliverable_id,
-            "deliverable_type": deliverable.get("deliverable_type"),
-            "title": deliverable.get("title"),
+            "agent_id": agent_id,
+            "agent_type": agent.get("agent_type"),
+            "title": agent.get("title"),
             "success": exec_result.get("success", False),
-            "version_id": exec_result.get("version_id"),
+            "run_id": exec_result.get("run_id"),
             "version_number": exec_result.get("version_number"),
             "status": exec_result.get("status"),
             "message": exec_result.get("message"),
@@ -1115,7 +1115,7 @@ async def admin_trigger_deliverable(
     except Exception as e:
         import traceback
         return {
-            "deliverable_id": deliverable_id,
+            "agent_id": agent_id,
             "status": "error",
             "error": str(e),
             "traceback": traceback.format_exc(),

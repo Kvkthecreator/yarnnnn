@@ -140,8 +140,8 @@ interface TPContextValue {
   respondToClarification: (answer: string) => void;
   closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
-  /** ADR-087 Phase 3: Load history scoped to a deliverable (or global if undefined) */
-  loadScopedHistory: (deliverableId?: string) => Promise<void>;
+  /** ADR-087 Phase 3: Load history scoped to a agent (or global if undefined) */
+  loadScopedHistory: (agentId?: string) => Promise<void>;
 }
 
 const TPContext = createContext<TPContextValue | null>(null);
@@ -200,19 +200,19 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, [status.type]);
 
   // ---------------------------------------------------------------------------
-  // Load chat history (ADR-087 Phase 3: supports deliverable-scoped history)
+  // Load chat history (ADR-087 Phase 3: supports agent-scoped history)
   // ---------------------------------------------------------------------------
   // Track which scope was last loaded to avoid redundant fetches
   const lastLoadedScopeRef = useRef<string | undefined>(undefined);
 
-  const loadScopedHistory = useCallback(async (deliverableId?: string) => {
+  const loadScopedHistory = useCallback(async (agentId?: string) => {
     // Skip if already loaded for this scope
-    const scopeKey = deliverableId ?? '__global__';
+    const scopeKey = agentId ?? '__global__';
     if (lastLoadedScopeRef.current === scopeKey) return;
     lastLoadedScopeRef.current = scopeKey;
 
     try {
-      const result = await api.chat.globalHistory(1, deliverableId);
+      const result = await api.chat.globalHistory(1, agentId);
 
       if (result.sessions && result.sessions.length > 0) {
         const session = result.sessions[0];
@@ -514,7 +514,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   } else if (action.type === 'SHOW_SETUP_CONFIRM') {
                     const setupData = action.data as unknown as SetupConfirmData;
                     setSetupConfirmModal({ open: true, data: setupData });
-                    setStatus({ type: 'complete', message: 'Deliverable created' });
+                    setStatus({ type: 'complete', message: 'Agent created' });
                   } else if (action.type === 'UPDATE_TODOS') {
                     const todos = (action.data?.todos as Todo[]) || [];
                     dispatch({ type: 'SET_TODOS', todos });

@@ -25,16 +25,16 @@ This creates a false hierarchy where platforms feel primary and other sources fe
 
 **Before:**
 ```
-Chat | Deliverables | Integrations | Activity | Docs | Settings
+Chat | Agents | Integrations | Activity | Docs | Settings
 ```
 
 **After:**
 ```
-Chat | Deliverables | Context | Activity | Settings
+Chat | Agents | Context | Activity | Settings
 ```
 
 - **Chat** — Primary interaction (conversation with TP)
-- **Deliverables** — Scheduled recurring outputs
+- **Agents** — Scheduled recurring outputs
 - **Context** — Your "filesystem" (unified view of all sources)
 - **Activity** — Execution history, job logs, recent actions
 - **Settings** — Account, billing, preferences
@@ -188,7 +188,7 @@ When user has no context:
 ### Neutral
 
 - **Settings slimmed** — Settings becomes purely account/billing
-- **Activity consolidated** — Moves to Deliverables as execution log
+- **Activity consolidated** — Moves to Agents as execution log
 
 ## Implementation
 

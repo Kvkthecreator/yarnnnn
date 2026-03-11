@@ -6,17 +6,17 @@
  *
  * Navigation model:
  * - Home (/dashboard) = Chat-first experience (TP primary)
- * - Four-layer pages: Memory, Activity, Context, Work (Deliverables)
+ * - Four-layer pages: Memory, Activity, Context, Work (Agents)
  * - Settings is meta (not a layer)
  *
  * Navigation structure (ADR-063 aligned):
- * - Agent (home) | Work (Deliverables) | Memory | Context | Activity | Settings
+ * - Agent (home) | Work (Agents) | Memory | Context | Activity | Settings
  *
  * Four-Layer Model:
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
  * - Activity (/activity): What YARNNN has done (audit trail)
  * - Context (/context): What's in your platforms (Platforms, Documents)
- * - Work (/deliverables): What YARNNN produces (recurring outputs)
+ * - Work (/agents): What YARNNN produces (recurring outputs)
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -114,7 +114,7 @@ interface RouteItem {
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
 // Primary workspace: Agent + Work (creation flows through TP chat)
 // Supporting pages: Memory, Context, Activity, System, Settings
-const DELIVERABLES_ROUTE: RouteItem = { id: 'deliverables', label: 'Work', icon: Briefcase, path: '/deliverables' };
+const DELIVERABLES_ROUTE: RouteItem = { id: 'agents', label: 'Work', icon: Briefcase, path: '/agents' };
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
@@ -127,7 +127,7 @@ const ROUTE_PAGES: RouteItem[] = [
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
-  // Check deliverables route first (primary workspace)
+  // Check agents route first (primary workspace)
   if (pathname === DELIVERABLES_ROUTE.path || pathname.startsWith(DELIVERABLES_ROUTE.path + '/')) {
     return DELIVERABLES_ROUTE;
   }
@@ -164,11 +164,11 @@ function AuthenticatedLayoutInner({
       // ADR-037: Route-first navigation for migrated entities
       // ADR-039: Route-first navigation with unified Context page
       switch (newSurface.type) {
-        case 'deliverable-list':
-          router.push('/deliverables');
+        case 'agent-list':
+          router.push('/agents');
           return;
-        case 'deliverable-detail':
-          router.push(`/deliverables/${newSurface.deliverableId}`);
+        case 'agent-detail':
+          router.push(`/agents/${newSurface.agentId}`);
           return;
         case 'document-list':
           // ADR-039: Documents now live in unified Context page
@@ -277,7 +277,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary workspace: TP + Deliverables */}
+                {/* Primary workspace: TP + Agents */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

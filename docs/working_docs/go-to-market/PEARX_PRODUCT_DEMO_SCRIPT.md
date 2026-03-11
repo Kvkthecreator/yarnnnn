@@ -20,13 +20,13 @@
 
 *Let TP's response load on screen for a beat. Don't rush it.*
 
-**[0:25–0:45] Deliverable — Autonomous Output**
-*Show: Navigate to a deliverable (e.g., a weekly client brief or status digest). Show that it was generated on schedule.*
+**[0:25–0:45] Agent — Autonomous Output**
+*Show: Navigate to a agent (e.g., a weekly client brief or status digest). Show that it was generated on schedule.*
 
 > And here's where it gets interesting. This is a weekly client brief that TP produced on its own — on schedule, without me prompting it. It pulled from Slack threads, emails, and Notion updates to write this. I just review and edit.
 
 **[0:45–0:60] The Punchline**
-*Show: Stay on the deliverable, or go back to the dashboard.*
+*Show: Stay on the agent, or go back to the dashboard.*
 
 > Every cycle, it gets better. More context, better output. That's the product — an AI agent that actually learns your work. yarnnn.com.
 
@@ -46,5 +46,5 @@
 
 1. Make sure TP has recent synced data so responses look real and specific
 2. Pick one actual client or project to reference — specificity sells
-3. Have a deliverable already generated so you can navigate to it quickly
+3. Have a agent already generated so you can navigate to it quickly
 4. Close Slack/email notifications so nothing pops up mid-recording

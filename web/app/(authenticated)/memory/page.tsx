@@ -700,15 +700,15 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
                         {entry.source_type && (
                           <span className={cn(
                             "text-xs px-1.5 py-0.5 rounded",
-                            entry.source_type === 'deliverable_feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                            entry.source_type === 'agent_feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
                             entry.source_type === 'conversation_extraction' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
                             entry.source_type === 'pattern_analysis' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                            !['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && "bg-muted text-muted-foreground"
+                            !['agent_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && "bg-muted text-muted-foreground"
                           )}>
-                            {entry.source_type === 'deliverable_feedback' && 'from feedback'}
+                            {entry.source_type === 'agent_feedback' && 'from feedback'}
                             {entry.source_type === 'conversation_extraction' && 'from chat'}
                             {entry.source_type === 'pattern_analysis' && 'from patterns'}
-                            {!['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && entry.source_type}
+                            {!['agent_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && entry.source_type}
                           </span>
                         )}
                         {showConfidence && (

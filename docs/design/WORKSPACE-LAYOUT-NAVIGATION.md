@@ -7,7 +7,7 @@
 **References:**
 - [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md) — dashboard model being evolved
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat vs headless modes
-- [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-deliverable instructions + memory
+- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-agent instructions + memory
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — directives flow through chat
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration design principle
 - [Phase 3 Surface Layout (history)](archive/SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded
@@ -22,7 +22,7 @@ The original drawer overlay model (implemented 2026-03-04) had a structural issu
 |---------------------|---------|
 | Versions pinned above chat (InlineVersionCard) | Eats vertical space, `max-h-96` truncates long content, fights with chat |
 | Drawer hidden by default | Users must click to see versions, instructions, memory — primary artifacts buried |
-| Two different patterns | Dashboard: inline type cards in chat. Deliverable: stacked version + chat. Inconsistent. |
+| Two different patterns | Dashboard: inline type cards in chat. Agent: stacked version + chat. Inconsistent. |
 
 Benchmark: **Claude Cowork** uses a persistent right panel (always visible, ~35% width) that shows context, progress, and artifacts. The panel transforms when an artifact is selected — same surface, two modes.
 
@@ -35,7 +35,7 @@ Replace the sliding drawer overlay with a **persistent inline panel** that is vi
 ### Desktop (≥ lg / 1024px):
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Header: ← Deliverables  |  📋 Title [Mode] · Active  | [≡] │
+│ Header: ← Agents  |  📋 Title [Mode] · Active  | [≡] │
 ├────────────────────────────────┬─────────────────────────────┤
 │                                │  PANEL (400px, persistent)  │
 │   CHAT (flex-1)                │                             │
@@ -66,12 +66,12 @@ The header toggle button collapses/expands the panel. Default is **open**. On < 
 | InlineVersionCard pinned above chat (shrink-0) | Versions live in panel — list mode + preview mode |
 | `max-h-96` truncation on version content | Full-height scrollable markdown in panel, no cap |
 | Drawer overlays chat — can't read version + chat simultaneously | Side-by-side: read version in panel, chat alongside |
-| `panelDefaultOpen: false` | `panelDefaultOpen: true` (both dashboard + deliverable) |
+| `panelDefaultOpen: false` | `panelDefaultOpen: true` (both dashboard + agent) |
 
 ### Deleted components
 - **InlineVersionCard** — replaced by VersionsPanel with preview mode in the panel
 - **VersionPreview** (old drawer version preview) — replaced by VersionPreviewFull (panel-native)
-- **selectedIdx / onSelectIdx** props on DeliverableChatArea — version selection is now panel-internal
+- **selectedIdx / onSelectIdx** props on AgentChatArea — version selection is now panel-internal
 
 ---
 
@@ -99,11 +99,11 @@ Behavior:
 
 ### 4.2 `/dashboard` — Global TP
 
-**Panel tabs:** Deliverables | Context
+**Panel tabs:** Agents | Context
 
-Panel defaults open. Shows deliverable list (compact entry cards linking to `/deliverables/[id]`) and platform sync status.
+Panel defaults open. Shows agent list (compact entry cards linking to `/agents/[id]`) and platform sync status.
 
-### 4.3 `/deliverables/[id]` — Deliverable Workspace
+### 4.3 `/agents/[id]` — Agent Workspace
 
 **Panel tabs:** Versions | Instructions | Memory | Sessions | Settings
 
@@ -167,9 +167,9 @@ Instructions editing still flows through chat (ADR-105). The Instructions tab re
 | File | Change |
 |------|--------|
 | `web/components/desk/WorkspaceLayout.tsx` | Rewritten: persistent inline panel (≥lg) + overlay fallback (<lg) |
-| `web/components/deliverables/DeliverableVersionDisplay.tsx` | Rewritten: VersionsPanel with list/preview modes, deleted InlineVersionCard |
-| `web/components/deliverables/DeliverableChatArea.tsx` | Simplified: removed InlineVersionCard, version props, selectedIdx |
-| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Simplified: removed selectedIdx state, panelDefaultOpen=true, new VersionsPanel props |
+| `web/components/agents/AgentVersionDisplay.tsx` | Rewritten: VersionsPanel with list/preview modes, deleted InlineVersionCard |
+| `web/components/agents/AgentChatArea.tsx` | Simplified: removed InlineVersionCard, version props, selectedIdx |
+| `web/app/(authenticated)/agents/[id]/page.tsx` | Simplified: removed selectedIdx state, panelDefaultOpen=true, new VersionsPanel props |
 | `web/components/desk/ChatFirstDesk.tsx` | panelDefaultOpen=true |
 
 ---

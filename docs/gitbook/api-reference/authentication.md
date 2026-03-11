@@ -19,7 +19,7 @@ Authorization: Bearer <your-token>
 Requests are user-scoped. Data is isolated by authenticated user identity, including:
 
 - chat sessions
-- deliverables and versions
+- agents and versions
 - integration sources and synced content
 - memory/profile records
 

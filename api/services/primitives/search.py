@@ -5,7 +5,7 @@ Find entities by content using text or semantic search.
 
 Usage:
   Search(query="database migration", scope="platform_content")
-  Search(query="weekly report", scope="deliverable")
+  Search(query="weekly report", scope="agent")
 
 ADR-072: scope="platform_content" searches the unified content layer with
 semantic search (pgvector) when available, falling back to full-text search.
@@ -33,7 +33,7 @@ IMPORTANT — platform content access (ADR-085):
 
 Examples:
 - Search(query="Q2 planning discussion", scope="platform_content") - search synced Slack/Gmail/Notion/Calendar
-- Search(query="weekly status", scope="deliverable") - search deliverables
+- Search(query="weekly status", scope="agent") - search agents
 - Search(query="competitor analysis", scope="document") - search uploaded documents
 - Search(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
 
@@ -46,9 +46,9 @@ Workflow for documents:
 Scopes:
 - platform_content: Synced platform data (Slack, Gmail, Notion, Calendar). May be hours old — disclose age. Use RefreshPlatformContent to get latest.
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
-- deliverable: Your recurring deliverables
-- version: Generated deliverable content (versions). Filter by deliverable_id to see versions for a specific deliverable.
-- all: Search everything (platform_content + document + deliverable)
+- agent: Your recurring agents
+- version: Generated agent content (versions). Filter by agent_id to see versions for a specific agent.
+- all: Search everything (platform_content + document + agent)
 
 Note: Memory is NOT a search scope — it is already in your working memory context at session start.""",
     "input_schema": {
@@ -60,17 +60,17 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "document", "deliverable", "version", "all"],
+                "enum": ["platform_content", "document", "agent", "version", "all"],
                 "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
             },
-            "deliverable_id": {
+            "agent_id": {
                 "type": "string",
-                "description": "Filter versions by deliverable ID (only used with scope='version')"
+                "description": "Filter versions by agent ID (only used with scope='version')"
             },
             "platform": {
                 "type": "string",
                 "enum": ["slack", "gmail", "notion", "calendar", "yarnnn"],
-                "description": "Filter platform_content by platform (optional). Use 'yarnnn' for deliverable outputs."
+                "description": "Filter platform_content by platform (optional). Use 'yarnnn' for agent outputs."
             },
             "limit": {
                 "type": "integer",
@@ -85,8 +85,8 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
 # Searchable fields per entity type
 SEARCH_FIELDS = {
     "platform_content": ["content"],
-    "deliverable": ["title", "description"],
-    "version": ["content"],  # Deliverable version content
+    "agent": ["title", "description"],
+    "version": ["content"],  # Agent version content
     "document": ["filename"],  # documents table uses 'filename' not 'name'
     "memory": ["content"],  # ADR-038: User-stated facts only
 }
@@ -107,7 +107,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
     query = input.get("query", "").strip()
     scope = input.get("scope", "all")
     platform_filter = input.get("platform")
-    deliverable_id = input.get("deliverable_id")
+    agent_id = input.get("agent_id")
     limit = input.get("limit", 10)
 
     if not query:
@@ -136,7 +136,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
         # Determine scopes to search
         # ADR-065: 'all' excludes memory (already in working memory prompt)
         if scope == "all":
-            scopes = ["platform_content", "document", "deliverable"]
+            scopes = ["platform_content", "document", "agent"]
         else:
             scopes = [scope]
 
@@ -153,7 +153,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 # Documents need special handling - search chunks for content
                 results = await _search_document_content(auth, query, limit)
             elif entity_scope == "version":
-                results = await _search_versions(auth, query, deliverable_id, limit)
+                results = await _search_versions(auth, query, agent_id, limit)
             else:
                 results = await _search_entity(auth, query, entity_scope, limit)
             all_results.extend(results)
@@ -388,23 +388,23 @@ async def _search_document_content(
 async def _search_versions(
     auth: Any,
     query: str,
-    deliverable_id: Optional[str],
+    agent_id: Optional[str],
     limit: int,
 ) -> list[dict]:
     """
-    Search deliverable_versions by content. Scoped through user's deliverables.
+    Search agent_runs by content. Scoped through user's agents.
     """
     try:
-        # Get user's deliverable IDs for scoping
-        if deliverable_id:
-            check = auth.client.table("deliverables").select("id").eq(
-                "id", deliverable_id
+        # Get user's agent IDs for scoping
+        if agent_id:
+            check = auth.client.table("agents").select("id").eq(
+                "id", agent_id
             ).eq("user_id", auth.user_id).execute()
             if not check.data:
                 return []
-            del_ids = [deliverable_id]
+            del_ids = [agent_id]
         else:
-            user_dels = auth.client.table("deliverables").select("id").eq(
+            user_dels = auth.client.table("agents").select("id").eq(
                 "user_id", auth.user_id
             ).execute()
             del_ids = [d["id"] for d in (user_dels.data or [])]
@@ -412,11 +412,11 @@ async def _search_versions(
                 return []
 
         # Search both draft_content and final_content for matches
-        q = auth.client.table("deliverable_versions").select(
-            "id, deliverable_id, version_number, status, "
+        q = auth.client.table("agent_runs").select(
+            "id, agent_id, version_number, status, "
             "draft_content, final_content, "
             "created_at, delivery_status"
-        ).in_("deliverable_id", del_ids).or_(
+        ).in_("agent_id", del_ids).or_(
             f"draft_content.ilike.%{query}%,final_content.ilike.%{query}%"
         ).order("created_at", desc=True).limit(limit)
 
@@ -431,7 +431,7 @@ async def _search_versions(
                 "entity_type": "version",
                 "ref": f"version:{item['id']}",
                 "data": {
-                    "deliverable_id": item["deliverable_id"],
+                    "agent_id": item["agent_id"],
                     "version_number": item["version_number"],
                     "status": item["status"],
                     "content": content[:500] + "..." if len(content) > 500 else content,
@@ -454,7 +454,7 @@ async def _search_entity(
     entity_type: str,
     limit: int,
 ) -> list[dict]:
-    """Search standard entity tables (deliverable, document)."""
+    """Search standard entity tables (agent, document)."""
     table = TABLE_MAP.get(entity_type)
     if not table:
         return []

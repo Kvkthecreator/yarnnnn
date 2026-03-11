@@ -11,7 +11,7 @@
 
 This document captures the full analytical journey that led to ADR-034: Emergent Context Domains. The discussion started with a tactical problem (all imported context going to "Personal") but evolved into a fundamental reexamination of YARNNN's context architecture.
 
-**Key insight discovered**: Context domains should not be declared upfront by users, nor should they be inferred by AI classification. Instead, they should **emerge naturally from the patterns of deliverable source selection**. This approach resolves a multi-variant problem that previous approaches could not solve.
+**Key insight discovered**: Context domains should not be declared upfront by users, nor should they be inferred by AI classification. Instead, they should **emerge naturally from the patterns of agent source selection**. This approach resolves a multi-variant problem that previous approaches could not solve.
 
 ---
 
@@ -116,7 +116,7 @@ Previous approaches solved some but not all:
 
 ---
 
-## Part 4: The Deliverable-First Pivot
+## Part 4: The Agent-First Pivot
 
 ### Reframing the Core Value
 
@@ -124,17 +124,17 @@ Kevin asked us to step back and consider: **What creates trust, reliability, and
 
 This led to a crucial reframe:
 
-> YARNNN isn't a context management system. It's a **deliverable production system** that uses context.
+> YARNNN isn't a context management system. It's a **agent production system** that uses context.
 
 Users don't wake up thinking "I need to organize my context." They think "I need my weekly status update written and sent."
 
-**Context organization is in service of deliverable quality, not an end in itself.**
+**Context organization is in service of agent quality, not an end in itself.**
 
 ### The Setup Burden Problem
 
 ```
 OLD MENTAL MODEL:
-Organize context → then create deliverables
+Organize context → then create agents
 
 PROBLEM:
 - Users must do taxonomy work before getting value
@@ -142,18 +142,18 @@ PROBLEM:
 - "Why do I have to do all this setup?"
 
 NEW MENTAL MODEL:
-Create deliverables → context organization follows
+Create agents → context organization follows
 ```
 
-### Initial Deliverable-Centric Proposal
+### Initial Agent-Centric Proposal
 
-**Proposal**: Each deliverable defines its own sources. No global context organization.
+**Proposal**: Each agent defines its own sources. No global context organization.
 
 ```
-Deliverable: "Weekly Status to Sarah"
+Agent: "Weekly Status to Sarah"
 ├── Destination: sarah@acme.com
 ├── Sources: #engineering, #product, sarah@ emails
-└── Accumulated context: scoped to THIS deliverable only
+└── Accumulated context: scoped to THIS agent only
 ```
 
 **Kevin's pushback**: This drops context boundaries entirely. We'd have the same problem as ChatGPT - when user talks to TP, everything bleeds together.
@@ -164,24 +164,24 @@ Deliverable: "Weekly Status to Sarah"
 
 ### The Key Insight
 
-What if boundaries aren't **declared upfront** (setup burden) or **inferred by AI** (unreliable), but **emerge from deliverable patterns**?
+What if boundaries aren't **declared upfront** (setup burden) or **inferred by AI** (unreliable), but **emerge from agent patterns**?
 
 ```
 USER CREATES DELIVERABLES:
 
-Deliverable 1: "Weekly Status to Sarah"
+Agent 1: "Weekly Status to Sarah"
   Sources: #engineering, #product
 
-Deliverable 2: "Acme Project Update"
+Agent 2: "Acme Project Update"
   Sources: #client-acme, #engineering
 
-Deliverable 3: "BigCo Advisory Report"
+Agent 3: "BigCo Advisory Report"
   Sources: #client-bigco, bigco@
 
 YARNNN OBSERVES:
 
-Deliverables 1 & 2 share #engineering → same domain
-Deliverable 3 has distinct sources → different domain
+Agents 1 & 2 share #engineering → same domain
+Agent 3 has distinct sources → different domain
 
 DOMAINS EMERGE:
 
@@ -193,11 +193,11 @@ Domain B: {#client-bigco, bigco@} ← "BigCo Advisory"
 
 | Requirement | How Emergent Domains Solve It |
 |-------------|------------------------------|
-| **Clean case** | All deliverables use same sources → one domain emerges |
-| **Mixed case** | Different deliverables can use different channels from same workspace → multiple domains emerge |
-| **Low friction** | User creates deliverables (valuable action), domains emerge automatically |
+| **Clean case** | All agents use same sources → one domain emerges |
+| **Mixed case** | Different agents can use different channels from same workspace → multiple domains emerge |
+| **Low friction** | User creates agents (valuable action), domains emerge automatically |
 | **Strong boundaries** | Domains are implicit boundaries, TP retrieves from active domain only |
-| **Accumulated knowledge** | Context accumulates within domains, shared across related deliverables |
+| **Accumulated knowledge** | Context accumulates within domains, shared across related agents |
 
 ### Kevin's Response
 
@@ -245,14 +245,14 @@ PREVIOUS THINKING (project_id model):
 FINAL DECISION:
 - User Profile = portable identity/preferences (always available)
 - Domain Context = accumulated knowledge from domain sources
-- Context is shared across deliverables in same domain
+- Context is shared across agents in same domain
 ```
 
 ### 4. TP Conversations Are Domain-Scoped
 
 ```
 PRIORITY ORDER FOR DETERMINING ACTIVE DOMAIN:
-1. Deliverable-anchored (viewing a deliverable → use its domain)
+1. Agent-anchored (viewing a agent → use its domain)
 2. Explicit selection (user chose a domain)
 3. Inferred from conversation (mentions sources/names)
 4. Ambiguous → ask user
@@ -275,7 +275,7 @@ Style is learned per domain:
 - Acme domain → Acme communication style
 - BigCo domain → BigCo communication style
 
-Applied to deliverables in that domain automatically.
+Applied to agents in that domain automatically.
 ```
 
 ---
@@ -292,7 +292,7 @@ Applied to deliverables in that domain automatically.
 
 ### Didn't: Make Domains First-Class User Objects
 
-**Why not**: Domains are an implementation detail that enables good context scoping. Users care about deliverables, not domains. Making domains prominent would recreate the setup burden problem.
+**Why not**: Domains are an implementation detail that enables good context scoping. Users care about agents, not domains. Making domains prominent would recreate the setup burden problem.
 
 ### Didn't: Drop Boundaries Entirely
 
@@ -310,7 +310,7 @@ Applied to deliverables in that domain automatically.
 
 1. **Domain merging**: User wants to combine two auto-inferred domains
 2. **Domain splitting**: One domain becomes too broad
-3. **Cross-domain deliverables**: Pulling from multiple domains
+3. **Cross-domain agents**: Pulling from multiple domains
 4. **Shared domains**: Team/multi-user scenarios
 
 ### Philosophical Questions Surfaced
@@ -321,14 +321,14 @@ Applied to deliverables in that domain automatically.
    - These were conflated in original `project_id = NULL` model
 
 2. **How granular should domains get?**
-   - Current model: domains emerge from deliverable overlap
-   - Could get very granular if user has many non-overlapping deliverables
+   - Current model: domains emerge from agent overlap
+   - Could get very granular if user has many non-overlapping agents
    - May need clustering/merging heuristics
 
-3. **What about users with no deliverables yet?**
-   - Onboarding should push toward first deliverable
-   - Before deliverables, context has no domain (or default domain)
-   - Domain value materializes as user creates deliverables
+3. **What about users with no agents yet?**
+   - Onboarding should push toward first agent
+   - Before agents, context has no domain (or default domain)
+   - Domain value materializes as user creates agents
 
 ---
 
@@ -338,7 +338,7 @@ Applied to deliverables in that domain automatically.
 
 1. New `context_domains` table (system-managed)
 2. New `domain_sources` table (maps sources to domains)
-3. New `deliverable_domains` table (links deliverables to computed domains)
+3. New `agent_domains` table (links agents to computed domains)
 4. Add `domain_id` to `memories` table
 5. New `domain_style_profiles` table
 6. Deprecate or repurpose `projects` table
@@ -346,14 +346,14 @@ Applied to deliverables in that domain automatically.
 ### Algorithm Required
 
 Domain inference via connected components:
-- Build graph of sources that appear together in deliverables
+- Build graph of sources that appear together in agents
 - Find connected components
 - Each component = one domain
-- Recompute on deliverable create/update
+- Recompute on agent create/update
 
 ### UX Changes Required
 
-1. Deliverable creation becomes primary onboarding flow
+1. Agent creation becomes primary onboarding flow
 2. Domain management is optional/settings
 3. TP shows domain context indicator
 4. Context browser can filter by domain
@@ -372,7 +372,7 @@ Assuming platform organization is clean led to fragile solutions. Accepting that
 
 ### On User Mental Models
 
-Users think about outcomes (deliverables), not infrastructure (context organization). Design should match mental models.
+Users think about outcomes (agents), not infrastructure (context organization). Design should match mental models.
 
 ### On the Multi-Variant Problem
 
@@ -386,7 +386,7 @@ When requirements seem contradictory (low friction AND strong boundaries), the s
 
 > "Not every Figma account is perfect, not Gmail, nor Notion, not any platform. Purity in data and management is theoretical and not true in any scenario." - Kevin
 
-> "YARNNN isn't a context management system. It's a deliverable production system that uses context." - Claude
+> "YARNNN isn't a context management system. It's a agent production system that uses context." - Claude
 
 > "Users don't wake up thinking 'I need to organize my context.' They think 'I need my weekly status update written and sent.'" - Claude
 

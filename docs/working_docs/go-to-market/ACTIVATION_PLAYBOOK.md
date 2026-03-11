@@ -143,7 +143,7 @@ This is the sticky concept. It implies urgency ("you should start accumulating n
 This builds trust, creates investor visibility, and generates a cadence that people can follow.
 
 **Example angles:**
-- "Week 12: Added signal-emergent deliverables. The system now creates reports I didn't ask for — because accumulated context revealed a pattern."
+- "Week 12: Added signal-emergent agents. The system now creates reports I didn't ask for — because accumulated context revealed a pattern."
 - "Solo founder shipping an AI platform: here's what I learned about platform sync this week."
 - Honest metrics: "50 beta users. Here's what the retention data says about the compounding thesis."
 
@@ -168,8 +168,8 @@ This builds trust, creates investor visibility, and generates a cadence that peo
 **CTA:** "Connect your first tool"
 **Critical:** This is where the product must deliver. If the first TP conversation doesn't reference their synced context, the loop breaks.
 
-### Stage 4: Retention (First Deliverable → Compounding)
-**Trigger:** First autonomous deliverable arrives, populated with real platform data
+### Stage 4: Retention (First Agent → Compounding)
+**Trigger:** First autonomous agent arrives, populated with real platform data
 **Goal:** They realize the system gets better over time without extra effort
 **Aha moment:** "I didn't write this. It pulled from my Slack and Gmail and got it right."
 
@@ -185,10 +185,10 @@ This builds trust, creates investor visibility, and generates a cadence that peo
 These are the "aha" moments that convert users, in order of typical encounter:
 
 1. **TP knows your context** — Ask about a project and the TP already knows the details from synced Slack/Gmail
-2. **First autonomous deliverable** — A report arrives without prompting, populated with real data from connected platforms
-3. **Cross-platform synthesis** — A deliverable combines Slack messages, calendar context, and Notion docs into one coherent output
+2. **First autonomous agent** — A report arrives without prompting, populated with real data from connected platforms
+3. **Cross-platform synthesis** — A agent combines Slack messages, calendar context, and Notion docs into one coherent output
 4. **Improvement over time** — The 5th version needs fewer edits than the 1st because accumulated context made it smarter
-5. **Signal-emergent output** — System detects a pattern and suggests a deliverable you didn't think to create
+5. **Signal-emergent output** — System detects a pattern and suggests a agent you didn't think to create
 
 **Implication for onboarding:** Moment #1 (TP knows your context) should happen in the first session. This means platform sync must complete before the user's first TP conversation. Design onboarding to: connect platform → wait for initial sync → prompt a TP conversation that demonstrates context awareness.
 

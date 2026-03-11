@@ -54,7 +54,7 @@ class DestinationExporter(ABC):
         """
         The platform identifier this exporter handles.
 
-        Must match destination.platform in the deliverable schema.
+        Must match destination.platform in the agent schema.
         """
         pass
 
@@ -81,7 +81,7 @@ class DestinationExporter(ABC):
         Deliver content to the destination.
 
         Args:
-            destination: The destination config from deliverable.destination
+            destination: The destination config from agent.destination
                 {
                     "platform": "slack",
                     "target": "#team-updates" or "C123ABC",
@@ -89,8 +89,8 @@ class DestinationExporter(ABC):
                     "options": {}
                 }
             content: The content to deliver (markdown)
-            title: Title of the deliverable
-            metadata: Additional metadata (deliverable_id, version_id, etc.)
+            title: Title of the agent
+            metadata: Additional metadata (agent_id, run_id, etc.)
             context: Auth context with user tokens
 
         Returns:
@@ -103,7 +103,7 @@ class DestinationExporter(ABC):
         """
         Validate that a destination config is valid for this exporter.
 
-        Called during deliverable setup to verify destination config
+        Called during agent setup to verify destination config
         before saving.
 
         Args:
@@ -118,7 +118,7 @@ class DestinationExporter(ABC):
         """
         Infer the style context for content generation.
 
-        When a deliverable has a destination, the platform informs
+        When a agent has a destination, the platform informs
         what style of content to generate:
         - Slack → casual, brief, emoji-friendly
         - Notion → structured, headers, detailed
@@ -146,7 +146,7 @@ class DestinationExporter(ABC):
         """
         Verify the user has access to deliver to this destination.
 
-        Called during deliverable setup to verify the bot/integration
+        Called during agent setup to verify the bot/integration
         can access the target channel/page.
 
         Args:

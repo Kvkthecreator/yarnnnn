@@ -5,8 +5,8 @@ External operations on YARNNN entities. For platform MCP operations,
 use MCP tools directly (ADR-048).
 
 Usage:
-  Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
-  Execute(action="deliverable.generate", target="deliverable:uuid")
+  Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")
+  Execute(action="agent.generate", target="agent:uuid")
 
 Note: platform.sync removed (ADR-085) — use RefreshPlatformContent primitive instead.
 """
@@ -21,11 +21,11 @@ EXECUTE_TOOL = {
     "description": """Perform YARNNN orchestration operations.
 
 Actions:
-- platform.publish: Push approved deliverable content to platform
-- deliverable.generate: Run content generation pipeline
-- deliverable.schedule: Update deliverable schedule
-- deliverable.approve: Approve pending version
-- deliverable.acknowledge: Append a lightweight observation to deliverable memory from conversation context (use when user shares relevant information that should persist, but doesn't warrant full generation)
+- platform.publish: Push approved agent content to platform
+- agent.generate: Run content generation pipeline
+- agent.schedule: Update agent schedule
+- agent.approve: Approve pending version
+- agent.acknowledge: Append a lightweight observation to agent memory from conversation context (use when user shares relevant information that should persist, but doesn't warrant full generation)
 - memory.extract: Extract from conversation
 
 NOTE: For direct platform operations (send messages, search pages, etc.),
@@ -34,10 +34,10 @@ use MCP tools directly: mcp__slack__*, mcp__notion__*, etc. (ADR-048)
 NOTE: platform.sync removed — use RefreshPlatformContent(platform="...") instead (ADR-085).
 
 Examples:
-- Execute(action="deliverable.generate", target="deliverable:uuid-123")
-- Execute(action="deliverable.acknowledge", target="deliverable:uuid-123", params={note: "User confirmed Q4 data is now finalized"})
-- Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
-- Execute(action="deliverable.approve", target="deliverable:uuid")""",
+- Execute(action="agent.generate", target="agent:uuid-123")
+- Execute(action="agent.acknowledge", target="agent:uuid-123", params={note: "User confirmed Q4 data is now finalized"})
+- Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")
+- Execute(action="agent.approve", target="agent:uuid")""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -68,25 +68,25 @@ Examples:
 # ADR-085: platform.sync removed - use RefreshPlatformContent primitive instead
 ACTION_CATALOG = {
     "platform.publish": {
-        "description": "Publish approved deliverable content to platform",
-        "target_types": ["deliverable"],
+        "description": "Publish approved agent content to platform",
+        "target_types": ["agent"],
         "requires": ["via"],
     },
-    "deliverable.generate": {
-        "description": "Generate deliverable content",
-        "target_types": ["deliverable"],
+    "agent.generate": {
+        "description": "Generate agent content",
+        "target_types": ["agent"],
     },
-    "deliverable.schedule": {
-        "description": "Update deliverable schedule",
-        "target_types": ["deliverable"],
+    "agent.schedule": {
+        "description": "Update agent schedule",
+        "target_types": ["agent"],
     },
-    "deliverable.approve": {
-        "description": "Approve pending deliverable version",
-        "target_types": ["deliverable"],
+    "agent.approve": {
+        "description": "Approve pending agent version",
+        "target_types": ["agent"],
     },
-    "deliverable.acknowledge": {
-        "description": "Append observation to deliverable memory (ADR-091: lightweight context update, no generation)",
-        "target_types": ["deliverable"],
+    "agent.acknowledge": {
+        "description": "Append observation to agent memory (ADR-091: lightweight context update, no generation)",
+        "target_types": ["agent"],
     },
     "memory.extract": {
         "description": "Extract memories from conversation",
@@ -230,15 +230,15 @@ def _get_action_handler(action: str):
     """Get handler function for action."""
     handlers = {
         "platform.publish": _handle_platform_publish,
-        "deliverable.generate": _handle_deliverable_generate,
-        "deliverable.approve": _handle_deliverable_approve,
-        "deliverable.acknowledge": _handle_deliverable_acknowledge,
+        "agent.generate": _handle_agent_generate,
+        "agent.approve": _handle_agent_approve,
+        "agent.acknowledge": _handle_agent_acknowledge,
     }
     return handlers.get(action)
 
 
 async def _handle_platform_publish(auth, entity, ref, via, params):
-    """Publish deliverable to platform."""
+    """Publish agent to platform."""
     from .refs import parse_ref, resolve_ref
 
     # Parse 'via' platform
@@ -249,11 +249,11 @@ async def _handle_platform_publish(auth, entity, ref, via, params):
         raise ValueError(f"Platform not found: {via}")
 
     provider = platform.get("provider")
-    deliverable_id = entity.get("id")
+    agent_id = entity.get("id")
 
     # Get latest approved version
-    versions = auth.client.table("deliverable_versions").select("*").eq(
-        "deliverable_id", deliverable_id
+    versions = auth.client.table("agent_runs").select("*").eq(
+        "agent_id", agent_id
     ).eq("status", "approved").order("version_number", desc=True).limit(1).execute()
 
     if not versions.data:
@@ -266,7 +266,7 @@ async def _handle_platform_publish(auth, entity, ref, via, params):
 
     result = await deliver_to_platform(
         auth=auth,
-        deliverable=entity,
+        agent=entity,
         version=version,
         platform=platform,
     )
@@ -279,20 +279,20 @@ async def _handle_platform_publish(auth, entity, ref, via, params):
     }
 
 
-async def _handle_deliverable_generate(auth, entity, ref, via, params):
+async def _handle_agent_generate(auth, entity, ref, via, params):
     """
-    Generate deliverable content.
+    Generate agent content.
 
     ADR-042: Simplified single-call flow replacing 3-step pipeline.
     Inline execution - no job queue, no chained work_tickets.
     """
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.agent_execution import execute_agent_generation
 
     # Execute inline with simplified flow
-    result = await execute_deliverable_generation(
+    result = await execute_agent_generation(
         client=auth.client,
         user_id=auth.user_id,
-        deliverable=entity,
+        agent=entity,
         trigger_context={"type": "execute_primitive"},
     )
 
@@ -301,22 +301,22 @@ async def _handle_deliverable_generate(auth, entity, ref, via, params):
 
     return {
         "status": result.get("status", "staged"),
-        "version_id": result.get("version_id"),
+        "run_id": result.get("run_id"),
         "version_number": result.get("version_number"),
         "draft": result.get("draft"),
         "message": result.get("message"),
     }
 
 
-async def _handle_deliverable_approve(auth, entity, ref, via, params):
-    """Approve pending deliverable version."""
-    deliverable_id = entity.get("id")
-    version_id = params.get("version_id")
+async def _handle_agent_approve(auth, entity, ref, via, params):
+    """Approve pending agent version."""
+    agent_id = entity.get("id")
+    version_id = params.get("run_id")
 
     if not version_id:
         # Get latest pending version
-        versions = auth.client.table("deliverable_versions").select("*").eq(
-            "deliverable_id", deliverable_id
+        versions = auth.client.table("agent_runs").select("*").eq(
+            "agent_id", agent_id
         ).eq("status", "pending_approval").order("version_number", desc=True).limit(1).execute()
 
         if not versions.data:
@@ -327,24 +327,24 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
     # Approve
     from datetime import datetime, timezone
 
-    auth.client.table("deliverable_versions").update({
+    auth.client.table("agent_runs").update({
         "status": "approved",
         "approved_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", version_id).execute()
 
     return {
         "status": "approved",
-        "version_id": version_id,
+        "run_id": run_id,
         "message": "Version approved",
     }
 
 
-async def _handle_deliverable_acknowledge(auth, entity, ref, via, params):
+async def _handle_agent_acknowledge(auth, entity, ref, via, params):
     """
-    Lightweight context update: append an observation to deliverable_memory.
+    Lightweight context update: append an observation to agent_memory.
 
     ADR-091: Graduated response — lighter than full generation, used when user
-    shares information relevant to a deliverable that should persist across sessions.
+    shares information relevant to a agent that should persist across sessions.
     Observation cap: 20 most recent (system compacts periodically).
     """
     from datetime import datetime, timezone
@@ -352,10 +352,10 @@ async def _handle_deliverable_acknowledge(auth, entity, ref, via, params):
 
     note = params.get("note", "").strip()
     if not note:
-        raise ValueError("params.note is required for deliverable.acknowledge")
+        raise ValueError("params.note is required for agent.acknowledge")
 
-    deliverable_id = entity.get("id")
-    current_memory = entity.get("deliverable_memory") or {}
+    agent_id = entity.get("id")
+    current_memory = entity.get("agent_memory") or {}
     if isinstance(current_memory, str):
         try:
             current_memory = json.loads(current_memory)
@@ -371,10 +371,10 @@ async def _handle_deliverable_acknowledge(auth, entity, ref, via, params):
     })
     updated_memory["observations"] = observations[-20:]
 
-    auth.client.table("deliverables").update({
-        "deliverable_memory": updated_memory,
+    auth.client.table("agents").update({
+        "agent_memory": updated_memory,
         "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", deliverable_id).eq("user_id", auth.user_id).execute()
+    }).eq("id", agent_id).eq("user_id", auth.user_id).execute()
 
     return {
         "status": "acknowledged",

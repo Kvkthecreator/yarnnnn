@@ -964,7 +964,7 @@ function ImportJobStatus({
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Your {providerName.toLowerCase()} communication style will be applied to future deliverables.
+                Your {providerName.toLowerCase()} communication style will be applied to future agents.
               </p>
             </div>
           )}

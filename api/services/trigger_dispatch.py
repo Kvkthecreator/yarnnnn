@@ -1,15 +1,15 @@
 """
 Trigger Dispatch — ADR-088
 
-Single decision point for all background deliverable triggers.
+Single decision point for all background agent triggers.
 
 Three callers:
-  unified_scheduler.py → process_deliverable()   trigger_type='schedule', strength='high'
+  unified_scheduler.py → process_agent()   trigger_type='schedule', strength='high'
   event_triggers.py    → execute_event_triggers() trigger_type='event',    strength='medium'
   [future signal path]                            trigger_type='signal',   strength='medium'
 
-The high path delegates unchanged to execute_deliverable_generation().
-The medium path appends an observation to deliverable_memory without generating a version.
+The high path delegates unchanged to execute_agent_generation().
+The medium path appends an observation to agent_memory without generating a version.
 The low path logs only (zero LLM cost).
 
 This module is backend-only. POST /chat (TP chat) does not go through dispatch.
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 async def dispatch_trigger(
     client,
-    deliverable: dict,
+    agent: dict,
     trigger_type: str,
     trigger_context: dict,
     signal_strength: str,
@@ -36,7 +36,7 @@ async def dispatch_trigger(
 
     Args:
         client: Supabase client (service role)
-        deliverable: Full deliverable dict from database
+        agent: Full agent dict from database
         trigger_type: 'schedule' | 'event' | 'signal'
         trigger_context: Type-specific payload passed through to execution
         signal_strength: 'high' | 'medium' | 'low'
@@ -45,22 +45,22 @@ async def dispatch_trigger(
         Dict with 'action', 'success', and type-specific keys.
         Never raises — dispatch failure should not crash the caller.
     """
-    deliverable_id = deliverable.get("id")
-    title = deliverable.get("title", "Untitled")
+    agent_id = agent.get("id")
+    title = agent.get("title", "Untitled")
 
     if signal_strength == "high":
-        return await _dispatch_high(client, deliverable, trigger_type, trigger_context)
+        return await _dispatch_high(client, agent, trigger_type, trigger_context)
 
     elif signal_strength == "medium":
         # ADR-092: Reactive mode upgrades to high when observation threshold is met
-        mode = deliverable.get("mode", "recurring")
+        mode = agent.get("mode", "recurring")
         if mode == "reactive":
-            return await _dispatch_medium_reactive(client, deliverable, trigger_type, trigger_context)
-        return await _dispatch_medium(client, deliverable, trigger_type, trigger_context)
+            return await _dispatch_medium_reactive(client, agent, trigger_type, trigger_context)
+        return await _dispatch_medium(client, agent, trigger_type, trigger_context)
 
     else:  # low
-        user_id = deliverable.get("user_id")
-        return await _dispatch_low(client, deliverable_id, user_id, trigger_type)
+        user_id = agent.get("user_id")
+        return await _dispatch_low(client, agent_id, user_id, trigger_type)
 
 
 # =============================================================================
@@ -69,24 +69,24 @@ async def dispatch_trigger(
 
 async def _dispatch_high(
     client,
-    deliverable: dict,
+    agent: dict,
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """Delegate to execute_deliverable_generation(), pass result through."""
-    from services.deliverable_execution import execute_deliverable_generation
+    """Delegate to execute_agent_generation(), pass result through."""
+    from services.agent_execution import execute_agent_generation
 
-    deliverable_id = deliverable.get("id")
-    user_id = deliverable.get("user_id")
-    title = deliverable.get("title", "Untitled")
+    agent_id = agent.get("id")
+    user_id = agent.get("user_id")
+    title = agent.get("title", "Untitled")
 
-    logger.info(f"[DISPATCH] high → generate: {title} ({deliverable_id}), trigger={trigger_type}")
+    logger.info(f"[DISPATCH] high → generate: {title} ({agent_id}), trigger={trigger_type}")
 
     try:
-        result = await execute_deliverable_generation(
+        result = await execute_agent_generation(
             client=client,
             user_id=user_id,
-            deliverable=deliverable,
+            agent=agent,
             trigger_context=trigger_context,
         )
         # Merge action key into result — callers still get success/version_id/etc.
@@ -97,36 +97,36 @@ async def _dispatch_high(
 
 
 # =============================================================================
-# Medium — observation append to deliverable_memory
+# Medium — observation append to agent_memory
 # =============================================================================
 
 async def _dispatch_medium(
     client,
-    deliverable: dict,
+    agent: dict,
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """Append an observation to deliverable_memory without generating a version."""
+    """Append an observation to agent_memory without generating a version."""
     from services.activity_log import write_activity
 
-    deliverable_id = deliverable.get("id")
-    user_id = deliverable.get("user_id")
-    title = deliverable.get("title", "Untitled")
+    agent_id = agent.get("id")
+    user_id = agent.get("user_id")
+    title = agent.get("title", "Untitled")
 
-    logger.info(f"[DISPATCH] medium → memory update: {title} ({deliverable_id}), trigger={trigger_type}")
+    logger.info(f"[DISPATCH] medium → memory update: {title} ({agent_id}), trigger={trigger_type}")
 
     try:
         observation = _build_observation(trigger_type, trigger_context)
 
         # Fresh read — optimistic concurrency (safe at single-user scale)
         fresh = (
-            client.table("deliverables")
-            .select("deliverable_memory")
-            .eq("id", deliverable_id)
+            client.table("agents")
+            .select("agent_memory")
+            .eq("id", agent_id)
             .single()
             .execute()
         )
-        current_memory = (fresh.data or {}).get("deliverable_memory") or {}
+        current_memory = (fresh.data or {}).get("agent_memory") or {}
 
         observations = current_memory.get("observations", [])
         observations.append({
@@ -140,9 +140,9 @@ async def _dispatch_medium(
 
         updated_memory = {**current_memory, "observations": observations}
 
-        client.table("deliverables").update(
-            {"deliverable_memory": updated_memory}
-        ).eq("id", deliverable_id).execute()
+        client.table("agents").update(
+            {"agent_memory": updated_memory}
+        ).eq("id", agent_id).execute()
 
         try:
             await write_activity(
@@ -150,14 +150,14 @@ async def _dispatch_medium(
                 user_id=user_id,
                 event_type="memory_written",
                 summary=f"Trigger observation: {title}",
-                event_ref=deliverable_id,
+                event_ref=agent_id,
                 metadata={"trigger_type": trigger_type, "note": observation[:200]},
             )
         except Exception:
             pass  # Non-fatal
 
         logger.info(f"[DISPATCH] ✓ memory updated: {title}")
-        return {"action": "memory_updated", "success": True, "deliverable_id": deliverable_id}
+        return {"action": "memory_updated", "success": True, "agent_id": agent_id}
 
     except Exception as e:
         logger.error(f"[DISPATCH] medium failed for {title}: {e}")
@@ -166,39 +166,39 @@ async def _dispatch_medium(
 
 async def _dispatch_medium_reactive(
     client,
-    deliverable: dict,
+    agent: dict,
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
     """
     ADR-092: Reactive mode medium dispatch.
 
-    Appends an observation to deliverable_memory.observations.
+    Appends an observation to agent_memory.observations.
     When len(observations) >= threshold (default 5), upgrades to high — generates a
     version and clears the observation queue.
     """
     from services.activity_log import write_activity
 
-    deliverable_id = deliverable.get("id")
-    user_id = deliverable.get("user_id")
-    title = deliverable.get("title", "Untitled")
-    trigger_config = deliverable.get("trigger_config") or {}
+    agent_id = agent.get("id")
+    user_id = agent.get("user_id")
+    title = agent.get("title", "Untitled")
+    trigger_config = agent.get("trigger_config") or {}
     threshold = trigger_config.get("observation_threshold", 5)
 
-    logger.info(f"[DISPATCH] reactive medium: {title} ({deliverable_id}), threshold={threshold}")
+    logger.info(f"[DISPATCH] reactive medium: {title} ({agent_id}), threshold={threshold}")
 
     try:
         observation = _build_observation(trigger_type, trigger_context)
 
         # Fresh read
         fresh = (
-            client.table("deliverables")
-            .select("deliverable_memory")
-            .eq("id", deliverable_id)
+            client.table("agents")
+            .select("agent_memory")
+            .eq("id", agent_id)
             .single()
             .execute()
         )
-        current_memory = (fresh.data or {}).get("deliverable_memory") or {}
+        current_memory = (fresh.data or {}).get("agent_memory") or {}
 
         observations = current_memory.get("observations", [])
         observations.append({
@@ -217,20 +217,20 @@ async def _dispatch_medium_reactive(
                 "observations": [],  # cleared after generation
                 "last_generated_at": datetime.now(timezone.utc).isoformat(),
             }
-            client.table("deliverables").update(
-                {"deliverable_memory": updated_memory}
-            ).eq("id", deliverable_id).execute()
+            client.table("agents").update(
+                {"agent_memory": updated_memory}
+            ).eq("id", agent_id).execute()
 
-            result = await _dispatch_high(client, deliverable, trigger_type, trigger_context)
+            result = await _dispatch_high(client, agent, trigger_type, trigger_context)
             result["reactive_threshold_met"] = True
             result["observations_cleared"] = len(observations)
             return result
         else:
             # Below threshold — accumulate and wait
             updated_memory = {**current_memory, "observations": observations}
-            client.table("deliverables").update(
-                {"deliverable_memory": updated_memory}
-            ).eq("id", deliverable_id).execute()
+            client.table("agents").update(
+                {"agent_memory": updated_memory}
+            ).eq("id", agent_id).execute()
 
             try:
                 await write_activity(
@@ -238,7 +238,7 @@ async def _dispatch_medium_reactive(
                     user_id=user_id,
                     event_type="memory_written",
                     summary=f"Reactive observation ({len(observations)}/{threshold}): {title}",
-                    event_ref=deliverable_id,
+                    event_ref=agent_id,
                     metadata={
                         "trigger_type": trigger_type,
                         "note": observation[:200],
@@ -253,7 +253,7 @@ async def _dispatch_medium_reactive(
             return {
                 "action": "memory_updated",
                 "success": True,
-                "deliverable_id": deliverable_id,
+                "agent_id": agent_id,
                 "observation_count": len(observations),
                 "threshold": threshold,
             }
@@ -293,14 +293,14 @@ def _build_observation(trigger_type: str, trigger_context: dict) -> str:
 
 async def _dispatch_low(
     client,
-    deliverable_id: Optional[str],
+    agent_id: Optional[str],
     user_id: Optional[str],
     trigger_type: str,
 ) -> dict:
     """Log the trigger event with no LLM cost."""
     from services.activity_log import write_activity
 
-    logger.debug(f"[DISPATCH] low → log only: {deliverable_id}, trigger={trigger_type}")
+    logger.debug(f"[DISPATCH] low → log only: {agent_id}, trigger={trigger_type}")
 
     if user_id:
         try:
@@ -309,7 +309,7 @@ async def _dispatch_low(
                 user_id=user_id,
                 event_type="scheduler_heartbeat",
                 summary=f"Low-signal trigger skipped: {trigger_type}",
-                event_ref=deliverable_id,
+                event_ref=agent_id,
                 metadata={"trigger_type": trigger_type, "signal_strength": "low"},
             )
         except Exception:

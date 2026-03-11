@@ -4,21 +4,21 @@
 **Status:** Implementing
 **Related:**
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer.md)
-- [ADR-087: Deliverable Scoped Context](ADR-087-workspace-scoping-architecture.md)
-- [ADR-092: Mode Taxonomy](ADR-092-deliverable-intelligence-mode-taxonomy.md)
-- [ADR-101: Deliverable Intelligence Model](ADR-101-deliverable-intelligence-model.md)
+- [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md)
+- [ADR-092: Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md)
 
 ---
 
 ## Problem
 
-Deliverable outputs exist only in `deliverable_versions` — they are not part of the content layer that TP and other deliverables can search. This means:
+Agent outputs exist only in `agent_runs` — they are not part of the content layer that TP and other agents can search. This means:
 
-1. A coordinator deliverable cannot reference the output of a recurring deliverable it orchestrates
-2. TP cannot search across deliverable outputs alongside Slack/Gmail/Notion content
+1. A coordinator agent cannot reference the output of a recurring agent it orchestrates
+2. TP cannot search across agent outputs alongside Slack/Gmail/Notion content
 3. The accumulation loop (ADR-072) is incomplete — yarnnn's own generated knowledge doesn't feed back into the context pool
 
-The `platform_content` unified content layer (ADR-072) already handles multi-platform content with retention, search, and TTL. Deliverable outputs are just another content platform.
+The `platform_content` unified content layer (ADR-072) already handles multi-platform content with retention, search, and TTL. Agent outputs are just another content platform.
 
 ---
 
@@ -26,22 +26,22 @@ The `platform_content` unified content layer (ADR-072) already handles multi-pla
 
 ### yarnnn as a first-class platform
 
-Add `"yarnnn"` to `PlatformType`. After successful deliverable delivery, write the version output as a `platform_content` row with `platform="yarnnn"`.
+Add `"yarnnn"` to `PlatformType`. After successful agent delivery, write the version output as a `platform_content` row with `platform="yarnnn"`.
 
 **Mapping:**
 
 | platform_content field | Source |
 |----------------------|--------|
 | `platform` | `"yarnnn"` |
-| `resource_id` | `deliverable_id` (the deliverable that produced it) |
-| `resource_name` | Deliverable title |
+| `resource_id` | `agent_id` (the agent that produced it) |
+| `resource_name` | Agent title |
 | `item_id` | `version_id` |
 | `content` | Version draft content |
-| `content_type` | `deliverable_type` (e.g., `"newsletter"`, `"report"`) |
+| `content_type` | `agent_type` (e.g., `"newsletter"`, `"report"`) |
 | `title` | `"{title} v{version_number}"` |
 | `author` | `"yarnnn"` |
 | `is_user_authored` | `False` |
-| `metadata` | `{deliverable_type, mode, version_number, strategy}` |
+| `metadata` | `{agent_type, mode, version_number, strategy}` |
 | `source_timestamp` | Version `delivered_at` |
 | `retained` | `True` (always — generated artifacts are not ephemeral) |
 | `retained_reason` | `"yarnnn_output"` |
@@ -50,14 +50,14 @@ Add `"yarnnn"` to `PlatformType`. After successful deliverable delivery, write t
 ### What yarnnn content is NOT
 
 - Not a sync target — no OAuth, no `platform_connections` row, no refresh primitive
-- Not user-selectable as a "source" — it's automatic, tied to deliverable execution
+- Not user-selectable as a "source" — it's automatic, tied to agent execution
 - Not subject to TTL expiry — always retained (generated artifacts don't go stale the way synced messages do; they remain valuable as historical context)
 
 ### Where yarnnn content IS visible
 
 - **Search primitive**: TP and headless agents can search `platform="yarnnn"` via the Search tool
 - **System status**: Admin dashboard and system route show yarnnn content counts
-- **Cross-deliverable context**: A deliverable's gathered context can include yarnnn platform_content from other deliverables
+- **Cross-agent context**: A agent's gathered context can include yarnnn platform_content from other agents
 
 ---
 
@@ -66,7 +66,7 @@ Add `"yarnnn"` to `PlatformType`. After successful deliverable delivery, write t
 | File | Change |
 |------|--------|
 | `api/services/platform_content.py` | Add `"yarnnn"` to `PlatformType`; add `"yarnnn_output"` to `RetainedReason`; add TTL entry |
-| `api/services/deliverable_execution.py` | Write yarnnn_content row after successful delivery |
+| `api/services/agent_execution.py` | Write yarnnn_content row after successful delivery |
 | `api/services/primitives/search.py` | Add `"yarnnn"` to Search platform enum |
 | `api/routes/system.py` | Add `"yarnnn"` to `content_platforms` list |
 | `api/routes/admin.py` | Add `"yarnnn"` to content-by-platform iteration; add `"yarnnn_output"` to retention reasons |
@@ -85,6 +85,6 @@ Add `"yarnnn"` to `PlatformType`. After successful deliverable delivery, write t
 
 ## Future Considerations
 
-- **Retention pruning**: If yarnnn content grows large, consider version-based retention (keep last N versions per deliverable, expire older ones)
+- **Retention pruning**: If yarnnn content grows large, consider version-based retention (keep last N versions per agent, expire older ones)
 - **Embedding**: yarnnn content could be embedded for semantic search alongside other platform content
-- **Cross-deliverable context in type prompt**: Coordinator deliverables could explicitly request yarnnn content from their orchestrated deliverables
+- **Cross-agent context in type prompt**: Coordinator agents could explicitly request yarnnn content from their orchestrated agents

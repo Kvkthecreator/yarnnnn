@@ -22,7 +22,7 @@
 │  │  DELIVERABLES   │  │  NOTIFICATIONS  │  │         MONITORS            │   │
 │  │                 │  │                 │  │                             │   │
 │  │ • Heavy pipeline│  │ • Light pipeline│  │ • Condition evaluation      │   │
-│  │ • Governance    │  │ • Always auto   │  │ • Triggers deliverables     │   │
+│  │ • Governance    │  │ • Always auto   │  │ • Triggers agents     │   │
 │  │ • Recurring     │  │ • One-off alerts│  │ • Triggers notifications    │   │
 │  └────────┬────────┘  └────────┬────────┘  └──────────────┬──────────────┘   │
 │           │                    │                          │                   │
@@ -47,7 +47,7 @@
 
 ---
 
-## Data Flow: Deliverable Creation to Delivery
+## Data Flow: Agent Creation to Delivery
 
 ```
 User: "Create a weekly digest from #daily-work"
@@ -56,7 +56,7 @@ User: "Create a weekly digest from #daily-work"
 ┌─────────────────────────────────────────────────────────────────┐
 │                          TP AGENT                                │
 │  ┌──────────────┐   ┌──────────────┐   ┌──────────────────────┐ │
-│  │list_platform │   │sync_platform │   │ create_deliverable   │ │
+│  │list_platform │   │sync_platform │   │ create_agent   │ │
 │  │_resources    │──▶│_resource     │──▶│                      │ │
 │  │(find channel)│   │(get messages)│   │ title, prompt, dest, │ │
 │  └──────────────┘   └──────────────┘   │ governance, schedule │ │
@@ -97,8 +97,8 @@ Platform Event (Slack mention)
 │                     ┌────────────────────────────────────────┐    │
 │                     │            FOR EACH MATCH              │    │
 │                     │  ┌─────────────────────────────────┐   │    │
-│                     │  │ action_type == "deliverable"    │   │    │
-│                     │  │ → execute_deliverable()         │   │    │
+│                     │  │ action_type == "agent"    │   │    │
+│                     │  │ → execute_agent()         │   │    │
 │                     │  ├─────────────────────────────────┤   │    │
 │                     │  │ action_type == "notification"   │   │    │
 │                     │  │ → send_notification()           │   │    │
@@ -154,7 +154,7 @@ Platform Event (Slack mention)
 ## Governance Flow
 
 ```
-                    Deliverable Instance Created
+                    Agent Instance Created
                               │
                               ▼
                     ┌───────────────────┐
@@ -214,11 +214,11 @@ Platform Event (Slack mention)
 │  users ─────────────┬────────────────┬──────────────────────────┤
 │                     │                │                          │
 │                     ▼                ▼                          │
-│              deliverables      notifications                    │
+│              agents      notifications                    │
 │                     │                │                          │
 │                     │                │                          │
 │                     ▼                │                          │
-│         deliverable_instances        │                          │
+│         agent_instances        │                          │
 │                     │                │                          │
 │                     │                │                          │
 │                     ▼                ▼                          │
@@ -226,7 +226,7 @@ Platform Event (Slack mention)
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  deliverables                    │ notifications                │
+│  agents                    │ notifications                │
 │  ─────────────                   │ ─────────────                │
 │  id                              │ id                           │
 │  user_id                         │ user_id                      │
@@ -240,11 +240,11 @@ Platform Event (Slack mention)
 │                                  │                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  deliverable_instances           │ event_trigger_log            │
+│  agent_instances           │ event_trigger_log            │
 │  ─────────────────────           │ ─────────────────            │
 │  id                              │ id                           │
-│  deliverable_id                  │ user_id                      │
-│  status (pending/staged/...)     │ deliverable_id               │
+│  agent_id                  │ user_id                      │
+│  status (pending/staged/...)     │ agent_id               │
 │  content                         │ monitor_id                   │
 │  trigger_context                 │ platform                     │
 │                                  │ event_type                   │

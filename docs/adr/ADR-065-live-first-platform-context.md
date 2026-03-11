@@ -10,7 +10,7 @@
 
 ## Context
 
-ADR-062 established that `filesystem_items` is a "conversational search cache" and that TP accesses platform content via `Search(scope="platform_content")` as its primary conversational path. Deliverable execution was already on live reads.
+ADR-062 established that `filesystem_items` is a "conversational search cache" and that TP accesses platform content via `Search(scope="platform_content")` as its primary conversational path. Agent execution was already on live reads.
 
 Operating experience has surfaced two failure modes with this model:
 
@@ -109,7 +109,7 @@ The prior silent redirect (`scope="memory"` → `scope="platform_content"` in se
 
 - `filesystem_items` schema — unchanged, cache is still populated and valid
 - Platform sync pipeline — unchanged, background sync still runs on schedule
-- Deliverable execution — already on live reads (ADR-062 confirmed this; not affected here)
+- Agent execution — already on live reads (ADR-062 confirmed this; not affected here)
 - Working memory injection — unchanged; Memory and Activity layers injected at session start
 - Live platform tool definitions — unchanged; tools already exist and work
 

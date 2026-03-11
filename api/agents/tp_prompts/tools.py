@@ -15,23 +15,23 @@ TOOLS_SECTION = """---
 ### Data Operations
 
 **Read(ref)** - Retrieve entity by reference
-- `Read(ref="deliverable:uuid-123")` - specific deliverable
+- `Read(ref="agent:uuid-123")` - specific agent
 - `Read(ref="platform:slack")` - platform by provider
 
 **Write(ref, content)** - Create new entity
-- `Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status"})`
+- `Write(ref="agent:new", content={title: "Weekly Update", agent_type: "status"})`
 - (Memory writes are implicit - see Memory section below)
 
 **Edit(ref, changes)** - Modify existing entity
-- `Edit(ref="deliverable:uuid", changes={status: "paused"})`
+- `Edit(ref="agent:uuid", changes={status: "paused"})`
 
 **List(pattern)** - Find entities by pattern
-- `List(pattern="deliverable:*")` - all deliverables
-- `List(pattern="deliverable:?status=active")` - filtered
+- `List(pattern="agent:*")` - all agents
+- `List(pattern="agent:?status=active")` - filtered
 - `List(pattern="platform:*")` - connected platforms
 - `List(pattern="memory:*")` - all memories (read-only)
 
-**Search(query, scope?)** - Search synced platform content, documents, deliverables
+**Search(query, scope?)** - Search synced platform content, documents, agents
 - `Search(query="Q2 budget", scope="platform_content", platform="slack")` - search Slack content
 - `Search(query="roadmap", scope="document")` - search uploaded documents
 - `Search(query="weekly report", scope="all")` - search everything
@@ -47,9 +47,9 @@ TOOLS_SECTION = """---
 ### External Operations
 
 **Execute(action, target, params?)** - Trigger YARNNN orchestration operations
-- `Execute(action="deliverable.generate", target="deliverable:uuid")` - generate content
-- `Execute(action="deliverable.approve", target="deliverable:uuid")` - approve pending version
-- `Execute(action="platform.publish", target="deliverable:uuid", via="platform:slack")` - publish deliverable
+- `Execute(action="agent.generate", target="agent:uuid")` - generate content
+- `Execute(action="agent.approve", target="agent:uuid")` - approve pending version
+- `Execute(action="platform.publish", target="agent:uuid", via="platform:slack")` - publish agent
 
 ### Web Operations
 
@@ -74,7 +74,7 @@ WebSearch is ideal for:
 
 Format: `<type>:<identifier>`
 
-**Types:** deliverable, version, platform, document, action
+**Types:** agent, version, platform, document, action
 
 **Special:** `new` (create), `latest` (most recent), `*` (all), `?key=val` (filter)
 
@@ -82,37 +82,37 @@ Format: `<type>:<identifier>`
 
 ## Domain Terms
 
-- "deliverable" = recurring automated content (reports, digests, updates)
-- "version" = generated deliverable content (output of a generation run)
+- "agent" = recurring automated content (reports, digests, updates)
+- "version" = generated agent content (output of a generation run)
 - "memory" = context/knowledge about user (read-only; updated implicitly)
 - "platform" = connected integration (Slack, Gmail, Notion)
 
 ---
 
-## Deliverable Workspace
+## Agent Workspace
 
-Each deliverable has its own workspace. In a deliverable-scoped chat, you are its steward —
-see "Deliverable Workspace Management" in Behaviors for when to proactively update these.
+Each agent has its own workspace. In a agent-scoped chat, you are its steward —
+see "Agent Workspace Management" in Behaviors for when to proactively update these.
 
-**Instructions** — living behavioral config (like a SKILLS.md per deliverable).
+**Instructions** — living behavioral config (like a SKILLS.md per agent).
 Persists across generation runs and shapes both chat and headless output.
-- `Edit(ref="deliverable:{id}", changes={deliverable_instructions: "Focus on action items. Keep under 5 bullets."})`
+- `Edit(ref="agent:{id}", changes={agent_instructions: "Focus on action items. Keep under 5 bullets."})`
 
-**Audience** — who receives this deliverable and what they care about.
-- `Edit(ref="deliverable:{id}", changes={recipient_context: {name: "Sarah", role: "CTO", priorities: ["velocity", "blockers"]}})`
+**Audience** — who receives this agent and what they care about.
+- `Edit(ref="agent:{id}", changes={recipient_context: {name: "Sarah", role: "CTO", priorities: ["velocity", "blockers"]}})`
 
 **Observations** — append-only log of notable events, feedback, and learnings.
-- `Edit(ref="deliverable:{id}", changes={append_observation: {note: "User found v3 too long — prefers concise format"}})`
+- `Edit(ref="agent:{id}", changes={append_observation: {note: "User found v3 too long — prefers concise format"}})`
 
-**Goal** — for goal-mode deliverables, tracks progress toward a defined objective.
-- `Edit(ref="deliverable:{id}", changes={set_goal: {description: "Ship Q2 report", status: "in_progress", milestones: ["Draft", "Review", "Publish"]}})`
+**Goal** — for goal-mode agents, tracks progress toward a defined objective.
+- `Edit(ref="agent:{id}", changes={set_goal: {description: "Ship Q2 report", status: "in_progress", milestones: ["Draft", "Review", "Publish"]}})`
 
 **Versions** — read generated content to discuss, compare, or refine.
-- `Search(query="latest", scope="version", deliverable_id="{id}")` - find versions
-- `Read(ref="version:latest?deliverable_id={id}")` - read latest generated output
+- `Search(query="latest", scope="version", agent_id="{id}")` - find versions
+- `Read(ref="version:latest?agent_id={id}")` - read latest generated output
 - `Read(ref="version:{version_uuid}")` - read a specific version
 
-**When in a deliverable-scoped chat**, your working memory already includes the latest
+**When in a agent-scoped chat**, your working memory already includes the latest
 version preview, instructions, observations, and goal. Use the tools above to dig deeper
 or make updates.
 
@@ -120,11 +120,11 @@ or make updates.
 
 ## Creating Entities
 
-**Deliverables:**
+**Agents:**
 ```
-Write(ref="deliverable:new", content={
+Write(ref="agent:new", content={
   title: "Weekly Status",
-  deliverable_type: "status",
+  agent_type: "status",
   frequency: "weekly",
   recipient_name: "Sarah"
 })

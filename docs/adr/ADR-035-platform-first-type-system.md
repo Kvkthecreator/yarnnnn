@@ -1,14 +1,14 @@
-# ADR-035: Platform-First Deliverable Type System
+# ADR-035: Platform-First Agent Type System
 
-> **Status**: Superseded by [ADR-082](ADR-082-deliverable-type-consolidation.md) — type system consolidated from 27 to 8 active types
+> **Status**: Superseded by [ADR-082](ADR-082-agent-type-consolidation.md) — type system consolidated from 27 to 8 active types
 > **Created**: 2025-02-09
-> **Related**: ADR-019 (Deliverable Types), ADR-031 (Platform-Native Deliverables), ADR-032 (Platform-Native Frontend)
+> **Related**: ADR-019 (Agent Types), ADR-031 (Platform-Native Agents), ADR-032 (Platform-Native Frontend)
 
 ---
 
 ## Context
 
-ADR-019 established a type system for deliverables (status_report, stakeholder_update, etc.) focused on **output format**. ADR-031 introduced platform-native deliverables focused on **platform semantics**. However, these remain conceptually separate:
+ADR-019 established a type system for agents (status_report, stakeholder_update, etc.) focused on **output format**. ADR-031 introduced platform-native agents focused on **platform semantics**. However, these remain conceptually separate:
 
 - ADR-019 types are destination-agnostic (a "status report" is the same whether going to Slack or Email)
 - ADR-031 archetypes are platform-specific but lack concrete implementation taxonomy
@@ -412,7 +412,7 @@ interface ClientUpdateConfig {
   };
   sections: {
     progress_summary: boolean;
-    deliverables_status: boolean;
+    agents_status: boolean;
     next_steps: boolean;
     blockers_needing_input: boolean;
   };
@@ -519,7 +519,7 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel
 
-class DeliverableTypeWave(str, Enum):
+class AgentTypeWave(str, Enum):
     WAVE_1 = "wave_1"  # Internal single-platform
     WAVE_2 = "wave_2"  # Cross-platform internal
     WAVE_3 = "wave_3"  # External-facing
@@ -533,7 +533,7 @@ class TypeDefinition(BaseModel):
     id: str
     display_name: str
     description: str
-    wave: DeliverableTypeWave
+    wave: AgentTypeWave
     source_platforms: list[str]
     destination_platforms: list[str]
     governance_ceiling: GovernanceCeiling
@@ -548,7 +548,7 @@ TYPE_REGISTRY: dict[str, TypeDefinition] = {
         id="slack_channel_digest",
         display_name="Channel Digest",
         description="Summarize busy Slack channels to a quieter destination",
-        wave=DeliverableTypeWave.WAVE_1,
+        wave=AgentTypeWave.WAVE_1,
         source_platforms=["slack"],
         destination_platforms=["slack"],
         governance_ceiling=GovernanceCeiling.FULL_AUTO,
@@ -637,14 +637,14 @@ Generate the status update now:
 ### Database Changes
 
 ```sql
--- Add wave tracking to deliverables
-ALTER TABLE deliverables ADD COLUMN type_wave TEXT;
+-- Add wave tracking to agents
+ALTER TABLE agents ADD COLUMN type_wave TEXT;
 
 -- Add enabled flag for feature gating
-ALTER TABLE deliverables ADD COLUMN type_enabled BOOLEAN DEFAULT true;
+ALTER TABLE agents ADD COLUMN type_enabled BOOLEAN DEFAULT true;
 
 -- Index for wave-based queries
-CREATE INDEX idx_deliverables_wave ON deliverables(type_wave);
+CREATE INDEX idx_agents_wave ON agents(type_wave);
 ```
 
 ---
@@ -676,19 +676,19 @@ CREATE INDEX idx_deliverables_wave ON deliverables(type_wave);
 |--------|---------------|---------------|
 | Type selection rate (vs Custom) | 70%+ | 80%+ |
 | First-run acceptance | 50%+ | 60%+ |
-| Weekly active deliverables | +30% | +50% |
+| Weekly active agents | +30% | +50% |
 | User-reported time savings | 2+ hrs/week | 4+ hrs/week |
 
 ---
 
 ## Relationship to Prior ADRs
 
-### ADR-019 (Deliverable Types)
+### ADR-019 (Agent Types)
 - **Supersedes** the generic type system
 - Preserves `custom` as escape hatch
-- Migration path for existing deliverables
+- Migration path for existing agents
 
-### ADR-031 (Platform-Native Deliverables)
+### ADR-031 (Platform-Native Agents)
 - **Implements** the archetype vision
 - Concrete type definitions for each archetype
 - Extraction signals from ADR-030 enhanced
@@ -704,7 +704,7 @@ CREATE INDEX idx_deliverables_wave ON deliverables(type_wave);
 
 1. **Should Custom require explicit unlock?**
    - Option A: Always available but de-emphasized
-   - Option B: Unlock after creating 2+ typed deliverables
+   - Option B: Unlock after creating 2+ typed agents
    - Recommendation: Option A initially, measure usage
 
 2. **How to handle type changes?**
@@ -717,7 +717,7 @@ CREATE INDEX idx_deliverables_wave ON deliverables(type_wave);
 
 ## References
 
-- [ADR-019: Deliverable Types System](./ADR-019-deliverable-types.md)
-- [ADR-031: Platform-Native Deliverables](./ADR-031-platform-native-deliverables.md)
+- [ADR-019: Agent Types System](./ADR-019-agent-types.md)
+- [ADR-031: Platform-Native Agents](./ADR-031-platform-native-agents.md)
 - [ADR-032: Platform-Native Frontend Architecture](./ADR-032-platform-native-frontend-architecture.md)
 - [ADR-030: Context Extraction Methodology](./ADR-030-context-extraction-methodology.md)

@@ -37,9 +37,9 @@ async def send_notification(
     channel: Literal["email", "in_app"] = "email",
     urgency: Literal["low", "normal", "high"] = "normal",
     context: Optional[dict] = None,
-    source_type: Literal["system", "monitor", "tp", "deliverable", "event_trigger", "suggestion"] = "system",
+    source_type: Literal["system", "monitor", "tp", "agent", "event_trigger", "suggestion"] = "system",
     source_id: Optional[str] = None,
-    preference_type: Optional[Literal["deliverable_ready", "deliverable_failed", "suggestion_created"]] = None,
+    preference_type: Optional[Literal["agent_ready", "agent_failed", "suggestion_created"]] = None,
 ) -> NotificationResult:
     """
     Send a notification to a user.
@@ -53,7 +53,7 @@ async def send_notification(
         message: Notification text
         channel: Delivery channel (email or in_app)
         urgency: Priority level
-        context: Optional related context (deliverable_id, url, etc.)
+        context: Optional related context (agent_id, url, etc.)
         source_type: What triggered this notification
         source_id: ID of triggering entity
         preference_type: Optional explicit notification preference key override
@@ -87,14 +87,14 @@ async def send_notification(
 
             # Map source_type to notification preference type
             pref_type_map = {
-                "deliverable": "deliverable_ready",
-                "system": "deliverable_ready",  # Default to deliverable_ready for system
-                "tp": "deliverable_ready",
-                "event_trigger": "deliverable_ready",
-                "monitor": "deliverable_ready",
+                "agent": "agent_ready",
+                "system": "agent_ready",  # Default to agent_ready for system
+                "tp": "agent_ready",
+                "event_trigger": "agent_ready",
+                "monitor": "agent_ready",
                 "suggestion": "suggestion_created",  # ADR-060
             }
-            pref_type = preference_type or pref_type_map.get(source_type, "deliverable_ready")
+            pref_type = preference_type or pref_type_map.get(source_type, "agent_ready")
 
             if not await should_send_email(db_client, user_id, pref_type):
                 logger.info(f"[NOTIFICATION] Skipped (user opted out): {message[:50]}...")
@@ -243,9 +243,9 @@ async def _send_notification_email(
     cta_html = ""
     cta_text = ""
     if context:
-        if context.get("deliverable_id"):
-            url = f"{app_url}/deliverables/{context['deliverable_id']}"
-            cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Deliverable</a>'
+        if context.get("agent_id"):
+            url = f"{app_url}/agents/{context['agent_id']}"
+            cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Agent</a>'
             cta_text = f"\nView: {url}"
         elif context.get("url"):
             cta_html = f'<a href="{context["url"]}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Details</a>'
@@ -325,17 +325,17 @@ async def get_user_notifications(
 # Convenience functions for common notification scenarios
 # =============================================================================
 
-async def notify_deliverable_delivered(
+async def notify_agent_delivered(
     db_client,
     user_id: str,
-    deliverable_id: str,
-    deliverable_title: str,
+    agent_id: str,
+    agent_title: str,
     destination: str,
     external_url: Optional[str] = None,
     delivery_platform: Optional[str] = None,
 ) -> NotificationResult:
     """
-    Send notification when a deliverable has been delivered.
+    Send notification when a agent has been delivered.
 
     When delivery_platform is "email" or "gmail", the content email already
     landed in the user's inbox — skip the separate notification email to
@@ -348,73 +348,73 @@ async def notify_deliverable_delivered(
             f"[NOTIFICATION] Skipped delivery notification — content delivered via {delivery_platform}"
         )
         # Still record for audit, but as in_app (no email sent)
-        context = {"deliverable_id": deliverable_id, "destination": destination, "skipped_reason": "content_is_notification"}
+        context = {"agent_id": agent_id, "destination": destination, "skipped_reason": "content_is_notification"}
         if external_url:
             context["url"] = external_url
         return await send_notification(
             db_client=db_client,
             user_id=user_id,
-            message=f'"{deliverable_title}" was delivered to {destination}.',
+            message=f'"{agent_title}" was delivered to {destination}.',
             channel="in_app",
             urgency="low",
             context=context,
-            source_type="deliverable",
-            source_id=deliverable_id,
+            source_type="agent",
+            source_id=agent_id,
         )
 
-    context = {"deliverable_id": deliverable_id, "destination": destination}
+    context = {"agent_id": agent_id, "destination": destination}
     if external_url:
         context["url"] = external_url
 
     return await send_notification(
         db_client=db_client,
         user_id=user_id,
-        message=f'"{deliverable_title}" was delivered to {destination}.',
+        message=f'"{agent_title}" was delivered to {destination}.',
         channel="email",
         urgency="low",
         context=context,
-        source_type="deliverable",
-        source_id=deliverable_id,
+        source_type="agent",
+        source_id=agent_id,
     )
 
 
-async def notify_deliverable_failed(
+async def notify_agent_failed(
     db_client,
     user_id: str,
-    deliverable_id: str,
-    deliverable_title: str,
+    agent_id: str,
+    agent_title: str,
     error: str,
 ) -> NotificationResult:
-    """Send notification when a deliverable generation/delivery fails."""
+    """Send notification when a agent generation/delivery fails."""
     return await send_notification(
         db_client=db_client,
         user_id=user_id,
-        message=f'Failed to generate "{deliverable_title}": {error[:100]}',
+        message=f'Failed to generate "{agent_title}": {error[:100]}',
         channel="email",
         urgency="high",
-        context={"deliverable_id": deliverable_id, "error": error},
-        source_type="deliverable",
-        source_id=deliverable_id,
-        preference_type="deliverable_failed",
+        context={"agent_id": agent_id, "error": error},
+        source_type="agent",
+        source_id=agent_id,
+        preference_type="agent_failed",
     )
 
 
 async def notify_event_triggered(
     db_client,
     user_id: str,
-    deliverable_id: str,
-    deliverable_title: str,
+    agent_id: str,
+    agent_title: str,
     event_type: str,
     platform: str,
 ) -> NotificationResult:
-    """Send notification when an event triggers a deliverable."""
+    """Send notification when an event triggers a agent."""
     return await send_notification(
         db_client=db_client,
         user_id=user_id,
-        message=f'"{deliverable_title}" was triggered by a {platform} {event_type}.',
+        message=f'"{agent_title}" was triggered by a {platform} {event_type}.',
         channel="email",
         urgency="low",
-        context={"deliverable_id": deliverable_id, "platform": platform, "event_type": event_type},
+        context={"agent_id": agent_id, "platform": platform, "event_type": event_type},
         source_type="event_trigger",
-        source_id=deliverable_id,
+        source_id=agent_id,
     )

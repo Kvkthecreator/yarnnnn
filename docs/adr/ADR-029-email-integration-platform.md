@@ -29,7 +29,7 @@ Email requires the same bidirectional MCP treatment as Slack/Notion:
 
 ## The Insight
 
-> **Email is a platform where deliverables can both originate from and be delivered to.**
+> **Email is a platform where agents can both originate from and be delivered to.**
 
 ### Email as Context Source (Read)
 
@@ -44,9 +44,9 @@ Like ADR-027's Slack/Notion reads, email provides rich context:
 
 ### Email as Destination (Write)
 
-Beyond simple export, email-specific deliverables:
+Beyond simple export, email-specific agents:
 
-| Deliverable Type | Description |
+| Agent Type | Description |
 |------------------|-------------|
 | Weekly inbox summary | AI-generated overview of inbox activity |
 | Auto-reply drafts | Context-aware reply suggestions |
@@ -203,7 +203,7 @@ export interface DataSource {
 The gather step now fetches live data from integrations:
 
 ```python
-# api/services/deliverable_pipeline.py
+# api/services/agent_pipeline.py
 async def fetch_integration_source_data(client, user_id, source):
     """Fetch data from Gmail/Slack/Notion via MCP during gather step."""
     # Supports all three integration providers
@@ -213,10 +213,10 @@ async def fetch_integration_source_data(client, user_id, source):
 
 #### Frontend UI (Phase 2c)
 
-The DeliverableSettingsModal provides full integration source configuration:
+The AgentSettingsModal provides full integration source configuration:
 
 ```typescript
-// web/components/modals/DeliverableSettingsModal.tsx
+// web/components/modals/AgentSettingsModal.tsx
 
 // State for integration source configuration
 const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
@@ -240,16 +240,16 @@ Gmail-specific options:
 | File | Change |
 |------|--------|
 | `web/types/index.ts` | Added `integration_import` DataSourceType, IntegrationImportFilters |
-| `api/services/deliverable_pipeline.py` | Added `fetch_integration_source_data()` utility (still active); `execute_gather_step()` superseded by inline gather in `deliverable_execution.py` (ADR-042) |
-| `web/components/modals/DeliverableSettingsModal.tsx` | Full integration source UI with Gmail filters |
+| `api/services/agent_pipeline.py` | Added `fetch_integration_source_data()` utility (still active); `execute_gather_step()` superseded by inline gather in `agent_execution.py` (ADR-042) |
+| `web/components/modals/AgentSettingsModal.tsx` | Full integration source UI with Gmail filters |
 
-### Phase 3: Email-Specific Deliverables (COMPLETE) ✅
+### Phase 3: Email-Specific Agents (COMPLETE) ✅
 
-#### New Deliverable Types
+#### New Agent Types
 
 ```typescript
 // web/types/index.ts
-export type DeliverableType =
+export type AgentType =
   // ... existing types ...
   // ADR-029 Phase 3: Email-specific types
   | "inbox_summary"
@@ -302,7 +302,7 @@ export interface ThreadSummaryConfig {
 
 #### Pipeline Support
 
-Type-specific prompts and validators added to `deliverable_pipeline.py`:
+Type-specific prompts and validators added to `agent_pipeline.py`:
 
 - `TYPE_PROMPTS["inbox_summary"]` - Structured inbox digest generation
 - `TYPE_PROMPTS["reply_draft"]` - Context-aware reply drafting
@@ -319,7 +319,7 @@ Type-specific prompts and validators added to `deliverable_pipeline.py`:
 Email type labels added to both surfaces:
 
 ```typescript
-// web/components/modals/DeliverableSettingsModal.tsx
+// web/components/modals/AgentSettingsModal.tsx
 // web/components/surfaces/IdleSurface.tsx
 const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   // ... existing types ...
@@ -331,16 +331,16 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
 };
 ```
 
-Type configs are set during deliverable creation via TP conversation (project_tools.py create_deliverable),
-not in settings modal. This matches existing patterns for all deliverable types.
+Type configs are set during agent creation via TP conversation (project_tools.py create_agent),
+not in settings modal. This matches existing patterns for all agent types.
 
 #### Key Files
 
 | File | Change |
 |------|--------|
-| `web/types/index.ts` | Added 4 email deliverable types + configs |
-| `api/services/deliverable_pipeline.py` | Added prompts, section templates, validators |
-| `web/components/modals/DeliverableSettingsModal.tsx` | Added email type labels |
+| `web/types/index.ts` | Added 4 email agent types + configs |
+| `api/services/agent_pipeline.py` | Added prompts, section templates, validators |
+| `web/components/modals/AgentSettingsModal.tsx` | Added email type labels |
 | `web/components/surfaces/IdleSurface.tsx` | Added email type labels |
 
 ---
@@ -361,10 +361,10 @@ not in settings modal. This matches existing patterns for all deliverable types.
 **Phase 2 - Email Data Sources:**
 - [x] `integration_import` source type selectable in settings ✅ (2026-02-06)
 - [ ] Gmail filters (from, subject, time) apply correctly (UI present, not runtime tested)
-- [x] `fetch_integration_source_data()` returns formatted context ✅ (implied by deliverable creation)
-- [x] Gather step includes integration data in synthesis prompt ✅ (implied by deliverable creation)
+- [x] `fetch_integration_source_data()` returns formatted context ✅ (implied by agent creation)
+- [x] Gather step includes integration data in synthesis prompt ✅ (implied by agent creation)
 
-**Phase 3 - Email Deliverable Types:**
+**Phase 3 - Email Agent Types:**
 - [x] `inbox_summary` type creates structured digest ✅ (2026-02-06 - "Daily Inbox Summary" created)
 - [ ] `reply_draft` type generates context-aware reply (not tested)
 - [ ] `follow_up_tracker` type identifies pending threads (not tested)
@@ -373,7 +373,7 @@ not in settings modal. This matches existing patterns for all deliverable types.
 
 ### Known Issues
 
-1. ~~**TP lacks email sending tool**~~: **FIXED (2026-02-06)** - Updated `CREATE_DELIVERABLE_TOOL` to include `gmail` as a `destination_platform` option with `send` and `draft` formats. TP can now create deliverables that deliver to Gmail.
+1. ~~**TP lacks email sending tool**~~: **FIXED (2026-02-06)** - Updated `CREATE_DELIVERABLE_TOOL` to include `gmail` as a `destination_platform` option with `send` and `draft` formats. TP can now create agents that deliver to Gmail.
 
 2. **Google OAuth warning**: During authorization, Google displays an "unverified app" warning. This is expected for development/testing but should be addressed for production (Google verification process).
 
@@ -384,7 +384,7 @@ not in settings modal. This matches existing patterns for all deliverable types.
 1. Added `gmail` to `destination_platform` enum (line 721)
 2. Added `destination_format` parameter with `send`/`draft` options (lines 728-731)
 3. Updated handler to infer `draft` format for Gmail by default (lines 2075-2076)
-4. Added email deliverable types to enum: `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary` (line 687)
+4. Added email agent types to enum: `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary` (line 687)
 5. Updated tool description to document email types and Gmail destination (lines 657-667)
 
 ### Phase 4: Advanced Features (Future)
@@ -469,8 +469,8 @@ Destination = {
 
 - [ADR-026: Integration Architecture](./ADR-026-integration-architecture.md)
 - [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
-- [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
-- [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md)
+- [ADR-028: Destination-First Agents](./ADR-028-destination-first-agents.md)
+- [Analysis: Agent-Scoped Context](../analysis/agent-scoped-context.md)
 - [Gmail REST API](https://developers.google.com/gmail/api/reference/rest) - Direct API used for Gmail operations
 - [@shinzolabs/gmail-mcp](https://github.com/shinzo-labs/gmail-mcp) - Evaluated but not used (requires local credential files)
 

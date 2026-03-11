@@ -34,7 +34,7 @@
 │                                                                   │
 │  Routers:                                                         │
 │  ├── /api/chat         - TP conversation                          │
-│  ├── /api/deliverables - Recurring reports                        │
+│  ├── /api/agents - Recurring reports                        │
 │  ├── /api/integrations - Platform connections + on-demand sync    │
 │  ├── /api/context      - User context & memories                  │
 │  ├── /api/work         - Work tickets (inline execution)          │
@@ -50,7 +50,7 @@
 │                      (Cron: every 5 min)                          │
 │                                                                   │
 │  Subsystems:                                                      │
-│  ├── Deliverables  - Check & trigger due deliverables             │
+│  ├── Agents  - Check & trigger due agents             │
 │  ├── Work Tickets  - Check & trigger recurring work               │
 │  ├── Signals       - Hourly signal processing (Starter+)          │
 │  ├── Digests       - Send weekly digests (hour boundary only)     │
@@ -116,10 +116,10 @@ All services deploy automatically on push to `main` branch via Render's GitHub i
 2. Check OAuth client credentials match API service
 3. Review `sync_registry.last_error` for per-source failures
 
-### Deliverables not generating
+### Agents not generating
 1. Check unified-scheduler logs for errors
-2. Verify deliverable is `status=active`
-3. Review `deliverable_versions` table for failed entries
+2. Verify agent is `status=active`
+3. Review `agent_runs` table for failed entries
 
 ## Related Documentation
 

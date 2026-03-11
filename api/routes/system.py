@@ -109,7 +109,7 @@ JOB_SCHEDULE_DESCRIPTIONS = {
     "Memory Extraction": "Daily at 00:00 UTC",
     "Session Summaries": "Daily at 00:00 UTC",
     "Pattern Detection": "Daily at 00:00 UTC",
-    "Deliverable Generation": "When due (checked every 5 min)",
+    "Agent Generation": "When due (checked every 5 min)",
     "Content Cleanup": "Daily at 00:00 UTC",
     "Scheduler Heartbeat": "Every 5 min",
 }
@@ -405,7 +405,7 @@ async def get_system_status(auth: UserClient):
         ("memory_written", "Memory Extraction"),
         ("session_summary_written", "Session Summaries"),
         ("pattern_detected", "Pattern Detection"),
-        ("deliverable_generated", "Deliverable Generation"),
+        ("agent_generated", "Agent Generation"),
         ("content_cleanup", "Content Cleanup"),
         ("scheduler_heartbeat", "Scheduler Heartbeat"),
     ]

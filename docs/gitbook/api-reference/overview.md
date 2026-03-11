@@ -1,6 +1,6 @@
 # API Reference
 
-YARNNN exposes a REST API for chat, integrations, and deliverable lifecycle management.
+YARNNN exposes a REST API for chat, integrations, and agent lifecycle management.
 
 ## Base URL
 
@@ -13,7 +13,7 @@ https://api.yarnnn.com
 | Group | Base path |
 |---|---|
 | Chat | `/api/chat` |
-| Deliverables | `/api/deliverables` |
+| Agents | `/api/agents` |
 | Integrations | `/api/integrations` |
 | Limits | `/api/user/limits` |
 | System | `/api/system` |

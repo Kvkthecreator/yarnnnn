@@ -30,7 +30,7 @@ All platforms follow the same fundamental pattern:
 │ └─────────────────────────────────────────────────────┘ │
 │                                                         │
 │ DELIVERABLES                                            │
-│ Active deliverables using this platform                 │
+│ Active agents using this platform                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -72,13 +72,13 @@ Some platforms support "designated outputs" - default locations for TP to write:
 | Notion | Designated Page | Where TP adds comments/outputs |
 | Calendar | Designated Calendar | Where TP creates events |
 | Gmail | User's email | Auto-detected from OAuth, used for drafts |
-| Slack | (none) | Messages go to specific channels per deliverable |
+| Slack | (none) | Messages go to specific channels per agent |
 
 ### Section Ordering
 
 1. **Context Sources** (input) - Always first, primary action
 2. **Output Destination** (if applicable) - Second, clearly labeled as "for outputs"
-3. **Deliverables** - Third, shows what's using this platform
+3. **Agents** - Third, shows what's using this platform
 4. **Recent Context** - Fourth, shows extracted memories/facts
 
 ### Tier Limits
@@ -101,7 +101,7 @@ Calendar differs from other platforms:
 
 ### Future Cross-Platform Synthesis
 
-Resources from all platforms contribute to cross-platform deliverables. Example scenario:
+Resources from all platforms contribute to cross-platform agents. Example scenario:
 > User sees "Chad" mentioned meeting in Slack → Calendar has the event → TP creates reminder email with Slack context + Calendar details + Notion page link
 
 This requires all platforms to be first-class context sources with consistent selection patterns.
@@ -110,7 +110,7 @@ This requires all platforms to be first-class context sources with consistent se
 
 ### Positive
 - Consistent UX across all platforms
-- Clear mental model: select sources → get context → create deliverables
+- Clear mental model: select sources → get context → create agents
 - Extensible to new platforms
 - Supports cross-platform synthesis
 
@@ -135,5 +135,5 @@ This requires all platforms to be first-class context sources with consistent se
 ## Related Files
 
 - `web/app/(authenticated)/context/[platform]/page.tsx` - Main implementation
-- `web/components/deliverables/TypeSelector.tsx` - Deliverable type selection
+- `web/components/agents/TypeSelector.tsx` - Agent type selection
 - `api/services/platform_tools.py` - Platform tool definitions

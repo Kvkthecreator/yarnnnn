@@ -146,7 +146,7 @@ api/
 │   │   ├── tokens.py          # TokenManager — OAuth token encryption/storage
 │   │   └── types.py           # ExportResult, ExportStatus, IntegrationProvider
 │   │
-│   └── exporters/             # Deliverable destination exporters (ADR-028)
+│   └── exporters/             # Agent destination exporters (ADR-028)
 │       ├── base.py            # DestinationExporter ABC, ExporterContext
 │       ├── slack.py           # SlackExporter → MCP Gateway (HTTP)
 │       ├── notion.py          # NotionExporter → Direct API (POST /v1/pages)
@@ -203,10 +203,10 @@ mcp-gateway/ (Node.js on Render)
 
 ---
 
-## Data Flow: Deliverable Export (Scheduled / Approval)
+## Data Flow: Agent Export (Scheduled / Approval)
 
 ```
-Deliverable approved (governance=semi_auto) or scheduled run
+Agent approved (governance=semi_auto) or scheduled run
          │
          ▼
 services/delivery.py: deliver_version()
@@ -252,7 +252,7 @@ OAuth callback
   → TokenManager.encrypt(token) → platform_connections.credentials_encrypted
   → TokenManager.encrypt(refresh_token) → platform_connections.refresh_token_encrypted
 
-TP tool call / Deliverable delivery
+TP tool call / Agent delivery
   → TokenManager.decrypt(credentials_encrypted) → access_token
   → TokenManager.decrypt(refresh_token_encrypted) → refresh_token (Gmail/Calendar)
   → Pass to client: MCP Gateway auth.token / DirectAPIClient access_token
@@ -275,7 +275,7 @@ TP tool call / Deliverable delivery
 
 ### 2026-02-19: Exporter rewrites + platform_notion_get_page
 
-- All three deliverable exporters (Slack, Notion, Gmail) rewritten to use production-compatible backends.
+- All three agent exporters (Slack, Notion, Gmail) rewritten to use production-compatible backends.
   Previously all called `get_mcp_manager()` from `client.py` which either spawned npx (fails on Render's Python service) or called methods that don't exist on `MCPClientManager`.
   - `SlackExporter`: now calls `services.mcp_gateway.call_platform_tool()` (HTTP to MCP Gateway)
   - `NotionExporter`: now calls Notion REST API directly via `POST /v1/pages`; added `_markdown_to_notion_blocks()` converter

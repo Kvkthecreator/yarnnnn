@@ -2,13 +2,13 @@
 
 > **Status**: Draft
 > **Created**: 2026-02-06
-> **Related**: ADR-001 (Foundational Principles), ADR-018 (Recurring Deliverables), ADR-019 (Deliverable Types)
+> **Related**: ADR-001 (Foundational Principles), ADR-018 (Recurring Agents), ADR-019 (Agent Types)
 
 ---
 
 ## Context
 
-YARNNN generates deliverables (status reports, research briefs, board updates, etc.) that users need to distribute through their existing workflows. The current review surface provides basic viewing but lacks efficient export paths.
+YARNNN generates agents (status reports, research briefs, board updates, etc.) that users need to distribute through their existing workflows. The current review surface provides basic viewing but lacks efficient export paths.
 
 Two strategic directions exist:
 
@@ -47,7 +47,7 @@ From the design principle "professional work tool, not engagement platform":
 
 > Minimize time spent in-app; maximize value delivered to workflow.
 
-Users should approve a deliverable and immediately export it to where they work. Friction to export = failed experience.
+Users should approve a agent and immediately export it to where they work. Friction to export = failed experience.
 
 #### Competitive Positioning
 
@@ -61,7 +61,7 @@ Notion, Google Docs, and Microsoft 365 have decades of investment in document ed
 
 - Focus investment on differentiated capabilities (intelligence, not documents)
 - Meet users in their existing workflows
-- Faster time-to-value for approved deliverables
+- Faster time-to-value for approved agents
 - Clear product boundaries (YARNNN = generation, Slack/Notion = distribution)
 
 ### Negative
@@ -74,7 +74,7 @@ Notion, Google Docs, and Microsoft 365 have decades of investment in document ed
 ### Neutral
 
 - Review surface needs markdown preview (not editing, just display)
-- Export preferences become part of deliverable configuration
+- Export preferences become part of agent configuration
 
 ---
 
@@ -106,22 +106,22 @@ CREATE TABLE user_integrations (
     UNIQUE(user_id, provider)
 );
 
--- Deliverable-specific export preferences
-CREATE TABLE deliverable_export_preferences (
+-- Agent-specific export preferences
+CREATE TABLE agent_export_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     destination JSONB NOT NULL,  -- { channel_id, page_id, etc. }
     auto_export BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now(),
 
-    UNIQUE(deliverable_id, provider)
+    UNIQUE(agent_id, provider)
 );
 
 -- Export history for debugging and analytics
 CREATE TABLE export_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    deliverable_version_id UUID NOT NULL REFERENCES deliverable_versions(id),
+    agent_version_id UUID NOT NULL REFERENCES agent_runs(id),
     provider TEXT NOT NULL,
     destination JSONB,
     status TEXT NOT NULL,  -- 'success', 'failed', 'pending'
@@ -381,13 +381,13 @@ class YarnnnMCPServer(Server):
             parameters={"scope": "string"}
         ),
         Tool(
-            name="get_deliverable",
-            description="Get deliverable content",
-            parameters={"deliverable_id": "string"}
+            name="get_agent",
+            description="Get agent content",
+            parameters={"agent_id": "string"}
         ),
         Tool(
-            name="list_deliverables",
-            description="List user's deliverables",
+            name="list_agents",
+            description="List user's agents",
             parameters={"status": "string?"}
         ),
     ]
@@ -396,8 +396,8 @@ class YarnnnMCPServer(Server):
         """Return user memories for the given scope."""
         pass
 
-    async def handle_get_deliverable(self, deliverable_id: str) -> dict:
-        """Return deliverable content."""
+    async def handle_get_agent(self, agent_id: str) -> dict:
+        """Return agent content."""
         pass
 ```
 
@@ -428,9 +428,9 @@ This enables:
 
 ---
 
-## Deliverable Type Mapping
+## Agent Type Mapping
 
-Each deliverable type has recommended export destinations:
+Each agent type has recommended export destinations:
 
 | Type | Primary | Secondary | Notes |
 |------|---------|-----------|-------|
@@ -448,14 +448,14 @@ Each deliverable type has recommended export destinations:
 
 These mappings inform:
 1. Default export button order in UI
-2. Suggested destinations when setting up new deliverables
+2. Suggested destinations when setting up new agents
 3. Auto-export configuration options
 
 ---
 
 ## Review Surface Scope
 
-The review surface (DeliverableReviewSurface) will be enhanced minimally:
+The review surface (AgentReviewSurface) will be enhanced minimally:
 
 ### In Scope
 
@@ -503,13 +503,13 @@ The review surface (DeliverableReviewSurface) will be enhanced minimally:
 ### Phase 4: YARNNN MCP Server (Week 7-8)
 
 - [ ] Expose YARNNN as MCP server
-- [ ] Tools: `get_memories`, `get_deliverable`, `list_deliverables`
+- [ ] Tools: `get_memories`, `get_agent`, `list_agents`
 - [ ] Documentation for Claude Desktop users
 - [ ] Test with external MCP clients
 
 ### Phase 5: Polish & Auto-Export (Week 9-10)
 
-- [ ] Deliverable export preferences UI
+- [ ] Agent export preferences UI
 - [ ] Auto-export on approval option
 - [ ] Export history view
 - [ ] Error handling and retry logic
@@ -546,7 +546,7 @@ Request minimum OAuth scopes:
 All exports logged with:
 - Timestamp
 - User ID
-- Deliverable version
+- Agent version
 - Destination
 - Success/failure status
 
@@ -632,7 +632,7 @@ Only support local downloads (PDF, Markdown, DOCX).
 - Verified Node.js/npx availability on Render
 - Created database migration `023_integrations.sql`:
   - `user_integrations` - OAuth token storage
-  - `deliverable_export_preferences` - Per-deliverable export config
+  - `agent_export_preferences` - Per-agent export config
   - `export_log` - Audit trail
 - Updated MCPClientManager implementation with real SDK patterns
 

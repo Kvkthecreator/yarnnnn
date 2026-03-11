@@ -163,16 +163,16 @@ This checklist tracks implementation of the Knowledge Base Architecture (ADR-058
 
 ---
 
-## Phase 6: Deliverable Updates
+## Phase 6: Agent Updates
 
 ### Service Updates
-- [ ] Update `api/services/deliverable_execution.py`
+- [ ] Update `api/services/agent_execution.py`
 - [ ] Read from `filesystem_items` instead of `ephemeral_context`
 - [ ] Apply `knowledge_styles` to generation
 - [ ] Use `knowledge_domains` for context scoping
 
 ### Frontend Updates
-- [ ] Update deliverable detail to show domain
+- [ ] Update agent detail to show domain
 - [ ] Update source selector to use new tables
 
 ---
@@ -257,7 +257,7 @@ This checklist tracks implementation of the Knowledge Base Architecture (ADR-058
 | Phase 3 | TP Integration | 1 session |
 | Phase 4 | Inference Engine | 2-3 sessions |
 | Phase 5 | Frontend | 2-3 sessions |
-| Phase 6 | Deliverables | 1 session |
+| Phase 6 | Agents | 1 session |
 | Phase 7 | Testing | 1-2 sessions |
 | Phase 8 | Cleanup | 1 session |
 

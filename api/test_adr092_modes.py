@@ -1,17 +1,17 @@
 """
-ADR-092 Mode Test Suite — Deliverable Intelligence & Mode Taxonomy
+ADR-092 Mode Test Suite — Agent Intelligence & Mode Taxonomy
 
 Tests the three new scheduler paths introduced in ADR-092 Phases 2–5:
   - Reactive mode: observation accumulation + threshold-triggered generation
   - Proactive mode: apply_review_decision() memory writes
-  - Coordinator mode: CreateDeliverable + AdvanceDeliverableSchedule primitives
+  - Coordinator mode: CreateAgent + AdvanceAgentSchedule primitives
 
 Also tests _parse_review_response() edge cases (pure unit, no DB) and
 verifies scheduler query filters correctly separate recurring/goal from
 proactive/coordinator paths.
 
 Strategy: No live LLM calls. Real DB writes using service client.
-Test deliverables use prefix TEST_ADR092_ for cleanup isolation.
+Test agents use prefix TEST_ADR092_ for cleanup isolation.
 
 Usage:
     cd api && python test_adr092_modes.py
@@ -105,7 +105,7 @@ def assert_true(result: PhaseResult, label: str, condition: bool, detail: str = 
 
 async def phase1_setup(supabase) -> dict:
     """
-    Create 3 test deliverables + synthetic platform_content.
+    Create 3 test agents + synthetic platform_content.
     Returns dict of created IDs for use in subsequent phases.
     """
     logger.info("\n[Phase 1] Setup")
@@ -113,12 +113,12 @@ async def phase1_setup(supabase) -> dict:
 
     ids = {}
 
-    # Reactive deliverable
+    # Reactive agent
     reactive = (
-        supabase.table("deliverables").insert({
+        supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Reactive",
-            "deliverable_type": "custom",
+            "agent_type": "custom",
             "mode": "reactive",
             "trigger_type": "event",
             "trigger_config": {"observation_threshold": 3},
@@ -126,49 +126,49 @@ async def phase1_setup(supabase) -> dict:
             "status": "active",
             "sources": [],
             "schedule": {"frequency": "once"},
-            "deliverable_memory": {"observations": []},
+            "agent_memory": {"observations": []},
         }).execute()
     )
     ids["reactive"] = reactive.data[0]["id"]
-    logger.info(f"  Created reactive deliverable: {ids['reactive']}")
+    logger.info(f"  Created reactive agent: {ids['reactive']}")
 
-    # Proactive deliverable (next_review overdue by 1h)
+    # Proactive agent (next_review overdue by 1h)
     proactive = (
-        supabase.table("deliverables").insert({
+        supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Proactive",
-            "deliverable_type": "custom",
+            "agent_type": "custom",
             "mode": "proactive",
             "trigger_type": "schedule",
             "origin": "user_configured",
             "status": "active",
             "sources": [],
             "schedule": {"frequency": "daily"},
-            "deliverable_memory": {"review_log": [], "observations": []},
+            "agent_memory": {"review_log": [], "observations": []},
             "proactive_next_review_at": (now - timedelta(hours=1)).isoformat(),
         }).execute()
     )
     ids["proactive"] = proactive.data[0]["id"]
-    logger.info(f"  Created proactive deliverable: {ids['proactive']}")
+    logger.info(f"  Created proactive agent: {ids['proactive']}")
 
-    # Coordinator deliverable (next_review overdue by 1h)
+    # Coordinator agent (next_review overdue by 1h)
     coordinator = (
-        supabase.table("deliverables").insert({
+        supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Coordinator",
-            "deliverable_type": "custom",
+            "agent_type": "custom",
             "mode": "coordinator",
             "trigger_type": "schedule",
             "origin": "user_configured",
             "status": "active",
             "sources": [],
             "schedule": {"frequency": "daily"},
-            "deliverable_memory": {"review_log": [], "created_deliverables": []},
+            "agent_memory": {"review_log": [], "created_agents": []},
             "proactive_next_review_at": (now - timedelta(hours=1)).isoformat(),
         }).execute()
     )
     ids["coordinator"] = coordinator.data[0]["id"]
-    logger.info(f"  Created coordinator deliverable: {ids['coordinator']}")
+    logger.info(f"  Created coordinator agent: {ids['coordinator']}")
 
     # Synthetic platform_content for reactive trigger context
     content_ids = []
@@ -205,8 +205,8 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
 
     reactive_id = ids["reactive"]
 
-    # Fetch the deliverable dict (as scheduler would)
-    d = supabase.table("deliverables").select("*").eq("id", reactive_id).single().execute().data
+    # Fetch the agent dict (as scheduler would)
+    d = supabase.table("agents").select("*").eq("id", reactive_id).single().execute().data
 
     trigger_context = {
         "type": "event",
@@ -224,34 +224,34 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
     assert_eq(result, "call 1 observation_count=1", r1.get("observation_count"), 1)
 
     # Verify DB state
-    fresh1 = supabase.table("deliverables").select("deliverable_memory").eq("id", reactive_id).single().execute().data
-    obs1 = (fresh1.get("deliverable_memory") or {}).get("observations", [])
+    fresh1 = supabase.table("agents").select("agent_memory").eq("id", reactive_id).single().execute().data
+    obs1 = (fresh1.get("agent_memory") or {}).get("observations", [])
     assert_eq(result, "DB has 1 observation after call 1", len(obs1), 1)
     assert_true(result, "observation has source=event", obs1[0].get("source") == "event")
 
     # Re-fetch for accurate memory state
-    d = supabase.table("deliverables").select("*").eq("id", reactive_id).single().execute().data
+    d = supabase.table("agents").select("*").eq("id", reactive_id).single().execute().data
 
     # --- Call 2: below threshold (2/3) ---
     r2 = await _dispatch_medium_reactive(supabase, d, "event", trigger_context)
     assert_eq(result, "call 2 observation_count=2", r2.get("observation_count"), 2)
 
-    d = supabase.table("deliverables").select("*").eq("id", reactive_id).single().execute().data
+    d = supabase.table("agents").select("*").eq("id", reactive_id).single().execute().data
 
     # --- Call 3: threshold met (3/3) → should trigger generation ---
-    # Patch execute_deliverable_generation to avoid real LLM call
+    # Patch execute_agent_generation to avoid real LLM call
     import services.trigger_dispatch as td_module
-    import services.deliverable_execution as exec_module
-    original_generate = exec_module.execute_deliverable_generation
+    import services.agent_execution as exec_module
+    original_generate = exec_module.execute_agent_generation
 
     async def mock_generate(**kwargs):
-        return {"success": True, "version_id": "mock-version-id-001", "action": "generated"}
+        return {"success": True, "run_id": "mock-version-id-001", "action": "generated"}
 
-    exec_module.execute_deliverable_generation = mock_generate
+    exec_module.execute_agent_generation = mock_generate
     try:
         r3 = await _dispatch_medium_reactive(supabase, d, "event", trigger_context)
     finally:
-        exec_module.execute_deliverable_generation = original_generate
+        exec_module.execute_agent_generation = original_generate
 
     assert_eq(result, "call 3 action=generated", r3.get("action"), "generated")
     assert_eq(result, "call 3 success=True", r3.get("success"), True)
@@ -259,11 +259,11 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
     assert_eq(result, "call 3 observations_cleared=3", r3.get("observations_cleared"), 3)
 
     # Verify DB: observations cleared
-    fresh3 = supabase.table("deliverables").select("deliverable_memory").eq("id", reactive_id).single().execute().data
-    obs3 = (fresh3.get("deliverable_memory") or {}).get("observations", [])
+    fresh3 = supabase.table("agents").select("agent_memory").eq("id", reactive_id).single().execute().data
+    obs3 = (fresh3.get("agent_memory") or {}).get("observations", [])
     assert_eq(result, "observations cleared after threshold generation", len(obs3), 0)
 
-    last_gen = (fresh3.get("deliverable_memory") or {}).get("last_generated_at")
+    last_gen = (fresh3.get("agent_memory") or {}).get("last_generated_at")
     assert_true(result, "last_generated_at set after threshold generation", last_gen is not None)
 
     return result
@@ -285,20 +285,20 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
 
     def fetch_memory():
         return (
-            supabase.table("deliverables")
-            .select("deliverable_memory, proactive_next_review_at")
+            supabase.table("agents")
+            .select("agent_memory, proactive_next_review_at")
             .eq("id", proactive_id)
             .single()
             .execute()
             .data
         )
 
-    d = supabase.table("deliverables").select("*").eq("id", proactive_id).single().execute().data
+    d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
 
     # --- observe action ---
     apply_review_decision(supabase, d, {"action": "observe", "note": "Test observation note"})
     s1 = fetch_memory()
-    review_log = (s1.get("deliverable_memory") or {}).get("review_log", [])
+    review_log = (s1.get("agent_memory") or {}).get("review_log", [])
     assert_eq(result, "observe: review_log has 1 entry", len(review_log), 1)
     assert_eq(result, "observe: log action=observe", review_log[0].get("action"), "observe")
     assert_eq(result, "observe: log note set", review_log[0].get("note"), "Test observation note")
@@ -312,10 +312,10 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
     # --- sleep action with explicit until ---
     until_dt = (now + timedelta(hours=48)).replace(microsecond=0)
     until_str = until_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    d = supabase.table("deliverables").select("*").eq("id", proactive_id).single().execute().data
+    d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
     apply_review_decision(supabase, d, {"action": "sleep", "until": until_str, "note": "Quiet domain"})
     s2 = fetch_memory()
-    review_log2 = (s2.get("deliverable_memory") or {}).get("review_log", [])
+    review_log2 = (s2.get("agent_memory") or {}).get("review_log", [])
     assert_eq(result, "sleep: review_log has 2 entries", len(review_log2), 2)
     assert_eq(result, "sleep: latest action=sleep", review_log2[-1].get("action"), "sleep")
     next_review2 = s2.get("proactive_next_review_at")
@@ -325,13 +325,13 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
                 f"hours_ahead={hours_ahead2:.1f}")
 
     # --- generate action ---
-    d = supabase.table("deliverables").select("*").eq("id", proactive_id).single().execute().data
+    d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
     apply_review_decision(supabase, d, {"action": "generate"})
     s3 = fetch_memory()
-    review_log3 = (s3.get("deliverable_memory") or {}).get("review_log", [])
+    review_log3 = (s3.get("agent_memory") or {}).get("review_log", [])
     assert_eq(result, "generate: review_log has 3 entries", len(review_log3), 3)
     assert_eq(result, "generate: latest action=generate", review_log3[-1].get("action"), "generate")
-    last_gen = (s3.get("deliverable_memory") or {}).get("last_generated_at")
+    last_gen = (s3.get("agent_memory") or {}).get("last_generated_at")
     assert_true(result, "generate: last_generated_at set", last_gen is not None)
     next_review3 = s3.get("proactive_next_review_at")
     nr3_dt = parse_dt(next_review3)
@@ -347,13 +347,13 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
 # =============================================================================
 
 async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
-    """Test CreateDeliverable and AdvanceDeliverableSchedule primitives."""
+    """Test CreateAgent and AdvanceAgentSchedule primitives."""
     result = PhaseResult("Phase 4: Coordinator primitives")
     logger.info("\n[Phase 4] Coordinator primitives")
 
     from services.primitives.coordinator import (
-        handle_create_deliverable,
-        handle_advance_deliverable_schedule,
+        handle_create_agent,
+        handle_advance_agent_schedule,
     )
 
     coordinator_id = ids["coordinator"]
@@ -363,28 +363,28 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
         client = supabase
         user_id = TEST_USER_ID
         headless = True
-        deliverable_sources = []
-        coordinator_deliverable_id = coordinator_id
+        agent_sources = []
+        coordinator_agent_id = coordinator_id
 
     auth = FakeAuth()
 
-    # --- CreateDeliverable: success case ---
-    r1 = await handle_create_deliverable(auth, {
+    # --- CreateAgent: success case ---
+    r1 = await handle_create_agent(auth, {
         "title": f"{TEST_PREFIX}Child Meeting Prep",
-        "deliverable_type": "brief",
-        "deliverable_instructions": "Prepare briefing for external meeting",
+        "agent_type": "brief",
+        "agent_instructions": "Prepare briefing for external meeting",
         "dedup_key": "meeting:test-event-abc123",
     })
-    assert_eq(result, "CreateDeliverable success=True", r1.get("success"), True)
-    assert_true(result, "CreateDeliverable returns deliverable_id", r1.get("deliverable_id") is not None)
-    assert_eq(result, "CreateDeliverable dedup_key echoed", r1.get("dedup_key"), "meeting:test-event-abc123")
+    assert_eq(result, "CreateAgent success=True", r1.get("success"), True)
+    assert_true(result, "CreateAgent returns agent_id", r1.get("agent_id") is not None)
+    assert_eq(result, "CreateAgent dedup_key echoed", r1.get("dedup_key"), "meeting:test-event-abc123")
 
-    child_id = r1.get("deliverable_id")
+    child_id = r1.get("agent_id")
     created_child_ids.append(child_id)
     ids["child_id"] = child_id
 
     # Verify child in DB
-    child = supabase.table("deliverables").select("*").eq("id", child_id).single().execute().data
+    child = supabase.table("agents").select("*").eq("id", child_id).single().execute().data
     assert_eq(result, "child origin=coordinator_created", child.get("origin"), "coordinator_created")
     assert_eq(result, "child trigger_type=manual", child.get("trigger_type"), "manual")
     assert_eq(result, "child status=active", child.get("status"), "active")
@@ -395,45 +395,45 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "child next_run_at is recent (within 60s)", -5 <= secs_ago <= 60,
                 f"secs_ago={secs_ago:.1f}")
 
-    # Verify created_deliverables dedup log on coordinator
-    coord = supabase.table("deliverables").select("deliverable_memory").eq("id", coordinator_id).single().execute().data
-    created_log = (coord.get("deliverable_memory") or {}).get("created_deliverables", [])
-    assert_true(result, "created_deliverables log has 1 entry", len(created_log) >= 1)
+    # Verify created_agents dedup log on coordinator
+    coord = supabase.table("agents").select("agent_memory").eq("id", coordinator_id).single().execute().data
+    created_log = (coord.get("agent_memory") or {}).get("created_agents", [])
+    assert_true(result, "created_agents log has 1 entry", len(created_log) >= 1)
     dedup_keys = [e.get("dedup_key") for e in created_log]
-    assert_true(result, "dedup_key in created_deliverables log", "meeting:test-event-abc123" in dedup_keys)
+    assert_true(result, "dedup_key in created_agents log", "meeting:test-event-abc123" in dedup_keys)
 
-    # --- CreateDeliverable: missing title ---
-    r_no_title = await handle_create_deliverable(auth, {"deliverable_type": "brief"})
-    assert_eq(result, "CreateDeliverable missing title → success=False", r_no_title.get("success"), False)
-    assert_eq(result, "CreateDeliverable missing title → error=missing_title", r_no_title.get("error"), "missing_title")
+    # --- CreateAgent: missing title ---
+    r_no_title = await handle_create_agent(auth, {"agent_type": "brief"})
+    assert_eq(result, "CreateAgent missing title → success=False", r_no_title.get("success"), False)
+    assert_eq(result, "CreateAgent missing title → error=missing_title", r_no_title.get("error"), "missing_title")
 
-    # --- AdvanceDeliverableSchedule: success case ---
-    r_adv = await handle_advance_deliverable_schedule(auth, {
-        "deliverable_id": child_id,
+    # --- AdvanceAgentSchedule: success case ---
+    r_adv = await handle_advance_agent_schedule(auth, {
+        "agent_id": child_id,
         "reason": "test advance",
     })
-    assert_eq(result, "AdvanceDeliverableSchedule success=True", r_adv.get("success"), True)
+    assert_eq(result, "AdvanceAgentSchedule success=True", r_adv.get("success"), True)
 
     # Verify next_run_at updated to within 5s of now
-    child_adv = supabase.table("deliverables").select("next_run_at").eq("id", child_id).single().execute().data
+    child_adv = supabase.table("agents").select("next_run_at").eq("id", child_id).single().execute().data
     adv_run = parse_dt(child_adv["next_run_at"])
     now2 = datetime.now(timezone.utc)
     secs = abs((now2 - adv_run).total_seconds())
     assert_true(result, "advanced next_run_at within 5s of now", secs <= 5, f"secs={secs:.1f}")
 
-    # --- AdvanceDeliverableSchedule: non-existent deliverable ---
-    r_notfound = await handle_advance_deliverable_schedule(auth, {
-        "deliverable_id": "00000000-0000-0000-0000-000000000000",
+    # --- AdvanceAgentSchedule: non-existent agent ---
+    r_notfound = await handle_advance_agent_schedule(auth, {
+        "agent_id": "00000000-0000-0000-0000-000000000000",
         "reason": "test",
     })
-    assert_eq(result, "AdvanceDeliverableSchedule non-existent → success=False", r_notfound.get("success"), False)
-    assert_eq(result, "AdvanceDeliverableSchedule non-existent → error=not_found", r_notfound.get("error"), "not_found")
+    assert_eq(result, "AdvanceAgentSchedule non-existent → success=False", r_notfound.get("success"), False)
+    assert_eq(result, "AdvanceAgentSchedule non-existent → error=not_found", r_notfound.get("error"), "not_found")
 
-    # --- AdvanceDeliverableSchedule: paused deliverable ---
-    paused = supabase.table("deliverables").insert({
+    # --- AdvanceAgentSchedule: paused agent ---
+    paused = supabase.table("agents").insert({
         "user_id": TEST_USER_ID,
         "title": f"{TEST_PREFIX}Paused",
-        "deliverable_type": "custom",
+        "agent_type": "custom",
         "mode": "recurring",
         "trigger_type": "schedule",
         "origin": "user_configured",
@@ -445,12 +445,12 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     created_child_ids.append(paused_id)
     ids.setdefault("cleanup_extra", []).append(paused_id)
 
-    r_paused = await handle_advance_deliverable_schedule(auth, {
-        "deliverable_id": paused_id,
+    r_paused = await handle_advance_agent_schedule(auth, {
+        "agent_id": paused_id,
         "reason": "test",
     })
-    assert_eq(result, "AdvanceDeliverableSchedule paused → success=False", r_paused.get("success"), False)
-    assert_eq(result, "AdvanceDeliverableSchedule paused → error=not_active", r_paused.get("error"), "not_active")
+    assert_eq(result, "AdvanceAgentSchedule paused → success=False", r_paused.get("success"), False)
+    assert_eq(result, "AdvanceAgentSchedule paused → error=not_active", r_paused.get("error"), "not_active")
 
     return result
 
@@ -509,7 +509,7 @@ async def phase5_parse_response() -> PhaseResult:
 # =============================================================================
 
 async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
-    """Verify scheduler DB queries correctly partition deliverables by mode."""
+    """Verify scheduler DB queries correctly partition agents by mode."""
     result = PhaseResult("Phase 6: Scheduler query filters")
     logger.info("\n[Phase 6] Scheduler query filters")
 
@@ -519,10 +519,10 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
 
     now = datetime.now(timezone.utc).isoformat()
 
-    # --- get_due_deliverables() query: mode IN ('recurring', 'goal') ---
+    # --- get_due_agents() query: mode IN ('recurring', 'goal') ---
     # Reactive/proactive/coordinator should NOT appear
     due_recurring = (
-        supabase.table("deliverables")
+        supabase.table("agents")
         .select("id, mode")
         .eq("user_id", TEST_USER_ID)
         .in_("mode", ["recurring", "goal"])
@@ -539,10 +539,10 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "coordinator NOT in recurring query", coordinator_id not in due_ids,
                 f"coordinator_id found in recurring query")
 
-    # --- get_due_proactive_deliverables() query: mode IN ('proactive', 'coordinator') ---
+    # --- get_due_proactive_agents() query: mode IN ('proactive', 'coordinator') ---
     # with proactive_next_review_at <= now
     due_proactive = (
-        supabase.table("deliverables")
+        supabase.table("agents")
         .select("id, mode")
         .eq("user_id", TEST_USER_ID)
         .in_("mode", ["proactive", "coordinator"])
@@ -569,26 +569,26 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
 # =============================================================================
 
 async def phase7_cleanup(supabase, ids: dict) -> None:
-    """Delete all test deliverables and synthetic platform_content."""
+    """Delete all test agents and synthetic platform_content."""
     logger.info("\n[Phase 7] Cleanup")
 
     deleted = 0
 
-    # Delete all TEST_ADR092_ deliverables (cascade handles versions)
-    test_deliverables = (
-        supabase.table("deliverables")
+    # Delete all TEST_ADR092_ agents (cascade handles versions)
+    test_agents = (
+        supabase.table("agents")
         .select("id")
         .eq("user_id", TEST_USER_ID)
         .like("title", f"{TEST_PREFIX}%")
         .execute()
     )
-    for row in (test_deliverables.data or []):
+    for row in (test_agents.data or []):
         # Delete versions first (no cascade in PostgREST RLS context)
-        supabase.table("deliverable_versions").delete().eq("deliverable_id", row["id"]).execute()
-        supabase.table("deliverables").delete().eq("id", row["id"]).execute()
+        supabase.table("agent_runs").delete().eq("agent_id", row["id"]).execute()
+        supabase.table("agents").delete().eq("id", row["id"]).execute()
         deleted += 1
 
-    logger.info(f"  Deleted {deleted} test deliverable(s)")
+    logger.info(f"  Deleted {deleted} test agent(s)")
 
     # Delete synthetic platform_content
     for cid in ids.get("content_ids", []):

@@ -7,7 +7,7 @@ reading CLAUDE.md + scanning project structure.
 
 The context gives TP immediate awareness of:
 - Who the user is (profile, preferences, timezone)
-- What they're working on (active deliverables)
+- What they're working on (active agents)
 - What's connected (platforms + sync status)
 - Recent conversation history (session summaries)
 
@@ -39,7 +39,7 @@ async def build_session_context(user_id: str, supabase_client=None) -> dict:
     """
     context = {
         "user_profile": await _get_user_profile(user_id, supabase_client),
-        "active_deliverables": await _get_active_deliverables(user_id, supabase_client),
+        "active_agents": await _get_active_agents(user_id, supabase_client),
         "connected_platforms": await _get_connected_platforms(user_id, supabase_client),
         "recent_sessions": await _get_recent_sessions(user_id, supabase_client),
     }
@@ -70,9 +70,9 @@ async def _get_user_profile(user_id: str, supabase) -> dict:
     }
 
 
-async def _get_active_deliverables(user_id: str, supabase) -> list:
+async def _get_active_agents(user_id: str, supabase) -> list:
     """
-    Fetch active deliverables summary for context injection.
+    Fetch active agents summary for context injection.
     
     Equivalent to: ls src/ — what build targets exist
     
@@ -80,10 +80,10 @@ async def _get_active_deliverables(user_id: str, supabase) -> list:
     Capped at MAX_DELIVERABLES, ordered by updated_at desc.
     If more exist, includes a count note.
     
-    TODO: Wire to deliverables table
+    TODO: Wire to agents table
     """
     # Scaffold — replace with actual DB query
-    # result = (supabase.table("deliverables")
+    # result = (supabase.table("agents")
     #     .select("id, title, status, schedule, recipient_context, updated_at")
     #     .eq("user_id", user_id)
     #     .eq("status", "active")
@@ -92,9 +92,9 @@ async def _get_active_deliverables(user_id: str, supabase) -> list:
     #     .execute())
     
     # Transform to context-friendly format:
-    # deliverables = []
+    # agents = []
     # for d in result.data:
-    #     deliverables.append({
+    #     agents.append({
     #         "id": d["id"],
     #         "title": d["title"],
     #         "frequency": d.get("schedule", {}).get("frequency", "unknown"),

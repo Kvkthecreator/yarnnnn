@@ -1,4 +1,4 @@
-# ADR-042: Deliverable Execution Simplification
+# ADR-042: Agent Execution Simplification
 
 **Status**: Proposed
 **Date**: 2026-02-11
@@ -9,13 +9,13 @@
 
 ## Context
 
-ADR-018 introduced a 3-step chained pipeline for deliverable execution:
+ADR-018 introduced a 3-step chained pipeline for agent execution:
 
 ```
 Gather (research agent) → Synthesize (content agent) → Stage (format/notify)
 ```
 
-Each step created a separate `work_ticket` with dependency chaining (`depends_on_work_id`, `pipeline_step`, `chain_output_as_memory`). The `deliverable_versions` table captured detailed feedback metrics (`edit_diff`, `edit_categories`, `edit_distance_score`, `context_snapshot_id`).
+Each step created a separate `work_ticket` with dependency chaining (`depends_on_work_id`, `pipeline_step`, `chain_output_as_memory`). The `agent_runs` table captured detailed feedback metrics (`edit_diff`, `edit_categories`, `edit_distance_score`, `context_snapshot_id`).
 
 This architecture anticipated:
 1. Multi-minute pipeline stages requiring intermediate caching
@@ -40,19 +40,19 @@ The simplification is about **handler implementation**, not schema changes.
 
 ### 1. Single Execute Call per Generation
 
-Replace the 3-step pipeline with a single `deliverable.generate` Execute call:
+Replace the 3-step pipeline with a single `agent.generate` Execute call:
 
 ```
 User: "Generate my weekly update"
     ↓
-TP: Execute(action="deliverable.generate", target="deliverable:uuid-123")
+TP: Execute(action="agent.generate", target="agent:uuid-123")
     ↓
 Execute handler:
-  1. Read deliverable config (sources, recipient_context, template_structure)
+  1. Read agent config (sources, recipient_context, template_structure)
   2. Gather source content (already in context, or Read from platforms)
   3. Generate draft via LLM
-  4. Create deliverable_version row (status=staged, draft_content=output)
-  5. Create work_ticket row (single row, action=deliverable.generate)
+  4. Create agent_version row (status=staged, draft_content=output)
+  5. Create work_ticket row (single row, action=agent.generate)
   6. Return draft to TP
     ↓
 TP: "Here's your weekly update draft. [shows content] Want me to publish it?"
@@ -62,11 +62,11 @@ One Execute call. One work_ticket. One version row.
 
 ### 2. Minimal Version Population
 
-When creating `deliverable_versions`, populate only:
+When creating `agent_runs`, populate only:
 
 | Column | Populate | Notes |
 |--------|----------|-------|
-| `deliverable_id` | ✓ | Required FK |
+| `agent_id` | ✓ | Required FK |
 | `version_number` | ✓ | Sequential, cheap ordering |
 | `status` | ✓ | `generating` → `staged` → `approved/rejected` |
 | `draft_content` | ✓ | LLM output |
@@ -87,10 +87,10 @@ When logging execution, create one `work_ticket`:
 
 | Column | Value |
 |--------|-------|
-| `action` | `deliverable.generate` |
+| `action` | `agent.generate` |
 | `status` | `pending` → `running` → `completed/failed` |
-| `deliverable_id` | FK to deliverable |
-| `deliverable_version_id` | FK to version being generated |
+| `agent_id` | FK to agent |
+| `agent_version_id` | FK to version being generated |
 | `result` | Generation result summary |
 | `depends_on_work_id` | NULL (no chaining) |
 | `pipeline_step` | NULL (no pipeline) |
@@ -100,7 +100,7 @@ When logging execution, create one `work_ticket`:
 
 The feedback engine requires a training set that doesn't exist. Defer edit-distance computation until:
 - Users are consistently editing drafts before approval
-- There's enough data (10+ versions per deliverable) to learn patterns
+- There's enough data (10+ versions per agent) to learn patterns
 
 **For now**: When user approves with edits (`final_content` differs from `draft_content`), save both. That's data hygiene. Don't compute diffs or categorize edits.
 
@@ -116,7 +116,7 @@ Instead of full context snapshots, log key inputs in `work_execution_log`:
     "sources_used": ["platform:slack:#engineering", "document:uuid-456"],
     "source_staleness_hours": {"slack": 2, "document": null},
     "active_memories_count": 12,
-    "deliverable_type": "status_report"
+    "agent_type": "status_report"
   }
 }
 ```
@@ -132,28 +132,28 @@ This provides 80% of debugging value at 5% of complexity.
 Modify `api/services/primitives/execute.py`:
 
 ```python
-async def _handle_deliverable_generate(auth, entity, ref, via, params):
-    """Generate deliverable content - simplified single-call flow."""
-    deliverable_id = entity.get("id")
+async def _handle_agent_generate(auth, entity, ref, via, params):
+    """Generate agent content - simplified single-call flow."""
+    agent_id = entity.get("id")
 
     # 1. Get next version number
-    next_version = await get_next_version_number(auth.client, deliverable_id)
+    next_version = await get_next_version_number(auth.client, agent_id)
 
     # 2. Create version record (status=generating)
-    version = await create_version(auth.client, deliverable_id, next_version)
+    version = await create_version(auth.client, agent_id, next_version)
 
     # 3. Create single work_ticket
     ticket = await create_work_ticket(
         auth.client,
-        action="deliverable.generate",
-        deliverable_id=deliverable_id,
-        deliverable_version_id=version.id,
+        action="agent.generate",
+        agent_id=agent_id,
+        agent_version_id=version.id,
     )
 
     # 4. Log inputs for debugging
     await log_execution(ticket.id, "started", {
         "sources": entity.get("sources", []),
-        "type": entity.get("deliverable_type"),
+        "type": entity.get("agent_type"),
     })
 
     # 5. Gather context (inline, not separate step)
@@ -181,7 +181,7 @@ async def _handle_deliverable_generate(auth, entity, ref, via, params):
 
 ### Phase 2: Simplify Pipeline Service
 
-Collapse `api/services/deliverable_pipeline.py`:
+Collapse `api/services/agent_pipeline.py`:
 - Remove `execute_pipeline()` (3-step orchestration)
 - Keep source fetching utilities (`fetch_integration_source_data`, etc.)
 - Keep type-specific prompts (`TYPE_PROMPTS`)
@@ -191,7 +191,7 @@ Collapse `api/services/deliverable_pipeline.py`:
 ### Phase 3: Approval Flow
 
 ```python
-async def _handle_deliverable_approve(auth, entity, ref, via, params):
+async def _handle_agent_approve(auth, entity, ref, via, params):
     version_id = params.get("version_id")
     edited_content = params.get("final_content")  # Optional: if user edited
 
@@ -248,7 +248,7 @@ Per discussion, TP-facing entity types should be 6:
 
 | Entity | Table | TP-Facing | Notes |
 |--------|-------|-----------|-------|
-| `deliverable` | `deliverables` | ✓ | Primary |
+| `agent` | `agents` | ✓ | Primary |
 | `platform` | `user_integrations` | ✓ | By provider name |
 | `document` | `documents` | ✓ | Uploaded files |
 | `work` | `work_tickets` | ✓ | Execution records |
@@ -268,7 +268,7 @@ From the original discussion:
 
 | Question | Resolution |
 |----------|------------|
-| deliverable_versions usage | Use as-is, populate minimally |
+| agent_runs usage | Use as-is, populate minimally |
 | Pipeline chaining | Skip for v1, single ticket per execution |
 | Feedback engine | v2, just save draft + final for now |
 | Context snapshots | Defer, log inputs as JSON in work_ticket |
@@ -277,8 +277,8 @@ From the original discussion:
 
 ## Open Questions
 
-1. **Terminology**: Keep "deliverable" or rename to "task"/"job"?
-   - Recommendation: Keep "deliverable" - semantically precise (delivered to someone, on schedule)
+1. **Terminology**: Keep "agent" or rename to "task"/"job"?
+   - Recommendation: Keep "agent" - semantically precise (delivered to someone, on schedule)
 
 2. **Source freshness logging**: How detailed should input logging be?
    - Start with source list + staleness, expand if debugging needs it
@@ -287,9 +287,9 @@ From the original discussion:
 
 ## References
 
-- [ADR-018: Recurring Deliverables](./ADR-018-recurring-deliverables.md) - Original pipeline design
-- [ADR-019: Deliverable Types](./ADR-019-deliverable-types.md) - Type system
+- [ADR-018: Recurring Agents](./ADR-018-recurring-agents.md) - Original pipeline design
+- [ADR-019: Agent Types](./ADR-019-agent-types.md) - Type system
 - [ADR-036: Two-Layer Architecture](./ADR-036-two-layer-architecture.md) - Primitives foundation
 - [ADR-039: Background Work Agents](./ADR-039-background-work-agents.md) - work_execution_log
 - [primitives.md](../architecture/primitives.md) - Execute primitive specification
-- [deliverable_pipeline.py](../../api/services/deliverable_pipeline.py) - Current implementation
+- [agent_pipeline.py](../../api/services/agent_pipeline.py) - Current implementation

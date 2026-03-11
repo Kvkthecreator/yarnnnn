@@ -32,7 +32,7 @@ TP: Let me help with that...
 📋 Planning:
   ☐ Check Slack connection
   ☐ Sync latest messages
-  ☐ Create deliverable
+  ☐ Create agent
 
 ▶ List ✓ platforms
   → Found slack (connected)
@@ -40,10 +40,10 @@ TP: Let me help with that...
 ▶ Execute ⏳ platform.sync(slack)
   → Started sync job abc123
 
-▶ Write ✓ deliverable
+▶ Write ✓ agent
   → Created "Weekly Update" (weekly)
 
-Done! I've synced your Slack and created a weekly update deliverable...
+Done! I've synced your Slack and created a weekly update agent...
 ```
 
 **Key UX characteristics:**
@@ -108,7 +108,7 @@ When TP uses Todo primitive, show inline checklist:
 │ 📋 Plan                                  │
 │ ✓ Check Slack connection                │
 │ ● Sync latest messages                  │  ← in progress
-│ ○ Create deliverable                    │
+│ ○ Create agent                    │
 └─────────────────────────────────────────┘
 ```
 

@@ -1,6 +1,6 @@
 # Context Pipeline Architecture
 
-How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
+How platform data flows from OAuth connection through to the TP system prompt and agent execution.
 
 > **Last updated**: 2026-02-27 (consistency sweep — sync frequency fix, stale gaps removed)
 
@@ -24,7 +24,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  What YARNNN has done — system provenance, append-only      │
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
-         Written by: deliverable pipeline, platform sync,
+         Written by: agent pipeline, platform sync,
                      memory service
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -33,10 +33,10 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Versioned · Semantically indexed · Provenance-tracked      │
 └─────────────────────────────────────────────────────────────┘
          Written by: platform sync (ephemeral content)
-         Marked retained by: deliverable execution, TP sessions
+         Marked retained by: agent execution, TP sessions
 
 ┌─────────────────────────────────────────────────────────────┐
-│  WORK  (deliverables + deliverable_versions)                 │
+│  WORK  (agents + agent_runs)                 │
 │  What TP produces — structured, versioned, exported         │
 │  source_snapshots includes platform_content_ids             │
 └─────────────────────────────────────────────────────────────┘
@@ -50,7 +50,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 | **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_memory` |
 | **Activity** | Git commit log | Script execution log | `activity_log` |
 | **Context** | Source files (read on demand) | Local filesystem | `platform_content` |
-| **Work** | Build output | Script output | `deliverable_versions` |
+| **Work** | Build output | Script output | `agent_runs` |
 | **Execution** | Shell / Bash | Skills | TP (headless mode) |
 
 ---
@@ -69,7 +69,7 @@ platform_content
 │   └── Written by platform sync, expires after TTL
 │
 └── Retained content (retained=true, expires_at NULL)
-    └── Marked significant by deliverable execution or TP sessions
+    └── Marked significant by agent execution or TP sessions
 ```
 
 ### Two writers
@@ -85,7 +85,7 @@ When content is consumed by a downstream system, it's marked retained:
 
 | Consumer | When | Sets |
 |---|---|---|
-| Deliverable execution | After synthesis | `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id` |
+| Agent execution | After synthesis | `retained=true`, `retained_reason='agent_execution'`, `retained_ref=version_id` |
 | TP session | After semantic search hit | `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id` |
 
 ### The accumulation moat
@@ -94,7 +94,7 @@ Content that proves significant accumulates indefinitely. Over time, `platform_c
 - Recent ephemeral content (TTL-bounded, most expires unused)
 - Accumulated significant content (never expires, the compounding moat)
 
-This is how YARNNN builds intelligence over time. A user with 6 months of deliverable history has a rich archive of content that mattered.
+This is how YARNNN builds intelligence over time. A user with 6 months of agent history has a rich archive of content that mattered.
 
 ---
 
@@ -134,7 +134,7 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 ### What you've told me
 {fact:*, instruction:*}
 
-### Active deliverables
+### Active agents
 {title, destination, sources, schedule — max 5}
 
 ### Connected platforms
@@ -183,44 +183,44 @@ All platforms use Direct API clients from `api/integrations/core/` — no MCP, n
 | Calendar | 2 days |
 | yarnnn | Always retained (ADR-102) |
 
-> **ADR-102**: Deliverable outputs are written to `platform_content` with `platform="yarnnn"` after successful delivery. These are always retained (`retained=true`, `retained_reason="yarnnn_output"`) — generated artifacts don't expire. This closes the accumulation loop: deliverable outputs become searchable context for TP and other deliverables.
+> **ADR-102**: Agent outputs are written to `platform_content` with `platform="yarnnn"` after successful delivery. These are always retained (`retained=true`, `retained_reason="yarnnn_output"`) — generated artifacts don't expire. This closes the accumulation loop: agent outputs become searchable context for TP and other agents.
 
 ---
 
-## Deliverable Execution (ADR-072)
+## Agent Execution (ADR-072)
 
-> **Note**: Deliverable execution now uses TP in headless mode with unified primitives. The previous parallel fetch pipeline is deleted.
+> **Note**: Agent execution now uses TP in headless mode with unified primitives. The previous parallel fetch pipeline is deleted.
 
-When a deliverable runs (scheduled, event-triggered, or manual):
+When a agent runs (scheduled, event-triggered, or manual):
 
-1. `unified_scheduler.py` fetches deliverable configuration
+1. `unified_scheduler.py` fetches agent configuration
 2. TP invoked in **execution mode** (headless, no streaming, no clarification)
-3. Strategy gathers content from `platform_content` filtered by deliverable sources
-4. `build_type_prompt()` assembles type-specific user message with `deliverable_instructions` as priority lens (ADR-104: dual injection)
+3. Strategy gathers content from `platform_content` filtered by agent sources
+4. `build_type_prompt()` assembles type-specific user message with `agent_instructions` as priority lens (ADR-104: dual injection)
 5. Headless system prompt includes instructions as behavioral constraints + user memories + learned preferences
 6. LLM synthesis produces output
-7. `deliverable_version` created with `platform_content_ids` in `source_snapshots`
-8. Source content marked `retained=true`, `retained_reason='deliverable_execution'`
+7. `agent_version` created with `platform_content_ids` in `source_snapshots`
+8. Source content marked `retained=true`, `retained_reason='agent_execution'`
 9. Content delivered to configured destination(s)
 10. `activity_log` event written
 
-**Why unified execution?** Improvements to TP primitives automatically improve deliverable quality. One codebase, not two.
+**Why unified execution?** Improvements to TP primitives automatically improve agent quality. One codebase, not two.
 
 ---
 
-## Work Layer: Deliverables
+## Work Layer: Agents
 
-**Tables**: `deliverables`, `deliverable_versions`
+**Tables**: `agents`, `agent_runs`
 
-The output of TP's execution pipeline. Every generation run produces a new `deliverable_version`. Versions are reviewed by the user and exported to the platform destination (Slack channel, Gmail draft, Notion page, etc.).
+The output of TP's execution pipeline. Every generation run produces a new `agent_version`. Versions are reviewed by the user and exported to the platform destination (Slack channel, Gmail draft, Notion page, etc.).
 
-Deliverables carry their own source configuration — which channels, labels, pages, or calendars to read from. Source references live on the deliverable, not on any domain or grouping abstraction (knowledge_domains was removed in ADR-059 for this reason).
+Agents carry their own source configuration — which channels, labels, pages, or calendars to read from. Source references live on the agent, not on any domain or grouping abstraction (knowledge_domains was removed in ADR-059 for this reason).
 
 ---
 
 ## Live Platform Tools (Conversational)
 
-TP has platform tools for direct, action-oriented platform operations during conversation. These are distinct from both the sync cache and deliverable execution:
+TP has platform tools for direct, action-oriented platform operations during conversation. These are distinct from both the sync cache and agent execution:
 
 | Tool | Platform | Method |
 |---|---|---|
@@ -239,7 +239,7 @@ These are action calls TP makes on behalf of the user during a chat turn. They a
 
 ## What TP Has at Session Start
 
-At the start of every TP session, the working memory block is assembled from **Memory only** (user_memory + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
+At the start of every TP session, the working memory block is assembled from **Memory only** (user_memory + active agents + platform connection status). Raw platform content is **not** pre-injected.
 
 TP accesses platform content during a session in three steps (ADR-085):
 

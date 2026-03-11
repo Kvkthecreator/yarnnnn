@@ -1,7 +1,7 @@
 """
 Event Trigger Service - ADR-031 Phase 4, ADR-040
 
-Handles event-driven deliverable triggering from platform events.
+Handles event-driven agent triggering from platform events.
 
 Supports:
 - Slack events (mentions, DMs, channel messages)
@@ -10,15 +10,15 @@ Supports:
 
 Event Flow:
 1. Platform webhook → event_triggers.handle_event()
-2. Match event to deliverables with matching trigger config
+2. Match event to agents with matching trigger config
 3. Apply cooldown/throttle rules (ADR-040: database-backed)
-4. Queue matched deliverables for processing
+4. Queue matched agents for processing
 
 Usage:
     from services.event_triggers import (
         handle_slack_event,
         handle_gmail_event,
-        get_deliverables_for_event,
+        get_agents_for_event,
     )
 """
 
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 class SlackEventType(str, Enum):
-    """Slack event types that can trigger deliverables."""
+    """Slack event types that can trigger agents."""
     APP_MENTION = "app_mention"       # @bot mention in channel
     MESSAGE_IM = "message_im"         # DM to bot
     MESSAGE_CHANNEL = "message"       # Message in subscribed channel
@@ -46,13 +46,13 @@ class SlackEventType(str, Enum):
 
 
 class GmailEventType(str, Enum):
-    """Gmail event types that can trigger deliverables."""
+    """Gmail event types that can trigger agents."""
     NEW_MESSAGE = "new_message"       # New email received
     THREAD_UPDATE = "thread_update"   # Reply to existing thread
 
 
 class NotionEventType(str, Enum):
-    """Notion event types that can trigger deliverables."""
+    """Notion event types that can trigger agents."""
     PAGE_UPDATED = "page_updated"     # Page content changed
     DATABASE_ROW_ADDED = "row_added"  # New row in database
 
@@ -86,9 +86,9 @@ class CooldownConfig:
 @dataclass
 class EventTriggerConfig:
     """
-    Event trigger configuration for a deliverable.
+    Event trigger configuration for a agent.
 
-    Stored in deliverable.trigger_config when trigger_type='event'.
+    Stored in agent.trigger_config when trigger_type='event'.
     """
     platform: Literal["slack", "gmail", "notion"]
     event_types: list[str]  # Which event types to respond to
@@ -102,9 +102,9 @@ class EventTriggerConfig:
 
 @dataclass
 class TriggerMatch:
-    """A matched deliverable for an event."""
-    deliverable_id: str
-    deliverable_title: str
+    """A matched agent for an event."""
+    agent_id: str
+    agent_title: str
     user_id: str
     should_skip: bool = False
     skip_reason: Optional[str] = None
@@ -115,36 +115,36 @@ class TriggerMatch:
 # =============================================================================
 
 def _get_cooldown_key(
-    deliverable_id: str,
+    agent_id: str,
     cooldown_type: str,
     event: PlatformEvent,
 ) -> str:
     """Generate a unique cooldown key based on config type."""
     if cooldown_type == "per_thread":
-        return f"{deliverable_id}:thread:{event.thread_id or event.resource_id}"
+        return f"{agent_id}:thread:{event.thread_id or event.resource_id}"
     elif cooldown_type == "per_channel":
-        return f"{deliverable_id}:channel:{event.resource_id}"
+        return f"{agent_id}:channel:{event.resource_id}"
     elif cooldown_type == "per_sender":
-        return f"{deliverable_id}:sender:{event.sender_id or 'unknown'}"
+        return f"{agent_id}:sender:{event.sender_id or 'unknown'}"
     else:  # global
-        return f"{deliverable_id}:global"
+        return f"{agent_id}:global"
 
 
 async def check_cooldown_db(
     db_client,
-    deliverable_id: str,
+    agent_id: str,
     cooldown: CooldownConfig,
     event: PlatformEvent,
 ) -> tuple[bool, Optional[str]]:
     """
-    Check if a deliverable is in cooldown for this event.
+    Check if a agent is in cooldown for this event.
 
     ADR-040: Uses database (event_trigger_log) instead of in-memory cache.
 
     Returns:
         Tuple of (is_in_cooldown, reason)
     """
-    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
+    key = _get_cooldown_key(agent_id, cooldown.type, event)
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=cooldown.duration_minutes)
 
@@ -172,23 +172,23 @@ async def check_cooldown_db(
 
 async def record_trigger_db(
     db_client,
-    deliverable_id: str,
+    agent_id: str,
     cooldown: CooldownConfig,
     event: PlatformEvent,
     result: str = "executed",
     skip_reason: Optional[str] = None,
 ) -> None:
     """
-    Record that a deliverable was triggered for cooldown tracking.
+    Record that a agent was triggered for cooldown tracking.
 
     ADR-040: Logs to event_trigger_log table for audit and cooldown tracking.
     """
-    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
+    key = _get_cooldown_key(agent_id, cooldown.type, event)
 
     try:
         db_client.table("event_trigger_log").insert({
             "user_id": event.user_id,
-            "deliverable_id": deliverable_id,
+            "agent_id": agent_id,
             "platform": event.platform,
             "event_type": event.event_type,
             "resource_id": event.resource_id,
@@ -205,23 +205,23 @@ async def record_trigger_db(
 # Event Matching
 # =============================================================================
 
-async def get_deliverables_for_event(
+async def get_agents_for_event(
     db_client,
     event: PlatformEvent,
 ) -> list[TriggerMatch]:
     """
-    Find deliverables that should trigger for this event.
+    Find agents that should trigger for this event.
 
-    Queries deliverables where:
+    Queries agents where:
     - trigger_type = 'event'
     - trigger_config matches the event platform and resource
     - status = 'active'
 
-    Returns list of matched deliverables with cooldown status.
+    Returns list of matched agents with cooldown status.
     """
-    # Query deliverables with event triggers for this user
+    # Query agents with event triggers for this user
     result = (
-        db_client.table("deliverables")
+        db_client.table("agents")
         .select("id, user_id, title, trigger_type, trigger_config, status")
         .eq("user_id", event.user_id)
         .eq("status", "active")
@@ -277,15 +277,15 @@ async def get_deliverables_for_event(
                 skip_reason = reason
 
         matches.append(TriggerMatch(
-            deliverable_id=row["id"],
-            deliverable_title=row["title"],
+            agent_id=row["id"],
+            agent_title=row["title"],
             user_id=row["user_id"],
             should_skip=should_skip,
             skip_reason=skip_reason,
         ))
 
     logger.info(
-        f"[EVENT_TRIGGER] Matched {len(matches)} deliverables for "
+        f"[EVENT_TRIGGER] Matched {len(matches)} agents for "
         f"{event.platform}:{event.event_type} on {event.resource_id}"
     )
 
@@ -301,14 +301,14 @@ async def handle_slack_event(
     event_payload: dict,
 ) -> list[TriggerMatch]:
     """
-    Handle incoming Slack event and find matching deliverables.
+    Handle incoming Slack event and find matching agents.
 
     Args:
         db_client: Supabase client
         event_payload: Raw Slack event payload
 
     Returns:
-        List of matched deliverables
+        List of matched agents
     """
     event_type = event_payload.get("type")
 
@@ -350,7 +350,7 @@ async def handle_slack_event(
         content_preview=text[:200] if text else None,
     )
 
-    return await get_deliverables_for_event(db_client, event)
+    return await get_agents_for_event(db_client, event)
 
 
 async def handle_gmail_event(
@@ -359,7 +359,7 @@ async def handle_gmail_event(
     user_id: str,
 ) -> list[TriggerMatch]:
     """
-    Handle incoming Gmail push notification and find matching deliverables.
+    Handle incoming Gmail push notification and find matching agents.
 
     Args:
         db_client: Supabase client
@@ -367,7 +367,7 @@ async def handle_gmail_event(
         user_id: YARNNN user ID (from webhook routing)
 
     Returns:
-        List of matched deliverables
+        List of matched agents
     """
     # Gmail push notifications are minimal - they just indicate change
     # We need to fetch actual messages to determine event details
@@ -386,7 +386,7 @@ async def handle_gmail_event(
         event_ts=datetime.now(timezone.utc),
     )
 
-    return await get_deliverables_for_event(db_client, event)
+    return await get_agents_for_event(db_client, event)
 
 
 # =============================================================================
@@ -435,11 +435,11 @@ async def execute_event_triggers(
     event: PlatformEvent,
 ) -> dict:
     """
-    Execute matched deliverables that aren't in cooldown.
+    Execute matched agents that aren't in cooldown.
 
     Args:
         db_client: Supabase client
-        matches: List of matched deliverables
+        matches: List of matched agents
         event: The triggering event
 
     Returns:
@@ -454,30 +454,30 @@ async def execute_event_triggers(
     for match in matches:
         if match.should_skip:
             logger.info(
-                f"[EVENT_TRIGGER] Skipping {match.deliverable_title}: {match.skip_reason}"
+                f"[EVENT_TRIGGER] Skipping {match.agent_title}: {match.skip_reason}"
             )
             skipped += 1
             continue
 
         try:
-            # Get full deliverable for execution
-            deliverable_result = (
-                db_client.table("deliverables")
+            # Get full agent for execution
+            agent_result = (
+                db_client.table("agents")
                 .select("*")
-                .eq("id", match.deliverable_id)
+                .eq("id", match.agent_id)
                 .single()
                 .execute()
             )
-            if not deliverable_result.data:
-                errors.append(f"Deliverable not found: {match.deliverable_id}")
+            if not agent_result.data:
+                errors.append(f"Agent not found: {match.agent_id}")
                 continue
 
-            deliverable = deliverable_result.data
+            agent = agent_result.data
 
             # ADR-088: Route through dispatch — event triggers accumulate context (medium)
             result = await dispatch_trigger(
                 client=db_client,
-                deliverable=deliverable,
+                agent=agent,
                 trigger_type="event",
                 trigger_context={
                     "type": "event",
@@ -494,32 +494,32 @@ async def execute_event_triggers(
                 executed += 1
 
                 # ADR-040: Record trigger to database for cooldown tracking
-                cooldown_config = deliverable.get("trigger_config", {}).get("cooldown")
+                cooldown_config = agent.get("trigger_config", {}).get("cooldown")
                 if cooldown_config:
                     cooldown = CooldownConfig(
                         type=cooldown_config.get("type", "global"),
                         duration_minutes=cooldown_config.get("duration_minutes", 5),
                     )
-                    await record_trigger_db(db_client, match.deliverable_id, cooldown, event, result="executed")
+                    await record_trigger_db(db_client, match.agent_id, cooldown, event, result="executed")
 
-                logger.info(f"[EVENT_TRIGGER] ✓ Executed {match.deliverable_title}")
+                logger.info(f"[EVENT_TRIGGER] ✓ Executed {match.agent_title}")
             else:
                 # Log failed trigger
-                cooldown_config = deliverable.get("trigger_config", {}).get("cooldown")
+                cooldown_config = agent.get("trigger_config", {}).get("cooldown")
                 if cooldown_config:
                     cooldown = CooldownConfig(
                         type=cooldown_config.get("type", "global"),
                         duration_minutes=cooldown_config.get("duration_minutes", 5),
                     )
                     await record_trigger_db(
-                        db_client, match.deliverable_id, cooldown, event,
+                        db_client, match.agent_id, cooldown, event,
                         result="failed", skip_reason=result.get("error")
                     )
-                errors.append(f"{match.deliverable_title}: {result.get('error')}")
+                errors.append(f"{match.agent_title}: {result.get('error')}")
 
         except Exception as e:
-            logger.error(f"[EVENT_TRIGGER] ✗ Failed {match.deliverable_title}: {e}")
-            errors.append(f"{match.deliverable_title}: {str(e)}")
+            logger.error(f"[EVENT_TRIGGER] ✗ Failed {match.agent_title}: {e}")
+            errors.append(f"{match.agent_title}: {str(e)}")
 
     return {
         "executed": executed,

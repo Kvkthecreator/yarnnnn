@@ -30,7 +30,7 @@
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
 
-**Exporter Alignment** (2026-02-19): All deliverable exporters now use the same backends as TP platform tools:
+**Exporter Alignment** (2026-02-19): All agent exporters now use the same backends as TP platform tools:
 - `integrations/exporters/slack.py` → MCP Gateway (`call_platform_tool()`)
 - `integrations/exporters/notion.py` → Direct API (`POST /v1/pages`)
 - `integrations/exporters/gmail.py` → Direct API (`GoogleAPIClient`)
@@ -168,7 +168,7 @@ Building MCP infrastructure now is an investment in future integration velocity.
    - YARNNN initiates, external service responds
 
 2. **Inbound (MCP Server)**: External tools call YARNNN
-   - Claude Desktop/Code → YARNNN memories, deliverables
+   - Claude Desktop/Code → YARNNN memories, agents
    - External tool initiates, YARNNN responds
 
 Both are valuable. A unified gateway can serve both.
@@ -192,7 +192,7 @@ Both are valuable. A unified gateway can serve both.
 │  │                    │     │                             │ │
 │  │ Exposes:           │     │ Manages:                    │ │
 │  │ - get_memories     │     │ - @mcp/server-slack (ONLY)  │ │
-│  │ - list_deliverables│     │                             │ │
+│  │ - list_agents│     │                             │ │
 │  │ - search_context   │     │ (Notion/Gmail/Calendar use  │ │
 │  │                    │     │  Direct API - see ADR-050)  │ │
 │  └────────────────────┘     └─────────────────────────────┘ │

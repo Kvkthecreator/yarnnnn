@@ -7,7 +7,7 @@ import { HOME_ROUTE } from "@/lib/routes";
 const PROTECTED_PREFIXES = [
   HOME_ROUTE,
   "/projects",
-  "/deliverables",
+  "/agents",
   "/memory",
   "/activity",
   "/context",

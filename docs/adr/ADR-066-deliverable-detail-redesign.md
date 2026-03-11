@@ -1,4 +1,4 @@
-# ADR-066: Deliverable Detail Page Redesign — Delivery-First, No Governance
+# ADR-066: Agent Detail Page Redesign — Delivery-First, No Governance
 
 **Status**: Implemented
 **Date**: 2026-02-19
@@ -6,7 +6,7 @@
 
 ### Implementation Status
 
-**Backend** (`api/services/deliverable_execution.py`):
+**Backend** (`api/services/agent_execution.py`):
 - ✅ Removed governance gate — always delivers immediately
 - ✅ No more `staged` status — versions go to `delivered` or `failed`
 - ✅ Added `update_version_for_delivery()` function
@@ -17,7 +17,7 @@
 - ✅ Added `email` platform alias → `gmail` exporter
 - ✅ Platform lookup maps `email` → `gmail` for credentials
 
-**Frontend** (`web/app/(authenticated)/deliverables/[id]/page.tsx`):
+**Frontend** (`web/app/(authenticated)/agents/[id]/page.tsx`):
 - ✅ Removed Approve/Reject buttons
 - ✅ "Latest Output" → "Latest Delivery"
 - ✅ "Previous Versions" → "Delivery History"
@@ -25,7 +25,7 @@
 - ✅ External link to delivered content
 - ✅ Retry button for failed deliveries
 
-**Frontend** (`web/components/modals/DeliverableSettingsModal.tsx`):
+**Frontend** (`web/components/modals/AgentSettingsModal.tsx`):
 - ✅ Simplified destination to email-first (no complex DestinationSelector)
 - ✅ Default destination is user's registered email
 
@@ -35,7 +35,7 @@
 
 ### Current Problems
 
-The deliverable detail page has accumulated complexity around a **governance model** (approve/reject before delivery) that creates friction without value for single-user workflows:
+The agent detail page has accumulated complexity around a **governance model** (approve/reject before delivery) that creates friction without value for single-user workflows:
 
 1. **Governance mismatch**: User creates scheduled automation → system generates output → user must manually "approve" → only then delivery happens. This defeats the purpose of automation.
 
@@ -47,7 +47,7 @@ The deliverable detail page has accumulated complexity around a **governance mod
 
 ### First Principles Assessment
 
-**What is a deliverable?**
+**What is a agent?**
 > A scheduled automation that generates content and delivers it to a destination.
 
 **What does the user want?**
@@ -62,7 +62,7 @@ The deliverable detail page has accumulated complexity around a **governance mod
 
 ### Core Principle
 
-> A deliverable is a **scheduled automation**. When it runs, it delivers. User controls via schedule and pause/resume.
+> A agent is a **scheduled automation**. When it runs, it delivers. User controls via schedule and pause/resume.
 
 ### What This Means
 
@@ -100,7 +100,7 @@ type VersionStatus = "generating" | "delivered" | "failed";
 | **Pause/Resume** | Stop/start scheduled runs |
 | **Settings** | Modify schedule, sources, destination |
 | **Run Now** | Trigger immediate generation + delivery |
-| **Archive** | Soft delete the deliverable |
+| **Archive** | Soft delete the agent |
 
 **Removed:**
 - Approve button
@@ -174,10 +174,10 @@ Emphasize platform identity with badge:
 ```
 
 Platform badges:
-- 💬 Slack deliverables
-- 📧 Gmail/Email deliverables
-- 📝 Notion deliverables
-- 📊 Synthesis (cross-platform) deliverables
+- 💬 Slack agents
+- 📧 Gmail/Email agents
+- 📝 Notion agents
+- 📊 Synthesis (cross-platform) agents
 
 ---
 
@@ -198,7 +198,7 @@ Each entry shows:
 
 ### Execution Pipeline
 
-Modify `execute_deliverable_generation()` to:
+Modify `execute_agent_generation()` to:
 1. Generate content
 2. Immediately attempt delivery (if destination configured)
 3. Set version status to `delivered` or `failed`
@@ -235,7 +235,7 @@ Keep it focused on automation configuration:
 ## Migration Path
 
 ### Phase 1: Backend — Auto-deliver
-1. Update `execute_deliverable_generation()` to skip `staged`, go directly to delivery
+1. Update `execute_agent_generation()` to skip `staged`, go directly to delivery
 2. New versions get `delivered` or `failed` status
 3. Keep API backwards compatible (ignore governance param)
 
@@ -268,7 +268,7 @@ Keep it focused on automation configuration:
 ## What This Enables
 
 - **True automation**: Scheduled runs deliver without user action
-- **Simpler mental model**: Deliverable = scheduled automation + history
+- **Simpler mental model**: Agent = scheduled automation + history
 - **Cleaner UI**: One status (delivered/failed), not approval queue
 - **Future-ready**: Multi-user governance can be re-added as a feature flag
 
@@ -286,17 +286,17 @@ This is additive, not default governance.
 
 ### Multi-User Governance (Future)
 When teams are supported:
-- Manager configures "require approval" on certain deliverables
+- Manager configures "require approval" on certain agents
 - Team member's scheduled run creates `pending_approval` version
 - Manager approves → delivers
 
-This would be opt-in per deliverable, not default behavior.
+This would be opt-in per agent, not default behavior.
 
 ---
 
 ## Related
 
-- [ADR-067](ADR-067-deliverable-creation-simplification.md) — Creation flow (aligns with this)
-- [ADR-042](ADR-042-deliverable-execution-simplification.md) — Execution pipeline (needs update)
+- [ADR-067](ADR-067-agent-creation-simplification.md) — Creation flow (aligns with this)
+- [ADR-042](ADR-042-agent-execution-simplification.md) — Execution pipeline (needs update)
 - [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Work layer)
 - [ADR-021](ADR-021-review-first-supervision-ux.md) — Superseded review-first model

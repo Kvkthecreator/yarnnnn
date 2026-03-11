@@ -1,5 +1,5 @@
 """
-Deliverable Pipeline Utilities
+Agent Pipeline Utilities
 
 ADR-093: 7 purpose-first type prompt templates and validation.
 ADR-073: Live API fetch functions removed — execution strategies
@@ -7,7 +7,7 @@ ADR-073: Live API fetch functions removed — execution strategies
 
 Contains:
 - TYPE_PROMPTS: Per-type prompt templates for LLM synthesis
-- build_type_prompt(): Assembles prompt from deliverable config
+- build_type_prompt(): Assembles prompt from agent config
 - validate_output(): Per-type output validation
 - get_past_versions_context(): Past version feedback for learning
 """
@@ -61,7 +61,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 }
 
 
-# Default instructions seeded when a deliverable is created without explicit instructions.
+# Default instructions seeded when a agent is created without explicit instructions.
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
@@ -368,12 +368,12 @@ GATHERED CONTEXT:
 INSTRUCTIONS:
 - Assess the current state of the domain against the dispatch rules
 - Identify what work has been triggered, completed, or is pending
-- Surface any gaps or situations that require creating or advancing deliverables
+- Surface any gaps or situations that require creating or advancing agents
 - Be analytical and action-oriented — this review drives downstream work
 
 Write the coordinator review now:""",
 
-    "custom": """You are producing a custom deliverable titled "{title}".
+    "custom": """You are producing a custom agent titled "{title}".
 
 {description}
 
@@ -394,7 +394,7 @@ INSTRUCTIONS:
 - Write in the appropriate tone for the stated purpose
 - If the description specifies a format (bullets, narrative, tables), use it exactly
 
-Write the deliverable now:""",
+Write the agent now:""",
 
 }  # end TYPE_PROMPTS
 
@@ -428,35 +428,35 @@ def _infer_source_platform(sources: list) -> str:
 
 
 def build_type_prompt(
-    deliverable_type: str,
+    agent_type: str,
     config: dict,
-    deliverable: dict,
+    agent: dict,
     gathered_context: str,
     recipient_text: str,
     past_versions: str,
 ) -> str:
     """Build the type-specific synthesis prompt (ADR-093: 7 purpose-first types)."""
 
-    template = TYPE_PROMPTS.get(deliverable_type, TYPE_PROMPTS["custom"])
+    template = TYPE_PROMPTS.get(agent_type, TYPE_PROMPTS["custom"])
 
     # Common fields present in all templates
-    # ADR-104: Inject deliverable_instructions into user message (dual injection —
+    # ADR-104: Inject agent_instructions into user message (dual injection —
     # also present in system prompt via _build_headless_system_prompt)
-    instructions = (deliverable.get("deliverable_instructions") or "").strip()
+    instructions = (agent.get("agent_instructions") or "").strip()
     user_instructions = ""
     if instructions:
-        user_instructions = f"USER INSTRUCTIONS (priority lens for this deliverable):\n{instructions}"
+        user_instructions = f"USER INSTRUCTIONS (priority lens for this agent):\n{instructions}"
 
     fields = {
         "gathered_context": gathered_context,
         "recipient_context": recipient_text,
         "past_versions": past_versions,
-        "title": deliverable.get("title", "Deliverable"),
+        "title": agent.get("title", "Agent"),
         "user_instructions": user_instructions,
     }
 
-    if deliverable_type == "digest":
-        source_platform = _infer_source_platform(deliverable.get("sources", []))
+    if agent_type == "digest":
+        source_platform = _infer_source_platform(agent.get("sources", []))
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
         platform_signals = platform_signals.format(
@@ -469,11 +469,11 @@ def build_type_prompt(
             "platform_signals": platform_signals,
         })
 
-    elif deliverable_type == "brief":
+    elif agent_type == "brief":
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
-        tz_name = deliverable.get("schedule", {}).get("timezone", "UTC")
+        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
         try:
             tz = pytz.timezone(tz_name)
         except Exception:
@@ -487,9 +487,9 @@ def build_type_prompt(
             "date_range": date_range,
         })
 
-    elif deliverable_type == "status":
+    elif agent_type == "status":
         fields.update({
-            "subject": config.get("subject", deliverable.get("title", "")),
+            "subject": config.get("subject", agent.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
             "detail_level": config.get("detail_level", "standard"),
             "tone": config.get("tone", "formal"),
@@ -499,17 +499,17 @@ def build_type_prompt(
             ),
         })
 
-    elif deliverable_type == "watch":
+    elif agent_type == "watch":
         signals = config.get("signals", [])
         fields.update({
-            "domain": config.get("domain", deliverable.get("title", "domain")),
+            "domain": config.get("domain", agent.get("title", "domain")),
             "signals": "\n".join(f"- {s}" for s in signals) if signals else "- Notable developments and emerging patterns",
         })
 
-    elif deliverable_type == "deep_research":
+    elif agent_type == "deep_research":
         from datetime import datetime
         import pytz
-        tz_name = deliverable.get("schedule", {}).get("timezone", "UTC")
+        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
         try:
             tz = pytz.timezone(tz_name)
         except Exception:
@@ -519,16 +519,16 @@ def build_type_prompt(
             "today_date": today_str,
         })
 
-    elif deliverable_type == "coordinator":
+    elif agent_type == "coordinator":
         dispatch_rules = config.get("dispatch_rules", [])
         fields.update({
-            "domain": config.get("domain", deliverable.get("title", "domain")),
+            "domain": config.get("domain", agent.get("title", "domain")),
             "dispatch_rules": "\n".join(f"- {r}" for r in dispatch_rules) if dispatch_rules else "- No explicit rules — use judgment",
         })
 
     else:  # custom and any unknown types
         fields.update({
-            "description": config.get("description", deliverable.get("description", "")),
+            "description": config.get("description", agent.get("description", "")),
             "structure_notes": f"STRUCTURE NOTES:\n{config.get('structure_notes', '')}" if config.get("structure_notes") else "",
         })
 
@@ -536,10 +536,10 @@ def build_type_prompt(
     try:
         return template.format(**fields)
     except KeyError as e:
-        logger.warning(f"Missing field in prompt template for {deliverable_type}: {e}")
+        logger.warning(f"Missing field in prompt template for {agent_type}: {e}")
         # Fall back to custom template
         return TYPE_PROMPTS["custom"].format(**{
-            "title": deliverable.get("title", "Deliverable"),
+            "title": agent.get("title", "Agent"),
             "description": config.get("description", ""),
             "structure_notes": "",
             "user_instructions": user_instructions,
@@ -561,9 +561,9 @@ def _validate_minimum_content(content: str, min_words: int = 50) -> list[str]:
     return []
 
 
-def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
+def validate_output(agent_type: str, content: str, config: dict) -> dict:
     """
-    Validate generated content based on deliverable type (ADR-093: 7 types).
+    Validate generated content based on agent type (ADR-093: 7 types).
 
     Returns:
         {
@@ -577,7 +577,7 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
 
     issues = _validate_minimum_content(content)
 
-    if deliverable_type == "status":
+    if agent_type == "status":
         detail_level = config.get("detail_level", "standard")
         min_words_map = {"brief": 150, "standard": 300, "detailed": 600}
         word_count = len(content.split())
@@ -585,7 +585,7 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         if word_count < min_w * 0.7:
             issues.append(f"Too short for {detail_level}: {word_count} words (expected {min_w}+)")
 
-    elif deliverable_type == "deep_research":
+    elif agent_type == "deep_research":
         word_count = len(content.split())
         if word_count < 200:
             issues.append(f"Too short for proactive insights: {word_count} words (expected 200+)")
@@ -595,7 +595,7 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
 
-    elif deliverable_type == "digest":
+    elif agent_type == "digest":
         char_count = len(content)
         if char_count > 3000:
             issues.append(f"Digest may be too long: {char_count} chars")
@@ -608,7 +608,7 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
 
 
 
-async def get_past_versions_context(client, deliverable_id: str) -> str:
+async def get_past_versions_context(client, agent_id: str) -> str:
     """
     Get context from past versions including feedback patterns.
 
@@ -616,9 +616,9 @@ async def get_past_versions_context(client, deliverable_id: str) -> str:
     """
     # Get recent versions with edits (ADR-101: include 'delivered' for delivery-first model)
     versions_result = (
-        client.table("deliverable_versions")
+        client.table("agent_runs")
         .select("version_number, edit_categories, edit_distance_score, feedback_notes")
-        .eq("deliverable_id", deliverable_id)
+        .eq("agent_id", agent_id)
         .in_("status", ["approved", "delivered"])
         .order("version_number", desc=True)
         .limit(5)

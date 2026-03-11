@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Scoped chat area for the Deliverable Workspace page.
+ * Scoped chat area for the Agent Workspace page.
  *
  * Pure chat — no version display. Versions are shown in the persistent right panel.
- * Reuses TP context, scoped to a specific deliverable.
+ * Reuses TP context, scoped to a specific agent.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -26,15 +26,15 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 
-export function DeliverableChatArea({
-  deliverableId,
-  deliverableTitle,
+export function AgentChatArea({
+  agentId,
+  agentTitle,
   onRunNow,
   running,
   prefillChatRef,
 }: {
-  deliverableId: string;
-  deliverableTitle: string;
+  agentId: string;
+  agentTitle: string;
   onRunNow: () => void;
   running: boolean;
   prefillChatRef?: React.MutableRefObject<((text: string) => void) | null>;
@@ -50,10 +50,10 @@ export function DeliverableChatArea({
     loadScopedHistory,
   } = useTP();
 
-  // ADR-087 Phase 3: Load deliverable-scoped history on mount
+  // ADR-087 Phase 3: Load agent-scoped history on mount
   useEffect(() => {
-    loadScopedHistory(deliverableId);
-  }, [deliverableId, loadScopedHistory]);
+    loadScopedHistory(agentId);
+  }, [agentId, loadScopedHistory]);
 
   const [input, setInput] = useState('');
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
@@ -85,7 +85,7 @@ export function DeliverableChatArea({
     fileInputRef,
   } = useFileAttachments();
 
-  const surface = { type: 'deliverable-detail' as const, deliverableId };
+  const surface = { type: 'agent-detail' as const, agentId };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -161,7 +161,7 @@ export function DeliverableChatArea({
       icon: Pencil,
       verb: 'prompt',
       onSelect: () => {
-        setInput('I want to update the instructions for this deliverable');
+        setInput('I want to update the instructions for this agent');
         textareaRef.current?.focus();
       },
     },
@@ -193,7 +193,7 @@ export function DeliverableChatArea({
             <div className="text-center py-8">
               <MessageSquare className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-4">
-                You&apos;re talking to <span className="font-medium text-foreground">{deliverableTitle}</span>.
+                You&apos;re talking to <span className="font-medium text-foreground">{agentTitle}</span>.
                 Ask me to generate, refine, or review.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
@@ -222,7 +222,7 @@ export function DeliverableChatArea({
               )}
             >
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">
-                {msg.role === 'user' ? 'You' : deliverableTitle}
+                {msg.role === 'user' ? 'You' : agentTitle}
               </span>
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -342,7 +342,7 @@ export function DeliverableChatArea({
                 placeholder={
                   status.type === 'clarify'
                     ? 'Type your answer...'
-                    : `Ask ${deliverableTitle} anything or type / for skills...`
+                    : `Ask ${agentTitle} anything or type / for skills...`
                 }
                 rows={1}
                 className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"

@@ -8,10 +8,10 @@ Usage:
     cd api && python test_pipeline_e2e.py
 
 This tests:
-1. Deliverable execution (headless TP mode)
+1. Agent execution (headless TP mode)
 2. Simulated user edit
 3. Memory extraction
-4. Second deliverable run (verify edit patterns reflected)
+4. Second agent run (verify edit patterns reflected)
 
 If execution fails at any step, stops and reports exact error.
 """
@@ -58,7 +58,7 @@ class SyntheticUser:
     timezone: str
     platforms: list[str]
     content_records: list[dict] = field(default_factory=list)
-    deliverable_config: Optional[dict] = None
+    agent_config: Optional[dict] = None
     edit_instructions: list[str] = field(default_factory=list)
     user_id: Optional[str] = None  # Set after creation
 
@@ -73,7 +73,7 @@ MAYA = SyntheticUser(
     platforms=["gmail"],
     content_records=[
         # Gmail: Client project status (14 days, 2 labels)
-        {"platform": "gmail", "resource_name": "Client/ProjectAlpha", "title": "Re: Project Alpha Status Update", "content": "Hi Maya, the Q1 deliverables are on track. We've completed the analytics dashboard integration and are moving to phase 2. Main blocker: waiting on API credentials from their IT team. Best, Sarah", "days_ago": 1},
+        {"platform": "gmail", "resource_name": "Client/ProjectAlpha", "title": "Re: Project Alpha Status Update", "content": "Hi Maya, the Q1 agents are on track. We've completed the analytics dashboard integration and are moving to phase 2. Main blocker: waiting on API credentials from their IT team. Best, Sarah", "days_ago": 1},
         {"platform": "gmail", "resource_name": "Client/ProjectAlpha", "title": "Project Alpha - Weekly Sync Notes", "content": "Attendees: Maya, Sarah, Client PM. Action items: 1) Finalize dashboard mockups by Friday 2) Schedule technical review with their engineering 3) Follow up on API access. Next sync: Thursday 2pm.", "days_ago": 3},
         {"platform": "gmail", "resource_name": "Client/ProjectAlpha", "title": "Re: Analytics Dashboard Feedback", "content": "Maya, the client loved the dashboard mockups! Only feedback: they want the date picker to default to last 30 days instead of 7. Can we make that change before Thursday?", "days_ago": 5},
         {"platform": "gmail", "resource_name": "Client/ProjectAlpha", "title": "Project Alpha - Budget Approval", "content": "Good news - the additional budget for the premium API tier has been approved. We can proceed with the advanced analytics features. Please update the timeline accordingly.", "days_ago": 7},
@@ -90,9 +90,9 @@ MAYA = SyntheticUser(
         {"platform": "gmail", "resource_name": "INBOX", "title": "New Team Member Starting", "content": "Please welcome Alex who joins as Product Designer next Monday. I'll send calendar invites for intro 1:1s.", "days_ago": 13},
         {"platform": "gmail", "resource_name": "INBOX", "title": "Holiday Schedule", "content": "Office will be closed Dec 23-26 and Dec 30-Jan 1. Please plan accordingly.", "days_ago": 14},
     ],
-    deliverable_config={
+    agent_config={
         "title": "Client Project Brief",
-        "deliverable_type": "brief",
+        "agent_type": "brief",
         "schedule": {"frequency": "weekly", "day": "monday", "time": "09:00", "timezone": "America/Los_Angeles"},
         "sources": [{"type": "integration_import", "provider": "google", "source": "gmail"}],
         "recipient_context": {"name": "Self", "channel": "review"},
@@ -146,9 +146,9 @@ JAMES = SyntheticUser(
         # Notion: Roadmap
         {"platform": "notion", "resource_name": "Product", "title": "Q2 Roadmap", "content": "## Q2 Roadmap\n\n### April\n- Enterprise tier launch\n- SSO + SCIM\n- Usage analytics dashboard\n\n### May\n- Mobile app v2\n- Push notifications\n- Offline mode\n\n### June\n- API marketplace beta\n- Partner integrations\n- Self-serve billing", "days_ago": 3, "author": "james"},
     ],
-    deliverable_config={
+    agent_config={
         "title": "Weekly Founder Brief",
-        "deliverable_type": "digest",
+        "agent_type": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "17:00", "timezone": "America/New_York"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#product"},
@@ -202,9 +202,9 @@ SARAH = SyntheticUser(
         {"platform": "slack", "resource_name": "#product", "title": "Launch date", "content": "Confirmed: Enterprise tier launches March 15. Press release goes out same day. All hands prep meeting tomorrow.", "days_ago": 9, "author": "james"},
         {"platform": "slack", "resource_name": "#product", "title": "Training materials", "content": "Training materials for support team ready. Includes FAQ, troubleshooting guide, and escalation procedures.", "days_ago": 10, "author": "sarah"},
     ],
-    deliverable_config={
+    agent_config={
         "title": "Engineering Weekly Digest",
-        "deliverable_type": "digest",
+        "agent_type": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "16:00", "timezone": "America/Chicago"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#engineering"},
@@ -245,8 +245,8 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
     try:
         # 0. Clean up any previous test data for this persona first
         logger.info(f"  Cleaning up previous test data...")
-        persona_deliverable_title = persona.deliverable_config.get("title") if persona.deliverable_config else None
-        await cleanup_synthetic_user(client, user_id, persona.name, persona_deliverable_title)
+        persona_agent_title = persona.agent_config.get("title") if persona.agent_config else None
+        await cleanup_synthetic_user(client, user_id, persona.name, persona_agent_title)
 
         # 1. Create user_memory (profile) with test prefix keys (upsert pattern)
         logger.info(f"  Creating user_memory...")
@@ -382,28 +382,28 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
                 client.table("sync_registry").insert(sync_row).execute()
         logger.info(f"    ✓ Ensured {len(resources)} sync_registry entries")
 
-        # 5. Create deliverable (with test marker in title for cleanup)
-        if persona.deliverable_config:
-            logger.info(f"  Creating deliverable...")
-            deliverable_id = str(uuid4())
-            test_title = f"[TEST] {persona.deliverable_config['title']}"
-            deliverable_row = {
-                "id": deliverable_id,
+        # 5. Create agent (with test marker in title for cleanup)
+        if persona.agent_config:
+            logger.info(f"  Creating agent...")
+            agent_id = str(uuid4())
+            test_title = f"[TEST] {persona.agent_config['title']}"
+            agent_row = {
+                "id": agent_id,
                 "user_id": user_id,
                 "title": test_title,
-                "deliverable_type": persona.deliverable_config["deliverable_type"],
+                "agent_type": persona.agent_config["agent_type"],
                 "status": "active",
-                "schedule": persona.deliverable_config["schedule"],
-                "sources": persona.deliverable_config["sources"],
-                "recipient_context": persona.deliverable_config["recipient_context"],
+                "schedule": persona.agent_config["schedule"],
+                "sources": persona.agent_config["sources"],
+                "recipient_context": persona.agent_config["recipient_context"],
                 "next_run_at": (now.replace(year=now.year + 1)).isoformat(),  # Far future — prevent scheduler pickup during test
                 "created_at": now.isoformat(),
                 "updated_at": now.isoformat(),
             }
-            client.table("deliverables").insert(deliverable_row).execute()
-            persona.deliverable_config["id"] = deliverable_id
-            persona.deliverable_config["test_title"] = test_title
-            logger.info(f"    ✓ Created deliverable: {test_title}")
+            client.table("agents").insert(agent_row).execute()
+            persona.agent_config["id"] = agent_id
+            persona.agent_config["test_title"] = test_title
+            logger.info(f"    ✓ Created agent: {test_title}")
 
         logger.info(f"  ✓ User {persona.name} created successfully (id: {user_id})")
         return user_id
@@ -415,7 +415,7 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
         raise
 
 
-async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, persona_deliverable_title: str = None) -> None:
+async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, persona_agent_title: str = None) -> None:
     """Clean up synthetic user data. Only deletes test-marked records for this persona."""
     logger.info(f"  Cleaning up {persona_name}...")
 
@@ -428,17 +428,17 @@ async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, p
         pass
 
     try:
-        # Delete test deliverables for this persona only (use persona-specific title)
-        if persona_deliverable_title:
-            test_title = f"[TEST] {persona_deliverable_title}"
+        # Delete test agents for this persona only (use persona-specific title)
+        if persona_agent_title:
+            test_title = f"[TEST] {persona_agent_title}"
             # First get IDs to delete versions
-            deliverables_result = client.table("deliverables").select("id").eq("user_id", user_id).eq("title", test_title).execute()
-            for d in (deliverables_result.data or []):
+            agents_result = client.table("agents").select("id").eq("user_id", user_id).eq("title", test_title).execute()
+            for d in (agents_result.data or []):
                 try:
-                    client.table("deliverable_versions").delete().eq("deliverable_id", d["id"]).execute()
+                    client.table("agent_runs").delete().eq("agent_id", d["id"]).execute()
                 except Exception:
                     pass
-            client.table("deliverables").delete().eq("user_id", user_id).eq("title", test_title).execute()
+            client.table("agents").delete().eq("user_id", user_id).eq("title", test_title).execute()
     except Exception:
         pass
 
@@ -499,9 +499,9 @@ async def run_pipeline_for_persona(client: Any, persona: SyntheticUser) -> Pipel
     result = PipelineResult(persona_name=persona.name)
     user_id = persona.user_id
 
-    # Step 1: Deliverable Execution
-    logger.info(f"\n  Step 1: Deliverable Execution")
-    step2 = await run_deliverable_execution(client, user_id, persona)
+    # Step 1: Agent Execution
+    logger.info(f"\n  Step 1: Agent Execution")
+    step2 = await run_agent_execution(client, user_id, persona)
     result.steps.append(step2)
     if not step2.success:
         logger.error(f"    ✗ Step 1 failed: {step2.error}")
@@ -526,9 +526,9 @@ async def run_pipeline_for_persona(client: Any, persona: SyntheticUser) -> Pipel
         return result
     logger.info(f"    ✓ Step 3 complete: extracted {step4.data.get('count', 0)} memories")
 
-    # Step 4: Second Deliverable Run
-    logger.info(f"\n  Step 4: Second Deliverable Run")
-    step5 = await run_deliverable_execution(client, user_id, persona, is_second_run=True)
+    # Step 4: Second Agent Run
+    logger.info(f"\n  Step 4: Second Agent Run")
+    step5 = await run_agent_execution(client, user_id, persona, is_second_run=True)
     result.steps.append(step5)
     if not step5.success:
         logger.error(f"    ✗ Step 4 failed: {step5.error}")
@@ -540,62 +540,62 @@ async def run_pipeline_for_persona(client: Any, persona: SyntheticUser) -> Pipel
     return result
 
 
-async def run_deliverable_execution(
+async def run_agent_execution(
     client: Any,
     user_id: str,
     persona: SyntheticUser,
     is_second_run: bool = False,
 ) -> StepResult:
-    """Step 2/5: Run deliverable execution."""
+    """Step 2/5: Run agent execution."""
     try:
-        from services.deliverable_execution import execute_deliverable_generation
+        from services.agent_execution import execute_agent_generation
 
-        deliverable_id = persona.deliverable_config.get("id")
-        if not deliverable_id:
+        agent_id = persona.agent_config.get("id")
+        if not agent_id:
             return StepResult(
-                step_name="deliverable_execution",
+                step_name="agent_execution",
                 success=False,
-                error="No deliverable configured for persona",
+                error="No agent configured for persona",
             )
 
-        # Fetch deliverable
+        # Fetch agent
         result = (
-            client.table("deliverables")
+            client.table("agents")
             .select("*")
-            .eq("id", deliverable_id)
+            .eq("id", agent_id)
             .single()
             .execute()
         )
 
         if not result.data:
             return StepResult(
-                step_name="deliverable_execution",
+                step_name="agent_execution",
                 success=False,
-                error=f"Deliverable not found: {deliverable_id}",
+                error=f"Agent not found: {agent_id}",
             )
 
-        deliverable = result.data
+        agent = result.data
 
         # Execute
-        exec_result = await execute_deliverable_generation(
+        exec_result = await execute_agent_generation(
             client=client,
             user_id=user_id,
-            deliverable=deliverable,
+            agent=agent,
             trigger_context={"type": "test", "run": 2 if is_second_run else 1},
         )
 
         # Check if content was generated (version_id means content was created)
-        version_id = exec_result.get("version_id")
+        version_id = exec_result.get("run_id")
         if not version_id:
             return StepResult(
-                step_name="deliverable_execution",
+                step_name="agent_execution",
                 success=False,
                 error=exec_result.get("message", exec_result.get("error", "No version created")),
-                tables_queried=["deliverables", "deliverable_versions", "platform_content"],
+                tables_queried=["agents", "agent_runs", "platform_content"],
             )
 
         # Get the generated content from the version
-        version_result = client.table("deliverable_versions").select(
+        version_result = client.table("agent_runs").select(
             "draft_content, final_content, status, delivery_status"
         ).eq("id", version_id).single().execute()
 
@@ -609,26 +609,26 @@ async def run_deliverable_execution(
         delivery_status = version_result.data.get("delivery_status") if version_result.data else None
 
         return StepResult(
-            step_name="deliverable_execution",
+            step_name="agent_execution",
             success=generation_success,
             data={
-                "version_id": version_id,
+                "run_id": run_id,
                 "content": content,
                 "is_second_run": is_second_run,
                 "delivery_status": delivery_status,
                 "delivery_note": "Delivery skipped (no email integration in test)" if delivery_status == "failed" else None,
             },
-            tables_queried=["deliverables", "deliverable_versions", "platform_content", "user_memory"],
+            tables_queried=["agents", "agent_runs", "platform_content", "user_memory"],
         )
 
     except Exception as e:
         import traceback
         return StepResult(
-            step_name="deliverable_execution",
+            step_name="agent_execution",
             success=False,
             error=str(e),
             traceback=traceback.format_exc(),
-            tables_queried=["deliverables"],
+            tables_queried=["agents"],
         )
 
 
@@ -638,9 +638,9 @@ async def simulate_user_edit(
     persona: SyntheticUser,
     execution_data: dict,
 ) -> StepResult:
-    """Step 3: Simulate user edit on deliverable version."""
+    """Step 3: Simulate user edit on agent version."""
     try:
-        version_id = execution_data.get("version_id")
+        version_id = execution_data.get("run_id")
         original_content = execution_data.get("content", "")
 
         if not version_id or not original_content:
@@ -725,8 +725,8 @@ async def simulate_user_edit(
                     # Add to beginning of content
                     edited_content = f"{to_add}\n\n{edited_content}"
 
-        # Update the deliverable version with edited content
-        client.table("deliverable_versions").update({
+        # Update the agent version with edited content
+        client.table("agent_runs").update({
             "final_content": edited_content,
             "status": "approved",
             "approved_at": datetime.now(timezone.utc).isoformat(),
@@ -736,7 +736,7 @@ async def simulate_user_edit(
             step_name="simulate_edit",
             success=True,
             data={
-                "version_id": version_id,
+                "run_id": run_id,
                 "original_length": len(original_content),
                 "edited_length": len(edited_content),
                 "edits_applied": len(persona.edit_instructions),
@@ -745,7 +745,7 @@ async def simulate_user_edit(
                     "edited_preview": edited_content[:200],
                 },
             },
-            tables_queried=["deliverable_versions"],
+            tables_queried=["agent_runs"],
         )
 
     except Exception as e:
@@ -755,7 +755,7 @@ async def simulate_user_edit(
             success=False,
             error=str(e),
             traceback=traceback.format_exc(),
-            tables_queried=["deliverable_versions"],
+            tables_queried=["agent_runs"],
         )
 
 
@@ -769,7 +769,7 @@ async def run_memory_extraction(
     try:
         from services.memory import process_conversation
 
-        version_id = edit_data.get("version_id")
+        version_id = edit_data.get("run_id")
         if not version_id:
             return StepResult(
                 step_name="memory_extraction",
@@ -779,7 +779,7 @@ async def run_memory_extraction(
 
         # Get the edited version
         version_result = (
-            client.table("deliverable_versions")
+            client.table("agent_runs")
             .select("final_content, draft_content")
             .eq("id", version_id)
             .single()
@@ -799,13 +799,13 @@ async def run_memory_extraction(
         # Simulate a richer conversation that triggers extraction
         # MIN_MESSAGES_FOR_EXTRACTION = 3 user messages required
         simulated_messages = [
-            {"role": "user", "content": f"Can you generate my {persona.deliverable_config['title']}?"},
-            {"role": "assistant", "content": f"Here's your {persona.deliverable_config['title']}:\n\n{draft_content}"},
+            {"role": "user", "content": f"Can you generate my {persona.agent_config['title']}?"},
+            {"role": "assistant", "content": f"Here's your {persona.agent_config['title']}:\n\n{draft_content}"},
             {"role": "user", "content": "I prefer shorter, more concise content. Can you trim this down?"},
             {"role": "assistant", "content": "I'll make it more concise. Here's a shorter version."},
             {"role": "user", "content": f"I've edited this further. Here are my final changes:\n\n{final_content}"},
             {"role": "assistant", "content": "I'll remember your preference for concise content."},
-            {"role": "user", "content": "Yes, always keep my deliverables brief and to the point."},
+            {"role": "user", "content": "Yes, always keep my agents brief and to the point."},
         ]
 
         # Run memory extraction
@@ -833,7 +833,7 @@ async def run_memory_extraction(
                 "count": extracted_count,
                 "memories": [{"key": m["key"], "value": m["value"][:100]} for m in extracted_memories],
             },
-            tables_queried=["deliverable_versions", "user_memory"],
+            tables_queried=["agent_runs", "user_memory"],
         )
 
     except Exception as e:
@@ -843,7 +843,7 @@ async def run_memory_extraction(
             success=False,
             error=str(e),
             traceback=traceback.format_exc(),
-            tables_queried=["deliverable_versions", "user_memory"],
+            tables_queried=["agent_runs", "user_memory"],
         )
 
 
@@ -898,14 +898,14 @@ def generate_report(results: list[PipelineResult]) -> str:
         for r in completed:
             lines.append(f"\n{r.persona_name}:")
 
-            # Deliverable execution (v1 vs v2)
-            exec_steps = [s for s in r.steps if s.step_name == "deliverable_execution"]
+            # Agent execution (v1 vs v2)
+            exec_steps = [s for s in r.steps if s.step_name == "agent_execution"]
             if len(exec_steps) >= 2:
                 v1 = exec_steps[0].data or {}
                 v2 = exec_steps[1].data or {}
                 v1_len = len(v1.get("content", "")) if v1.get("content") else 0
                 v2_len = len(v2.get("content", "")) if v2.get("content") else 0
-                lines.append(f"  Deliverable versions:")
+                lines.append(f"  Agent versions:")
                 lines.append(f"    v1 length: {v1_len} chars")
                 lines.append(f"    v2 length: {v2_len} chars")
                 lines.append(f"    Delta: {v2_len - v1_len} chars ({((v2_len - v1_len) / max(v1_len, 1)) * 100:.1f}%)")
@@ -982,8 +982,8 @@ async def main():
                 logger.error(f"Failed to create {persona.name}: {e}")
                 # Clean up and exit
                 for p in created_personas:
-                    deliverable_title = p.deliverable_config.get("title") if p.deliverable_config else None
-                    await cleanup_synthetic_user(client, p.user_id, p.name, deliverable_title)
+                    agent_title = p.agent_config.get("title") if p.agent_config else None
+                    await cleanup_synthetic_user(client, p.user_id, p.name, agent_title)
                 sys.exit(1)
 
         # Phase 2: Run pipelines
@@ -1023,8 +1023,8 @@ async def main():
         logger.info("="*60)
 
         for persona in created_personas:
-            deliverable_title = persona.deliverable_config.get("title") if persona.deliverable_config else None
-            await cleanup_synthetic_user(client, persona.user_id, persona.name, deliverable_title)
+            agent_title = persona.agent_config.get("title") if persona.agent_config else None
+            await cleanup_synthetic_user(client, persona.user_id, persona.name, agent_title)
 
         logger.info("\n✓ Test complete")
 

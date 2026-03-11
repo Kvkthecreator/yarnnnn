@@ -4,7 +4,7 @@
 
 ### What is YARNNN?
 
-YARNNN is an autonomous AI work system that connects to your tools (Slack, Gmail, Notion, Google Calendar), accumulates context, and produces supervised deliverables on your behalf.
+YARNNN is an autonomous AI work system that connects to your tools (Slack, Gmail, Notion, Google Calendar), accumulates context, and produces supervised agents on your behalf.
 
 ### How is YARNNN different from ChatGPT or Claude?
 
@@ -12,7 +12,7 @@ Most chat tools are prompt-by-prompt and session-centric. YARNNN is system-centr
 
 ### What kind of work can YARNNN do?
 
-YARNNN supports seven deliverable types:
+YARNNN supports seven agent types:
 
 - `digest`
 - `brief`
@@ -36,13 +36,13 @@ No. Integrations are read-only for context ingestion.
 
 Yes. You choose sources per platform (channels/labels/pages), and you can update selections at any time.
 
-## Deliverables
+## Agents
 
-### Do deliverables have version history?
+### Do agents have version history?
 
-Yes. Every generation creates an immutable deliverable version you can review, approve, reject, and compare over time.
+Yes. Every generation creates an immutable agent version you can review, approve, reject, and compare over time.
 
-### How do deliverables improve over time?
+### How do agents improve over time?
 
 Each specialist uses prior version feedback and memory to adapt future output. Consistent edits become persistent behavior.
 

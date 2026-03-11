@@ -66,5 +66,5 @@ Calendar events are queried live (not synced). Use these tools for all calendar 
 
 ### Notifications
 
-`Execute(action="notification.send", message="...", urgency="normal")` — lightweight email alert to user. For recurring content, use deliverables instead.
+`Execute(action="notification.send", message="...", urgency="normal")` — lightweight email alert to user. For recurring content, use agents instead.
 """

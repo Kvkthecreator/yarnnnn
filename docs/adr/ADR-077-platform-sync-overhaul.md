@@ -67,7 +67,7 @@ Overhaul all four platform sync implementations following a unified three-phase 
 | Notion   | 2         | 10        | 5            | 25           | ∞   |
 | Calendar | ∞         | ∞         | ∞            | ∞            | ∞   |
 
-**Rationale**: API fetch costs are not the primary pricing driver (deliverables and token budget are). Wider source limits enable the accumulation moat thesis (ADR-072) to function — content must exist before it can be retained and referenced.
+**Rationale**: API fetch costs are not the primary pricing driver (agents and token budget are). Wider source limits enable the accumulation moat thesis (ADR-072) to function — content must exist before it can be retained and referenced.
 
 ### TTL Changes
 

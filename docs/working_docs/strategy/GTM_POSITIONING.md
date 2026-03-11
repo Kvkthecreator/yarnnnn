@@ -47,7 +47,7 @@ The missing ingredient in AI autonomy isn't better models — it's context. An A
 Yarn:
 1. **Connects to your tools** — Syncs with Slack, Gmail, Notion, Calendar continuously
 2. **Accumulates understanding** — Every sync cycle deepens what it knows about your work world
-3. **Works autonomously** — Produces deliverables on schedule without prompting
+3. **Works autonomously** — Produces agents on schedule without prompting
 4. **Gets smarter over time** — Your edits, your feedback, your patterns all train the system
 5. **Becomes irreplaceable** — After 90 days of accumulated context, switching costs are real
 
@@ -61,7 +61,7 @@ Primary targets who need AI that works autonomously across their tools:
 - **Use case:** Weekly client status reports, project updates
 - **Pain:** Re-explaining context to AI every time, manual Slack/email aggregation
 - **Pitch:** "An AI that reads your Slack, knows your clients, and writes the update for you."
-- **Activation:** First deliverable produced autonomously from synced context
+- **Activation:** First agent produced autonomously from synced context
 
 ### Founders
 - **Use case:** Monthly investor updates, board prep
@@ -79,7 +79,7 @@ Primary targets who need AI that works autonomously across their tools:
 - **Use case:** Research digests, competitive intelligence briefs
 - **Pain:** Monitoring multiple sources, synthesizing manually
 - **Pitch:** "Briefs that get smarter because they accumulate what matters to you."
-- **Activation:** Signal-emergent deliverables triggered automatically by patterns
+- **Activation:** Signal-emergent agents triggered automatically by patterns
 
 ---
 
@@ -105,7 +105,7 @@ Primary targets who need AI that works autonomously across their tools:
 >
 > **Agitate:** You open ChatGPT. You explain your clients again. You describe your project again. You specify the format again. You make the same corrections. Tomorrow? Same thing. You're the memory. You're the context. The AI is just the typist.
 >
-> **Solve:** Yarn connects to your Slack, Gmail, Notion, and Calendar. It accumulates understanding of your work world continuously. It produces your recurring deliverables autonomously — and each one is better than the last because the system actually knows your context. You supervise. It works.
+> **Solve:** Yarn connects to your Slack, Gmail, Notion, and Calendar. It accumulates understanding of your work world continuously. It produces your recurring agents autonomously — and each one is better than the last because the system actually knows your context. You supervise. It works.
 
 ---
 
@@ -142,8 +142,8 @@ Primary targets who need AI that works autonomously across their tools:
 | "ChatGPT is good enough" | "ChatGPT is powerful but stateless. Yarn connects to your tools and works autonomously. After 90 days, there's no comparison." |
 | "I already use Notion AI / Gemini" | "Those only see what's inside their own platform. Yarn synthesizes across Slack, Gmail, Notion, and Calendar." |
 | "Agent tools already exist" | "Autonomous without context is just random. Yarn's autonomy is powered by accumulated understanding of YOUR work." |
-| "How do I know it's getting smarter?" | "Every deliverable version shows quality trends. Each one needs fewer edits because the system knows more about what you want." |
-| "I don't trust AI to work without me" | "You're the supervisor, not the operator. Every deliverable is staged for your review before anything ships." |
+| "How do I know it's getting smarter?" | "Every agent version shows quality trends. Each one needs fewer edits because the system knows more about what you want." |
+| "I don't trust AI to work without me" | "You're the supervisor, not the operator. Every agent is staged for your review before anything ships." |
 | "What about data privacy?" | "Your data stays in your workspace with row-level security. Platform connections use OAuth — we never see your passwords." |
 
 ---
@@ -181,7 +181,7 @@ Avoid technical framing:
 Avoid weak positioning:
 - ❌ "AI that remembers" (too generic — memory isn't the product, autonomy is)
 - ❌ "Context-aware AI work platform" (passive, doesn't convey autonomy)
-- ❌ "Recurring deliverables platform" (feature-level, not thesis-level)
+- ❌ "Recurring agents platform" (feature-level, not thesis-level)
 - ❌ "Works while you sleep" (feature, not value prop)
 - ❌ "Better ChatGPT" (commodity comparison, not differentiation)
 
@@ -197,10 +197,10 @@ Avoid overclaiming:
 The "aha" moments that convert users:
 
 1. **TP knows your context** — Ask about a project and the TP already knows the details from synced Slack/Gmail
-2. **First autonomous deliverable** — A report arrives without prompting, populated with real data from connected platforms
-3. **Cross-platform synthesis** — A deliverable combines Slack messages, calendar context, and Notion docs into one coherent output
+2. **First autonomous agent** — A report arrives without prompting, populated with real data from connected platforms
+3. **Cross-platform synthesis** — A agent combines Slack messages, calendar context, and Notion docs into one coherent output
 4. **Improvement over time** — The 5th version needs fewer edits than the 1st because accumulated context made it smarter
-5. **Signal-emergent output** — System detects a pattern and suggests a deliverable you didn't think to create
+5. **Signal-emergent output** — System detects a pattern and suggests a agent you didn't think to create
 
 ---
 
@@ -224,7 +224,7 @@ The "aha" moments that convert users:
 - **Recipient:** Founder (you)
 - **Trigger:** Yarn detects unusual volume of competitor mentions across Slack + Gmail
 - **Context sources:** Cross-platform signal detection, accumulated competitive intelligence
-- **Autonomy:** System creates a new deliverable type without being asked — because accumulated context enabled the pattern detection
+- **Autonomy:** System creates a new agent type without being asked — because accumulated context enabled the pattern detection
 
 ---
 

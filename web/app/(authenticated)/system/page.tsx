@@ -176,7 +176,7 @@ const BACKGROUND_JOB_GROUPS = [
       'Memory Extraction',
       'Session Summaries',
       'Pattern Detection',
-      'Deliverable Generation',
+      'Agent Generation',
       'Content Cleanup',
     ],
   },

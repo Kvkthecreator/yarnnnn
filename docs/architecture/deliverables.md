@@ -1,43 +1,43 @@
-# Architecture: Deliverables
+# Architecture: Agents
 
 **Status:** Canonical
 **Date:** 2026-02-26 (updated 2026-03-10 for ADR-049 evolution: context provenance)
 **Related:**
-- [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
-- [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
-- [ADR-045: Deliverable Orchestration Redesign](../adr/ADR-045-deliverable-orchestration-redesign.md)
+- [ADR-018: Recurring Agents](../adr/ADR-018-recurring-agents.md)
+- [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
+- [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
 - [ADR-060: Background Conversation Analyst](../adr/ADR-060-background-conversation-analyst.md)
-- [ADR-066: Delivery-First Redesign](../adr/ADR-066-deliverable-detail-redesign.md)
-- [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md)
+- [ADR-066: Delivery-First Redesign](../adr/ADR-066-agent-detail-redesign.md)
+- [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
-- [ADR-082: Deliverable Type Consolidation](../adr/ADR-082-deliverable-type-consolidation.md) — 27→8 active types
-- [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
-- [ADR-101: Deliverable Intelligence Model](../adr/ADR-101-deliverable-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
-- [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — deliverable outputs as searchable platform_content
-- [ADR-104: Deliverable Instructions as Unified Targeting](../adr/ADR-104-deliverable-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
+- [ADR-082: Agent Type Consolidation](../adr/ADR-082-agent-type-consolidation.md) — 27→8 active types
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
+- [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
+- [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
+- [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
 - [Agent Execution Model](agent-execution-model.md)
-- [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
+- [Four-Layer Model](four-layer-model.md) — Agents are Layer 4 (Work)
 
 ---
 
-## What Deliverables Are
+## What Agents Are
 
-A **deliverable** is a standing configuration for AI-generated output — and the accumulated intelligence that makes that output improve over time. It defines:
+A **agent** is a standing configuration for AI-generated output — and the accumulated intelligence that makes that output improve over time. It defines:
 - **What to read** — sources (Slack channels, Gmail labels, Notion pages, Calendar)
-- **How to behave** — deliverable type, mode, instructions (`deliverable_instructions`)
-- **What it has learned** — accumulated operational knowledge (`deliverable_memory`)
+- **How to behave** — agent type, mode, instructions (`agent_instructions`)
+- **What it has learned** — accumulated operational knowledge (`agent_memory`)
 - **Where to send** — destination (Slack channel/DM, Gmail draft, Notion page, download)
 - **When to run** — schedule, event trigger, or autonomous review cadence
 
-When a deliverable executes, it produces a **deliverable version** — an immutable record of the generated content, the sources used, and the delivery status.
+When a agent executes, it produces a **agent version** — an immutable record of the generated content, the sources used, and the delivery status.
 
-**Conceptual framing (ADR-092)**: A deliverable is a lightweight specialist agent. Each has its own instructions, its own accumulated memory, its own execution mode. Twenty deliverables are twenty specialized agents — with zero resource cost when sleeping. The `mode` field determines the character of execution: clockwork schedule, project lifecycle, event-driven accumulation, autonomous domain review, or meta-coordination of other deliverables. See [ADR-092](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) and [Deliverable Modes](../features/deliverable-modes.md).
+**Conceptual framing (ADR-092)**: A agent is a lightweight specialist agent. Each has its own instructions, its own accumulated memory, its own execution mode. Twenty agents are twenty specialized agents — with zero resource cost when sleeping. The `mode` field determines the character of execution: clockwork schedule, project lifecycle, event-driven accumulation, autonomous domain review, or meta-coordination of other agents. See [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) and [Agent Modes](../features/agent-modes.md).
 
 ---
 
 ## Schema
 
-### `deliverables` Table — Standing Configurations
+### `agents` Table — Standing Configurations
 
 | Column | Type | Notes |
 |---|---|---|
@@ -45,15 +45,15 @@ When a deliverable executes, it produces a **deliverable version** — an immuta
 | `user_id` | uuid | Owner |
 | `title` | text | Human-readable name ("Monday Slack Digest") |
 | `description` | text | Optional user notes |
-| `deliverable_type` | text | Type identifier (see Type System below) |
+| `agent_type` | text | Type identifier (see Type System below) |
 | `type_config` | jsonb | Type-specific settings |
 | `type_classification` | jsonb | ADR-044: `{binding, primary_platform, temporal_pattern, freshness_requirement_hours}` |
 | `mode` | text | ADR-092: `recurring` (default) \| `goal` \| `reactive` \| `proactive` \| `coordinator` |
-| `deliverable_instructions` | text | ADR-087: User-authored behavioral directives for this deliverable's agent |
-| `deliverable_memory` | jsonb | ADR-087/092: Accumulated operational knowledge — structure varies by mode |
+| `agent_instructions` | text | ADR-087: User-authored behavioral directives for this agent's agent |
+| `agent_memory` | jsonb | ADR-087/092: Accumulated operational knowledge — structure varies by mode |
 | `origin` | text | ADR-068/092: `user_configured`, `analyst_suggested`, or `coordinator_created` |
 | `trigger_type` | text | `schedule`, `event`, or `manual` |
-| `proactive_next_review_at` | timestamptz | ADR-092: Next review time for `proactive` and `coordinator` mode deliverables |
+| `proactive_next_review_at` | timestamptz | ADR-092: Next review time for `proactive` and `coordinator` mode agents |
 | `schedule` | jsonb | Schedule config: `{frequency, day, time, timezone, cron}` |
 | `trigger_config` | jsonb | ADR-031: Event trigger config (platform, event_types, cooldown) |
 | `sources` | jsonb | `[{platform, resource_id, resource_name, scope_config}]` |
@@ -66,12 +66,12 @@ When a deliverable executes, it produces a **deliverable version** — an immuta
 | `created_at` | timestamptz | Creation timestamp |
 | `updated_at` | timestamptz | Last modification timestamp |
 
-### `deliverable_versions` Table — Immutable Output Records
+### `agent_runs` Table — Immutable Output Records
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid | Primary key |
-| `deliverable_id` | uuid | Foreign key to `deliverables` |
+| `agent_id` | uuid | Foreign key to `agents` |
 | `version_number` | int | Sequential version number (1, 2, 3...) |
 | `status` | text | `delivered`, `failed`, or `suggested` (ADR-060) |
 | `draft_content` | text | LLM-generated content (markdown) |
@@ -85,34 +85,34 @@ When a deliverable executes, it produces a **deliverable version** — an immuta
 
 ---
 
-## Deliverable Origins (ADR-068, updated ADR-092)
+## Agent Origins (ADR-068, updated ADR-092)
 
-Every deliverable has an `origin` field recording how it came to exist:
+Every agent has an `origin` field recording how it came to exist:
 
 | Origin | Created By | Signal Source | Lifecycle |
 |---|---|---|---|
 | `user_configured` | User (via UI) or TP (on explicit request) | User intent | Configured first, then scheduled |
 | `analyst_suggested` | Conversation Analyst (ADR-060) | TP session content (`session_messages`) | Suggested, user enables or dismisses |
-| `coordinator_created` | Coordinator deliverable (ADR-092) | Coordinator's domain review | One-time, user reviews and optionally promotes |
+| `coordinator_created` | Coordinator agent (ADR-092) | Coordinator's domain review | One-time, user reviews and optionally promotes |
 
-**`user_configured`** — Default. The user or TP explicitly created this deliverable. It runs on the configured schedule or manually.
+**`user_configured`** — Default. The user or TP explicitly created this agent. It runs on the configured schedule or manually.
 
-**`analyst_suggested`** (ADR-060) — The Conversation Analyst detected a recurring pattern in TP sessions. The system creates a suggested deliverable. The user reviews it in the UI and either enables it, edits and enables, or dismisses it. Once enabled, behaves identically to `user_configured`.
+**`analyst_suggested`** (ADR-060) — The Conversation Analyst detected a recurring pattern in TP sessions. The system creates a suggested agent. The user reviews it in the UI and either enables it, edits and enables, or dismisses it. Once enabled, behaves identically to `user_configured`.
 
-**`coordinator_created`** (ADR-092) — A coordinator deliverable (see Modes below) observed a signal within its configured domain and determined it warrants proactive work. The coordinator creates a one-time deliverable (`trigger_type=manual`) and executes it. The user reviews the output and can:
+**`coordinator_created`** (ADR-092) — A coordinator agent (see Modes below) observed a signal within its configured domain and determined it warrants proactive work. The coordinator creates a one-time agent (`trigger_type=manual`) and executes it. The user reviews the output and can:
 - Approve and deliver (one-time, done)
 - Dismiss (archive)
-- Promote to recurring (via `POST /deliverables/{id}/promote-to-recurring`) — `trigger_type` updates to `schedule`, `origin` stays `coordinator_created` as provenance
+- Promote to recurring (via `POST /agents/{id}/promote-to-recurring`) — `trigger_type` updates to `schedule`, `origin` stays `coordinator_created` as provenance
 
-The `origin` field is **immutable provenance** — it records how the deliverable was born, not what it currently is.
+The `origin` field is **immutable provenance** — it records how the agent was born, not what it currently is.
 
-> **Note on `signal_emergent`:** This value existed under ADR-068 (Signal-Emergent Deliverables, now superseded). Existing rows retain their value. New deliverables created by coordinators use `coordinator_created`. The behavior is identical — provenance vocabulary updated.
+> **Note on `signal_emergent`:** This value existed under ADR-068 (Signal-Emergent Agents, now superseded). Existing rows retain their value. New agents created by coordinators use `coordinator_created`. The behavior is identical — provenance vocabulary updated.
 
 ---
 
-## Deliverable Modes (ADR-092)
+## Agent Modes (ADR-092)
 
-The `mode` field defines the deliverable's **execution character** — how it decides when to act, what triggers it, and how its `deliverable_memory` accumulates. See [ADR-092](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) for full behavioral contracts and implementation phases. See [Deliverable Modes feature doc](../features/deliverable-modes.md) for user-facing framing.
+The `mode` field defines the agent's **execution character** — how it decides when to act, what triggers it, and how its `agent_memory` accumulates. See [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for full behavioral contracts and implementation phases. See [Agent Modes feature doc](../features/agent-modes.md) for user-facing framing.
 
 | Mode | Character | Trigger | Generates when | Memory accumulates |
 |------|-----------|---------|----------------|--------------------|
@@ -120,25 +120,25 @@ The `mode` field defines the deliverable's **execution character** — how it de
 | `goal` | Project | Schedule (`next_run_at`) | Each run until goal complete | Goal progress, milestone tracking |
 | `reactive` | On-call | Event trigger (`event_triggers.py`) | Observation threshold crossed | Agent-authored event observations |
 | `proactive` | Living specialist | Slow periodic review (`proactive_next_review_at`) | Agent decides: `generate / observe / sleep` | Self-authored domain review log |
-| `coordinator` | Meta-specialist | Slow periodic review (`proactive_next_review_at`) | Agent decides; also creates/advances child deliverables | Review log + created_deliverables deduplication |
+| `coordinator` | Meta-specialist | Slow periodic review (`proactive_next_review_at`) | Agent decides; also creates/advances child agents | Review log + created_agents deduplication |
 
 **`recurring`** — The default. Fixed-cadence work products. Weekly digests, daily briefs, monthly reports.
 
-**`goal`** — Runs until a stated objective is met. The agent writes a goal completion assessment to `deliverable_memory.goal` after each generation. When `status="complete"`, scheduler skips future runs. User can reopen.
+**`goal`** — Runs until a stated objective is met. The agent writes a goal completion assessment to `agent_memory.goal` after each generation. When `status="complete"`, scheduler skips future runs. User can reopen.
 
 **`reactive`** — Event-driven. Accumulates agent-authored observations from event triggers via `dispatch_trigger()` medium path. When `len(observations) >= threshold` (configurable, default 5), escalates to full generation and clears observations. No `next_run_at` — invisible to schedule query.
 
-**`proactive`** — Self-initiating. Runs on a slow periodic review cadence. Headless agent reads its sources and `deliverable_memory`, then returns `generate`, `observe`, or `sleep`. Most review cycles result in `observe` or `sleep` — cost-efficient. The deliverable stays informed without being always-on.
+**`proactive`** — Self-initiating. Runs on a slow periodic review cadence. Headless agent reads its sources and `agent_memory`, then returns `generate`, `observe`, or `sleep`. Most review cycles result in `observe` or `sleep` — cost-efficient. The agent stays informed without being always-on.
 
-**`coordinator`** — Meta-specialist. Same review cadence as `proactive`, but headless agent has access to two additional write primitives: `CreateDeliverable` (creates a child with `origin=coordinator_created`) and `AdvanceDeliverableSchedule` (advances another deliverable's `next_run_at` to now). `deliverable_memory.created_deliverables` serves as the deduplication log, replacing the former `signal_history` table.
+**`coordinator`** — Meta-specialist. Same review cadence as `proactive`, but headless agent has access to two additional write primitives: `CreateAgent` (creates a child with `origin=coordinator_created`) and `AdvanceAgentSchedule` (advances another agent's `next_run_at` to now). `agent_memory.created_agents` serves as the deduplication log, replacing the former `signal_history` table.
 
-> **Key principle:** None of these modes change how L3 is populated. Platform sync and `platform_content` operate the same way regardless of deliverable mode. Mode governs how L4 responds to what L3 has accumulated — not how L3 is written.
+> **Key principle:** None of these modes change how L3 is populated. Platform sync and `platform_content` operate the same way regardless of agent mode. Mode governs how L4 responds to what L3 has accumulated — not how L3 is written.
 
 ---
 
 ## Type System (ADR-044, consolidated by ADR-082)
 
-### Active Deliverable Types
+### Active Agent Types
 
 8 active types across 4 bindings, each anchored to a distinct moment in the user's work rhythm:
 
@@ -156,11 +156,11 @@ The `mode` field defines the deliverable's **execution character** — how it de
 **Deprecated types** (19 types remain in DB constraint for backwards compatibility but are not selectable in the UI):
 `slack_standup`, `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`, `meeting_summary`, `one_on_one_prep`, `stakeholder_update`, `board_update`, `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`, `daily_strategy_reflection`, `deep_research`, `intelligence_brief`, `client_proposal`, `performance_self_assessment`, `newsletter_section`, `changelog`
 
-See [ADR-082](../adr/ADR-082-deliverable-type-consolidation.md) for the consolidation rationale and what each deprecated type was absorbed into.
+See [ADR-082](../adr/ADR-082-agent-type-consolidation.md) for the consolidation rationale and what each deprecated type was absorbed into.
 
 ### Type Classification (ADR-044)
 
-Each deliverable type has a `type_classification` object that determines execution behavior:
+Each agent type has a `type_classification` object that determines execution behavior:
 
 ```json
 {
@@ -181,7 +181,7 @@ Each deliverable type has a `type_classification` object that determines executi
 
 **`primary_platform`** — For platform-bound types, which platform to query
 
-**`temporal_pattern`** — When the deliverable is valuable
+**`temporal_pattern`** — When the agent is valuable
 - `scheduled`: Fixed cadence (daily, weekly) — most types
 - `reactive`: Triggered by upcoming event (meeting_prep)
 - `on_demand`: User-initiated (research_brief, custom)
@@ -197,8 +197,8 @@ Each deliverable type has a `type_classification` object that determines executi
 |------|-----------|----------|
 | **Binding** | How context is gathered | "Platform-Native" (ADR-031), "Platform-First" (ADR-035), "Wave" (ADR-035) |
 | **Tier** | Code maturity: `stable`, `deprecated` | "Beta", "Experimental", "Wave 1/2/3" |
-| **Rhythm** | When the deliverable is valuable: daily, weekly, reactive, on-demand | "Temporal pattern" (ADR-044) |
-| **Origin** | How the deliverable was created | Unchanged (ADR-068) |
+| **Rhythm** | When the agent is valuable: daily, weekly, reactive, on-demand | "Temporal pattern" (ADR-044) |
+| **Origin** | How the agent was created | Unchanged (ADR-068) |
 
 ---
 
@@ -206,10 +206,10 @@ Each deliverable type has a `type_classification` object that determines executi
 
 **Architecture (ADR-042 + ADR-045 + ADR-080)**: The orchestration pipeline manages lifecycle (triggers, freshness, strategy, delivery, retention). Content generation is handled by the agent in **headless mode** — the same agent that powers TP chat, running with a curated subset of read-only primitives and a structured output prompt.
 
-When a deliverable is due to run (scheduled, event-triggered, or manual), `execute_deliverable_generation()` in `deliverable_execution.py`:
+When a agent is due to run (scheduled, event-triggered, or manual), `execute_agent_generation()` in `agent_execution.py`:
 
 1. Checks source freshness — skips if no new content since `last_run_at` (ADR-049)
-2. Creates `deliverable_versions` row (status=generating) + `work_tickets` row
+2. Creates `agent_runs` row (status=generating) + `work_tickets` row
 3. Selects execution strategy by `type_classification.binding` (ADR-045):
 
 | Strategy | Binding | Content Source |
@@ -222,11 +222,11 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
 5. User memories appended from `user_memory` (fact/instruction/preference keys)
 6. Learned preferences fetched from past version edit history (ADR-101: `get_past_versions_context()`)
-7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context + `deliverable_instructions` (ADR-104: dual injection — instructions appear in both system prompt and user message)
+7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context + `agent_instructions` (ADR-104: dual injection — instructions appear in both system prompt and user message)
 8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — system prompt includes directives, memory, and learned preferences (ADR-101); read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
-11. `store_platform_content(platform="yarnnn")` — deliverable output written as searchable content (ADR-102)
+11. `store_platform_content(platform="yarnnn")` — agent output written as searchable content (ADR-102)
 12. `activity_log` event written (non-fatal)
 
 ### Content source
@@ -234,10 +234,10 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 All content comes from `platform_content` (the unified content layer, ADR-073):
 - Retained content (significant, never expires) — accumulated intelligence
 - Recent ephemeral content (TTL-bounded) — fresh platform state
-- yarnnn-generated content (`platform="yarnnn"`) — deliverable outputs from other deliverables (ADR-102)
+- yarnnn-generated content (`platform="yarnnn"`) — agent outputs from other agents (ADR-102)
 - Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation
 
-`platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by deliverable execution and signal processing.
+`platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by agent execution and signal processing.
 
 ### Agent in headless mode (ADR-080)
 
@@ -251,101 +251,101 @@ The content generation step uses the unified agent in headless mode — the same
 | Session state | None | Stateless background execution |
 | System prompt | Type-specific structured output + optional research directive (ADR-081) | Not TP's conversational prompt |
 
-The agent receives gathered context from the strategy in its prompt. Primitives supplement — they don't replace — the strategy-based context gathering. Most platform-bound and cross-platform deliverables use 0-1 tool rounds; the gathered context is sufficient. Research/hybrid deliverables typically use 3-5 rounds for web search investigation (ADR-081).
+The agent receives gathered context from the strategy in its prompt. Primitives supplement — they don't replace — the strategy-based context gathering. Most platform-bound and cross-platform agents use 0-1 tool rounds; the gathered context is sufficient. Research/hybrid agents typically use 3-5 rounds for web search investigation (ADR-081).
 
 ---
 
 ## Lifecycle
 
-### User-Configured Deliverable Lifecycle
+### User-Configured Agent Lifecycle
 
 ```
-User creates deliverable (UI or TP explicit request)
+User creates agent (UI or TP explicit request)
    ↓
-deliverables row inserted (origin=user_configured, status=active, schedule set)
+agents row inserted (origin=user_configured, status=active, schedule set)
    ↓
 unified_scheduler.py calculates next_run_at
    ↓
-Scheduler reaches next_run_at → deliverable executes
+Scheduler reaches next_run_at → agent executes
    ↓
-deliverable_version created (status=delivered)
+agent_version created (status=delivered)
    ↓
 Content delivered to destination (Slack, Gmail, Notion, etc.)
    ↓
 activity_log event written
    ↓
-Scheduler calculates new next_run_at (for recurring deliverables)
+Scheduler calculates new next_run_at (for recurring agents)
 ```
 
-### Analyst-Suggested Deliverable Lifecycle (ADR-060)
+### Analyst-Suggested Agent Lifecycle (ADR-060)
 
 ```
 Conversation Analyst runs (daily cron, mines session_messages)
    ↓
 Detects recurring pattern (confidence ≥ 0.60)
    ↓
-deliverables row created (origin=analyst_suggested, status=paused)
-deliverable_version created (status=suggested)
+agents row created (origin=analyst_suggested, status=paused)
+agent_version created (status=suggested)
    ↓
-User sees suggestion in UI (/deliverables page, "Suggested" section)
+User sees suggestion in UI (/agents page, "Suggested" section)
    ↓
 User action:
   - Enable → status=active, next_run_at calculated
   - Edit + Enable → updated, then active
-  - Dismiss → deliverable archived, version deleted
+  - Dismiss → agent archived, version deleted
    ↓
 If enabled: behaves identically to user_configured (scheduled execution)
 ```
 
-### Coordinator-Created Deliverable Lifecycle (ADR-092)
+### Coordinator-Created Agent Lifecycle (ADR-092)
 
-Replaces the Signal-Emergent lifecycle (ADR-068, superseded). The intelligence that previously lived in L3 signal processing now lives in a coordinator deliverable — a user-configured specialist whose job is to watch a domain and create or trigger deliverables when warranted.
+Replaces the Signal-Emergent lifecycle (ADR-068, superseded). The intelligence that previously lived in L3 signal processing now lives in a coordinator agent — a user-configured specialist whose job is to watch a domain and create or trigger agents when warranted.
 
 ```
-REVIEW PASS (Coordinator deliverable, slow periodic cadence)
+REVIEW PASS (Coordinator agent, slow periodic cadence)
 ────────────────────────────────────────────────────────────
 Scheduler: proactive_next_review_at <= NOW()
    ↓
 Agent (headless mode, review prompt):
   Reads platform_content via primitives (Search, CrossPlatformQuery, RefreshPlatformContent)
-  Reads deliverable_memory.created_deliverables (deduplication log)
+  Reads agent_memory.created_agents (deduplication log)
   Reasons over domain: "Does anything in my configured scope warrant action?"
    ↓
 Agent returns one of:
-  - advance_schedule(deliverable_id): Advance an existing deliverable to run now
-  - create_child(type, title, sources): Create a new deliverable (origin=coordinator_created)
-  - observe(note): Append note to deliverable_memory.review_log — no output
+  - advance_schedule(agent_id): Advance an existing agent to run now
+  - create_child(type, title, sources): Create a new agent (origin=coordinator_created)
+  - observe(note): Append note to agent_memory.review_log — no output
   - sleep(until): Set proactive_next_review_at to specified time — quiet period
 
 ARTIFACT CREATION (when create_child returned)
 ───────────────────────────────────────────────
-→ Check deliverable_memory.created_deliverables for dedup (per event_ref)
+→ Check agent_memory.created_agents for dedup (per event_ref)
 → If not duplicate:
-   → deliverables row created (origin=coordinator_created, trigger_type=manual)
-   → Records in deliverable_memory.created_deliverables
+   → agents row created (origin=coordinator_created, trigger_type=manual)
+   → Records in agent_memory.created_agents
    → Immediately executes
-   → deliverable_version created (status=delivered)
+   → agent_version created (status=delivered)
    → Content delivered to user's configured destination
 
 User reviews delivered output:
   - Approves → stays in history
-  - Dismisses → deliverable archived
-  - Promotes to recurring → POST /deliverables/{id}/promote-to-recurring
+  - Dismisses → agent archived
+  - Promotes to recurring → POST /agents/{id}/promote-to-recurring
       → trigger_type=schedule, schedule set, next_run_at calculated
       → origin stays coordinator_created (immutable provenance)
 ```
 
-**Key principle (ADR-092):** The coordinator is a deliverable — same schema, same execution model, same audit trail. Its intelligence is scoped to its `deliverable_instructions`. Multiple coordinators are multiple independent specialists, each accountable for their own domain.
+**Key principle (ADR-092):** The coordinator is a agent — same schema, same execution model, same audit trail. Its intelligence is scoped to its `agent_instructions`. Multiple coordinators are multiple independent specialists, each accountable for their own domain.
 
 ---
 
 ## Governance Model (ADR-066)
 
-**Current state (ADR-066)**: All deliverables deliver immediately. There is no staging or approval gate.
+**Current state (ADR-066)**: All agents deliver immediately. There is no staging or approval gate.
 
 **The `governance` and `governance_ceiling` fields are DEPRECATED** (marked in Pydantic models with `deprecated=True`). They remain in the schema and API for backwards compatibility but are **ignored by all execution logic**.
 
-When a deliverable executes:
+When a agent executes:
 - A version is created
 - Content is generated
 - Delivery is attempted
@@ -356,13 +356,13 @@ When a deliverable executes:
 - `semi_auto` — automated with notification
 - `full_auto` — fully automated, no user interaction
 
-ADR-066 removed this complexity. All deliverables are now effectively `full_auto` (delivery-first). Users can pause or archive deliverables, but there is no pre-delivery approval step.
+ADR-066 removed this complexity. All agents are now effectively `full_auto` (delivery-first). Users can pause or archive agents, but there is no pre-delivery approval step.
 
 **Deprecation path**: The `governance` field remains in the database schema and API responses for backwards compatibility. It is marked `deprecated=True` in Pydantic models (as of 2026-02-19). Plan: Remove entirely in Phase 3 cleanup (Option A per CLAUDE.md discipline: "Delete legacy code when replacing with new implementation").
 
-**Rationale**: All deliverable outputs land in the user's own platforms (Slack DM, Gmail drafts, Notion pages). The user is the audience. Pre-approval adds friction without value — the user can always delete the delivered output if it's incorrect.
+**Rationale**: All agent outputs land in the user's own platforms (Slack DM, Gmail drafts, Notion pages). The user is the audience. Pre-approval adds friction without value — the user can always delete the delivered output if it's incorrect.
 
-**Open question**: Signal-emergent deliverables may warrant a review-before-send gate (as originally stated in ADR-068), since they're proactive and unexpected. This is deferred to Phase 3. Current behavior: signal-emergent deliverables deliver immediately, same as all others.
+**Open question**: Signal-emergent agents may warrant a review-before-send gate (as originally stated in ADR-068), since they're proactive and unexpected. This is deferred to Phase 3. Current behavior: signal-emergent agents deliver immediately, same as all others.
 
 ---
 
@@ -372,15 +372,15 @@ ADR-066 removed this complexity. All deliverables are now effectively `full_auto
 |---|---|---|---|
 | `schedule` | Runs on fixed schedule | Calculated from `schedule` config | `recurring` and `goal` modes |
 | `event` | Runs when platform event occurs | NULL | `reactive` mode — accumulates observations via dispatch |
-| `manual` | User or system triggers explicitly | NULL | One-time deliverables, coordinator-created (before promotion) |
+| `manual` | User or system triggers explicitly | NULL | One-time agents, coordinator-created (before promotion) |
 
-**Scheduled deliverables**: `unified_scheduler.py` queries `deliverables WHERE next_run_at <= NOW()` every 5 minutes. After execution, `next_run_at` is recalculated from `schedule.frequency`.
+**Scheduled agents**: `unified_scheduler.py` queries `agents WHERE next_run_at <= NOW()` every 5 minutes. After execution, `next_run_at` is recalculated from `schedule.frequency`.
 
-**Event-triggered deliverables**: Platform webhook handler receives event, checks for deliverables with matching `trigger_config`, dispatches via `dispatch_trigger()` (ADR-088). For `reactive` mode, medium dispatch accumulates observations until threshold triggers generation.
+**Event-triggered agents**: Platform webhook handler receives event, checks for agents with matching `trigger_config`, dispatches via `dispatch_trigger()` (ADR-088). For `reactive` mode, medium dispatch accumulates observations until threshold triggers generation.
 
-**Proactive/coordinator deliverables**: `unified_scheduler.py` queries `deliverables WHERE proactive_next_review_at <= NOW()` (separate query). Invokes a review pass in headless mode. Agent returns `generate / observe / create_child / sleep` — orchestration acts accordingly.
+**Proactive/coordinator agents**: `unified_scheduler.py` queries `agents WHERE proactive_next_review_at <= NOW()` (separate query). Invokes a review pass in headless mode. Agent returns `generate / observe / create_child / sleep` — orchestration acts accordingly.
 
-**Manual deliverables**: Execute via `POST /api/deliverables/{id}/run` endpoint or when created by coordinator deliverables (immediate execution, no schedule).
+**Manual agents**: Execute via `POST /api/agents/{id}/run` endpoint or when created by coordinator agents (immediate execution, no schedule).
 
 ---
 
@@ -400,12 +400,12 @@ WHERE status = 'active';
 Signal processing applies two deduplication checks:
 
 1. **Confidence threshold**: Only create actions with `confidence ≥ 0.60`
-2. **Type deduplication**: Don't create a signal-emergent deliverable if a user-configured deliverable of the same type is already scheduled to run within 24 hours
-3. **Per-cycle limit**: Only one action per `deliverable_type` per signal processing cycle
+2. **Type deduplication**: Don't create a signal-emergent agent if a user-configured agent of the same type is already scheduled to run within 24 hours
+3. **Per-cycle limit**: Only one action per `agent_type` per signal processing cycle
 
-Example: If a `meeting_prep` deliverable already exists and is scheduled to run today, signal processing will not create another `meeting_prep` deliverable for a different event. This prevents spam.
+Example: If a `meeting_prep` agent already exists and is scheduled to run today, signal processing will not create another `meeting_prep` agent for a different event. This prevents spam.
 
-**Open question** (ADR-068): Per-signal deduplication windows — if a signal-emergent deliverable was created for a contact drift 2 days ago, how long before the same contact drift signal is eligible again? This is deferred to Phase 4.
+**Open question** (ADR-068): Per-signal deduplication windows — if a signal-emergent agent was created for a contact drift 2 days ago, how long before the same contact drift signal is eligible again? This is deferred to Phase 4.
 
 ---
 
@@ -413,7 +413,7 @@ Example: If a `meeting_prep` deliverable already exists and is scheduled to run 
 
 ### Sources
 
-Each deliverable has a `sources` array:
+Each agent has a `sources` array:
 
 ```json
 [
@@ -427,7 +427,7 @@ Each deliverable has a `sources` array:
 
 **Source scope**: Content is fetched from `platform_content` filtered by `(platform, resource_id)` per source, ordered by `source_timestamp DESC`, limited per source. All fetches use chronological recency.
 
-**Targeting** (ADR-104): What the deliverable should *focus on* within its sources is controlled by `deliverable_instructions` — the single unified targeting layer. Instructions flow into both the headless system prompt (behavioral constraints) and the type prompt user message (priority lens). There are no per-source scope modes, filters, or structured targeting fields — all user intent flows through instructions.
+**Targeting** (ADR-104): What the agent should *focus on* within its sources is controlled by `agent_instructions` — the single unified targeting layer. Instructions flow into both the headless system prompt (behavioral constraints) and the type prompt user message (priority lens). There are no per-source scope modes, filters, or structured targeting fields — all user intent flows through instructions.
 
 ### Destinations
 
@@ -445,24 +445,24 @@ Destination config (ADR-028):
 }
 ```
 
-**Multi-destination support** (ADR-031 Phase 6): `destinations` array allows sending the same deliverable to multiple targets (e.g., Slack DM + Notion page). Not yet implemented in UI, but schema supports it.
+**Multi-destination support** (ADR-031 Phase 6): `destinations` array allows sending the same agent to multiple targets (e.g., Slack DM + Notion page). Not yet implemented in UI, but schema supports it.
 
 ---
 
-## Deliverable Intelligence Model (ADR-101)
+## Agent Intelligence Model (ADR-101)
 
-Every deliverable carries four layers of knowledge:
+Every agent carries four layers of knowledge:
 
 | Layer | What it is | Schema field(s) |
 |---|---|---|
-| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates in `deliverable_pipeline.py` |
-| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `deliverable_instructions` TEXT + `recipient_context` JSONB (ADR-104: instructions are the unified targeting layer — dual-injected into system prompt and user message) |
-| **Memory** | What happened — observations, review decisions, goals | `deliverable_memory` JSONB |
-| **Feedback** | How well it's doing — edit patterns from user corrections | `edit_distance_score`, `edit_categories`, `feedback_notes` on `deliverable_versions` |
+| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates in `agent_pipeline.py` |
+| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `agent_instructions` TEXT + `recipient_context` JSONB (ADR-104: instructions are the unified targeting layer — dual-injected into system prompt and user message) |
+| **Memory** | What happened — observations, review decisions, goals | `agent_memory` JSONB |
+| **Feedback** | How well it's doing — edit patterns from user corrections | `edit_distance_score`, `edit_categories`, `feedback_notes` on `agent_runs` |
 
 Feedback is computed by `feedback_engine.py` when users approve versions with edits, and aggregated by `get_past_versions_context()` into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions (delivery-first model, ADR-066).
 
-See [ADR-101](../adr/ADR-101-deliverable-intelligence-model.md) for the full model and prompt composition order.
+See [ADR-101](../adr/ADR-101-agent-intelligence-model.md) for the full model and prompt composition order.
 
 ---
 
@@ -470,19 +470,19 @@ See [ADR-101](../adr/ADR-101-deliverable-intelligence-model.md) for the full mod
 
 | System | Relationship |
 |---|---|
-| **Agent (Chat Mode / TP)** | Chat mode can create `user_configured` deliverables on explicit user request. Content generation uses the same agent in headless mode — same primitives, different constraints (ADR-080). |
-| **Backend Orchestrator** | `unified_scheduler.py` triggers due deliverables. `deliverable_execution.py` runs the strategy pipeline. Signal processing creates/triggers deliverables on a separate schedule. |
+| **Agent (Chat Mode / TP)** | Chat mode can create `user_configured` agents on explicit user request. Content generation uses the same agent in headless mode — same primitives, different constraints (ADR-080). |
+| **Backend Orchestrator** | `unified_scheduler.py` triggers due agents. `agent_execution.py` runs the strategy pipeline. Signal processing creates/triggers agents on a separate schedule. |
 | **Memory (Layer 1)** | User memories (facts, instructions, preferences) are appended to the generation context but are not currently used to filter or prioritize content upstream. |
-| **Activity (Layer 2)** | Each deliverable execution writes an `activity_log` event. Activity log is read for signal processing deduplication. |
-| **Context (Layer 3)** | Deliverables read Context via `platform_content` (unified layer, ADR-072). TP primitives provide access. |
-| **Conversation Analyst** | Creates `analyst_suggested` deliverables by mining TP sessions. Runs daily, produces suggestions. |
-| **Coordinator Deliverables** | Creates `coordinator_created` deliverables by reviewing their configured domain. Runs on `proactive_next_review_at` cadence. (ADR-092 — replaces signal processing) |
+| **Activity (Layer 2)** | Each agent execution writes an `activity_log` event. Activity log is read for signal processing deduplication. |
+| **Context (Layer 3)** | Agents read Context via `platform_content` (unified layer, ADR-072). TP primitives provide access. |
+| **Conversation Analyst** | Creates `analyst_suggested` agents by mining TP sessions. Runs daily, produces suggestions. |
+| **Coordinator Agents** | Creates `coordinator_created` agents by reviewing their configured domain. Runs on `proactive_next_review_at` cadence. (ADR-092 — replaces signal processing) |
 
 ---
 
 ## Implementation Status
 
-**ADR-068 Signal-Emergent Deliverables: Phase 3+4 Complete (2026-02-20)**
+**ADR-068 Signal-Emergent Agents: Phase 3+4 Complete (2026-02-20)**
 
 Phase 3 delivered:
 - Migration 071: `signal_history` table for per-signal deduplication tracking
@@ -496,19 +496,19 @@ Phase 4 delivered:
 - Gmail silence signal extraction via live Gmail API (thread history analysis)
 - `signals_filter` parameter in `extract_signal_summary()` for selective signal extraction
 
-**Status (2026-02-20):** Signal-emergent deliverables fully operational with hardened two-phase model.
+**Status (2026-02-20):** Signal-emergent agents fully operational with hardened two-phase model.
 
 **What works:**
 - ✅ Two-phase execution (orchestration → selective artifact creation)
 - ✅ Hybrid action model (trigger_existing + create_signal_emergent)
-- ✅ Meeting prep deliverables (hourly check, 48h lookahead, calendar signals)
+- ✅ Meeting prep agents (hourly check, 48h lookahead, calendar signals)
 - ✅ Gmail silence extraction (daily check, 5+ day threshold)
 - ✅ Per-signal deduplication via signal_history table
 - ✅ User preferences via user_notification_preferences
 - ✅ Split cron frequency (hourly/daily based on signal urgency)
 
 **What's pending:**
-- ⚠️ `silence_alert` deliverable type needs prompt template (extraction works, generation doesn't)
+- ⚠️ `silence_alert` agent type needs prompt template (extraction works, generation doesn't)
 - ⚠️ `contact_drift` signal extraction not yet implemented
 - ⚠️ LLM prompt updated to prioritize trigger_existing, but needs real-world testing
 
@@ -516,27 +516,27 @@ Phase 4 delivered:
 
 ## Execution Metadata & Audit Trail
 
-Every deliverable execution captures metadata across multiple storage layers, enabling both debugging and future UI surfacing:
+Every agent execution captures metadata across multiple storage layers, enabling both debugging and future UI surfacing:
 
 ### What's Captured
 
 | Data | Storage Location | Populated? |
 |------|-----------------|------------|
-| Generated content | `deliverable_versions.draft_content` / `final_content` | Yes |
+| Generated content | `agent_runs.draft_content` / `final_content` | Yes |
 | Strategy used | `activity_log.metadata.strategy` | Yes |
-| Token usage (input/output/model) | `deliverable_versions.metadata` + `activity_log.metadata` | Yes (ADR-101) |
-| Source snapshots (immutable) + `items_used` | `deliverable_versions.source_snapshots` | Yes (items_used added for provenance) |
-| Platform content IDs consumed | `deliverable_versions.metadata.platform_content_ids` | Yes (forward link: version→content) |
-| Items fetched, sources used, strategy | `deliverable_versions.metadata` | Yes |
+| Token usage (input/output/model) | `agent_runs.metadata` + `activity_log.metadata` | Yes (ADR-101) |
+| Source snapshots (immutable) + `items_used` | `agent_runs.source_snapshots` | Yes (items_used added for provenance) |
+| Platform content IDs consumed | `agent_runs.metadata.platform_content_ids` | Yes (forward link: version→content) |
+| Items fetched, sources used, strategy | `agent_runs.metadata` | Yes |
 | Execution stages (started/completed/failed) | `work_execution_log` | Yes |
 | Content length, sources list | `work_execution_log.metadata` | Yes |
-| Delivery status/error | `deliverable_versions.delivery_status` / `delivery_error` | Yes |
-| Delivery timestamp | `deliverable_versions.delivered_at` | Yes |
-| Analyst confidence (suggested only) | `deliverable_versions.analyst_metadata` | Yes (ADR-060) |
+| Delivery status/error | `agent_runs.delivery_status` / `delivery_error` | Yes |
+| Delivery timestamp | `agent_runs.delivered_at` | Yes |
+| Analyst confidence (suggested only) | `agent_runs.analyst_metadata` | Yes (ADR-060) |
 | Platform content IDs retained (backward) | `platform_content.retained_reason` / `retained_ref` | Yes (backward link: content→version) |
-| `source_fetch_summary` | `deliverable_versions` column | **Not populated** (schema exists) |
-| `context_snapshot_id` | `deliverable_versions` column | **Superseded** by `metadata.platform_content_ids` |
-| `pipeline_run_id` | `deliverable_versions` column | **Not used** (ADR-042) |
+| `source_fetch_summary` | `agent_runs` column | **Not populated** (schema exists) |
+| `context_snapshot_id` | `agent_runs` column | **Superseded** by `metadata.platform_content_ids` |
+| `pipeline_run_id` | `agent_runs` column | **Not used** (ADR-042) |
 
 ### Querying Execution History
 
@@ -544,23 +544,23 @@ Every deliverable execution captures metadata across multiple storage layers, en
 -- Execution log for a specific version's work ticket
 SELECT stage, message, metadata, timestamp
 FROM work_execution_log
-WHERE ticket_id = (SELECT pipeline_run_id FROM deliverable_versions WHERE id = '<version_id>')
+WHERE ticket_id = (SELECT pipeline_run_id FROM agent_runs WHERE id = '<version_id>')
 ORDER BY timestamp;
 
 -- Activity log with strategy info
 SELECT metadata->>'strategy', metadata->>'final_status', created_at
 FROM activity_log
-WHERE event_type = 'deliverable_run'
-  AND metadata->>'deliverable_id' = '<deliverable_id>'
+WHERE event_type = 'agent_run'
+  AND metadata->>'agent_id' = '<agent_id>'
 ORDER BY created_at DESC;
 
 -- Source snapshots for audit trail
-SELECT source_snapshots FROM deliverable_versions WHERE id = '<version_id>';
+SELECT source_snapshots FROM agent_runs WHERE id = '<version_id>';
 ```
 
 ### Frontend Surfacing (ADR-066)
 
-The `/deliverables/[id]` detail page now surfaces per-version execution metadata:
+The `/agents/[id]` detail page now surfaces per-version execution metadata:
 - **Content**: Rendered markdown (ReactMarkdown + Tailwind typography) as the hero element
 - **Per-version**: Delivery status badge, timestamp, version number, word count, token count (ADR-101), source snapshot pills
 - **Delivery history**: Click version rows to switch the content area (replaces accordion)
@@ -579,11 +579,11 @@ See [docs/features/email-notifications.md](../features/email-notifications.md) f
 
 ### Current State (2026-02-24): Resend-First Email Delivery
 
-Deliverable content is delivered via **Resend API** (server-side, no user OAuth required). This is the default `"email"` platform handler.
+Agent content is delivered via **Resend API** (server-side, no user OAuth required). This is the default `"email"` platform handler.
 
 | Component | Service | Purpose |
 |-----------|---------|---------|
-| **Content delivery** | Resend API (`ResendExporter`) | Full deliverable content, HTML-formatted. Works for all users. |
+| **Content delivery** | Resend API (`ResendExporter`) | Full agent content, HTML-formatted. Works for all users. |
 | **Gmail drafts/sends** | Gmail API (`GmailExporter`) | Premium: create drafts or send as user's own address (requires Google OAuth). |
 | **Status notifications** | Resend API (`send_email`) | Skipped when content was already delivered via email (same inbox). |
 
@@ -593,7 +593,7 @@ Deliverable content is delivered via **Resend API** (server-side, no user OAuth 
 - Consistent sender: `noreply@yarnnn.com`
 - Pricing: Free tier 3,000 emails/month; Pro $20/mo for 50k
 
-**Notification email consolidation:** When the deliverable's destination is `platform: "email"` or `platform: "gmail"`, the content email IS the notification — the separate "Your deliverable is ready" notification email is skipped. Failure notifications still send regardless.
+**Notification email consolidation:** When the agent's destination is `platform: "email"` or `platform: "gmail"`, the content email IS the notification — the separate "Your agent is ready" notification email is skipped. Failure notifications still send regardless.
 
 ### Exporter Registry Pattern
 
@@ -617,11 +617,11 @@ See [docs/features/email-notifications.md — Future Consideration](../features/
 
 ## Open Questions & Future Work
 
-1. **Event triggers** (ADR-031 Phase 4) — Platform webhook integration for real-time deliverable triggering (Slack mention, Gmail arrival, etc.)
+1. **Event triggers** (ADR-031 Phase 4) — Platform webhook integration for real-time agent triggering (Slack mention, Gmail arrival, etc.)
 2. **Contact drift signals** — Third signal type from ADR-068 (alert when key contacts haven't been contacted in N days)
 3. **Multi-destination UI** — Frontend for configuring `destinations` array (currently only backend-supported)
 4. **Quality-based feedback loop** — Automatic source adjustment when `quality_trend = "declining"` for N consecutive versions
-5. **Signal promotion UI** — Frontend for "Promote to Recurring" button on signal-emergent deliverables
+5. **Signal promotion UI** — Frontend for "Promote to Recurring" button on signal-emergent agents
 6. **In-app delivery channel** — `AppExporter` for richer content presentation + execution metadata surfacing (see Delivery Routing above)
 7. **Populate `source_fetch_summary`** — Schema exists but execution code doesn't fill it; useful for debugging and UI
 
@@ -629,16 +629,16 @@ See [docs/features/email-notifications.md — Future Consideration](../features/
 
 ## Summary
 
-Deliverables are YARNNN's output layer — structured, versioned, specialist agents that improve with use. They are:
-- **Configured** by users (or TP on explicit request) or **created** by coordinator deliverables (ADR-092)
+Agents are YARNNN's output layer — structured, versioned, specialist agents that improve with use. They are:
+- **Configured** by users (or TP on explicit request) or **created** by coordinator agents (ADR-092)
 - **Mode-driven** (ADR-092) — `recurring`, `goal`, `reactive`, `proactive`, `coordinator` — each with distinct execution character
-- **Intelligent** — each carries `deliverable_instructions` (behavioral directives) and `deliverable_memory` (accumulated operational knowledge) via ADR-087
+- **Intelligent** — each carries `agent_instructions` (behavioral directives) and `agent_memory` (accumulated operational knowledge) via ADR-087
 - **Executed** by the backend orchestration pipeline — strategy gathers context, agent (headless mode) generates with primitive access (ADR-080)
 - **Delivered** to platform destinations (email via Resend, Slack, Notion) without approval gates (ADR-066)
 - **Versioned** immutably — each execution produces a permanent record
 - **Type-classified** (ADR-044) to determine execution strategy
 - **Origin-tagged** to record provenance: `user_configured`, `analyst_suggested`, `coordinator_created`
 
-The deliverable model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world. Every deliverable is simultaneously a configuration (what to produce), a specialist (how to produce it well), and a knowledge base (what it has learned about this work).
+The agent model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world. Every agent is simultaneously a configuration (what to produce), a specialist (how to produce it well), and a knowledge base (what it has learned about this work).
 
-**Architecture note**: Content generation uses the unified agent in headless mode (ADR-080). Coordinator and proactive deliverables add a review pass before generation. Signal processing as a separate L3 subsystem is dissolved (ADR-092). See [Agent Execution Model](agent-execution-model.md) and [ADR-092](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md).
+**Architecture note**: Content generation uses the unified agent in headless mode (ADR-080). Coordinator and proactive agents add a review pass before generation. Signal processing as a separate L3 subsystem is dissolved (ADR-092). See [Agent Execution Model](agent-execution-model.md) and [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md).

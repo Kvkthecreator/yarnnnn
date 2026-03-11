@@ -50,7 +50,7 @@ function deskReducer(state: DeskState, action: DeskAction): DeskState {
 
     case 'ADD_ATTENTION':
       // Avoid duplicates
-      if (state.attention.some((item) => item.versionId === action.item.versionId)) {
+      if (state.attention.some((item) => item.runId === action.item.runId)) {
         return state;
       }
       return { ...state, attention: [...state.attention, action.item] };
@@ -58,7 +58,7 @@ function deskReducer(state: DeskState, action: DeskAction): DeskState {
     case 'REMOVE_ATTENTION':
       return {
         ...state,
-        attention: state.attention.filter((item) => item.versionId !== action.versionId),
+        attention: state.attention.filter((item) => item.runId !== action.runId),
       };
 
     case 'CLEAR_SURFACE':
@@ -71,9 +71,9 @@ function deskReducer(state: DeskState, action: DeskAction): DeskState {
         return {
           ...state,
           surface: {
-            type: 'deliverable-review',
-            deliverableId: next.deliverableId,
-            versionId: next.versionId,
+            type: 'agent-review',
+            agentId: next.agentId,
+            runId: next.runId,
           },
           attention: rest,
         };
@@ -113,7 +113,7 @@ interface DeskContextValue {
   clearHandoff: () => void;
   nextAttention: () => void;
   refreshAttention: () => Promise<void>;
-  removeAttention: (versionId: string) => void;
+  removeAttention: (runId: string) => void;
 }
 
 const DeskContext = createContext<DeskContextValue | null>(null);
@@ -138,20 +138,20 @@ export function DeskProvider({ children }: DeskProviderProps) {
   // ---------------------------------------------------------------------------
   const refreshAttention = useCallback(async () => {
     try {
-      const response = await api.deliverables.list();
+      const response = await api.agents.list();
       const items: AttentionItem[] = [];
 
-      for (const deliverable of response) {
-        if (deliverable.latest_version_status === 'staged') {
+      for (const agent of response) {
+        if (agent.latest_version_status === 'staged') {
           // Get the staged version ID
-          const detail = await api.deliverables.get(deliverable.id);
+          const detail = await api.agents.get(agent.id);
           const stagedVersion = detail.versions.find((v) => v.status === 'staged');
           if (stagedVersion) {
             items.push({
-              type: 'deliverable-staged',
-              deliverableId: deliverable.id,
-              versionId: stagedVersion.id,
-              title: deliverable.title,
+              type: 'agent-staged',
+              agentId: agent.id,
+              runId: stagedVersion.id,
+              title: agent.title,
               stagedAt: stagedVersion.staged_at || stagedVersion.created_at,
             });
           }
@@ -209,14 +209,14 @@ export function DeskProvider({ children }: DeskProviderProps) {
 
     if (!shouldUpdate && currentType === urlType) {
       // Same type, check if IDs differ for surfaces with IDs
-      if (currentType === 'deliverable-detail') {
-        const current = state.surface as { type: 'deliverable-detail'; deliverableId: string };
-        const url = surfaceFromUrl as { type: 'deliverable-detail'; deliverableId: string };
-        shouldUpdate = current.deliverableId !== url.deliverableId;
-      } else if (currentType === 'deliverable-review') {
-        const current = state.surface as { type: 'deliverable-review'; deliverableId: string; versionId: string };
-        const url = surfaceFromUrl as { type: 'deliverable-review'; deliverableId: string; versionId: string };
-        shouldUpdate = current.deliverableId !== url.deliverableId || current.versionId !== url.versionId;
+      if (currentType === 'agent-detail') {
+        const current = state.surface as { type: 'agent-detail'; agentId: string };
+        const url = surfaceFromUrl as { type: 'agent-detail'; agentId: string };
+        shouldUpdate = current.agentId !== url.agentId;
+      } else if (currentType === 'agent-review') {
+        const current = state.surface as { type: 'agent-review'; agentId: string; runId: string };
+        const url = surfaceFromUrl as { type: 'agent-review'; agentId: string; runId: string };
+        shouldUpdate = current.agentId !== url.agentId || current.runId !== url.runId;
       } else if (currentType === 'context-editor') {
         const current = state.surface as { type: 'context-editor'; memoryId: string };
         const url = surfaceFromUrl as { type: 'context-editor'; memoryId: string };
@@ -237,7 +237,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
     }
   }, [searchParams, pathname, state.surface]);
 
-  // Note: Removed auto-redirect from idle to deliverable-review
+  // Note: Removed auto-redirect from idle to agent-review
   // The dashboard (idle) now shows attention items inline, user clicks to review
 
   // ---------------------------------------------------------------------------
@@ -271,8 +271,8 @@ export function DeskProvider({ children }: DeskProviderProps) {
     dispatch({ type: 'NEXT_ATTENTION' });
   }, []);
 
-  const removeAttention = useCallback((versionId: string) => {
-    dispatch({ type: 'REMOVE_ATTENTION', versionId });
+  const removeAttention = useCallback((runId: string) => {
+    dispatch({ type: 'REMOVE_ATTENTION', runId });
   }, []);
 
   const setSurfaceWithHandoff = useCallback(

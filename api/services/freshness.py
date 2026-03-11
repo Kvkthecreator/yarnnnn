@@ -1,7 +1,7 @@
 """
 Freshness Service - ADR-049 Context Freshness Model
 
-Manages context freshness for deliverable generation.
+Manages context freshness for agent generation.
 Platforms ARE our filesystem, sync IS our git pull.
 
 Key concepts:
@@ -10,15 +10,15 @@ Key concepts:
 - Freshness check: Compare sync_registry with platform state
 
 Usage:
-    from services.freshness import check_deliverable_freshness, record_source_snapshots
+    from services.freshness import check_agent_freshness, record_source_snapshots
 
     # Before generation
-    freshness = await check_deliverable_freshness(client, user_id, deliverable)
+    freshness = await check_agent_freshness(client, user_id, agent)
     if not freshness["all_fresh"]:
         await sync_stale_sources(client, user_id, freshness["stale_sources"])
 
     # After generation
-    await record_source_snapshots(client, version_id, sources_used)
+    await record_source_snapshots(client, run_id, sources_used)
 """
 
 from __future__ import annotations
@@ -94,21 +94,21 @@ async def get_platform_freshness_from_registry(
 # Freshness Check (ADR-049)
 # =============================================================================
 
-async def check_deliverable_freshness(
+async def check_agent_freshness(
     client,
     user_id: str,
-    deliverable: dict,
+    agent: dict,
     staleness_threshold_hours: int = 24,
 ) -> dict:
     """
-    Check if deliverable sources are fresh enough for generation.
+    Check if agent sources are fresh enough for generation.
 
     Compares sync_registry state with configured staleness threshold.
 
     Args:
         client: Supabase client
         user_id: User UUID
-        deliverable: Deliverable dict with 'sources' field
+        agent: Agent dict with 'sources' field
         staleness_threshold_hours: Hours before source is considered stale
 
     Returns:
@@ -119,7 +119,7 @@ async def check_deliverable_freshness(
             "never_synced": [{platform, resource_id, resource_name}]
         }
     """
-    sources = deliverable.get("sources", [])
+    sources = agent.get("sources", [])
     if not sources:
         return {
             "all_fresh": True,
@@ -305,7 +305,7 @@ async def record_source_snapshots(
     content_ids: list[str] | None = None,
 ) -> bool:
     """
-    Record source snapshots on deliverable_version after generation.
+    Record source snapshots on agent_version after generation.
 
     This creates an immutable audit trail of what sources were used,
     including how many content items from each source were actually
@@ -313,7 +313,7 @@ async def record_source_snapshots(
 
     Args:
         client: Supabase client
-        version_id: UUID of the deliverable_version
+        run_id: UUID of the agent_version
         sources_used: List of source configs that were used
         content_ids: Optional list of platform_content IDs consumed during generation
 
@@ -373,7 +373,7 @@ async def record_source_snapshots(
             snapshots.append(snapshot)
 
         # Update the version record
-        result = client.table("deliverable_versions").update({
+        result = client.table("agent_runs").update({
             "source_snapshots": snapshots
         }).eq("id", version_id).execute()
 
@@ -388,12 +388,12 @@ async def get_source_snapshots(
     version_id: str,
 ) -> list[dict]:
     """
-    Get source snapshots from a deliverable_version.
+    Get source snapshots from a agent_version.
 
     Useful for comparing "what changed since last generation".
     """
     try:
-        result = client.table("deliverable_versions").select(
+        result = client.table("agent_runs").select(
             "source_snapshots"
         ).eq("id", version_id).execute()
 
@@ -422,7 +422,7 @@ async def sync_stale_sources(
     Args:
         client: Supabase client
         user_id: User UUID
-        stale_sources: List of stale source dicts from check_deliverable_freshness
+        stale_sources: List of stale source dicts from check_agent_freshness
 
     Returns:
         {
@@ -475,7 +475,7 @@ async def sync_stale_sources(
 async def compare_with_last_generation(
     client,
     user_id: str,
-    deliverable_id: str,
+    agent_id: str,
 ) -> dict:
     """
     Compare current sync state with last generation's snapshots.
@@ -491,9 +491,9 @@ async def compare_with_last_generation(
     """
     try:
         # Get last completed version
-        result = client.table("deliverable_versions").select(
+        result = client.table("agent_runs").select(
             "id, source_snapshots, created_at"
-        ).eq("deliverable_id", deliverable_id).in_(
+        ).eq("agent_id", agent_id).in_(
             "status", ["staged", "approved", "delivered"]
         ).order("version_number", desc=True).limit(1).execute()
 

@@ -45,8 +45,8 @@ export interface UserContextEntry {
   value: string;
   source: string;
   confidence: number;
-  source_ref?: string | null;  // ADR-072: FK to source record (deliverable_version_id, session_id)
-  source_type?: string | null;  // ADR-072: type of source (deliverable_feedback, conversation_extraction, pattern_analysis)
+  source_ref?: string | null;  // ADR-072: FK to source record (agent_run_id, session_id)
+  source_type?: string | null;  // ADR-072: type of source (agent_feedback, conversation_extraction, pattern_analysis)
   created_at: string;
   updated_at: string;
 }
@@ -152,11 +152,11 @@ export interface PortalResponse {
 }
 
 // =============================================================================
-// ADR-018: Recurring Deliverables
-// ADR-019: Deliverable Types System
+// ADR-018: Recurring Agents
+// ADR-019: Agent Types System
 // =============================================================================
 
-export type DeliverableStatus = "active" | "paused" | "archived";
+export type AgentStatus = "active" | "paused" | "archived";
 // ADR-066: Added "delivered" and "failed" for delivery-first model
 // Legacy statuses (staged, reviewing, approved, rejected) kept for backwards compatibility
 export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "delivered" | "failed";
@@ -167,8 +167,8 @@ export type DataSourceType = "url" | "document" | "description" | "integration_i
 // Integration import source provider
 export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar" | "yarnnn";
 
-// ADR-093: Deliverable Types (7 purpose-first types)
-export type DeliverableType =
+// ADR-093: Agent Types (7 purpose-first types)
+export type AgentType =
   | "digest"        // Regular synthesis of what's happening in a specific place
   | "brief"         // Situation-specific document before a key event
   | "status"        // Regular cross-platform summary for a person or audience
@@ -178,10 +178,10 @@ export type DeliverableType =
   | "custom";       // User-defined intent
 
 // ADR-093: All 7 types are stable — no deprecated tier
-export type ActiveDeliverableType = DeliverableType;
+export type ActiveAgentType = AgentType;
 
 // ADR-093: all stable
-export type DeliverableTier = "stable";
+export type AgentTier = "stable";
 
 // ADR-044: Type Classification (two-dimensional)
 export type ContextBinding = "platform_bound" | "cross_platform" | "research" | "hybrid";
@@ -267,7 +267,7 @@ export interface DataSource {
   type: DataSourceType;
   value?: string;
   label?: string;
-  // DB schema fields (from deliverables.sources JSONB)
+  // DB schema fields (from agents.sources JSONB)
   resource_id?: string;
   resource_name?: string;
   // ADR-029 Phase 2: Integration import configuration
@@ -278,7 +278,7 @@ export interface DataSource {
 // Quality trend for feedback loop tracking (ADR-018)
 export type QualityTrend = "improving" | "stable" | "declining";
 
-// ADR-028: Destination-first deliverables
+// ADR-028: Destination-first agents
 // ADR-029: Gmail as full integration platform
 export type DestinationPlatform = "slack" | "notion" | "gmail" | "calendar" | "email" | "download";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
@@ -300,60 +300,60 @@ export interface GmailDestinationOptions {
   thread_id?: string;  // For replies
 }
 
-// ADR-031: Platform-native deliverable variants
+// ADR-031: Platform-native agent variants
 export type PlatformVariant = "slack_digest" | "email_summary" | "notion_page" | string;
 
-// ADR-087: Deliverable memory observation
-export interface DeliverableObservation {
+// ADR-087: Agent memory observation
+export interface AgentObservation {
   date: string;
   source?: string;
   note: string;
 }
 
-// ADR-087: Deliverable memory goal
-export interface DeliverableGoal {
+// ADR-087: Agent memory goal
+export interface AgentGoal {
   description: string;
   status: string;
   milestones?: string[];
 }
 
 // ADR-092: Review log entry (proactive/coordinator modes)
-export interface DeliverableReviewLogEntry {
+export interface AgentReviewLogEntry {
   date: string;
   action: string;  // 'generate' | 'observe' | 'sleep'
   note: string;
   next_review_at?: string;
 }
 
-// ADR-087/092/101: Deliverable memory structure
-export interface DeliverableMemory {
-  observations?: DeliverableObservation[];
-  goal?: DeliverableGoal;
-  review_log?: DeliverableReviewLogEntry[];
-  created_deliverables?: Array<{
+// ADR-087/092/101: Agent memory structure
+export interface AgentMemory {
+  observations?: AgentObservation[];
+  goal?: AgentGoal;
+  review_log?: AgentReviewLogEntry[];
+  created_agents?: Array<{
     date: string;
     title: string;
-    deliverable_id?: string;
+    agent_id?: string;
     dedup_key?: string;
   }>;
   last_generated_at?: string;
 }
 
-// ADR-087: Deliverable mode (ADR-092: extended with reactive, proactive, coordinator)
-export type DeliverableMode = 'recurring' | 'goal' | 'reactive' | 'proactive' | 'coordinator';
+// ADR-087: Agent mode (ADR-092: extended with reactive, proactive, coordinator)
+export type AgentMode = 'recurring' | 'goal' | 'reactive' | 'proactive' | 'coordinator';
 
 // ADR-087: Scoped chat session
-export interface DeliverableSession {
+export interface AgentSession {
   id: string;
   created_at: string;
   summary?: string;
   message_count: number;
 }
 
-export interface Deliverable {
+export interface Agent {
   id: string;
   title: string;
-  deliverable_type: DeliverableType;
+  agent_type: AgentType;
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;  // platform-native render variant (legacy field)
@@ -364,21 +364,21 @@ export interface Deliverable {
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
   sources: DataSource[];
-  status: DeliverableStatus;
+  status: AgentStatus;
   created_at: string;
   updated_at: string;
   last_run_at?: string;
   next_run_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
-  // ADR-028: Destination-first deliverables
+  // ADR-028: Destination-first agents
   destination?: Destination;
-  // ADR-068: Deliverable origin (ADR-092: coordinator_created added)
+  // ADR-068: Agent origin (ADR-092: coordinator_created added)
   origin?: 'user_configured' | 'coordinator_created';
-  // ADR-087: Deliverable-scoped context
-  deliverable_instructions?: string;
-  deliverable_memory?: DeliverableMemory;
-  mode?: DeliverableMode;
+  // ADR-087: Agent-scoped context
+  agent_instructions?: string;
+  agent_memory?: AgentMemory;
+  mode?: AgentMode;
   // ADR-092: Proactive/coordinator review scheduling
   proactive_next_review_at?: string;
   // Quality metrics (ADR-018: feedback loop)
@@ -389,9 +389,9 @@ export interface Deliverable {
   description?: string;
 }
 
-export interface DeliverableCreate {
+export interface AgentCreate {
   title: string;
-  deliverable_type?: DeliverableType;
+  agent_type?: AgentType;
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;
@@ -401,30 +401,30 @@ export interface DeliverableCreate {
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
   sources?: DataSource[];
-  // ADR-028: Destination-first deliverables
+  // ADR-028: Destination-first agents
   destination?: Destination;
   // ADR-092: Mode taxonomy
-  mode?: DeliverableMode;
+  mode?: AgentMode;
   // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
 }
 
-export interface DeliverableUpdate {
+export interface AgentUpdate {
   title?: string;
-  deliverable_type?: DeliverableType;
+  agent_type?: AgentType;
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;
   recipient_context?: RecipientContext;
   schedule?: ScheduleConfig;
   sources?: DataSource[];
-  status?: DeliverableStatus;
-  // ADR-028: Destination-first deliverables
+  status?: AgentStatus;
+  // ADR-028: Destination-first agents
   destination?: Destination;
-  // ADR-087: Deliverable-scoped context
-  deliverable_instructions?: string;
+  // ADR-087: Agent-scoped context
+  agent_instructions?: string;
   // ADR-092: Mode taxonomy + scheduling
-  mode?: DeliverableMode;
+  mode?: AgentMode;
   proactive_next_review_at?: string;
   trigger_config?: Record<string, unknown>;
   // Legacy: description still consumed by Research/Hybrid strategies
@@ -445,9 +445,9 @@ export interface SourceSnapshot {
 }
 
 
-export interface DeliverableVersion {
+export interface AgentRun {
   id: string;
-  deliverable_id: string;
+  agent_id: string;
   version_number: number;
   status: VersionStatus;
   draft_content?: string;
@@ -494,9 +494,9 @@ export interface FeedbackSummary {
   learned_preferences: string[];  // Human-readable preferences
 }
 
-export interface DeliverableDetail {
-  deliverable: Deliverable;
-  versions: DeliverableVersion[];
+export interface AgentDetail {
+  agent: Agent;
+  versions: AgentRun[];
   feedback_summary?: FeedbackSummary;
 }
 
@@ -506,9 +506,9 @@ export interface VersionUpdate {
   feedback_notes?: string;
 }
 
-export interface DeliverableRunResponse {
+export interface AgentRunResponse {
   success: boolean;
-  version_id?: string;
+  run_id?: string;
   version_number?: number;
   status?: string;
   message?: string;
@@ -562,7 +562,7 @@ export interface ContextDomainSummary {
   name_source: "auto" | "user";
   is_default: boolean;
   source_count: number;
-  deliverable_count: number;
+  agent_count: number;
   memory_count: number;
   created_at: string;
 }
@@ -575,7 +575,7 @@ export interface DomainSource {
 
 export interface ContextDomainDetail extends ContextDomainSummary {
   sources: DomainSource[];
-  deliverable_ids: string[];
+  agent_ids: string[];
   updated_at: string;
 }
 
@@ -585,7 +585,7 @@ export interface ActiveDomainResponse {
     name: string;
     is_default: boolean;
   } | null;
-  source: "deliverable" | "single_domain" | "ambiguous";
+  source: "agent" | "single_domain" | "ambiguous";
   domain_count?: number;
 }
 
@@ -602,10 +602,10 @@ export interface PlatformSyncStatus {
   status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
 }
 
-export interface ScheduledDeliverable {
+export interface ScheduledAgent {
   id: string;
   title: string;
-  deliverable_type: string;
+  agent_type: string;
   next_run_at: string;
   destination_platform?: string | null;
 }
@@ -620,7 +620,7 @@ export interface BackgroundJobStatus {
 
 export interface JobsStatusResponse {
   platform_sync: PlatformSyncStatus[];
-  scheduled_deliverables: ScheduledDeliverable[];
+  scheduled_agents: ScheduledAgent[];
   background_jobs: BackgroundJobStatus[];
   tier: string;
   sync_frequency: string;
@@ -717,7 +717,7 @@ export interface TierLimits {
     total_platforms: number;
     sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
     monthly_messages: number; // -1 for unlimited (ADR-100)
-    active_deliverables: number;
+    active_agents: number;
   };
   usage: {
     slack_channels: number;
@@ -726,7 +726,7 @@ export interface TierLimits {
     calendars: number;
     platforms_connected: number;
     monthly_messages_used: number; // ADR-100
-    active_deliverables: number;
+    active_agents: number;
   };
   next_sync?: string | null;
 }
