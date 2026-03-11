@@ -124,7 +124,6 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const { documents, upload: uploadDocument, uploadProgress } = useDocuments();
 
   const loadIntegrations = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await api.integrations.list();
       const activeIntegrations = data.integrations.filter(

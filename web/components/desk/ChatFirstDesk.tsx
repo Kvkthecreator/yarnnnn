@@ -114,15 +114,6 @@ function DeliverablesPanel() {
           </Link>
         ))}
       </div>
-      <div className="px-3 py-2 border-t border-border shrink-0">
-        <Link
-          href="/dashboard?create"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          New deliverable
-        </Link>
-      </div>
     </div>
   );
 }
