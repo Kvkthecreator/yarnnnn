@@ -164,25 +164,25 @@ export function WorkspaceLayout({
     </button>
   ) : null;
 
-  // Chat column header
+  // Chat column header — three-column layout with centered identity
   const chatHeader = (
-    <div className="flex items-center px-4 py-3 border-b border-border shrink-0">
+    <div className="relative flex items-center px-4 py-3 border-b border-border shrink-0">
       {/* Left: breadcrumb */}
-      {breadcrumb && (
-        <div className="flex items-center min-w-0 mr-3">
-          {breadcrumb}
-        </div>
-      )}
+      <div className="flex items-center min-w-0 shrink-0">
+        {breadcrumb}
+      </div>
 
-      {/* Center: identity chip */}
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-muted-foreground shrink-0">{identity.icon}</span>
-        <span className="font-medium truncate">{identity.label}</span>
-        {identity.badge && <span className="shrink-0">{identity.badge}</span>}
+      {/* Center: identity chip — absolutely centered */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="flex items-center gap-2 min-w-0 pointer-events-auto">
+          <span className="text-muted-foreground shrink-0">{identity.icon}</span>
+          <span className="font-medium truncate">{identity.label}</span>
+          {identity.badge && <span className="shrink-0">{identity.badge}</span>}
+        </div>
       </div>
 
       {/* Right: controls + panel toggle */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         {headerControls}
         {panelToggle}
       </div>
