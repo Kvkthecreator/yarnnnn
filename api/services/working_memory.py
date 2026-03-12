@@ -59,7 +59,7 @@ async def build_working_memory(
         user_id: The authenticated user's ID
         client: Supabase client instance
         agent: Optional agent dict for scoped context (ADR-087).
-                     Expected keys: id, title, agent_type, user_id.
+                     Expected keys: id, title, scope, skill, user_id.
                      agent_instructions/agent_memory used only for lazy workspace migration.
 
     Returns:
@@ -154,7 +154,7 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     scope = {
         "id": agent_id,
         "title": agent.get("title", "Untitled"),
-        "type": agent.get("agent_type", "custom"),
+        "skill": agent.get("skill", "custom"),
     }
 
     if instructions:

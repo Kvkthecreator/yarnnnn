@@ -560,15 +560,15 @@ class KnowledgeBase:
     Read by agents via QueryKnowledge primitive.
     """
 
-    # ADR-107: agent_type → content class directory
+    # ADR-109: skill → content class directory
     CONTENT_CLASS_MAP = {
         "digest": "digests",
-        "status": "analyses",
-        "brief": "briefs",
-        "deep_research": "research",
-        "watch": "insights",
+        "synthesize": "analyses",
+        "prepare": "briefs",
+        "research": "research",
+        "monitor": "insights",
         "custom": "analyses",
-        "coordinator": "analyses",
+        "orchestrate": "analyses",
     }
 
     def __init__(self, db_client, user_id: str):
@@ -577,16 +577,16 @@ class KnowledgeBase:
         self._base = "/knowledge"
 
     @classmethod
-    def get_knowledge_path(cls, agent_type: str, title: str, date_str: str = None) -> str:
+    def get_knowledge_path(cls, skill: str, title: str, date_str: str = None) -> str:
         """
         Generate the /knowledge/ path for an agent output.
 
         Args:
-            agent_type: The agent's type (digest, status, brief, etc.)
+            skill: The agent's skill (digest, synthesize, prepare, etc.)
             title: Agent title — will be slugified (e.g., "Slack Engineering Recap")
             date_str: Date string YYYY-MM-DD (defaults to today)
         """
-        content_class = cls.CONTENT_CLASS_MAP.get(agent_type, "analyses")
+        content_class = cls.CONTENT_CLASS_MAP.get(skill, "analyses")
         if date_str is None:
             date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -622,7 +622,7 @@ class KnowledgeBase:
             path: Full path under /knowledge/ (use get_knowledge_path() to generate)
             content: The agent output content (markdown)
             summary: Brief description for discovery
-            metadata: {agent_id, run_id, content_class, agent_type, version_number}
+            metadata: {agent_id, run_id, content_class, skill, version_number}
             tags: Searchable topic tags
         """
         if not path.startswith("/knowledge/"):

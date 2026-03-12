@@ -1,6 +1,6 @@
 # ADR-109: Agent Framework — Scope × Skill × Trigger
 
-**Status:** Docs Complete, Code Migration Pending
+**Status:** Implemented
 **Date:** 2026-03-12
 **Authors:** Kevin Kim, Claude (analysis + discourse)
 **Supersedes:**

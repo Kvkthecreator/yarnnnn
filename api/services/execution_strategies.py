@@ -1,22 +1,20 @@
 """
-Execution Strategies - ADR-045 + ADR-073 + ADR-081 + ADR-106
+Execution Strategies - ADR-109 Scope-Based Routing
 
-Determines HOW an agent is executed based on its type_classification.binding
-and archetype (ADR-106).
+Determines HOW an agent is executed based on its scope (ADR-109).
 
 Reporter strategies (platform dump → generate):
-- platform_bound: Single platform reader → headless agent
+- platform: Single platform reader → headless agent
 - cross_platform: Multi-platform reader → headless agent
 
 Reasoning strategies (workspace → agent queries → generate):
-- analyst: Load workspace context, agent drives own knowledge base queries (ADR-106)
-- research: Platform grounding + research_directive → headless agent uses WebSearch (ADR-081)
-- hybrid: Platform context + research_directive → headless agent uses WebSearch (ADR-081)
+- knowledge: Load workspace context, agent drives own knowledge base queries
+- research: Platform grounding + research_directive → headless agent uses WebSearch
+- autonomous: Full workspace-driven investigation (ADR-106 AnalystStrategy)
 
 ADR-073: All platform reads come from platform_content (no live API calls).
 ADR-106: Reasoning agents load workspace state instead of receiving platform dumps.
-ADR-081: Research/hybrid strategies no longer call web_research.py. Instead they pass
-a research_directive to the headless agent, which uses the WebSearch primitive directly.
+ADR-081: Research strategies pass a research_directive to the headless agent.
 """
 
 import logging
@@ -60,13 +58,13 @@ class ExecutionStrategy(ABC):
 
 class PlatformBoundStrategy(ExecutionStrategy):
     """
-    Strategy for platform_bound agents (e.g., digest).
+    Strategy for platform-scope agents (e.g., digest).
     Fetches from one platform, uses platform-specific synthesis.
     """
 
     @property
     def strategy_name(self) -> str:
-        return "platform_bound"
+        return "platform"
 
     async def gather_context(
         self,
@@ -76,9 +74,14 @@ class PlatformBoundStrategy(ExecutionStrategy):
     ) -> GatheredContext:
         from services.platform_content import get_content_summary_for_generation
 
-        classification = agent.get("type_classification", {})
-        primary_platform = classification.get("primary_platform")
         sources = agent.get("sources", [])
+        # Infer primary platform from sources (first provider found)
+        primary_platform = None
+        for s in sources:
+            p = s.get("provider")
+            if p:
+                primary_platform = p
+                break
         agent_id = agent.get("id")
 
         context_parts = []
@@ -312,49 +315,6 @@ class ResearchStrategy(ExecutionStrategy):
         return result
 
 
-class HybridStrategy(ExecutionStrategy):
-    """
-    Strategy for hybrid agents.
-
-    ADR-081: Gathers platform context, then passes a research_directive
-    so the headless agent combines web research with platform grounding.
-    No separate web research call — the agent handles both.
-    """
-
-    @property
-    def strategy_name(self) -> str:
-        return "hybrid"
-
-    async def gather_context(
-        self,
-        client,
-        user_id: str,
-        agent: dict,
-    ) -> GatheredContext:
-        title = agent.get("title", "")
-        description = agent.get("description", "")
-
-        logger.info(f"[HYBRID] Gathering platform context: {title[:50]}...")
-
-        # Delegate platform context gathering to CrossPlatformStrategy
-        platform_strategy = CrossPlatformStrategy()
-        result = await platform_strategy.gather_context(client, user_id, agent)
-
-        # Override strategy name
-        result.summary["strategy"] = self.strategy_name
-
-        # ADR-081: Build research directive for headless agent
-        result.summary["research_directive"] = _build_research_directive(title, description)
-
-        logger.info(
-            f"[HYBRID] Context gathered (ADR-081): "
-            f"platform_sources={len(result.sources_used)}, "
-            f"items={result.items_fetched}, research_directive=yes"
-        )
-
-        return result
-
-
 class AnalystStrategy(ExecutionStrategy):
     """
     Strategy for reasoning agents (ADR-106).
@@ -472,44 +432,35 @@ Research approach:
 
 def get_execution_strategy(agent: dict) -> ExecutionStrategy:
     """
-    Select execution strategy based on agent archetype (ADR-106) or binding (ADR-081).
+    Select execution strategy based on agent scope (ADR-109).
 
-    ADR-106 reasoning agents use AnalystStrategy (workspace-driven).
-    Reporter agents continue using binding-based strategies (platform dump).
+    Scope directly maps to strategy:
+    - platform → PlatformBoundStrategy (single platform dump)
+    - cross_platform → CrossPlatformStrategy (multi-platform dump)
+    - knowledge → AnalystStrategy (workspace-driven queries)
+    - research → ResearchStrategy (platform + WebSearch)
+    - autonomous → AnalystStrategy (full workspace-driven investigation)
 
     Args:
-        agent: Agent dict with type_classification and agent_type
+        agent: Agent dict with scope and skill columns
 
     Returns:
         Appropriate ExecutionStrategy instance
     """
-    agent_type = agent.get("agent_type", "custom")
-    mode = agent.get("mode", "recurring")
-    classification = agent.get("type_classification", {})
-    binding = classification.get("binding", "cross_platform")
+    scope = agent.get("scope", "cross_platform")
 
-    # ADR-106: Reasoning agents use AnalystStrategy
-    # These agents drive their own context gathering from workspace
-    REASONING_TYPES = {"deep_research", "watch", "coordinator", "custom"}
-    REASONING_MODES = {"proactive", "coordinator"}
-
-    if agent_type in REASONING_TYPES or mode in REASONING_MODES:
-        strategy = AnalystStrategy()
-        logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for type={agent_type}, mode={mode} (ADR-106 reasoning agent)")
-        return strategy
-
-    # Reporter agents: binding-based strategy selection (unchanged)
     strategy_map = {
-        "platform_bound": PlatformBoundStrategy,
+        "platform": PlatformBoundStrategy,
         "cross_platform": CrossPlatformStrategy,
+        "knowledge": AnalystStrategy,
         "research": ResearchStrategy,
-        "hybrid": HybridStrategy,
+        "autonomous": AnalystStrategy,
     }
 
-    strategy_class = strategy_map.get(binding, CrossPlatformStrategy)
+    strategy_class = strategy_map.get(scope, CrossPlatformStrategy)
     strategy = strategy_class()
 
-    logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for binding={binding}, type={agent_type}")
+    logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for scope={scope}")
 
     return strategy
 

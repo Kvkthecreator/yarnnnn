@@ -30,7 +30,7 @@ This module replaces:
 - execute_stage_step() - validation/staging step
 
 Preserves from agent_pipeline.py:
-- Type-specific prompts (TYPE_PROMPTS, build_type_prompt)
+- Skill-specific prompts (SKILL_PROMPTS, build_skill_prompt)
 - Output validation (validate_output)
 - Past versions context (get_past_versions_context)
 """
@@ -155,7 +155,7 @@ async def create_version_record(
 
 
 def _build_headless_system_prompt(
-    agent_type: str,
+    skill: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
     agent: Optional[dict] = None,
@@ -163,21 +163,12 @@ def _build_headless_system_prompt(
     learned_preferences: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081/087/101).
-
-    ADR-101 prompt composition order:
-      1. Output Rules
-      2. User Context (profile + preferences from user_memory)
-      3. Directives (agent_instructions)
-      4. Memory (observations, goal, review_log)
-      5. Feedback (learned preferences from past version edits)
-      6. Tool Usage guidance
-      7. Trigger Context (signal/proactive)
+    Build system prompt for headless mode generation (ADR-080/081/087/101/109).
 
     Args:
-        agent_type: The agent type (digest, brief, status, etc.)
+        skill: The agent skill (digest, prepare, synthesize, etc.)
         trigger_context: Optional trigger info with signal reasoning
-        research_directive: Optional research instruction for research/hybrid types
+        research_directive: Optional research instruction for research-scope agents
         agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
         learned_preferences: Optional formatted string from get_past_versions_context()
@@ -185,7 +176,7 @@ def _build_headless_system_prompt(
     Returns:
         Complete system prompt string
     """
-    prompt = f"""You are generating a {agent_type} agent.
+    prompt = f"""You are generating a {skill} agent.
 
 ## Output Rules
 - Follow the format and instructions in the user message exactly.
@@ -303,13 +294,13 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
     return prompt
 
 
-# ADR-080 + ADR-081 + ADR-106: Binding/archetype-aware tool round limits
+# ADR-109: Scope-aware tool round limits
 HEADLESS_TOOL_ROUNDS = {
-    "platform_bound":  2,   # Rarely needs tools — context is pre-gathered
+    "platform":        2,   # Rarely needs tools — context is pre-gathered
     "cross_platform":  3,   # Occasionally useful for cross-referencing
+    "knowledge":       3,   # Workspace-driven queries
     "research":        6,   # Needs room for web search + follow-up
-    "hybrid":          6,   # Web research + platform investigation
-    "analyst":         8,   # ADR-106: workspace-driven — agent queries knowledge base + web
+    "autonomous":      8,   # Full investigation: workspace + knowledge base + web
 }
 
 
@@ -341,13 +332,14 @@ async def generate_draft_inline(
         create_headless_executor,
     )
     from services.agent_pipeline import (
-        build_type_prompt,
+        build_skill_prompt,
         validate_output,
         get_past_versions_context,
     )
 
     agent_id = agent.get("id")
-    agent_type = agent.get("agent_type", "custom")
+    skill = agent.get("skill", "custom")
+    scope = agent.get("scope", "cross_platform")
     type_config = agent.get("type_config", {})
     recipient_context = agent.get("recipient_context", {})
 
@@ -390,10 +382,10 @@ async def generate_draft_inline(
         },
     }
 
-    # Build type-specific prompt (user message)
+    # Build skill-specific prompt (user message)
     # ADR-101: past_versions moved to system prompt as learned_preferences
-    prompt = build_type_prompt(
-        agent_type=agent_type,
+    prompt = build_skill_prompt(
+        skill=skill,
         config=type_config,
         agent=workspace_agent,
         gathered_context=gathered_context,
@@ -425,25 +417,17 @@ async def generate_draft_inline(
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
-    # ADR-080/081/087/101/106: Headless system prompt with workspace-sourced intelligence
+    # ADR-109: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
-        agent_type, trigger_context, research_directive, workspace_agent, user_context,
+        skill, trigger_context, research_directive, workspace_agent, user_context,
         learned_preferences=past_versions,
     )
 
-    # ADR-081 + ADR-106: Tool round limit based on strategy or binding
-    # ADR-106 analyst strategy gets higher limit (workspace-driven investigation)
-    classification = agent.get("type_classification", {})
-    binding = classification.get("binding", "cross_platform")
+    # ADR-109: Tool round limit based on scope
+    max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(scope, 3)
 
-    # Check if this agent uses analyst strategy (ADR-106)
-    from services.execution_strategies import get_execution_strategy
-    strategy = get_execution_strategy(agent)
-    strategy_key = strategy.strategy_name if strategy.strategy_name in HEADLESS_TOOL_ROUNDS else binding
-    max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(strategy_key, 3)
-
-    # Brief (meeting prep) needs more rounds for per-attendee research + WebSearch
-    if agent_type == "brief":
+    # Prepare (meeting prep) needs more rounds for per-attendee research + WebSearch
+    if skill == "prepare":
         max_tool_rounds = max(max_tool_rounds, 5)
 
     # ADR-080: Mode-gated tools and executor
@@ -556,7 +540,7 @@ async def generate_draft_inline(
             raise ValueError("Agent produced empty draft")
 
         # Validate output (non-blocking - just log warnings)
-        validation = validate_output(agent_type, draft, type_config)
+        validation = validate_output(skill, draft, type_config)
         if not validation.get("valid"):
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
 
@@ -609,7 +593,7 @@ async def execute_agent_generation(
     Execute agent generation with immediate delivery (no approval gate).
 
     ADR-042: Simplified single-call flow
-    ADR-045: Strategy selection based on type_classification.binding
+    ADR-109: Strategy selection based on scope
     ADR-049: Context freshness checks and source snapshots
     ADR-066: Delivery-first, no governance - always attempt delivery
 
@@ -630,15 +614,14 @@ async def execute_agent_generation(
     )
 
     agent_id = agent.get("id")
-    agent_type = agent.get("agent_type", "custom")
+    skill = agent.get("skill", "custom")
+    scope = agent.get("scope", "cross_platform")
     title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
-    classification = agent.get("type_classification", {})
-    binding = classification.get("binding", "cross_platform")
 
     logger.info(
         f"[EXEC] Starting: {title} ({agent_id}), "
-        f"trigger={trigger_type}, binding={binding}"
+        f"trigger={trigger_type}, scope={scope}, skill={skill}"
     )
 
     version = None
@@ -808,7 +791,7 @@ async def execute_agent_generation(
                 from services.workspace import KnowledgeBase
                 from services.supabase import get_service_client as _get_svc3
                 kb = KnowledgeBase(_get_svc3(), user_id)
-                knowledge_path = KnowledgeBase.get_knowledge_path(agent_type, title)
+                knowledge_path = KnowledgeBase.get_knowledge_path(skill, title)
                 await kb.write(
                     path=knowledge_path,
                     content=draft,
@@ -816,11 +799,12 @@ async def execute_agent_generation(
                     metadata={
                         "agent_id": str(agent_id),
                         "run_id": str(version_id),
-                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(agent_type, "analyses"),
-                        "agent_type": agent_type,
+                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(skill, "analyses"),
+                        "skill": skill,
+                        "scope": scope,
                         "version_number": next_version,
                     },
-                    tags=[agent_type, agent.get("mode", "recurring")],
+                    tags=[skill, agent.get("mode", "recurring")],
                 )
                 logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
             except Exception as e:
@@ -846,7 +830,8 @@ async def execute_agent_generation(
                 metadata={
                     "agent_id": str(agent_id),
                     "version_number": next_version,
-                    "agent_type": agent_type,  # ADR-064: For pattern detection
+                    "skill": skill,  # ADR-109: For pattern detection
+                    "scope": scope,
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
                     "delivery_error": delivery_error,

@@ -122,7 +122,7 @@ async def list_agents(
 
     query = (
         auth.client.table("agents")
-        .select("id, title, agent_type, status, schedule, destination, sources, last_run_at, next_run_at")
+        .select("id, title, scope, skill, status, schedule, destination, sources, last_run_at, next_run_at")
         .eq("user_id", auth.user_id)
     )
     if status:

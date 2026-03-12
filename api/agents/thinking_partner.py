@@ -25,7 +25,7 @@ from services.anthropic import (
     StreamEvent,
 )
 from services.primitives import PRIMITIVES, execute_primitive
-from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
+from services.commands import detect_command, get_command_prompt_addition, detect_command_hybrid
 from services.working_memory import build_working_memory, format_for_prompt
 from services.platform_tools import get_platform_tools_for_user
 
@@ -125,7 +125,7 @@ class ThinkingPartnerAgent(BaseAgent):
         is_onboarding: bool = False,
         surface_content: Optional[str] = None,
         selected_domain_name: Optional[str] = None,
-        skill_prompt: Optional[str] = None,
+        command_prompt: Optional[str] = None,
         injected_context: Optional[dict] = None,
     ) -> str:
         """Build system prompt with memory context.
@@ -139,7 +139,7 @@ class ThinkingPartnerAgent(BaseAgent):
             is_onboarding: Whether user has no agents (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_domain_name: ADR-034 - Name of user's selected domain context
-            skill_prompt: ADR-025 - Skill-specific prompt addition to inject
+            command_prompt: ADR-025 - Skill-specific prompt addition to inject
             injected_context: ADR-058 - Pre-built working memory from build_working_memory()
         """
         # Build context text
@@ -175,8 +175,8 @@ class ThinkingPartnerAgent(BaseAgent):
         )
 
         # ADR-025: Inject skill prompt if a skill is active
-        if skill_prompt:
-            prompt = prompt + "\n" + skill_prompt
+        if command_prompt:
+            prompt = prompt + "\n" + command_prompt
 
         return prompt
 
@@ -363,9 +363,9 @@ class ThinkingPartnerAgent(BaseAgent):
         # Combine primitives with platform tools
         tools = self.tools + platform_tools
 
-        # ADR-025 + ADR-040: Detect skill from user message (hybrid: pattern + semantic)
-        active_skill, detection_method, confidence = await detect_skill_hybrid(task)
-        skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
+        # ADR-025 + ADR-040: Detect command from user message (hybrid: pattern + semantic)
+        active_command, detection_method, confidence = await detect_command_hybrid(task)
+        command_prompt = get_command_prompt_addition(active_command) if active_command else None
 
         # Detect if this is a response to a clarify() call
         # Clarification responses need special handling to ensure TP acts on the selected option
@@ -388,7 +388,7 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             is_onboarding=is_onboarding,
             surface_content=surface_content,
             selected_domain_name=selected_domain_name,
-            skill_prompt=skill_prompt,
+            command_prompt=command_prompt,
             injected_context=injected_context,
         )
 

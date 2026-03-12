@@ -19,7 +19,7 @@ TOOLS_SECTION = """---
 - `Read(ref="platform:slack")` - platform by provider
 
 **Write(ref, content)** - Create new entity
-- `Write(ref="agent:new", content={title: "Weekly Update", agent_type: "status"})`
+- `Write(ref="agent:new", content={title: "Weekly Update", skill: "synthesize"})`
 - (Memory writes are implicit - see Memory section below)
 
 **Edit(ref, changes)** - Modify existing entity
@@ -124,7 +124,7 @@ or make updates.
 ```
 Write(ref="agent:new", content={
   title: "Weekly Status",
-  agent_type: "status",
+  skill: "synthesize",
   frequency: "weekly",
   recipient_name: "Sarah"
 })

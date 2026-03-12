@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.12.2] - ADR-109: Scope × Skill × Trigger framework migration
+
+### Changed
+- `api/routes/agents.py`: `AgentType` literal → `Scope` + `Skill` literals. Deleted `TYPE_TIERS`, `get_type_classification()`. Added `infer_scope()` for auto-inferring scope from sources+skill+mode. Config classes renamed (BriefConfig→PrepareConfig, etc.). `AgentCreate/Update/Response` use `scope`+`skill` instead of `agent_type`+`type_classification`.
+- `api/services/agent_pipeline.py`: `TYPE_PROMPTS` → `SKILL_PROMPTS`, `build_type_prompt()` → `build_skill_prompt()`, `validate_output()` uses `skill` parameter.
+- `api/services/execution_strategies.py`: `HybridStrategy` deleted. `get_execution_strategy()` rewritten to direct scope→strategy mapping. `PlatformBoundStrategy` renamed to `platform` strategy_name.
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` uses `skill`. `HEADLESS_TOOL_ROUNDS` rekeyed by scope. `generate_draft_inline()` uses `skill`+`scope`.
+- `api/services/proactive_review.py`: All `agent_type` → `skill`, deep research condition uses scope.
+- `api/services/workspace.py`: `CONTENT_CLASS_MAP` rekeyed by skill.
+- `api/services/skills.py`: All skill definitions use `"skill"` key with new values.
+- `api/services/working_memory.py`, `api/routes/admin.py`, `api/routes/chat.py`, `api/services/delivery.py`, `api/services/primitives/write.py`, `api/services/primitives/coordinator.py`, `api/mcp_server/server.py`, `api/jobs/unified_scheduler.py`: All `agent_type` → `skill`/`scope`.
+- Expected behavior: Agents are now classified by orthogonal Scope (auto-inferred) × Skill (user-selected) × Trigger (mode). No more 7-type taxonomy. Strategy selection is direct scope→strategy, no heuristic.
+
+---
+
 ## [2026.03.12.1] - ADR-108: SaveMemory primitive
 
 ### Added

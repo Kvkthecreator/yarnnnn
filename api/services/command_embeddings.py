@@ -1,11 +1,11 @@
 """
-Semantic Skill Matching (ADR-040)
+Semantic Command Matching (ADR-040)
 
-Provides semantic skill detection using embeddings as a fallback to pattern matching.
-This enables natural language skill activation even when exact patterns don't match.
+Provides semantic command detection using embeddings as a fallback to pattern matching.
+This enables natural language command activation even when exact patterns don't match.
 
 Architecture:
-- Skill descriptions are embedded once (cached at module level)
+- Command descriptions are embedded once (cached at module level)
 - User messages are embedded on-demand
 - Cosine similarity determines best match
 - Threshold controls precision/recall tradeoff
@@ -21,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Skill Descriptions for Semantic Matching
+# Command Descriptions for Semantic Matching
 # =============================================================================
-# These descriptions are designed to capture the semantic intent of each skill,
+# These descriptions are designed to capture the semantic intent of each command,
 # including variations and synonyms that might not appear in trigger_patterns.
 
-SKILL_DESCRIPTIONS = {
+COMMAND_DESCRIPTIONS = {
     "board-update": """
         Create recurring board update agents for investors and board members.
         Monthly or quarterly updates with company metrics, progress, challenges, and asks.
@@ -101,39 +101,39 @@ SKILL_DESCRIPTIONS = {
 # Embedding Cache
 # =============================================================================
 
-_skill_embeddings: dict[str, list[float]] = {}
+_command_embeddings: dict[str, list[float]] = {}
 _embeddings_initialized = False
 
 
-async def _initialize_skill_embeddings():
-    """Initialize skill embeddings cache (called once on first use)."""
-    global _skill_embeddings, _embeddings_initialized
+async def _initialize_command_embeddings():
+    """Initialize command embeddings cache (called once on first use)."""
+    global _command_embeddings, _embeddings_initialized
 
     if _embeddings_initialized:
         return
 
-    logger.info("Initializing skill embeddings cache...")
+    logger.info("Initializing command embeddings cache...")
 
     # Get all descriptions
-    skill_names = list(SKILL_DESCRIPTIONS.keys())
-    descriptions = [SKILL_DESCRIPTIONS[name] for name in skill_names]
+    command_names = list(COMMAND_DESCRIPTIONS.keys())
+    descriptions = [COMMAND_DESCRIPTIONS[name] for name in command_names]
 
     # Batch embed all descriptions
     embeddings = await get_embeddings_batch(descriptions)
 
     # Cache results
-    for skill_name, embedding in zip(skill_names, embeddings):
-        _skill_embeddings[skill_name] = embedding
+    for command_name, embedding in zip(command_names, embeddings):
+        _command_embeddings[command_name] = embedding
 
     _embeddings_initialized = True
-    logger.info(f"Skill embeddings cache initialized with {len(_skill_embeddings)} skills")
+    logger.info(f"Command embeddings cache initialized with {len(_command_embeddings)} commands")
 
 
-async def get_skill_embeddings() -> dict[str, list[float]]:
-    """Get cached skill embeddings (initializes on first call)."""
+async def get_command_embeddings() -> dict[str, list[float]]:
+    """Get cached command embeddings (initializes on first call)."""
     if not _embeddings_initialized:
-        await _initialize_skill_embeddings()
-    return _skill_embeddings
+        await _initialize_command_embeddings()
+    return _command_embeddings
 
 
 # =============================================================================
@@ -173,42 +173,42 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 SEMANTIC_THRESHOLD = 0.72
 
 
-async def detect_skill_semantic(
+async def detect_command_semantic(
     user_message: str,
     threshold: float = SEMANTIC_THRESHOLD
 ) -> tuple[Optional[str], float]:
     """
-    Detect skill using semantic similarity.
+    Detect command using semantic similarity.
 
     Args:
         user_message: The user's message to analyze
         threshold: Minimum similarity score to consider a match
 
     Returns:
-        Tuple of (skill_name or None, confidence score)
-        - If confidence >= threshold, skill_name is the best match
-        - If confidence < threshold, skill_name is None
+        Tuple of (command_name or None, confidence score)
+        - If confidence >= threshold, command_name is the best match
+        - If confidence < threshold, command_name is None
     """
     # Get message embedding
     message_embedding = await get_embedding(user_message)
 
-    # Get skill embeddings (cached)
-    skill_embeddings = await get_skill_embeddings()
+    # Get command embeddings (cached)
+    cmd_embeddings = await get_command_embeddings()
 
     # Find best match
-    best_skill: Optional[str] = None
+    best_command: Optional[str] = None
     best_score: float = 0.0
 
-    for skill_name, skill_embedding in skill_embeddings.items():
-        score = cosine_similarity(message_embedding, skill_embedding)
+    for command_name, command_embedding in cmd_embeddings.items():
+        score = cosine_similarity(message_embedding, command_embedding)
         if score > best_score:
             best_score = score
-            best_skill = skill_name
+            best_command = command_name
 
     # Return match only if above threshold
     if best_score >= threshold:
-        logger.debug(f"Semantic skill match: '{best_skill}' with confidence {best_score:.3f}")
-        return (best_skill, best_score)
+        logger.debug(f"Semantic command match: '{best_command}' with confidence {best_score:.3f}")
+        return (best_command, best_score)
 
-    logger.debug(f"No semantic skill match (best was '{best_skill}' at {best_score:.3f})")
+    logger.debug(f"No semantic command match (best was '{best_command}' at {best_score:.3f})")
     return (None, best_score)

@@ -1,8 +1,7 @@
 """
 Agents routes - Recurring agent management
 
-ADR-018: Recurring Agents Product Pivot
-ADR-019: Agent Types System
+ADR-109: Scope × Skill × Trigger Framework
 
 Endpoints:
 - POST /agents - Create a new agent
@@ -32,147 +31,121 @@ router = APIRouter()
 
 
 # =============================================================================
-# ADR-093: Agent Type Definitions (7 purpose-first types)
+# ADR-109: Scope × Skill × Trigger Framework
 # =============================================================================
 
-AgentType = Literal[
-    "digest",        # Synthesis of what's happening in a specific place (platform inferred from sources)
-    "brief",         # Situation-specific document before a key event
-    "status",        # Regular cross-platform summary for a person or audience
-    "watch",         # Standing-order intelligence on a domain
-    "deep_research", # Bounded investigation into something specific, then done
-    "coordinator",   # Meta-specialist that watches a domain and dispatches other work
-    "custom",        # User-defined intent
+Scope = Literal[
+    "platform",        # Single platform (inferred: 1 provider in sources)
+    "cross_platform",  # Multiple platforms (inferred: 2+ providers)
+    "knowledge",       # Accumulated /knowledge/ filesystem
+    "research",        # Knowledge + WebSearch
+    "autonomous",      # Full primitive set, agent-driven
 ]
 
-# ADR-093: All 7 types are stable
-TYPE_TIERS = {
-    "digest": "stable",
-    "brief": "stable",
-    "status": "stable",
-    "watch": "stable",
-    "deep_research": "stable",
-    "coordinator": "stable",
-    "custom": "stable",
-}
+Skill = Literal[
+    "digest",      # Compress, summarize — platform recap
+    "prepare",     # Anticipate, assemble — meeting prep
+    "monitor",     # Track, diff, alert — domain watching
+    "research",    # Investigate, analyze — bounded research
+    "synthesize",  # Connect, derive insight — cross-source synthesis
+    "orchestrate", # Coordinate, dispatch — agent fleet management
+    "act",         # Execute, respond, post — platform actions (future)
+    "custom",      # User-defined
+]
 
 
-# =============================================================================
-# ADR-044/045: Type Classification for Strategy Selection
-# =============================================================================
-
-def get_type_classification(agent_type: str) -> dict:
+def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
     """
-    ADR-093: Get type_classification for an agent type.
+    ADR-109: Auto-infer scope from sources + skill + mode.
 
-    Determines which execution strategy is used:
-    - platform_bound: Single platform context — inferred from sources[] for digest
-    - cross_platform: Multi-platform synthesis (CrossPlatformStrategy)
-    - research: Web research via headless agent WebSearch (ADR-081)
-    - hybrid: Research + platform grounding (HybridStrategy)
+    Scope is never user-configured — it's derived from what the agent knows about.
 
-    Returns:
-        dict with binding, temporal_pattern, and optional primary_platform
+    Rules:
+    1. orchestrate skill → autonomous
+    2. research skill with no sources → research
+    3. 0 platform sources → knowledge (or cross_platform fallback)
+    4. 1 provider → platform
+    5. 2+ providers → cross_platform
+    6. proactive/coordinator mode with autonomous skill → autonomous
     """
-    if agent_type == "digest":
-        # Platform inferred from sources[] at assembly time, not from type
-        return {
-            "binding": "platform_bound",
-            "temporal_pattern": "scheduled",
-        }
+    if skill == "orchestrate":
+        return "autonomous"
 
-    if agent_type == "brief":
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "scheduled",
-        }
+    if mode in ("proactive", "coordinator") and skill in ("synthesize", "research"):
+        return "autonomous"
 
-    if agent_type == "status":
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "scheduled",
-        }
+    # Count distinct providers from integration sources
+    providers = set()
+    for s in sources:
+        provider = s.get("provider") if isinstance(s, dict) else None
+        if provider:
+            providers.add(provider)
 
-    if agent_type == "watch":
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "on_demand",
-        }
+    if not providers:
+        if skill == "research":
+            return "research"
+        return "knowledge" if skill in ("monitor", "research") else "cross_platform"
 
-    if agent_type == "deep_research":
-        return {
-            "binding": "hybrid",
-            "temporal_pattern": "proactive",
-        }
+    if len(providers) == 1:
+        return "platform"
 
-    if agent_type == "coordinator":
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "on_demand",
-        }
-
-    # custom and unknown types
-    return {
-        "binding": "hybrid",
-        "temporal_pattern": "on_demand",
-    }
+    return "cross_platform"
 
 
 # =============================================================================
-# ADR-093: Type Configs (7 purpose-first types)
+# ADR-109: Skill Configs
 # =============================================================================
 
 class DigestConfig(BaseModel):
-    """Configuration for digest type. Platform inferred from sources[] at assembly time."""
+    """Config for digest skill. Platform inferred from sources[] at assembly time."""
     focus: str = "key discussions and decisions"
     reply_threshold: int = 3    # Min replies to flag as hot thread (Slack)
     reaction_threshold: int = 2  # Min reactions to surface a message (Slack)
 
 
-class BriefConfig(BaseModel):
-    """Configuration for brief type (auto meeting prep, daily calendar-driven)."""
+class PrepareConfig(BaseModel):
+    """Config for prepare skill (auto meeting prep, daily calendar-driven)."""
     delivery_time: Optional[str] = "08:00"  # Preferred morning delivery time
 
 
-class StatusConfig(BaseModel):
-    """Configuration for status type (cross-platform status update)."""
+class SynthesizeConfig(BaseModel):
+    """Config for synthesize skill (cross-platform status update, proactive insights)."""
     subject: str = ""  # "Engineering Team", "Project Alpha"
     audience: Literal["manager", "stakeholders", "team", "executive"] = "stakeholders"
     detail_level: Literal["brief", "standard", "detailed"] = "standard"
     tone: Literal["formal", "conversational"] = "formal"
 
 
-class WatchConfig(BaseModel):
-    """Configuration for watch type (standing-order intelligence monitoring)."""
+class MonitorConfig(BaseModel):
+    """Config for monitor skill (standing-order intelligence monitoring)."""
     domain: str = ""  # "competitive landscape", "AI regulation", "customer feedback"
     signals: list[str] = Field(default_factory=list)  # What to look for
 
 
-class DeepResearchConfig(BaseModel):
-    """Configuration for deep_research type (Proactive Insights — signal-driven intelligence)."""
+class ResearchConfig(BaseModel):
+    """Config for research skill (bounded investigation)."""
     pulse_frequency: Literal["daily", "weekly"] = "weekly"
 
 
-class CoordinatorConfig(BaseModel):
-    """Configuration for coordinator type (meta-specialist that dispatches work)."""
+class OrchestrateConfig(BaseModel):
+    """Config for orchestrate skill (coordinator that dispatches work)."""
     domain: str = ""  # Domain this coordinator watches
     dispatch_rules: list[str] = Field(default_factory=list)  # What triggers dispatching
 
 
 class CustomConfig(BaseModel):
-    """Configuration for custom/freeform agent type."""
+    """Config for custom skill."""
     description: str = ""
     structure_notes: Optional[str] = None
 
 
-# ADR-093: Union type for type_config (7 types)
-TypeConfig = Union[
+SkillConfig = Union[
     DigestConfig,
-    BriefConfig,
-    StatusConfig,
-    WatchConfig,
-    DeepResearchConfig,
-    CoordinatorConfig,
+    PrepareConfig,
+    SynthesizeConfig,
+    MonitorConfig,
+    ResearchConfig,
+    OrchestrateConfig,
     CustomConfig,
 ]
 
@@ -255,18 +228,18 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
     )
 
 
-def get_default_config(agent_type: AgentType) -> dict:
-    """Get default configuration for an agent type (ADR-093: 7 types)."""
+def get_default_config(skill: str) -> dict:
+    """Get default configuration for a skill (ADR-109)."""
     defaults = {
         "digest": DigestConfig(),
-        "brief": BriefConfig(),
-        "status": StatusConfig(),
-        "watch": WatchConfig(),
-        "deep_research": DeepResearchConfig(),
-        "coordinator": CoordinatorConfig(),
+        "prepare": PrepareConfig(),
+        "synthesize": SynthesizeConfig(),
+        "monitor": MonitorConfig(),
+        "research": ResearchConfig(),
+        "orchestrate": OrchestrateConfig(),
         "custom": CustomConfig(),
     }
-    return defaults.get(agent_type, defaults["custom"]).model_dump()
+    return defaults.get(skill, defaults["custom"]).model_dump()
 
 
 # =============================================================================
@@ -333,14 +306,13 @@ class DataSource(BaseModel):
 
 
 class AgentCreate(BaseModel):
-    """Create agent request - ADR-019 type-first approach."""
+    """Create agent request — ADR-109 Scope × Skill × Trigger."""
     title: str
-    agent_type: AgentType = "custom"
-    type_config: Optional[dict] = None  # Type-specific config, validated per type
+    # ADR-109: Skill is user-selected, scope is auto-inferred
+    skill: Skill = "custom"
+    type_config: Optional[dict] = None  # Skill-specific config, validated per skill
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
-    # ADR-044: Type classification (binding + temporal pattern)
-    type_classification: Optional[dict] = None  # If provided, overrides auto-computed
     recipient_context: Optional[RecipientContext] = None
     # ADR-031 Phase 4: Trigger configuration
     trigger_type: Literal["schedule", "event", "manual"] = "schedule"
@@ -353,18 +325,17 @@ class AgentCreate(BaseModel):
     destinations: Optional[list[dict]] = None  # Array of destination configs
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: bool = False  # If true, uses cross-platform context assembly
-    # ADR-092: Mode taxonomy
+    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
-    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
 
 
 class AgentUpdate(BaseModel):
-    """Update agent request."""
+    """Update agent request — ADR-109."""
     title: Optional[str] = None
-    agent_type: Optional[AgentType] = None
+    skill: Optional[Skill] = None
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
@@ -383,24 +354,23 @@ class AgentUpdate(BaseModel):
     is_synthesizer: Optional[bool] = None
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
-    # ADR-092: Mode taxonomy extended
+    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
     # ADR-092: Proactive/coordinator review scheduling
     proactive_next_review_at: Optional[str] = None
-    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
 
 
 class AgentResponse(BaseModel):
-    """Agent response - includes ADR-019 type fields."""
+    """Agent response — ADR-109 Scope × Skill × Trigger."""
     id: str
     title: str
-    agent_type: str = "custom"
+    # ADR-109: Scope × Skill (replaces agent_type + type_classification)
+    scope: str = "cross_platform"
+    skill: str = "custom"
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
-    # ADR-044: Type classification (binding + temporal pattern)
-    type_classification: Optional[dict] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
@@ -425,22 +395,20 @@ class AgentResponse(BaseModel):
     is_synthesizer: bool = False  # Uses cross-platform context assembly
     linked_resources: Optional[list[dict]] = None  # Project resources for synthesizers
     # Quality metrics (ADR-018: feedback loop)
-    quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
-    quality_trend: Optional[str] = None  # "improving", "stable", "declining"
-    avg_edit_distance: Optional[float] = None  # Average over last 5 versions
+    quality_score: Optional[float] = None
+    quality_trend: Optional[str] = None
+    avg_edit_distance: Optional[float] = None
     # ADR-030: Source freshness
-    source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
-    # ADR-068: Agent origin (how it came to exist)
-    # ADR-092: coordinator_created added
+    source_freshness: Optional[list[dict]] = None
+    # ADR-068: Agent origin
     origin: str = "user_configured"  # user_configured | coordinator_created
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
     agent_memory: Optional[dict] = None
-    # ADR-092: Mode taxonomy extended
+    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
     # ADR-092: Proactive/coordinator review scheduling
     proactive_next_review_at: Optional[str] = None
-    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
 
 
@@ -571,40 +539,36 @@ async def create_agent(
     # Handle type_config - use provided or get defaults
     type_config = request.type_config
     if type_config is None:
-        # For custom type with legacy fields, migrate them
-        if request.agent_type == "custom" and request.description:
-            type_config = {
-                "description": request.description or "",
-            }
+        if request.skill == "custom" and request.description:
+            type_config = {"description": request.description or ""}
         else:
-            type_config = get_default_config(request.agent_type)
+            type_config = get_default_config(request.skill)
 
-    # Validate type_config against the type
-    validated_config = validate_type_config(request.agent_type, type_config)
+    # Validate type_config against the skill
+    validated_config = validate_skill_config(request.skill, type_config)
 
-    # ADR-044/045: Use provided type_classification or compute from agent_type
-    type_classification = request.type_classification or get_type_classification(request.agent_type)
+    # ADR-109: Scope is auto-inferred from sources + skill + mode
+    sources_raw = [s.model_dump() for s in request.sources]
+    scope = infer_scope(sources_raw, request.skill, request.mode)
 
     # Create agent
     agent_data = {
         "user_id": auth.user_id,
         "title": request.title,
-        "agent_type": request.agent_type,
-        "type_tier": TYPE_TIERS.get(request.agent_type, "stable"),
+        "scope": scope,
+        "skill": request.skill,
         "type_config": validated_config,
-        # ADR-044/045: Type classification for execution strategy
-        "type_classification": type_classification,
         # ADR-031: Platform-native variants
         "platform_variant": request.platform_variant,
-        "description": request.description,  # Legacy, kept for backwards compat
+        "description": request.description,
         "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
         "schedule": request.schedule.model_dump(),
-        "sources": [s.model_dump() for s in request.sources],
+        "sources": sources_raw,
         "status": "active",
         "next_run_at": next_run_at,
         # ADR-028: Destination-first agents
         "destination": request.destination,
-        # ADR-092: Mode taxonomy
+        # ADR-092: Mode taxonomy (trigger axis)
         "mode": request.mode,
     }
 
@@ -632,12 +596,11 @@ async def create_agent(
     return AgentResponse(
         id=agent["id"],
         title=agent["title"],
-        agent_type=agent.get("agent_type", "custom"),
+        scope=agent.get("scope", "cross_platform"),
+        skill=agent.get("skill", "custom"),
         type_config=agent.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=agent.get("platform_variant"),
-        # ADR-044: Type classification
-        type_classification=agent.get("type_classification"),
         project_id=None,  # ADR-034: Deprecated
         recipient_context=agent.get("recipient_context"),
         schedule=agent["schedule"],
@@ -654,7 +617,6 @@ async def create_agent(
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
         mode=agent.get("mode", "recurring"),
-        # Legacy: description still consumed by Research/Hybrid strategies
         description=agent.get("description"),
     )
 
@@ -769,12 +731,11 @@ async def list_agents(
         responses.append(AgentResponse(
             id=d["id"],
             title=d["title"],
-            agent_type=d.get("agent_type", "custom"),
+            scope=d.get("scope", "cross_platform"),
+            skill=d.get("skill", "custom"),
             type_config=d.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=d.get("platform_variant"),
-            # ADR-044: Type classification
-            type_classification=d.get("type_classification"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=d.get("recipient_context"),
@@ -798,7 +759,6 @@ async def list_agents(
             agent_instructions=intel.get("agent_instructions"),
             agent_memory=intel.get("agent_memory"),
             mode=d.get("mode", "recurring"),
-            # Legacy: description still consumed by Research/Hybrid strategies
             description=d.get("description"),
         ))
 
@@ -853,12 +813,11 @@ async def get_agent(
         "agent": AgentResponse(
             id=agent["id"],
             title=agent["title"],
-            agent_type=agent.get("agent_type", "custom"),
+            scope=agent.get("scope", "cross_platform"),
+        skill=agent.get("skill", "custom"),
             type_config=agent.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=agent.get("platform_variant"),
-            # ADR-044: Type classification
-            type_classification=agent.get("type_classification"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=agent.get("recipient_context"),
@@ -878,7 +837,6 @@ async def get_agent(
             agent_instructions=intelligence.get("agent_instructions"),
             agent_memory=intelligence.get("agent_memory"),
             mode=agent.get("mode", "recurring"),
-            # Legacy: description still consumed by Research/Hybrid strategies
             description=agent.get("description"),
         ),
         "versions": [
@@ -941,15 +899,15 @@ async def update_agent(
 
     if request.title is not None:
         update_data["title"] = request.title
-    if request.agent_type is not None:
-        update_data["agent_type"] = request.agent_type
-        # If type changes but no new config provided, reset to defaults
+    if request.skill is not None:
+        update_data["skill"] = request.skill
+        # If skill changes but no new config provided, reset to defaults
         if request.type_config is None:
-            update_data["type_config"] = get_default_config(request.agent_type)
+            update_data["type_config"] = get_default_config(request.skill)
     if request.type_config is not None:
-        # Validate against current or new type
-        target_type = request.agent_type or check.data.get("agent_type", "custom")
-        update_data["type_config"] = validate_type_config(target_type, request.type_config)
+        # Validate against current or new skill
+        target_skill = request.skill or check.data.get("skill", "custom")
+        update_data["type_config"] = validate_skill_config(target_skill, request.type_config)
     # ADR-031: Platform-native variants
     if request.platform_variant is not None:
         update_data["platform_variant"] = request.platform_variant
@@ -960,6 +918,10 @@ async def update_agent(
         update_data["next_run_at"] = calculate_next_run(request.schedule)
     if request.sources is not None:
         update_data["sources"] = [s.model_dump() for s in request.sources]
+        # ADR-109: Re-infer scope when sources change
+        new_skill = request.skill or check.data.get("skill", "custom")
+        new_mode = request.mode or check.data.get("mode", "recurring")
+        update_data["scope"] = infer_scope(update_data["sources"], new_skill, new_mode)
     if request.status is not None:
         update_data["status"] = request.status
     # ADR-028: Destination-first agents
@@ -998,7 +960,8 @@ async def update_agent(
     return AgentResponse(
         id=d["id"],
         title=d["title"],
-        agent_type=d.get("agent_type", "custom"),
+        scope=d.get("scope", "cross_platform"),
+        skill=d.get("skill", "custom"),
         type_config=d.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=d.get("platform_variant"),
@@ -1429,7 +1392,7 @@ async def update_run(
             metadata = {
                 "agent_id": str(agent_id),
                 "run_id": str(run_id),
-                "agent_type": check.data.get("agent_type"),
+                "skill": check.data.get("skill"),
             }
 
             # Track edit patterns for memory extraction
@@ -1535,30 +1498,28 @@ async def list_agent_sessions(
 # Helper Functions
 # =============================================================================
 
-def validate_type_config(agent_type: AgentType, config: dict) -> dict:
+def validate_skill_config(skill: str, config: dict) -> dict:
     """
-    Validate and normalize type_config for a given agent type.
+    Validate and normalize type_config for a given skill (ADR-109).
     Returns the validated config dict.
-
-    ADR-093: Maps the 7 purpose-first types to their config classes.
     """
     config_classes: dict[str, type[BaseModel]] = {
         "digest": DigestConfig,
-        "brief": BriefConfig,
-        "status": StatusConfig,
-        "watch": WatchConfig,
-        "deep_research": DeepResearchConfig,
-        "coordinator": CoordinatorConfig,
+        "prepare": PrepareConfig,
+        "synthesize": SynthesizeConfig,
+        "monitor": MonitorConfig,
+        "research": ResearchConfig,
+        "orchestrate": OrchestrateConfig,
         "custom": CustomConfig,
     }
 
     try:
-        config_class = config_classes.get(agent_type, CustomConfig)
+        config_class = config_classes.get(skill, CustomConfig)
         validated = config_class(**config)
         return validated.model_dump()
     except Exception as e:
-        logger.warning(f"[AGENT] Invalid type_config for {agent_type}: {e}")
-        return get_default_config(agent_type)
+        logger.warning(f"[AGENT] Invalid type_config for skill={skill}: {e}")
+        return get_default_config(skill)
 
 
 def calculate_next_run(schedule: ScheduleConfig) -> str:

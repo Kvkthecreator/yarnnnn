@@ -1,14 +1,14 @@
 """
 Agent Pipeline Utilities
 
-ADR-093: 7 purpose-first type prompt templates and validation.
+ADR-109: Skill-keyed prompt templates and validation.
 ADR-073: Live API fetch functions removed — execution strategies
          read from platform_content (unified fetch architecture).
 
 Contains:
-- TYPE_PROMPTS: Per-type prompt templates for LLM synthesis
-- build_type_prompt(): Assembles prompt from agent config
-- validate_output(): Per-type output validation
+- SKILL_PROMPTS: Per-skill prompt templates for LLM synthesis
+- build_skill_prompt(): Assembles prompt from agent config
+- validate_output(): Per-skill output validation
 - get_past_versions_context(): Past version feedback for learning
 """
 
@@ -63,20 +63,21 @@ _PLATFORM_DIGEST_SIGNALS = {
 
 # Default instructions seeded when an agent is created without explicit instructions.
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
+# ADR-109: Keyed by skill name
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
-    "brief": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
-    "status": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
-    "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
-    "deep_research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
-    "coordinator": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
+    "prepare": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
+    "synthesize": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
+    "monitor": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
+    "research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
+    "orchestrate": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
-# ADR-093: Purpose-first type prompts. Versions tracked in api/prompts/CHANGELOG.md
-# status: v4 (2026.03.06) — two-part format + cross-platform connections
+# ADR-109: Skill prompts. Versions tracked in api/prompts/CHANGELOG.md
+# synthesize: v4 (2026.03.06) — two-part format + cross-platform connections
 # digest: v2 (2026.03.06) — platform-wide recap with highlights + by-source breakdown
-TYPE_PROMPTS = {
+SKILL_PROMPTS = {
 
     "digest": """You are producing a platform recap titled "{title}".
 
@@ -123,8 +124,8 @@ Rules:
 
 Write the recap now:""",
 
-    # brief: v3 (2026.03.06) — auto meeting prep with deep classification + tool use
-    "brief": """You are generating auto meeting prep titled "{title}".
+    # prepare: v3 (2026.03.06) — auto meeting prep with deep classification + tool use
+    "prepare": """You are generating auto meeting prep titled "{title}".
 
 TODAY'S DATE: {today_date}
 
@@ -204,7 +205,7 @@ Rules:
 
 Write the meeting prep now:""",
 
-    "status": """You are producing a work summary titled "{title}".
+    "synthesize": """You are producing a work summary titled "{title}".
 
 SUBJECT: {subject}
 AUDIENCE: {audience}
@@ -262,7 +263,7 @@ Rules:
 
 Write the work summary now:""",
 
-    "watch": """You are producing an intelligence watch report titled "{title}".
+    "monitor": """You are producing an intelligence watch report titled "{title}".
 
 DOMAIN BEING WATCHED: {domain}
 SIGNALS TO TRACK: {signals}
@@ -286,8 +287,8 @@ INSTRUCTIONS:
 
 Write the watch report now:""",
 
-    # deep_research: v2 (2026.03.06) — Proactive Insights: signal-driven intelligence
-    "deep_research": """You are producing Proactive Insights titled "{title}".
+    # research: v2 (2026.03.06) — Proactive Insights: signal-driven intelligence
+    "research": """You are producing Proactive Insights titled "{title}".
 
 TODAY'S DATE: {today_date}
 
@@ -350,7 +351,7 @@ Rules:
 
 Write the proactive insights now:""",
 
-    "coordinator": """You are producing a coordinator review titled "{title}".
+    "orchestrate": """You are producing a coordinator review titled "{title}".
 
 DOMAIN BEING COORDINATED: {domain}
 DISPATCH RULES:
@@ -396,12 +397,7 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
-}  # end TYPE_PROMPTS
-
-
-# Legacy prompts removed (ADR-093): status_report, research_brief, slack_channel_digest,
-# gmail_inbox_brief, notion_page_summary, meeting_prep, weekly_calendar_preview
-# All replaced by 7 purpose-first types above.
+}  # end SKILL_PROMPTS
 
 
 
@@ -427,17 +423,17 @@ def _infer_source_platform(sources: list) -> str:
     return "default"
 
 
-def build_type_prompt(
-    agent_type: str,
+def build_skill_prompt(
+    skill: str,
     config: dict,
     agent: dict,
     gathered_context: str,
     recipient_text: str,
     past_versions: str,
 ) -> str:
-    """Build the type-specific synthesis prompt (ADR-093: 7 purpose-first types)."""
+    """Build the skill-specific synthesis prompt (ADR-109)."""
 
-    template = TYPE_PROMPTS.get(agent_type, TYPE_PROMPTS["custom"])
+    template = SKILL_PROMPTS.get(skill, SKILL_PROMPTS["custom"])
 
     # Common fields present in all templates
     # ADR-104: Inject agent_instructions into user message (dual injection —
@@ -455,7 +451,7 @@ def build_type_prompt(
         "user_instructions": user_instructions,
     }
 
-    if agent_type == "digest":
+    if skill == "digest":
         source_platform = _infer_source_platform(agent.get("sources", []))
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
@@ -469,7 +465,7 @@ def build_type_prompt(
             "platform_signals": platform_signals,
         })
 
-    elif agent_type == "brief":
+    elif skill == "prepare":
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
@@ -487,7 +483,7 @@ def build_type_prompt(
             "date_range": date_range,
         })
 
-    elif agent_type == "status":
+    elif skill == "synthesize":
         fields.update({
             "subject": config.get("subject", agent.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
@@ -499,14 +495,14 @@ def build_type_prompt(
             ),
         })
 
-    elif agent_type == "watch":
+    elif skill == "monitor":
         signals = config.get("signals", [])
         fields.update({
             "domain": config.get("domain", agent.get("title", "domain")),
             "signals": "\n".join(f"- {s}" for s in signals) if signals else "- Notable developments and emerging patterns",
         })
 
-    elif agent_type == "deep_research":
+    elif skill == "research":
         from datetime import datetime
         import pytz
         tz_name = agent.get("schedule", {}).get("timezone", "UTC")
@@ -519,7 +515,7 @@ def build_type_prompt(
             "today_date": today_str,
         })
 
-    elif agent_type == "coordinator":
+    elif skill == "orchestrate":
         dispatch_rules = config.get("dispatch_rules", [])
         fields.update({
             "domain": config.get("domain", agent.get("title", "domain")),
@@ -536,9 +532,9 @@ def build_type_prompt(
     try:
         return template.format(**fields)
     except KeyError as e:
-        logger.warning(f"Missing field in prompt template for {agent_type}: {e}")
+        logger.warning(f"Missing field in prompt template for skill={skill}: {e}")
         # Fall back to custom template
-        return TYPE_PROMPTS["custom"].format(**{
+        return SKILL_PROMPTS["custom"].format(**{
             "title": agent.get("title", "Agent"),
             "description": config.get("description", ""),
             "structure_notes": "",
@@ -550,7 +546,7 @@ def build_type_prompt(
 
 
 # =============================================================================
-# ADR-093: Validation Functions (7 purpose-first types)
+# ADR-109: Validation Functions (per skill)
 # =============================================================================
 
 def _validate_minimum_content(content: str, min_words: int = 50) -> list[str]:
@@ -561,9 +557,9 @@ def _validate_minimum_content(content: str, min_words: int = 50) -> list[str]:
     return []
 
 
-def validate_output(agent_type: str, content: str, config: dict) -> dict:
+def validate_output(skill: str, content: str, config: dict) -> dict:
     """
-    Validate generated content based on agent type (ADR-093: 7 types).
+    Validate generated content based on skill (ADR-109).
 
     Returns:
         {
@@ -577,7 +573,7 @@ def validate_output(agent_type: str, content: str, config: dict) -> dict:
 
     issues = _validate_minimum_content(content)
 
-    if agent_type == "status":
+    if skill == "synthesize":
         detail_level = config.get("detail_level", "standard")
         min_words_map = {"brief": 150, "standard": 300, "detailed": 600}
         word_count = len(content.split())
@@ -585,7 +581,7 @@ def validate_output(agent_type: str, content: str, config: dict) -> dict:
         if word_count < min_w * 0.7:
             issues.append(f"Too short for {detail_level}: {word_count} words (expected {min_w}+)")
 
-    elif agent_type == "deep_research":
+    elif skill == "research":
         word_count = len(content.split())
         if word_count < 200:
             issues.append(f"Too short for proactive insights: {word_count} words (expected 200+)")
@@ -595,7 +591,7 @@ def validate_output(agent_type: str, content: str, config: dict) -> dict:
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
 
-    elif agent_type == "digest":
+    elif skill == "digest":
         char_count = len(content)
         if char_count > 3000:
             issues.append(f"Digest may be too long: {char_count} chars")

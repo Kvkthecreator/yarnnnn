@@ -38,7 +38,7 @@ The created agent will run once immediately (trigger_type=manual) unless
 you specify a schedule. It appears in the user's agents list with
 origin=coordinator_created, attributed to this coordinator.
 
-Required: title, agent_type
+Required: title, skill
 Optional: agent_instructions, sources (inherits coordinator's if omitted),
           trigger_context (passed to the generation run), dedup_key (for deduplication)""",
     "input_schema": {
@@ -48,9 +48,9 @@ Optional: agent_instructions, sources (inherits coordinator's if omitted),
                 "type": "string",
                 "description": "Title for the new agent"
             },
-            "agent_type": {
+            "skill": {
                 "type": "string",
-                "description": "Type of agent (e.g. brief, status, digest, watch, deep_research, coordinator, custom)"
+                "description": "Skill of the agent (e.g. digest, prepare, synthesize, monitor, research, orchestrate, custom)"
             },
             "agent_instructions": {
                 "type": "string",
@@ -70,7 +70,7 @@ Optional: agent_instructions, sources (inherits coordinator's if omitted),
                 "description": "Unique key for this event (e.g. 'brief:calendar_event_id_xyz'). Used to prevent duplicate creation."
             }
         },
-        "required": ["title", "agent_type"]
+        "required": ["title", "skill"]
     }
 }
 
@@ -85,7 +85,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
     Returns {success, agent_id, title, message}
     """
     title = input.get("title", "").strip()
-    agent_type = input.get("agent_type", "custom")
+    skill = input.get("skill", "custom")
     agent_instructions = input.get("agent_instructions", "")
     sources = input.get("sources")
     trigger_context = input.get("trigger_context", {})
@@ -107,7 +107,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
         agent_data = {
             "user_id": user_id,
             "title": title,
-            "agent_type": agent_type,
+            "skill": skill,
             "mode": "recurring",  # child agents run once (manual trigger)
             "trigger_type": "manual",
             "origin": "coordinator_created",
@@ -148,7 +148,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
                 event_ref=new_id,
                 metadata={
                     "coordinator_id": coordinator_id,
-                    "agent_type": agent_type,
+                    "skill": skill,
                     "dedup_key": dedup_key,
                     "trigger_context": trigger_context,
                 },

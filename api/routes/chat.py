@@ -21,7 +21,7 @@ ADR-087: Agent Scoping:
 Endpoints:
 - POST /chat - Global chat with streaming + tools
 - GET /chat/history - Get global chat history
-- GET /skills - List available TP skills
+- GET /commands - List available slash commands
 """
 
 import json
@@ -697,7 +697,7 @@ async def load_surface_content(
         if surface_type == "agent-review" and surface.agentId and surface.versionId:
             # User is reviewing an agent version - fetch the content
             agent_result = client.table("agents")\
-                .select("title, agent_type")\
+                .select("title, scope, skill")\
                 .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
@@ -718,7 +718,7 @@ async def load_surface_content(
                     content = content[:8000] + "\n\n[Content truncated...]"
 
                 return f"""## Currently Viewing: {d['title']} (Run {v['version_number']})
-Type: {d.get('agent_type', 'custom').replace('_', ' ').title()}
+Type: {d.get('skill', 'custom').replace('_', ' ').title()}
 Status: {v['status']}
 
 ### Content:
@@ -728,7 +728,7 @@ Status: {v['status']}
         elif surface_type == "agent-detail" and surface.agentId:
             # User is viewing agent details (not content)
             result = client.table("agents")\
-                .select("title, agent_type, status, schedule, type_config")\
+                .select("title, scope, skill, status, schedule, type_config")\
                 .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
@@ -737,7 +737,7 @@ Status: {v['status']}
             if result.data:
                 d = result.data
                 return f"""## Currently Viewing: {d['title']} (Agent Detail)
-Type: {d.get('agent_type', 'custom').replace('_', ' ').title()}
+Type: {d.get('skill', 'custom').replace('_', ' ').title()}
 Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """
@@ -853,7 +853,7 @@ async def global_chat(
     if agent_id:
         try:
             d_result = auth.client.table("agents").select(
-                "id, user_id, title, agent_type, agent_instructions, agent_memory"
+                "id, user_id, title, scope, skill, agent_instructions, agent_memory"
             ).eq("id", agent_id).eq("user_id", auth.user_id).single().execute()
             if d_result.data:
                 scoped_agent = d_result.data
@@ -1104,34 +1104,34 @@ async def get_global_chat_history(
 
 
 # =============================================================================
-# Skills (ADR-025 Claude Code Agentic Alignment)
+# Slash Commands (ADR-025 Claude Code Agentic Alignment)
 # =============================================================================
 
-@router.get("/skills")
-async def list_skills():
+@router.get("/commands")
+async def list_commands():
     """
-    List available skills (slash commands) for TP.
+    List available slash commands for TP.
 
-    ADR-025: Skills are packaged workflows that expand to system prompts.
+    ADR-025: Commands are packaged workflows that expand to system prompts.
     This endpoint returns the list for UI autocomplete/picker.
 
-    No auth required - skills are public metadata.
+    No auth required - commands are public metadata.
     """
-    from services.skills import list_available_skills, SKILLS
+    from services.commands import list_available_commands, COMMANDS
 
-    skills = list_available_skills()
+    commands = list_available_commands()
 
     # Add tier information for UI filtering
-    enriched_skills = []
-    for skill in skills:
-        skill_def = SKILLS.get(skill["name"], {})
-        enriched_skills.append({
-            **skill,
-            "tier": skill_def.get("tier", "core"),  # "core" or "beta"
-            "trigger_patterns": skill_def.get("trigger_patterns", []),
+    enriched = []
+    for cmd in commands:
+        cmd_def = COMMANDS.get(cmd["name"], {})
+        enriched.append({
+            **cmd,
+            "tier": cmd_def.get("tier", "core"),  # "core" or "beta"
+            "trigger_patterns": cmd_def.get("trigger_patterns", []),
         })
 
     return {
-        "skills": enriched_skills,
-        "total": len(enriched_skills),
+        "commands": enriched,
+        "total": len(enriched),
     }

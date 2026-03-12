@@ -138,7 +138,7 @@ class DeliveryService:
 
             # 2. Get agent with destination
             agent = self.client.table("agents").select(
-                "id, title, destination, user_id, agent_type, mode"
+                "id, title, destination, user_id, scope, skill, mode"
             ).eq("id", version.data["agent_id"]).single().execute()
 
             if not agent.data:
@@ -193,7 +193,7 @@ class DeliveryService:
                     "agent_id": agent.data["id"],
                     "version_id": version_id,
                     "version_number": version.data.get("version_number"),
-                    "agent_type": agent.data.get("agent_type"),
+                    "skill": agent.data.get("skill"),
                     "mode": agent.data.get("mode"),
                     "retry_count": retry_count,
                 },
@@ -464,7 +464,7 @@ class DeliveryService:
 
         # Get agent title
         agent = self.client.table("agents").select(
-            "id, title, platform_variant, agent_type, mode"
+            "id, title, platform_variant, scope, skill, mode"
         ).eq("id", version.data["agent_id"]).single().execute()
 
         content = version.data.get("final_content") or version.data.get("draft_content", "")
@@ -521,7 +521,7 @@ class DeliveryService:
                         "agent_id": version.data["agent_id"],
                         "version_id": version_id,
                         "version_number": version.data.get("version_number"),
-                        "agent_type": agent.data.get("agent_type") if agent.data else None,
+                        "skill": agent.data.get("skill") if agent.data else None,
                         "mode": agent.data.get("mode") if agent.data else None,
                         "destination_index": idx,
                         "platform_variant": platform_variant,

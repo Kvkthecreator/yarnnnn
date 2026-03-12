@@ -20,7 +20,7 @@ WRITE_TOOL = {
     "description": """Create a new entity.
 
 Examples:
-- Write(ref="agent:new", content={title: "Weekly Update", agent_type: "status"})
+- Write(ref="agent:new", content={title: "Weekly Update", skill: "synthesize"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
 Use ref ending in ':new' to create. Content schema depends on entity type.""",
     "input_schema": {
@@ -42,7 +42,7 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 # Required fields per entity type
 REQUIRED_FIELDS = {
-    "agent": ["title"],  # agent_type has default in schema
+    "agent": ["title"],  # skill has default in schema
     "memory": ["content"],
     "document": ["name"],
     "domain": ["name"],
@@ -191,7 +191,7 @@ def _process_agent(data: dict) -> dict:
 
     Schema notes:
     - schedule: JSONB with {frequency, day, time, timezone}
-    - agent_type: defaults to 'custom' in schema
+    - skill: defaults to 'custom' in schema
     - recipient_context: JSONB with {name, role, priorities, company}
     - type_config: JSONB with type-specific settings
 
@@ -264,7 +264,7 @@ def _process_agent(data: dict) -> dict:
     # Store temporarily for workspace seeding after DB insert, then remove from DB data
     if not data.get("agent_instructions"):
         from services.agent_pipeline import DEFAULT_INSTRUCTIONS
-        dtype = data.get("agent_type", "custom")
+        dtype = data.get("skill", "custom")
         default = DEFAULT_INSTRUCTIONS.get(dtype, DEFAULT_INSTRUCTIONS.get("custom", ""))
         if default:
             data["_workspace_instructions"] = default
