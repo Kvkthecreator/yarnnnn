@@ -105,6 +105,7 @@ PRIMITIVE_MODES = {
     "Edit":                     ["chat"],   # includes agent_instructions + scoped memory writes (ADR-091)
     "Execute":                  ["chat"],   # includes agent.acknowledge (ADR-091)
     "RefreshPlatformContent":   ["chat", "headless"],  # ADR-085 extended by ADR-092 (headless: scoped to agent sources, no staleness guard)
+    "SaveMemory":               ["chat"],   # ADR-108: persist user-stated facts to /memory/notes.md
     "Clarify":                  ["chat"],
     "list_integrations":        ["chat"],
 

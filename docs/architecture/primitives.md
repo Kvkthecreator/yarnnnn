@@ -14,7 +14,7 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 
 ### Design Principles
 
-1. **Minimal Surface** — 10 primitives cover all use cases
+1. **Minimal Surface** — 11 primitives cover all use cases
 2. **Universal Reference Syntax** — Consistent `type:identifier` addressing
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
@@ -42,7 +42,7 @@ Users without platform connections can still provide rich context via documents 
 
 ---
 
-## The 10 Primitives
+## The 11 Primitives
 
 | Primitive | Purpose | Input | Output |
 |-----------|---------|-------|--------|
@@ -54,6 +54,7 @@ Users without platform connections can still provide rich context via documents 
 | **Execute** | Trigger external operation | `action`, `target` | `result` |
 | **RefreshPlatformContent** | Sync latest platform data | `platform` | `items_synced`, `message` |
 | **WebSearch** | Search the web | `query` | `results`, `count` |
+| **SaveMemory** | Persist user-stated fact to memory | `content`, `entry_type` | `message` |
 | **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
 
@@ -102,10 +103,10 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 
 | Type | Table | Description | Notes |
 |------|-------|-------------|-------|
-| `memory` | `user_memory` | User facts, preferences, patterns | Auto-injected into context via working memory |
+| `memory` | `workspace_files /memory/` | User facts, preferences, patterns | Auto-injected into context via working memory. TP can write via SaveMemory (ADR-108) |
 | `platform_content` | `platform_content` | Synced platform data | Retention-based accumulation (ADR-072) |
 
-> **ADR-064 Note**: Memory is implicit — TP has no explicit memory tools. Extraction happens nightly from conversations. Users can edit memories via the Context page.
+> **ADR-108 Note**: Memory is stored in `/memory/` files (MEMORY.md, preferences.md, notes.md) within `workspace_files`. TP can persist user-stated facts via the `SaveMemory` primitive (chat-mode only). Nightly cron extracts implicit facts from conversations. Users manage all entries via the Memory page.
 >
 > **ADR-042 Note**: TP operates on 6 first-class entities. Memory and platform_content are background infrastructure—automatically injected into context, not directly queried by TP during normal operation.
 
@@ -161,12 +162,10 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 
 **Display Priority:** `content` (truncated) > `category`
 
-**How memories are created** (ADR-064 — implicit memory):
-- Nightly extraction from TP conversations (automatic)
-- Activity pattern detection from `activity_log` (automatic)
-- User edits via Context page (manual)
-
-> **ADR-064 Note**: TP has no explicit memory creation tools. All memory extraction is implicit.
+**How memories are created** (ADR-108):
+- `SaveMemory` primitive — TP persists user-stated facts in real time (chat-mode only)
+- Nightly extraction from TP conversations (automatic, midnight UTC cron)
+- User edits via Memory page (manual)
 
 #### document (Uploaded Files)
 
@@ -534,6 +533,37 @@ Synchronous write-through cache refresh. Calls the same `_sync_platform_async()`
 
 ---
 
+### SaveMemory (ADR-108)
+
+Persist a user-stated fact, preference, or instruction to `/memory/notes.md`.
+
+**Input**:
+```json
+{
+  "content": "Prefers bullet points over prose",
+  "entry_type": "preference"
+}
+```
+
+**Output**:
+```json
+{
+  "success": true,
+  "message": "Remembered: Prefers bullet points over prose",
+  "entry_type": "preference"
+}
+```
+
+**Entry types**: `fact` (about the user), `preference` (how they like things), `instruction` (standing directive). Default: `fact`.
+
+**Mode**: Chat only (`["chat"]`). Not available in headless mode.
+
+**Deduplication**: Checks existing notes before adding (case-insensitive content match). Returns `already_exists: true` if duplicate.
+
+**Scope**: Add-only. Users manage existing entries (edit, delete) via the Memory page.
+
+---
+
 ### Clarify
 
 Ask the user for input before proceeding.
@@ -610,6 +640,7 @@ api/services/primitives/
 ├── search.py        # Search primitive (text-based)
 ├── execute.py       # Execute primitive + action handlers
 ├── refresh.py       # RefreshPlatformContent primitive (ADR-085)
+├── save_memory.py   # SaveMemory primitive (ADR-108)
 └── clarify.py       # Clarify primitive
 ```
 

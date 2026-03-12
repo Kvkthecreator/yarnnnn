@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.12.1] - ADR-108: SaveMemory primitive
+
+### Added
+- `api/services/primitives/save_memory.py`: New `SaveMemory` chat-mode-only primitive. Persists user-stated facts, preferences, and instructions to `/memory/notes.md` in real time. Add-only (no update/delete from chat). Deduplicates on content. Logs to activity_log.
+- `api/services/primitives/registry.py`: Registered SaveMemory in PRIMITIVES, HANDLERS, and PRIMITIVE_MODES (chat-only).
+- Expected behavior: When user explicitly asks TP to remember something, TP calls SaveMemory to persist it immediately. Nightly cron continues for implicit extraction. Memory page remains the UI for edit/delete. Primitive count: 10 → 11.
+
+---
+
 ## [2026.03.11.6] - ADR-108: User memory filesystem migration
 
 ### Changed

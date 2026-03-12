@@ -34,6 +34,7 @@ from .workspace import (
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
     LIST_WORKSPACE_TOOL, handle_list_workspace,
 )
+from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -198,6 +199,8 @@ PRIMITIVES = [
     SEARCH_WORKSPACE_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_WORKSPACE_TOOL,
+    # User memory — chat only (ADR-108)
+    SAVE_MEMORY_TOOL,
 ]
 
 
@@ -223,6 +226,7 @@ HANDLERS: dict[str, Callable] = {
     "SearchWorkspace": handle_search_workspace,
     "QueryKnowledge": handle_query_knowledge,
     "ListWorkspace": handle_list_workspace,
+    "SaveMemory": handle_save_memory,
 }
 
 
@@ -307,6 +311,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "SearchWorkspace":        ["headless"],
     "QueryKnowledge":         ["headless"],
     "ListWorkspace":          ["headless"],
+    # User memory — chat only (ADR-108)
+    "SaveMemory":             ["chat"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
