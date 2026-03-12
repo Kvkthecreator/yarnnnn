@@ -14,6 +14,9 @@ import type {
   DocumentUploadResponse,
   DocumentDownloadResponse,
   DocumentListResponse,
+  KnowledgeFile,
+  KnowledgeFileDetail,
+  KnowledgeFileCreateInput,
   KnowledgeFilesResponse,
   KnowledgeSummaryResponse,
   DeleteResponse,
@@ -305,6 +308,17 @@ export const api = {
         `/api/knowledge/files${query ? `?${query}` : ""}`
       );
     },
+
+    readFile: (path: string) =>
+      request<KnowledgeFileDetail>(
+        `/api/knowledge/files/read?path=${encodeURIComponent(path)}`
+      ),
+
+    createFile: (data: KnowledgeFileCreateInput) =>
+      request<KnowledgeFile>(
+        `/api/knowledge/files`,
+        { method: "POST", body: JSON.stringify(data) }
+      ),
   },
 
   // Chat endpoints (streaming handled separately in useChat hook)

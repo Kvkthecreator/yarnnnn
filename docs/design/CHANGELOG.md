@@ -4,6 +4,18 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-03-12 — Context page: knowledge-first landing + file CRUD
+
+- Default landing changed from `platforms` to `knowledge` (context page + sidebar)
+- Knowledge files now clickable with full-content detail view (back-nav pattern)
+- User-contributed file creation: title + content class + markdown content
+- Backend: `GET /api/knowledge/files/read` + `POST /api/knowledge/files`
+- Frontend types: `KnowledgeFileDetail`, `KnowledgeFileCreateInput`
+- API client: `knowledge.readFile(path)`, `knowledge.createFile(data)`
+- Related: ADR-107 (knowledge filesystem), ADR-106 (workspace architecture)
+
+---
+
 ## 2026-03-11 — Archive shipped specs, establish active/archive structure
 
 ### Structure

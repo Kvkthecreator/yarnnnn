@@ -34,11 +34,14 @@ import {
   XCircle,
   FolderOpen,
   FolderTree,
+  ArrowLeft,
+  Plus,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Document, KnowledgeFile, KnowledgeContentClass } from '@/types';
+import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
 // =============================================================================
@@ -49,7 +52,7 @@ type Section = 'platforms' | 'documents' | 'knowledge';
 const VALID_SECTIONS: readonly Section[] = ['platforms', 'documents', 'knowledge'] as const;
 
 function normalizeSection(value: string | null): Section {
-  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'platforms';
+  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'knowledge';
 }
 
 const VALID_KNOWLEDGE_CLASSES: readonly KnowledgeContentClass[] = [
@@ -319,6 +322,7 @@ interface KnowledgeSectionProps {
   activeClass?: KnowledgeContentClass;
   classCounts: Record<string, number>;
   onClassChange: (contentClass?: KnowledgeContentClass) => void;
+  onFileCreated: () => void;
 }
 
 function KnowledgeSection({
@@ -327,7 +331,106 @@ function KnowledgeSection({
   activeClass,
   classCounts,
   onClassChange,
+  onFileCreated,
 }: KnowledgeSectionProps) {
+  const [selectedFile, setSelectedFile] = useState<KnowledgeFileDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createTitle, setCreateTitle] = useState('');
+  const [createClass, setCreateClass] = useState<string>('research');
+  const [createContent, setCreateContent] = useState('');
+  const [createSaving, setCreateSaving] = useState(false);
+
+  const handleFileClick = async (file: KnowledgeFile) => {
+    setDetailLoading(true);
+    try {
+      const detail = await api.knowledge.readFile(file.path);
+      setSelectedFile(detail);
+    } catch (err) {
+      console.error('Failed to read knowledge file:', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!createTitle.trim() || !createContent.trim()) return;
+    setCreateSaving(true);
+    try {
+      await api.knowledge.createFile({
+        title: createTitle.trim(),
+        content: createContent.trim(),
+        content_class: createClass,
+      });
+      setShowCreate(false);
+      setCreateTitle('');
+      setCreateContent('');
+      setCreateClass('research');
+      onFileCreated();
+    } catch (err) {
+      console.error('Failed to create knowledge file:', err);
+    } finally {
+      setCreateSaving(false);
+    }
+  };
+
+  // Detail view
+  if (selectedFile) {
+    const detailClass = (selectedFile.content_class in KNOWLEDGE_CLASS_LABELS
+      ? selectedFile.content_class
+      : 'analyses') as KnowledgeContentClass;
+    const detailMeta = (selectedFile.metadata || {}) as Record<string, unknown>;
+
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => setSelectedFile(null)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to files
+        </button>
+
+        <div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h2 className="text-lg font-semibold text-foreground">{selectedFile.name}</h2>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+              {KNOWLEDGE_CLASS_LABELS[detailClass]}
+            </span>
+            {typeof detailMeta.source === 'string' && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                {detailMeta.source === 'user_upload' ? 'User' : detailMeta.source}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="truncate">{selectedFile.path}</span>
+            {selectedFile.updated_at && (
+              <span className="shrink-0">
+                {formatDistanceToNow(new Date(selectedFile.updated_at), { addSuffix: true })}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-card rounded-lg border border-border p-5">
+          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words">
+            {selectedFile.content}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading detail
+  if (detailLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -340,12 +443,67 @@ function KnowledgeSection({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Knowledge Files</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Shared agent outputs organized by content class in the filesystem.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Knowledge Files</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Agent outputs and user notes organized by content class.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
+        >
+          <Plus className="w-4 h-4" />
+          Add File
+        </button>
       </div>
+
+      {/* Create form */}
+      {showCreate && (
+        <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-foreground">New Knowledge File</h3>
+            <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Title"
+              value={createTitle}
+              onChange={(e) => setCreateTitle(e.target.value)}
+              className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <select
+              value={createClass}
+              onChange={(e) => setCreateClass(e.target.value)}
+              className="px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {VALID_KNOWLEDGE_CLASSES.map((cls) => (
+                <option key={cls} value={cls}>{KNOWLEDGE_CLASS_LABELS[cls]}</option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            placeholder="Content (markdown supported)"
+            value={createContent}
+            onChange={(e) => setCreateContent(e.target.value)}
+            rows={6}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={handleCreate}
+              disabled={createSaving || !createTitle.trim() || !createContent.trim()}
+              className="px-4 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createSaving ? 'Saving...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -378,11 +536,19 @@ function KnowledgeSection({
       {files.length === 0 ? (
         <div className="bg-muted/50 rounded-lg p-6 text-center">
           <FolderTree className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             {activeClass
               ? `No ${KNOWLEDGE_CLASS_LABELS[activeClass].toLowerCase()} files yet.`
-              : 'No knowledge files yet. Agent outputs will appear here after successful runs.'}
+              : 'No knowledge files yet. Create one or run an agent to get started.'}
           </p>
+          {!showCreate && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
+            >
+              Create File
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -393,9 +559,10 @@ function KnowledgeSection({
               : 'analyses') as KnowledgeContentClass;
 
             return (
-              <div
+              <button
                 key={file.path}
-                className="bg-card rounded-lg border border-border p-4"
+                onClick={() => handleFileClick(file)}
+                className="w-full text-left bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -415,13 +582,16 @@ function KnowledgeSection({
                     )}
                     <p className="text-xs text-muted-foreground mt-1 truncate">{file.path}</p>
                   </div>
-                  {file.updated_at && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatDistanceToNow(new Date(file.updated_at), { addSuffix: true })}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {file.updated_at && (
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(file.updated_at), { addSuffix: true })}
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -602,6 +772,7 @@ export default function ContextPage() {
             activeClass={knowledgeClassParam}
             classCounts={knowledgeClassCounts}
             onClassChange={handleKnowledgeClassChange}
+            onFileCreated={() => loadData()}
           />
         )}
       </div>

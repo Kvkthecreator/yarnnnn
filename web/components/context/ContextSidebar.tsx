@@ -65,7 +65,7 @@ export function ContextSidebar() {
   const isOnContextRoot = pathname === '/context';
   const platformMatch = pathname.match(/^\/context\/(.+)$/);
   const activePlatform = platformMatch ? platformMatch[1] : null;
-  const activeSection = searchParams.get('section') || 'platforms';
+  const activeSection = searchParams.get('section') || 'knowledge';
   const activeKnowledgeClass = searchParams.get('class');
   const isPlatformsSection = activeSection === 'platforms' || activeSection.startsWith('platform_') || !!activePlatform;
   const isKnowledgeSection = isOnContextRoot && activeSection === 'knowledge';

@@ -140,6 +140,22 @@ export interface KnowledgeFilesResponse {
   limit: number;
 }
 
+export interface KnowledgeFileDetail {
+  path: string;
+  name: string;
+  content_class: KnowledgeContentClass | string;
+  content: string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+  updated_at?: string;
+}
+
+export interface KnowledgeFileCreateInput {
+  title: string;
+  content: string;
+  content_class: string;
+}
+
 export interface KnowledgeSummaryResponse {
   total: number;
   classes: Array<{
