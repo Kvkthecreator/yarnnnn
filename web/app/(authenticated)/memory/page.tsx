@@ -1,17 +1,17 @@
 'use client';
 
 /**
- * ADR-063/064: Memory Page — Four-Layer Model
+ * ADR-108: Memory Page — Four-Layer Model
  *
  * Layer 1: Memory — What YARNNN knows about the user
  *
  * Sections:
+ * - Entries: Facts, preferences, instructions (primary view)
  * - Profile: Name, role, company, timezone, summary
  * - Communication Styles: Tone/verbosity per platform
- * - Knowledge Entries: Facts, preferences, instructions (with source badges)
  *
- * Data lives in: user_memory table
- * Written by: User directly, backend extraction (ADR-064)
+ * Data lives in: /memory/ files in workspace_files (ADR-108)
+ * Written by: User directly, SaveMemory primitive, nightly extraction
  * Read by: working_memory.py at session start
  */
 
@@ -41,7 +41,7 @@ import { HOME_ROUTE } from '@/lib/routes';
 // Types
 // =============================================================================
 
-type Section = 'profile' | 'styles' | 'entries';
+type Section = 'entries' | 'profile' | 'styles';
 
 interface Profile {
   name?: string;
@@ -63,8 +63,8 @@ interface MemoryEntry {
   value: string;
   source: string;
   confidence: number;
-  source_ref?: string | null;  // ADR-072: FK to source record
-  source_type?: string | null;  // ADR-072: type of source
+  source_ref?: string | null;
+  source_type?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,9 +107,9 @@ const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 // =============================================================================
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
+  { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
   { id: 'styles', label: 'Styles', icon: <Palette className="w-4 h-4" /> },
-  { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -450,8 +450,20 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
 }
 
 // =============================================================================
-// Entries Section (with ADR-064 source badges)
+// Entries Section
 // =============================================================================
+
+const TYPE_LABELS: Record<string, string> = {
+  fact: 'Fact',
+  preference: 'Preference',
+  instruction: 'Instruction',
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  fact: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  preference: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  instruction: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+};
 
 interface EntriesSectionProps {
   entries: MemoryEntry[];
@@ -464,7 +476,6 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'fact' | 'preference' | 'instruction'>('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'learned'>('all');
   const [visibleCount, setVisibleCount] = useState(20);
 
   const handleDelete = async (id: string) => {
@@ -484,51 +495,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
     );
   }
 
-  const typeLabel: Record<string, string> = {
-    fact: 'Fact',
-    preference: 'Prefers',
-    instruction: 'Note',
-    pattern: 'Pattern',
-  };
-
-  // ADR-064: Source styling for implicit memory
-  const sourceConfig: Record<string, { label: string; bg: string; text: string }> = {
-    user_stated: {
-      label: 'You said',
-      bg: 'bg-green-100 dark:bg-green-900/30',
-      text: 'text-green-700 dark:text-green-400',
-    },
-    conversation: {
-      label: 'From chat',
-      bg: 'bg-purple-100 dark:bg-purple-900/30',
-      text: 'text-purple-700 dark:text-purple-400',
-    },
-    feedback: {
-      label: 'From edits',
-      bg: 'bg-blue-100 dark:bg-blue-900/30',
-      text: 'text-blue-700 dark:text-blue-400',
-    },
-    pattern: {
-      label: 'Detected',
-      bg: 'bg-amber-100 dark:bg-amber-900/30',
-      text: 'text-amber-700 dark:text-amber-400',
-    },
-    tp_extracted: {
-      label: 'TP learned',
-      bg: 'bg-purple-100 dark:bg-purple-900/30',
-      text: 'text-purple-700 dark:text-purple-400',
-    },
-  };
-
-  const getConfidenceLabel = (confidence: number): { label: string; color: string } => {
-    if (confidence >= 0.9) return { label: 'high', color: 'text-green-600 dark:text-green-400' };
-    if (confidence >= 0.7) return { label: 'medium', color: 'text-amber-600 dark:text-amber-400' };
-    return { label: 'low', color: 'text-muted-foreground' };
-  };
-
   const getEntryType = (entry: MemoryEntry) => entry.key.split(':')[0]?.toLowerCase() || 'fact';
-  const manualCount = entries.filter((entry) => entry.source === 'user_stated').length;
-  const learnedCount = entries.length - manualCount;
 
   const typeCounts = entries.reduce<Record<string, number>>((acc, entry) => {
     const type = getEntryType(entry);
@@ -541,29 +508,20 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
   const normalizedQuery = query.trim().toLowerCase();
   const filteredEntries = entries.filter((entry) => {
     const entryType = getEntryType(entry);
-    const isManual = entry.source === 'user_stated';
-    const sourceLabel = sourceConfig[entry.source]?.label || entry.source;
 
     if (typeFilter !== 'all' && entryType !== typeFilter) {
-      return false;
-    }
-    if (sourceFilter === 'manual' && !isManual) {
-      return false;
-    }
-    if (sourceFilter === 'learned' && isManual) {
       return false;
     }
     if (!normalizedQuery) {
       return true;
     }
 
-    const haystack = `${entry.value} ${entry.key} ${sourceLabel}`.toLowerCase();
-    return haystack.includes(normalizedQuery);
+    return entry.value.toLowerCase().includes(normalizedQuery);
   });
 
   useEffect(() => {
     setVisibleCount(20);
-  }, [query, typeFilter, sourceFilter]);
+  }, [query, typeFilter]);
 
   const visibleEntries = filteredEntries.slice(0, visibleCount);
   const remainingCount = Math.max(0, filteredEntries.length - visibleEntries.length);
@@ -602,14 +560,10 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
       ) : (
         <div className="space-y-4">
           <div className="bg-card rounded-lg border border-border p-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-              <span><strong className="text-foreground">{entries.length}</strong> total</span>
-              <span>·</span>
-              <span><strong className="text-foreground">{manualCount}</strong> manual</span>
-              <span>·</span>
-              <span><strong className="text-foreground">{learnedCount}</strong> learned</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span><strong className="text-foreground">{entries.length}</strong> entries</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="relative">
                 <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -630,22 +584,12 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
                 <option value="preference">Preferences ({typeCounts.preference || 0})</option>
                 <option value="instruction">Instructions ({typeCounts.instruction || 0})</option>
               </select>
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'learned')}
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
-              >
-                <option value="all">All sources ({entries.length})</option>
-                <option value="manual">Manual ({manualCount})</option>
-                <option value="learned">Learned ({learnedCount})</option>
-              </select>
             </div>
-            {(query || typeFilter !== 'all' || sourceFilter !== 'all') && (
+            {(query || typeFilter !== 'all') && (
               <button
                 onClick={() => {
                   setQuery('');
                   setTypeFilter('all');
-                  setSourceFilter('all');
                 }}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
@@ -661,7 +605,6 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
                 onClick={() => {
                   setQuery('');
                   setTypeFilter('all');
-                  setSourceFilter('all');
                 }}
                 className="text-sm text-primary hover:text-primary/80"
               >
@@ -671,15 +614,9 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
           ) : (
             <div className="space-y-2">
               {visibleEntries.map((entry) => {
-                const prefix = getEntryType(entry);
-                const label = typeLabel[prefix] || prefix;
-                const source = sourceConfig[entry.source] || {
-                  label: entry.source,
-                  bg: 'bg-muted',
-                  text: 'text-muted-foreground',
-                };
-                const confidence = getConfidenceLabel(entry.confidence);
-                const showConfidence = entry.source !== 'user_stated' && entry.confidence < 1.0;
+                const entryType = getEntryType(entry);
+                const label = TYPE_LABELS[entryType] || entryType;
+                const colorClass = TYPE_COLORS[entryType] || 'bg-muted text-muted-foreground';
 
                 return (
                   <div
@@ -687,35 +624,10 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
                     className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
                   >
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                        <span className={cn(
-                          "text-xs px-1.5 py-0.5 rounded",
-                          source.bg,
-                          source.text
-                        )}>
-                          {source.label}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium", colorClass)}>
+                          {label}
                         </span>
-                        {/* ADR-072: Show source_type provenance badge */}
-                        {entry.source_type && (
-                          <span className={cn(
-                            "text-xs px-1.5 py-0.5 rounded",
-                            entry.source_type === 'agent_feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                            entry.source_type === 'conversation_extraction' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-                            entry.source_type === 'pattern_analysis' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                            !['agent_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && "bg-muted text-muted-foreground"
-                          )}>
-                            {entry.source_type === 'agent_feedback' && 'from feedback'}
-                            {entry.source_type === 'conversation_extraction' && 'from chat'}
-                            {entry.source_type === 'pattern_analysis' && 'from patterns'}
-                            {!['agent_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && entry.source_type}
-                          </span>
-                        )}
-                        {showConfidence && (
-                          <span className={cn("text-xs", confidence.color)}>
-                            · {confidence.label} confidence
-                          </span>
-                        )}
                       </div>
                       <p className="text-foreground">{entry.value}</p>
                     </div>
@@ -760,7 +672,7 @@ export default function MemoryPage() {
   const searchParams = useSearchParams();
 
   const sectionParam = searchParams.get('section') as Section | null;
-  const [activeSection, setActiveSection] = useState<Section>(sectionParam || 'profile');
+  const [activeSection, setActiveSection] = useState<Section>(sectionParam || 'entries');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -877,6 +789,15 @@ export default function MemoryPage() {
         </div>
 
         {/* Content */}
+        {activeSection === 'entries' && (
+          <EntriesSection
+            entries={entries}
+            loading={false}
+            onAdd={() => router.push(`${HOME_ROUTE}?action=add-memory`)}
+            onDelete={handleDeleteEntry}
+          />
+        )}
+
         {activeSection === 'profile' && (
           <ProfileSection
             profile={profile}
@@ -890,15 +811,6 @@ export default function MemoryPage() {
             styles={styles}
             loading={false}
             onUpdate={handleStyleUpdate}
-          />
-        )}
-
-        {activeSection === 'entries' && (
-          <EntriesSection
-            entries={entries}
-            loading={false}
-            onAdd={() => router.push(`${HOME_ROUTE}?action=add-memory`)}
-            onDelete={handleDeleteEntry}
           />
         )}
       </div>
