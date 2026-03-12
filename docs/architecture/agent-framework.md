@@ -10,6 +10,7 @@
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md)
 - [Analysis: Agent Taxonomy First Principles](../analysis/agent-taxonomy-first-principles-2026-03-12.md) — full discourse and stress-testing
+- [Agent Presentation Principles](../design/AGENT-PRESENTATION-PRINCIPLES.md) — frontend: source-first grouping, card anatomy, creation flow
 
 ---
 

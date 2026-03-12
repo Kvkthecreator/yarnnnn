@@ -4,6 +4,27 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-03-13 — Agent Presentation Principles
+
+- New active doc: `AGENT-PRESENTATION-PRINCIPLES.md`
+- Defines first-principled frontend presentation rules for agents as the portfolio grows
+- **Core insight**: Users think source-first (platform), not skill-first (processing verb)
+- **7 principles**: Source-first mental model, progressive disclosure, card anatomy (source → routine → status), source-affinity grouping, skills as behavioral labels, taxonomy-expansion resilience, chat as long-term creation surface
+- **Creation flow**: Source → Job → Configure (inverts current type-first picker)
+- **Grouping**: Platform icons as primary visual, source-affinity sections at 6+ agents
+- **Template-driven**: Creation options derive from backend config, not hardcoded grids
+- Related: agent-framework.md (Scope × Skill × Trigger), SURFACE-ACTION-MAPPING.md, ADR-105
+
+### Active docs (4 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ACTION-MAPPING.md` | Design principle: directives → chat, configuration → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy (show/execute/prompt/attach) for + menu actions |
+| `WORKSPACE-LAYOUT-NAVIGATION.md` | Canonical layout architecture (WorkspaceLayout, scoped chat) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Agent frontend: source-first grouping, card anatomy, creation flow |
+
+---
+
 ## 2026-03-12 — Context page: knowledge-first landing + file CRUD + versioning
 
 - Default landing changed from `platforms` to `knowledge` (context page + sidebar)
