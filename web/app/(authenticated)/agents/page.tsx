@@ -30,7 +30,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
-import { AGENT_TYPE_LABELS } from '@/lib/constants/agents';
+import { SKILL_LABELS } from '@/lib/constants/agents';
 import type { Agent, AgentStatus } from '@/types';
 
 // =============================================================================
@@ -108,7 +108,7 @@ function AgentCard({
   agent: Agent;
   onClick: () => void;
 }) {
-  const typeLabel = AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type;
+  const typeLabel = SKILL_LABELS[agent.skill] || agent.skill;
   const statusLine = getModeStatusLine(agent);
   const destination = formatDestination(agent);
   const latestStatus = agent.latest_version_status;

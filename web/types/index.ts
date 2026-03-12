@@ -229,39 +229,27 @@ export type DataSourceType = "url" | "document" | "description" | "integration_i
 // Integration import source provider
 export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar";
 
-// ADR-093: Agent Types (7 purpose-first types)
-export type AgentType =
-  | "digest"        // Regular synthesis of what's happening in a specific place
-  | "brief"         // Situation-specific document before a key event
-  | "status"        // Regular cross-platform summary for a person or audience
-  | "watch"         // Standing-order intelligence on a domain
-  | "deep_research" // Bounded investigation into something specific, then done
-  | "coordinator"   // Meta-specialist that watches a domain and dispatches other work
-  | "custom";       // User-defined intent
+// ADR-109: Scope × Skill × Trigger Framework
+export type Scope =
+  | "platform"        // Single platform (inferred: 1 provider in sources)
+  | "cross_platform"  // Multiple platforms (inferred: 2+ providers)
+  | "knowledge"       // Accumulated /knowledge/ filesystem
+  | "research"        // Knowledge + WebSearch
+  | "autonomous";     // Full primitive set, agent-driven
 
-// ADR-093: All 7 types are stable — no deprecated tier
-export type ActiveAgentType = AgentType;
-
-// ADR-093: all stable
-export type AgentTier = "stable";
-
-// ADR-044: Type Classification (two-dimensional)
-export type ContextBinding = "platform_bound" | "cross_platform" | "research" | "hybrid";
-export type TemporalPattern = "reactive" | "scheduled" | "on_demand" | "emergent";
-
-export interface TypeClassification {
-  binding: ContextBinding;
-  temporal_pattern: TemporalPattern;
-  primary_platform?: "slack" | "gmail" | "notion" | "calendar";
-}
+export type Skill =
+  | "digest"      // Compress, summarize — platform recap
+  | "prepare"     // Anticipate, assemble — meeting prep
+  | "monitor"     // Track, diff, alert — domain watching
+  | "research"    // Investigate, analyze — bounded research
+  | "synthesize"  // Connect, derive insight — cross-source synthesis
+  | "orchestrate" // Coordinate, dispatch — agent fleet management
+  | "act"         // Execute, respond, post — platform actions (future)
+  | "custom";     // User-defined
 
 // =============================================================================
-// ADR-093: Type Configurations (7 purpose-first types)
+// ADR-109: Skill Configurations
 // =============================================================================
-
-// ADR-104: Only fields consumed by build_type_prompt() are defined here.
-// Dead fields removed: DigestConfig.max_items, all BriefConfig, WatchConfig.threshold_notes,
-// all DeepResearchConfig, CustomConfig.example_content.
 
 export interface DigestConfig {
   focus?: string;
@@ -269,27 +257,25 @@ export interface DigestConfig {
   reaction_threshold?: number;
 }
 
-// BriefConfig — no type_config fields consumed by build_type_prompt().
-// Brief type uses schedule.timezone for date computation only.
-export type BriefConfig = Record<string, unknown>;
+// PrepareConfig — no type_config fields consumed by build_skill_prompt().
+export type PrepareConfig = Record<string, unknown>;
 
-export interface StatusConfig {
+export interface SynthesizeConfig {
   subject?: string;
   audience?: "manager" | "stakeholders" | "team" | "executive";
   detail_level?: "brief" | "standard" | "detailed";
   tone?: "formal" | "conversational";
 }
 
-export interface WatchConfig {
+export interface MonitorConfig {
   domain?: string;
   signals?: string[];
 }
 
-// DeepResearchConfig — no type_config fields consumed by build_type_prompt().
-// Deep research uses schedule.timezone for date computation only.
-export type DeepResearchConfig = Record<string, unknown>;
+// ResearchConfig — no type_config fields consumed by build_skill_prompt().
+export type ResearchConfig = Record<string, unknown>;
 
-export interface CoordinatorConfig {
+export interface OrchestrateConfig {
   domain?: string;
   dispatch_rules?: string[];
 }
@@ -299,14 +285,13 @@ export interface CustomConfig {
   structure_notes?: string;
 }
 
-// ADR-093: Union type for type_config (7 types + fallback)
-export type TypeConfig =
+export type SkillConfig =
   | DigestConfig
-  | BriefConfig
-  | StatusConfig
-  | WatchConfig
-  | DeepResearchConfig
-  | CoordinatorConfig
+  | PrepareConfig
+  | SynthesizeConfig
+  | MonitorConfig
+  | ResearchConfig
+  | OrchestrateConfig
   | CustomConfig
   | Record<string, unknown>;
 
@@ -415,12 +400,12 @@ export interface AgentSession {
 export interface Agent {
   id: string;
   title: string;
-  agent_type: AgentType;
-  type_config?: TypeConfig;
+  // ADR-109: Scope × Skill × Trigger
+  scope: Scope;
+  skill: Skill;
+  type_config?: SkillConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;  // platform-native render variant (legacy field)
-  // ADR-044: Type classification (binding + temporal pattern)
-  type_classification?: TypeClassification;
   project_id?: string;
   project_name?: string;  // For UI display
   recipient_context?: RecipientContext;
@@ -447,18 +432,16 @@ export interface Agent {
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
   avg_edit_distance?: number;  // Average over last 5 versions
-  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
 }
 
 export interface AgentCreate {
   title: string;
-  agent_type?: AgentType;
-  type_config?: TypeConfig;
+  // ADR-109: Scope × Skill × Trigger
+  skill?: Skill;
+  type_config?: SkillConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;
-  // ADR-044: Type classification
-  type_classification?: TypeClassification;
   project_id?: string;
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
@@ -467,14 +450,14 @@ export interface AgentCreate {
   destination?: Destination;
   // ADR-092: Mode taxonomy
   mode?: AgentMode;
-  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
 }
 
 export interface AgentUpdate {
   title?: string;
-  agent_type?: AgentType;
-  type_config?: TypeConfig;
+  // ADR-109: Scope × Skill × Trigger
+  skill?: Skill;
+  type_config?: SkillConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;
   recipient_context?: RecipientContext;
@@ -489,7 +472,6 @@ export interface AgentUpdate {
   mode?: AgentMode;
   proactive_next_review_at?: string;
   trigger_config?: Record<string, unknown>;
-  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
 }
 
@@ -588,21 +570,21 @@ export interface AgentRunResponse {
 }
 
 // =============================================================================
-// ADR-025: Skills (Slash Commands)
+// ADR-025: Slash Commands
 // =============================================================================
 
-export type SkillTier = "core" | "beta";
+export type CommandTier = "core" | "beta";
 
-export interface Skill {
+export interface SlashCommand {
   name: string;
   description: string;
   command: string;
-  tier: SkillTier;
+  tier: CommandTier;
   trigger_patterns: string[];
 }
 
-export interface SkillListResponse {
-  skills: Skill[];
+export interface CommandListResponse {
+  commands: SlashCommand[];
   total: number;
 }
 
@@ -678,7 +660,7 @@ export interface PlatformSyncStatus {
 export interface ScheduledAgent {
   id: string;
   title: string;
-  agent_type: string;
+  skill: string;
   next_run_at: string;
   destination_platform?: string | null;
 }

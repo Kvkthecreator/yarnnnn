@@ -1,12 +1,13 @@
-import type { AgentType } from '@/types';
+import type { Skill } from '@/types';
 
-/** ADR-093: 7 purpose-first type labels, shared across list/detail/settings/dashboard */
-export const AGENT_TYPE_LABELS: Record<AgentType, string> = {
+/** ADR-109: Skill labels, shared across list/detail/settings/dashboard */
+export const SKILL_LABELS: Record<Skill, string> = {
   digest: 'Recap',
-  brief: 'Auto Meeting Prep',
-  status: 'Work Summary',
-  watch: 'Watch',
-  deep_research: 'Proactive Insights',
-  coordinator: 'Coordinator',
+  prepare: 'Auto Meeting Prep',
+  synthesize: 'Work Summary',
+  monitor: 'Watch',
+  research: 'Research',
+  orchestrate: 'Coordinator',
+  act: 'Action',
   custom: 'Custom',
 };

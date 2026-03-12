@@ -613,12 +613,12 @@ export const api = {
       ),
   },
 
-  // ADR-025: Skills (slash commands)
-  skills: {
-    // List available skills for autocomplete/picker
+  // ADR-025: Slash commands
+  commands: {
+    // List available slash commands for autocomplete/picker
     list: () =>
       request<{
-        skills: Array<{
+        commands: Array<{
           name: string;
           description: string;
           command: string;
@@ -626,7 +626,7 @@ export const api = {
           trigger_patterns: string[];
         }>;
         total: number;
-      }>("/api/skills"),
+      }>("/api/commands"),
   },
 
   // ADR-026: Integrations (Slack, Notion, etc.)

@@ -645,9 +645,9 @@ function KnowledgeSection({
                       <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         {KNOWLEDGE_CLASS_LABELS[contentClass]}
                       </span>
-                      {typeof metadata.agent_type === 'string' && (
+                      {typeof metadata.skill === 'string' && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {metadata.agent_type}
+                          {metadata.skill}
                         </span>
                       )}
                     </div>

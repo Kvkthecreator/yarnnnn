@@ -350,7 +350,7 @@ export function RunsPanel({
   );
 
   const isGoalMode = agent.mode === 'goal';
-  const isPlatformBound = agent.type_classification?.binding === 'platform_bound';
+  const isPlatformBound = agent.scope === 'platform';
   const hasSources = (agent.sources?.length ?? 0) > 0;
   const missingSourcesWarning = isPlatformBound && !hasSources;
 

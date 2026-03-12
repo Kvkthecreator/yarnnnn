@@ -1,26 +1,26 @@
 'use client';
 
 /**
- * ADR-025: Skills (Slash Commands)
- * SkillPicker - Autocomplete dropdown for slash commands
+ * ADR-025: Slash Commands
+ * CommandPicker - Autocomplete dropdown for slash commands
  *
  * Shows when user types "/" in TPBar input, filters as they type
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Sparkles, Zap, ChevronRight } from 'lucide-react';
-import { useSkills } from '@/hooks/useSkills';
+import { useCommands } from '@/hooks/useCommands';
 import { cn } from '@/lib/utils';
-import type { Skill, SkillTier } from '@/types';
+import type { SlashCommand, CommandTier } from '@/types';
 
-interface SkillPickerProps {
+interface CommandPickerProps {
   query: string; // The text after "/"
   onSelect: (command: string) => void;
   onClose: () => void;
   isOpen: boolean;
 }
 
-const TIER_CONFIG: Record<SkillTier, { label: string; icon: typeof Sparkles; className: string }> = {
+const TIER_CONFIG: Record<CommandTier, { label: string; icon: typeof Sparkles; className: string }> = {
   core: {
     label: 'Core',
     icon: Zap,
@@ -33,13 +33,13 @@ const TIER_CONFIG: Record<SkillTier, { label: string; icon: typeof Sparkles; cla
   },
 };
 
-export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerProps) {
-  const { skills, filterSkills, isLoading } = useSkills();
+export function CommandPicker({ query, onSelect, onClose, isOpen }: CommandPickerProps) {
+  const { commands, filterCommands, isLoading } = useCommands();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter skills based on query
-  const filteredSkills = filterSkills(query);
+  // Filter commands based on query
+  const filtered = filterCommands(query);
 
   // Reset selection when query changes
   useEffect(() => {
@@ -49,7 +49,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
   // Scroll selected item into view
   useEffect(() => {
     if (listRef.current && selectedIndex >= 0) {
-      const items = listRef.current.querySelectorAll('[data-skill-item]');
+      const items = listRef.current.querySelectorAll('[data-command-item]');
       const selectedItem = items[selectedIndex] as HTMLElement | undefined;
       if (selectedItem) {
         selectedItem.scrollIntoView({ block: 'nearest' });
@@ -65,7 +65,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelectedIndex((prev) => Math.min(prev + 1, filteredSkills.length - 1));
+          setSelectedIndex((prev) => Math.min(prev + 1, filtered.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -74,8 +74,8 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
         case 'Enter':
         case 'Tab':
           e.preventDefault();
-          if (filteredSkills[selectedIndex]) {
-            onSelect(filteredSkills[selectedIndex].command);
+          if (filtered[selectedIndex]) {
+            onSelect(filtered[selectedIndex].command);
           }
           break;
         case 'Escape':
@@ -84,7 +84,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
           break;
       }
     },
-    [isOpen, filteredSkills, selectedIndex, onSelect, onClose]
+    [isOpen, filtered, selectedIndex, onSelect, onClose]
   );
 
   // Add keyboard listener
@@ -97,16 +97,16 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
 
   if (!isOpen) return null;
 
-  // Group filtered skills by tier
-  const groupedSkills: { tier: SkillTier; skills: Skill[] }[] = [];
-  const coreSkills = filteredSkills.filter((s) => s.tier === 'core');
-  const betaSkills = filteredSkills.filter((s) => s.tier === 'beta');
+  // Group filtered commands by tier
+  const grouped: { tier: CommandTier; commands: SlashCommand[] }[] = [];
+  const coreCommands = filtered.filter((s) => s.tier === 'core');
+  const betaCommands = filtered.filter((s) => s.tier === 'beta');
 
-  if (coreSkills.length > 0) {
-    groupedSkills.push({ tier: 'core', skills: coreSkills });
+  if (coreCommands.length > 0) {
+    grouped.push({ tier: 'core', commands: coreCommands });
   }
-  if (betaSkills.length > 0) {
-    groupedSkills.push({ tier: 'beta', skills: betaSkills });
+  if (betaCommands.length > 0) {
+    grouped.push({ tier: 'beta', commands: betaCommands });
   }
 
   // Calculate flat index for selection
@@ -125,7 +125,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
       <div className="px-3 py-2 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Zap className="w-3 h-3" />
-          <span>Skills</span>
+          <span>Commands</span>
           {query && (
             <>
               <ChevronRight className="w-3 h-3" />
@@ -135,18 +135,18 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
         </div>
       </div>
 
-      {/* Skill list */}
+      {/* Command list */}
       <div ref={listRef} className="max-h-64 overflow-y-auto p-1">
         {isLoading ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            Loading skills...
+            Loading commands...
           </div>
-        ) : filteredSkills.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            No matching skills
+            No matching commands
           </div>
         ) : (
-          groupedSkills.map(({ tier, skills: tierSkills }) => {
+          grouped.map(({ tier, commands: tierCommands }) => {
             const config = TIER_CONFIG[tier];
             const TierIcon = config.icon;
 
@@ -158,17 +158,17 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
                   <span>{config.label}</span>
                 </div>
 
-                {/* Skills in tier */}
-                {tierSkills.map((skill) => {
+                {/* Commands in tier */}
+                {tierCommands.map((cmd) => {
                   flatIndex++;
                   const isSelected = flatIndex === selectedIndex;
                   const itemIndex = flatIndex;
 
                   return (
                     <button
-                      key={skill.command}
-                      data-skill-item
-                      onClick={() => onSelect(skill.command)}
+                      key={cmd.command}
+                      data-command-item
+                      onClick={() => onSelect(cmd.command)}
                       onMouseEnter={() => setSelectedIndex(itemIndex)}
                       className={cn(
                         'w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left',
@@ -181,7 +181,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm font-medium text-foreground">
-                            {skill.command}
+                            {cmd.command}
                           </span>
                           {tier === 'beta' && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-medium">
@@ -190,7 +190,7 @@ export function SkillPicker({ query, onSelect, onClose, isOpen }: SkillPickerPro
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {skill.description}
+                          {cmd.description}
                         </p>
                       </div>
                       {isSelected && (

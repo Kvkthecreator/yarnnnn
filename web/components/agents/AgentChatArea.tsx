@@ -22,7 +22,7 @@ import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import { SkillPicker } from '@/components/tp/SkillPicker';
+import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
@@ -57,7 +57,7 @@ export function AgentChatArea({
   }, [agentId, loadScopedHistory]);
 
   const [input, setInput] = useState('');
-  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [commandPickerOpen, setCommandPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -108,14 +108,14 @@ export function AgentChatArea({
     adjustTextareaHeight();
   }, [input, adjustTextareaHeight]);
 
-  const skillQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
+  const commandQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
   useEffect(() => {
-    if (skillQuery !== null && !input.includes(' ')) {
-      setSkillPickerOpen(true);
+    if (commandQuery !== null && !input.includes(' ')) {
+      setCommandPickerOpen(true);
     } else {
-      setSkillPickerOpen(false);
+      setCommandPickerOpen(false);
     }
-  }, [skillQuery, input]);
+  }, [commandQuery, input]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,9 +127,9 @@ export function AgentChatArea({
     clearAttachments();
   };
 
-  const handleSkillSelect = (command: string) => {
+  const handleCommandSelect = (command: string) => {
     setInput(command + ' ');
-    setSkillPickerOpen(false);
+    setCommandPickerOpen(false);
     textareaRef.current?.focus();
   };
 
@@ -298,11 +298,11 @@ export function AgentChatArea({
       {/* Input */}
       <div className="px-4 pb-4 pt-2 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="relative max-w-2xl mx-auto">
-          <SkillPicker
-            query={skillQuery ?? ''}
-            onSelect={handleSkillSelect}
-            onClose={() => setSkillPickerOpen(false)}
-            isOpen={skillPickerOpen}
+          <CommandPicker
+            query={commandQuery ?? ''}
+            onSelect={handleCommandSelect}
+            onClose={() => setCommandPickerOpen(false)}
+            isOpen={commandPickerOpen}
           />
           <form onSubmit={handleSubmit}>
             {attachmentPreviews.length > 0 && (

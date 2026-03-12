@@ -24,7 +24,7 @@ const initialState: TPState = {
   error: null,
   // ADR-025: Todo tracking state
   todos: [],
-  activeSkill: null,
+  activeCommand: null,
   workPanelExpanded: false,
 };
 
@@ -71,14 +71,14 @@ function tpReducer(state: TPState, action: TPAction): TPState {
     case 'SET_TODOS':
       return { ...state, todos: action.todos };
 
-    case 'SET_ACTIVE_SKILL':
-      return { ...state, activeSkill: action.skill };
+    case 'SET_ACTIVE_COMMAND':
+      return { ...state, activeCommand: action.command };
 
     case 'SET_WORK_PANEL_EXPANDED':
       return { ...state, workPanelExpanded: action.expanded };
 
     case 'CLEAR_WORK_STATE':
-      return { ...state, todos: [], activeSkill: null, workPanelExpanded: false };
+      return { ...state, todos: [], activeCommand: null, workPanelExpanded: false };
 
     default:
       return state;
@@ -124,7 +124,7 @@ interface TPContextValue {
 
   // ADR-025: Todo tracking state
   todos: Todo[];
-  activeSkill: string | null;
+  activeCommand: string | null;
   workPanelExpanded: boolean;
   setWorkPanelExpanded: (expanded: boolean) => void;
 
@@ -672,7 +672,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     tokenUsage,
     // ADR-025: Todo tracking state
     todos: state.todos,
-    activeSkill: state.activeSkill,
+    activeCommand: state.activeCommand,
     workPanelExpanded: state.workPanelExpanded,
     setWorkPanelExpanded,
     // Actions

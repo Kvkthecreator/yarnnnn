@@ -135,8 +135,8 @@ export interface TPState {
   error: string | null;
   /** ADR-025: Current todo list for multi-step work */
   todos: Todo[];
-  /** ADR-025: Active skill name (e.g., "board-update") */
-  activeSkill: string | null;
+  /** ADR-025: Active slash command name (e.g., "board-update") */
+  activeCommand: string | null;
   /** ADR-025: Whether work panel is expanded */
   workPanelExpanded: boolean;
 }
@@ -151,7 +151,7 @@ export type TPAction =
   | { type: 'SET_ERROR'; error: string | null }
   // ADR-025: Todo tracking actions
   | { type: 'SET_TODOS'; todos: Todo[] }
-  | { type: 'SET_ACTIVE_SKILL'; skill: string | null }
+  | { type: 'SET_ACTIVE_COMMAND'; command: string | null }
   | { type: 'SET_WORK_PANEL_EXPANDED'; expanded: boolean }
   | { type: 'CLEAR_WORK_STATE' };
 

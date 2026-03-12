@@ -395,7 +395,7 @@ export default function ActivityPage() {
         return (
           <>
             {metadata.strategy && <DetailRow label="Strategy" value={String(metadata.strategy)} />}
-            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
+            {metadata.skill && <DetailRow label="Skill" value={String(metadata.skill)} />}
             {metadata.version_number && <DetailRow label="Run" value={`v${metadata.version_number}`} />}
             {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
             {metadata.delivery_error && (
@@ -408,7 +408,7 @@ export default function ActivityPage() {
       case 'agent_rejected':
         return (
           <>
-            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
+            {metadata.skill && <DetailRow label="Skill" value={String(metadata.skill)} />}
             {metadata.had_edits !== undefined && (
               <DetailRow label="Edits" value={metadata.had_edits ? 'User edited before approving' : 'Approved as-is'} />
             )}
@@ -421,7 +421,7 @@ export default function ActivityPage() {
       case 'agent_generated':
         return (
           <>
-            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
+            {metadata.skill && <DetailRow label="Skill" value={String(metadata.skill)} />}
             {metadata.agent_title && <DetailRow label="Title" value={String(metadata.agent_title)} />}
           </>
         );
@@ -429,7 +429,7 @@ export default function ActivityPage() {
       case 'agent_scheduled':
         return (
           <>
-            {metadata.agent_type && <DetailRow label="Type" value={String(metadata.agent_type)} />}
+            {metadata.skill && <DetailRow label="Skill" value={String(metadata.skill)} />}
             {metadata.trigger_reason && <DetailRow label="Trigger" value={String(metadata.trigger_reason)} />}
             {metadata.scheduled_for && (
               <DetailRow label="Scheduled for" value={format(new Date(String(metadata.scheduled_for)), 'MMM d, h:mm a')} />
