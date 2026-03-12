@@ -26,6 +26,7 @@ import {
   Eye,
   Bell,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
 
@@ -215,7 +216,9 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
         switch (block.type) {
           case 'text':
             return block.content ? (
-              <p key={i} className="whitespace-pre-wrap">{block.content}</p>
+              <div key={i} className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mt-3 prose-headings:mb-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                <ReactMarkdown>{block.content}</ReactMarkdown>
+              </div>
             ) : null;
           case 'thinking':
             return <ThinkingBlock key={i} content={block.content} />;

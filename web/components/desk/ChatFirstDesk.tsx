@@ -35,6 +35,7 @@ import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { Todo } from '@/types/desk';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -551,7 +552,13 @@ export function ChatFirstDesk() {
                   </div>
                 ) : (
                   <>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mt-3 prose-headings:mb-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
                     {msg.toolResults && msg.toolResults.length > 0 && (
                       <ToolResultList results={msg.toolResults} compact />
                     )}

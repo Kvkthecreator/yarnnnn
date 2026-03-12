@@ -18,6 +18,7 @@ import {
   Play,
   Pencil,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
@@ -247,7 +248,13 @@ export function AgentChatArea({
                 </div>
               ) : (
                 <>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mt-3 prose-headings:mb-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
                   {msg.toolResults && msg.toolResults.length > 0 && (
                     <ToolResultList results={msg.toolResults} compact />
                   )}
