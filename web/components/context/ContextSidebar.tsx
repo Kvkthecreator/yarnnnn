@@ -78,63 +78,11 @@ export function ContextSidebar() {
           Files
         </div>
 
-        {/* Platforms parent */}
-        <button
-          onClick={() => router.push('/context?section=platforms')}
-          className={cn(
-            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-            isPlatformsSection
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Platforms
-          </span>
-        </button>
-
-        {/* Per-platform sub-items */}
-        <div className="ml-3 space-y-0.5">
-          {ALL_PLATFORMS.map((platformKey) => {
-            const config = PLATFORM_CONFIG[platformKey];
-            const summary = platformStatus[platformKey];
-            const isConnected = summary?.status === 'active';
-            const isActive = activePlatform === platformKey;
-
-            return (
-              <button
-                key={platformKey}
-                onClick={() => router.push(`/context/${platformKey}`)}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : isConnected
-                      ? "text-foreground hover:bg-muted"
-                      : "text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <span className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
-                  )} />
-                  {config.label}
-                </span>
-                {isConnected && summary && summary.resource_count > 0 && (
-                  <span className="text-muted-foreground">{summary.resource_count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Knowledge */}
+        {/* Knowledge — first (default landing) */}
         <button
           onClick={() => router.push('/context?section=knowledge')}
           className={cn(
-            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors mt-1",
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
             isKnowledgeSection
               ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -185,6 +133,58 @@ export function ContextSidebar() {
                 </span>
                 {count > 0 && (
                   <span className="text-muted-foreground">{count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Platforms */}
+        <button
+          onClick={() => router.push('/context?section=platforms')}
+          className={cn(
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors mt-1",
+            isPlatformsSection
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Platforms
+          </span>
+        </button>
+
+        {/* Per-platform sub-items */}
+        <div className="ml-3 space-y-0.5">
+          {ALL_PLATFORMS.map((platformKey) => {
+            const config = PLATFORM_CONFIG[platformKey];
+            const summary = platformStatus[platformKey];
+            const isConnected = summary?.status === 'active';
+            const isActive = activePlatform === platformKey;
+
+            return (
+              <button
+                key={platformKey}
+                onClick={() => router.push(`/context/${platformKey}`)}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : isConnected
+                      ? "text-foreground hover:bg-muted"
+                      : "text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full shrink-0",
+                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
+                  )} />
+                  {config.label}
+                </span>
+                {isConnected && summary && summary.resource_count > 0 && (
+                  <span className="text-muted-foreground">{summary.resource_count}</span>
                 )}
               </button>
             );

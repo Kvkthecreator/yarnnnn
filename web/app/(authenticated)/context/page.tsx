@@ -43,6 +43,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
+import ReactMarkdown from 'react-markdown';
 
 // =============================================================================
 // Types
@@ -107,9 +108,9 @@ const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 // =============================================================================
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
+  { id: 'knowledge', label: 'Knowledge', icon: <FolderTree className="w-4 h-4" /> },
   { id: 'platforms', label: 'Platforms', icon: <Layers className="w-4 h-4" /> },
   { id: 'documents', label: 'Documents', icon: <FolderOpen className="w-4 h-4" /> },
-  { id: 'knowledge', label: 'Knowledge', icon: <FolderTree className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -414,9 +415,15 @@ function KnowledgeSection({
         </div>
 
         <div className="bg-card rounded-lg border border-border p-5">
-          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words">
-            {selectedFile.content}
-          </div>
+          {selectedFile.path.endsWith('.md') ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-li:my-0">
+              <ReactMarkdown>{selectedFile.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <pre className="text-sm whitespace-pre-wrap break-words text-foreground">
+              {selectedFile.content}
+            </pre>
+          )}
         </div>
       </div>
     );
