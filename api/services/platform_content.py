@@ -692,7 +692,7 @@ async def get_content_for_agent(
         # DataSource model uses "source" field; legacy/manual entries may use "resource_id"
         resource_id = source.get("source") or source.get("resource_id")
 
-        if not provider or not resource_id:
+        if not provider:
             continue
 
         # Normalize provider → platform_content.platform
@@ -702,30 +702,44 @@ async def get_content_for_agent(
         # platform="calendar" and platform="gmail" respectively.
         platform = provider
         if provider == "google":
-            # Determine if this is calendar or gmail based on resource_id
-            # Calendar resource_ids are email addresses or calendar IDs
-            # Gmail resource_ids are labels like "INBOX", "IMPORTANT"
-            gmail_labels = {"INBOX", "SENT", "IMPORTANT", "STARRED", "SPAM", "TRASH",
-                           "UNREAD", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
-                           "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"}
-            if resource_id.upper() in gmail_labels or resource_id.startswith("label:"):
-                platform = "gmail"
-            else:
-                platform = "calendar"
+            if resource_id and resource_id != "all":
+                # Determine if this is calendar or gmail based on resource_id
+                gmail_labels = {"INBOX", "SENT", "IMPORTANT", "STARRED", "SPAM", "TRASH",
+                               "UNREAD", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+                               "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"}
+                if resource_id.upper() in gmail_labels or resource_id.startswith("label:"):
+                    platform = "gmail"
+                else:
+                    platform = "calendar"
+            # google + "all" → fetch both gmail and calendar below
 
-        # Normalize gmail resource_id: agent sources may use "INBOX"
-        # but platform_content stores "label:INBOX"
-        query_resource_id = resource_id
-        if platform == "gmail" and not resource_id.startswith("label:"):
-            query_resource_id = f"label:{resource_id}"
+        # Handle "all" sentinel: fetch all content for this platform, no resource_id filter
+        is_all = not resource_id or resource_id == "all"
 
-        items = await get_platform_content(
-            db_client=db_client,
-            user_id=user_id,
-            platforms=[platform],
-            resource_ids=[query_resource_id],
-            limit=limit_per_source,
-        )
+        if is_all:
+            # For "google" with "all", fetch both gmail and calendar
+            fetch_platforms = ["gmail", "calendar"] if provider == "google" else [platform]
+            items = await get_platform_content(
+                db_client=db_client,
+                user_id=user_id,
+                platforms=fetch_platforms,
+                resource_ids=None,  # No filter — all resources for this platform
+                limit=limit_per_source,
+            )
+        else:
+            # Normalize gmail resource_id: agent sources may use "INBOX"
+            # but platform_content stores "label:INBOX"
+            query_resource_id = resource_id
+            if platform == "gmail" and not resource_id.startswith("label:"):
+                query_resource_id = f"label:{resource_id}"
+
+            items = await get_platform_content(
+                db_client=db_client,
+                user_id=user_id,
+                platforms=[platform],
+                resource_ids=[query_resource_id],
+                limit=limit_per_source,
+            )
 
         # Fallback: if no items found by resource_id, try matching by resource_name
         # This handles cases where sources use human-readable names instead of platform IDs
