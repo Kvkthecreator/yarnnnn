@@ -478,8 +478,8 @@ export function ChatFirstDesk() {
         )}
 
         {/* Messages — centered with max-width */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          <div className="max-w-3xl mx-auto w-full space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+          <div className="max-w-3xl mx-auto w-full space-y-3">
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
                 <div className="text-center mb-8">
@@ -521,12 +521,14 @@ export function ChatFirstDesk() {
               <div
                 key={msg.id}
                 className={cn(
-                  'text-sm rounded-lg p-3 max-w-2xl',
-                  msg.role === 'user' ? 'bg-primary/10 ml-auto' : 'bg-muted'
+                  'text-sm rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-2xl',
+                  msg.role === 'user'
+                    ? 'bg-primary/10 ml-auto rounded-br-md'
+                    : 'bg-muted rounded-bl-md'
                 )}
               >
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">
-                  {msg.role === 'user' ? 'You' : 'TP'}
+                <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider block mb-1.5">
+                  {msg.role === 'user' ? 'You' : 'yarnnn'}
                 </span>
                 {msg.images && msg.images.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
@@ -591,7 +593,7 @@ export function ChatFirstDesk() {
         </div>
 
         {/* Input — floating */}
-        <div className="px-4 pb-4 pt-2 shrink-0">
+        <div className="px-4 pb-4 pt-2 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="relative max-w-2xl mx-auto">
             <SkillPicker
               query={skillQuery ?? ''}
@@ -680,13 +682,14 @@ export function ChatFirstDesk() {
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   disabled={isLoading}
+                  enterKeyHint="send"
                   placeholder={
                     status.type === 'clarify'
                       ? 'Type your answer...'
                       : 'Ask anything or type / for skills...'
                   }
                   rows={1}
-                  className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+                  className="flex-1 py-3 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
                 />
 
                 <button
@@ -700,7 +703,8 @@ export function ChatFirstDesk() {
               </div>
 
               <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
-                <span>Enter to send, Shift+Enter for new line</span>
+                <span className="hidden sm:inline">Enter to send, Shift+Enter for new line</span>
+                <span className="sm:hidden">Tap send or use keyboard Send</span>
                 {tokenUsage && (
                   <span className="font-mono tabular-nums">
                     {formatTokenCount(tokenUsage.totalTokens)} tokens

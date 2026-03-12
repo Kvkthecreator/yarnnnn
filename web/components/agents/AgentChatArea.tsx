@@ -187,7 +187,7 @@ export function AgentChatArea({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-3">
         <div className="max-w-3xl mx-auto w-full space-y-4">
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-8">
@@ -217,11 +217,13 @@ export function AgentChatArea({
             <div
               key={msg.id}
               className={cn(
-                'text-sm rounded-lg p-3 max-w-2xl',
-                msg.role === 'user' ? 'bg-primary/10 ml-auto' : 'bg-muted'
+                'text-sm rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-2xl',
+                msg.role === 'user'
+                  ? 'bg-primary/10 ml-auto rounded-br-md'
+                  : 'bg-muted rounded-bl-md'
               )}
             >
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">
+              <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider block mb-1.5">
                 {msg.role === 'user' ? 'You' : agentTitle}
               </span>
               {msg.images && msg.images.length > 0 && (
@@ -287,7 +289,7 @@ export function AgentChatArea({
       </div>
 
       {/* Input */}
-      <div className="px-4 pb-4 pt-2 shrink-0">
+      <div className="px-4 pb-4 pt-2 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="relative max-w-2xl mx-auto">
           <SkillPicker
             query={skillQuery ?? ''}
@@ -339,13 +341,14 @@ export function AgentChatArea({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 disabled={isLoading}
+                enterKeyHint="send"
                 placeholder={
                   status.type === 'clarify'
                     ? 'Type your answer...'
                     : `Ask ${agentTitle} anything or type / for skills...`
                 }
                 rows={1}
-                className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+                className="flex-1 py-3 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
               />
               <button
                 type="submit"
@@ -357,7 +360,8 @@ export function AgentChatArea({
               </button>
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
-              <span>Enter to send, Shift+Enter for new line</span>
+              <span className="hidden sm:inline">Enter to send, Shift+Enter for new line</span>
+              <span className="sm:hidden">Tap send or use keyboard Send</span>
               {tokenUsage && (
                 <span className="font-mono tabular-nums">
                   {tokenUsage.totalTokens >= 1000
