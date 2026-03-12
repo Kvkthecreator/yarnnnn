@@ -47,6 +47,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-104**: Agent Instructions as Unified Targeting - `agent_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
 - **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
 - **ADR-106**: Agent Workspace Architecture - virtual filesystem over Postgres (`workspace_files` table); agents interact via path-based operations; archetype-driven strategies (reporter/analyst/researcher/operator); reasoning agents drive own context gathering from workspace instead of receiving platform dumps; replaces `agent_memory` JSONB; storage-agnostic abstraction layer preserves optionality for cloud storage
+- **ADR-109**: Agent Framework — Scope × Skill × Trigger taxonomy replacing the 7-type system (ADR-093). Scope (what it knows: platform/cross_platform/knowledge/research/autonomous) determines context strategy. Skill (what it does: digest/prepare/monitor/research/synthesize/orchestrate/act) determines prompt + primitives. Trigger (when it acts) = preserved ADR-092 modes. `agent_type` column → `scope` + `skill` columns. Templates are user-facing convenience layer. Canonical reference: `docs/architecture/agent-framework.md`. (Docs complete, code migration pending.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -191,10 +192,11 @@ You MUST:
 - `platform_content` — unified content layer with retention (ADR-072); includes `platform="yarnnn"` for agent outputs (ADR-102)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
-- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103)
+- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103). Key columns: `scope` + `skill` (ADR-109, replacing `agent_type`), `mode` (trigger)
 - `agent_runs` — execution history per agent (was `deliverable_versions`, renamed ADR-103)
-- `agent_instructions` — column on `agents` table, user-authored behavioral directives (migrating to workspace files in ADR-106)
-- `agent_memory` — column on `agents` table, system-accumulated state (migrating to workspace files in ADR-106)
+- `agent_type` — column on `agents` table, **DEPRECATED** by ADR-109 — being replaced by `scope` + `skill`
+- `agent_instructions` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `AGENT.md`
+- `agent_memory` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `memory/*.md`
 - `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
@@ -264,6 +266,7 @@ You MUST:
 | OAuth Flow | `api/integrations/core/oauth.py` |
 | Agent Workspace | `api/services/workspace.py` (ADR-106) |
 | Workspace Primitives | `api/services/primitives/workspace.py` (ADR-106) |
+| Agent Framework (canonical) | `docs/architecture/agent-framework.md` (ADR-109) |
 | Agent Execution | `api/services/agent_execution.py` |
 | Agent Pipeline | `api/services/agent_pipeline.py` |
 | Agent Routes | `api/routes/agents.py` |

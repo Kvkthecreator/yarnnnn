@@ -1,10 +1,12 @@
 # Agent Modes
 
 **Status:** Canonical
-**Date:** 2026-03-04
-**Related:** [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
+**Date:** 2026-03-04 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework)
+**Related:**
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — implementation contracts
+- [Agent Framework: Scope × Skill × Trigger](../architecture/agent-framework.md) — canonical taxonomy (ADR-109)
 
-This document is the user-facing and product framing for agent modes. For implementation contracts, see ADR-092.
+This document is the user-facing and product framing for agent modes (internally: **triggers** in the Scope × Skill × Trigger framework). For implementation contracts, see ADR-092. For how triggers relate to scope and skill, see the [Agent Framework](../architecture/agent-framework.md).
 
 ---
 
@@ -120,7 +122,7 @@ This is YARNNN doing work on your behalf that you didn't explicitly configure. Y
 
 Regardless of mode, every agent carries four layers of knowledge (ADR-101):
 
-- **Skills** — type-specific format and structure (e.g., a digest always leads with highlights, a status report always has cross-platform synthesis). Built into the type system.
+- **Skills** — skill-specific format and structure (e.g., a digest always leads with highlights, a synthesize agent always has cross-source connections). Built into the skill's prompt template and primitive set (ADR-109).
 - **Directives** — your behavioral instructions and audience context. "Use formal tone." "The audience is the exec team." Set via the Instructions panel or TP chat.
 - **Memory** — what the agent has observed and decided. Structured differently per mode (observations, goals, review log — see ADR-092), but always accumulating per specialist.
 - **Feedback** — what it learned from your edits. When you modify a delivered version, the edit patterns feed into future generations as "learned preferences."
@@ -145,18 +147,18 @@ That compounding per specialist — not per conversation, not per session, but p
 
 ---
 
-## Type × Mode — Natural pairings (ADR-093)
+## Skill × Trigger — Natural pairings (ADR-109)
 
-Types and modes are orthogonal — any combination is valid — but some pairings are the natural home for each type:
+Skills and triggers are orthogonal — any combination is valid — but some pairings are the natural home for each skill:
 
-| Type | Natural modes | Notes |
-|------|--------------|-------|
-| `digest` | recurring, reactive | Platform-bound synthesis. Slack digests pair naturally with reactive (accumulate-then-generate). Calendar digests pair with recurring. |
-| `brief` | proactive, coordinator, goal | Calendar-triggered meeting briefs work well as coordinator children. Standalone prep works as goal. |
-| `status` | recurring, goal | Recurring is the default. Goal mode for time-bounded status (e.g. "until launch"). |
-| `watch` | proactive, reactive | Proactive for open-ended domain monitoring. Reactive for threshold-based event watch. |
-| `deep_research` | goal | Investigation has a defined end. Runs until the research objective is complete. |
-| `coordinator` | coordinator | A type and mode in one. The coordinator type makes the coordinator mode discoverable. |
-| `custom` | any | User defines both intent and execution character. |
+| Skill | Natural triggers | Notes |
+|-------|-----------------|-------|
+| `digest` | recurring, reactive | Platform synthesis. Slack digests pair naturally with reactive (accumulate-then-generate). Calendar digests pair with recurring. |
+| `prepare` | recurring, coordinator, goal | Daily meeting prep is recurring. Calendar-triggered prep works as coordinator children. Standalone prep works as goal. |
+| `monitor` | proactive, reactive | Proactive for open-ended domain monitoring. Reactive for threshold-based event watch. |
+| `research` | goal | Investigation has a defined end. Runs until the research objective is complete. |
+| `synthesize` | recurring, proactive | Recurring for scheduled status updates. Proactive for self-directed intelligence (Proactive Insights). |
+| `orchestrate` | coordinator | The orchestrate skill makes the coordinator trigger discoverable. |
+| `act` | reactive, proactive | Event-driven actions (reactive) or self-initiated actions when warranted (proactive). Future. |
 
-**The key insight:** mode answers *when/how* a agent decides to act. Type answers *what the user is building*. They are independent dimensions. A `digest` can be recurring or reactive. A `brief` can be coordinator-triggered or goal-driven. The names don't imply a mode.
+**The key insight:** trigger answers *when/how* an agent decides to act. Skill answers *what it does*. Scope (auto-inferred) answers *what it knows*. These are independent dimensions. A `digest` can be recurring or reactive. A `prepare` can be coordinator-triggered or goal-driven. The names don't imply a trigger or scope.

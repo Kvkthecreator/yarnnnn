@@ -1,8 +1,9 @@
-# Auto Meeting Prep (type: `brief`)
+# Meeting Prep (skill: `prepare`, scope: `cross_platform`)
 
-**Date:** 2026-03-06
+**Date:** 2026-03-06 (updated 2026-03-12 for ADR-109 terminology)
 **Status:** Pass 3 validated (prompt v3)
-**Related:** [Agent Types](agent-types.md), [Quality Testing](../development/agent-quality-testing.md)
+**Related:** [Agent Skills Reference](agent-types.md), [Agent Framework](../architecture/agent-framework.md), [Quality Testing](../development/agent-quality-testing.md)
+**Template:** Meeting Prep (scope: cross_platform, skill: prepare, trigger: recurring)
 
 ---
 

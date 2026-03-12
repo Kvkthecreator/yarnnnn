@@ -1,8 +1,9 @@
 # Architecture: Agents
 
 **Status:** Canonical
-**Date:** 2026-02-26 (updated 2026-03-10 for ADR-049 evolution: context provenance)
+**Date:** 2026-02-26 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework)
 **Related:**
+- [Agent Framework: Scope × Skill × Trigger](agent-framework.md) — canonical taxonomy reference (ADR-109)
 - [ADR-018: Recurring Agents](../adr/ADR-018-recurring-agents.md)
 - [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
 - [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
@@ -10,7 +11,6 @@
 - [ADR-066: Delivery-First Redesign](../adr/ADR-066-agent-detail-redesign.md)
 - [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
-- [ADR-082: Agent Type Consolidation](../adr/ADR-082-agent-type-consolidation.md) — 27→8 active types
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
@@ -47,7 +47,9 @@ When a agent executes, it produces a **agent version** — an immutable record o
 | `user_id` | uuid | Owner |
 | `title` | text | Human-readable name ("Monday Slack Digest") |
 | `description` | text | Optional user notes |
-| `agent_type` | text | Type identifier (see Type System below) |
+| `agent_type` | text | **DEPRECATED (ADR-109):** Being replaced by `scope` + `skill`. Retained during migration. See Agent Framework section. |
+| `scope` | text | **ADR-109 (pending):** Context strategy — `platform`, `cross_platform`, `knowledge`, `research`, `autonomous` |
+| `skill` | text | **ADR-109 (pending):** Work behavior — `digest`, `prepare`, `monitor`, `research`, `synthesize`, `orchestrate`, `act` |
 | `type_config` | jsonb | Type-specific settings |
 | `type_classification` | jsonb | ADR-044: `{binding, primary_platform, temporal_pattern, freshness_requirement_hours}` |
 | `mode` | text | ADR-092: `recurring` (default) \| `goal` \| `reactive` \| `proactive` \| `coordinator` |
@@ -138,68 +140,69 @@ The `mode` field defines the agent's **execution character** — how it decides 
 
 ---
 
-## Type System (ADR-044, consolidated by ADR-082)
+## Agent Framework: Scope × Skill × Trigger (ADR-109)
 
-### Active Agent Types
+> **Supersedes:** ADR-044 type classification, ADR-082 type consolidation, ADR-093 purpose-first types. See [Agent Framework](agent-framework.md) for the canonical reference.
 
-8 active types across 4 bindings, each anchored to a distinct moment in the user's work rhythm:
+Every agent is defined by two orthogonal axes plus an operational dimension:
 
-| Type | Binding | Rhythm | Purpose |
-|------|---------|--------|---------|
-| `slack_channel_digest` | platform_bound | daily | What happened in Slack while you were away |
-| `gmail_inbox_brief` | platform_bound | daily | Prioritized inbox summary |
-| `notion_page_summary` | platform_bound | daily | What changed in your docs |
-| `weekly_calendar_preview` | platform_bound | weekly | Your week ahead |
-| `meeting_prep` | platform_bound | reactive | Context brief for a specific upcoming meeting |
-| `status_report` | cross_platform | weekly | Cross-platform synthesis — what happened this week |
-| `research_brief` | research | on-demand | Web research on a topic, optionally grounded in platform data |
-| `custom` | hybrid | on-demand | User-defined format with full context access |
+| Axis | Question | Values | Determines |
+|------|----------|--------|------------|
+| **Scope** | What does the agent know? | `platform`, `cross_platform`, `knowledge`, `research`, `autonomous` | Context strategy |
+| **Skill** | What does the agent do? | `digest`, `prepare`, `monitor`, `research`, `synthesize`, `orchestrate`, `act` | Prompt, primitives, output shape |
+| **Trigger** | When does the agent act? | `recurring`, `goal`, `reactive`, `proactive`, `coordinator` | Scheduler behavior |
 
-**Deprecated types** (19 types remain in DB constraint for backwards compatibility but are not selectable in the UI):
-`slack_standup`, `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`, `meeting_summary`, `one_on_one_prep`, `stakeholder_update`, `board_update`, `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`, `daily_strategy_reflection`, `deep_research`, `intelligence_brief`, `client_proposal`, `performance_self_assessment`, `newsletter_section`, `changelog`
+**Scope is auto-inferred** from the user's configured sources — never set directly. Skill is selected by the user (via templates). Trigger governs lifecycle.
 
-See [ADR-082](../adr/ADR-082-agent-type-consolidation.md) for the consolidation rationale and what each deprecated type was absorbed into.
+### Migration from `agent_type`
 
-### Type Classification (ADR-044)
+The `agent_type` column is being replaced by `scope` + `skill` columns (ADR-109, code migration pending):
 
-Each agent type has a `type_classification` object that determines execution behavior:
+| Current `agent_type` | → Scope | → Skill | Default Trigger |
+|---------------------|---------|---------|----------------|
+| `digest` | platform | digest | recurring |
+| `brief` | cross_platform | prepare | recurring |
+| `status` | cross_platform | synthesize | recurring |
+| `watch` | knowledge/platform | monitor | proactive |
+| `deep_research` | research | research | goal |
+| `coordinator` | autonomous | orchestrate | coordinator |
+| `custom` | (inferred) | (inferred) | (preserved) |
 
-```json
-{
-  "binding": "platform_bound" | "cross_platform" | "research" | "hybrid",
-  "primary_platform": "slack" | "gmail" | "notion" | "calendar" | null,
-  "temporal_pattern": "scheduled" | "reactive" | "on_demand",
-  "freshness_requirement_hours": 1 | 4 | 24
-}
-```
+### Execution Strategy by Scope
 
-**`binding`** — Determines execution strategy (see Execution Model below)
-- `platform_bound` → Single platform's `platform_content`
-- `cross_platform` → All platforms' `platform_content`
-- `research` → Web research via headless agent WebSearch primitive (ADR-081)
-- `hybrid` → Web research + platform content
+Strategy selection moves from `type_classification.binding` to `scope`:
 
-> **Note (ADR-080/081)**: All strategies gather context from `platform_content`. The agent in headless mode can supplement with primitive calls (Search, Read, List, WebSearch, GetSystemState). Research/hybrid bindings pass a research directive to the headless agent. Strategy distinction is for context gathering scope.
+| Scope | Strategy | Context Source |
+|-------|----------|---------------|
+| `platform` | PlatformBoundStrategy | Single platform's `platform_content` |
+| `cross_platform` | CrossPlatformStrategy | All platforms' `platform_content` |
+| `knowledge` | KnowledgeStrategy | Workspace + `/knowledge/` queries |
+| `research` | ResearchStrategy | Knowledge + WebSearch + documents |
+| `autonomous` | AutonomousStrategy | Full primitive set, agent-driven |
 
-**`primary_platform`** — For platform-bound types, which platform to query
+### Primitive Gating by Skill
 
-**`temporal_pattern`** — When the agent is valuable
-- `scheduled`: Fixed cadence (daily, weekly) — most types
-- `reactive`: Triggered by upcoming event (meeting_prep)
-- `on_demand`: User-initiated (research_brief, custom)
+Each skill defines its available primitives (see [Agent Framework](agent-framework.md#primitive-gating-by-skill) for the full registry). This replaces the binding-aware tool round limits with skill-appropriate primitive sets.
 
-**`freshness_requirement_hours`** — How stale can source data be?
-- 1h: Real-time critical (meeting_prep, platform-bound daily types)
-- 4h: Same-day (status_report, notion_page_summary, weekly_calendar_preview)
-- 24h: On-demand (research_brief)
+### Legacy: Type Classification (ADR-044)
 
-### Canonical Terminology (ADR-082)
+The `type_classification` JSONB column remains on the `agents` table during migration. Its `binding` field maps to scope:
+
+| `type_classification.binding` | → Scope |
+|------------------------------|---------|
+| `platform_bound` | `platform` |
+| `cross_platform` | `cross_platform` |
+| `research` | `research` |
+| `hybrid` | `autonomous` |
+
+### Canonical Terminology (updated ADR-109)
 
 | Term | Definition | Replaces |
 |------|-----------|----------|
-| **Binding** | How context is gathered | "Platform-Native" (ADR-031), "Platform-First" (ADR-035), "Wave" (ADR-035) |
-| **Tier** | Code maturity: `stable`, `deprecated` | "Beta", "Experimental", "Wave 1/2/3" |
-| **Rhythm** | When the agent is valuable: daily, weekly, reactive, on-demand | "Temporal pattern" (ADR-044) |
+| **Scope** | What context the agent accesses | "Binding" (ADR-044), "Type Classification" |
+| **Skill** | What the agent does with that context | "Agent Type" (ADR-093) |
+| **Trigger** | When/how the agent decides to act | "Mode" (ADR-092, column name preserved) |
+| **Template** | Pre-configured Scope × Skill × Trigger | "Type" (user-facing) |
 | **Origin** | How the agent was created | Unchanged (ADR-068) |
 
 ---
@@ -212,14 +215,15 @@ When a agent is due to run (scheduled, event-triggered, or manual), `execute_age
 
 1. Checks source freshness — skips if no new content since `last_run_at` (ADR-049)
 2. Creates `agent_runs` row (status=generating) + `work_tickets` row
-3. Selects execution strategy by `type_classification.binding` (ADR-045):
+3. Selects execution strategy by agent scope (ADR-109, migrating from `type_classification.binding` ADR-045):
 
-| Strategy | Binding | Content Source |
-|----------|---------|---------------|
-| `PlatformBoundStrategy` | `platform_bound` | Single platform's `platform_content` |
+| Strategy | Scope | Content Source |
+|----------|-------|---------------|
+| `PlatformBoundStrategy` | `platform` | Single platform's `platform_content` |
 | `CrossPlatformStrategy` | `cross_platform` | All platforms' `platform_content` |
-| `ResearchStrategy` | `research` | Optional platform grounding + research directive for headless agent (ADR-081) |
-| `HybridStrategy` | `hybrid` | Platform content + research directive for headless agent (ADR-081) |
+| `KnowledgeStrategy` | `knowledge` | Workspace + `/knowledge/` queries (ADR-109) |
+| `ResearchStrategy` | `research` | Knowledge + WebSearch + documents |
+| `AutonomousStrategy` | `autonomous` | Full primitive set, agent-driven (ADR-109) |
 
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
 5. User memories appended from `user_memory` (fact/instruction/preference keys)
@@ -467,7 +471,7 @@ Every agent carries four layers of knowledge:
 
 | Layer | What it is | Storage |
 |---|---|---|
-| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates (unchanged) |
+| **Skills** | Skill-specific format, structure, primitive set (ADR-109) | `skill` column + skill prompt templates (migrating from `type_config` + type prompts) |
 | **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `/agents/{slug}/AGENT.md` (workspace file — ADR-106 Phase 2) |
 | **Memory** | What happened — observations, review decisions, goals | `/agents/{slug}/memory/*.md` (workspace files — ADR-106 Phase 2, topic-scoped) |
 | **Feedback** | How well it's doing — edit patterns from user corrections | `agent_runs` metrics → `/agents/{slug}/memory/preferences.md` (future) |
@@ -496,35 +500,13 @@ See [ADR-101](../adr/ADR-101-agent-intelligence-model.md) for the full model and
 
 ## Implementation Status
 
-**ADR-068 Signal-Emergent Agents: Phase 3+4 Complete (2026-02-20)**
+**Agent Framework migration (ADR-109, 2026-03-12):**
+- ✅ Documentation complete — canonical reference at [Agent Framework](agent-framework.md)
+- ⚠️ Code migration pending — `scope` + `skill` columns, strategy routing, primitive gating
+- ⚠️ Frontend migration pending — template-based creation UI
 
-Phase 3 delivered:
-- Migration 071: `signal_history` table for per-signal deduplication tracking
-- Migration 072: Extended `user_notification_preferences` with signal type toggles (meeting_prep, silence_alert, contact_drift)
-- Migration 073: Dropped `governance` and `governance_ceiling` columns (ADR-066 cleanup)
-- Per-signal deduplication logic in `signal_processing.py` with configurable windows (24h/7d/14d)
-- Pydantic model cleanup — removed all governance field references
-
-Phase 4 delivered:
-- Split signal processing cron: Calendar signals (hourly), other signals (daily 7 AM)
-- Gmail silence signal extraction via live Gmail API (thread history analysis)
-- `signals_filter` parameter in `extract_signal_summary()` for selective signal extraction
-
-**Status (2026-02-20):** Signal-emergent agents fully operational with hardened two-phase model.
-
-**What works:**
-- ✅ Two-phase execution (orchestration → selective artifact creation)
-- ✅ Hybrid action model (trigger_existing + create_signal_emergent)
-- ✅ Meeting prep agents (hourly check, 48h lookahead, calendar signals)
-- ✅ Gmail silence extraction (daily check, 5+ day threshold)
-- ✅ Per-signal deduplication via signal_history table
-- ✅ User preferences via user_notification_preferences
-- ✅ Split cron frequency (hourly/daily based on signal urgency)
-
-**What's pending:**
-- ⚠️ `silence_alert` agent type needs prompt template (extraction works, generation doesn't)
-- ⚠️ `contact_drift` signal extraction not yet implemented
-- ⚠️ LLM prompt updated to prioritize trigger_existing, but needs real-world testing
+**Signal processing (ADR-092, 2026-03-04):**
+- Signal processing as a separate L3 subsystem is **dissolved** (ADR-092). The intelligence that previously lived in signal processing now lives in **coordinator agents** — user-configured specialists that watch a domain and create/trigger agents when warranted. See [Coordinator lifecycle](#coordinator-created-agent-lifecycle-adr-092) above.
 
 ---
 
@@ -650,7 +632,7 @@ Agents are YARNNN's output layer — structured, versioned, specialist agents th
 - **Executed** by the backend orchestration pipeline — strategy gathers context, agent (headless mode) generates with primitive access (ADR-080)
 - **Delivered** to platform destinations (email via Resend, Slack, Notion) without approval gates (ADR-066)
 - **Versioned** immutably — each execution produces a permanent record
-- **Type-classified** (ADR-044) to determine execution strategy
+- **Classified by Scope × Skill** (ADR-109) to determine execution strategy and primitive gating — replacing the prior type system (ADR-044/093)
 - **Origin-tagged** to record provenance: `user_configured`, `analyst_suggested`, `coordinator_created`
 
 The agent model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world. Every agent is simultaneously a configuration (what to produce), a specialist (how to produce it well), and a knowledge base (what it has learned about this work).

@@ -3,7 +3,7 @@
 **Purpose**: Foundation document — what YARNNN is, what it believes, how it works.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-03-11 (v8.0 — ADR-103/104/105/106: agent-native vocabulary, workspace architecture, 2-tier model)
+**Updated**: 2026-03-12 (v9.0 — Agent Framework: Scope × Skill × Trigger taxonomy, ADR-109)
 
 ---
 
@@ -103,7 +103,7 @@ The product revolves around five core entities. (Previous domain model with Work
 
 | Entity | Purpose | Key fields |
 |--------|---------|------------|
-| **agents** | The persistent specialist | id, user_id, title, agent_type, mode, status, sources, schedule, trigger_config, agent_instructions, agent_memory, origin |
+| **agents** | The persistent specialist | id, user_id, title, scope, skill, mode, status, sources, schedule, trigger_config, origin |
 | **agent_runs** | Immutable output record | id, agent_id, content, version_number, metadata (source_snapshots, trigger_context, generation_cost) |
 | **workspace_files** | Agent workspaces + knowledge base | id, user_id, path, content, summary, embedding, tags — virtual filesystem (ADR-106) |
 | **platform_content** | Accumulated knowledge layer | id, user_id, platform, resource_id, item_id, content, retained, retained_reason, expires_at |
@@ -137,13 +137,15 @@ User: conversational                 User: supervisor reviewing output
 
 The boundary is preserved: backend orchestration (scheduler, strategy, delivery, retention) stays outside the agent. The agent is invoked at the generation step and returns text.
 
-### The Agent as Persistent Specialist (ADR-092, ADR-103, ADR-106)
+### The Agent as Persistent Specialist (ADR-092, ADR-103, ADR-106, ADR-109)
+
+**Agent taxonomy** (ADR-109): Every agent is defined by two orthogonal axes — **Scope** (what it knows: platform, cross_platform, knowledge, research, autonomous) and **Skill** (what it does: digest, prepare, monitor, research, synthesize, orchestrate, act) — plus a **Trigger** (when it runs: recurring, goal, reactive, proactive, coordinator). See [Agent Framework](architecture/agent-framework.md) for the canonical reference.
 
 Each agent is not a template or a config — it is a persistent, sleeping specialist:
 
 | Component | Implementation | Purpose |
 |-----------|---------------|---------|
-| Identity | title + agent_type + archetype | Agent name, role, and execution strategy |
+| Identity | title + scope + skill | Agent name, context strategy, and work behavior |
 | Directives | `agent_instructions` → `AGENT.md` workspace file | User-authored behavioral programming |
 | Workspace | `workspace_files` (virtual filesystem) | Inspectable memory, thesis, working notes, references |
 | Memory | `/agents/{slug}/memory/*.md` | Topic-scoped accumulated knowledge (replaces JSONB blob) |
@@ -260,9 +262,8 @@ All execution is inline — no background worker, no Redis, no queue. Platform s
 - ✅ Unified targeting — agent_instructions as single targeting layer, dead infrastructure deleted (ADR-104)
 
 ### What's not yet built
+- ❌ Agent Framework migration — Scope × Skill × Trigger taxonomy replacing 7-type system (ADR-109, docs complete, code migration pending)
 - ❌ Notifications preferences UI (infrastructure complete, settings page pending)
-- ❌ Agent type taxonomy revision (current 8 types predate mode system — scheduled)
-- ❌ `work_tickets` / `work_outputs` table drop (ADR-090 Phase 4 — post-migration period)
 - ❌ Session summaries writer (ADR-067 Phase 1 — currently `chat_sessions.summary` always empty)
 - ❌ Review-first supervision UX (ADR-021 — primary agent view → review queue → TP inline)
 

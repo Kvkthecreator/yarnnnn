@@ -1,8 +1,9 @@
 # ADR-093: Agent Type Taxonomy Revision
 
-**Status:** Implemented
+**Status:** Superseded by [ADR-109: Agent Framework — Scope × Skill × Trigger](ADR-109-agent-framework.md)
 **Date:** 2026-03-04
 **Supersedes:** ADR-082 (8-type consolidation), all prior type definitions
+**Superseded by:** ADR-109 — the 7 purpose-first types are decomposed into orthogonal Scope × Skill axes. See [Agent Framework](../architecture/agent-framework.md) for the canonical reference.
 
 ---
 

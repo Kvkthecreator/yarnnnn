@@ -1,7 +1,7 @@
 # Architecture: Agent Execution Model
 
 **Status:** Canonical
-**Date:** 2026-02-26 (updated 2026-03-04 for ADR-092: headless mode extended primitives, review pass, coordinator mode)
+**Date:** 2026-02-26 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework terminology)
 **Supersedes:** ADR-016 (Layered Agent Architecture) — work agent delegation model
 **Codifies:** ADR-080 (Unified Agent Modes) — evolves ADR-061 two-path separation into one agent with modal execution
 **Related:**
@@ -63,7 +63,7 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 | Scope | Stateless (no session) |
 | Streaming | No |
 | Primitives | Curated subset: Search, Read, List, WebSearch, GetSystemState |
-| Max tool rounds | Binding-aware: platform_bound=2, cross_platform=3, research=6, hybrid=6 (ADR-081) |
+| Max tool rounds | Scope-aware: platform=2, cross_platform=3, knowledge=3, research=6, autonomous=6 (ADR-081/109) |
 | System prompt | Directives + memory + learned preferences + optional research directive (ADR-081/087/101) |
 | Entry point | `generate_draft_inline()` in agent pipeline |
 | LLM function | `chat_completion_with_tools()` |
@@ -138,7 +138,7 @@ Backend Orchestration
 │   ├── Receives: gathered context + type prompt + directives + memory + learned preferences (ADR-101)
 │   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
 │   ├── Cannot use: Write, Edit, Execute, Clarify, CreateAgent, AdvanceAgentSchedule
-│   ├── Max tool rounds: binding-aware (2-6, ADR-081)
+│   ├── Max tool rounds: scope-aware (2-6, ADR-081/109)
 │   └── Returns: structured content (text)
 ├── 6. Retention marking (ADR-072)
 ├── 7. Source snapshots
@@ -210,53 +210,49 @@ The `ThinkingPartnerAgent` (chat mode prompt) is never used in headless mode. He
 
 Complexity in the orchestration pipeline lives in the *strategy*, not in agent logic. Strategies determine what context is gathered before the agent is invoked.
 
-| Binding | Strategy | Data Source |
+| Scope | Strategy | Data Source |
 |---|---|---|
-| `platform_bound` | `PlatformBoundStrategy` | `platform_content` from single platform |
+| `platform` | `PlatformBoundStrategy` | `platform_content` from single platform |
 | `cross_platform` | `CrossPlatformStrategy` | `platform_content` from all platforms |
-| `research` | `ResearchStrategy` | Optional platform grounding + research directive for headless agent (ADR-081) |
-| `hybrid` | `HybridStrategy` | Platform content + research directive for headless agent (ADR-081) |
+| `knowledge` | `KnowledgeStrategy` | Workspace + `/knowledge/` queries (ADR-109) |
+| `research` | `ResearchStrategy` | Knowledge + WebSearch + documents |
+| `autonomous` | `AutonomousStrategy` | Full primitive set, agent-driven (ADR-109) |
 
-Strategy is selected at execution time from `agent.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073). Research and hybrid strategies pass a `research_directive` to the headless agent, which uses the WebSearch primitive directly (ADR-081) — no separate web research call.
+Strategy is selected at execution time from agent `scope` (ADR-109, migrating from `agent.type_classification.binding`). Platform and cross_platform scopes are dump-based (context gathered before LLM call). Knowledge, research, and autonomous scopes are tool-driven (agent drives its own investigation via primitives). See [Agent Framework](agent-framework.md#execution-strategies-by-scope) for details.
 
 See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end pipeline.
 
 ---
 
-## Signal Context Forwarding (ADR-080)
+## Coordinator Context Forwarding (ADR-092)
 
-Signal processing reasons about the user's platform world (Haiku LLM call), producing `reasoning_summary` with cross-platform patterns and entity identification. Previously, this reasoning was discarded before agent generation — `trigger_context={"type": "signal_emergent"}` passed zero intelligence.
+> **Note:** Signal processing as a separate L3 subsystem is dissolved (ADR-092). The intelligence that previously lived in signal processing now lives in coordinator agents.
 
-ADR-080 requires forwarding signal reasoning into the headless mode prompt:
+When a coordinator agent decides to create a child agent, the coordinator's review reasoning is forwarded into the child's generation context via `trigger_context`:
 
 ```python
-# signal_processing.py — forward reasoning
+# proactive_review.py — forward coordinator reasoning
 trigger_context={
-    "type": "signal_emergent",
-    "signal_reasoning": action.signal_context.get("reasoning_summary", ""),
-    "signal_type": action.signal_context.get("signal_type", ""),
+    "type": "coordinator_created",
+    "coordinator_reasoning": review_result.get("reasoning", ""),
+    "coordinator_id": coordinator_agent.id,
 }
-
-# generate_draft_inline() — inject into headless system prompt
-if trigger_context.get("signal_reasoning"):
-    system_prompt += f"\n\nSIGNAL CONTEXT: {trigger_context['signal_reasoning']}"
 ```
 
-This closes the intelligence gap where signal processing knew *why* a agent should exist but that reasoning was lost before generation.
+This ensures the child agent understands *why* it was created and what the coordinator determined was worth investigating.
 
 ---
 
-## What This Means for Proactive / Autonomous Agents
+## Proactive / Autonomous Agents
 
-The proactive autonomy roadmap is implemented through **ADR-068: Signal-Emergent Agents** — entirely within backend orchestration. The agent is invoked in headless mode at the content generation step.
+Proactive autonomy is implemented through **coordinator and proactive modes** (ADR-092) — entirely within backend orchestration. The agent is invoked in headless mode at the content generation step.
 
 | Concept | Belongs in | Rationale |
 |---|---|---|
-| "What happened in user's world?" | Signal Processing (orchestration) | Deterministic extraction from `platform_content`, no agent |
-| "What does this warrant?" | Signal Processing (orchestration) | Single Haiku LLM call over signal summary |
-| Content generation for signal-emergent agent | Agent (headless mode) | Same agent, same primitives, structured output |
-| Drift detection, conflict detection, meeting prep | Signal-emergent agent creation (orchestration) | `origin=signal_emergent`, `trigger_type=manual` |
-| User promotes output to recurring | `promote-to-recurring` endpoint (orchestration) | `trigger_type` updated; `origin` preserved |
+| Domain awareness | Coordinator/proactive review pass (orchestration) | Agent reads sources and decides whether to act |
+| Child agent creation | Coordinator agent (headless mode) | CreateAgent + AdvanceAgentSchedule primitives |
+| Content generation | Agent (headless mode) | Same agent, same primitives, structured output |
+| User promotes child to recurring | `promote-to-recurring` endpoint (orchestration) | `trigger_type` updated; `origin` preserved |
 
 ---
 
