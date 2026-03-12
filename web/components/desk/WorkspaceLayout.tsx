@@ -79,7 +79,12 @@ export function WorkspaceLayout({
   activeTabId,
   onActiveTabChange,
 }: WorkspaceLayoutProps) {
-  const [panelOpen, setPanelOpen] = useState(panelDefaultOpen);
+  // On mobile (< lg), always start with panel closed to show chat first.
+  // On desktop, respect the caller's default.
+  const [panelOpen, setPanelOpen] = useState(() => {
+    if (typeof window === 'undefined') return panelDefaultOpen;
+    return window.innerWidth >= 1024 ? panelDefaultOpen : false;
+  });
   const [internalActiveTab, setInternalActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
   const [panelPct, setPanelPct] = useState(panelDefaultPct);
   const [isDragging, setIsDragging] = useState(false);
