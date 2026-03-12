@@ -614,6 +614,10 @@ class KnowledgeBase:
         """
         Write a knowledge artifact. Called by delivery layer after successful generation.
 
+        ADR-107 Phase 2: Before overwriting an existing file, archives the current
+        content as v{N}.md in the same directory. Sets metadata.supersedes on the
+        new version pointing to the archived path.
+
         Args:
             path: Full path under /knowledge/ (use get_knowledge_path() to generate)
             content: The agent output content (markdown)
@@ -624,6 +628,9 @@ class KnowledgeBase:
         if not path.startswith("/knowledge/"):
             path = f"{self._base}/{path}"
         try:
+            # ADR-107 Phase 2: Archive existing content before overwrite
+            await self._archive_if_exists(path)
+
             data = {
                 "user_id": self._user_id,
                 "path": path,
@@ -646,6 +653,110 @@ class KnowledgeBase:
         except Exception as e:
             logger.error(f"[KNOWLEDGE] Write failed: {path}: {e}")
             return False
+
+    async def _archive_if_exists(self, path: str) -> Optional[str]:
+        """
+        ADR-107 Phase 2: If a file exists at path, copy it to v{N}.md.
+
+        Returns the archive path if archived, None otherwise.
+        """
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content, summary, metadata, tags")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if not rows:
+                return None
+
+            existing = rows[0]
+
+            # Determine next version number from sibling v*.md files
+            dir_path = path.rsplit("/", 1)[0] if "/" in path else ""
+            next_version = await self._next_version_number(dir_path, path)
+
+            # Build archive path: same directory, v{N}.md
+            filename = path.rsplit("/", 1)[-1] if "/" in path else path
+            stem = filename.rsplit(".", 1)[0]  # e.g. "latest" or "weekly-slack-digest-2026-03-11"
+            archive_path = f"{dir_path}/v{next_version}.md" if dir_path else f"v{next_version}.md"
+
+            archive_metadata = dict(existing.get("metadata") or {})
+            archive_metadata["archived_from"] = path
+            archive_metadata["version_number"] = next_version
+
+            self._db.table("workspace_files").insert({
+                "user_id": self._user_id,
+                "path": archive_path,
+                "content": existing["content"],
+                "summary": existing.get("summary") or "",
+                "metadata": archive_metadata,
+                "tags": existing.get("tags") or [],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+
+            logger.info(f"[KNOWLEDGE] Archived {path} → {archive_path}")
+            return archive_path
+        except Exception as e:
+            logger.warning(f"[KNOWLEDGE] Archive failed for {path}: {e}")
+            return None
+
+    def _version_prefix(self, dir_path: str) -> str:
+        """Build a LIKE pattern matching only version archive files (v1.md, v2.md, etc.)."""
+        return f"{dir_path}/v"
+
+    async def _next_version_number(self, dir_path: str, canonical_path: str) -> int:
+        """Count existing version archive files to determine next version number."""
+        try:
+            # Fetch all files in dir, filter to v{N}.md pattern in Python
+            result = (
+                self._db.table("workspace_files")
+                .select("path")
+                .eq("user_id", self._user_id)
+                .like("path", f"{dir_path}/v%.md")
+                .execute()
+            )
+            # Filter to only true version files: v{digits}.md
+            count = sum(1 for r in (result.data or []) if self._is_version_file(r["path"]))
+            return count + 1
+        except Exception:
+            return 1
+
+    @staticmethod
+    def _is_version_file(path: str) -> bool:
+        """Check if a path is a version archive file (e.g. /knowledge/insights/v3.md)."""
+        import re
+        filename = path.rsplit("/", 1)[-1] if "/" in path else path
+        return bool(re.match(r"^v\d+\.md$", filename))
+
+    async def list_versions(self, path: str) -> list[dict]:
+        """
+        List version history for a knowledge file.
+
+        For a file at /knowledge/research/topic/latest.md, returns all
+        v{N}.md files in the same directory, sorted by version number desc.
+        """
+        if not path.startswith("/knowledge/"):
+            path = f"{self._base}/{path}"
+
+        dir_path = path.rsplit("/", 1)[0] if "/" in path else ""
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("path, summary, metadata, updated_at")
+                .eq("user_id", self._user_id)
+                .like("path", f"{dir_path}/v%.md")
+                .order("updated_at", desc=True)
+                .execute()
+            )
+            # Filter to only true version files (v{digits}.md)
+            return [r for r in (result.data or []) if self._is_version_file(r["path"])]
+        except Exception as e:
+            logger.warning(f"[KNOWLEDGE] List versions failed for {path}: {e}")
+            return []
 
     async def search(self, query: str, content_class: str = None, limit: int = 20) -> list[SearchResult]:
         """Search the knowledge base. Optionally filter by content class directory."""

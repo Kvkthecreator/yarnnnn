@@ -1,13 +1,14 @@
 """
-Knowledge routes - ADR-107 Phase 3 UI surfacing
+Knowledge routes - ADR-107 Phase 2+3
 
 Mounted at /api/knowledge.
 
-Provides user-scoped browsing and CRUD of the /knowledge/ filesystem in workspace_files.
+Provides user-scoped browsing, CRUD, and versioning of the /knowledge/ filesystem.
 
 Endpoints:
   GET  /knowledge/files           - List knowledge files (filterable by content_class)
   GET  /knowledge/files/read      - Read a single knowledge file by path
+  GET  /knowledge/files/versions  - List version history for a knowledge file
   POST /knowledge/files           - Create a user-contributed knowledge file
   GET  /knowledge/summary         - Per-class and total counts
 """
@@ -57,6 +58,20 @@ class KnowledgeFileCreate(BaseModel):
     content_class: str
 
 
+class KnowledgeVersion(BaseModel):
+    path: str
+    version: int
+    summary: Optional[str] = None
+    metadata: Optional[dict] = None
+    updated_at: Optional[str] = None
+
+
+class KnowledgeVersionsResponse(BaseModel):
+    canonical_path: str
+    versions: list[KnowledgeVersion]
+    total: int
+
+
 class KnowledgeClassCount(BaseModel):
     content_class: str
     count: int
@@ -94,9 +109,15 @@ async def list_knowledge_files(
     kb = KnowledgeBase(auth.client, auth.user_id)
     rows = await kb.list_files(content_class=content_class, limit=limit)
 
+    # ADR-107 Phase 2: Exclude version archive files (v*.md) from main listing
+    import re
+    _VERSION_FILE_RE = re.compile(r"/v\d+\.md$")
+
     files: list[KnowledgeFile] = []
     for row in rows:
         path = row.get("path", "")
+        if _VERSION_FILE_RE.search(path):
+            continue
         parsed_class, name = _extract_class_and_name(path)
         files.append(
             KnowledgeFile(
@@ -155,6 +176,39 @@ async def read_knowledge_file(
         summary=row.get("summary"),
         metadata=row.get("metadata"),
         updated_at=row.get("updated_at"),
+    )
+
+
+@router.get("/knowledge/files/versions", response_model=KnowledgeVersionsResponse)
+async def list_knowledge_versions(
+    auth: UserClient,
+    path: str = Query(..., description="Canonical file path e.g. /knowledge/research/topic/latest.md"),
+):
+    """List version history for a knowledge file (ADR-107 Phase 2)."""
+    if not path.startswith("/knowledge/"):
+        raise HTTPException(status_code=400, detail="Path must start with /knowledge/")
+
+    kb = KnowledgeBase(auth.client, auth.user_id)
+    rows = await kb.list_versions(path)
+
+    versions: list[KnowledgeVersion] = []
+    for row in rows:
+        meta = row.get("metadata") or {}
+        version_num = meta.get("version_number", 0)
+        versions.append(
+            KnowledgeVersion(
+                path=row["path"],
+                version=version_num,
+                summary=row.get("summary"),
+                metadata=meta,
+                updated_at=row.get("updated_at"),
+            )
+        )
+
+    return KnowledgeVersionsResponse(
+        canonical_path=path,
+        versions=versions,
+        total=len(versions),
     )
 
 

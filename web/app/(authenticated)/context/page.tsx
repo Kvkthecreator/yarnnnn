@@ -41,7 +41,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass } from '@/types';
+import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import ReactMarkdown from 'react-markdown';
 
@@ -336,6 +336,8 @@ function KnowledgeSection({
 }: KnowledgeSectionProps) {
   const [selectedFile, setSelectedFile] = useState<KnowledgeFileDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [versions, setVersions] = useState<KnowledgeVersion[]>([]);
+  const [canonicalPath, setCanonicalPath] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createTitle, setCreateTitle] = useState('');
   const [createClass, setCreateClass] = useState<string>('research');
@@ -344,11 +346,28 @@ function KnowledgeSection({
 
   const handleFileClick = async (file: KnowledgeFile) => {
     setDetailLoading(true);
+    setCanonicalPath(file.path);
     try {
-      const detail = await api.knowledge.readFile(file.path);
+      const [detail, versionsResult] = await Promise.all([
+        api.knowledge.readFile(file.path),
+        api.knowledge.listVersions(file.path).catch(() => ({ versions: [], total: 0, canonical_path: file.path })),
+      ]);
       setSelectedFile(detail);
+      setVersions(versionsResult.versions || []);
     } catch (err) {
       console.error('Failed to read knowledge file:', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleVersionClick = async (versionPath: string) => {
+    setDetailLoading(true);
+    try {
+      const detail = await api.knowledge.readFile(versionPath);
+      setSelectedFile(detail);
+    } catch (err) {
+      console.error('Failed to read version:', err);
     } finally {
       setDetailLoading(false);
     }
@@ -425,6 +444,54 @@ function KnowledgeSection({
             </pre>
           )}
         </div>
+
+        {/* Version history — ADR-107 Phase 2 */}
+        {versions.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Version History ({versions.length})
+            </h3>
+            {versions.map((v) => {
+              const isViewing = selectedFile.path === v.path;
+              return (
+                <button
+                  key={v.path}
+                  onClick={() => !isViewing && handleVersionClick(v.path)}
+                  disabled={isViewing}
+                  className={cn(
+                    "w-full text-left rounded-lg border p-3 text-sm transition-colors",
+                    isViewing
+                      ? "bg-primary/5 border-primary/30 cursor-default"
+                      : "bg-card border-border hover:border-primary/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground">
+                      v{v.version}
+                      {isViewing && <span className="text-xs text-muted-foreground ml-2">(viewing)</span>}
+                    </span>
+                    {v.updated_at && (
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(v.updated_at), { addSuffix: true })}
+                      </span>
+                    )}
+                  </div>
+                  {v.summary && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{v.summary}</p>
+                  )}
+                </button>
+              );
+            })}
+            {canonicalPath && selectedFile.path !== canonicalPath && (
+              <button
+                onClick={() => handleVersionClick(canonicalPath)}
+                className="text-xs text-primary hover:text-primary/80"
+              >
+                Back to current version
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

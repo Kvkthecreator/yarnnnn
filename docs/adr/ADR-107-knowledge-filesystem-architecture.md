@@ -1,6 +1,6 @@
 # ADR-107: Knowledge Filesystem Architecture
 
-**Status:** Implementing (Phase 1 complete; Phase 3 UI surfacing started)
+**Status:** Implementing (Phase 1 complete; Phase 2 versioning implemented; Phase 3 UI surfacing started)
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**
@@ -178,11 +178,13 @@ Agents are processes. Workspace is the filesystem. `platform_content` is the dev
 
 **Embeddings:** `workspace_files` already has pgvector embeddings via migration 100. `/knowledge/` files get indexed on write automatically — no additional work needed.
 
-### Phase 2: Version Management
-1. Implement supersession logic (new version replaces `latest.md`, archives previous as `v{N}.md`)
-2. Provenance tracking in metadata (agent_id, run_id chain)
-3. Knowledge retention policy (distinct from platform_content TTL)
-4. MCP resource exposure for `/knowledge/` files (ADR-106 Phase 3)
+### Phase 2: Version Management (implemented)
+1. ~~Implement supersession logic~~ — `KnowledgeBase.write()` archives existing content as `v{N}.md` before overwrite via `_archive_if_exists()`. Version files carry `metadata.archived_from` and `metadata.version_number`.
+2. ~~Provenance tracking in metadata~~ — `archived_from` (canonical path) and `version_number` stored in version file metadata.
+3. ~~Version listing~~ — `KnowledgeBase.list_versions(path)` returns all `v*.md` files in the same directory. `GET /api/knowledge/files/versions` endpoint. Frontend detail view shows version history with click-through.
+4. ~~Version exclusion from main list~~ — `v*.md` files filtered out of `GET /api/knowledge/files` responses.
+5. Knowledge retention policy (distinct from platform_content TTL) — deferred
+6. MCP resource exposure for `/knowledge/` files (ADR-106 Phase 3) — deferred
 
 ### Phase 3: Agent Type Evolution
 1. Platform-specific agent configurations (channel selection, thread handling per platform)

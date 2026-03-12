@@ -18,6 +18,7 @@ import type {
   KnowledgeFileDetail,
   KnowledgeFileCreateInput,
   KnowledgeFilesResponse,
+  KnowledgeVersionsResponse,
   KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
@@ -318,6 +319,11 @@ export const api = {
       request<KnowledgeFile>(
         `/api/knowledge/files`,
         { method: "POST", body: JSON.stringify(data) }
+      ),
+
+    listVersions: (path: string) =>
+      request<KnowledgeVersionsResponse>(
+        `/api/knowledge/files/versions?path=${encodeURIComponent(path)}`
       ),
   },
 

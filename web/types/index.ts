@@ -156,6 +156,20 @@ export interface KnowledgeFileCreateInput {
   content_class: string;
 }
 
+export interface KnowledgeVersion {
+  path: string;
+  version: number;
+  summary?: string;
+  metadata?: Record<string, unknown>;
+  updated_at?: string;
+}
+
+export interface KnowledgeVersionsResponse {
+  canonical_path: string;
+  versions: KnowledgeVersion[];
+  total: number;
+}
+
 export interface KnowledgeSummaryResponse {
   total: number;
   classes: Array<{
