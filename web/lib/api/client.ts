@@ -126,7 +126,7 @@ async function request<T>(
 }
 
 export const api = {
-  // ADR-059: User context entries (user-scoped, stored in user_memory table)
+  // ADR-108: User context entries (user-scoped, stored in /memory/notes.md)
   userMemories: {
     list: () => request<Array<{
       id: string;
@@ -170,7 +170,7 @@ export const api = {
       }),
   },
 
-  // ADR-059: Profile — reads/writes user_memory table
+  // ADR-108: Profile — reads/writes /memory/MEMORY.md
   profile: {
     get: () =>
       request<{
@@ -199,7 +199,7 @@ export const api = {
       }),
   },
 
-  // ADR-059: Styles — tone/verbosity per platform, stored in user_memory
+  // ADR-108: Styles — tone/verbosity per platform, stored in /memory/preferences.md
   styles: {
     list: () =>
       request<{
