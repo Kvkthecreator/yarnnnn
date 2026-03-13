@@ -19,8 +19,14 @@ WRITE_TOOL = {
     "name": "Write",
     "description": """Create a new entity.
 
+Agent fields:
+- title (required), skill, scope, agent_instructions, frequency, day, time
+- skill: digest|prepare|monitor|research|synthesize|orchestrate|act|custom (default: custom)
+- scope: platform|cross_platform|knowledge|research|autonomous (auto-inferred from skill if omitted)
+
 Examples:
 - Write(ref="agent:new", content={title: "Weekly Update", skill: "synthesize"})
+- Write(ref="agent:new", content={title: "Slack Digest", skill: "digest", frequency: "daily"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
 Use ref ending in ':new' to create. Content schema depends on entity type.""",
     "input_schema": {
@@ -42,7 +48,7 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 # Required fields per entity type
 REQUIRED_FIELDS = {
-    "agent": ["title"],  # skill has default in schema
+    "agent": ["title"],  # scope + skill defaulted in _process_agent()
     "memory": ["content"],
     "document": ["name"],
     "domain": ["name"],
@@ -186,12 +192,29 @@ async def handle_write(auth: Any, input: dict) -> dict:
         }
 
 
+VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
+VALID_SKILLS = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
+
+# Infer scope from skill when not provided (ADR-109)
+SKILL_TO_SCOPE = {
+    "digest": "platform",
+    "prepare": "platform",
+    "monitor": "platform",
+    "research": "research",
+    "synthesize": "cross_platform",
+    "orchestrate": "autonomous",
+    "act": "autonomous",
+    "custom": "knowledge",
+}
+
+
 def _process_agent(data: dict) -> dict:
     """Process agent-specific fields.
 
-    Schema notes:
+    Schema notes (ADR-109):
+    - scope: NOT NULL, one of platform|cross_platform|knowledge|research|autonomous
+    - skill: NOT NULL, one of digest|prepare|monitor|research|synthesize|orchestrate|act|custom
     - schedule: JSONB with {frequency, day, time, timezone}
-    - skill: defaults to 'custom' in schema
     - recipient_context: JSONB with {name, role, priorities, company}
     - type_config: JSONB with type-specific settings
 
@@ -202,6 +225,16 @@ def _process_agent(data: dict) -> dict:
     - email, slack_channel -> destination.*
     """
     from jobs.unified_scheduler import calculate_next_run_from_schedule
+
+    # ADR-109: Ensure valid skill and scope (both NOT NULL in schema)
+    skill = data.get("skill", "custom")
+    if skill not in VALID_SKILLS:
+        skill = "custom"
+    data["skill"] = skill
+
+    scope = data.get("scope")
+    if not scope or scope not in VALID_SCOPES:
+        data["scope"] = SKILL_TO_SCOPE.get(skill, "knowledge")
 
     # Build schedule JSONB from flat fields or existing schedule
     schedule = data.get("schedule", {})
@@ -275,6 +308,19 @@ def _process_agent(data: dict) -> dict:
     if "next_run_at" not in data:
         next_run = calculate_next_run_from_schedule(schedule)
         data["next_run_at"] = next_run.isoformat()
+
+    # Strip fields not in agents table to prevent Supabase 400 errors
+    AGENT_COLUMNS = {
+        "id", "user_id", "project_id", "title", "description",
+        "recipient_context", "template_structure", "schedule", "sources",
+        "status", "created_at", "updated_at", "last_run_at", "next_run_at",
+        "type_config", "destination", "platform_variant", "destinations",
+        "is_synthesizer", "domain_id", "origin", "agent_instructions",
+        "agent_memory", "mode", "proactive_next_review_at", "trigger_type",
+        "trigger_config", "last_triggered_at", "scope", "skill",
+        "_workspace_instructions",  # internal, popped before INSERT
+    }
+    data = {k: v for k, v in data.items() if k in AGENT_COLUMNS}
 
     return data
 

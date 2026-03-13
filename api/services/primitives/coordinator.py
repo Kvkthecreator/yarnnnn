@@ -84,8 +84,12 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 
     Returns {success, agent_id, title, message}
     """
+    from .write import VALID_SKILLS, SKILL_TO_SCOPE
+
     title = input.get("title", "").strip()
     skill = input.get("skill", "custom")
+    if skill not in VALID_SKILLS:
+        skill = "custom"
     agent_instructions = input.get("agent_instructions", "")
     sources = input.get("sources")
     trigger_context = input.get("trigger_context", {})
@@ -108,6 +112,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             "user_id": user_id,
             "title": title,
             "skill": skill,
+            "scope": SKILL_TO_SCOPE.get(skill, "knowledge"),  # ADR-109: required NOT NULL
             "mode": "recurring",  # child agents run once (manual trigger)
             "trigger_type": "manual",
             "origin": "coordinator_created",

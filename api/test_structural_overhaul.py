@@ -181,7 +181,8 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
         "id": del_id,
         "user_id": TEST_USER_ID,
         "title": f"{TEST_PREFIX}Version Test",
-        "agent_type": "status",
+        "scope": "cross_platform",
+        "skill": "synthesize",
         "status": "active",
         "created_at": now,
         "updated_at": now,
@@ -299,7 +300,8 @@ async def phase_2_working_memory_version(auth: MockAuth) -> PhaseResult:
     no_ver_del = {
         "id": str(uuid4()),
         "title": "No versions",
-        "agent_type": "custom",
+        "skill": "custom",
+        "scope": "knowledge",
     }
     scope_empty = await _extract_agent_scope(no_ver_del, auth.client)
     assert_true(r, "No crash for agent without versions",
@@ -331,7 +333,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         {"key": "preference:brevity", "value": "Keep reports under 500 words"},
     ]
     prompt = _build_headless_system_prompt(
-        agent_type="status",
+        skill="synthesize",
         user_context=user_ctx,
     )
     assert_in(r, "User context section present", "## User Context", prompt)
@@ -359,7 +361,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         },
     }
     prompt = _build_headless_system_prompt(
-        agent_type="status",
+        skill="synthesize",
         agent=agent,
         user_context=user_ctx,
     )
@@ -372,15 +374,15 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
 
     # 3c: Empty user_context should not crash
     prompt_no_ctx = _build_headless_system_prompt(
-        agent_type="digest",
+        skill="digest",
         user_context=None,
     )
     assert_not_in(r, "No User Context section when None", "## User Context", prompt_no_ctx)
-    assert_in(r, "Base prompt still works", "generating a digest", prompt_no_ctx)
+    assert_in(r, "Base prompt still works", "You are", prompt_no_ctx)
 
     # 3d: Empty agent_memory should not crash
     prompt_no_mem = _build_headless_system_prompt(
-        agent_type="status",
+        skill="synthesize",
         agent={"agent_memory": {}},
     )
     assert_not_in(r, "No memory section when empty", "## Agent Memory", prompt_no_mem)
@@ -413,7 +415,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
         "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Seeded Instructions",
-            "agent_type": "digest",
+            "skill": "digest",
         },
     })
     assert_true(r, "Write success", result.get("success", False),
@@ -433,7 +435,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
         "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Explicit Instructions",
-            "agent_type": "status",
+            "skill": "synthesize",
             "agent_instructions": "My custom instructions here",
         },
     })

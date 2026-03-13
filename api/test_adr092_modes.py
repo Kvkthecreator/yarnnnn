@@ -118,7 +118,8 @@ async def phase1_setup(supabase) -> dict:
         supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Reactive",
-            "agent_type": "custom",
+            "scope": "knowledge",
+            "skill": "custom",
             "mode": "reactive",
             "trigger_type": "event",
             "trigger_config": {"observation_threshold": 3},
@@ -137,7 +138,8 @@ async def phase1_setup(supabase) -> dict:
         supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Proactive",
-            "agent_type": "custom",
+            "scope": "knowledge",
+            "skill": "custom",
             "mode": "proactive",
             "trigger_type": "schedule",
             "origin": "user_configured",
@@ -156,7 +158,8 @@ async def phase1_setup(supabase) -> dict:
         supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Coordinator",
-            "agent_type": "custom",
+            "scope": "autonomous",
+            "skill": "orchestrate",
             "mode": "coordinator",
             "trigger_type": "schedule",
             "origin": "user_configured",
@@ -371,7 +374,7 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     # --- CreateAgent: success case ---
     r1 = await handle_create_agent(auth, {
         "title": f"{TEST_PREFIX}Child Meeting Prep",
-        "agent_type": "brief",
+        "skill": "prepare",
         "agent_instructions": "Prepare briefing for external meeting",
         "dedup_key": "meeting:test-event-abc123",
     })
@@ -403,7 +406,7 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "dedup_key in created_agents log", "meeting:test-event-abc123" in dedup_keys)
 
     # --- CreateAgent: missing title ---
-    r_no_title = await handle_create_agent(auth, {"agent_type": "brief"})
+    r_no_title = await handle_create_agent(auth, {"skill": "prepare"})
     assert_eq(result, "CreateAgent missing title → success=False", r_no_title.get("success"), False)
     assert_eq(result, "CreateAgent missing title → error=missing_title", r_no_title.get("error"), "missing_title")
 
@@ -433,7 +436,8 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     paused = supabase.table("agents").insert({
         "user_id": TEST_USER_ID,
         "title": f"{TEST_PREFIX}Paused",
-        "agent_type": "custom",
+        "scope": "knowledge",
+        "skill": "custom",
         "mode": "recurring",
         "trigger_type": "schedule",
         "origin": "user_configured",

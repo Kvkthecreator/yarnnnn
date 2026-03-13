@@ -67,7 +67,7 @@ async def run_chat_turn(auth, message, scoped_agent=None, history=None):
     agent_dict = None
     if scoped_agent:
         d = auth.client.table("agents").select(
-            "id, title, agent_type, agent_instructions, agent_memory"
+            "id, title, scope, skill, agent_instructions, agent_memory"
         ).eq("id", scoped_agent).eq("user_id", auth.user_id).single().execute()
         agent_dict = d.data
 
@@ -190,7 +190,7 @@ async def test_4_scoped_session_ref():
     from services.working_memory import build_working_memory, format_for_prompt
 
     d = client.table("agents").select(
-        "id, title, agent_type, agent_instructions, agent_memory"
+        "id, title, scope, skill, agent_instructions, agent_memory"
     ).eq("id", SCOPED_AGENT_ID).eq("user_id", USER_ID).single().execute()
 
     wm = await build_working_memory(USER_ID, client, agent=d.data)

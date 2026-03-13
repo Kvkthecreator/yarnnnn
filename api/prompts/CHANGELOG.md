@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.13.1] - Fix ADR-109 scope/skill gaps across all agent primitives
+
+### Changed
+- `api/services/primitives/write.py`: Write tool description now documents agent fields (scope, skill with valid values). `_process_agent()` defaults `skill` to `custom` and auto-infers `scope` from skill via `SKILL_TO_SCOPE` mapping when not provided or invalid. Added `AGENT_COLUMNS` allowlist to strip unknown fields before INSERT (prevents Supabase 400). Exported `VALID_SCOPES`, `VALID_SKILLS`, `SKILL_TO_SCOPE` for reuse.
+- `api/services/primitives/coordinator.py`: `CreateAgent` now validates `skill` against `VALID_SKILLS` and infers `scope` from `SKILL_TO_SCOPE`. Previously missing `scope` entirely — would 400 on every coordinator-created agent.
+- `api/services/primitives/edit.py`: Added scope/skill validation when updating agents. Returns clear error for invalid values instead of passing through to Supabase constraint violation.
+- Expected behavior: All three agent mutation paths (Write, CreateAgent, Edit) now enforce valid scope+skill per ADR-109 schema constraints. TP and coordinator agents no longer hit silent 400 loops.
+
+---
+
 ## [2026.03.12.2] - ADR-109: Scope × Skill × Trigger framework migration
 
 ### Changed
