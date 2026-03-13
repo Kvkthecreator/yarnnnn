@@ -197,13 +197,14 @@ async def get_subscription_status(auth: UserClient):
     result = auth.client.table("workspaces")\
         .select("subscription_status, subscription_plan, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
-        .single()\
+        .limit(1)\
         .execute()
 
-    if not result.data:
+    rows = result.data or []
+    if not rows:
         return SubscriptionStatus(status="free")
 
-    ws = result.data
+    ws = rows[0]
     # ADR-100: Normalize legacy "starter" → "pro"
     raw_status = ws.get("subscription_status") or "free"
     status = "pro" if raw_status == "starter" else raw_status
