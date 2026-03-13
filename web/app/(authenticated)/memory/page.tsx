@@ -727,14 +727,9 @@ export default function MemoryPage() {
   };
 
   const handleStyleUpdate = async (platform: string, data: { tone?: string; verbosity?: string }) => {
-    const result = await api.styles.update(platform, data);
-    setStyles((prev) => {
-      const exists = prev.find((s) => s.platform === platform);
-      if (exists) {
-        return prev.map((s) => s.platform === platform ? { ...s, ...result } : s);
-      }
-      return [...prev, result];
-    });
+    // Fire-and-forget to API. StylesSection owns UI state locally (optimistic).
+    // Don't update parent styles state — it would trigger useEffect sync and overwrite local values.
+    await api.styles.update(platform, data);
   };
 
   const handleDeleteEntry = async (id: string) => {
