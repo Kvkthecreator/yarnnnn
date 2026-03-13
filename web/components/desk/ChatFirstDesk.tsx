@@ -206,7 +206,7 @@ function AgentsPanel() {
       <div className="p-4 text-center">
         <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No agents yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">Ask YARNNN in chat to create one</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">Ask yarnnn in chat to create one</p>
       </div>
     );
   }
