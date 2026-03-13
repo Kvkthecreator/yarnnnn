@@ -76,8 +76,9 @@ export default function GmailContextPage() {
 
   if (data.loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="h-full flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Loading Gmail labels...</p>
       </div>
     );
   }
@@ -108,7 +109,7 @@ export default function GmailContextPage() {
       <div className="p-4 md:p-6 space-y-4 max-w-6xl">
         <div className="space-y-2">
           <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
-          {data.tierLimits && (
+          {data.tierLimits && !(justConnected && data.selectedIds.size === 0) && (
             <CompactSyncStatus
               platform="gmail"
               tier={data.tierLimits.tier}

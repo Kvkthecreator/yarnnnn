@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -125,10 +125,19 @@ export function ResourceList({
     }
   }, [selectedCount, view]);
 
+  // Snapshot the selected IDs at mount / after save so sort order stays stable
+  // during active editing. The sort only changes when resources change (reload
+  // after save) or on first render — never mid-toggle.
+  const stableSortIdsRef = useRef<Set<string>>(selectedIds);
+  useEffect(() => {
+    stableSortIdsRef.current = new Set(selectedIds);
+  }, [resources]); // intentionally keyed on resources, not selectedIds
+
   const sortedResources = useMemo(() => {
+    const snapshot = stableSortIdsRef.current;
     return [...resources].sort((a, b) => {
-      const aSelected = selectedIds.has(a.id) ? 1 : 0;
-      const bSelected = selectedIds.has(b.id) ? 1 : 0;
+      const aSelected = snapshot.has(a.id) ? 1 : 0;
+      const bSelected = snapshot.has(b.id) ? 1 : 0;
       if (aSelected !== bSelected) return bSelected - aSelected;
 
       const aError = a.last_error ? 1 : 0;
@@ -141,7 +150,7 @@ export function ResourceList({
 
       return a.name.localeCompare(b.name);
     });
-  }, [resources, selectedIds]);
+  }, [resources]);
 
   const baseItems = useMemo(() => {
     switch (view) {
