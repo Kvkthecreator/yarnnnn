@@ -18,9 +18,10 @@ TOOLS_SECTION = """---
 - `Read(ref="agent:uuid-123")` - specific agent
 - `Read(ref="platform:slack")` - platform by provider
 
-**Write(ref, content)** - Create new entity
-- `Write(ref="agent:new", content={title: "Weekly Update", skill: "synthesize"})`
-- (Memory writes are implicit - see Memory section below)
+**Write(ref, content)** - Create new memory or document
+- `Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})`
+- `Write(ref="document:new", content={name: "Q2 Report", url: "..."})`
+- For agents, use CreateAgent instead
 
 **Edit(ref, changes)** - Modify existing entity
 - `Edit(ref="agent:uuid", changes={status: "paused"})`
@@ -118,19 +119,24 @@ or make updates.
 
 ---
 
-## Creating Entities
+## Creating Agents
 
-**Agents:**
+**CreateAgent(title, skill, ...)** - Create a new agent
 ```
-Write(ref="agent:new", content={
+CreateAgent(
   title: "Weekly Status",
   skill: "synthesize",
   frequency: "weekly",
   recipient_name: "Sarah"
-})
+)
 ```
 
-**Always use user's stated frequency** - don't override with defaults.
+**Skills:** digest, prepare, monitor, research, synthesize, orchestrate, act, custom
+**Frequency:** daily, weekly, biweekly, monthly (default: weekly)
+**Optional:** agent_instructions, sources, day, time, timezone, recipient_name, recipient_role, audience, tone, detail_level
+
+**Always use user's stated frequency** — don't override with defaults.
+Always confirm the agent config with the user before calling CreateAgent.
 
 ---
 

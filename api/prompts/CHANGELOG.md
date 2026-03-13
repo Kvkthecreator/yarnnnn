@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.13.2] - ADR-111: Unified CreateAgent primitive + ADR-110: Onboarding Bootstrap
+
+### Changed
+- `api/agents/tp_prompts/tools.py`: Write tool description no longer mentions agents — redirects to CreateAgent. New "Creating Agents" section documents CreateAgent with full parameter list (skills, frequency, optional fields). Replaces old `Write(ref="agent:new", ...)` examples.
+- `api/services/primitives/write.py`: Rejects `ref="agent:new"` with redirect to CreateAgent. `_process_agent()` deleted. Tool description updated: "Create a new memory or document entity."
+- `api/services/primitives/coordinator.py`: `handle_create_agent()` rewritten to support both chat and headless modes. Detects mode via `coordinator_agent_id` on auth context. Chat mode: `origin=user_configured`, respects user schedule. Headless mode: `origin=coordinator_created`, `execute_now=True`.
+- `api/services/primitives/registry.py`: CreateAgent mode changed from `["headless"]` to `["chat", "headless"]`.
+- `api/services/agent_creation.py` (new): Shared `create_agent_record()` — single source of truth for all agent creation paths (chat, headless, bootstrap, API route).
+- `api/services/onboarding_bootstrap.py` (new): Deterministic bootstrap service. Auto-creates digest agent on platform sync completion. Template mapping: Slack→Recap, Gmail→Digest, Notion→Summary. Checks: existing digest, tier limit, synced content.
+- `api/workers/platform_worker.py`: Calls `maybe_bootstrap_agent()` after successful sync.
+- Expected behavior: TP uses CreateAgent (not Write) for agent creation in chat. First platform sync auto-creates a matching digest agent. All creation paths funnel through `create_agent_record()`.
+
+---
+
 ## [2026.03.13.1] - Fix ADR-109 scope/skill gaps across all agent primitives
 
 ### Changed

@@ -302,8 +302,9 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Respond":          ["chat"],
     "Clarify":          ["chat"],
     "list_integrations": ["chat"],
-    # Coordinator write primitives — headless only (ADR-092)
-    "CreateAgent":            ["headless"],
+    # Agent creation — chat + headless (ADR-111: unified CreateAgent)
+    "CreateAgent":            ["chat", "headless"],
+    # Coordinator-only primitives — headless only (ADR-092)
     "AdvanceAgentSchedule":   ["headless"],
     # Workspace primitives — headless only (ADR-106)
     "ReadWorkspace":          ["headless"],

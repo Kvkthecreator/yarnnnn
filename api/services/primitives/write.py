@@ -17,17 +17,13 @@ from .refs import parse_ref, TABLE_MAP
 
 WRITE_TOOL = {
     "name": "Write",
-    "description": """Create a new entity.
+    "description": """Create a new memory or document entity.
 
-Agent fields:
-- title (required), skill, scope, agent_instructions, frequency, day, time
-- skill: digest|prepare|monitor|research|synthesize|orchestrate|act|custom (default: custom)
-- scope: platform|cross_platform|knowledge|research|autonomous (auto-inferred from skill if omitted)
+For agents, use CreateAgent instead.
 
 Examples:
-- Write(ref="agent:new", content={title: "Weekly Update", skill: "synthesize"})
-- Write(ref="agent:new", content={title: "Slack Digest", skill: "digest", frequency: "daily"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
+- Write(ref="document:new", content={name: "Q2 Report", url: "..."})
 Use ref ending in ':new' to create. Content schema depends on entity type.""",
     "input_schema": {
         "type": "object",
@@ -107,6 +103,14 @@ async def handle_write(auth: Any, input: dict) -> dict:
             "success": False,
             "error": "invalid_operation",
             "message": "Write requires ':new' identifier. Use Edit for modifications.",
+        }
+
+    # ADR-111: Agent creation moved to CreateAgent primitive
+    if parsed.entity_type == "agent":
+        return {
+            "success": False,
+            "error": "use_create_agent",
+            "message": "Use CreateAgent to create agents. Write handles memories and documents only. Example: CreateAgent(title=\"Weekly Status\", skill=\"synthesize\", frequency=\"weekly\")",
         }
 
     # Get table
@@ -192,137 +196,9 @@ async def handle_write(auth: Any, input: dict) -> dict:
         }
 
 
-VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-VALID_SKILLS = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
-
-# Infer scope from skill when not provided (ADR-109)
-SKILL_TO_SCOPE = {
-    "digest": "platform",
-    "prepare": "platform",
-    "monitor": "platform",
-    "research": "research",
-    "synthesize": "cross_platform",
-    "orchestrate": "autonomous",
-    "act": "autonomous",
-    "custom": "knowledge",
-}
-
-
-def _process_agent(data: dict) -> dict:
-    """Process agent-specific fields.
-
-    Schema notes (ADR-109):
-    - scope: NOT NULL, one of platform|cross_platform|knowledge|research|autonomous
-    - skill: NOT NULL, one of digest|prepare|monitor|research|synthesize|orchestrate|act|custom
-    - schedule: JSONB with {frequency, day, time, timezone}
-    - recipient_context: JSONB with {name, role, priorities, company}
-    - type_config: JSONB with type-specific settings
-
-    Flat field mappings (convenience for TP):
-    - frequency, day, time, timezone -> schedule.*
-    - recipient_name, recipient_role, company, priorities -> recipient_context.*
-    - audience, tone, sections, detail_level, subject, format -> type_config.*
-    - email, slack_channel -> destination.*
-    """
-    from jobs.unified_scheduler import calculate_next_run_from_schedule
-
-    # ADR-109: Ensure valid skill and scope (both NOT NULL in schema)
-    skill = data.get("skill", "custom")
-    if skill not in VALID_SKILLS:
-        skill = "custom"
-    data["skill"] = skill
-
-    scope = data.get("scope")
-    if not scope or scope not in VALID_SCOPES:
-        data["scope"] = SKILL_TO_SCOPE.get(skill, "knowledge")
-
-    # Build schedule JSONB from flat fields or existing schedule
-    schedule = data.get("schedule", {})
-    if isinstance(schedule, dict):
-        # Allow flat frequency/day/time fields to override schedule
-        if "frequency" in data and "frequency" not in schedule:
-            schedule["frequency"] = data.pop("frequency")
-        if "day" in data and "day" not in schedule:
-            schedule["day"] = data.pop("day")
-        if "time" in data and "time" not in schedule:
-            schedule["time"] = data.pop("time")
-        if "timezone" in data and "timezone" not in schedule:
-            schedule["timezone"] = data.pop("timezone")
-
-    # Apply defaults to schedule
-    if "frequency" not in schedule:
-        schedule["frequency"] = "weekly"
-    if "time" not in schedule:
-        schedule["time"] = "09:00"
-    if "timezone" not in schedule:
-        schedule["timezone"] = "UTC"
-
-    data["schedule"] = schedule
-
-    # Build recipient_context JSONB from flat fields
-    recipient_context = data.get("recipient_context", {})
-    if isinstance(recipient_context, dict):
-        if "recipient_name" in data:
-            recipient_context["name"] = data.pop("recipient_name")
-        if "recipient_role" in data:
-            recipient_context["role"] = data.pop("recipient_role")
-        if "company" in data:
-            recipient_context["company"] = data.pop("company")
-        if "priorities" in data:
-            recipient_context["priorities"] = data.pop("priorities")
-    data["recipient_context"] = recipient_context
-
-    # Build type_config JSONB from flat fields
-    type_config = data.get("type_config", {})
-    if isinstance(type_config, dict):
-        # Type-specific configuration fields
-        for field in ["audience", "tone", "sections", "detail_level", "subject", "format"]:
-            if field in data:
-                type_config[field] = data.pop(field)
-    data["type_config"] = type_config
-
-    # Build destination JSONB from flat fields
-    destination = data.get("destination", {})
-    if isinstance(destination, dict):
-        if "email" in data:
-            destination["type"] = "email"
-            destination["email"] = data.pop("email")
-        if "slack_channel" in data:
-            destination["type"] = "slack"
-            destination["channel"] = data.pop("slack_channel")
-    if destination:
-        data["destination"] = destination
-
-    # ADR-106: Instructions go to workspace only (not DB column)
-    # Store temporarily for workspace seeding after DB insert, then remove from DB data
-    if not data.get("agent_instructions"):
-        from services.agent_pipeline import DEFAULT_INSTRUCTIONS
-        dtype = data.get("skill", "custom")
-        default = DEFAULT_INSTRUCTIONS.get(dtype, DEFAULT_INSTRUCTIONS.get("custom", ""))
-        if default:
-            data["_workspace_instructions"] = default
-    else:
-        data["_workspace_instructions"] = data.pop("agent_instructions")
-
-    # Calculate next_run_at based on schedule
-    if "next_run_at" not in data:
-        next_run = calculate_next_run_from_schedule(schedule)
-        data["next_run_at"] = next_run.isoformat()
-
-    # Strip fields not in agents table to prevent Supabase 400 errors
-    AGENT_COLUMNS = {
-        "id", "user_id", "project_id", "title", "description",
-        "recipient_context", "template_structure", "schedule", "sources",
-        "status", "created_at", "updated_at", "last_run_at", "next_run_at",
-        "type_config", "destination", "platform_variant", "destinations",
-        "is_synthesizer", "domain_id", "origin", "agent_instructions",
-        "agent_memory", "mode", "proactive_next_review_at", "trigger_type",
-        "trigger_config", "last_triggered_at", "scope", "skill",
-        "_workspace_instructions",  # internal, popped before INSERT
-    }
-    data = {k: v for k, v in data.items() if k in AGENT_COLUMNS}
-
-    return data
+# ADR-111: Agent creation logic moved to services/agent_creation.py
+# Re-export for any remaining imports
+from services.agent_creation import VALID_SCOPES, VALID_SKILLS, SKILL_TO_SCOPE  # noqa: F401
 
 
 def _process_memory(data: dict) -> dict:

@@ -160,7 +160,7 @@ async def handle_edit(auth: Any, input: dict) -> dict:
 
     # ADR-109: Validate scope/skill if being updated on agents
     if parsed.entity_type == "agent":
-        from .write import VALID_SCOPES, VALID_SKILLS
+        from services.agent_creation import VALID_SCOPES, VALID_SKILLS
         if "scope" in filtered_changes and filtered_changes["scope"] not in VALID_SCOPES:
             return {
                 "success": False,

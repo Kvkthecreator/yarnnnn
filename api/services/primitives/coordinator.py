@@ -1,13 +1,12 @@
 """
-Coordinator Primitives — ADR-092 Phase 5
+Coordinator Primitives — ADR-092 Phase 5, updated ADR-111
 
-Headless-only write primitives for coordinator agents.
+  CreateAgent         — creates an agent (chat + headless, unified)
+  AdvanceAgentSchedule — sets next_run_at=now on an existing agent (headless only)
 
-  CreateAgent         — creates a child agent with origin=coordinator_created
-  AdvanceAgentSchedule — sets next_run_at=now on an existing agent
-
-These replace signal processing's create_signal_emergent and trigger_existing actions.
-Deduplication is the coordinator's responsibility via agent_memory.created_agents.
+CreateAgent uses shared create_agent_record() from agent_creation.py.
+In headless/coordinator mode: origin=coordinator_created, execute_now=True, dedup via workspace.
+In chat mode: origin=user_configured, respects user-specified schedule.
 """
 
 from __future__ import annotations
@@ -20,54 +19,93 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# CreateAgent
+# CreateAgent (chat + headless, ADR-111)
 # =============================================================================
 
 CREATE_AGENT_TOOL = {
     "name": "CreateAgent",
-    "description": """Create a new agent on behalf of the user.
+    "description": """Create a new agent for the user.
 
-Use when your coordinator instructions tell you to create a specific piece of work
-in response to a detected condition (e.g. an upcoming meeting, a flagged email thread,
-a stalled project).
-
-Before creating, check your agent_memory.created_agents to avoid
-duplicating an agent for the same underlying event (use dedup_key for this).
-
-The created agent will run once immediately (trigger_type=manual) unless
-you specify a schedule. It appears in the user's agents list with
-origin=coordinator_created, attributed to this coordinator.
+Use this to create a recurring agent based on the user's request.
+Always confirm the agent config with the user before calling this in chat.
 
 Required: title, skill
-Optional: agent_instructions, sources (inherits coordinator's if omitted),
-          trigger_context (passed to the generation run), dedup_key (for deduplication)""",
+Optional: agent_instructions, sources, frequency, day, time, timezone,
+          recipient_name, recipient_role, audience, tone, detail_level,
+          dedup_key (coordinator mode only)
+
+skill: digest|prepare|monitor|research|synthesize|orchestrate|act|custom
+frequency: daily|weekly|biweekly|monthly (default: weekly)
+
+Examples:
+- CreateAgent(title="Slack Recap", skill="digest", frequency="daily")
+- CreateAgent(title="Weekly Status", skill="synthesize", frequency="weekly", recipient_name="Sarah")
+- CreateAgent(title="Meeting Prep", skill="prepare", frequency="daily", time="08:00")
+
+Always use the user's stated frequency — don't override with defaults.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "title": {
                 "type": "string",
-                "description": "Title for the new agent"
+                "description": "Title for the agent"
             },
             "skill": {
                 "type": "string",
-                "description": "Skill of the agent (e.g. digest, prepare, synthesize, monitor, research, orchestrate, custom)"
+                "description": "Skill: digest, prepare, synthesize, monitor, research, orchestrate, act, custom"
             },
             "agent_instructions": {
                 "type": "string",
-                "description": "Specific instructions for the child agent's generation"
+                "description": "Behavioral instructions for the agent"
             },
             "sources": {
                 "type": "array",
                 "items": {"type": "object"},
-                "description": "Data sources for the agent. Inherits coordinator sources if omitted."
+                "description": "Data sources. In coordinator mode, inherits coordinator sources if omitted."
+            },
+            "frequency": {
+                "type": "string",
+                "description": "Schedule frequency: daily, weekly, biweekly, monthly"
+            },
+            "day": {
+                "type": "string",
+                "description": "Day of week for weekly+ schedules (e.g. monday)"
+            },
+            "time": {
+                "type": "string",
+                "description": "Time of day (e.g. 09:00)"
+            },
+            "timezone": {
+                "type": "string",
+                "description": "Timezone (e.g. America/New_York)"
+            },
+            "recipient_name": {
+                "type": "string",
+                "description": "Name of the recipient"
+            },
+            "recipient_role": {
+                "type": "string",
+                "description": "Role of the recipient"
+            },
+            "audience": {
+                "type": "string",
+                "description": "Target audience: manager, team, stakeholders, executive"
+            },
+            "tone": {
+                "type": "string",
+                "description": "Tone: formal, conversational"
+            },
+            "detail_level": {
+                "type": "string",
+                "description": "Detail level: brief, standard, detailed"
             },
             "trigger_context": {
                 "type": "object",
-                "description": "Context passed to the generation run (e.g. meeting details, thread summary)"
+                "description": "Context passed to generation run (coordinator mode)"
             },
             "dedup_key": {
                 "type": "string",
-                "description": "Unique key for this event (e.g. 'brief:calendar_event_id_xyz'). Used to prevent duplicate creation."
+                "description": "Unique key to prevent duplicates (coordinator mode)"
             }
         },
         "required": ["title", "skill"]
@@ -77,121 +115,128 @@ Optional: agent_instructions, sources (inherits coordinator's if omitted),
 
 async def handle_create_agent(auth: Any, input: dict) -> dict:
     """
-    Handle CreateAgent primitive.
+    Handle CreateAgent primitive — unified for chat + headless (ADR-111).
 
-    Creates a child agent with origin=coordinator_created.
-    The coordinator_agent_id from auth context links it back.
+    In headless/coordinator mode:
+      - origin=coordinator_created
+      - execute_now=True (next_run_at=now)
+      - Sources inherited from coordinator if not specified
+      - Dedup log appended to coordinator workspace
 
-    Returns {success, agent_id, title, message}
+    In chat mode:
+      - origin=user_configured
+      - Respects user-specified schedule
+      - No dedup handling (TP manages via conversation)
     """
-    from .write import VALID_SKILLS, SKILL_TO_SCOPE
+    from services.agent_creation import create_agent_record
 
     title = input.get("title", "").strip()
     skill = input.get("skill", "custom")
-    if skill not in VALID_SKILLS:
-        skill = "custom"
     agent_instructions = input.get("agent_instructions", "")
     sources = input.get("sources")
-    trigger_context = input.get("trigger_context", {})
     dedup_key = input.get("dedup_key", "")
+    trigger_context = input.get("trigger_context", {})
 
-    if not title:
-        return {"success": False, "error": "missing_title", "message": "title is required"}
-
-    user_id = auth.user_id
+    # Detect mode: coordinator (headless) vs chat
     coordinator_id = getattr(auth, "coordinator_agent_id", None)
+    is_coordinator = coordinator_id is not None
 
-    # Inherit sources from coordinator if not specified
-    if sources is None:
-        sources = getattr(auth, "agent_sources", []) or []
+    # Build recipient_context from flat fields
+    recipient_context = {}
+    if input.get("recipient_name"):
+        recipient_context["name"] = input["recipient_name"]
+    if input.get("recipient_role"):
+        recipient_context["role"] = input["recipient_role"]
 
-    now = datetime.now(timezone.utc)
+    # Build type_config from flat fields
+    type_config = {}
+    for field in ["audience", "tone", "detail_level", "subject", "format"]:
+        if input.get(field):
+            type_config[field] = input[field]
 
-    try:
-        agent_data = {
-            "user_id": user_id,
-            "title": title,
-            "skill": skill,
-            "scope": SKILL_TO_SCOPE.get(skill, "knowledge"),  # ADR-109: required NOT NULL
-            "mode": "recurring",  # child agents run once (manual trigger)
-            "trigger_type": "manual",
-            "origin": "coordinator_created",
-            "status": "active",
-            "sources": sources,
-            "schedule": {"frequency": "once"},
-            "next_run_at": now.isoformat(),  # run immediately
-        }
+    if is_coordinator:
+        # Coordinator mode: inherit sources, execute immediately
+        if sources is None:
+            sources = getattr(auth, "agent_sources", []) or []
 
-        result = (
-            auth.client.table("agents")
-            .insert(agent_data)
-            .execute()
+        result = await create_agent_record(
+            client=auth.client,
+            user_id=auth.user_id,
+            title=title,
+            skill=skill,
+            origin="coordinator_created",
+            agent_instructions=agent_instructions or None,
+            sources=sources,
+            schedule={"frequency": "once"},
+            mode="recurring",
+            trigger_type="manual",
+            execute_now=True,
+            recipient_context=recipient_context or None,
+            type_config=type_config or None,
         )
 
-        if not result.data:
-            return {"success": False, "error": "insert_failed", "message": "Failed to create agent"}
+        if result.get("success"):
+            agent_id = result["agent_id"]
 
-        new_id = result.data[0]["id"]
+            # Activity log
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    event_type="agent_scheduled",
+                    summary=f"Coordinator created: {title}",
+                    event_ref=agent_id,
+                    metadata={
+                        "coordinator_id": coordinator_id,
+                        "skill": skill,
+                        "dedup_key": dedup_key,
+                        "trigger_context": trigger_context,
+                    },
+                )
+            except Exception:
+                pass
 
-        # ADR-106: Workspace is singular source of truth for instructions
-        if agent_instructions:
-            from services.workspace import AgentWorkspace, get_agent_slug
-            child_ws = AgentWorkspace(auth.client, user_id, get_agent_slug(result.data[0]))
-            await child_ws.write("AGENT.md", agent_instructions,
-                                 summary="Agent identity and behavioral instructions")
-
-        logger.info(f"[COORDINATOR] Created agent: {title} ({new_id}), coordinator={coordinator_id}")
-
-        # Write activity log
-        try:
-            from services.activity_log import write_activity
-            await write_activity(
-                client=auth.client,
-                user_id=user_id,
-                event_type="agent_scheduled",
-                summary=f"Coordinator created: {title}",
-                event_ref=new_id,
-                metadata={
-                    "coordinator_id": coordinator_id,
-                    "skill": skill,
-                    "dedup_key": dedup_key,
-                    "trigger_context": trigger_context,
-                },
-            )
-        except Exception:
-            pass  # Non-fatal
-
-        # ADR-106: Append to coordinator's workspace dedup log
-        if coordinator_id:
+            # Append to coordinator's workspace dedup log
             try:
                 from services.workspace import AgentWorkspace
-                # Need coordinator's slug — fetch title
                 coord_result = auth.client.table("agents").select("title").eq("id", coordinator_id).single().execute()
                 coord_title = (coord_result.data or {}).get("title", "")
                 coord_slug = coord_title.lower().strip()
                 coord_slug = "".join(c if c.isalnum() or c == "-" else "-" for c in coord_slug)
                 coord_slug = "-".join(p for p in coord_slug.split("-") if p)[:50] or str(coordinator_id)[:36]
-
-                coord_ws = AgentWorkspace(auth.client, user_id, coord_slug)
+                coord_ws = AgentWorkspace(auth.client, auth.user_id, coord_slug)
                 await coord_ws.append_created_agent(title, dedup_key)
             except Exception:
-                pass  # Non-fatal
+                pass
 
-        return {
-            "success": True,
-            "agent_id": new_id,
-            "title": title,
-            "dedup_key": dedup_key,
-            "message": f"Created agent '{title}' — queued for immediate generation.",
-        }
+            result["dedup_key"] = dedup_key
 
-    except Exception as e:
-        logger.error(f"[COORDINATOR] CreateAgent failed: {e}")
-        return {"success": False, "error": "creation_failed", "message": str(e)}
+        return result
+
+    else:
+        # Chat mode: user-configured, respect schedule
+        result = await create_agent_record(
+            client=auth.client,
+            user_id=auth.user_id,
+            title=title,
+            skill=skill,
+            origin="user_configured",
+            agent_instructions=agent_instructions or None,
+            sources=sources or [],
+            frequency=input.get("frequency"),
+            day=input.get("day"),
+            time=input.get("time"),
+            timezone_str=input.get("timezone"),
+            recipient_context=recipient_context or None,
+            type_config=type_config or None,
+        )
+
+        return result
 
 
 # =============================================================================
-# AdvanceAgentSchedule
+# AdvanceAgentSchedule (headless only, ADR-092)
 # =============================================================================
 
 ADVANCE_AGENT_SCHEDULE_TOOL = {
@@ -242,7 +287,6 @@ async def handle_advance_agent_schedule(auth: Any, input: dict) -> dict:
     now = datetime.now(timezone.utc)
 
     try:
-        # Verify the agent belongs to this user and is active
         check = (
             auth.client.table("agents")
             .select("id, title, status, user_id")
@@ -288,7 +332,7 @@ async def handle_advance_agent_schedule(auth: Any, input: dict) -> dict:
                 },
             )
         except Exception:
-            pass  # Non-fatal
+            pass
 
         return {
             "success": True,
