@@ -23,7 +23,6 @@ import {
   Send,
   X,
   ImagePlus,
-  Plus,
   FileText,
   ArrowRight,
   Upload,
@@ -206,14 +205,8 @@ function AgentsPanel() {
     return (
       <div className="p-4 text-center">
         <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground mb-3">No agents yet</p>
-        <Link
-          href="/dashboard?create"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Create one
-        </Link>
+        <p className="text-sm text-muted-foreground">No agents yet</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">Ask YARNNN in chat to create one</p>
       </div>
     );
   }
