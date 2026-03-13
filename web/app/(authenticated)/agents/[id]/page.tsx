@@ -139,6 +139,14 @@ export default function AgentWorkspacePage() {
     loadAgent();
   }, [loadAgent]);
 
+  // Lightweight sessions refresh — called after each TP turn completes
+  const refreshSessions = useCallback(async () => {
+    try {
+      const sessionData = await api.agents.listSessions(id).catch(() => []);
+      setSessions(sessionData);
+    } catch { /* silent */ }
+  }, [id]);
+
   const handleTogglePause = async () => {
     if (!agent) return;
     try {
@@ -313,6 +321,7 @@ export default function AgentWorkspacePage() {
           onRunNow={handleRunNow}
           running={running}
           prefillChatRef={prefillChatRef}
+          onTurnComplete={refreshSessions}
         />
     </WorkspaceLayout>
   );

@@ -33,12 +33,14 @@ export function AgentChatArea({
   onRunNow,
   running,
   prefillChatRef,
+  onTurnComplete,
 }: {
   agentId: string;
   agentTitle: string;
   onRunNow: () => void;
   running: boolean;
   prefillChatRef?: React.MutableRefObject<((text: string) => void) | null>;
+  onTurnComplete?: () => void;
 }) {
   const {
     messages,
@@ -50,6 +52,15 @@ export function AgentChatArea({
     tokenUsage,
     loadScopedHistory,
   } = useTP();
+
+  // Notify parent when a TP turn completes (for refreshing sessions, etc.)
+  const prevLoadingRef = useRef(false);
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading) {
+      onTurnComplete?.();
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading, onTurnComplete]);
 
   // ADR-087 Phase 3: Load agent-scoped history on mount
   useEffect(() => {

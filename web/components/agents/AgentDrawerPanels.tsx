@@ -299,31 +299,42 @@ export function SessionsPanel({ sessions }: { sessions: AgentSession[] }) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
-          Past sessions will appear here. Your current conversation is saved automatically.
+          Send a message to start a session.
         </p>
       </div>
     );
   }
 
+  const today = new Date().toDateString();
+
   return (
     <div className="p-3 space-y-2">
-      {sessions.map((session) => (
-        <div key={session.id} className="p-2.5 bg-muted/30 border border-border rounded-md">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-muted-foreground">
-              {format(new Date(session.created_at), 'MMM d, h:mm a')}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {session.message_count} message{session.message_count !== 1 ? 's' : ''}
-            </span>
+      {sessions.map((session) => {
+        const isToday = new Date(session.created_at).toDateString() === today;
+        return (
+          <div key={session.id} className={cn(
+            'p-2.5 border rounded-md',
+            isToday ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'
+          )}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                {isToday && <span className="text-[10px] font-medium text-primary">Current</span>}
+                {format(new Date(session.created_at), 'MMM d, h:mm a')}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {session.message_count} message{session.message_count !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {session.summary ? (
+              <p className="text-sm line-clamp-2">{session.summary}</p>
+            ) : isToday ? (
+              <p className="text-sm text-muted-foreground italic">In progress</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No summary</p>
+            )}
           </div>
-          {session.summary ? (
-            <p className="text-sm line-clamp-2">{session.summary}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground italic">No summary</p>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
