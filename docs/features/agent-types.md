@@ -30,6 +30,18 @@ Users don't think in terms of Scope × Skill — they pick a **template** that m
 
 Scope is **auto-inferred** from the user's configured sources — never set directly. See [Agent Framework](../architecture/agent-framework.md#scope-is-auto-inferred-never-user-configured) for inference rules.
 
+### Creation paths
+
+| Path | Who initiates | Templates covered | Status |
+|------|--------------|-------------------|--------|
+| **Chat (TP)** | User via conversation | All templates | Active — TP uses Write primitive (planned: CreateAgent, ADR-111) |
+| **UI form** | User via `/agents/new` | All templates | Active |
+| **Bootstrap** | System, post-connection | Platform digests only (Slack Recap, Gmail Digest, Notion Summary) | Planned (ADR-110) |
+| **Composer** | System, substrate-assessed | Full taxonomy (cross-platform, knowledge, research) | Planned (ADR-111) |
+| **Coordinator** | Coordinator agent | Any (via CreateAgent primitive) | Active (ADR-092) |
+
+See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md) and [ADR-111](../adr/ADR-111-agent-composer.md) for planned creation paths.
+
 ### Sequencing model
 
 ```

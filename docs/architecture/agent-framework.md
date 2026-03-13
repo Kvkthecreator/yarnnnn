@@ -185,6 +185,19 @@ Templates are pre-configured Scope × Skill × Trigger combinations with sensibl
 | **Coordinator** | autonomous | orchestrate | coordinator | Agent fleet management |
 | **Custom** | (inferred) | (user selects) | (user selects) | Full manual configuration |
 
+### Bootstrap templates (ADR-110, planned)
+
+When a platform is connected and first sync completes, the bootstrap service auto-creates the matching digest template:
+
+| Platform Connected | Template Created | Notes |
+|-------------------|-----------------|-------|
+| Slack | Slack Recap | All synced channels |
+| Gmail | Gmail Digest | All synced labels |
+| Notion | Notion Summary | All synced pages |
+| Calendar | *(none)* | Meeting Prep requires cross-platform context — deferred to Composer (ADR-111) |
+
+See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md) for trigger points and idempotency rules. The Composer (ADR-111) extends bootstrap to medium-confidence templates (cross-platform, knowledge-scope, research-scope) via substrate assessment.
+
 ### Template bundles (future)
 
 A single template can create multiple agents sharing the same source configuration:

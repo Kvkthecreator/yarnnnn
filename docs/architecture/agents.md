@@ -98,6 +98,8 @@ Every agent has an `origin` field recording how it came to exist:
 | `user_configured` | User (via UI) or TP (on explicit request) | User intent | Configured first, then scheduled |
 | `analyst_suggested` | Conversation Analyst (ADR-060) | TP session content (`session_messages`) | Suggested, user enables or dismisses |
 | `coordinator_created` | Coordinator agent (ADR-092) | Coordinator's domain review | One-time, user reviews and optionally promotes |
+| `system_bootstrap` | Bootstrap service (ADR-110, planned) | Platform connection event | Auto-created, runs immediately, user can edit/delete |
+| `composer` | Composer service (ADR-111, planned) | Substrate assessment | Suggested or auto-created based on confidence tier |
 
 **`user_configured`** — Default. The user or TP explicitly created this agent. It runs on the configured schedule or manually.
 
@@ -107,6 +109,10 @@ Every agent has an `origin` field recording how it came to exist:
 - Approve and deliver (one-time, done)
 - Dismiss (archive)
 - Promote to recurring (via `POST /agents/{id}/promote-to-recurring`) — `trigger_type` updates to `schedule`, `origin` stays `coordinator_created` as provenance
+
+**`system_bootstrap`** (ADR-110, planned) — Deterministic agent auto-created when a platform is connected and first sync completes. Maps platform → matching digest template (Slack→Recap, Gmail→Digest, Notion→Summary). Executes first run immediately. Respects tier limits. Identical to `user_configured` after creation.
+
+**`composer`** (ADR-111, planned) — Created by the Composer service's substrate assessment pipeline. High-confidence recommendations are auto-created (bootstrap path); medium-confidence are suggested via TP. Covers the full template taxonomy, not just platform digests.
 
 The `origin` field is **immutable provenance** — it records how the agent was born, not what it currently is.
 

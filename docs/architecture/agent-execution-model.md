@@ -83,7 +83,11 @@ Coordinator and proactive modes add two headless-only write primitives, scoped e
 - `CreateAgent` — creates a child agent with `origin=coordinator_created`; headless only
 - `AdvanceAgentSchedule` — advances another agent's `next_run_at` to now; headless only
 
-These are not available in chat mode. TP continues to create agents via its own `CreateAgent` primitive (chat-only). The names are shared but the implementations and mode gates are distinct.
+These are not available in chat mode. TP currently creates agents via the Write primitive (`ref="agent:new"`, chat-only). The coordinator's CreateAgent and TP's Write are separate implementations with different defaults and mode gates.
+
+> **Planned (ADR-111):** Agent creation will be unified into a single `CreateAgent` primitive (chat + headless) backed by shared `create_agent_record()` logic. Write stops accepting `ref="agent:new"`. See [ADR-111](../adr/ADR-111-agent-composer.md).
+>
+> **Planned (ADR-110):** A deterministic bootstrap service will auto-create digest agents post-platform-connection, calling the same shared creation logic. This is an alternative entry point to agent execution — not a separate pipeline. See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md).
 
 ---
 
