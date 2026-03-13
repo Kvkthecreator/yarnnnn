@@ -319,23 +319,51 @@ interface StylesSectionProps {
   onUpdate: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
 }
 
-function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
+function StylesSection({ styles: initialStyles, loading, onUpdate }: StylesSectionProps) {
+  // Local state owns the dropdown values — no prop round-trip.
+  // Initialized from prop, then managed entirely locally.
+  const [localStyles, setLocalStyles] = useState<Record<string, { tone: string; verbosity: string }>>(() => {
+    const map: Record<string, { tone: string; verbosity: string }> = {};
+    for (const p of ALL_PLATFORMS) {
+      const existing = initialStyles.find((s) => s.platform === p);
+      map[p] = { tone: existing?.tone || '', verbosity: existing?.verbosity || '' };
+    }
+    return map;
+  });
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<{ platform: string; ok: boolean } | null>(null);
 
+  // Sync from prop when parent reloads data (e.g. Refresh button)
+  useEffect(() => {
+    const map: Record<string, { tone: string; verbosity: string }> = {};
+    for (const p of ALL_PLATFORMS) {
+      const existing = initialStyles.find((s) => s.platform === p);
+      map[p] = { tone: existing?.tone || '', verbosity: existing?.verbosity || '' };
+    }
+    setLocalStyles(map);
+  }, [initialStyles]);
+
   const handleChange = async (platform: string, field: 'tone' | 'verbosity', value: string) => {
-    const current = styles.find((s) => s.platform === platform);
-    const data = {
-      tone: field === 'tone' ? value : (current?.tone || ''),
-      verbosity: field === 'verbosity' ? value : (current?.verbosity || ''),
-    };
+    // 1. Update local state immediately (optimistic)
+    setLocalStyles((prev) => ({
+      ...prev,
+      [platform]: { ...prev[platform], [field]: value },
+    }));
+
+    // 2. Save to API in background
+    const updated = { ...localStyles[platform], [field]: value };
     setSavingPlatform(platform);
     setSaveStatus(null);
     try {
-      await onUpdate(platform, data);
+      await onUpdate(platform, { tone: updated.tone || undefined, verbosity: updated.verbosity || undefined });
       setSaveStatus({ platform, ok: true });
       setTimeout(() => setSaveStatus(null), 2000);
     } catch {
+      // Revert on failure
+      setLocalStyles((prev) => ({
+        ...prev,
+        [platform]: { ...prev[platform], [field]: localStyles[platform][field] },
+      }));
       setSaveStatus({ platform, ok: false });
       setTimeout(() => setSaveStatus(null), 3000);
     } finally {
@@ -351,11 +379,6 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
     );
   }
 
-  const allPlatformStyles: StyleItem[] = ALL_PLATFORMS.map((p) => {
-    const existing = styles.find((s) => s.platform === p);
-    return existing || { platform: p };
-  });
-
   return (
     <div className="space-y-6">
       <div>
@@ -366,23 +389,20 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {allPlatformStyles.map((style) => {
-          const config = PLATFORM_CONFIG[style.platform] || {
-            label: style.platform,
-            icon: <Database className="w-4 h-4" />,
-            colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
-          };
-          const isSaving = savingPlatform === style.platform;
+        {ALL_PLATFORMS.map((platform) => {
+          const config = PLATFORM_CONFIG[platform];
+          const style = localStyles[platform] || { tone: '', verbosity: '' };
+          const isSaving = savingPlatform === platform;
 
           return (
-            <div key={style.platform} className="bg-card rounded-lg border border-border p-4 space-y-3">
+            <div key={platform} className="bg-card rounded-lg border border-border p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
                   {config.icon}
                 </div>
                 <span className="font-medium text-foreground">{config.label}</span>
                 {isSaving && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-                {saveStatus?.platform === style.platform && (
+                {saveStatus?.platform === platform && (
                   <span className={cn(
                     "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
                     saveStatus.ok
@@ -398,8 +418,8 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Tone</label>
                   <select
-                    value={style.tone || ''}
-                    onChange={(e) => handleChange(style.platform, 'tone', e.target.value)}
+                    value={style.tone}
+                    onChange={(e) => handleChange(platform, 'tone', e.target.value)}
                     disabled={isSaving}
                     className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
                   >
@@ -413,8 +433,8 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
                   <select
-                    value={style.verbosity || ''}
-                    onChange={(e) => handleChange(style.platform, 'verbosity', e.target.value)}
+                    value={style.verbosity}
+                    onChange={(e) => handleChange(platform, 'verbosity', e.target.value)}
                     disabled={isSaving}
                     className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
                   >
