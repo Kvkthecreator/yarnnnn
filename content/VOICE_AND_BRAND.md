@@ -5,9 +5,17 @@
 
 ---
 
-## Two Voices
+## Three Voices
 
-**The rule**: If the content's value comes from *who's saying it*, use Kevin's voice. If it comes from *what's being said*, use YARNNN brand voice.
+YARNNN operates in three distinct registers. They serve different purposes and should never be mixed.
+
+| Voice | When | Register |
+|-------|------|----------|
+| **Kevin** | Engagement, build-in-public, replies, personal posts | Builder-authentic, first person, warm but direct |
+| **YARNNN Brand** | Blog, canonical content, LinkedIn articles, GEO | Authoritative, thesis-driven, category-level |
+| **YARNNN Ads** | Paid ads, landing page headlines, growth copy | Provocative, extremely short, outcome-only, zero functional language |
+
+**The rules**: Kevin's voice = value comes from *who's saying it.* Brand voice = value comes from *what's being said.* Ad voice = value comes from *what the reader feels.*
 
 ---
 
@@ -91,6 +99,59 @@ Bad: "We're thrilled to introduce..." · "At YARNNN, we believe..." · "Our miss
 
 ---
 
+## YARNNN Ads Voice
+
+**Use for**: Paid ads (Reddit, LinkedIn, Twitter/X), landing page headlines, growth copy, retargeting
+**POV**: Second person implied ("you" is felt, rarely written). The reader is the subject.
+**Handoff-ready**: Yes — but requires strict adherence to rules below
+
+### Tone
+
+Provocative. Extremely compressed. Outcome-only. The copy creates a feeling before the reader understands the product. Pattern-interrupts on a busy feed. Anti-marketing marketing.
+
+### Rules
+
+- The copy IS the ad. One line. No body text needed. No explainers.
+- Sell feelings and outcomes, never features or integrations.
+- Every ad targets a psychographic state, not a job title or industry.
+- Must work alone on a 375px-wide mobile screen.
+- Image does one job: brand recognition (logo + URL). Image never repeats or extends the headline.
+- Zero functional language. If it sounds like a product spec, kill it.
+- Uncomfortable > comfortable. The best ads make the reader feel something before they click.
+
+### Target psychographic
+
+People who are anxious about the AI revolution. They see AI agents everywhere on social media. They feel almost left behind. They use ChatGPT daily but aren't fully satisfied. They've heard of things like ClawdBot, OpenClaw, Claude, Cowork — but hit the setup wall or never tried. They're early adopters who aren't developers.
+
+They don't think in terms of workflows and integrations. They think in terms of outcomes and feelings.
+
+### YARNNN ads never say
+
+- "Connects to your tools" / "integrates with Slack, Gmail, Notion"
+- "Reduces friction" / "streamlines your workflow"
+- "AI-powered" / "leveraging AI"
+- "Game-changing" / "revolutionary" / "cutting-edge"
+- Any sentence that lists capabilities or features
+- Any sentence that requires understanding the tooling landscape
+- Any sentence longer than ~10 words
+
+### YARNNN ads always do
+
+- Create urgency, curiosity, or social pressure in under 10 words
+- Make the reader imagine using the product before they understand what it is
+- Sound like something a friend would text you, not something a company would email you
+- Differentiate from every other AI tool ad on the same feed
+
+### Why not Claude's approach
+
+Claude/Anthropic ads are functional and capability-focused: "sets up your Asana boards," "drafts Slack updates," "works with your tools." Every visual shows a task performed in a specific tool. This targets people who already understand the tooling landscape and want workflow optimization.
+
+YARNNN deliberately avoids this because: (1) we can't out-design or out-spend Anthropic on polished capability demos, (2) functional positioning sounds like every other AI tool, (3) our target psychographic doesn't think in workflows — they think in outcomes, (4) YARNNN's actual differentiator (scheduled autonomous execution) is invisible in a functional framing.
+
+Full competitive teardown: `_creatives/_reference/claude-linkedin-carousel.md`
+
+---
+
 ## Visual Identity
 
 ### Colors
@@ -115,6 +176,10 @@ Preferred: Inter (400, 500, 600, 700, 800). Fallback: -apple-system, system-ui, 
 ---
 
 ## Ad Creative Guidelines
+
+### The Collective Principle
+
+An ad is a system of parts — image, headline, body, CTA — each with one job. Parts supplement, never repeat. The headline carries the message. The image carries the brand. Together they form the ad. Separately they do nothing.
 
 ### Image rules
 
@@ -142,8 +207,12 @@ Source files (HTML/SVG/PY) saved alongside PNGs for iteration.
 
 ### Tone by channel (ads)
 
-| Channel | Dial up | Dial down |
-|---------|---------|-----------|
-| Reddit | Casual, blunt | Polish, jargon |
-| LinkedIn | Professional | Casualness |
-| Twitter/X | Punchy, witty | Length |
+| Channel | Psychographic trigger | Dial up | Dial down |
+|---------|-----------------------|---------|-----------|
+| Reddit | "Am I behind?" / "Is this a cheat code?" | Casual, blunt, provocative | Polish, jargon, feature lists |
+| LinkedIn | "Everyone's talking about AI agents" | Professional urgency | Casualness, technical specs |
+| Twitter/X | "Wait, what is this?" | Punchy, witty, pattern-interrupt | Length, explanations |
+
+### Testing framework
+
+Run bets as separate ad sets under psychographic targeting. Same image (logo + yarnnn.com), same CTA, same destination URL. Only the headline copy changes. Lowest CAC after 2 weeks wins and gets scaled. See STRATEGY.md § Paid Ads for the four active bets.

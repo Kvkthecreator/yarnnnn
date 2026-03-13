@@ -188,25 +188,54 @@ This is NOT promotion. Kevin shows up as a genuine contributor in communities wh
 
 ---
 
-## Paid Ads (New — In Development)
+## Paid Ads — Psychographic Bets
 
-### The Collective Principle
+### Positioning: Anti-Functional
 
-An ad is a system of parts. Each has one job:
+YARNNN ads do NOT sell features, integrations, or workflow improvements. That's Claude's lane — "connects to Asana," "drafts Slack updates," "works with your tools." Functional positioning targets people who understand the tooling landscape and want to optimize. That's the wrong audience and the wrong game for a solo-founder product competing against $60B companies.
 
-| Part | Job | Don't repeat from other parts |
-|------|-----|-------------------------------|
-| Headline text | Hook — promise or pain point | Don't restate in image |
-| Body text | Explain — what it does, how | Don't restate in image |
-| Image | Stop the scroll — visual identity | Don't include body copy |
-| CTA button | Convert | Platform provides this |
+YARNNN ads sell **feelings and outcomes to non-technical early adopters.** The target psychographic: people who are anxious about the AI revolution, see AI agents everywhere on social media, feel almost left behind, use ChatGPT daily but aren't fully satisfied, have heard of things like ClawdBot/OpenClaw/Claude/Cowork but hit the setup wall or never tried. They're early adopters who aren't developers.
 
-### Current Status
+### The Four Bets
 
-Reddit Free-form ads in testing. See `_creatives/_brand/BRAND.md` for visual production guidelines and `_creatives/_reference/` for competitive intel.
+Each bet is a single extreme pushed as far as it goes. No blending. Each one IS the ad copy — nothing else needed. Image is logo + yarnnn.com. The copy is the entire ad.
 
-### Roadmap
+**Bet A: "Works while you sleep."**
+The scheduled autonomy promise. No other AI product runs without the user being present. ChatGPT, Claude, Copilot, Cowork — close the tab and nothing happens. YARNNN runs on a schedule, delivers while you're asleep. This is YARNNN's actual technical differentiator expressed as a feeling, not a feature.
+Psychographic trigger: "I wish AI would do something without me babysitting it."
+Copy: **"Works while you sleep. yarnnn.com"**
 
-Phase 1: Reddit text-based ads (copy testing) → Phase 2: Single-image LinkedIn/Reddit ads → Phase 3: LinkedIn carousel (when proof mockups exist)
+**Bet B: "Still typing into ChatGPT like it's 2024?"**
+The obsolescence play. Implies the reader is behind. ChatGPT is last year's thing — you're still prompting? There's a next level and you're not on it. Creates social pressure without insulting. Positions YARNNN as the upgrade the early adopter hasn't found yet.
+Psychographic trigger: "Am I using the wrong thing? Is everyone else ahead of me?"
+Copy: **"Still typing into ChatGPT like it's 2024? Use YARNNN agents."**
 
-**Priority asset needed**: Mock of what a YARNNN agent delivery looks like (Slack digest, email summary, Notion update). This becomes the reusable proof screenshot across channels.
+**Bet C: "Your first AI employee. Starts Monday."**
+The accessibility play. "AI Agent" means nothing to a layperson. "AI Employee" means everything. Everyone knows what an employee does — works on a schedule, learns your preferences, delivers without being asked. "Starts Monday" makes it immediate and real. No setup guide, no workflow diagram, no developer tools.
+Psychographic trigger: "Everyone's talking about AI agents and I don't know where to start."
+Copy: **"Your first AI employee. Starts Monday."**
+
+**Bet D: "Don't let your boss catch you using YARNNN."**
+The cheat code play. Implies the product is so effective it's almost unfair. Creates intrigue and curiosity — "why would I get caught?" The reader imagines using it before they understand what it is. Pattern-interrupts on a busy feed. Anti-marketing marketing.
+Psychographic trigger: "I want an unfair advantage nobody else knows about."
+Copy: **"Don't let your boss catch you using YARNNN."**
+
+### Why Not Claude's Approach
+
+See `_creatives/_reference/claude-linkedin-carousel.md` for full teardown. Claude's ads are functional/capability-focused: "sets up your Asana boards," "writes your Slack updates," "works with your tools." Every slide shows a task performed in a specific tool. This targets people who already understand the tooling landscape and want workflow optimization.
+
+YARNNN deliberately avoids this because:
+1. We can't out-design or out-spend Anthropic on polished capability demos
+2. Functional positioning ("connects to Slack, Gmail, Notion") sounds like every other AI tool
+3. Our target psychographic doesn't think in terms of workflows and integrations — they think in terms of outcomes and feelings
+4. The actual differentiator (scheduled autonomous execution) is invisible in a functional framing
+
+### Testing Framework
+
+Run all four bets as separate Reddit ad sets under psychographic targeting. Same image (logo + yarnnn.com), same CTA, same destination URL. Only the headline copy changes. Lowest CAC after 2 weeks wins and gets scaled.
+
+### The Collective Principle (Production)
+
+The ad copy IS the ad. Image does one job: brand recognition (logo + URL). No body text needed. No feature explanations. The headline must work alone on a 375px-wide mobile screen.
+
+See `_creatives/_brand/` for visual assets and `_creatives/_reference/` for competitive intel.
