@@ -18,6 +18,7 @@ Users don't think in terms of Scope × Skill — they pick a **template** that m
 |---------------|-------|---------------|----------------|-------------|
 | **Slack Recap** | digest | platform | recurring | Channel activity summary |
 | **Gmail Digest** | digest | platform | recurring | Email digest by label |
+| **Notion Summary** | digest | platform | recurring | Page and database activity summary |
 | **Meeting Prep** | prepare | cross_platform | recurring | Calendar-driven briefing |
 | **Work Summary** | synthesize | cross_platform | recurring | Cross-platform status update |
 | **Channel Watch** | monitor | platform | proactive | Track changes in specific channels |
@@ -66,7 +67,7 @@ Catches the user up on activity within their configured sources. Platform-wide �
 
 | Scope | Template | Behavior |
 |-------|----------|----------|
-| **platform** | Slack Recap, Gmail Digest | Single-platform synthesis. One recap per platform per user (enforced at creation). Title set dynamically: "Slack Recap", "Gmail Recap". |
+| **platform** | Slack Recap, Gmail Digest, Notion Summary | Single-platform synthesis. One recap per platform per user (enforced at creation). Title set dynamically: "Slack Recap", "Gmail Recap", "Notion Summary". |
 | **cross_platform** | — | Multi-platform synthesis. All connected sources summarized. |
 
 ### Validated output details

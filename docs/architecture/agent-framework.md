@@ -175,6 +175,7 @@ Templates are pre-configured Scope × Skill × Trigger combinations with sensibl
 |---------------|-------|-------|----------------|-------------|
 | **Slack Recap** | platform | digest | recurring | Channel activity summary |
 | **Gmail Digest** | platform | digest | recurring | Email digest by label |
+| **Notion Summary** | platform | digest | recurring | Page and database activity summary |
 | **Meeting Prep** | cross_platform | prepare | recurring | Calendar-driven briefing |
 | **Work Summary** | cross_platform | synthesize | recurring | Cross-platform status update |
 | **Channel Watch** | platform | monitor | proactive | Track changes in specific channels |

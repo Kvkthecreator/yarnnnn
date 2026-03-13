@@ -285,6 +285,20 @@ const STARTER_TEMPLATES = [
     icon: 'slack' as const,
   },
   {
+    id: 'gmail-digest',
+    label: 'Gmail Digest',
+    description: 'Daily or weekly digest of your Gmail labels',
+    prompt: 'Set up a recurring Gmail digest for me',
+    icon: 'gmail' as const,
+  },
+  {
+    id: 'notion-summary',
+    label: 'Notion Summary',
+    description: 'Daily or weekly summary of your Notion pages',
+    prompt: 'Set up a recurring Notion summary for me',
+    icon: 'notion' as const,
+  },
+  {
     id: 'meeting-prep',
     label: 'Meeting Prep',
     description: 'Reads your calendar and preps you for the day\'s meetings',
@@ -314,6 +328,10 @@ function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
   switch (icon) {
     case 'slack':
       return getPlatformIcon('slack', 'w-full h-full');
+    case 'gmail':
+      return getPlatformIcon('gmail', 'w-full h-full');
+    case 'notion':
+      return getPlatformIcon('notion', 'w-full h-full');
     case 'calendar':
       return getPlatformIcon('calendar', 'w-full h-full');
     case 'cross-platform':
