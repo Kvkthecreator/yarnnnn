@@ -129,34 +129,45 @@ async def maybe_bootstrap_agent(
 
 
 async def _has_existing_digest(client: Any, user_id: str, platform: str) -> bool:
-    """Check if a digest agent already exists for this platform."""
+    """Check if a digest agent already exists for this platform.
+
+    Two checks:
+    1. Bootstrap-created agent with matching title (e.g. "Slack Recap")
+    2. Any digest agent whose sources reference this platform
+    """
+    template = BOOTSTRAP_TEMPLATES.get(platform)
+    if not template:
+        return False
+
     try:
-        result = (
+        # Check 1: exact bootstrap title match (most reliable for idempotency)
+        title_match = (
             client.table("agents")
             .select("id")
             .eq("user_id", user_id)
             .eq("skill", "digest")
+            .eq("title", template["title"])
             .execute()
         )
-        if not result.data:
-            return False
+        if title_match.data:
+            return True
 
-        # Check if any existing digest agent's sources overlap with this platform
-        for agent in result.data:
-            agent_detail = (
-                client.table("agents")
-                .select("sources")
-                .eq("id", agent["id"])
-                .single()
-                .execute()
-            )
-            if agent_detail.data:
-                sources = agent_detail.data.get("sources", [])
-                for source in sources:
-                    if isinstance(source, dict) and source.get("platform") == platform:
-                        return True
-                    elif isinstance(source, str) and platform in source:
-                        return True
+        # Check 2: any digest agent with sources referencing this platform
+        digest_agents = (
+            client.table("agents")
+            .select("id, sources")
+            .eq("user_id", user_id)
+            .eq("skill", "digest")
+            .execute()
+        )
+        for agent in (digest_agents.data or []):
+            sources = agent.get("sources", [])
+            for source in sources:
+                if isinstance(source, dict) and source.get("platform") == platform:
+                    return True
+                elif isinstance(source, str) and platform in source:
+                    return True
+
         return False
     except Exception as e:
         logger.warning(f"[BOOTSTRAP] Digest check failed: {e}")
