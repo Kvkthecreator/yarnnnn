@@ -9,7 +9,7 @@
  *
  * Panel tabs:
  * - Agents: compact entry cards linking to /agents/[id]
- * - Context: platform sync status (existing PlatformSyncStatus component)
+ * - Sources: connected platforms + document uploads (PlatformSyncStatus component)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -501,7 +501,7 @@ export function ChatFirstDesk() {
     },
     {
       id: 'context',
-      label: 'Context',
+      label: 'Sources',
       content: <ContextPanel />,
     },
   ];

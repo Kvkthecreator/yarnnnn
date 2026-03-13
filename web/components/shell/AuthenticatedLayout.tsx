@@ -118,7 +118,7 @@ const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Brie
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
-  { id: 'context', label: 'Context', icon: Layers, path: '/context' },
+  { id: 'context', label: 'Sources', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'system', label: 'System', icon: Zap, path: '/system' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
