@@ -224,7 +224,10 @@ export function AgentChatArea({
                   : 'bg-muted rounded-bl-md'
               )}
             >
-              <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider block mb-1.5">
+              <span className={cn(
+                "text-[10px] font-medium text-muted-foreground/70 tracking-wider block mb-1.5",
+                msg.role === 'user' ? 'uppercase' : 'font-brand text-[11px]'
+              )}>
                 {msg.role === 'user' ? 'You' : agentTitle}
               </span>
               {msg.images && msg.images.length > 0 && (
