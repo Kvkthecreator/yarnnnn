@@ -320,30 +320,26 @@ interface StylesSectionProps {
 }
 
 function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
-  const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ tone?: string; verbosity?: string }>({});
-  const [saving, setSaving] = useState(false);
+  const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<{ platform: string; ok: boolean } | null>(null);
 
-  const handleEdit = (style: StyleItem) => {
-    setEditingPlatform(style.platform);
-    setEditForm({ tone: style.tone || '', verbosity: style.verbosity || '' });
+  const handleChange = async (platform: string, field: 'tone' | 'verbosity', value: string) => {
+    const current = styles.find((s) => s.platform === platform);
+    const data = {
+      tone: field === 'tone' ? value : (current?.tone || ''),
+      verbosity: field === 'verbosity' ? value : (current?.verbosity || ''),
+    };
+    setSavingPlatform(platform);
     setSaveStatus(null);
-  };
-
-  const handleSave = async () => {
-    if (!editingPlatform) return;
-    setSaving(true);
     try {
-      await onUpdate(editingPlatform, editForm);
-      setSaveStatus({ platform: editingPlatform, ok: true });
-      setEditingPlatform(null);
-      setTimeout(() => setSaveStatus(null), 2500);
+      await onUpdate(platform, data);
+      setSaveStatus({ platform, ok: true });
+      setTimeout(() => setSaveStatus(null), 2000);
     } catch {
-      setSaveStatus({ platform: editingPlatform, ok: false });
+      setSaveStatus({ platform, ok: false });
       setTimeout(() => setSaveStatus(null), 3000);
     } finally {
-      setSaving(false);
+      setSavingPlatform(null);
     }
   };
 
@@ -362,13 +358,11 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -378,105 +372,59 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
             icon: <Database className="w-4 h-4" />,
             colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
           };
-          const isEditing = editingPlatform === style.platform;
-          const hasPrefs = style.tone || style.verbosity;
+          const isSaving = savingPlatform === style.platform;
 
           return (
-            <div key={style.platform} className="bg-card rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                    {config.icon}
-                  </div>
-                  <span className="font-medium text-foreground">{config.label}</span>
-                  {hasPrefs && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">set</span>
-                  )}
-                  {saveStatus?.platform === style.platform && (
-                    <span className={cn(
-                      "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
-                      saveStatus.ok
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                    )}>
-                      {saveStatus.ok ? 'Saved' : 'Failed'}
-                    </span>
-                  )}
+            <div key={style.platform} className="bg-card rounded-lg border border-border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
+                  {config.icon}
                 </div>
-                {!isEditing && (
-                  <button
-                    onClick={() => handleEdit(style)}
-                    className="text-xs text-primary hover:text-primary/80"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
+                <span className="font-medium text-foreground">{config.label}</span>
+                {isSaving && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                {saveStatus?.platform === style.platform && (
+                  <span className={cn(
+                    "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
+                    saveStatus.ok
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  )}>
+                    {saveStatus.ok ? 'Saved' : 'Failed'}
+                  </span>
                 )}
               </div>
 
-              {isEditing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Tone</label>
-                    <select
-                      value={editForm.tone || ''}
-                      onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                    >
-                      <option value="">Not set</option>
-                      <option value="casual">Casual</option>
-                      <option value="formal">Formal</option>
-                      <option value="professional">Professional</option>
-                      <option value="friendly">Friendly</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
-                    <select
-                      value={editForm.verbosity || ''}
-                      onChange={(e) => setEditForm({ ...editForm, verbosity: e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                    >
-                      <option value="">Not set</option>
-                      <option value="minimal">Minimal</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="detailed">Detailed</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => setEditingPlatform(null)}
-                      className="flex-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="flex-1 px-2 py-1.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded disabled:opacity-50"
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Tone</label>
+                  <select
+                    value={style.tone || ''}
+                    onChange={(e) => handleChange(style.platform, 'tone', e.target.value)}
+                    disabled={isSaving}
+                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
+                  >
+                    <option value="">Not set</option>
+                    <option value="casual">Casual</option>
+                    <option value="formal">Formal</option>
+                    <option value="professional">Professional</option>
+                    <option value="friendly">Friendly</option>
+                  </select>
                 </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  {style.tone ? (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tone</span>
-                      <span className="text-foreground capitalize">{style.tone}</span>
-                    </div>
-                  ) : null}
-                  {style.verbosity ? (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Verbosity</span>
-                      <span className="text-foreground capitalize">{style.verbosity}</span>
-                    </div>
-                  ) : null}
-                  {!hasPrefs && (
-                    <p className="text-xs text-muted-foreground/60">Not configured</p>
-                  )}
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
+                  <select
+                    value={style.verbosity || ''}
+                    onChange={(e) => handleChange(style.platform, 'verbosity', e.target.value)}
+                    disabled={isSaving}
+                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
+                  >
+                    <option value="">Not set</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="detailed">Detailed</option>
+                  </select>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
