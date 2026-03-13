@@ -132,11 +132,12 @@ def get_user_tier(client, user_id: str) -> str:
         result = client.table("workspaces")\
             .select("subscription_status")\
             .eq("owner_id", user_id)\
-            .single()\
+            .limit(1)\
             .execute()
 
-        if result.data:
-            status = result.data.get("subscription_status", "free")
+        rows = result.data or []
+        if rows:
+            status = rows[0].get("subscription_status", "free")
             # ADR-100: Legacy "starter" subscribers treated as "pro"
             if status in ("starter", "pro"):
                 return "pro"

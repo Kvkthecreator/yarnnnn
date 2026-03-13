@@ -252,10 +252,11 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     ws_result = auth.client.table("workspaces")\
         .select("id")\
         .eq("owner_id", auth.user_id)\
-        .single()\
+        .limit(1)\
         .execute()
 
-    workspace_id = ws_result.data["id"] if ws_result.data else None
+    ws_rows = ws_result.data or []
+    workspace_id = ws_rows[0]["id"] if ws_rows else None
 
     if not workspace_id:
         raise HTTPException(
@@ -320,16 +321,17 @@ async def get_customer_portal(auth: UserClient):
     result = auth.client.table("workspaces")\
         .select("id, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
-        .single()\
+        .limit(1)\
         .execute()
 
-    if not result.data:
+    rows = result.data or []
+    if not rows:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No workspace found for this user.",
         )
 
-    workspace = result.data
+    workspace = rows[0]
     workspace_id = workspace["id"]
     customer_id = workspace.get("lemonsqueezy_customer_id")
     subscription_id = workspace.get("lemonsqueezy_subscription_id")
@@ -461,10 +463,11 @@ async def handle_lemonsqueezy_webhook(request: Request):
         result = client.table("workspaces")\
             .select("id")\
             .eq("lemonsqueezy_customer_id", customer_id)\
-            .single()\
+            .limit(1)\
             .execute()
-        if result.data:
-            workspace_id = result.data["id"]
+        ws_rows = result.data or []
+        if ws_rows:
+            workspace_id = ws_rows[0]["id"]
 
     if not workspace_id:
         log.warning(f"No workspace_id found for event: {event_name}")
