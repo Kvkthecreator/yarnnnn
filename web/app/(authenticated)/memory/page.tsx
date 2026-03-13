@@ -320,6 +320,7 @@ function StylesSection({ loading }: StylesSectionProps) {
     return map;
   });
   const [saving, setSaving] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
 
   // Load once on mount
   useEffect(() => {
@@ -347,8 +348,11 @@ function StylesSection({ loading }: StylesSectionProps) {
 
     // Save to API
     setSaving(`${platform}-${field}`);
+    setLastSaved(null);
     try {
       await api.styles.update(platform, { [field]: newValue || undefined });
+      setLastSaved(platform);
+      setTimeout(() => setLastSaved(null), 2000);
     } catch {
       // Revert
       setPrefs((prev) => ({
@@ -389,6 +393,11 @@ function StylesSection({ loading }: StylesSectionProps) {
                   {config.icon}
                 </div>
                 <span className="font-medium text-foreground">{config.label}</span>
+                {lastSaved === platform && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 animate-in fade-in duration-200">
+                    Saved
+                  </span>
+                )}
               </div>
 
               <div className="space-y-2">
