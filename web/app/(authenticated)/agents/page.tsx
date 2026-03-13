@@ -36,6 +36,81 @@ import { cn } from '@/lib/utils';
 import type { Agent, AgentStatus } from '@/types';
 
 // =============================================================================
+// Helpers: sorting & grouping (AGENT-PRESENTATION-PRINCIPLES.md Principle 4)
+// =============================================================================
+
+/** Derive the source-affinity group key for an agent */
+function getSourceAffinityGroup(agent: Agent): string {
+  const providers: Record<string, true> = {};
+  for (const s of agent.sources ?? []) {
+    const p = s.provider as string | undefined;
+    if (p) {
+      if (p === 'google') {
+        const rid = s.resource_id;
+        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
+          providers['gmail'] = true;
+        } else {
+          providers['calendar'] = true;
+        }
+      } else {
+        providers[p] = true;
+      }
+    }
+  }
+  const keys = Object.keys(providers);
+  if (keys.length === 0) return 'research';
+  if (keys.length >= 2) return 'cross-platform';
+  return keys[0]; // 'slack', 'gmail', 'notion', 'calendar'
+}
+
+const GROUP_ORDER: Record<string, number> = {
+  slack: 0, gmail: 1, notion: 2, calendar: 3,
+  'cross-platform': 4, research: 5,
+};
+
+const GROUP_LABELS: Record<string, string> = {
+  slack: 'Slack',
+  gmail: 'Gmail',
+  notion: 'Notion',
+  calendar: 'Calendar',
+  'cross-platform': 'Cross-platform',
+  research: 'Research & Knowledge',
+};
+
+/** Sort: active before paused → most recently delivered first → alphabetical */
+function sortAgents(agents: Agent[]): Agent[] {
+  return [...agents].sort((a, b) => {
+    // Active before paused
+    if (a.status !== b.status) {
+      return a.status === 'paused' ? 1 : -1;
+    }
+    // Most recently delivered first
+    const aTime = a.last_run_at ? new Date(a.last_run_at).getTime() : 0;
+    const bTime = b.last_run_at ? new Date(b.last_run_at).getTime() : 0;
+    if (aTime !== bTime) return bTime - aTime;
+    // Alphabetical tiebreaker
+    return (a.title || '').localeCompare(b.title || '');
+  });
+}
+
+/** Group agents by source affinity, returning ordered groups */
+function groupAgentsBySource(agents: Agent[]): { key: string; label: string; agents: Agent[] }[] {
+  const grouped: Record<string, Agent[]> = {};
+  for (const agent of agents) {
+    const key = getSourceAffinityGroup(agent);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(agent);
+  }
+  return Object.entries(grouped)
+    .map(([key, groupAgents]) => ({
+      key,
+      label: GROUP_LABELS[key] || key,
+      agents: sortAgents(groupAgents),
+    }))
+    .sort((a, b) => (GROUP_ORDER[a.key] ?? 99) - (GROUP_ORDER[b.key] ?? 99));
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 
@@ -137,6 +212,15 @@ function getAgentPlatformIcon(agent: Agent): React.ReactNode {
       ))}
     </div>
   );
+}
+
+/** Small icon for group headers */
+function getAgentPlatformIconForGroup(groupKey: string): React.ReactNode {
+  switch (groupKey) {
+    case 'cross-platform': return <Globe className="w-4 h-4" />;
+    case 'research': return <Brain className="w-4 h-4" />;
+    default: return getPlatformIcon(groupKey, 'w-4 h-4');
+  }
 }
 
 // =============================================================================
@@ -274,6 +358,9 @@ export default function AgentsPage() {
   };
 
   const totalCount = agents.length;
+  const useGrouping = totalCount >= 6;
+  const sorted = sortAgents(agents);
+  const groups = useGrouping ? groupAgentsBySource(agents) : null;
 
   return (
     <div className="h-full overflow-auto">
@@ -328,9 +415,32 @@ export default function AgentsPage() {
               Create your first agent
             </button>
           </div>
+        ) : groups ? (
+          /* Source-affinity grouping at 6+ agents (Principle 4) */
+          <div className="space-y-6">
+            {groups.map((group) => (
+              <div key={group.key}>
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="text-muted-foreground">{getAgentPlatformIconForGroup(group.key)}</span>
+                  <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{group.label}</h2>
+                  <span className="text-[10px] text-muted-foreground">{group.agents.length}</span>
+                </div>
+                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
+                  {group.agents.map((d) => (
+                    <AgentCard
+                      key={d.id}
+                      agent={d}
+                      onClick={() => router.push(`/agents/${d.id}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* Flat sorted list under 6 agents */
           <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-            {agents.map((d) => (
+            {sorted.map((d) => (
               <AgentCard
                 key={d.id}
                 agent={d}

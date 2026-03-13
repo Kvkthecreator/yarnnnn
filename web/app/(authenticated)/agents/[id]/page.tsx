@@ -6,7 +6,7 @@
  * Chat-first layout with persistent right panel:
  * - Main: scoped TP chat (left, full height)
  * - Panel: persistent right panel (≥lg) with tabs: Versions | Instructions | Memory | Sessions | Settings
- * - Header: breadcrumb + identity chip + mode badge + active/paused toggle + panel toggle
+ * - Header: breadcrumb + identity chip (platform icon) + schedule subtitle + active/paused toggle + panel toggle
  *
  * Versions display has moved from inline (above chat) to the panel.
  * Panel defaults to open with Versions tab showing the latest version preview.
@@ -24,16 +24,79 @@ import {
   Pause,
   ChevronLeft,
   FileText,
+  Globe,
+  Brain,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
+import { SKILL_LABELS } from '@/lib/constants/agents';
 import { AgentSettingsPanel } from '@/components/agents/AgentSettingsPanel';
 import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
 import { RunsPanel } from '@/components/agents/AgentRunDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/agents/AgentDrawerPanels';
 import { AgentChatArea } from '@/components/agents/AgentChatArea';
 import type { Agent, AgentRun, AgentSession } from '@/types';
+
+// =============================================================================
+// Helpers: platform icon (source-first, AGENT-PRESENTATION-PRINCIPLES.md)
+// =============================================================================
+
+function getAgentPlatformIcon(agent: Agent): React.ReactNode {
+  const providers: Record<string, true> = {};
+  for (const s of agent.sources ?? []) {
+    const p = s.provider as string | undefined;
+    if (p) {
+      if (p === 'google') {
+        const rid = s.resource_id;
+        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
+          providers['gmail'] = true;
+        } else {
+          providers['calendar'] = true;
+        }
+      } else {
+        providers[p] = true;
+      }
+    }
+  }
+  const keys = Object.keys(providers);
+  if (keys.length === 0) {
+    if (agent.skill === 'research') return <Globe className="w-4 h-4" />;
+    return <Brain className="w-4 h-4" />;
+  }
+  if (keys.length === 1) return getPlatformIcon(keys[0], 'w-4 h-4');
+  return (
+    <div className="flex items-center -space-x-1">
+      {keys.slice(0, 2).map((p) => (
+        <span key={p} className="inline-block">{getPlatformIcon(p, 'w-3.5 h-3.5')}</span>
+      ))}
+    </div>
+  );
+}
+
+function getScheduleSummary(agent: Agent): string | null {
+  const s = agent.schedule;
+  if (!s?.frequency) return null;
+  const time = s.time || '09:00';
+  let timeStr = time;
+  try {
+    const [hour, minute] = time.split(':').map(Number);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    timeStr = `${h12}:${minute.toString().padStart(2, '0')}${ampm}`;
+  } catch { /* keep original */ }
+  const skillLabel = SKILL_LABELS[agent.skill] || agent.skill;
+  switch (s.frequency) {
+    case 'daily': return `${skillLabel} · Daily ${timeStr}`;
+    case 'weekly': {
+      const day = s.day ? s.day.charAt(0).toUpperCase() + s.day.slice(1, 3) : 'Mon';
+      return `${skillLabel} · ${day} ${timeStr}`;
+    }
+    case 'biweekly': return `${skillLabel} · Biweekly`;
+    case 'monthly': return `${skillLabel} · Monthly`;
+    default: return skillLabel;
+  }
+}
 
 // =============================================================================
 // Main Component
@@ -197,10 +260,16 @@ export default function AgentWorkspacePage() {
   // Header pieces
   // ==========================================================================
 
+  const scheduleSummary = getScheduleSummary(agent);
+
   const inlineMeta = (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <AgentModeBadge mode={agent.mode} variant="inline" />
-      <span className="select-none">·</span>
+      {scheduleSummary && (
+        <>
+          <span>{scheduleSummary}</span>
+          <span className="select-none">·</span>
+        </>
+      )}
       <button
         onClick={handleTogglePause}
         className={cn(
@@ -230,7 +299,7 @@ export default function AgentWorkspacePage() {
   return (
     <WorkspaceLayout
         identity={{
-          icon: <AgentModeBadge mode={agent.mode} variant="icon" />,
+          icon: getAgentPlatformIcon(agent),
           label: agent.title,
           badge: inlineMeta,
         }}
