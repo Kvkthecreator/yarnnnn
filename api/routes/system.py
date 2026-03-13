@@ -221,8 +221,9 @@ async def get_system_status(auth: UserClient):
 
     ws_result = auth.client.table("workspaces").select(
         "subscription_status"
-    ).eq("owner_id", user_id).maybe_single().execute()
-    tier = ws_result.data.get("subscription_status", "free") if ws_result.data else "free"
+    ).eq("owner_id", user_id).limit(1).execute()
+    ws_rows = ws_result.data if ws_result else []
+    tier = ws_rows[0].get("subscription_status", "free") if ws_rows else "free"
 
     limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
     sync_frequency = limits.sync_frequency
