@@ -358,9 +358,7 @@ export default function AgentsPage() {
   };
 
   const totalCount = agents.length;
-  const useGrouping = totalCount >= 6;
-  const sorted = sortAgents(agents);
-  const groups = useGrouping ? groupAgentsBySource(agents) : null;
+  const groups = groupAgentsBySource(agents);
 
   return (
     <div className="h-full overflow-auto">
@@ -415,8 +413,8 @@ export default function AgentsPage() {
               Create your first agent
             </button>
           </div>
-        ) : groups ? (
-          /* Source-affinity grouping at 6+ agents (Principle 4) */
+        ) : (
+          /* Source-affinity grouping (Principle 4) */
           <div className="space-y-6">
             {groups.map((group) => (
               <div key={group.key}>
@@ -435,17 +433,6 @@ export default function AgentsPage() {
                   ))}
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          /* Flat sorted list under 6 agents */
-          <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-            {sorted.map((d) => (
-              <AgentCard
-                key={d.id}
-                agent={d}
-                onClick={() => router.push(`/agents/${d.id}`)}
-              />
             ))}
           </div>
         )}
