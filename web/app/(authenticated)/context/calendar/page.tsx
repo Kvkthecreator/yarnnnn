@@ -15,13 +15,13 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  Calendar,
   CalendarDays,
   Check,
   CheckCircle2,
   ChevronDown,
   Loader2,
 } from 'lucide-react';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { IntegrationData } from '@/types';
@@ -142,7 +142,7 @@ export default function CalendarContextPage() {
       <PlatformNotConnected
         platform="calendar"
         label="Calendar"
-        icon={<Calendar className="w-6 h-6" />}
+        icon={getPlatformIcon('calendar', 'w-6 h-6')}
         bgColor="bg-blue-50 dark:bg-blue-950/30"
         color="text-blue-500"
         benefits={BENEFITS}
@@ -159,7 +159,7 @@ export default function CalendarContextPage() {
     <div className="h-full overflow-auto">
       <PlatformHeader
         label="Calendar"
-        icon={<Calendar className="w-5 h-5" />}
+        icon={getPlatformIcon('calendar', 'w-5 h-5')}
         bgColor="bg-blue-50 dark:bg-blue-950/30"
         color="text-blue-500"
         onConnectionDetails={() => setShowConnectionModal(true)}
@@ -228,7 +228,7 @@ export default function CalendarContextPage() {
                       className="w-full flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors text-left"
                     >
                       <div className="flex items-center gap-3">
-                        <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
+                        <span className="text-blue-500 shrink-0">{getPlatformIcon('calendar', 'w-4 h-4')}</span>
                         <div>
                           <p className="text-sm font-medium">
                             {designatedCalendarId
@@ -310,7 +310,7 @@ export default function CalendarContextPage() {
         onClose={() => setShowConnectionModal(false)}
         integration={integration}
         platformLabel="Calendar"
-        platformIcon={<Calendar className="w-5 h-5 text-blue-500" />}
+        platformIcon={getPlatformIcon('calendar', 'w-5 h-5')}
         onDisconnect={() => setIntegration(null)}
       />
     </div>

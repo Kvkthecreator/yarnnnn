@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
 const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
@@ -178,9 +179,11 @@ export function ContextSidebar() {
               >
                 <span className="flex items-center gap-2">
                   <span className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
-                  )} />
+                    "shrink-0",
+                    isConnected ? "opacity-100" : "opacity-40"
+                  )}>
+                    {getPlatformIcon(platformKey, 'w-3.5 h-3.5')}
+                  </span>
                   {config.label}
                 </span>
                 {isConnected && summary && summary.resource_count > 0 && (

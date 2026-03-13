@@ -9,7 +9,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Mail, Tag } from 'lucide-react';
+import { Loader2, Tag } from 'lucide-react';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
 import { usePlatformData } from '@/hooks/usePlatformData';
@@ -86,7 +87,7 @@ export default function GmailContextPage() {
       <PlatformNotConnected
         platform="gmail"
         label="Gmail"
-        icon={<Mail className="w-6 h-6" />}
+        icon={getPlatformIcon('gmail', 'w-6 h-6')}
         bgColor="bg-red-50 dark:bg-red-950/30"
         color="text-red-500"
         benefits={BENEFITS}
@@ -98,7 +99,7 @@ export default function GmailContextPage() {
     <div className="h-full overflow-auto">
       <PlatformHeader
         label="Gmail"
-        icon={<Mail className="w-5 h-5" />}
+        icon={getPlatformIcon('gmail', 'w-5 h-5')}
         bgColor="bg-red-50 dark:bg-red-950/30"
         color="text-red-500"
         onConnectionDetails={() => setShowConnectionModal(true)}
@@ -165,7 +166,7 @@ export default function GmailContextPage() {
         onClose={() => setShowConnectionModal(false)}
         integration={data.integration}
         platformLabel="Gmail"
-        platformIcon={<Mail className="w-5 h-5 text-red-500" />}
+        platformIcon={getPlatformIcon('gmail', 'w-5 h-5')}
         onDisconnect={() => router.push('/context')}
         tierInfo={data.tierLimits ? {
           tier: data.tierLimits.tier,

@@ -10,7 +10,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FileCode, FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
 import { usePlatformData } from '@/hooks/usePlatformData';
@@ -97,7 +98,7 @@ export default function NotionContextPage() {
       <PlatformNotConnected
         platform="notion"
         label="Notion"
-        icon={<FileCode className="w-6 h-6" />}
+        icon={getPlatformIcon('notion', 'w-6 h-6')}
         bgColor="bg-gray-50 dark:bg-gray-800/50"
         color="text-gray-700 dark:text-gray-300"
         benefits={BENEFITS}
@@ -109,7 +110,7 @@ export default function NotionContextPage() {
     <div className="h-full overflow-auto">
       <PlatformHeader
         label="Notion"
-        icon={<FileCode className="w-5 h-5" />}
+        icon={getPlatformIcon('notion', 'w-5 h-5')}
         bgColor="bg-gray-50 dark:bg-gray-800/50"
         color="text-gray-700 dark:text-gray-300"
         onConnectionDetails={() => setShowConnectionModal(true)}
@@ -176,7 +177,7 @@ export default function NotionContextPage() {
         onClose={() => setShowConnectionModal(false)}
         integration={data.integration}
         platformLabel="Notion"
-        platformIcon={<FileCode className="w-5 h-5 text-gray-700 dark:text-gray-300" />}
+        platformIcon={getPlatformIcon('notion', 'w-5 h-5')}
         onDisconnect={() => router.push('/context')}
         tierInfo={data.tierLimits ? {
           tier: data.tierLimits.tier,

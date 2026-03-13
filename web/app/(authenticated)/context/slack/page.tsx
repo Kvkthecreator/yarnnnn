@@ -9,7 +9,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Hash, Loader2, Slack } from 'lucide-react';
+import { Hash, Loader2 } from 'lucide-react';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
 import { usePlatformData } from '@/hooks/usePlatformData';
@@ -92,7 +93,7 @@ export default function SlackContextPage() {
       <PlatformNotConnected
         platform="slack"
         label="Slack"
-        icon={<Slack className="w-6 h-6" />}
+        icon={getPlatformIcon('slack', 'w-6 h-6')}
         bgColor="bg-purple-50 dark:bg-purple-950/30"
         color="text-purple-500"
         benefits={BENEFITS}
@@ -104,7 +105,7 @@ export default function SlackContextPage() {
     <div className="h-full overflow-auto">
       <PlatformHeader
         label="Slack"
-        icon={<Slack className="w-5 h-5" />}
+        icon={getPlatformIcon('slack', 'w-5 h-5')}
         bgColor="bg-purple-50 dark:bg-purple-950/30"
         color="text-purple-500"
         onConnectionDetails={() => setShowConnectionModal(true)}
@@ -171,7 +172,7 @@ export default function SlackContextPage() {
         onClose={() => setShowConnectionModal(false)}
         integration={data.integration}
         platformLabel="Slack"
-        platformIcon={<Slack className="w-5 h-5 text-purple-500" />}
+        platformIcon={getPlatformIcon('slack', 'w-5 h-5')}
         onDisconnect={() => router.push('/context')}
         tierInfo={data.tierLimits ? {
           tier: data.tierLimits.tier,

@@ -24,10 +24,6 @@ import {
   Upload,
   RefreshCw,
   FileText,
-  Slack,
-  Mail,
-  FileCode,
-  Calendar,
   Layers,
   ChevronRight,
   CheckCircle2,
@@ -39,6 +35,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
@@ -81,22 +78,22 @@ const PLATFORM_CONFIG: Record<string, {
 }> = {
   slack: {
     label: 'Slack',
-    icon: <Slack className="w-4 h-4" />,
+    icon: getPlatformIcon('slack', 'w-4 h-4'),
     colors: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
   },
   gmail: {
     label: 'Email',
-    icon: <Mail className="w-4 h-4" />,
+    icon: getPlatformIcon('gmail', 'w-4 h-4'),
     colors: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' },
   },
   notion: {
     label: 'Notion',
-    icon: <FileCode className="w-4 h-4" />,
+    icon: getPlatformIcon('notion', 'w-4 h-4'),
     colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
   },
   calendar: {
     label: 'Calendar',
-    icon: <Calendar className="w-4 h-4" />,
+    icon: getPlatformIcon('calendar', 'w-4 h-4'),
     colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
   },
 };
