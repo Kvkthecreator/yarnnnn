@@ -23,13 +23,14 @@ import {
   Send,
   X,
   ImagePlus,
-  Play,
-  Pause,
   Plus,
   FileText,
   ArrowRight,
   Upload,
   Search,
+  Globe,
+  Layers,
+  Brain,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -41,10 +42,65 @@ import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
 import type { Agent } from '@/types';
+
+// =============================================================================
+// Helpers: platform icon derivation (AGENT-PRESENTATION-PRINCIPLES.md)
+// =============================================================================
+
+/** Derive platform providers from agent sources for visual display */
+function getAgentPlatformProviders(agent: Agent): string[] {
+  const providers: Record<string, true> = {};
+  for (const s of agent.sources ?? []) {
+    const p = s.provider as string | undefined;
+    if (p) {
+      // Normalize "google" → "gmail" or "calendar" based on resource_id
+      if (p === 'google') {
+        const rid = s.resource_id;
+        const gmailLabels = ['INBOX', 'SENT', 'IMPORTANT', 'STARRED'];
+        if (rid && (gmailLabels.includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
+          providers['gmail'] = true;
+        } else {
+          providers['calendar'] = true;
+        }
+      } else {
+        providers[p] = true;
+      }
+    }
+  }
+  return Object.keys(providers);
+}
+
+/** Render platform icon(s) for an agent — source-first visual anchor */
+function AgentSourceIcons({ agent, className = 'w-4 h-4' }: { agent: Agent; className?: string }) {
+  const providers = getAgentPlatformProviders(agent);
+
+  if (providers.length === 0) {
+    // Research/knowledge agents — use skill-derived icon
+    if (agent.skill === 'research') return <Globe className={className} />;
+    return <Brain className={className} />;
+  }
+
+  if (providers.length === 1) {
+    return <>{getPlatformIcon(providers[0], className)}</>;
+  }
+
+  // Multi-platform: show stacked icons (max 2 visible + overflow)
+  return (
+    <div className="flex items-center -space-x-1">
+      {providers.slice(0, 2).map((p) => (
+        <span key={p} className="inline-block">{getPlatformIcon(p, className)}</span>
+      ))}
+      {providers.length > 2 && (
+        <span className="text-[9px] text-muted-foreground font-medium ml-0.5">+{providers.length - 2}</span>
+      )}
+    </div>
+  );
+}
 
 // =============================================================================
 // Panel: Agents (compact entry cards)
@@ -171,18 +227,22 @@ function AgentsPanel() {
             href={`/agents/${d.id}`}
             className="flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors group"
           >
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                {d.status === 'paused' ? (
-                  <Pause className="w-3 h-3 text-amber-500 shrink-0" />
-                ) : (
-                  <Play className="w-3 h-3 text-green-500 shrink-0" />
-                )}
-                <span className="text-sm font-medium truncate">{d.title}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {getRunStatusLabel(d)}
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Source-first: platform icon as primary visual anchor */}
+              <span className="shrink-0 text-muted-foreground relative">
+                <AgentSourceIcons agent={d} className="w-4 h-4" />
+                {/* Status dot */}
+                <span className={cn(
+                  'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
+                  d.status === 'paused' ? 'bg-amber-400' : 'bg-green-500'
+                )} />
               </span>
+              <div className="min-w-0">
+                <span className="text-sm font-medium truncate block">{d.title}</span>
+                <span className="text-xs text-muted-foreground">
+                  {getRunStatusLabel(d)}
+                </span>
+              </div>
             </div>
             <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2" />
           </Link>
@@ -219,35 +279,57 @@ function formatTokenCount(tokens: number): string {
 }
 
 // =============================================================================
-// Starter cards — map to skill types in api/services/skills.py
+// Agent creation templates — source-first, per AGENT-PRESENTATION-PRINCIPLES.md
 // =============================================================================
 
-const STARTER_CARDS = [
+const STARTER_TEMPLATES = [
   {
-    skill: 'status',
+    id: 'slack-recap',
+    label: 'Slack Recap',
+    description: 'Daily or weekly summary of your Slack channels',
+    prompt: 'Set up a recurring Slack recap for me',
+    icon: 'slack' as const,
+  },
+  {
+    id: 'meeting-prep',
+    label: 'Meeting Prep',
+    description: 'Reads your calendar and preps you for the day\'s meetings',
+    prompt: 'Set up daily meeting prep from my calendar and Slack',
+    icon: 'calendar' as const,
+  },
+  {
+    id: 'work-summary',
     label: 'Work Summary',
-    description: 'Synthesize activity across your platforms — daily, weekly, or on your schedule',
-    prompt: 'I want to set up a work summary across my platforms',
+    description: 'Weekly synthesis across all your connected platforms',
+    prompt: 'Set up a weekly work summary across my platforms',
+    icon: 'cross-platform' as const,
   },
   {
-    skill: 'digest',
-    label: 'Recap',
-    description: 'Catch up on a connected platform — daily or weekly',
-    prompt: 'I want to set up a recap of one of my platforms',
-  },
-  {
-    skill: 'brief',
-    label: 'Auto Meeting Prep',
-    description: 'Reads your calendar every morning and preps you for the day\'s meetings',
-    prompt: 'I want to set up auto meeting prep',
-  },
-  {
-    skill: 'deep-research',
+    id: 'proactive-insights',
     label: 'Proactive Insights',
-    description: 'Spots emerging themes across your platforms and researches them',
-    prompt: 'I want to set up proactive insights',
+    description: 'Spots emerging themes and researches them for you',
+    prompt: 'Set up proactive insights that research trends across my platforms',
+    icon: 'globe' as const,
   },
 ];
+
+type TemplateIcon = typeof STARTER_TEMPLATES[number]['icon'];
+
+/** Map template icon keys to React nodes — platform icons + lucide fallbacks */
+function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
+  switch (icon) {
+    case 'slack':
+      return getPlatformIcon('slack', 'w-full h-full');
+    case 'calendar':
+      return getPlatformIcon('calendar', 'w-full h-full');
+    case 'cross-platform':
+      return <Layers className="w-full h-full" />;
+    case 'globe':
+      return <Globe className="w-full h-full" />;
+    default:
+      return <Brain className="w-full h-full" />;
+  }
+}
 
 // =============================================================================
 // Main component
@@ -491,17 +573,22 @@ export function ChatFirstDesk() {
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl mx-auto">
-                  {STARTER_CARDS.map((card) => (
+                  {STARTER_TEMPLATES.map((tpl) => (
                     <button
-                      key={card.skill}
+                      key={tpl.id}
                       onClick={() => {
-                        setInput(card.prompt);
+                        setInput(tpl.prompt);
                         textareaRef.current?.focus();
                       }}
                       className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
                     >
-                      <span className="text-sm font-medium">{card.label}</span>
-                      <span className="text-xs text-muted-foreground leading-snug">{card.description}</span>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="w-4 h-4 shrink-0 text-muted-foreground">
+                          {getTemplateIcon(tpl.icon)}
+                        </span>
+                        <span className="text-sm font-medium">{tpl.label}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
                     </button>
                   ))}
                   <button
@@ -616,7 +703,7 @@ export function ChatFirstDesk() {
                 className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">What type of work-agent?</p>
+                  <p className="text-xs font-medium text-muted-foreground">What should your agent do?</p>
                   <button
                     type="button"
                     onClick={() => setShowCreateCards(false)}
@@ -626,17 +713,22 @@ export function ChatFirstDesk() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {STARTER_CARDS.map((card) => (
+                  {STARTER_TEMPLATES.map((tpl) => (
                     <button
-                      key={card.skill}
+                      key={tpl.id}
                       onClick={() => {
-                        sendMessage(card.prompt, { surface });
+                        sendMessage(tpl.prompt, { surface });
                         setShowCreateCards(false);
                       }}
                       className="flex flex-col items-start gap-0.5 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
                     >
-                      <span className="text-sm font-medium">{card.label}</span>
-                      <span className="text-[11px] text-muted-foreground leading-snug">{card.description}</span>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="w-3.5 h-3.5 shrink-0 text-muted-foreground">
+                          {getTemplateIcon(tpl.icon)}
+                        </span>
+                        <span className="text-sm font-medium">{tpl.label}</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground leading-snug">{tpl.description}</span>
                     </button>
                   ))}
                 </div>

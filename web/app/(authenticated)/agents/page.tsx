@@ -1,17 +1,16 @@
 'use client';
 
 /**
- * Agents List Page — Flat, Mode-Anchored
+ * Agents List Page — Source-First Presentation
  *
- * Replaces platform-grouped layout with a flat list where mode (the execution
- * character) is the primary visual signal. Each card shows:
- * - Mode icon (recurring/goal/reactive/proactive/coordinator)
- * - Title + type label + mode-aware status line
- * - Destination pill + delivery status + active/paused
+ * Flat agent list with platform icons as primary visual anchor.
+ * Each card shows:
+ * - Platform icon(s) derived from sources + active/paused dot
+ * - Title + skill label + schedule status line
+ * - Destination + delivery status + active/paused badges
  *
- * ADR-092: Mode taxonomy (5 modes)
- * ADR-093: Type taxonomy (7 types)
- * ADR-066: Delivery-first, no governance
+ * ADR-109: Scope × Skill × Trigger
+ * AGENT-PRESENTATION-PRINCIPLES.md: Source-first mental model
  */
 
 import { useState, useEffect } from 'react';
@@ -26,11 +25,14 @@ import {
   XCircle,
   ArrowRight,
   Sparkles,
+  Globe,
+  Brain,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
-import { AgentModeBadge } from '@/components/agents/AgentModeBadge';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { SKILL_LABELS } from '@/lib/constants/agents';
+import { cn } from '@/lib/utils';
 import type { Agent, AgentStatus } from '@/types';
 
 // =============================================================================
@@ -98,6 +100,46 @@ function formatDestination(d: Agent): string | null {
 }
 
 // =============================================================================
+// Helpers: platform icon derivation (AGENT-PRESENTATION-PRINCIPLES.md)
+// =============================================================================
+
+function getAgentPlatformIcon(agent: Agent): React.ReactNode {
+  const providers: Record<string, true> = {};
+  for (const s of agent.sources ?? []) {
+    const p = s.provider as string | undefined;
+    if (p) {
+      if (p === 'google') {
+        const rid = s.resource_id;
+        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
+          providers['gmail'] = true;
+        } else {
+          providers['calendar'] = true;
+        }
+      } else {
+        providers[p] = true;
+      }
+    }
+  }
+
+  const keys = Object.keys(providers);
+  if (keys.length === 0) {
+    if (agent.skill === 'research') return <Globe className="w-5 h-5" />;
+    return <Brain className="w-5 h-5" />;
+  }
+  if (keys.length === 1) {
+    return getPlatformIcon(keys[0], 'w-5 h-5');
+  }
+  // Multi-platform: stack first two
+  return (
+    <div className="flex items-center -space-x-1.5">
+      {keys.slice(0, 2).map((p) => (
+        <span key={p} className="inline-block">{getPlatformIcon(p, 'w-4 h-4')}</span>
+      ))}
+    </div>
+  );
+}
+
+// =============================================================================
 // Components
 // =============================================================================
 
@@ -123,9 +165,13 @@ function AgentCard({
       className="w-full p-4 hover:bg-muted/50 transition-colors text-left"
     >
       <div className="flex items-start gap-3">
-        {/* Mode icon as primary visual */}
-        <div className="mt-1 shrink-0">
-          <AgentModeBadge mode={agent.mode} variant="icon" />
+        {/* Source-first: platform icon as primary visual anchor */}
+        <div className="mt-1 shrink-0 text-muted-foreground relative">
+          {getAgentPlatformIcon(agent)}
+          <span className={cn(
+            'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
+            agent.status === 'paused' ? 'bg-amber-400' : 'bg-green-500'
+          )} />
         </div>
 
         <div className="flex-1 min-w-0">
