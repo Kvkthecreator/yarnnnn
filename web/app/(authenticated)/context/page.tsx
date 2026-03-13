@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
+import { SKILL_LABELS } from '@/lib/constants/agents';
+import type { Skill } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
@@ -644,14 +646,13 @@ function KnowledgeSection({
                       </span>
                       {typeof metadata.skill === 'string' && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {metadata.skill}
+                          {SKILL_LABELS[metadata.skill as Skill] || metadata.skill}
                         </span>
                       )}
                     </div>
                     {file.summary && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{file.summary}</p>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1 truncate">{file.path}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {file.updated_at && (
