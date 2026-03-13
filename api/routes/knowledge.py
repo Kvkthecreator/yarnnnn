@@ -266,18 +266,25 @@ async def create_knowledge_file(
 @router.get("/knowledge/summary", response_model=KnowledgeSummaryResponse)
 async def get_knowledge_summary(auth: UserClient):
     """Get per-class and total counts for /knowledge/ files."""
+    import re
+    _VERSION_FILE_RE = re.compile(r"/v\d+\.md$")
+
     class_counts: list[KnowledgeClassCount] = []
     total = 0
 
     for content_class in sorted(ALLOWED_CONTENT_CLASSES):
         result = (
             auth.client.table("workspace_files")
-            .select("id", count="exact")
+            .select("path", count="exact")
             .eq("user_id", auth.user_id)
             .like("path", f"/knowledge/{content_class}/%")
             .execute()
         )
-        count = result.count or 0
+        # Exclude version archive files (v1.md, v2.md, etc.) to match list endpoint
+        count = sum(
+            1 for row in (result.data or [])
+            if not _VERSION_FILE_RE.search(row.get("path", ""))
+        )
         total += count
         class_counts.append(KnowledgeClassCount(content_class=content_class, count=count))
 
