@@ -68,7 +68,8 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **Protagonist**: Consider cold email to founders@protagonist.co (deferred)
 - [ ] **Bee Partners**: Retry web application form (deferred)
 - [ ] **Betaworks reCAPTCHA**: User needs to manually complete CAPTCHA on mailing list signup
-- [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet.
-- [ ] **Sazze Partners**: Draft and send outreach email via sazze.vc/contact — priority, thesis-aligned (Korean-American founder + AI/SaaS)
+- [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet. **No DM reply as of 2026-03-13 — liked a post but no engagement. Cold, no further follow-up.**
+- [ ] **Sazze Partners (Kiha Lee)**: LinkedIn connection accepted, no message sent. Deprioritized — trying other partners first
+- [x] **Sazze Partners (Greg Kim)**: LinkedIn connection request sent 2026-03-13. Note: "안녕하세요! — Korean founder heading to LA/SF (US citizen), Building yarnnn.com, raising Pre-seed, targeting US market. Thought Sazze's Korean founder thesis would be a great fit. Would love to connect!" Awaiting acceptance → then send longer DM
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
 - [ ] **HF0 Fall '26**: Watch for application opening. Apply despite repeat-founder requirement
