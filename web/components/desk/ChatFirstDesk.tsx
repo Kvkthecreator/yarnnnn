@@ -417,6 +417,46 @@ export function ChatFirstDesk() {
     }
   }, [searchParams, router]);
 
+  // ADR-110: Detect post-OAuth redirect — ?provider=X&status=connected
+  const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
+  const [bootstrapAgent, setBootstrapAgent] = useState<Agent | null>(null);
+
+  useEffect(() => {
+    const provider = searchParams?.get('provider');
+    const status = searchParams?.get('status');
+    if (provider && status === 'connected') {
+      setBootstrapProvider(provider);
+      router.replace('/dashboard', { scroll: false });
+
+      // Poll for bootstrap agent to appear (created by sync completion)
+      const BOOTSTRAP_TITLES: Record<string, string> = {
+        slack: 'Slack Recap',
+        gmail: 'Gmail Digest',
+        notion: 'Notion Summary',
+      };
+      const expectedTitle = BOOTSTRAP_TITLES[provider];
+      if (!expectedTitle) return;
+
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const agents = await api.agents.list();
+          const found = agents.find(
+            (a) => a.title === expectedTitle && a.origin === 'system_bootstrap'
+          );
+          if (found) {
+            setBootstrapAgent(found);
+            clearInterval(poll);
+          }
+        } catch { /* ignore */ }
+        if (attempts >= 12) clearInterval(poll); // Stop after ~60s
+      }, 5000);
+
+      return () => clearInterval(poll);
+    }
+  }, [searchParams, router]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -596,6 +636,50 @@ export function ChatFirstDesk() {
         {/* Messages — centered with max-width */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
           <div className="max-w-3xl mx-auto w-full space-y-3">
+            {/* ADR-110: Bootstrap banner — shown after OAuth redirect */}
+            {bootstrapProvider && (
+              <div className="max-w-2xl mx-auto mb-4">
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                  <span className="w-5 h-5 shrink-0 text-primary">
+                    {getTemplateIcon(bootstrapProvider as TemplateIcon)}
+                  </span>
+                  {bootstrapAgent ? (
+                    <div className="flex-1 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {bootstrapAgent.title} is ready!
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Your first digest will generate on schedule, or you can run it now.
+                        </p>
+                      </div>
+                      <Link
+                        href={`/agents/${bootstrapAgent.id}`}
+                        className="text-xs font-medium text-primary hover:underline shrink-0 ml-3"
+                      >
+                        View agent →
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Syncing your data and setting up your digest agent...
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { setBootstrapProvider(null); setBootstrapAgent(null); }}
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
                 <div className="text-center mb-8">
@@ -606,7 +690,16 @@ export function ChatFirstDesk() {
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl mx-auto">
-                  {STARTER_TEMPLATES.map((tpl) => (
+                  {STARTER_TEMPLATES.filter((tpl) => {
+                    // ADR-110: Hide template for bootstrapped platform
+                    if (!bootstrapProvider) return true;
+                    const platformMap: Record<string, string> = {
+                      'slack-recap': 'slack',
+                      'gmail-digest': 'gmail',
+                      'notion-summary': 'notion',
+                    };
+                    return platformMap[tpl.id] !== bootstrapProvider;
+                  }).map((tpl) => (
                     <button
                       key={tpl.id}
                       onClick={() => {

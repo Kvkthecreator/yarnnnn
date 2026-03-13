@@ -518,6 +518,52 @@ async def phase10_tp_prompt(supabase, ids: dict) -> PhaseResult:
 
 
 # =============================================================================
+# Phase 11: OAuth redirect + activity_log event type
+# =============================================================================
+
+async def phase11_oauth_and_activity(supabase, ids: dict) -> PhaseResult:
+    """Test OAuth redirect and activity_log event type changes."""
+    logger.info("\n[Phase 11] OAuth Redirect + Activity Log")
+    r = PhaseResult("OAuth & Activity")
+
+    # Verify OAuth redirect now goes to /dashboard
+    from integrations.core.oauth import get_frontend_redirect_url
+
+    url = get_frontend_redirect_url(True, "slack")
+    assert_true(r, "OAuth redirect goes to /dashboard",
+                "/dashboard?" in url,
+                f"Expected /dashboard, got: {url}")
+    assert_true(r, "OAuth redirect includes provider=slack",
+                "provider=slack" in url,
+                f"Missing provider param: {url}")
+    assert_true(r, "OAuth redirect includes status=connected",
+                "status=connected" in url,
+                f"Missing status param: {url}")
+    assert_true(r, "OAuth redirect does NOT go to /context/",
+                "/context/" not in url,
+                f"Still redirecting to /context/: {url}")
+
+    # Google → gmail redirect
+    google_url = get_frontend_redirect_url(True, "google")
+    assert_true(r, "Google OAuth redirects with provider=gmail",
+                "provider=gmail" in google_url,
+                f"Google should redirect as gmail: {google_url}")
+
+    # Error redirect still goes to /settings
+    error_url = get_frontend_redirect_url(False, "slack", "access_denied")
+    assert_true(r, "Error redirect goes to /settings",
+                "/settings?" in error_url,
+                f"Error should go to settings: {error_url}")
+
+    # Verify agent_bootstrapped is a valid activity_log event type
+    from services.activity_log import VALID_EVENT_TYPES
+    assert_in(r, "agent_bootstrapped is valid event type",
+              "agent_bootstrapped", VALID_EVENT_TYPES)
+
+    return r
+
+
+# =============================================================================
 # Cleanup
 # =============================================================================
 
@@ -598,6 +644,7 @@ async def main() -> None:
         results.append(await phase8_registry(supabase, ids))
         results.append(await phase9_agent_creation_validation(supabase, ids))
         results.append(await phase10_tp_prompt(supabase, ids))
+        results.append(await phase11_oauth_and_activity(supabase, ids))
 
     except Exception as e:
         import traceback

@@ -51,6 +51,7 @@ VALID_EVENT_TYPES = frozenset({
     "session_summary_written",  # Session compaction summaries generated
     "pattern_detected",         # Activity pattern detection completed
     "conversation_analyzed",    # Conversation analysis + suggestions created
+    "agent_bootstrapped",       # ADR-110: Auto-created agent on platform connection
 })
 
 

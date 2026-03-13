@@ -235,7 +235,7 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
       // Calendar uses Google OAuth
       const authProvider = provider === 'calendar' ? 'google' : provider;
       const result = await api.integrations.getAuthorizationUrl(authProvider);
-      // Redirect to OAuth — callback redirects to /context/{platform}?status=connected
+      // Redirect to OAuth — callback redirects to /dashboard?provider={platform}&status=connected (ADR-110)
       window.location.href = result.authorization_url;
     } catch (err) {
       console.error(`Failed to initiate ${provider} OAuth:`, err);

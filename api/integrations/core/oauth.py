@@ -409,19 +409,21 @@ def get_frontend_redirect_url(success: bool, provider: str, error: Optional[str]
     """
     Get the URL to redirect the user to after OAuth.
 
-    Redirects to /context/{platform} page for immediate source selection.
+    ADR-110: Redirect to /dashboard with provider + bootstrapped params.
+    Dashboard detects these and shows bootstrap agent inline.
     On error, redirects to settings page.
     """
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
 
     if success:
-        # Redirect to context page for immediate source selection after connect
-        # Google OAuth serves both Gmail and Calendar — redirect to Gmail context page
+        # ADR-110: Redirect to dashboard — bootstrap agent creation happens
+        # on sync completion (platform_worker.py), dashboard shows status
         redirect_provider = "gmail" if provider == "google" else provider
         params = {
+            "provider": redirect_provider,
             "status": "connected",
         }
-        return f"{base_url}/context/{redirect_provider}?{urlencode(params)}"
+        return f"{base_url}/dashboard?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
         params = {

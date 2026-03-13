@@ -420,8 +420,8 @@ export interface Agent {
   latest_version_status?: VersionStatus;
   // ADR-028: Destination-first agents
   destination?: Destination;
-  // ADR-068: Agent origin (ADR-092: coordinator_created added)
-  origin?: 'user_configured' | 'coordinator_created';
+  // ADR-068: Agent origin (ADR-092: coordinator_created, ADR-110: system_bootstrap)
+  origin?: 'user_configured' | 'coordinator_created' | 'system_bootstrap';
   // ADR-087: Agent-scoped context
   agent_instructions?: string;
   agent_memory?: AgentMemory;
