@@ -126,6 +126,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'failed' | null>(null);
 
   useEffect(() => {
     setFormData({
@@ -139,9 +140,15 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveStatus(null);
     try {
       await onUpdate(formData);
       setEditing(false);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 2500);
+    } catch {
+      setSaveStatus('failed');
+      setTimeout(() => setSaveStatus(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -161,9 +168,21 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Profile</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Profile</h2>
+            {saveStatus && (
+              <span className={cn(
+                "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
+                saveStatus === 'saved'
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              )}>
+                {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Basic information about you that TP uses to personalize responses.
+            Basic information about you that yarnnn uses to personalize responses.
           </p>
         </div>
         {!editing && (
@@ -181,7 +200,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
         <div className="bg-muted/50 rounded-lg p-6 text-center">
           <User className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
           <p className="text-muted-foreground mb-4">
-            No profile information yet. Add details about yourself so TP can personalize responses.
+            No profile information yet. Add details about yourself so yarnnn can personalize responses.
           </p>
           <button
             onClick={() => setEditing(true)}
@@ -304,10 +323,12 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ tone?: string; verbosity?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ platform: string; ok: boolean } | null>(null);
 
   const handleEdit = (style: StyleItem) => {
     setEditingPlatform(style.platform);
     setEditForm({ tone: style.tone || '', verbosity: style.verbosity || '' });
+    setSaveStatus(null);
   };
 
   const handleSave = async () => {
@@ -315,7 +336,12 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
     setSaving(true);
     try {
       await onUpdate(editingPlatform, editForm);
+      setSaveStatus({ platform: editingPlatform, ok: true });
       setEditingPlatform(null);
+      setTimeout(() => setSaveStatus(null), 2500);
+    } catch {
+      setSaveStatus({ platform: editingPlatform, ok: false });
+      setTimeout(() => setSaveStatus(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -340,7 +366,7 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Set your preferred tone and verbosity per platform. TP uses these when writing content for you.
+            Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
           </p>
         </div>
       </div>
@@ -365,6 +391,16 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                   <span className="font-medium text-foreground">{config.label}</span>
                   {hasPrefs && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">set</span>
+                  )}
+                  {saveStatus?.platform === style.platform && (
+                    <span className={cn(
+                      "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
+                      saveStatus.ok
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    )}>
+                      {saveStatus.ok ? 'Saved' : 'Failed'}
+                    </span>
                   )}
                 </div>
                 {!isEditing && (
@@ -532,7 +568,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
         <div>
           <h2 className="text-lg font-semibold text-foreground">Knowledge Entries</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Facts, preferences, and instructions TP keeps in mind every session.
+            Facts, preferences, and instructions yarnnn keeps in mind every session.
           </p>
         </div>
         <button
@@ -548,7 +584,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
         <div className="bg-muted/50 rounded-lg p-6 text-center">
           <BookOpen className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
           <p className="text-muted-foreground mb-4">
-            No knowledge entries yet. TP will learn from your conversations, or you can add entries manually.
+            No knowledge entries yet. yarnnn will learn from your conversations, or you can add entries manually.
           </p>
           <button
             onClick={onAdd}
