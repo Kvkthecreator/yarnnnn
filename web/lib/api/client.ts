@@ -357,6 +357,14 @@ export const api = {
         }>;
       }>(`/api/chat/history?${params.toString()}`);
     },
+
+    // List global (non-agent-scoped) TP sessions — lightweight metadata for dashboard panel
+    listSessions: (limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
+        `/api/chat/sessions${params}`
+      );
+    },
   },
 
   // Subscription endpoints (Lemon Squeezy)

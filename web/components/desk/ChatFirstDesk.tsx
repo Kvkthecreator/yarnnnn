@@ -45,7 +45,8 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
-import type { Agent } from '@/types';
+import { SessionsPanel } from '@/components/agents/AgentDrawerPanels';
+import type { Agent, AgentSession } from '@/types';
 
 // =============================================================================
 // Helpers: platform icon derivation (AGENT-PRESENTATION-PRINCIPLES.md)
@@ -355,9 +356,25 @@ export function ChatFirstDesk() {
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
   const [showCreateCards, setShowCreateCards] = useState(false);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
   const createCardsRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load global sessions for the Sessions panel
+  const loadSessions = useCallback(async () => {
+    try {
+      const data = await api.chat.listSessions();
+      setSessions(data);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { void loadSessions(); }, [loadSessions]);
+
+  // Refresh sessions after each TP turn completes
+  useEffect(() => {
+    if (!isLoading) { void loadSessions(); }
+  }, [isLoading, loadSessions]);
 
   const {
     attachments,
@@ -498,6 +515,11 @@ export function ChatFirstDesk() {
       id: 'agents',
       label: 'Agents',
       content: <AgentsPanel />,
+    },
+    {
+      id: 'sessions',
+      label: 'Sessions',
+      content: <SessionsPanel sessions={sessions} />,
     },
     {
       id: 'context',

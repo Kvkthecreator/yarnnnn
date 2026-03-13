@@ -21,6 +21,7 @@ ADR-087: Agent Scoping:
 Endpoints:
 - POST /chat - Global chat with streaming + tools
 - GET /chat/history - Get global chat history
+- GET /chat/sessions - List global TP sessions (lightweight, for dashboard panel)
 - GET /commands - List available slash commands
 """
 
@@ -1101,6 +1102,49 @@ async def get_global_chat_history(
         })
 
     return {"sessions": sessions}
+
+
+@router.get("/chat/sessions")
+async def list_global_sessions(
+    auth: UserClient,
+    limit: int = Query(default=10, le=50),
+):
+    """
+    List global (non-agent-scoped) TP chat sessions.
+
+    Lightweight endpoint returning session metadata with message counts,
+    mirroring the agent-scoped GET /api/agents/{id}/sessions endpoint.
+    Used by the dashboard Sessions panel.
+    """
+    result = (
+        auth.client.table("chat_sessions")
+        .select("id, created_at, summary")
+        .eq("user_id", auth.user_id)
+        .is_("agent_id", "null")
+        .eq("session_type", "thinking_partner")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    sessions = result.data or []
+
+    response = []
+    for s in sessions:
+        count_result = (
+            auth.client.table("session_messages")
+            .select("id", count="exact")
+            .eq("session_id", s["id"])
+            .execute()
+        )
+        response.append({
+            "id": s["id"],
+            "created_at": s["created_at"],
+            "summary": s.get("summary"),
+            "message_count": count_result.count or 0,
+        })
+
+    return response
 
 
 # =============================================================================
