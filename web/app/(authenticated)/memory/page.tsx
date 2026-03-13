@@ -364,25 +364,11 @@ function StylesSection({ loading }: StylesSectionProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
-            {saveStatus && (
-              <span className={cn(
-                "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
-                saveStatus === 'saved'
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              )}>
-                {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Set your preferred tone and verbosity per platform.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Set your preferred tone and verbosity per platform.
+        </p>
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6 space-y-5">
@@ -437,7 +423,17 @@ function StylesSection({ loading }: StylesSectionProps) {
           );
         })}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-end gap-3 pt-2">
+          {saveStatus && (
+            <span className={cn(
+              "text-xs animate-in fade-in duration-200",
+              saveStatus === 'saved'
+                ? "text-green-600 dark:text-green-400"
+                : "text-red-600 dark:text-red-400"
+            )}>
+              {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
+            </span>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}
