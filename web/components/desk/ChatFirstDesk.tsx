@@ -251,7 +251,7 @@ function AgentsPanel() {
 
 function ContextPanel() {
   return (
-    <div className="overflow-y-auto">
+    <div className="overflow-y-auto min-h-0">
       <PlatformSyncStatus />
     </div>
   );

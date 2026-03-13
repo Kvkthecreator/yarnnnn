@@ -270,9 +270,11 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
 
   if (loading && integrations.length === 0) {
     return (
-      <div className={cn('flex items-center justify-center gap-2 text-muted-foreground text-sm', className)}>
-        <Loader2 className="w-4 h-4 animate-spin" />
-        <span>Loading platforms...</span>
+      <div className={cn('max-w-lg mx-auto py-8', className)}>
+        <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Loading platforms...</span>
+        </div>
       </div>
     );
   }
