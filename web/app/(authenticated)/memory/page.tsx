@@ -29,7 +29,6 @@ import {
   Mail,
   FileCode,
   Calendar,
-  Database,
   Edit2,
   Trash2,
 } from 'lucide-react';
@@ -49,12 +48,6 @@ interface Profile {
   company?: string;
   timezone?: string;
   summary?: string;
-}
-
-interface StyleItem {
-  platform: string;
-  tone?: string;
-  verbosity?: string;
 }
 
 interface MemoryEntry {
@@ -313,48 +306,57 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
 // Styles Section
 // =============================================================================
 
+const TONE_OPTIONS = ['casual', 'formal', 'professional', 'friendly'] as const;
+const VERBOSITY_OPTIONS = ['minimal', 'moderate', 'detailed'] as const;
+
 interface StylesSectionProps {
-  styles: StyleItem[];
   loading: boolean;
-  onUpdate: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
 }
 
-function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<Record<string, { tone: string; verbosity: string }>>({});
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'failed' | null>(null);
-
-  useEffect(() => {
+function StylesSection({ loading }: StylesSectionProps) {
+  const [prefs, setPrefs] = useState<Record<string, { tone: string; verbosity: string }>>(() => {
     const map: Record<string, { tone: string; verbosity: string }> = {};
-    for (const p of ALL_PLATFORMS) {
-      const existing = styles.find((s) => s.platform === p);
-      map[p] = { tone: existing?.tone || '', verbosity: existing?.verbosity || '' };
-    }
-    setFormData(map);
-  }, [styles]);
+    for (const p of ALL_PLATFORMS) map[p] = { tone: '', verbosity: '' };
+    return map;
+  });
+  const [saving, setSaving] = useState<string | null>(null);
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveStatus(null);
+  // Load once on mount
+  useEffect(() => {
+    api.styles.list().then((res) => {
+      setPrefs((prev) => {
+        const next = { ...prev };
+        for (const s of res.styles || []) {
+          next[s.platform] = { tone: s.tone || '', verbosity: s.verbosity || '' };
+        }
+        return next;
+      });
+    }).catch(() => {});
+  }, []);
+
+  const handleSelect = async (platform: string, field: 'tone' | 'verbosity', value: string) => {
+    // Toggle: clicking active value clears it
+    const current = prefs[platform][field];
+    const newValue = current === value ? '' : value;
+
+    // Update local state immediately
+    setPrefs((prev) => ({
+      ...prev,
+      [platform]: { ...prev[platform], [field]: newValue },
+    }));
+
+    // Save to API
+    setSaving(`${platform}-${field}`);
     try {
-      await Promise.all(
-        ALL_PLATFORMS.map((platform) => {
-          const { tone, verbosity } = formData[platform] || { tone: '', verbosity: '' };
-          return onUpdate(platform, {
-            tone: tone || undefined,
-            verbosity: verbosity || undefined,
-          });
-        })
-      );
-      setEditing(false);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus(null), 2500);
+      await api.styles.update(platform, { [field]: newValue || undefined });
     } catch {
-      setSaveStatus('failed');
-      setTimeout(() => setSaveStatus(null), 3000);
+      // Revert
+      setPrefs((prev) => ({
+        ...prev,
+        [platform]: { ...prev[platform], [field]: current },
+      }));
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
@@ -366,151 +368,76 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
     );
   }
 
-  const hasAnyPreference = styles.some((s) => s.tone || s.verbosity);
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
-            {saveStatus && (
-              <span className={cn(
-                "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
-                saveStatus === 'saved'
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              )}>
-                {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
-          </p>
-        </div>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit
-          </button>
-        )}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Tap to select your preferred tone and verbosity per platform.
+        </p>
       </div>
 
-      {!hasAnyPreference && !editing ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <Palette className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground mb-4">
-            No preferences set yet. Tell yarnnn how you like to communicate on each platform.
-          </p>
-          <button
-            onClick={() => setEditing(true)}
-            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
-          >
-            Set Preferences
-          </button>
-        </div>
-      ) : editing ? (
-        <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {ALL_PLATFORMS.map((platform) => {
-              const config = PLATFORM_CONFIG[platform];
-              const style = formData[platform] || { tone: '', verbosity: '' };
+      <div className="space-y-5">
+        {ALL_PLATFORMS.map((platform) => {
+          const config = PLATFORM_CONFIG[platform];
+          const pref = prefs[platform];
 
-              return (
-                <div key={platform} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("p-1.5 rounded-md", config.colors.bg, config.colors.text)}>
-                      {config.icon}
-                    </div>
-                    <span className="font-medium text-sm text-foreground">{config.label}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">Tone</label>
-                      <select
-                        value={style.tone}
-                        onChange={(e) => setFormData((prev) => ({
-                          ...prev,
-                          [platform]: { ...prev[platform], tone: e.target.value },
-                        }))}
-                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                      >
-                        <option value="">Not set</option>
-                        <option value="casual">Casual</option>
-                        <option value="formal">Formal</option>
-                        <option value="professional">Professional</option>
-                        <option value="friendly">Friendly</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
-                      <select
-                        value={style.verbosity}
-                        onChange={(e) => setFormData((prev) => ({
-                          ...prev,
-                          [platform]: { ...prev[platform], verbosity: e.target.value },
-                        }))}
-                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                      >
-                        <option value="">Not set</option>
-                        <option value="minimal">Minimal</option>
-                        <option value="moderate">Moderate</option>
-                        <option value="detailed">Detailed</option>
-                      </select>
-                    </div>
-                  </div>
+          return (
+            <div key={platform} className="bg-card rounded-lg border border-border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
+                  {config.icon}
                 </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setEditing(false)}
-              className="px-4 py-2 text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {ALL_PLATFORMS.map((platform) => {
-            const config = PLATFORM_CONFIG[platform];
-            const existing = styles.find((s) => s.platform === platform);
-            const hasPref = existing?.tone || existing?.verbosity;
-
-            return (
-              <div key={platform} className="bg-card rounded-lg border border-border p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                    {config.icon}
-                  </div>
-                  <span className="font-medium text-foreground">{config.label}</span>
-                </div>
-                {hasPref ? (
-                  <div className="flex gap-4 text-sm text-muted-foreground pl-10">
-                    {existing?.tone && <span>Tone: <span className="text-foreground capitalize">{existing.tone}</span></span>}
-                    {existing?.verbosity && <span>Verbosity: <span className="text-foreground capitalize">{existing.verbosity}</span></span>}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground pl-10">Not configured</p>
-                )}
+                <span className="font-medium text-foreground">{config.label}</span>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5">Tone</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TONE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => handleSelect(platform, 'tone', opt)}
+                        disabled={saving === `${platform}-tone`}
+                        className={cn(
+                          'px-3 py-1 text-xs rounded-full border transition-colors capitalize',
+                          pref.tone === opt
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5">Verbosity</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {VERBOSITY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => handleSelect(platform, 'verbosity', opt)}
+                        disabled={saving === `${platform}-verbosity`}
+                        className={cn(
+                          'px-3 py-1 text-xs rounded-full border transition-colors capitalize',
+                          pref.verbosity === opt
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -744,19 +671,16 @@ export default function MemoryPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [profile, setProfile] = useState<Profile>({});
-  const [styles, setStyles] = useState<StyleItem[]>([]);
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [profileResult, stylesResult, entriesResult] = await Promise.all([
+      const [profileResult, entriesResult] = await Promise.all([
         api.profile.get().catch(() => ({})),
-        api.styles.list().catch(() => ({ styles: [] })),
         api.userMemories.list().catch(() => []),
       ]);
 
       setProfile(profileResult || {});
-      setStyles(stylesResult?.styles || []);
       setEntries(Array.isArray(entriesResult) ? entriesResult as MemoryEntry[] : []);
     } catch (err) {
       console.error('Failed to load memory data:', err);
@@ -786,17 +710,6 @@ export default function MemoryPage() {
   const handleProfileUpdate = async (data: Partial<Profile>) => {
     const result = await api.profile.update(data);
     setProfile(result);
-  };
-
-  const handleStyleUpdate = async (platform: string, data: { tone?: string; verbosity?: string }) => {
-    const result = await api.styles.update(platform, data);
-    setStyles((prev) => {
-      const exists = prev.find((s) => s.platform === platform);
-      if (exists) {
-        return prev.map((s) => s.platform === platform ? { ...s, ...result } : s);
-      }
-      return [...prev, result];
-    });
   };
 
   const handleDeleteEntry = async (id: string) => {
@@ -873,11 +786,7 @@ export default function MemoryPage() {
         )}
 
         {activeSection === 'styles' && (
-          <StylesSection
-            styles={styles}
-            loading={false}
-            onUpdate={handleStyleUpdate}
-          />
+          <StylesSection loading={false} />
         )}
       </div>
     </div>
