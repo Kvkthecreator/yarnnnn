@@ -109,7 +109,7 @@ const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-  { id: 'styles', label: 'Styles', icon: <Palette className="w-4 h-4" /> },
+  { id: 'styles', label: 'Preferences', icon: <Palette className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -319,55 +319,42 @@ interface StylesSectionProps {
   onUpdate: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
 }
 
-function StylesSection({ styles: initialStyles, loading, onUpdate }: StylesSectionProps) {
-  // Local state owns the dropdown values — no prop round-trip.
-  // Initialized from prop, then managed entirely locally.
-  const [localStyles, setLocalStyles] = useState<Record<string, { tone: string; verbosity: string }>>(() => {
-    const map: Record<string, { tone: string; verbosity: string }> = {};
-    for (const p of ALL_PLATFORMS) {
-      const existing = initialStyles.find((s) => s.platform === p);
-      map[p] = { tone: existing?.tone || '', verbosity: existing?.verbosity || '' };
-    }
-    return map;
-  });
-  const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<{ platform: string; ok: boolean } | null>(null);
+function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState<Record<string, { tone: string; verbosity: string }>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'failed' | null>(null);
 
-  // Sync from prop when parent reloads data (e.g. Refresh button)
   useEffect(() => {
     const map: Record<string, { tone: string; verbosity: string }> = {};
     for (const p of ALL_PLATFORMS) {
-      const existing = initialStyles.find((s) => s.platform === p);
+      const existing = styles.find((s) => s.platform === p);
       map[p] = { tone: existing?.tone || '', verbosity: existing?.verbosity || '' };
     }
-    setLocalStyles(map);
-  }, [initialStyles]);
+    setFormData(map);
+  }, [styles]);
 
-  const handleChange = async (platform: string, field: 'tone' | 'verbosity', value: string) => {
-    // 1. Update local state immediately (optimistic)
-    setLocalStyles((prev) => ({
-      ...prev,
-      [platform]: { ...prev[platform], [field]: value },
-    }));
-
-    // 2. Save to API in background
-    const updated = { ...localStyles[platform], [field]: value };
-    setSavingPlatform(platform);
+  const handleSave = async () => {
+    setSaving(true);
     setSaveStatus(null);
     try {
-      await onUpdate(platform, { tone: updated.tone || undefined, verbosity: updated.verbosity || undefined });
-      setSaveStatus({ platform, ok: true });
-      setTimeout(() => setSaveStatus(null), 2000);
+      await Promise.all(
+        ALL_PLATFORMS.map((platform) => {
+          const { tone, verbosity } = formData[platform] || { tone: '', verbosity: '' };
+          return onUpdate(platform, {
+            tone: tone || undefined,
+            verbosity: verbosity || undefined,
+          });
+        })
+      );
+      setEditing(false);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 2500);
     } catch {
-      // Revert on failure
-      setLocalStyles((prev) => ({
-        ...prev,
-        [platform]: { ...prev[platform], [field]: localStyles[platform][field] },
-      }));
-      setSaveStatus({ platform, ok: false });
+      setSaveStatus('failed');
       setTimeout(() => setSaveStatus(null), 3000);
     } finally {
-      setSavingPlatform(null);
+      setSaving(false);
     }
   };
 
@@ -379,76 +366,151 @@ function StylesSection({ styles: initialStyles, loading, onUpdate }: StylesSecti
     );
   }
 
+  const hasAnyPreference = styles.some((s) => s.tone || s.verbosity);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
+            {saveStatus && (
+              <span className={cn(
+                "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
+                saveStatus === 'saved'
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              )}>
+                {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Set your preferred tone and verbosity per platform. yarnnn uses these when writing content for you.
+          </p>
+        </div>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
+          >
+            <Edit2 className="w-4 h-4" />
+            Edit
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {ALL_PLATFORMS.map((platform) => {
-          const config = PLATFORM_CONFIG[platform];
-          const style = localStyles[platform] || { tone: '', verbosity: '' };
-          const isSaving = savingPlatform === platform;
+      {!hasAnyPreference && !editing ? (
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <Palette className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground mb-4">
+            No preferences set yet. Tell yarnnn how you like to communicate on each platform.
+          </p>
+          <button
+            onClick={() => setEditing(true)}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
+          >
+            Set Preferences
+          </button>
+        </div>
+      ) : editing ? (
+        <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {ALL_PLATFORMS.map((platform) => {
+              const config = PLATFORM_CONFIG[platform];
+              const style = formData[platform] || { tone: '', verbosity: '' };
 
-          return (
-            <div key={platform} className="bg-card rounded-lg border border-border p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                  {config.icon}
+              return (
+                <div key={platform} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("p-1.5 rounded-md", config.colors.bg, config.colors.text)}>
+                      {config.icon}
+                    </div>
+                    <span className="font-medium text-sm text-foreground">{config.label}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Tone</label>
+                      <select
+                        value={style.tone}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          [platform]: { ...prev[platform], tone: e.target.value },
+                        }))}
+                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                      >
+                        <option value="">Not set</option>
+                        <option value="casual">Casual</option>
+                        <option value="formal">Formal</option>
+                        <option value="professional">Professional</option>
+                        <option value="friendly">Friendly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
+                      <select
+                        value={style.verbosity}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          [platform]: { ...prev[platform], verbosity: e.target.value },
+                        }))}
+                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                      >
+                        <option value="">Not set</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="moderate">Moderate</option>
+                        <option value="detailed">Detailed</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <span className="font-medium text-foreground">{config.label}</span>
-                {isSaving && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-                {saveStatus?.platform === platform && (
-                  <span className={cn(
-                    "text-xs px-1.5 py-0.5 rounded animate-in fade-in duration-200",
-                    saveStatus.ok
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  )}>
-                    {saveStatus.ok ? 'Saved' : 'Failed'}
-                  </span>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={() => setEditing(false)}
+              className="px-4 py-2 text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {ALL_PLATFORMS.map((platform) => {
+            const config = PLATFORM_CONFIG[platform];
+            const existing = styles.find((s) => s.platform === platform);
+            const hasPref = existing?.tone || existing?.verbosity;
+
+            return (
+              <div key={platform} className="bg-card rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
+                    {config.icon}
+                  </div>
+                  <span className="font-medium text-foreground">{config.label}</span>
+                </div>
+                {hasPref ? (
+                  <div className="flex gap-4 text-sm text-muted-foreground pl-10">
+                    {existing?.tone && <span>Tone: <span className="text-foreground capitalize">{existing.tone}</span></span>}
+                    {existing?.verbosity && <span>Verbosity: <span className="text-foreground capitalize">{existing.verbosity}</span></span>}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground pl-10">Not configured</p>
                 )}
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Tone</label>
-                  <select
-                    value={style.tone}
-                    onChange={(e) => handleChange(platform, 'tone', e.target.value)}
-                    disabled={isSaving}
-                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
-                  >
-                    <option value="">Not set</option>
-                    <option value="casual">Casual</option>
-                    <option value="formal">Formal</option>
-                    <option value="professional">Professional</option>
-                    <option value="friendly">Friendly</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
-                  <select
-                    value={style.verbosity}
-                    onChange={(e) => handleChange(platform, 'verbosity', e.target.value)}
-                    disabled={isSaving}
-                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground disabled:opacity-50"
-                  >
-                    <option value="">Not set</option>
-                    <option value="minimal">Minimal</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="detailed">Detailed</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -727,9 +789,14 @@ export default function MemoryPage() {
   };
 
   const handleStyleUpdate = async (platform: string, data: { tone?: string; verbosity?: string }) => {
-    // Fire-and-forget to API. StylesSection owns UI state locally (optimistic).
-    // Don't update parent styles state — it would trigger useEffect sync and overwrite local values.
-    await api.styles.update(platform, data);
+    const result = await api.styles.update(platform, data);
+    setStyles((prev) => {
+      const exists = prev.find((s) => s.platform === platform);
+      if (exists) {
+        return prev.map((s) => s.platform === platform ? { ...s, ...result } : s);
+      }
+      return [...prev, result];
+    });
   };
 
   const handleDeleteEntry = async (id: string) => {
