@@ -1,60 +1,60 @@
 "use client";
 
 /**
- * ADR-100: Billing surface with 2-tier display (Free/Pro), Early Bird option, and billing actions.
- * Usage/limits moved to the Usage tab in settings.
+ * ADR-100: Billing surface with 2-tier display (Free/Pro).
+ * Split views: Free users see upgrade card with radio pricing. Pro users see plan summary + billing portal.
  */
 
 import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CreditCard, Loader2, Sparkles } from "lucide-react";
+import { CreditCard, Loader2, Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
 
-type PlanTier = "free" | "pro";
-type BillingPeriod = "monthly" | "yearly";
+type PricingOption = "monthly" | "yearly" | "early_bird";
 
-const PLAN_ORDER: PlanTier[] = ["free", "pro"];
-
-const PLAN_META: Record<PlanTier, {
+const PRICING_OPTIONS: Array<{
+  id: PricingOption;
   label: string;
-  icon: "none" | "sparkles";
-  monthlyPrice: string;
-  yearlyPrice: string;
-  style: string;
-}> = {
-  free: {
-    label: "Free",
-    icon: "none",
-    monthlyPrice: "$0/mo",
-    yearlyPrice: "$0/yr",
-    style: "bg-muted text-muted-foreground",
-  },
-  pro: {
-    label: "Pro",
-    icon: "sparkles",
-    monthlyPrice: "$19/mo",
-    yearlyPrice: "$180/yr",
-    style: "bg-primary text-primary-foreground",
-  },
-};
-
-const FEATURE_ROWS: Array<{ label: string; values: Record<PlanTier, string> }> = [
-  { label: "Platforms", values: { free: "4", pro: "4" } },
-  { label: "Slack sources", values: { free: "5", pro: "Unlimited" } },
-  { label: "Gmail labels", values: { free: "5", pro: "Unlimited" } },
-  { label: "Notion pages", values: { free: "10", pro: "Unlimited" } },
-  { label: "Calendars", values: { free: "Unlimited", pro: "Unlimited" } },
-  { label: "Sync frequency", values: { free: "1x daily", pro: "Hourly" } },
-  { label: "Monthly messages", values: { free: "50", pro: "Unlimited" } },
-  { label: "Active agents", values: { free: "2", pro: "10" } },
-  { label: "Priority support", values: { free: "No", pro: "Yes" } },
+  price: string;
+  detail?: string;
+}> = [
+  { id: "monthly", label: "Monthly", price: "$19/mo" },
+  { id: "yearly", label: "Yearly", price: "$180/yr", detail: "Save ~17%" },
+  { id: "early_bird", label: "Early Bird", price: "$9/mo", detail: "Limited" },
 ];
 
-export function SubscriptionCard() {
-  const { status, tier, isPaid, isEarlyBird, isLoading, error, upgrade, manageSubscription } = useSubscription();
+const PRO_FEATURES = [
+  "Unlimited messages",
+  "10 active agents",
+  "Hourly sync",
+  "Unlimited sources",
+  "Priority support",
+];
 
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
+const COMPARE_ROWS: Array<{ label: string; free: string; pro: string }> = [
+  { label: "Platforms", free: "4", pro: "4" },
+  { label: "Slack sources", free: "5", pro: "Unlimited" },
+  { label: "Gmail labels", free: "5", pro: "Unlimited" },
+  { label: "Notion pages", free: "10", pro: "Unlimited" },
+  { label: "Calendars", free: "Unlimited", pro: "Unlimited" },
+  { label: "Sync frequency", free: "1x daily", pro: "Hourly" },
+  { label: "Monthly messages", free: "50", pro: "Unlimited" },
+  { label: "Active agents", free: "2", pro: "10" },
+  { label: "Priority support", free: "No", pro: "Yes" },
+];
+
+function getPlanPriceLabel(plan: string | null | undefined): string {
+  if (plan === "pro_early_bird") return "$9/mo";
+  if (plan === "pro_yearly") return "$180/yr";
+  return "$19/mo";
+}
+
+export function SubscriptionCard() {
+  const { status, isPaid, isEarlyBird, isLoading, error, upgrade, manageSubscription } = useSubscription();
+
+  const [selectedPricing, setSelectedPricing] = useState<PricingOption>("early_bird");
+  const [showCompare, setShowCompare] = useState(false);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null;
@@ -64,6 +64,16 @@ export function SubscriptionCard() {
       year: "numeric",
     });
   };
+
+  const handleUpgrade = () => {
+    if (selectedPricing === "early_bird") {
+      upgrade("monthly", true);
+    } else {
+      upgrade(selectedPricing === "yearly" ? "yearly" : "monthly");
+    }
+  };
+
+  const selectedOption = PRICING_OPTIONS.find((o) => o.id === selectedPricing)!;
 
   if (isLoading && !status) {
     return (
@@ -87,18 +97,75 @@ export function SubscriptionCard() {
     );
   }
 
-  const currentTier = (tier as PlanTier) || "free";
-  const canUpgrade = currentTier === "free";
+  // ── Pro User View ──────────────────────────────────────────────
+  if (isPaid) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Subscription</CardTitle>
+          <CardDescription>Manage your yarnnn subscription and billing</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {error && (
+            <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">
+              {error.message}
+            </div>
+          )}
 
+          <section className="p-4 border border-border rounded-lg space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-primary text-primary-foreground">
+                <Sparkles className="w-4 h-4" />
+                Pro
+              </span>
+              {isEarlyBird && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                  Early Bird
+                </span>
+              )}
+              <span className="text-sm text-muted-foreground">
+                {getPlanPriceLabel(status?.plan)}
+              </span>
+            </div>
+
+            {status?.expires_at && (
+              <p className="text-sm text-muted-foreground">
+                Renews on {formatDate(status.expires_at)}.
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {PRO_FEATURES.map((feat) => (
+                <div key={feat} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Check className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  {feat}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div>
+            <Button variant="outline" onClick={manageSubscription} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              Manage Billing
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Free User View ─────────────────────────────────────────────
   return (
     <Card>
       <CardHeader>
         <CardTitle>Subscription</CardTitle>
-        <CardDescription>
-          Manage your yarnnn subscription and billing
-        </CardDescription>
+        <CardDescription>Manage your yarnnn subscription and billing</CardDescription>
       </CardHeader>
-
       <CardContent className="space-y-6">
         {error && (
           <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">
@@ -106,175 +173,115 @@ export function SubscriptionCard() {
           </div>
         )}
 
-        {/* Current Plan */}
-        <section className="p-4 border border-border rounded-lg space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">Current plan</div>
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${PLAN_META[currentTier].style}`}>
-                  {PLAN_META[currentTier].icon === "sparkles" && <Sparkles className="w-4 h-4" />}
-                  {PLAN_META[currentTier].label}
-                </span>
-                {isPaid && isEarlyBird && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                    Early Bird
-                  </span>
-                )}
-                {isPaid && (
-                  <span className="text-sm text-muted-foreground">
-                    {isEarlyBird ? "$9/mo" : PLAN_META[currentTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]}
-                  </span>
-                )}
-              </div>
-            </div>
+        {/* Current plan indicator */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Current plan</span>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+            Free
+          </span>
+        </div>
+
+        {/* Upgrade card */}
+        <section className="p-4 border border-primary/20 bg-primary/5 rounded-lg space-y-5">
+          <div>
+            <h3 className="font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Upgrade to Pro
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Unlimited messages, 10 agents, hourly sync, unlimited sources.
+            </p>
           </div>
 
-          {status?.expires_at && (
-            <p className="text-sm text-muted-foreground">
-              Subscription renews on {formatDate(status.expires_at)}.
-            </p>
-          )}
-
-          {canUpgrade && (
-            <>
-              <div className="inline-flex rounded-md border border-border p-1">
-                <button
-                  onClick={() => setBillingPeriod("monthly")}
-                  className={`px-3 py-1.5 text-sm rounded ${
-                    billingPeriod === "monthly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setBillingPeriod("yearly")}
-                  className={`px-3 py-1.5 text-sm rounded ${
-                    billingPeriod === "yearly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Yearly
-                </button>
-              </div>
-
-              {/* Standard Pro */}
-              <div className="p-3 bg-muted/30 rounded-lg flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Upgrade to Pro</p>
-                  <p className="text-sm text-muted-foreground">
-                    Unlimited messages, 10 agents, hourly sync, unlimited sources.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => upgrade(billingPeriod)}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  Upgrade to Pro ({PLAN_META.pro[billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
-                </Button>
-              </div>
-
-              {/* Early Bird — monthly only */}
-              {billingPeriod === "monthly" && (
-                <div className="p-3 border border-primary/20 bg-primary/5 rounded-lg flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium flex items-center gap-2">
-                      Early Bird Beta Pricing
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Limited</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Same Pro features, $9/mo — locked in while available.
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => upgrade("monthly", true)}
-                    disabled={isLoading}
+          {/* Radio pricing options */}
+          <div className="space-y-2">
+            {PRICING_OPTIONS.map((option) => (
+              <label
+                key={option.id}
+                className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedPricing === option.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      selectedPricing === option.id ? "border-primary" : "border-muted-foreground/40"
+                    }`}
                   >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 mr-2" />
+                    {selectedPricing === option.id && (
+                      <div className="w-2 h-2 rounded-full bg-primary" />
                     )}
-                    Get Early Bird ($9/mo)
-                  </Button>
+                  </div>
+                  <span className="text-sm font-medium">{option.label}</span>
+                  {option.detail && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                      {option.detail}
+                    </span>
+                  )}
                 </div>
-              )}
-            </>
-          )}
+                <span className="text-sm font-medium">{option.price}</span>
+                <input
+                  type="radio"
+                  name="pricing"
+                  value={option.id}
+                  checked={selectedPricing === option.id}
+                  onChange={() => setSelectedPricing(option.id)}
+                  className="sr-only"
+                />
+              </label>
+            ))}
+          </div>
+
+          <Button onClick={handleUpgrade} disabled={isLoading} className="w-full">
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4 mr-2" />
+            )}
+            Upgrade — {selectedOption.price}
+          </Button>
         </section>
 
-        {/* Plan Feature Matrix */}
-        <section className="p-4 border border-border rounded-lg space-y-4">
-          <h3 className="font-medium">Plan feature matrix</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Feature</th>
-                  {PLAN_ORDER.map((plan) => (
-                    <th
-                      key={plan}
-                      className={`text-left py-2 px-2 font-medium ${currentTier === plan ? "text-foreground" : "text-muted-foreground"}`}
-                    >
+        {/* Collapsible plan comparison */}
+        <button
+          onClick={() => setShowCompare(!showCompare)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showCompare ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          Compare plans
+        </button>
+
+        {showCompare && (
+          <section className="p-4 border border-border rounded-lg">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Feature</th>
+                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        {PLAN_META[plan].label}
-                        {currentTier === plan && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground">Current</span>
-                        )}
+                        Free
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground">Current</span>
                       </span>
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {FEATURE_ROWS.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-b-0">
-                    <td className="py-2 pr-3 text-muted-foreground">{row.label}</td>
-                    {PLAN_ORDER.map((plan) => (
-                      <td key={`${row.label}-${plan}`} className="py-2 px-2">
-                        {row.values[plan]}
-                      </td>
-                    ))}
+                    <th className="text-left py-2 px-2 font-medium text-foreground">Pro</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Billing Operations */}
-        <section className="p-4 border border-border rounded-lg space-y-3">
-          <h3 className="font-medium">Billing operations</h3>
-          <p className="text-sm text-muted-foreground">
-            Payment method, invoices, and cancellation are managed in the secure customer portal.
-          </p>
-          {isPaid ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={manageSubscription} disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="w-4 h-4 mr-2" />
-                )}
-                Open Billing Portal
-              </Button>
+                </thead>
+                <tbody>
+                  {COMPARE_ROWS.map((row) => (
+                    <tr key={row.label} className="border-b border-border last:border-b-0">
+                      <td className="py-2 pr-3 text-muted-foreground">{row.label}</td>
+                      <td className="py-2 px-2">{row.free}</td>
+                      <td className="py-2 px-2">{row.pro}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Billing portal becomes available after starting a paid plan.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Annual billing includes ~17% savings versus monthly.
-          </p>
-        </section>
+          </section>
+        )}
       </CardContent>
     </Card>
   );
