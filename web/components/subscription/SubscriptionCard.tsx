@@ -54,7 +54,7 @@ export function SubscriptionCard() {
   const { status, isPaid, isEarlyBird, isLoading, error, upgrade, manageSubscription } = useSubscription();
 
   const [selectedPricing, setSelectedPricing] = useState<PricingOption>("early_bird");
-  const [showCompare, setShowCompare] = useState(false);
+  const [showCompare, setShowCompare] = useState(true);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null;
