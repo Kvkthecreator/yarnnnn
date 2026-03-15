@@ -8,6 +8,7 @@
 
 | Document | Status | Last Updated | Covers |
 |----------|--------|-------------|--------|
+| [**FOUNDATIONS.md**](FOUNDATIONS.md) | **Canonical** | 2026-03-15 | First-principles axioms — one intelligence, recursive perception, accumulated attention, taxonomy as configuration, TP subsumes orchestration, autonomy as product direction. All ADRs derive from these. |
 | [backend-orchestration.md](backend-orchestration.md) | **Hardened** (v3.1) | 2026-02-27 | 4 Render services (ADR-083), 10 background features (F1–F10), scheduler phase map, env var matrix |
 | [agent-model-comparison.md](agent-model-comparison.md) | **Canonical** | 2026-03-03 | YARNNN's agent model vs Claude Code (tool) vs OpenClaw (agent). Position, conviction, decision tests. |
 | [naming-conventions.md](naming-conventions.md) | **Canonical** | 2026-03-03 | Full naming strategy: Tier 1 (user-facing) → Tier 2 (developer) → Tier 3 (architecture). Dev ↔ frontend ↔ GTM alignment. Naming debt. |
@@ -63,13 +64,14 @@ Historical documents preserved for reference. Do not use for current architectur
 
 For someone new to the codebase:
 
-1. **[agent-model-comparison.md](agent-model-comparison.md)** — why YARNNN's model exists (start here)
-2. **[naming-conventions.md](naming-conventions.md)** — the vocabulary
-3. **[four-layer-model.md](four-layer-model.md)** — conceptual foundation
-4. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
-5. **[context-pipeline.md](context-pipeline.md)** — how data flows
-6. **[agent-execution-model.md](agent-execution-model.md)** — how the agent works
-7. **[agents.md](agents.md)** — the core product output
+1. **[FOUNDATIONS.md](FOUNDATIONS.md)** — first principles: why YARNNN works the way it does (start here)
+2. **[agent-model-comparison.md](agent-model-comparison.md)** — YARNNN's model vs alternatives
+3. **[naming-conventions.md](naming-conventions.md)** — the vocabulary
+4. **[context-pipeline.md](context-pipeline.md)** — how data flows (perception substrate)
+5. **[agent-framework.md](agent-framework.md)** — scope × skill × trigger taxonomy
+6. **[agent-execution-model.md](agent-execution-model.md)** — how agents execute
+7. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
+8. **[agents.md](agents.md)** — the core product output
 
 ## Database
 
