@@ -155,6 +155,22 @@ Everything TP knows *about the user* — identity, preferences, standing instruc
 
 Triggered by `platform_sync_scheduler.py` → `platform_worker.py` every 5 minutes.
 
+### Sync Efficiency & Concurrency (ADR-112)
+
+Three sync paths exist — all feed the same `platform_worker.py` pipeline:
+
+| Path | Entry point | Cooldown check | Concurrency |
+|------|------------|----------------|-------------|
+| Scheduled | `platform_sync_scheduler.py` | `_needs_sync()` tier cooldown | Sync lock on `platform_connections` |
+| Frontend "Sync Now" | `POST /integrations/{provider}/sync` | None (immediate) | Sync lock |
+| TP chat | `RefreshPlatformContent` primitive | 30-min staleness | Sync lock |
+
+**Sync lock** (`platform_connections.sync_in_progress`): Atomic per-platform per-user flag. Prevents overlapping syncs from any path. 10-minute stale timeout for crash recovery. Replaces the old `SCHEDULE_WINDOW_MINUTES` timing hack.
+
+**Heartbeat fast-path** (Phase 0, before source iteration): One lightweight API call per platform to detect "nothing changed" — Gmail `historyId`, Calendar `syncToken`, Slack channel `latest` timestamps, Notion `search` with `last_edited_time`. If no change detected, skip full source iteration (~100ms vs 5-30s).
+
+Content dedup via `content_hash` on `platform_content` remains as a safety net — overlapping syncs are harmless at the data layer but wasteful at the API layer.
+
 ### What each platform extracts (ADR-077)
 
 All platforms use Direct API clients from `api/integrations/core/` — no MCP, no gateway (ADR-076).

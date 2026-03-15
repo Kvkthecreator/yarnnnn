@@ -72,6 +72,12 @@ Add a `RefreshPlatformContent` primitive that performs a **synchronous, awaited*
 - No new API clients or sync logic — fully reuses existing worker pipeline
 - Future platforms (Linear, Microsoft, etc.) automatically supported once added to `_sync_platform_async()`
 
+## Known Concern: Manual/Scheduled Sync Overlap
+
+`RefreshPlatformContent` bypasses the scheduler's `_needs_sync()` cooldown and runs immediately. If a scheduled sync is already in progress, both execute simultaneously. This is functionally safe (content_hash dedup prevents duplicate `platform_content` rows) but produces duplicate `platform_synced` activity log entries and wastes API quota.
+
+**Resolution (ADR-112)**: A sync lock on `platform_connections` (`sync_in_progress` + `sync_started_at`) coordinates all three sync paths. When `RefreshPlatformContent` encounters an active lock, it returns a tool message: "Sync already in progress, data will be fresh shortly" — preserving conversation flow without redundant work.
+
 ## Known Concern: Dual Freshness Check Implementations
 
 Two modules implement staleness checks via different mechanisms:
@@ -84,3 +90,5 @@ Two modules implement staleness checks via different mechanisms:
 Today these are both simple threshold comparisons and serve distinct modes — acceptable as-is. However, if freshness logic grows more complex (per-source staleness, exponential backoff on failure, tier-aware thresholds), the two implementations will diverge and become a maintenance risk.
 
 **Recommendation**: If either implementation needs to become more sophisticated, extract a shared `is_platform_fresh(user_id, platform, threshold_minutes)` utility that both modules call. Do not pre-emptively abstract — wait until complexity actually materializes.
+
+**Update (ADR-112)**: The sync lock introduced by ADR-112 naturally coordinates between both freshness paths — both acquire the same `platform_connections.sync_in_progress` lock, preventing overlap regardless of threshold differences.

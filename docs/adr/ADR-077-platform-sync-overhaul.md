@@ -143,6 +143,12 @@ Also fixed downstream consumers:
 - `integrations.py` landscape endpoint: Filters resources by `metadata.platform` per requested domain, fixes `sync_registry` query to use correct platform value, wraps `discover_landscape()` in error handling
 - `landscape.py`: Token decryption wrapped in error handling
 
+## Known Gaps (addressed by ADR-112)
+
+1. **No "nothing changed" fast-path**: Every scheduled sync iterates all selected sources and makes per-source API calls, even when nothing changed on the platform. ADR-112 Layer 2 adds a platform-level heartbeat check.
+2. **TOCTOU race on scheduler dedup**: `_needs_sync()` checks `sync_registry.last_synced_at` which isn't updated until sync completes. Two cron ticks 5 minutes apart can both pass the check and start duplicate syncs. ADR-112 Layer 1 replaces the `SCHEDULE_WINDOW_MINUTES` timing hack with an atomic sync lock.
+3. **No concurrency guard across sync paths**: Scheduled sync, manual "Sync Now", and TP `RefreshPlatformContent` can all run simultaneously. Functionally safe (content_hash dedup) but wastes API quota. ADR-112 Layer 1 adds a shared lock.
+
 ## Verification
 
 After deployment:
