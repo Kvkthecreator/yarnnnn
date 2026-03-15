@@ -4,12 +4,11 @@
  * ADR-072/073: System Page — Operations Status
  *
  * Provides operational visibility into background orchestration:
- * - Integration connectivity state
- * - Manual pipeline execution with poll-based sync completion detection
+ * - Integration connectivity state (observe only — sync controls on context pages)
  * - Background activity summary (from activity_log)
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
@@ -23,7 +22,6 @@ import {
   Brain,
   ChevronDown,
   ChevronRight,
-  Circle,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -33,12 +31,6 @@ import { ConnectedIntegrationsSection } from '@/components/settings/ConnectedInt
 // =============================================================================
 // Types
 // =============================================================================
-
-interface PlatformSyncStatus {
-  platform: string;
-  connected: boolean;
-  last_synced_at: string | null;
-}
 
 interface BackgroundJobStatus {
   job_type: string;
@@ -62,13 +54,6 @@ interface SyncSchedule {
   todays_windows: ScheduleWindow[];
   next_sync_at: string | null;
 }
-
-type PipelineStep =
-  | 'idle'
-  | 'triggering'
-  | 'waiting_for_sync'
-  | 'complete'
-  | 'complete_with_warning';
 
 // =============================================================================
 // Sub-Components
@@ -143,25 +128,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StepItem({ label, status }: { label: string; status: 'pending' | 'active' | 'done' | 'warning' }) {
-  return (
-    <div className="flex items-center gap-2.5 text-sm">
-      {status === 'active' && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
-      {status === 'done' && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
-      {status === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
-      {status === 'pending' && <Circle className="w-4 h-4 text-muted-foreground/40 shrink-0" />}
-      <span className={cn(
-        status === 'active' && 'text-foreground',
-        status === 'done' && 'text-green-700 dark:text-green-400',
-        status === 'warning' && 'text-amber-700 dark:text-amber-400',
-        status === 'pending' && 'text-muted-foreground/50',
-      )}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
 // Background job grouping: maps backend job_type labels to display groups
 const BACKGROUND_JOB_GROUPS = [
   {
@@ -190,21 +156,9 @@ export default function SystemPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
   const [syncSchedule, setSyncSchedule] = useState<SyncSchedule | null>(null);
   const [expandedMemoryDetail, setExpandedMemoryDetail] = useState(false);
-
-  // Pipeline action state
-  const [pipelineRunning, setPipelineRunning] = useState(false);
-  const [pipelineStep, setPipelineStep] = useState<PipelineStep>('idle');
-  const [pipelineResult, setPipelineResult] = useState<{
-    synced_platforms: string[];
-    message: string;
-    syncTimedOut?: boolean;
-  } | null>(null);
-  const [pipelineError, setPipelineError] = useState<string | null>(null);
-  const abortRef = useRef(false);
 
   // Clean up OAuth redirect params (?provider=X&status=connected)
   useEffect(() => {
@@ -219,7 +173,6 @@ export default function SystemPage() {
     setLoading(true);
     try {
       const result = await api.system.getStatus();
-      setPlatformSync(result.platform_sync);
       setBackgroundJobs(result.background_jobs);
       setSyncSchedule(result.sync_schedule ?? null);
     } catch (err) {
@@ -231,107 +184,7 @@ export default function SystemPage() {
 
   useEffect(() => {
     loadData();
-    return () => { abortRef.current = true; };
   }, []);
-
-  const hasConnectedPlatforms = platformSync.some((p) => p.connected);
-
-  // ---------------------------------------------------------------------------
-  // Pipeline: Poll for sync completion
-  // ---------------------------------------------------------------------------
-
-  const waitForSyncCompletion = async (
-    preSnapshot: Record<string, string | null>,
-    timeoutMs: number = 90000,
-  ): Promise<{ completed: boolean; timedOut: boolean }> => {
-    const startTime = Date.now();
-    const POLL_INTERVAL = 3000;
-
-    while (Date.now() - startTime < timeoutMs) {
-      if (abortRef.current) return { completed: false, timedOut: false };
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-
-      try {
-        const { timestamps } = await api.system.getSyncTimestamps();
-
-        // Check if all connected platforms have a newer timestamp
-        const connectedPlatforms = platformSync
-          .filter((p) => p.connected)
-          .map((p) => p.platform);
-
-        const allSynced = connectedPlatforms.every((platform) => {
-          const preTime = preSnapshot[platform];
-          const newTime = timestamps[platform];
-
-          if (!preTime && !newTime) return false; // never synced and still nothing
-          if (!preTime && newTime) return true;    // new sync appeared
-          if (!newTime || !preTime) return false;   // still no sync entry
-          return new Date(newTime) > new Date(preTime);
-        });
-
-        if (allSynced) {
-          return { completed: true, timedOut: false };
-        }
-      } catch {
-        // Polling failure — continue trying
-      }
-    }
-
-    return { completed: false, timedOut: true };
-  };
-
-  // ---------------------------------------------------------------------------
-  // Pipeline: Refresh Data (full pipeline with proper sequencing)
-  // ---------------------------------------------------------------------------
-
-  const handleRefreshData = async () => {
-    setPipelineRunning(true);
-    setPipelineStep('triggering');
-    setPipelineResult(null);
-    setPipelineError(null);
-    abortRef.current = false;
-
-    try {
-      // Snapshot current sync timestamps for comparison
-      const preSnapshot: Record<string, string | null> = {};
-      platformSync.filter((p) => p.connected).forEach((p) => {
-        preSnapshot[p.platform] = p.last_synced_at;
-      });
-
-      // Step 1: Trigger sync for all connected platforms
-      const syncProviders = Array.from(new Set(
-        platformSync
-          .filter((p) => p.connected)
-          .map((p) => p.platform)
-      ));
-
-      await Promise.allSettled(
-        syncProviders.map((provider) => api.integrations.syncPlatform(provider))
-      );
-
-      // Step 2: Poll for sync completion
-      setPipelineStep('waiting_for_sync');
-      const syncResult = await waitForSyncCompletion(preSnapshot);
-
-      if (abortRef.current) return;
-
-      const finalStep = syncResult.timedOut ? 'complete_with_warning' : 'complete';
-      setPipelineStep(finalStep);
-      setPipelineResult({
-        synced_platforms: syncProviders,
-        message: 'Sync complete',
-        syncTimedOut: syncResult.timedOut,
-      });
-
-      // Refresh page data
-      await loadData();
-    } catch (err) {
-      setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
-      setPipelineStep('idle');
-    } finally {
-      setPipelineRunning(false);
-    }
-  };
 
   // ---------------------------------------------------------------------------
   // Background jobs: group into display rows
@@ -373,24 +226,6 @@ export default function SystemPage() {
     };
   });
 
-  // ---------------------------------------------------------------------------
-  // Step indicator helpers
-  // ---------------------------------------------------------------------------
-
-  const getStepStatus = (step: 'triggering' | 'waiting_for_sync') => {
-    const order: PipelineStep[] = ['triggering', 'waiting_for_sync', 'complete', 'complete_with_warning'];
-    const currentIdx = order.indexOf(pipelineStep);
-    const stepIdx = order.indexOf(step);
-
-    if (pipelineStep === 'complete' || pipelineStep === 'complete_with_warning') {
-      if (step === 'waiting_for_sync' && pipelineStep === 'complete_with_warning') return 'warning';
-      return 'done';
-    }
-    if (currentIdx === stepIdx) return 'active';
-    if (currentIdx > stepIdx) return 'done';
-    return 'pending';
-  };
-
   // =============================================================================
   // Render
   // =============================================================================
@@ -425,101 +260,9 @@ export default function SystemPage() {
             {/* ── Section 1: Integrations + Sync Action ───────────────────── */}
             <ConnectedIntegrationsSection
               title="Connected Platforms"
-              description="Connect platforms to sync context. Manage sources in each platform's context page."
+              description="Connect platforms to sync context. Manage sources and trigger syncs from each platform's context page."
               redirectTo="/system"
-            >
-              {/* Sync action — only shown when platforms are connected */}
-              {hasConnectedPlatforms && (
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleRefreshData}
-                      disabled={pipelineRunning}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {pipelineRunning ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      )}
-                      Sync Now
-                    </button>
-                    <span className="text-xs text-muted-foreground">
-                      Fetch latest data from all connected platforms
-                    </span>
-                  </div>
-
-                  {/* Step indicator (shown during sync) */}
-                  {pipelineRunning && pipelineStep !== 'idle' && (
-                    <div className="space-y-1.5 py-1">
-                      <StepItem
-                        label="Syncing platforms..."
-                        status={getStepStatus('triggering')}
-                      />
-                      <StepItem
-                        label="Waiting for sync to complete..."
-                        status={getStepStatus('waiting_for_sync')}
-                      />
-                    </div>
-                  )}
-
-                  {/* Result banner */}
-                  {pipelineResult && !pipelineRunning && (() => {
-                    const syncTimedOut = pipelineResult.syncTimedOut;
-                    const variant = syncTimedOut ? 'amber' : 'green';
-                    const colors = {
-                      green: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', title: 'text-green-800 dark:text-green-200', body: 'text-green-700 dark:text-green-300', meta: 'text-green-600 dark:text-green-400', dismiss: 'text-green-600 dark:text-green-400' },
-                      amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', title: 'text-amber-800 dark:text-amber-200', body: 'text-amber-700 dark:text-amber-300', meta: 'text-amber-600 dark:text-amber-400', dismiss: 'text-amber-600 dark:text-amber-400' },
-                    }[variant];
-                    const label = syncTimedOut ? 'Sync is still running in the background' : 'Sync Complete';
-                    const Icon = syncTimedOut ? AlertTriangle : CheckCircle2;
-
-                    return (
-                      <div className={`rounded-md ${colors.bg} border ${colors.border} p-3 text-sm`}>
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <div className={`flex items-center gap-1.5 ${colors.title} font-medium`}>
-                              <Icon className="w-4 h-4" />
-                              {label}
-                            </div>
-                            <p className={colors.body}>{pipelineResult.message}</p>
-                            {pipelineResult.synced_platforms.length > 0 && (
-                              <div className={`text-xs ${colors.meta}`}>
-                                {pipelineResult.synced_platforms.length} platform(s) synced
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => setPipelineResult(null)}
-                            className={`p-1 hover:opacity-70 ${colors.dismiss}`}
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Error */}
-                  {pipelineError && !pipelineRunning && (
-                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-1.5 text-red-800 dark:text-red-200">
-                          <XCircle className="w-4 h-4" />
-                          <span>{pipelineError}</span>
-                        </div>
-                        <button
-                          onClick={() => setPipelineError(null)}
-                          className="p-1 hover:opacity-70 text-red-600 dark:text-red-400"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </ConnectedIntegrationsSection>
+            />
 
             {/* ── Section 3: Background Activity ──────────────────────────── */}
             <section>
