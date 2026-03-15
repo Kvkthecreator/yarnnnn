@@ -2,7 +2,7 @@
 Platform Sync Worker
 
 Background worker for syncing platform data (Slack, Gmail, Notion, Calendar).
-Called by RQ when platform_sync jobs are enqueued.
+Called by scheduler cron, manual "Sync Now" button, and TP RefreshPlatformContent.
 
 ADR-056: Per-Source Sync Implementation
 - Only syncs user's selected sources (not all available)
@@ -20,13 +20,18 @@ ADR-073: Sync Tokens (Incremental Sync)
 - Gmail: refines `after:` date query from last sync timestamp
 - Calendar: uses Google Calendar syncToken for delta event sync
 - Notion: compares last_edited_time to skip unchanged pages
+
+ADR-112: Sync Efficiency & Concurrency Control
+- Atomic sync lock on platform_connections prevents overlapping syncs
+- Heartbeat fast-path (Phase 0) checks for platform changes before source iteration
+- All three sync paths (scheduled, manual, TP) coordinate via the same lock
 """
 
 import asyncio
 import base64
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from supabase import create_client
@@ -36,6 +41,65 @@ logging.basicConfig(
     format="[%(asctime)s] %(levelname)s [%(name)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# ADR-112: Stale lock timeout — if a sync started more than this long ago,
+# assume it crashed and allow a new sync to proceed.
+_SYNC_LOCK_TIMEOUT = timedelta(minutes=10)
+
+
+async def acquire_sync_lock(client, user_id: str, platform: str) -> bool:
+    """Atomically acquire the sync lock for a platform connection.
+
+    ADR-112: Prevents overlapping syncs from any path (scheduled, manual, TP).
+    Uses UPDATE ... WHERE to atomically check and set the lock.
+    Stale locks (older than _SYNC_LOCK_TIMEOUT) are force-acquired.
+
+    Returns True if lock acquired, False if another sync is in progress.
+    """
+    now = datetime.now(timezone.utc)
+    stale_cutoff = (now - _SYNC_LOCK_TIMEOUT).isoformat()
+
+    # Google OAuth may store as gmail/google — check both
+    if platform in ("gmail", "calendar", "google"):
+        db_platforms = ["gmail", "google"]
+    else:
+        db_platforms = [platform]
+
+    try:
+        for db_platform in db_platforms:
+            result = client.table("platform_connections").update({
+                "sync_in_progress": True,
+                "sync_started_at": now.isoformat(),
+            }).eq("user_id", user_id).eq("platform", db_platform).or_(
+                "sync_in_progress.eq.false,sync_in_progress.is.null,sync_started_at.lt." + stale_cutoff
+            ).execute()
+
+            if result.data:
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"[SYNC_LOCK] Failed to acquire lock for {platform}: {e}")
+        return False
+
+
+async def release_sync_lock(client, user_id: str, platform: str) -> None:
+    """Release the sync lock for a platform connection.
+
+    ADR-112: Called in finally block after sync completes (success or failure).
+    """
+    if platform in ("gmail", "calendar", "google"):
+        db_platforms = ["gmail", "google"]
+    else:
+        db_platforms = [platform]
+
+    try:
+        for db_platform in db_platforms:
+            client.table("platform_connections").update({
+                "sync_in_progress": False,
+                "sync_started_at": None,
+            }).eq("user_id", user_id).eq("platform", db_platform).execute()
+    except Exception as e:
+        logger.warning(f"[SYNC_LOCK] Failed to release lock for {platform}: {e}")
 
 
 def sync_platform(
@@ -88,6 +152,7 @@ async def _sync_platform_async(
 
     ADR-056: Extracts selected_sources from integration if not provided,
     then passes to provider-specific sync functions.
+    ADR-112: Acquires sync lock before execution, releases in finally block.
     """
     if not supabase_url or not supabase_key:
         logger.error("[PLATFORM_WORKER] Missing Supabase credentials")
@@ -125,6 +190,40 @@ async def _sync_platform_async(
                 "error": f"No active {provider} integration found for user",
             }
 
+        # ADR-112: Acquire sync lock — prevents overlapping syncs from any path
+        lock_acquired = await acquire_sync_lock(client, user_id, provider)
+        if not lock_acquired:
+            logger.info(f"[PLATFORM_WORKER] Sync already in progress for {provider}, skipping")
+            return {
+                "success": True,
+                "skipped": True,
+                "error": "sync_already_in_progress",
+                "message": f"Sync already in progress for {provider}",
+                "items_synced": 0,
+            }
+
+        try:
+            return await _sync_platform_inner(client, user_id, provider, selected_sources, integration)
+        finally:
+            await release_sync_lock(client, user_id, provider)
+
+    except Exception as e:
+        logger.error(f"[PLATFORM_WORKER] Sync failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+async def _sync_platform_inner(
+    client,
+    user_id: str,
+    provider: str,
+    selected_sources: Optional[list[str]],
+    integration: dict,
+) -> dict:
+    """Inner sync logic, called with lock held. ADR-112: Extracted for lock/finally clarity."""
+    try:
         # ADR-056: Extract selected_sources from landscape if not provided
         if selected_sources is None:
             landscape = integration.get("landscape", {}) or {}
@@ -132,6 +231,32 @@ async def _sync_platform_async(
             # Extract just the IDs from the selected_sources objects
             selected_sources = [s.get("id") if isinstance(s, dict) else s for s in selected_list]
             logger.info(f"[PLATFORM_WORKER] Extracted {len(selected_sources)} selected sources from landscape")
+
+        # ADR-112 Phase 0: Heartbeat fast-path — check if anything changed before
+        # iterating sources. One lightweight API call per platform.
+        heartbeat_skip = await _heartbeat_check(client, user_id, provider, integration)
+        if heartbeat_skip:
+            logger.info(f"[PLATFORM_WORKER] Heartbeat: no changes detected for {provider}, skipping source iteration")
+            # Update sync_registry timestamps so freshness shows "fresh"
+            from services.freshness import get_platform_freshness_from_registry
+            # Activity log: record heartbeat-skipped sync
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=client,
+                    user_id=user_id,
+                    event_type="platform_synced",
+                    summary=f"Synced {provider}: 0 items (no changes detected)",
+                    metadata={"platform": provider, "items_synced": 0, "heartbeat": True},
+                )
+            except Exception:
+                pass
+            return {
+                "success": True,
+                "provider": provider,
+                "items_synced": 0,
+                "heartbeat_skip": True,
+            }
 
         # Perform the sync based on provider
         if provider == "slack":
@@ -231,6 +356,125 @@ async def _sync_platform_async(
             "success": False,
             "error": str(e),
         }
+
+
+async def _heartbeat_check(client, user_id: str, provider: str, integration: dict) -> bool:
+    """ADR-112 Phase 0: Lightweight platform heartbeat to detect "nothing changed".
+
+    Returns True if no changes detected (caller should skip full sync).
+    Returns False if changes detected or on error (caller should proceed with full sync).
+
+    Heartbeat cursors stored in platform_connections.settings.sync_cursor.
+    """
+    settings = integration.get("settings", {}) or {}
+    sync_cursor = settings.get("sync_cursor", {}) or {}
+
+    try:
+        from integrations.core.tokens import get_token_manager
+
+        if provider == "slack":
+            # Slack: compare channel latest timestamps
+            metadata = integration.get("metadata", {}) or {}
+            bot_token = (
+                settings.get("bot_token")
+                or metadata.get("bot_token")
+                or integration.get("access_token")
+            )
+            # Fallback: decrypt credentials_encrypted (same pattern as _sync_slack)
+            if not bot_token and integration.get("credentials_encrypted"):
+                try:
+                    token_mgr = get_token_manager()
+                    bot_token = token_mgr.decrypt(integration["credentials_encrypted"])
+                except Exception:
+                    pass
+            if not bot_token:
+                return False
+
+            # Get selected channels
+            landscape = integration.get("landscape", {}) or {}
+            selected_list = landscape.get("selected_sources", [])
+            channel_ids = [s.get("id") if isinstance(s, dict) else s for s in selected_list]
+            channel_ids = [c for c in channel_ids if c]
+
+            if not channel_ids:
+                return False
+
+            from integrations.core.slack_client import SlackAPIClient
+            slack = SlackAPIClient()
+            current_latest = await slack.get_channels_latest(bot_token, channel_ids)
+
+            prev_latest = sync_cursor.get("slack_channel_latest", {})
+            if prev_latest and current_latest == prev_latest:
+                return True  # No changes
+
+            # Store updated cursor
+            sync_cursor["slack_channel_latest"] = current_latest
+            _update_sync_cursor(client, integration["id"], settings, sync_cursor)
+            return False
+
+        elif provider in ("gmail", "google"):
+            # Gmail: compare historyId (monotonically increasing)
+            token_mgr = get_token_manager()
+            creds = await token_mgr.get_credentials(client, user_id, "gmail")
+            if not creds:
+                return False
+
+            from integrations.core.google_client import GoogleAPIClient
+            google = GoogleAPIClient()
+            current_hid = await google.get_gmail_history_id(
+                creds["client_id"], creds["client_secret"], creds["refresh_token"]
+            )
+
+            prev_hid = sync_cursor.get("gmail_history_id")
+            if prev_hid and current_hid == prev_hid:
+                return True  # No changes
+
+            sync_cursor["gmail_history_id"] = current_hid
+            _update_sync_cursor(client, integration["id"], settings, sync_cursor)
+            return False
+
+        elif provider == "notion":
+            # Notion: search for recently edited pages
+            token_mgr = get_token_manager()
+            creds = await token_mgr.get_credentials(client, user_id, "notion")
+            if not creds:
+                return False
+
+            access_token = creds.get("access_token", "")
+            if not access_token:
+                return False
+
+            from services.freshness import get_platform_freshness_from_registry
+            last_synced = await get_platform_freshness_from_registry(client, user_id, "notion")
+            if not last_synced:
+                return False  # Never synced — must do full sync
+
+            from integrations.core.notion_client import NotionAPIClient
+            notion = NotionAPIClient()
+            has_changes = await notion.check_recent_changes(access_token, last_synced)
+            return not has_changes
+
+        elif provider == "calendar":
+            # Calendar uses syncToken natively in list_calendar_events — heartbeat
+            # not needed separately. The existing delta detection IS the heartbeat.
+            return False
+
+    except Exception as e:
+        logger.debug(f"[HEARTBEAT] Check failed for {provider} (falling through to full sync): {e}")
+        return False
+
+    return False
+
+
+def _update_sync_cursor(client, connection_id: str, settings: dict, sync_cursor: dict) -> None:
+    """Persist heartbeat cursor in platform_connections.settings (ADR-112)."""
+    try:
+        updated_settings = {**settings, "sync_cursor": sync_cursor}
+        client.table("platform_connections").update({
+            "settings": updated_settings,
+        }).eq("id", connection_id).execute()
+    except Exception as e:
+        logger.debug(f"[HEARTBEAT] Failed to update sync_cursor: {e}")
 
 
 async def _sync_slack(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:

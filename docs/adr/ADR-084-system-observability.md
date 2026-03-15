@@ -49,7 +49,7 @@ Extend the existing System page's Background Activity section with schedule-leve
 | `SYNC_SCHEDULES` | `api/services/platform_limits.py` | Schedule window definitions |
 | `get_next_sync_time()` | `api/services/platform_limits.py` | Correct next sync calculation |
 | `_resolve_timezone()` | `api/services/platform_limits.py` | User timezone resolution |
-| `SCHEDULE_WINDOW_MINUTES` | `api/services/platform_limits.py` | Window tolerance (10 min) |
+| `_SCHEDULE_MATCH_WINDOW` | `api/services/platform_limits.py` | Schedule matching window (10 min) — renamed from `SCHEDULE_WINDOW_MINUTES` (ADR-112) |
 
 ## Files Modified
 

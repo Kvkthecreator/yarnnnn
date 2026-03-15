@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.15.2] - ADR-112: RefreshPlatformContent sync lock awareness
+
+### Changed
+- `api/services/primitives/refresh.py`: Added sync lock check before running sync. When `platform_connections.sync_in_progress` is true (non-stale), returns "Sync already in progress" message instead of starting a redundant sync. Preserves conversation flow.
+- Expected behavior: TP gets a helpful message when sync is already running, instead of waiting 10-30s for a duplicate sync that wastes API quota. No functional change when no sync is in progress.
+
+---
+
 ## [2026.03.15.1] - Remove legacy signal processing + pattern detection from system state
 
 ### Changed

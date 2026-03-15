@@ -125,6 +125,35 @@ class SlackAPIClient:
             if isinstance(ch, dict) and ch.get("id")
         ]
 
+    async def get_channels_latest(
+        self,
+        bot_token: str,
+        channel_ids: list[str],
+    ) -> dict[str, str]:
+        """Get the latest message timestamp per channel for heartbeat change detection (ADR-112).
+
+        Makes one conversations.info call per channel (cheap metadata-only call).
+        Returns {channel_id: latest_ts} map. Channels with no messages return "0".
+        """
+        result = {}
+        for cid in channel_ids:
+            try:
+                data = await self._request_with_retry(
+                    "get",
+                    f"{SLACK_API_BASE}/conversations.info",
+                    bot_token=bot_token,
+                    params={"channel": cid},
+                )
+                if data.get("ok"):
+                    # latest is the timestamp of the most recent message
+                    ch = data.get("channel", {})
+                    result[cid] = ch.get("latest", {}).get("ts", "0") if isinstance(ch.get("latest"), dict) else "0"
+                else:
+                    result[cid] = "0"
+            except Exception:
+                result[cid] = "0"
+        return result
+
     async def get_channel_info(
         self,
         bot_token: str,

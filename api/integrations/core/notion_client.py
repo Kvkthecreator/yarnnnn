@@ -319,6 +319,48 @@ class NotionAPIClient:
 
         return all_results
 
+    async def check_recent_changes(
+        self,
+        access_token: str,
+        since_iso: str,
+    ) -> bool:
+        """Check if any Notion pages were edited since a given timestamp (ADR-112).
+
+        One lightweight API call: search with sort by last_edited_time, page_size=1.
+        Returns True if at least one page was edited after `since_iso`.
+        """
+        body: dict[str, Any] = {
+            "query": "",
+            "page_size": 1,
+            "sort": {
+                "direction": "descending",
+                "timestamp": "last_edited_time",
+            },
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.notion.com/v1/search",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Notion-Version": NOTION_VERSION,
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=15.0,
+                )
+                if response.status_code != 200:
+                    return True  # On error, assume changes exist (safe fallback)
+                data = response.json()
+                results = data.get("results", [])
+                if not results:
+                    return False
+                # Compare most recently edited page's timestamp with our cursor
+                latest = results[0].get("last_edited_time", "")
+                return latest > since_iso
+        except Exception:
+            return True  # On error, assume changes exist
+
     async def get_page_content_full(
         self,
         access_token: str,

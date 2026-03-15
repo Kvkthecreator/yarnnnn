@@ -180,6 +180,30 @@ class GoogleAPIClient:
 
         return data.get("labels", [])
 
+    async def get_gmail_history_id(
+        self,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+    ) -> str:
+        """Get Gmail profile historyId for heartbeat change detection (ADR-112).
+
+        The historyId is monotonically increasing — if unchanged since last sync,
+        there are zero new messages. One lightweight API call.
+        """
+        access_token = await self._get_access_token(
+            client_id, client_secret, refresh_token
+        )
+        response = await self._request_with_retry(
+            "get",
+            "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        data = response.json()
+        if "error" in data:
+            raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+        return str(data.get("historyId", ""))
+
     async def list_gmail_messages(
         self,
         client_id: str,

@@ -3024,6 +3024,7 @@ async def trigger_platform_sync(
     Trigger an on-demand sync for a platform.
 
     ADR-043 / DECISION-001: Syncs selected sources only.
+    ADR-112: Checks sync lock before dispatching — returns early if sync already in progress.
     Runs via FastAPI BackgroundTasks, returns immediately.
     """
     from workers.platform_worker import sync_platform
@@ -3036,7 +3037,7 @@ async def trigger_platform_sync(
     integration_row = None
     for p in providers_to_try:
         result = auth.client.table("platform_connections").select(
-            "id, status, landscape"
+            "id, status, landscape, sync_in_progress, sync_started_at"
         ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
         if result.data:
             integration_row = result.data[0]
@@ -3047,6 +3048,20 @@ async def trigger_platform_sync(
 
     if integration_row["status"] != "active":
         raise HTTPException(status_code=400, detail=f"{provider} integration is not active")
+
+    # ADR-112: Check if sync is already in progress (non-stale)
+    if integration_row.get("sync_in_progress"):
+        from datetime import datetime, timedelta, timezone as tz
+        started_at = integration_row.get("sync_started_at")
+        if started_at:
+            from dateutil.parser import isoparse
+            started_dt = isoparse(started_at)
+            if (datetime.now(tz.utc) - started_dt) < timedelta(minutes=10):
+                return {
+                    "success": True,
+                    "message": f"Sync already in progress for {provider}",
+                    "sync_in_progress": True,
+                }
 
     # Get selected sources
     landscape = integration_row.get("landscape", {}) or {}

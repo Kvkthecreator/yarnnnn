@@ -179,6 +179,36 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
             # Non-fatal — proceed with sync anyway
             logger.warning(f"[REFRESH] Freshness check failed for {platform}: {e}")
 
+    # ADR-112: Check sync lock before running — if another sync is in progress, skip
+    try:
+        lock_check = auth.client.table("platform_connections").select(
+            "sync_in_progress, sync_started_at"
+        ).eq("user_id", user_id).in_("platform", db_platforms).in_(
+            "status", ["connected", "active"]
+        ).limit(1).execute()
+
+        if lock_check.data:
+            row = lock_check.data[0]
+            if row.get("sync_in_progress"):
+                from dateutil.parser import isoparse
+                started = row.get("sync_started_at")
+                if started:
+                    started_dt = isoparse(started)
+                    if (datetime.now(timezone.utc) - started_dt) < timedelta(minutes=10):
+                        return {
+                            "success": True,
+                            "platform": platform,
+                            "items_synced": 0,
+                            "skipped": True,
+                            "message": (
+                                f"Sync already in progress for {platform} "
+                                f"(started {int((datetime.now(timezone.utc) - started_dt).total_seconds())}s ago). "
+                                f"Data will be fresh shortly. Use Search(scope='platform_content', platform='{platform}') to query."
+                            ),
+                        }
+    except Exception as e:
+        logger.warning(f"[REFRESH] Lock check failed for {platform} (non-fatal): {e}")
+
     # 3. Run synchronous sync via existing worker pipeline
     try:
         from workers.platform_worker import _sync_platform_async

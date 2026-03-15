@@ -1,6 +1,6 @@
 # ADR-112: Sync Efficiency & Concurrency Control
 
-**Status**: Accepted (docs complete, implementation pending)
+**Status**: Implemented
 **Date**: 2026-03-15
 **Depends on**: ADR-053 (Tier Model), ADR-056 (Per-Source Sync), ADR-073 (Sync Tokens), ADR-077 (Platform Sync Overhaul), ADR-085 (RefreshPlatformContent)
 

@@ -80,8 +80,10 @@ SYNC_SCHEDULES = {
     "hourly": None,                                      # Every hour on the hour
 }
 
-# Allow one extra 5-minute cron slot to avoid missing windows on slight scheduler drift.
-SCHEDULE_WINDOW_MINUTES = 10
+# ADR-112: SCHEDULE_WINDOW_MINUTES removed — replaced by atomic sync lock on
+# platform_connections. The cron runs every 5 min; the sync lock prevents overlapping
+# execution. should_sync_now() uses a 10-minute window for schedule matching only.
+_SCHEDULE_MATCH_WINDOW = 10
 
 # Common user-facing timezone labels mapped to IANA names.
 TIMEZONE_ALIASES = {
@@ -468,13 +470,13 @@ def should_sync_now(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -
     now = datetime.now(tz)
 
     if sync_frequency == "hourly":
-        return now.minute < SCHEDULE_WINDOW_MINUTES
+        return now.minute < _SCHEDULE_MATCH_WINDOW
 
     schedule = SYNC_SCHEDULES.get(sync_frequency, [])
 
     for time_str in schedule:
         hour, minute = map(int, time_str.split(":"))
-        if now.hour == hour and now.minute < SCHEDULE_WINDOW_MINUTES:
+        if now.hour == hour and now.minute < _SCHEDULE_MATCH_WINDOW:
             return True
 
     return False
