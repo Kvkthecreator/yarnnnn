@@ -154,6 +154,45 @@ export function SubscriptionCard() {
               Manage Billing
             </Button>
           </div>
+
+          {/* Plan comparison — same table as free view, "Current" on Pro column */}
+          <button
+            onClick={() => setShowCompare(!showCompare)}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showCompare ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Compare plans
+          </button>
+
+          {showCompare && (
+            <section className="p-4 border border-border rounded-lg">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Feature</th>
+                      <th className="text-left py-2 px-2 font-medium text-muted-foreground">Free</th>
+                      <th className="text-left py-2 px-2 font-medium text-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          Pro
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Current</span>
+                        </span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COMPARE_ROWS.map((row) => (
+                      <tr key={row.label} className="border-b border-border last:border-b-0">
+                        <td className="py-2 pr-3 text-muted-foreground">{row.label}</td>
+                        <td className="py-2 px-2">{row.free}</td>
+                        <td className="py-2 px-2 font-medium">{row.pro}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </CardContent>
       </Card>
     );
