@@ -293,10 +293,10 @@ Files deleted: `work_execution.py`, `agents/factory.py`, `agents/agent.py`, `rou
 | `agent_run` | `agent_execution.py` | F3 |
 | `agent_approved` / `rejected` | `routes/agents.py` | User action |
 | `agent_scheduled` | `unified_scheduler.py` | F3 |
+| `agent_bootstrapped` | `onboarding_bootstrap.py` | ADR-110 |
 | `memory_written` | `memory.py` | F4 |
 | `session_summary_written` | `memory.py` | F4 |
-| `pattern_detected` | `memory.py` | F4 |
-| `content_cleanup` | `platform_content.py` | F6 |
+| `content_cleanup` | `unified_scheduler.py` | F6 |
 | `integration_connected` / `disconnected` | `routes/integrations.py` | OAuth |
 | `chat_session` | `chat.py` | User action |
 | `scheduler_heartbeat` | `unified_scheduler.py` | Observability |
