@@ -6,8 +6,8 @@ snapshot. Gives TP the same visibility into system state that a human operator
 would have.
 
 Data sources:
-  - activity_log: Last platform_synced per platform, scheduler_heartbeat, agent runs
-  - sync_registry: Per-resource sync freshness
+  - sync_registry: Per-resource sync freshness (single source of truth)
+  - activity_log: scheduler_heartbeat, agent runs
   - integration_import_jobs: Active/failed job state
   - platform_connections: Available resources (landscape)
 
@@ -48,7 +48,7 @@ This is system introspection, not content search. Use Search for content.""",
         "properties": {
             "scope": {
                 "type": "string",
-                "enum": ["full", "signals", "sync", "scheduler", "jobs"],
+                "enum": ["full", "sync", "scheduler", "jobs"],
                 "description": "Which state to fetch. Default: 'full' (all state)"
             },
             "platform": {
@@ -62,16 +62,6 @@ This is system introspection, not content search. Use Search for content.""",
 
 
 # --- Data Structures ---
-
-@dataclass
-class SignalPassSummary:
-    """Summary of the last signal processing pass."""
-    last_run_at: Optional[str] = None
-    signals_evaluated: int = 0
-    actions_taken: list[str] = field(default_factory=list)
-    agents_triggered: list[str] = field(default_factory=list)
-    reasoning_summary: Optional[str] = None
-
 
 @dataclass
 class PlatformSyncStatus:
@@ -109,7 +99,6 @@ class FailedJob:
 class SystemStateSnapshot:
     """Complete system state snapshot for TP consumption."""
     captured_at: str
-    last_signal_pass: Optional[SignalPassSummary] = None
     platform_sync_status: list[PlatformSyncStatus] = field(default_factory=list)
     pending_reviews_count: int = 0
     failed_jobs: list[FailedJob] = field(default_factory=list)
@@ -119,13 +108,6 @@ class SystemStateSnapshot:
         """Convert to dictionary for JSON serialization."""
         return {
             "captured_at": self.captured_at,
-            "last_signal_pass": {
-                "last_run_at": self.last_signal_pass.last_run_at,
-                "signals_evaluated": self.last_signal_pass.signals_evaluated,
-                "actions_taken": self.last_signal_pass.actions_taken,
-                "agents_triggered": self.last_signal_pass.agents_triggered,
-                "reasoning_summary": self.last_signal_pass.reasoning_summary,
-            } if self.last_signal_pass else None,
             "platform_sync_status": [
                 {
                     "platform": p.platform,
@@ -183,9 +165,6 @@ async def handle_get_system_state(auth: Any, input: dict) -> dict:
 
     try:
         # Fetch components based on scope
-        if scope in ("full", "signals"):
-            snapshot.last_signal_pass = await _get_last_signal_pass(client, user_id)
-
         if scope in ("full", "sync"):
             snapshot.platform_sync_status = await _get_platform_sync_status(
                 client, user_id, platform_filter
@@ -214,37 +193,6 @@ async def handle_get_system_state(auth: Any, input: dict) -> dict:
 
 
 # --- Data Fetchers ---
-
-async def _get_last_signal_pass(client: Any, user_id: str) -> Optional[SignalPassSummary]:
-    """Fetch the most recent signal_processed event from activity_log."""
-    try:
-        result = (
-            client.table("activity_log")
-            .select("created_at, metadata")
-            .eq("user_id", user_id)
-            .eq("event_type", "signal_processed")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-            row = result.data[0]
-            metadata = row.get("metadata", {}) or {}
-            return SignalPassSummary(
-                last_run_at=row.get("created_at"),
-                signals_evaluated=metadata.get("signals_evaluated", 0),
-                actions_taken=metadata.get("actions_taken", []),
-                agents_triggered=metadata.get("agents_triggered", []),
-                reasoning_summary=metadata.get("reasoning_summary"),
-            )
-
-        return None
-
-    except Exception as e:
-        logger.warning(f"[GetSystemState] Failed to get signal pass: {e}")
-        return None
-
 
 async def _get_platform_sync_status(
     client: Any,
@@ -493,18 +441,6 @@ async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
 def _format_state_message(snapshot: SystemStateSnapshot) -> str:
     """Generate human-readable summary of system state."""
     parts = []
-
-    # Signal processing
-    if snapshot.last_signal_pass:
-        sp = snapshot.last_signal_pass
-        if sp.last_run_at:
-            freshness = calculate_freshness(sp.last_run_at, datetime.now(timezone.utc))
-            action_count = len(sp.actions_taken)
-            parts.append(f"Last signal pass: {freshness} ({action_count} actions)")
-        else:
-            parts.append("No signal processing recorded")
-    else:
-        parts.append("No signal processing recorded")
 
     # Platforms
     if snapshot.platform_sync_status:

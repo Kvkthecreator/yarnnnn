@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.15.1] - Remove legacy signal processing + pattern detection from system state
+
+### Changed
+- `api/services/primitives/system_state.py`: Removed `SignalPassSummary` dataclass, `_get_last_signal_pass()` fetcher, and "signals" scope option. Signal processing was dissolved in ADR-092; no code writes `signal_processed` events.
+- `api/services/primitives/system_state.py`: Removed signal pass from `SystemStateSnapshot.to_dict()` and `_format_state_message()`.
+- `api/services/working_memory.py`: Removed `last_signal_pass` from system summary dict and signal pass formatting block. TP system prompt no longer includes stale "Signal processing: unknown" line.
+- Expected behavior: GetSystemState no longer returns empty `last_signal_pass: null`. Working memory prompt is cleaner. No functional change — signal processing hasn't run since ADR-092.
+
+---
+
 ## [2026.03.13.2] - ADR-111: Unified CreateAgent primitive + ADR-110: Onboarding Bootstrap
 
 ### Changed

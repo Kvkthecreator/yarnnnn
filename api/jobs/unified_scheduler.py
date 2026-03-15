@@ -585,22 +585,22 @@ async def run_unified_scheduler():
             content_cleaned = await cleanup_expired_content(supabase)
             if content_cleaned > 0:
                 logger.info(f"[PLATFORM_CONTENT] Cleaned up {content_cleaned} expired items")
-                # Write per-user cleanup events
-                try:
-                    from services.activity_log import write_activity as _cw
-                    active_users = supabase.table("platform_connections").select(
-                        "user_id"
-                    ).eq("status", "active").execute()
-                    for uid in set(row["user_id"] for row in (active_users.data or [])):
-                        await _cw(
-                            client=supabase,
-                            user_id=uid,
-                            event_type="content_cleanup",
-                            summary=f"Cleaned {content_cleaned} expired content items",
-                            metadata={"items_deleted": content_cleaned},
-                        )
-                except Exception as e:
-                    logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
+            # Always log cleanup event so system page never shows "never_run"
+            try:
+                from services.activity_log import write_activity as _cw
+                active_users = supabase.table("platform_connections").select(
+                    "user_id"
+                ).eq("status", "active").execute()
+                for uid in set(row["user_id"] for row in (active_users.data or [])):
+                    await _cw(
+                        client=supabase,
+                        user_id=uid,
+                        event_type="content_cleanup",
+                        summary=f"Cleaned {content_cleaned} expired content items",
+                        metadata={"items_deleted": content_cleaned},
+                    )
+            except Exception as e:
+                logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
         except Exception as e:
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 

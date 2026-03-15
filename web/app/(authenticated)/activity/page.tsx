@@ -9,10 +9,8 @@
  * Groups event types into user-meaningful categories:
  *   - Agents: agent_run, agent_approved, agent_rejected,
  *                   agent_generated, agent_scheduled
- *   - Memory: memory_written, session_summary_written, pattern_detected,
- *             conversation_analyzed
+ *   - Memory: memory_written, session_summary_written
  *   - Sync: platform_synced, content_cleanup
- *   - Signals: signal_processed
  *   - Connections: integration_connected, integration_disconnected
  *   - Chat: chat_session
  */
@@ -39,7 +37,6 @@ import {
   Unlink,
   ThumbsUp,
   ThumbsDown,
-  TrendingUp,
   Trash2,
   FileOutput,
   CalendarClock,
@@ -116,18 +113,6 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-blue-500',
     category: 'memory',
   },
-  pattern_detected: {
-    label: 'Pattern',
-    icon: <TrendingUp className="w-4 h-4" />,
-    color: 'text-orange-500',
-    category: 'memory',
-  },
-  conversation_analyzed: {
-    label: 'Analysis',
-    icon: <MessageSquare className="w-4 h-4" />,
-    color: 'text-cyan-500',
-    category: 'memory',
-  },
   // Sync & Signals
   platform_synced: {
     label: 'Synced',
@@ -190,7 +175,7 @@ type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 // Map category filters to the event_type values they include
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
   agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled'],
-  memory: ['memory_written', 'session_summary_written', 'pattern_detected', 'conversation_analyzed'],
+  memory: ['memory_written', 'session_summary_written'],
   sync: ['platform_synced', 'content_cleanup'],
   chat: ['chat_session'],
 };
@@ -256,9 +241,6 @@ function getNavigationTarget(
       return null;
     case 'memory_written':
     case 'session_summary_written':
-    case 'pattern_detected':
-    case 'conversation_analyzed':
-      return { href: '/memory?section=entries', label: 'View memory' };
     case 'platform_synced':
     case 'content_cleanup': {
       const p = (metadata.provider || metadata.platform) as string | undefined;
@@ -471,10 +453,6 @@ export default function ActivityPage() {
             {metadata.sessions_processed !== undefined && <DetailRow label="Sessions" value={String(metadata.sessions_processed)} />}
           </>
         );
-
-      case 'pattern_detected':
-      case 'conversation_analyzed':
-        return metadata.note ? <DetailRow label="Note" value={String(metadata.note)} /> : null;
 
       case 'chat_session':
         return (metadata.tools_used as string[] | undefined)?.length

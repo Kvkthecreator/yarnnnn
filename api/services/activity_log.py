@@ -13,14 +13,11 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
-  - signal_processing.py: 'signal_processed' after signal reasoning pass (ADR-072)
   - unified_scheduler.py: 'agent_scheduled' when agent queued (ADR-072)
   - unified_scheduler.py: 'agent_generated' after successful agent generation
   - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
   - unified_scheduler.py: 'content_cleanup' after expired content deletion
   - unified_scheduler.py: 'session_summary_written' after session summary generation
-  - unified_scheduler.py: 'pattern_detected' after activity pattern detection
-  - unified_scheduler.py: 'conversation_analyzed' after conversation analysis
 
 Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
@@ -45,12 +42,9 @@ VALID_EVENT_TYPES = frozenset({
     "integration_connected",
     "integration_disconnected",
     "chat_session",
-    "signal_processed",         # ADR-072: System state awareness - signal reasoning pass
     "scheduler_heartbeat",      # ADR-072: System state awareness - scheduler execution cycle
     "content_cleanup",          # Expired platform_content cleaned up
     "session_summary_written",  # Session compaction summaries generated
-    "pattern_detected",         # Activity pattern detection completed
-    "conversation_analyzed",    # Conversation analysis + suggestions created
     "agent_bootstrapped",       # ADR-110: Auto-created agent on platform connection
 })
 

@@ -375,45 +375,13 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
     """Build structured system summary (sync, for thread pool). ADR-072."""
     now = datetime.now(timezone.utc)
     summary: dict[str, Any] = {
-        "last_signal_pass": None,
         "platform_sync_freshness": [],
         "pending_reviews_count": 0,
         "failed_jobs_24h": 0,
     }
 
     try:
-        # 1. Last signal processing pass
-        signal_result = (
-            client.table("activity_log")
-            .select("created_at, metadata")
-            .eq("user_id", user_id)
-            .eq("event_type", "signal_processed")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-
-        if signal_result.data:
-            from services.freshness import calculate_freshness
-
-            row = signal_result.data[0]
-            metadata = row.get("metadata", {}) or {}
-            created_at = row.get("created_at")
-
-            actions_taken = metadata.get("actions_taken", [])
-            agents_triggered = metadata.get("agents_triggered", [])
-
-            summary["last_signal_pass"] = {
-                "when": calculate_freshness(created_at, now),
-                "actions_count": len(actions_taken),
-                "agents_triggered": len(agents_triggered),
-            }
-
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch last signal pass: {e}")
-
-    try:
-        # 2. Per-platform sync freshness (from sync_registry — single source of truth)
+        # 1. Per-platform sync freshness (from sync_registry — single source of truth)
         from services.freshness import calculate_freshness
 
         # Connections for status only
@@ -675,17 +643,6 @@ def format_for_prompt(working_memory: dict) -> str:
     system_summary = working_memory.get("system_summary", {})
     if system_summary:
         lines.append(f"\n### System status")
-
-        # Last signal pass
-        signal_pass = system_summary.get("last_signal_pass")
-        if signal_pass:
-            when = signal_pass.get("when", "unknown")
-            actions = signal_pass.get("actions_count", 0)
-            triggered = signal_pass.get("agents_triggered", 0)
-            if actions > 0 or triggered > 0:
-                lines.append(f"- Signal processing: {when} ({actions} actions, {triggered} triggered)")
-            else:
-                lines.append(f"- Signal processing: {when} (no actions)")
 
         # Platform sync freshness
         platform_freshness = system_summary.get("platform_sync_freshness", [])
