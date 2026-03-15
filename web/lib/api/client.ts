@@ -671,9 +671,10 @@ export const api = {
       ),
 
     // Get authorization URL to initiate OAuth
-    getAuthorizationUrl: (provider: string) =>
+    // Pass redirectTo to control where user lands after OAuth (e.g. "/system")
+    getAuthorizationUrl: (provider: string, redirectTo?: string) =>
       request<{ authorization_url: string }>(
-        `/api/integrations/${provider}/authorize`
+        `/api/integrations/${provider}/authorize${redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''}`
       ),
 
     // Export to provider

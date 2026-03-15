@@ -139,14 +139,14 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
 # Render deployments. If scaling to multiple instances, migrate to Redis or DB.
 # =============================================================================
 
-# Maps state -> (user_id, provider, created_at)
-_oauth_states: dict[str, tuple[str, str, datetime]] = {}
+# Maps state -> (user_id, provider, created_at, redirect_to)
+_oauth_states: dict[str, tuple[str, str, datetime, Optional[str]]] = {}
 
 
-def generate_oauth_state(user_id: str, provider: str) -> str:
+def generate_oauth_state(user_id: str, provider: str, redirect_to: Optional[str] = None) -> str:
     """Generate a secure state parameter for OAuth."""
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = (user_id, provider, datetime.now(timezone.utc))
+    _oauth_states[state] = (user_id, provider, datetime.now(timezone.utc), redirect_to)
 
     # Clean up old states (>10 min)
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
@@ -157,16 +157,16 @@ def generate_oauth_state(user_id: str, provider: str) -> str:
     return state
 
 
-def validate_oauth_state(state: str) -> Optional[tuple[str, str]]:
+def validate_oauth_state(state: str) -> Optional[tuple[str, str, Optional[str]]]:
     """
     Validate and consume an OAuth state.
 
-    Returns (user_id, provider) if valid, None otherwise.
+    Returns (user_id, provider, redirect_to) if valid, None otherwise.
     """
     if state not in _oauth_states:
         return None
 
-    user_id, provider, created_at = _oauth_states[state]
+    user_id, provider, created_at, redirect_to = _oauth_states[state]
 
     # Check expiration (10 min)
     if datetime.now(timezone.utc) - created_at > timedelta(minutes=10):
@@ -175,20 +175,21 @@ def validate_oauth_state(state: str) -> Optional[tuple[str, str]]:
 
     # Consume the state (one-time use)
     del _oauth_states[state]
-    return (user_id, provider)
+    return (user_id, provider, redirect_to)
 
 
 # =============================================================================
 # OAuth Flow Functions
 # =============================================================================
 
-def get_authorization_url(provider: str, user_id: str) -> str:
+def get_authorization_url(provider: str, user_id: str, redirect_to: Optional[str] = None) -> str:
     """
     Get the OAuth authorization URL for a provider.
 
     Args:
         provider: Integration provider (slack, notion)
         user_id: User initiating the OAuth flow
+        redirect_to: Optional frontend path to return to after OAuth (e.g. "/system")
 
     Returns:
         Full authorization URL to redirect user to
@@ -200,7 +201,7 @@ def get_authorization_url(provider: str, user_id: str) -> str:
     if not config.is_configured:
         raise ValueError(f"{provider} OAuth not configured")
 
-    state = generate_oauth_state(user_id, provider)
+    state = generate_oauth_state(user_id, provider, redirect_to)
 
     if provider == "slack":
         params = {
@@ -256,7 +257,7 @@ async def exchange_code_for_token(
     if not state_data:
         raise ValueError("Invalid or expired OAuth state")
 
-    user_id, expected_provider = state_data
+    user_id, expected_provider, redirect_to = state_data
     if expected_provider != provider:
         raise ValueError("Provider mismatch in OAuth state")
 
@@ -300,6 +301,7 @@ async def exchange_code_for_token(
                     "scope": data.get("scope"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
             }
 
         elif provider == "notion":
@@ -339,6 +341,7 @@ async def exchange_code_for_token(
                     "owner": data.get("owner"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
             }
 
         elif provider in ("gmail", "google"):
@@ -399,31 +402,38 @@ async def exchange_code_for_token(
                     "capabilities": capabilities,  # ADR-046: Track enabled capabilities
                 },
                 "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
             }
 
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
 
-def get_frontend_redirect_url(success: bool, provider: str, error: Optional[str] = None) -> str:
+def get_frontend_redirect_url(
+    success: bool,
+    provider: str,
+    error: Optional[str] = None,
+    redirect_to: Optional[str] = None,
+) -> str:
     """
     Get the URL to redirect the user to after OAuth.
 
-    ADR-110: Redirect to /dashboard with provider + bootstrapped params.
-    Dashboard detects these and shows bootstrap agent inline.
+    ADR-110: Default redirect to /dashboard with provider + bootstrapped params.
+    If redirect_to is provided (e.g. "/system"), return there instead —
+    this handles reconnects where the user should land back where they started.
     On error, redirects to settings page.
     """
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
 
     if success:
-        # ADR-110: Redirect to dashboard — bootstrap agent creation happens
-        # on sync completion (platform_worker.py), dashboard shows status
         redirect_provider = "gmail" if provider == "google" else provider
         params = {
             "provider": redirect_provider,
             "status": "connected",
         }
-        return f"{base_url}/dashboard?{urlencode(params)}"
+        # Use caller-specified path if provided, otherwise default to /dashboard (ADR-110)
+        target_path = redirect_to if redirect_to else "/dashboard"
+        return f"{base_url}{target_path}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
         params = {

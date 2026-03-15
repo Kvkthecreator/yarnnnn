@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
@@ -188,6 +188,7 @@ const BACKGROUND_JOB_GROUPS = [
 
 export default function SystemPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
@@ -204,6 +205,15 @@ export default function SystemPage() {
   } | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const abortRef = useRef(false);
+
+  // Clean up OAuth redirect params (?provider=X&status=connected)
+  useEffect(() => {
+    const provider = searchParams?.get('provider');
+    const status = searchParams?.get('status');
+    if (provider && status === 'connected') {
+      router.replace('/system', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const loadData = async () => {
     setLoading(true);
@@ -416,6 +426,7 @@ export default function SystemPage() {
             <ConnectedIntegrationsSection
               title="Connected Platforms"
               description="Connect platforms to sync context. Manage sources in each platform's context page."
+              redirectTo="/system"
             >
               {/* Sync action — only shown when platforms are connected */}
               {hasConnectedPlatforms && (

@@ -2314,13 +2314,17 @@ async def list_destinations(
 @router.get("/integrations/{provider}/authorize")
 async def initiate_oauth(
     provider: str,
-    auth: UserClient
+    auth: UserClient,
+    redirect_to: Optional[str] = Query(None, description="Frontend path to return to after OAuth (e.g. /system)"),
 ) -> dict:
     """
     Initiate OAuth flow for a provider.
 
     Returns the authorization URL to redirect the user to.
     The frontend should open this URL in a popup or redirect.
+
+    Pass redirect_to to control where the user lands after OAuth completes.
+    Defaults to /dashboard (ADR-110 bootstrap flow).
     """
     user_id = auth.user_id
 
@@ -2336,7 +2340,7 @@ async def initiate_oauth(
         )
 
     try:
-        auth_url = get_authorization_url(provider, user_id)
+        auth_url = get_authorization_url(provider, user_id, redirect_to=redirect_to)
         logger.info(f"[INTEGRATIONS] User {user_id} initiating {provider} OAuth")
         return {"authorization_url": auth_url}
 
@@ -2448,7 +2452,7 @@ async def oauth_callback(
 
         # Redirect to frontend with success
         return RedirectResponse(
-            url=get_frontend_redirect_url(True, provider)
+            url=get_frontend_redirect_url(True, provider, redirect_to=token_data.get("redirect_to"))
         )
 
     except ValueError as e:

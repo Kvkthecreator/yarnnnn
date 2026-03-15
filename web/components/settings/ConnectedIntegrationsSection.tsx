@@ -31,6 +31,8 @@ interface ConnectedIntegrationsSectionProps {
   description?: string;
   className?: string;
   children?: React.ReactNode;
+  /** Frontend path to return to after OAuth (e.g. "/system"). Defaults to /dashboard. */
+  redirectTo?: string;
 }
 
 export function ConnectedIntegrationsSection({
@@ -38,6 +40,7 @@ export function ConnectedIntegrationsSection({
   description = "Connect platforms to sync context. Manage sources in each platform's context page.",
   className,
   children,
+  redirectTo,
 }: ConnectedIntegrationsSectionProps) {
   const router = useRouter();
 
@@ -85,7 +88,7 @@ export function ConnectedIntegrationsSection({
   const handleConnectIntegration = async (provider: string) => {
     setConnectingProvider(provider);
     try {
-      const result = await api.integrations.getAuthorizationUrl(provider);
+      const result = await api.integrations.getAuthorizationUrl(provider, redirectTo);
       window.location.href = result.authorization_url;
     } catch (err) {
       console.error(`Failed to initiate ${provider} OAuth:`, err);
@@ -384,7 +387,7 @@ export function ConnectedIntegrationsSection({
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
               <strong>How it works:</strong> After connecting, select sources on each platform&apos;s context page.
-              Context syncs automatically based on your tier — TP Chat uses it in conversations and work-agents.
+              Context syncs automatically based on your tier — used in conversations and agents.
             </p>
           </div>
         </div>

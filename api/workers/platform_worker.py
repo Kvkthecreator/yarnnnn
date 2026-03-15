@@ -65,16 +65,30 @@ async def acquire_sync_lock(client, user_id: str, platform: str) -> bool:
     else:
         db_platforms = [platform]
 
+    # Use microsecond-precision timestamp as a nonce to verify we own the lock.
+    lock_nonce = now.isoformat()
+
     try:
         for db_platform in db_platforms:
-            result = client.table("platform_connections").update({
+            # Conditional UPDATE: only set lock if not already held (or stale).
+            # PostgREST .or_() with .update() may return empty result.data even
+            # when the update succeeds, so we verify ownership via the nonce.
+            client.table("platform_connections").update({
                 "sync_in_progress": True,
-                "sync_started_at": now.isoformat(),
+                "sync_started_at": lock_nonce,
             }).eq("user_id", user_id).eq("platform", db_platform).or_(
                 "sync_in_progress.eq.false,sync_in_progress.is.null,sync_started_at.lt." + stale_cutoff
             ).execute()
 
-            if result.data:
+            # Verify: did our conditional update succeed? The DB stores our exact
+            # nonce only if the WHERE conditions were met.
+            check = client.table("platform_connections").select(
+                "sync_started_at"
+            ).eq("user_id", user_id).eq("platform", db_platform).eq(
+                "sync_in_progress", True
+            ).limit(1).execute()
+
+            if check.data and check.data[0].get("sync_started_at", "").startswith(lock_nonce[:23]):
                 return True
         return False
     except Exception as e:
