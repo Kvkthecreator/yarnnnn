@@ -200,9 +200,7 @@ async def _get_platform_sync_status(
     platform_filter: Optional[str] = None,
 ) -> list[PlatformSyncStatus]:
     """Fetch per-platform sync status with resource-level detail.
-
-    Derives platform-level freshness from sync_registry (per-resource truth),
-    not platform_connections.last_synced_at.
+    Derives platform-level freshness from sync_registry (per-resource truth).
     """
     from services.freshness import calculate_freshness
 

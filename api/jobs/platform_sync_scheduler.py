@@ -42,9 +42,7 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
     Query users who are due for platform sync based on their tier.
 
     Returns users with their tier, timezone, and connected platforms.
-
-    Freshness is derived from sync_registry (per-resource truth),
-    not platform_connections.last_synced_at.
+    Freshness is derived from sync_registry (per-resource truth).
     """
     from services.platform_limits import (
         TIER_LIMITS,

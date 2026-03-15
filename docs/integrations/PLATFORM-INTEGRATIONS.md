@@ -274,7 +274,7 @@ GoogleAPIClient._token_cache: dict[refresh_token → (access_token, expires_at_m
 
 ```
 platform_sync_scheduler.py
-  → get_users_due_for_sync(): query platform_connections, check tier, check last_synced_at
+  → get_users_due_for_sync(): query platform_connections, check tier, check sync_registry freshness
   → process_user_sync(): for each due user
       → _get_selected_sources(): read landscape.selected_sources per provider
       → sync_platform(): call platform_worker per provider

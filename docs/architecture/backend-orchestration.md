@@ -125,9 +125,8 @@ Each item → `_store_platform_content()`:
 
 | Reads | Writes |
 |-------|--------|
-| `platform_connections` | `platform_content` (upsert) |
-| `sync_registry` (cursors) | `sync_registry` (cursor + error) |
-| | `platform_connections` (last_synced_at) |
+| `platform_connections` (landscape, selected_sources) | `platform_content` (upsert) |
+| `sync_registry` (cursors) | `sync_registry` (cursor + timestamp + error) |
 | | `activity_log` (platform_synced) |
 
 ---

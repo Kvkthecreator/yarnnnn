@@ -281,9 +281,7 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
 
 def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
     """Fetch connected platform summary (sync, for thread pool).
-
-    Derives freshness from sync_registry (per-resource truth),
-    not platform_connections.last_synced_at.
+    Derives freshness from sync_registry (per-resource truth).
     """
     from services.freshness import calculate_freshness
 
