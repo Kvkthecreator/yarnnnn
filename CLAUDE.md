@@ -284,6 +284,7 @@ You MUST:
 | Agent Scheduler | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075) |
 | Frontend API Client | `web/lib/api/client.ts` |
+| Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding UI | `web/components/onboarding/` |
 
 ---

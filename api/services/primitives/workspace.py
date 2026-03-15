@@ -302,6 +302,16 @@ async def _fallback_platform_content_search(auth: Any, query: str, platform: str
         result = q.order("source_timestamp", desc=True).execute()
 
         items = result.data or []
+
+        # ADR-073: Mark accessed content as retained
+        content_ids = [i["id"] for i in items if i.get("id")]
+        if content_ids:
+            try:
+                from services.platform_content import mark_content_retained
+                await mark_content_retained(auth.client, content_ids, reason="tp_session")
+            except Exception:
+                pass  # Non-fatal
+
         return {
             "success": True,
             "query": query,

@@ -1,6 +1,6 @@
 # ADR-086: Sync Failure Visibility
 
-**Status**: Implementing
+**Status**: Implemented
 **Date**: 2026-03-01
 **References**: ADR-084 (System Observability), ADR-077 (Platform Sync Overhaul)
 
@@ -38,3 +38,12 @@ Surface sync errors in two existing locations:
 - `web/components/context/PlatformSyncActivity.tsx` — error health state
 - `web/app/(authenticated)/context/{slack,gmail,notion,calendar}/page.tsx` — wire errorCount
 - `web/app/(authenticated)/system/page.tsx` — failed window pill color
+- `web/components/context/ResourceRow.tsx` — categorized error display with severity colors
+
+## Implementation Notes (2026-03-15)
+
+- **Backend**: `sync-status` endpoint returns `last_error`, `last_error_at`, `error_count` — complete since ADR-077
+- **Frontend**: `web/lib/sync-errors.ts` categorizes raw errors into 7 patterns (token expired, rate limited, access denied, not found, timeout, connection failed, platform error) with severity and actionable hints
+- **ResourceRow**: Shows categorized label + hint instead of raw error string; amber for warnings (transient), red for errors (action needed)
+- **CompactSyncStatus**: Already handles `errorCount > 0` with red tone health bar
+- **System page**: Sync Now removed (observe-only); schedule windows show failed status from activity_log metadata

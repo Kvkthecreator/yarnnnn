@@ -262,6 +262,14 @@ async def resolve_ref(
 
         entity = result.data[0]
 
+        # ADR-073: Mark platform_content as retained when accessed via TP
+        if ref.entity_type == "platform_content" and entity.get("id"):
+            try:
+                from services.platform_content import mark_content_retained
+                await mark_content_retained(client, [entity["id"]], reason="tp_session")
+            except Exception:
+                pass  # Non-fatal
+
         # Handle subpath for nested data
         if ref.subpath:
             return _extract_subpath(entity, ref.subpath)

@@ -1,6 +1,6 @@
 # ADR-073: Unified Fetch Architecture
 
-**Status**: Accepted
+**Status**: Implemented
 **Date**: 2026-02-23
 **Supersedes**: Portions of ADR-068 (signal extraction via live APIs)
 **Relates to**: ADR-072 (Unified Content Layer), ADR-056 (Per-Source Sync), ADR-053 (Platform Sync as Monetization Base Layer)
@@ -210,10 +210,11 @@ Detailed observability design is a separate concern requiring its own feature do
 1. ~~Wire `mark_content_retained` and `cleanup_expired_content` into existing pipeline~~ **Done** (2026-02-23, commit d300394)
 2. ~~Add sync token support to `platform_worker.py` per-platform~~ **Done** (2026-02-23) — Slack `oldest`, Gmail date cursor, Calendar `syncToken`, Notion `last_edited_time`
 3. ~~Modify signal processing to read `platform_content` instead of live APIs~~ **Done** (2026-02-23, commit d300394) — `signal_extraction.py` rewritten to read from `platform_content`
-4. Replace LLM signal triage with scheduling heuristics — **Proposed** in ADR-074
+4. ~~Replace LLM signal triage with scheduling heuristics~~ **Done** — ADR-092 dissolved signal processing entirely; scheduling via `trigger_dispatch.py`
 5. ~~Remove `fetch_integration_source_data` from agent execution~~ **Done** (2026-02-23, commit d300394) — execution strategies read from `platform_content`
 6. ~~Remove `signal_extraction.py` live API calls~~ **Done** (2026-02-23, commit d300394)
-7. Instrument fetch layer for observability — **Deferred**
+7. ~~Instrument fetch layer for observability~~ **Done** — ADR-112 activity log (`platform_synced` events), ADR-084 system page schedule windows
+8. ~~TP chat content retention~~ **Done** (2026-03-15) — `mark_content_retained(reason="tp_session")` called in search, refs, and workspace fallback primitives
 
 ---
 

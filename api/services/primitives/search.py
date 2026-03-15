@@ -215,6 +215,15 @@ async def _search_platform_content(
         if not result.data:
             return []
 
+        # ADR-073: Mark accessed content as retained so it survives TTL cleanup
+        content_ids = [item["id"] for item in result.data if item.get("id")]
+        if content_ids:
+            try:
+                from services.platform_content import mark_content_retained
+                await mark_content_retained(auth.client, content_ids, reason="tp_session")
+            except Exception:
+                pass  # Non-fatal — never block search results
+
         return [
             {
                 "entity_type": "platform_content",

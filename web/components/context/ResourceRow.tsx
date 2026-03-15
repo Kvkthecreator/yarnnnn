@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { categorizeSyncError } from '@/lib/sync-errors';
 import type { LandscapeResource } from '@/types';
 
 // =============================================================================
@@ -136,16 +137,25 @@ export function ResourceRow({
                 </div>
               )
             )}
-            {hasError && (
-              <div className="text-xs text-red-600 dark:text-red-400 truncate" title={resource.last_error || ''}>
-                {resource.last_error}
-                {resource.last_error_at && (
-                  <span className="text-red-500/70 ml-1">
-                    ({formatDistanceToNow(new Date(resource.last_error_at), { addSuffix: true })})
-                  </span>
-                )}
-              </div>
-            )}
+            {hasError && (() => {
+              const categorized = categorizeSyncError(resource.last_error);
+              const colors = categorized?.severity === 'error'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-amber-600 dark:text-amber-400';
+              return (
+                <div className={cn('text-xs truncate', colors)} title={resource.last_error || ''}>
+                  {categorized?.label ?? resource.last_error}
+                  {categorized?.hint && (
+                    <span className="text-muted-foreground ml-1">— {categorized.hint}</span>
+                  )}
+                  {resource.last_error_at && (
+                    <span className="text-muted-foreground/70 ml-1">
+                      ({formatDistanceToNow(new Date(resource.last_error_at), { addSuffix: true })})
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
