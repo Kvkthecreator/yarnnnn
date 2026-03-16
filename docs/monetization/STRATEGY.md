@@ -204,6 +204,35 @@ If user cancels:
 
 ---
 
+## Post-Launch Considerations
+
+### ADR-113 Impact on Activation and Upgrade Velocity (2026-03-16)
+
+Auto source selection (ADR-113) removes the manual gate between platform connection and first value. This changes the **activation speed**, not the consumption ceiling. Users reach tier limits faster because there is no configuration step slowing them down.
+
+**What this means for monetization:**
+
+1. **Faster upgrade triggers.** Free users hit 2 agents sooner (bootstrap auto-creates one per platform, Composer may suggest a second). The upgrade prompt arrives while the user is engaged, not during a dead state where they haven't seen value. This is good — upgrade prompts in context convert better than upgrade prompts during setup friction.
+
+2. **No new cost exposure.** All auto-creation paths (bootstrap, Composer) check `check_agent_limit()` before creating. `compute_smart_defaults()` respects tier source limits. Sync frequency is unchanged. The gates hold.
+
+3. **Current tier limits are well-sized for the wedge ICP.** Free (2 agents, 50 messages, daily sync) is enough to experience value, not enough to live on. Pro ($19/mo, 10 agents, unlimited messages, hourly sync) covers the solo consultant use case with healthy margins at moderate usage.
+
+**Deferred decisions — optimize with data, not in advance:**
+
+| Signal to watch | What it means | Possible response |
+|----------------|--------------|-------------------|
+| Free users hit 2 agents and don't upgrade | Upgrade friction or insufficient perceived value | Improve first-run quality, adjust free agent limit, or add intermediate nudges |
+| Pro users hit 10 agents and churn | Missing higher tier | Add Team/Business tier ($49-99/mo, 25+ agents, team features) |
+| Heavy Pro users cost >$19/mo in LLM | Margin compression at scale | Usage-based pricing layer or higher tier with metered overages |
+| Composer auto-creates agents users don't want | Wasted LLM spend on unwanted runs | Tighten Composer confidence thresholds, add "suggested but not created" mode |
+
+**Architecture readiness:** The enforcement infrastructure supports tier expansion without structural changes. `TIER_LIMITS` is a dict, `get_user_tier()` is a function, Lemon Squeezy supports multiple variants. Adding a tier is a config + migration change, not an architectural one.
+
+**Recommendation:** Ship with current 2-tier model. Measure activation-to-upgrade funnel post-ADR-113. Revisit tier structure after 50+ active users provide usage distribution data.
+
+---
+
 ## See Also
 
 - [ADR-100: Simplified Monetization](../adr/ADR-100-simplified-monetization.md)
