@@ -8,11 +8,12 @@
  *
  * Groups event types into user-meaningful categories:
  *   - Agents: agent_run, agent_approved, agent_rejected,
- *                   agent_generated, agent_scheduled
+ *            agent_generated, agent_scheduled, agent_bootstrapped
  *   - Memory: memory_written, session_summary_written
  *   - Sync: platform_synced, content_cleanup
  *   - Connections: integration_connected, integration_disconnected
  *   - Chat: chat_session
+ *   - System: scheduler_heartbeat, composer_heartbeat
  */
 
 import { useState, useEffect } from 'react';
@@ -40,6 +41,8 @@ import {
   Trash2,
   FileOutput,
   CalendarClock,
+  HeartPulse,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -152,6 +155,18 @@ const EVENT_CONFIG: Record<string, {
     icon: <Activity className="w-4 h-4" />,
     color: 'text-muted-foreground',
     category: 'system',
+  },
+  composer_heartbeat: {
+    label: 'Composer',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+    category: 'system',
+  },
+  agent_bootstrapped: {
+    label: 'Bootstrapped',
+    icon: <Sparkles className="w-4 h-4" />,
+    color: 'text-amber-500',
+    category: 'agents',
   },
 };
 
@@ -609,9 +624,11 @@ export default function ActivityPage() {
                                       {source}
                                     </span>
                                   )}
-                                  {config.category === 'agents' && origin === 'coordinator_created' && (
+                                  {config.category === 'agents' && origin && origin !== 'user_configured' && (
                                     <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                      coordinator
+                                      {origin === 'coordinator_created' ? 'coordinator' :
+                                       origin === 'system_bootstrap' ? 'bootstrap' :
+                                       origin === 'composer' ? 'composer' : 'auto'}
                                     </span>
                                   )}
                                 </div>
