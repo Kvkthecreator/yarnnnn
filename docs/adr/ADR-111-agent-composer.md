@@ -1,6 +1,6 @@
 # ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** Implemented (Phases 1-3), Proposed (Phases 4-5) — Revised 2026-03-16
+**Status:** Implemented (Phases 1-4), Proposed (Phase 5) — Revised 2026-03-16
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
 **Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture)
@@ -209,12 +209,17 @@ All agent creation paths now funnel through single `create_agent_record()`.
 - ✓ Dashboard "Auto" badge extended to cover `composer` + `system_bootstrap` origins
 - ✓ Frontend `Agent.origin` type updated to include `'composer'`
 
-### Phase 4: Supervisory Reframe
+### Phase 4: Supervisory Reframe ✓ (Implemented 2026-03-16)
 
-- Reframe `proactive_review.py` as TP's per-agent supervisory check
-- Heartbeat invokes per-agent review for proactive-mode agents
-- Agent returns domain assessment → TP (Heartbeat) decides action
-- Coordinator mode → Composer capability: agent creation decisions flow through Composer
+- ✓ `api/services/composer.py` — `_run_supervisory_review()` + `_get_due_supervisory_agents()`
+  - Heartbeat invokes per-agent review for proactive/coordinator agents due for review
+  - Agent provides domain assessment via `proactive_review.py` → TP (Heartbeat) decides action
+  - Activity log events attributed to `trigger: "heartbeat"` (TP ownership)
+- ✓ `api/jobs/unified_scheduler.py` — proactive section absorbed into Heartbeat
+  - `get_due_proactive_agents()` and `process_proactive_agent()` deprecated (kept for tests)
+  - `proactive_reviewed` counter populated from Heartbeat supervisory results
+- ✓ `api/services/proactive_review.py` — docstring reframed as TP's supervisory capability
+  - Mechanical flow preserved; conceptual ownership is TP's Heartbeat
 
 ### Phase 5: Lifecycle Progression
 

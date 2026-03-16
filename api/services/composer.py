@@ -553,16 +553,133 @@ def _infer_sources_for_skill(skill: str, assessment: dict) -> list:
 
 
 # =============================================================================
+# Per-Agent Supervisory Review (ADR-111 Phase 4)
+# =============================================================================
+
+async def _get_due_supervisory_agents(client: Any, user_id: str) -> list[dict]:
+    """
+    Query proactive/coordinator agents due for TP supervisory review.
+
+    ADR-111 Phase 4: These are now triggered by Heartbeat (TP's cadence),
+    not directly by the scheduler. The agent provides domain assessment;
+    TP (Heartbeat) decides action.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        result = (
+            client.table("agents")
+            .select("id, user_id, title, scope, skill, type_config, schedule, sources, "
+                    "destination, recipient_context, last_run_at, agent_instructions, "
+                    "agent_memory, mode, trigger_config")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .in_("mode", ["proactive", "coordinator"])
+            .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Supervisory query failed for {user_id}: {e}")
+        return []
+
+
+async def _run_supervisory_review(client: Any, agent: dict) -> dict:
+    """
+    Run TP's per-agent supervisory review for a proactive/coordinator agent.
+
+    ADR-111 Phase 4: The agent provides domain assessment via proactive_review.py.
+    TP (Heartbeat) invokes and logs the result. Mechanical flow is preserved;
+    conceptual ownership is TP's.
+
+    Returns: {"agent_id": str, "action": str, "note": str}
+    """
+    from services.proactive_review import run_proactive_review, apply_review_decision
+    from services.trigger_dispatch import dispatch_trigger
+    from services.activity_log import write_activity
+
+    agent_id = agent["id"]
+    user_id = agent["user_id"]
+    title = agent["title"]
+    mode = agent.get("mode", "proactive")
+
+    logger.info(f"[COMPOSER] Supervisory review: {title} ({agent_id}), mode={mode}")
+
+    try:
+        decision = await run_proactive_review(
+            client=client,
+            user_id=user_id,
+            agent=agent,
+        )
+
+        action = decision.get("action", "observe")
+        note = decision.get("note", "")
+
+        if action == "generate":
+            # Update memory + scheduling BEFORE generation
+            await apply_review_decision(client, agent, decision)
+
+            # Full generation path via dispatch
+            result = await dispatch_trigger(
+                client=client,
+                agent=agent,
+                trigger_type="schedule",
+                trigger_context={"type": "proactive_review", "review_decision": decision},
+                signal_strength="high",
+            )
+
+            try:
+                await write_activity(
+                    client=client,
+                    user_id=user_id,
+                    event_type="agent_scheduled",
+                    summary=f"TP supervisory generation: {title}",
+                    event_ref=agent_id,
+                    metadata={"mode": mode, "review_action": "generate", "trigger": "heartbeat"},
+                )
+            except Exception:
+                pass
+
+            return {"agent_id": agent_id, "action": "generate", "note": note,
+                    "success": result.get("success", False)}
+        else:
+            # observe or sleep — update memory, no generation
+            await apply_review_decision(client, agent, decision)
+
+            try:
+                await write_activity(
+                    client=client,
+                    user_id=user_id,
+                    event_type="memory_written",
+                    summary=f"TP supervisory [{action}]: {title}",
+                    event_ref=agent_id,
+                    metadata={"mode": mode, "review_action": action, "trigger": "heartbeat",
+                              "note": note[:200] if note else ""},
+                )
+            except Exception:
+                pass
+
+            return {"agent_id": agent_id, "action": action, "note": note}
+
+    except Exception as e:
+        logger.error(f"[COMPOSER] Supervisory review failed for {title}: {e}")
+        return {"agent_id": agent_id, "action": "error", "note": str(e)}
+
+
+# =============================================================================
 # Heartbeat Entry Point (called from unified_scheduler.py)
 # =============================================================================
 
 async def run_heartbeat(client: Any, user_id: str) -> dict:
     """
     Full heartbeat cycle for one user:
-    1. Cheap data query
-    2. Should Composer act?
+    1. Cheap data query (workforce assessment)
+    2. Should Composer act? (create/adjust agents)
     3. If yes: run Composer assessment
-    4. Log results
+    4. Per-agent supervisory review (proactive/coordinator agents due for review)
+    5. Log results
+
+    ADR-111 Phase 4: Heartbeat is TP's single autonomous cadence for both
+    workforce composition AND per-agent supervision.
 
     Returns heartbeat result dict for activity logging.
     """
@@ -583,36 +700,47 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "stale_agents": len(assessment["health"]["stale_agents"]),
         },
         "composer_result": None,
+        "supervisory_reviews": [],
     }
 
-    if not should_act:
-        logger.info(f"[COMPOSER] Heartbeat for {user_id}: {reason}")
-        return heartbeat_result
-
     # Step 3: Composer assessment (LLM only when warranted)
-    logger.info(f"[COMPOSER] Heartbeat triggered Composer for {user_id}: {reason}")
-    composer_result = await run_composer_assessment(client, user_id, assessment, reason)
-    heartbeat_result["composer_result"] = composer_result
+    if should_act:
+        logger.info(f"[COMPOSER] Heartbeat triggered Composer for {user_id}: {reason}")
+        composer_result = await run_composer_assessment(client, user_id, assessment, reason)
+        heartbeat_result["composer_result"] = composer_result
 
-    # Step 4: Activity log for created agents
-    if composer_result.get("agents_created"):
+        # Activity log for created agents
+        if composer_result.get("agents_created"):
+            try:
+                from services.activity_log import write_activity
+                for created in composer_result["agents_created"]:
+                    await write_activity(
+                        client=client,
+                        user_id=user_id,
+                        event_type="agent_bootstrapped",
+                        summary=f"Composer created: {created.get('title', 'Unknown')}",
+                        event_ref=created.get("agent_id"),
+                        metadata={
+                            "origin": "composer",
+                            "skill": created.get("skill"),
+                            "reason": created.get("reason"),
+                            "trigger": "heartbeat",
+                        },
+                    )
+            except Exception:
+                pass  # Non-fatal
+    else:
+        logger.info(f"[COMPOSER] Heartbeat for {user_id}: {reason}")
+
+    # Step 4: Per-agent supervisory review (ADR-111 Phase 4)
+    # TP's Heartbeat invokes per-agent reviews for proactive/coordinator agents.
+    # Independent of Composer — always runs when agents are due.
+    due_agents = await _get_due_supervisory_agents(client, user_id)
+    for agent in due_agents:
         try:
-            from services.activity_log import write_activity
-            for created in composer_result["agents_created"]:
-                await write_activity(
-                    client=client,
-                    user_id=user_id,
-                    event_type="agent_bootstrapped",
-                    summary=f"Composer created: {created.get('title', 'Unknown')}",
-                    event_ref=created.get("agent_id"),
-                    metadata={
-                        "origin": "composer",
-                        "skill": created.get("skill"),
-                        "reason": created.get("reason"),
-                        "trigger": "heartbeat",
-                    },
-                )
-        except Exception:
-            pass  # Non-fatal
+            review_result = await _run_supervisory_review(client, agent)
+            heartbeat_result["supervisory_reviews"].append(review_result)
+        except Exception as e:
+            logger.warning(f"[COMPOSER] Supervisory review error for {agent.get('title')}: {e}")
 
     return heartbeat_result

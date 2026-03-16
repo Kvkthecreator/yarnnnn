@@ -1,16 +1,21 @@
 """
-Proactive Review Pass — ADR-092 Phase 4
+Proactive Review Pass — TP's Per-Agent Supervisory Check
+
+ADR-092 Phase 4, reframed by ADR-111 Phase 4 as TP's supervisory capability.
 
 Lightweight Haiku review for proactive and coordinator agents.
-Called by the scheduler on each proactive_next_review_at tick.
+Invoked by TP's Heartbeat (composer._run_supervisory_review) on each review cadence.
 
 The agent reads its domain (via headless tools) and returns one of:
   {"action": "generate"}            → orchestration proceeds to full generation
-  {"action": "observe", "note": …}  → note appended to agent_memory, no version
-  {"action": "sleep", "until": …}   → proactive_next_review_at set to specified time
+  {"action": "observe", "note": …}  → note appended to workspace, no version
+  {"action": "sleep", "until": …}   → proactive_next_review_at deferred
 
-This is a two-phase execution model for proactive/coordinator modes:
-  Phase A (this module): lightweight Haiku review — decide whether to act
+Conceptual ownership: TP (meta-cognitive layer) owns the decision to review
+and the decision to act on the assessment. The agent provides domain expertise.
+
+Two-phase execution:
+  Phase A (this module): lightweight Haiku review — agent assesses domain
   Phase B (agent_execution.py): full generation if Phase A returns "generate"
 
 The review pass is intentionally cheap. Most cycles produce "observe" or "sleep".

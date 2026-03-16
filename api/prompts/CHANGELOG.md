@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.3] - ADR-111 Phase 4: Supervisory Reframe
+
+### Changed
+- `api/services/composer.py`: Added `_run_supervisory_review()` and `_get_due_supervisory_agents()`. Heartbeat now invokes per-agent review for proactive/coordinator agents — TP owns the supervisory cadence. `run_heartbeat()` extended with Step 4 (supervisory reviews) after Composer assessment.
+- `api/services/proactive_review.py`: Docstring reframed — TP's per-agent supervisory check, invoked by Heartbeat. Mechanical flow preserved.
+- `api/jobs/unified_scheduler.py`: Proactive section absorbed into Heartbeat. `get_due_proactive_agents()` and `process_proactive_agent()` deprecated (kept for test compat). `proactive_reviewed` counter populated from Heartbeat supervisory results.
+- Expected behavior: Proactive/coordinator agents are now reviewed within TP's Heartbeat cycle, not as a separate scheduler section. Same review mechanics (Haiku → generate/observe/sleep), but owned by TP.
+
+---
+
 ## [2026.03.16.2] - ADR-111 Phase 3: TP Composer Heartbeat + Assessment
 
 ### Added

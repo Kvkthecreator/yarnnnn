@@ -417,11 +417,12 @@ FOUNDATIONS.md v2 (Axiom 1: Two Layers of Intelligence, Axiom 5: Composer as TP 
 - **The graduated response** (observe / generate / sleep) is preserved
 - **RefreshPlatformContent in headless mode** — unchanged
 
-### What Changes Mechanically (future — ADR-111 Phase 4)
+### What Changed Mechanically (ADR-111 Phase 4 — Implemented 2026-03-16)
 
-- TP Heartbeat becomes the trigger for proactive/coordinator reviews, replacing direct scheduler dispatch
-- Agent review pass returns assessment to TP, not autonomous action decision
-- CreateAgent invocation shifts from coordinator agent headless → TP Composer
+- ✓ TP Heartbeat (`composer._run_supervisory_review()`) triggers proactive/coordinator reviews, replacing direct scheduler dispatch
+- ✓ Agent review pass returns assessment to TP — activity log events attributed to `trigger: "heartbeat"`
+- ✓ Scheduler's proactive section absorbed into Heartbeat; `get_due_proactive_agents()` deprecated
+- CreateAgent invocation shift from coordinator → Composer is architecturally enabled (coordinator CreateAgent still works)
 - AdvanceAgentSchedule remains available as a TP/Composer primitive
 
 ### Impact on Decision Tests

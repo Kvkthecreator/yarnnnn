@@ -240,6 +240,10 @@ async def get_due_proactive_agents(supabase_client) -> list[dict]:
     """
     ADR-092 Phase 4: Query proactive and coordinator agents due for review.
 
+    NOTE (ADR-111 Phase 4): No longer called from run_unified_scheduler().
+    Supervisory review is now triggered by Heartbeat via composer._get_due_supervisory_agents().
+    Kept for backward compatibility with tests.
+
     Returns active proactive/coordinator agents where
     proactive_next_review_at <= now (or is NULL — never reviewed before).
     """
@@ -260,6 +264,10 @@ async def get_due_proactive_agents(supabase_client) -> list[dict]:
 async def process_proactive_agent(supabase_client, agent: dict) -> bool:
     """
     ADR-092 Phase 4: Process a single proactive/coordinator agent.
+
+    NOTE (ADR-111 Phase 4): No longer called from run_unified_scheduler().
+    Supervisory review is now handled by composer._run_supervisory_review().
+    Kept for backward compatibility with tests.
 
     Runs a lightweight Haiku review pass. On "generate", proceeds to full generation.
     On "observe" or "sleep", updates memory and proactive_next_review_at only.
@@ -561,20 +569,11 @@ async def run_unified_scheduler():
             logger.error(f"[AGENT] Unexpected error: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-092 Phase 4: Proactive / Coordinator Review Pass
+    # ADR-092 → ADR-111 Phase 4: Proactive / Coordinator Review
+    # Absorbed into Heartbeat. TP's supervisory review runs per-user inside
+    # run_heartbeat() → _run_supervisory_review(). proactive_reviewed counter
+    # is populated by the Heartbeat section above.
     # -------------------------------------------------------------------------
-    proactive_reviewed = 0
-    proactive_generated = 0
-    proactive_agents = await get_due_proactive_agents(supabase)
-    logger.info(f"[PROACTIVE] Found {len(proactive_agents)} due for review")
-
-    for agent in proactive_agents:
-        try:
-            success = await process_proactive_agent(supabase, agent)
-            if success:
-                proactive_reviewed += 1
-        except Exception as e:
-            logger.error(f"[PROACTIVE] Unexpected error: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-072: Cleanup Expired Platform Content (hourly)
@@ -643,6 +642,7 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     composer_users = 0
     composer_created = 0
+    proactive_reviewed = 0  # ADR-111 Phase 4: populated by supervisory reviews in Heartbeat
     try:
         from services.composer import run_heartbeat
         from services.platform_limits import get_user_tier
@@ -669,6 +669,10 @@ async def run_unified_scheduler():
                 created_count = len((hb_result.get("composer_result") or {}).get("agents_created", []))
                 composer_created += created_count
 
+                # ADR-111 Phase 4: Count supervisory reviews from Heartbeat
+                supervisory = hb_result.get("supervisory_reviews", [])
+                proactive_reviewed += len(supervisory)
+
                 # Write heartbeat event
                 try:
                     from services.activity_log import write_activity as _chw
@@ -681,6 +685,7 @@ async def run_unified_scheduler():
                             "should_act": hb_result.get("should_act", False),
                             "reason": hb_result.get("reason", ""),
                             "agents_created": created_count,
+                            "supervisory_reviews": len(supervisory),
                             **hb_result.get("assessment_summary", {}),
                         },
                     )
