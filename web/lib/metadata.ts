@@ -16,7 +16,7 @@ export const BRAND = {
   description:
     "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates autonomous agents that run recurring work and improve with every cycle.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
-  ogImage: "/assets/logos/yarn-logo-light.png",
+  ogImage: "/assets/logos/og-card.png",
 };
 
 interface MarketingMetadataOptions {
