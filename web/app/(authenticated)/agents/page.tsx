@@ -262,7 +262,7 @@ function AgentCard({
           {/* Title row */}
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium truncate">{agent.title}</h3>
-            {agent.origin === 'coordinator_created' && (
+            {(agent.origin === 'coordinator_created' || agent.origin === 'system_bootstrap' || agent.origin === 'composer') && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                 <Sparkles className="w-2.5 h-2.5" />
                 Auto

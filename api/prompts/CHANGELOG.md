@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.2] - ADR-111 Phase 3: TP Composer Heartbeat + Assessment
+
+### Added
+- `api/services/composer.py` (new): Composer system prompt for LLM assessment — instructs Haiku to evaluate agent workforce gaps and recommend one agent creation per assessment. Bias toward action. Valid skills/frequencies enumerated.
+- Expected behavior: Composer fires via scheduler heartbeat (Free: daily, Pro: every 5min). Cheap data query first; LLM only when `should_composer_act()` identifies a gap (coverage, staleness, cross-platform opportunity). Auto-creates agents with `origin="composer"`.
+
+---
+
 ## [2026.03.16.1] - ADR-111 Phase 1: Complete singular agent creation path
 
 ### Changed

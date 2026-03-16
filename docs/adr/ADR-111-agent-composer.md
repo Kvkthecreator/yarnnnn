@@ -1,6 +1,6 @@
 # ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** Implemented (Phase 1 + Phase 2), Proposed (Phases 3-5) — Revised 2026-03-16
+**Status:** Implemented (Phases 1-3), Proposed (Phases 4-5) — Revised 2026-03-16
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
 **Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture)
@@ -194,14 +194,20 @@ All agent creation paths now funnel through single `create_agent_record()`.
 - ✓ Wired into platform sync completion handler (`platform_worker.py`)
 - ✓ First run executes immediately (Axiom 6: 30-60 second value)
 
-### Phase 3: Heartbeat + Composer Assessment
+### Phase 3: Heartbeat + Composer Assessment ✓ (Implemented 2026-03-16)
 
-- Add TP Heartbeat as scheduled event in `unified_scheduler.py`
-- Composer assessment logic: substrate query → gap analysis → action decision
-- Lightweight data pass first; LLM only when warranted
-- Auto-create agents based on assessment (bias toward action)
-- Activity log + dashboard attribution for Composer-created agents
-- `origin="composer"` for Composer-created agents
+- ✓ `api/services/composer.py` — full Heartbeat + Composer module:
+  - `heartbeat_data_query()`: zero-LLM DB assessment (platforms, agents, coverage, health, feedback)
+  - `should_composer_act()`: pure logic gate — most heartbeats return HEARTBEAT_OK
+  - `run_composer_assessment()`: LLM (Haiku) only when warranted; deterministic fast-path for coverage gaps
+  - `run_heartbeat()`: entry point orchestrating full cycle per user
+- ✓ `api/jobs/unified_scheduler.py` — Heartbeat wired as scheduled event:
+  - Free tier: daily (midnight UTC window)
+  - Pro tier: every scheduler cycle (5 min, cheap-first = negligible cost)
+  - `composer_heartbeat` + `agent_bootstrapped` activity log events
+- ✓ `origin="composer"` for Composer-created agents
+- ✓ Dashboard "Auto" badge extended to cover `composer` + `system_bootstrap` origins
+- ✓ Frontend `Agent.origin` type updated to include `'composer'`
 
 ### Phase 4: Supervisory Reframe
 

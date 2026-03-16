@@ -46,6 +46,7 @@ VALID_EVENT_TYPES = frozenset({
     "content_cleanup",          # Expired platform_content cleaned up
     "session_summary_written",  # Session compaction summaries generated
     "agent_bootstrapped",       # ADR-110: Auto-created agent on platform connection
+    "composer_heartbeat",       # ADR-111: TP Composer periodic assessment cycle
 })
 
 

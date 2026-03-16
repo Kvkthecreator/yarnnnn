@@ -4,6 +4,7 @@ YARNNN v5 - Unified Scheduler
 Consolidates all scheduled job processing:
 - Recurring agents (ADR-018)
 - Proactive/coordinator agents (ADR-092)
+- TP Composer Heartbeat (ADR-111 Phase 3)
 - Import jobs
 - Nightly conversation analysis + memory extraction
 - Platform content cleanup (ADR-072)
@@ -636,6 +637,61 @@ async def run_unified_scheduler():
         logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-111 Phase 3: TP Composer Heartbeat
+    # Cheap data query per user → Composer assessment only when warranted.
+    # Free: daily (midnight UTC). Pro: every cycle (cheap-first = negligible cost).
+    # -------------------------------------------------------------------------
+    composer_users = 0
+    composer_created = 0
+    try:
+        from services.composer import run_heartbeat
+        from services.platform_limits import get_user_tier
+
+        # Get all users with active platform connections
+        active_conn = supabase.table("platform_connections").select(
+            "user_id"
+        ).in_("status", ["connected", "active"]).execute()
+        heartbeat_user_ids_set = set(
+            row["user_id"] for row in (active_conn.data or [])
+        )
+
+        for hb_uid in heartbeat_user_ids_set:
+            # Tier gating: free = daily only (midnight window), pro = every cycle
+            tier = get_user_tier(supabase, hb_uid)
+            is_midnight_window = now.hour == 0 and now.minute < 5
+            if tier == "free" and not is_midnight_window:
+                continue
+
+            try:
+                hb_result = await run_heartbeat(supabase, hb_uid)
+                composer_users += 1
+
+                created_count = len((hb_result.get("composer_result") or {}).get("agents_created", []))
+                composer_created += created_count
+
+                # Write heartbeat event
+                try:
+                    from services.activity_log import write_activity as _chw
+                    await _chw(
+                        client=supabase,
+                        user_id=hb_uid,
+                        event_type="composer_heartbeat",
+                        summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
+                        metadata={
+                            "should_act": hb_result.get("should_act", False),
+                            "reason": hb_result.get("reason", ""),
+                            "agents_created": created_count,
+                            **hb_result.get("assessment_summary", {}),
+                        },
+                    )
+                except Exception:
+                    pass  # Non-fatal
+            except Exception as e:
+                logger.warning(f"[COMPOSER] Heartbeat failed for {hb_uid}: {e}")
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Heartbeat phase skipped: {e}")
+
+    # -------------------------------------------------------------------------
     # Memory Extraction + Session Summaries (ADR-064, ADR-067 Phase 1)
     # Process yesterday's sessions — only run at midnight UTC
     # -------------------------------------------------------------------------
@@ -759,6 +815,11 @@ async def run_unified_scheduler():
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
     if proactive_reviewed > 0:
         summary_parts.append(f"proactive={proactive_reviewed} reviewed")
+    if composer_users > 0:
+        composer_summary = f"composer={composer_users} users"
+        if composer_created > 0:
+            composer_summary += f" ({composer_created} agents created)"
+        summary_parts.append(composer_summary)
 
     # -------------------------------------------------------------------------
     # ADR-072: Write scheduler_heartbeat event for system state awareness
@@ -784,6 +845,8 @@ async def run_unified_scheduler():
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "proactive_reviewed": proactive_reviewed,
+            "composer_users": composer_users,
+            "composer_created": composer_created,
             "memory_extracted": memory_extracted,
             "errors": errors_encountered if errors_encountered else None,
             "cycle_started_at": now.isoformat(),
