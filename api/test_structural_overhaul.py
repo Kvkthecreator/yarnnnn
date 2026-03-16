@@ -403,8 +403,8 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     from services.agent_pipeline import DEFAULT_INSTRUCTIONS
     from services.primitives import execute_primitive
 
-    # 4a: All expected types have instructions
-    expected_types = ["digest", "brief", "status", "watch", "deep_research", "coordinator", "custom"]
+    # 4a: All expected skill types have instructions (ADR-109: keyed by skill name)
+    expected_types = ["digest", "prepare", "synthesize", "monitor", "research", "orchestrate", "custom"]
     for dtype in expected_types:
         assert_true(r, f"DEFAULT_INSTRUCTIONS[{dtype}] exists",
                     dtype in DEFAULT_INSTRUCTIONS and len(DEFAULT_INSTRUCTIONS[dtype]) > 10,

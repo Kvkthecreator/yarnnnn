@@ -135,7 +135,7 @@ export interface TPState {
   error: string | null;
   /** ADR-025: Current todo list for multi-step work */
   todos: Todo[];
-  /** ADR-025: Active slash command name (e.g., "board-update") */
+  /** ADR-025: Active slash command name (e.g., "recap", "summary") */
   activeCommand: string | null;
   /** ADR-025: Whether work panel is expanded */
   workPanelExpanded: boolean;

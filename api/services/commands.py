@@ -235,8 +235,8 @@ def detect_command(user_message: str) -> Optional[str]:
     Returns command name if detected, None otherwise.
 
     Detection methods:
-    1. Explicit slash command: /board-update, /create
-    2. Pattern matching: "board update", "investor update"
+    1. Explicit slash command: /recap, /summary, /search
+    2. Pattern matching: "slack recap", "work summary", "search my platforms"
     """
     message_lower = user_message.lower().strip()
 
@@ -308,9 +308,11 @@ async def detect_command_hybrid(user_message: str) -> Tuple[Optional[str], str, 
     try:
         from services.command_embeddings import detect_command_semantic
         semantic_match, confidence = await detect_command_semantic(user_message)
-        if semantic_match:
+        if semantic_match and semantic_match in COMMANDS:
             logger.info(f"Command detected via semantic: {semantic_match} (confidence: {confidence:.3f})")
             return (semantic_match, "semantic", confidence)
+        elif semantic_match:
+            logger.warning(f"Semantic match '{semantic_match}' not in COMMANDS — skipping")
     except ImportError:
         # Semantic matching not available
         pass

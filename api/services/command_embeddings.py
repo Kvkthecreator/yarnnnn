@@ -27,72 +27,71 @@ logger = logging.getLogger(__name__)
 # including variations and synonyms that might not appear in trigger_patterns.
 
 COMMAND_DESCRIPTIONS = {
-    "board-update": """
-        Create recurring board update agents for investors and board members.
-        Monthly or quarterly updates with company metrics, progress, challenges, and asks.
-        Investor communications, board reports, investor updates, VC updates.
-        Send updates to the board, share progress with investors.
+    # =========================================================================
+    # Agent Creation Commands
+    # =========================================================================
+    "create": """
+        Create a new recurring agent. Set up an agent to do work automatically.
+        Make an agent, build an agent, new agent, start something recurring.
+        I want to automate, help me set up something that runs regularly.
     """,
 
-    "status-report": """
-        Set up recurring status reports for managers, teams, or stakeholders.
-        Weekly or daily progress updates, wins, blockers, alignment.
-        Progress reports, team updates, status summaries, weekly standups.
-        Share progress with the team, send updates to my manager.
+    "summary": """
+        Create a work summary agent that synthesizes activity across platforms.
+        Weekly or daily progress updates, status reports, board updates, investor updates.
+        Summarize my work, progress report, stakeholder update, team update.
+        Share progress with the team, send updates to my manager, board report.
     """,
 
-    "research-brief": """
-        Create competitive intelligence or market research briefs.
-        Track competitors, market trends, technology developments.
-        Competitor analysis, market research, competitive intel, industry tracking.
-        Monitor competitors, track what rivals are doing, competitive landscape.
+    "recap": """
+        Create a platform recap agent to catch up on everything in a connected platform.
+        Slack recap, Gmail digest, Notion summary, email digest, channel summary.
+        Catch me up on Slack, summarize my emails, what happened in Notion.
+        Daily recap, weekly digest, platform summary, catch up on messages.
     """,
 
-    "stakeholder-update": """
-        Send regular updates to clients, external partners, or stakeholders.
-        Project updates, client communications, partner reports.
-        Keep clients informed, update external stakeholders, partner communications.
+    "prep": """
+        Set up auto meeting prep with daily briefings from your calendar.
+        Meeting preparation, 1:1 prep, event prep, call prep, daily briefing.
+        Prepare for my meetings, get ready for today's calls, calendar prep.
+        One-on-one prep, standup prep, discussion points for meetings.
     """,
 
-    "meeting-summary": """
-        Generate recurring meeting summaries from conversations.
-        Standup notes, one-on-one summaries, team meeting recaps.
-        Meeting notes, action items, discussion summaries.
-        All hands summary, team sync notes, weekly meeting recap.
+    "research": """
+        Set up proactive insights that watch your platforms and surface what matters.
+        Deep research, competitive intelligence, trend monitoring, emerging themes.
+        Watch my platforms, surface insights, investigate trends, what should I know.
+        Monitor competitors, track industry developments, research this topic.
     """,
 
-    "newsletter-section": """
-        Create recurring sections for newsletters or company digests.
-        Founder letters, weekly digests, product updates, company news.
-        Write newsletter content, company update emails, founder memo.
+    # =========================================================================
+    # Capability Commands
+    # =========================================================================
+    "search": """
+        Search across connected platforms to find specific information.
+        Find in Slack, search Gmail, look up in Notion, find messages.
+        Search my platforms, look for, find that conversation, where did I see.
+        Platform search, content search, find across my tools.
     """,
 
-    "changelog": """
-        Generate product release notes or changelog entries.
-        New features, bug fixes, improvements, version updates.
-        Release notes, what's new, product releases, shipped features.
-        Document what we shipped, write up the sprint, version update.
+    "sync": """
+        Refresh platform data to pull the latest from connected tools.
+        Sync my Slack, refresh Gmail, update Notion data, resync platforms.
+        Pull latest data, get fresh data, update my platforms, resync.
     """,
 
-    "one-on-one-prep": """
-        Prepare for recurring one-on-one meetings.
-        Direct report conversations, skip-level meetings, mentee sessions.
-        1:1 prep, meeting preparation, discussion points.
-        Prepare for my meeting with, get ready for 1-1.
+    "memory": """
+        Save a preference, fact, or instruction to persistent memory.
+        Remember that, save to memory, note that, keep in mind.
+        Store this preference, remember my settings, save this fact.
+        I prefer, my preference is, always do, never do.
     """,
 
-    "client-proposal": """
-        Create proposal templates for client engagements.
-        Service offerings, scope of work, project proposals.
-        SOW, engagement proposals, client pitches, project bids.
-        Write a proposal for, pitch deck for client.
-    """,
-
-    "performance-review": """
-        Generate self-assessment documents for performance reviews.
-        Quarterly retrospectives, annual evaluations, self-assessments.
-        Review prep, accomplishments summary, career reflection.
-        Write my self-review, prepare for annual review.
+    "web": """
+        Search the web for current information, news, or research.
+        Web search, Google, look up online, current events, latest news.
+        What's happening with, search the internet, find online.
+        Competitor research, industry news, technical docs, current trends.
     """,
 }
 
