@@ -84,14 +84,14 @@ Each phase's output is the next phase's input. This is the product's compounding
 
 **What it produces**:
 - Agent run with generated content (draft or delivered)
-- Output written to `platform_content` with `platform="yarnnn"` — permanently retained and searchable (ADR-102)
+- Output written to `/knowledge/` filesystem as structured, searchable workspace files (ADR-107, supersedes ADR-102)
 - Delivery via configured channel (in-app, email, Slack)
 
 **Why this matters**: This is the moment of first value. The user connected a platform and received a useful output without configuring anything. Every subsequent phase builds on this moment. If this output is poor, the chain stalls. If it's good, the user trusts the system to do more.
 
 **Design principle**: First-run quality over configuration breadth (FOUNDATIONS.md Axiom 6). One excellent auto-generated output beats three manually configured mediocre ones.
 
-**ADRs**: ADR-101 (intelligence model), ADR-102 (YARNNN content platform), ADR-080 (unified agent modes)
+**ADRs**: ADR-101 (intelligence model), ADR-107 (knowledge filesystem), ADR-080 (unified agent modes)
 
 ---
 
@@ -100,7 +100,7 @@ Each phase's output is the next phase's input. This is the product's compounding
 **What happens**: The recursive loop begins. Three things compound simultaneously:
 
 1. **Platform sync continues** — new messages, emails, pages, events flow in on schedule (daily for free, hourly for pro)
-2. **Agent outputs feed back** — each digest run's output is written as `platform_content` (platform="yarnnn"), becoming input for future agent runs and for other agents
+2. **Agent outputs feed back** — each digest run's output is written to `/knowledge/` as structured workspace files (ADR-107), becoming searchable input for future agent runs and for other agents via `QueryKnowledge`
 3. **User feedback refines** — edits, approvals, and dismissals become learned preferences injected into future agent prompts
 
 **Who does it**: Platform sync scheduler, agent execution pipeline, memory extraction service
@@ -156,7 +156,7 @@ Each phase's output is the next phase's input. This is the product's compounding
 
 **What it looks like**:
 - A Slack Recap agent (L1) produces daily digests
-- Those digests accumulate as `platform_content` (platform="yarnnn")
+- Those digests accumulate as `/knowledge/digests/` files (ADR-107)
 - The Composer identifies a pattern: engineering discussions span Slack and Gmail
 - It creates an "Engineering Week in Review" agent (L2-L3) that reads digest outputs + raw platform content
 - That agent's outputs feed back into the substrate
@@ -168,7 +168,7 @@ Each phase's output is the next phase's input. This is the product's compounding
 - Cost decreases (higher-level agents process distilled content, not raw firehose)
 - Switching costs deepen (accumulated L2-L4 content is irreplaceable)
 
-**ADRs**: ADR-102 (agent outputs as content), ADR-106 (workspace architecture), ADR-072 (retention model)
+**ADRs**: ADR-107 (knowledge filesystem), ADR-106 (workspace architecture), ADR-072 (retention model)
 
 ---
 
@@ -251,10 +251,34 @@ This is FOUNDATIONS.md Axiom 4 in practice: value comes from accumulated attenti
 | Connect | `api/routes/integrations.py`, `api/services/landscape.py`, `api/integrations/core/oauth.py` | ADR-113, ADR-057 |
 | Perceive | `api/workers/platform_worker.py`, `api/integrations/core/{slack,google,notion}_client.py` | ADR-077, ADR-072, ADR-112 |
 | Bootstrap | `api/services/onboarding_bootstrap.py` | ADR-110 |
-| First Value | `api/services/agent_execution.py`, `api/services/agent_pipeline.py` | ADR-101, ADR-102, ADR-080 |
-| Accumulate | `api/jobs/platform_sync_scheduler.py`, `api/services/memory.py` | ADR-072, ADR-087, ADR-101 |
-| Compose | TP Composer capability (ADR-111) | ADR-111, ADR-109 |
-| Compound | Agent execution (same pipeline, higher-level agents) | ADR-102, ADR-106 |
+| First Value | `api/services/agent_execution.py`, `api/services/agent_pipeline.py` | ADR-101, ADR-107, ADR-080 |
+| Accumulate | `api/jobs/platform_sync_scheduler.py`, `api/services/memory.py`, `api/services/workspace.py` | ADR-072, ADR-087, ADR-107 |
+| Compose | TP Composer capability (`api/services/composer.py`) | ADR-111, ADR-109 |
+| Compound | Agent execution (same pipeline, higher-level agents) + `QueryKnowledge` primitive | ADR-107, ADR-106 |
+
+---
+
+## Implementation Status (2026-03-16)
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **1. Connect** | **Shipped** | ADR-113 auto-select + sync in OAuth callback |
+| **2. Perceive** | **Shipped** | All 4 platforms, paginated, incremental, tier-gated |
+| **3. Bootstrap** | **Shipped** | Deterministic digest creation + inline first-run execution |
+| **4. First Value** | **Shipped** | Bootstrap executes first run inline (not waiting for scheduler) |
+| **5. Accumulate** | **Shipped** | Agent outputs → `/knowledge/` (ADR-107). Feedback → learned preferences (ADR-101). Sync continues on schedule. |
+| **6. Compose** | **Partially shipped** | Bootstrap bounded context active. Heartbeat assessment logic exists (`composer.py`) but scheduler activation deferred. Coverage gap detection works. LLM-driven compositional reasoning (cross-platform agent creation) pending scheduler wiring. |
+| **7. Compound** | **Infrastructure ready** | `QueryKnowledge` primitive lets agents search `/knowledge/`. No second-order agents exist yet — depends on Phase 6 Heartbeat activation to create them. Manually creatable via TP chat today. |
+
+### What "Partially shipped" means for Phase 6
+
+The Composer has three bounded contexts (ADR-111):
+
+1. **Bootstrap** — deterministic agent creation on platform connect. **Shipped.**
+2. **Heartbeat** — periodic TP self-assessment on cadence. **Code exists** (`should_composer_act()`, `heartbeat_data_query()`), **scheduler call deferred**. When activated, this is the mechanism that creates cross-platform and synthesis agents autonomously.
+3. **Lifecycle** — underperformer pausing, scope expansion, cross-agent consolidation. **Partially implemented** (underperformer detection exists, expansion logic pending).
+
+The gap between "Phases 1-5 shipped" and "Phases 6-7 fully autonomous" is one scheduler activation + LLM reasoning wiring. The decision infrastructure exists; the action path needs connection.
 
 ---
 

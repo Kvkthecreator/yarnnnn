@@ -105,7 +105,42 @@ async def maybe_bootstrap_agent(
         return None
 
     agent_id = result["agent_id"]
+    agent = result.get("agent")
     logger.info(f"[BOOTSTRAP] Created {template['title']} ({agent_id}) for user {user_id}")
+
+    # ADR-110: Execute first run inline — don't wait for scheduler (up to 5 min delay).
+    # This makes the "60 seconds to first value" promise real.
+    if agent:
+        try:
+            from services.agent_execution import execute_agent_generation
+            exec_result = await execute_agent_generation(
+                client=client,
+                user_id=user_id,
+                agent=agent,
+                trigger_context={"type": "bootstrap", "platform": platform},
+            )
+            if exec_result.get("success"):
+                logger.info(
+                    f"[BOOTSTRAP] First run delivered: {template['title']} "
+                    f"v{exec_result.get('version_number', '?')}"
+                )
+                # Update next_run_at so scheduler doesn't double-run
+                try:
+                    from jobs.unified_scheduler import calculate_next_run_from_schedule
+                    agent_schedule = agent.get("schedule", {})
+                    next_run = calculate_next_run_from_schedule(agent_schedule)
+                    client.table("agents").update({
+                        "next_run_at": next_run.isoformat(),
+                    }).eq("id", agent_id).execute()
+                except Exception:
+                    pass  # Non-fatal — worst case is one extra run
+            else:
+                logger.warning(
+                    f"[BOOTSTRAP] First run failed: {exec_result.get('message')}"
+                )
+        except Exception as e:
+            # Non-fatal — scheduler will pick it up on next tick
+            logger.warning(f"[BOOTSTRAP] Inline execution failed, scheduler will retry: {e}")
 
     # Activity log
     try:

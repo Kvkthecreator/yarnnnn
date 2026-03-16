@@ -1,6 +1,6 @@
 # ADR-110: Onboarding Bootstrap
 
-**Status:** Implemented (Phase 1 + Phase 2: backend bootstrap + OAuth redirect + dashboard UX)
+**Status:** Implemented (Phase 1 + Phase 2 + inline first-run: backend bootstrap + OAuth redirect + dashboard UX + immediate execution)
 **Date:** 2026-03-13
 **Supersedes:** None
 **Related:** ADR-057 (Streamlined Onboarding), ADR-088 (Trigger Dispatch), ADR-109 (Agent Framework), ADR-111 (Agent Composer)
