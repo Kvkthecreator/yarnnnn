@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.8] - Composer Prompt Versioning Baseline (ADR-114)
+
+### Established
+- `api/services/composer.py`: **Composer v1.0 baseline** — documenting current state for versioned evolution.
+- `COMPOSER_SYSTEM_PROMPT` (v1.0): Instructs Haiku to assess platforms, agents, work patterns. Principles: bias toward action, highest-value first (digest→synthesis→research), respect existing, one agent per decision. Output: JSON `create` or `observe`.
+- `_build_composer_prompt()` (v1.0): Passes trigger reason, connected platforms, active agents, coverage gaps, health (stale/feedback), maturity signals, tier constraints.
+- `should_composer_act()` heuristics (v1.0): coverage_gap, lifecycle_underperformer, lifecycle_expansion, cross_agent_consolidation, cross_platform_opportunity, engaged_user, stale_agents.
+- Coverage detection: source-based + title-based matching (bootstrap agents with empty sources).
+- `docs/adr/ADR-114-composer-substrate-aware-assessment.md`: New ADR proposing evolution from platform-metadata-centric to substrate-aware assessment. Four phases: knowledge corpus signals → substrate-aware heuristics → LLM prompt injection → prompt v2.0.
+
+### Policy
+- All future Composer prompt or heuristic changes MUST include a CHANGELOG entry with version bump, behavioral delta, and expected outcome. Composer orchestration decisions are product-defining — same rigor as Orchestrator prompt versioning.
+
+---
+
 ## [2026.03.16.7] - ADR-113: Auto Source Selection — eliminate manual prerequisite + smarter heuristics
 
 ### Changed

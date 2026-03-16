@@ -549,6 +549,8 @@ async def _llm_composer_assessment(
         return []
 
 
+# Composer Prompt v1.0 — ADR-114 establishes versioning baseline.
+# Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
 
 You assess the user's connected platforms, existing agents, and work patterns to identify gaps in their agent workforce.

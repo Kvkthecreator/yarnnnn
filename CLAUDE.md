@@ -52,6 +52,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-111**: Agent Composer — TP's compositional capability (not a separate service). Three bounded contexts: **Bootstrap** (deterministic fast-path), **Heartbeat** (periodic TP self-assessment of agent workforce), **Composer** (assessment + creation/adjustment/dissolution). Unifies Write/CreateAgent into single `CreateAgent` primitive. Autonomy-first: bias toward action, feedback as correction. Proactive/coordinator modes reframed as TP supervisory capabilities. Platform content as onramp (dependency decreases over time). Lifecycle progression: per-agent maturity signals (run count, approval rate, edit distance trend), auto-pause underperformers, auto-create synthesis from mature digests, cross-agent pattern detection. (Implemented — all 5 phases.)
 - **ADR-112**: Sync Efficiency & Concurrency Control — three layers: (1) atomic sync lock on `platform_connections` replacing `SCHEDULE_WINDOW_MINUTES` timing hack, (2) platform-level heartbeat fast-path (Gmail historyId, Calendar syncToken, Slack latest, Notion search) to skip source iteration when nothing changed, (3) per-source skip hints (deferred). Coordinates all three sync paths (scheduled, manual, TP RefreshPlatformContent). (Implemented.)
 - **ADR-113**: Auto Source Selection — eliminates manual source selection as prerequisite for platform connections. OAuth callback auto-discovers landscape, applies `compute_smart_defaults()`, kicks off first sync immediately. Post-OAuth redirect changed from `/orchestrator` to `/dashboard`. Context pages become optional refinement, not first-time entry point. Dashboard platform cards trigger OAuth directly. (Implemented.)
+- **ADR-114**: Composer Substrate-Aware Assessment — evolves Composer from platform-metadata-centric to recursive-substrate-aware. Four phases: (1) knowledge corpus signals in heartbeat_data_query, (2) substrate-aware heuristics in should_composer_act, (3) knowledge summary in LLM prompt, (4) Composer prompt v2.0. Establishes Composer prompt versioning policy (same rigor as Orchestrator). (Proposed.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -153,14 +154,16 @@ Two hooks auto-inject context so the user doesn't need to manually paste reminde
 
 ## Prompt Change Protocol
 
-When modifying any prompt or tool definition in these files:
+When modifying any prompt, tool definition, or orchestration heuristic in these files:
 - `api/agents/thinking_partner.py` (TP system prompt)
 - `api/services/primitives/*.py` (tool definitions)
+- `api/services/composer.py` (Composer system prompt, heuristics, assessment data model — ADR-114)
 
 You MUST:
 1. Update `api/prompts/CHANGELOG.md` with the change
 2. Note the expected behavior change
 3. If significant, increment the version comment at the top of the prompt section
+4. For Composer changes: every heuristic/prompt change dictates autonomous orchestration — document behavioral delta carefully
 
 ### Changelog Format
 

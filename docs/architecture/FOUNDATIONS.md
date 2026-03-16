@@ -59,7 +59,7 @@ Perception is not just external platform data. The perception substrate is **eve
 
 1. **External perception** — platform sync fills `platform_content` from Slack, Gmail, Notion, Calendar. This is the surface area for onboarding and existing work.
 
-2. **Internal perception** — agent outputs, written to `platform_content` (platform="yarnnn") and workspace files, feed back into the shared content layer. An agent's output is another agent's input. TP's observations are part of the substrate.
+2. **Internal perception** — agent outputs, written to `/knowledge/` files in `workspace_files` (ADR-107, superseding ADR-102's `platform_content` rows), feed back into the shared knowledge layer. An agent's output is another agent's input. TP's observations are part of the substrate.
 
 3. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's own compositional reasoning create a shared recursive layer. As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
 
@@ -67,13 +67,13 @@ Perception is not just external platform data. The perception substrate is **eve
 
 ```
 External platforms → platform_content → agent execution → agent output →
-  platform_content (yarnnn) + workspace → next agent execution → ...
-                                    ↑                           |
-                                    └── user feedback ──────────┘
-                                    └── TP assessment ──────────┘
+  /knowledge/ (workspace_files) → next agent execution → ...
+                              ↑                           |
+                              └── user feedback ──────────┘
+                              └── TP assessment ──────────┘
 ```
 
-The YARNNN content filesystem (`workspace_files` + `platform_content`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume.
+The YARNNN knowledge filesystem (`workspace_files`: `/knowledge/` for accumulated outputs, `/agents/` for agent state) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume.
 
 ### Implication: Optimize for Accumulation, Not Extraction
 
