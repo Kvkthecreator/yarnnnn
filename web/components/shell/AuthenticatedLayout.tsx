@@ -5,12 +5,13 @@
  * ADR-063: Four-Layer Model Navigation
  *
  * Navigation model:
- * - Home (/dashboard) = Chat-first experience (TP primary)
+ * - Home (/dashboard) = Supervision dashboard (agent health, Composer activity)
+ * - Orchestrator (/orchestrator) = TP chat (conversational agent)
  * - Four-layer pages: Memory, Activity, Context, Work (Agents)
  * - Settings is meta (not a layer)
  *
- * Navigation structure (ADR-063 aligned):
- * - Agent (home) | Work (Agents) | Memory | Context | Activity | Settings
+ * Navigation structure:
+ * - Dashboard (home) | Orchestrator | Work-Agents | Memory | Context | Activity | Settings
  *
  * Four-Layer Model:
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
@@ -22,14 +23,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap, MessageSquare, LayoutDashboard } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_LABEL, HOME_ROUTE, isHomeRoute } from '@/lib/routes';
+import { HOME_LABEL, HOME_ROUTE, isHomeRoute, ORCHESTRATOR_ROUTE, ORCHESTRATOR_LABEL, isOrchestratorRoute } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -99,10 +100,10 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 // Navigation Types
 // =============================================================================
 
-// ADR-037: Chat-First Navigation
-// - Chat is home (dashboard with idle surface)
+// Supervision Dashboard + Orchestrator Navigation
+// - Dashboard is home (agent health, Composer activity)
+// - Orchestrator is TP chat (conversational agent)
 // - All other items are routes (actual pages, not surfaces)
-// - Surfaces are invoked from chat, not from nav
 
 interface RouteItem {
   id: string;
@@ -111,9 +112,9 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
-// Primary workspace: Agent + Work (creation flows through TP chat)
+// Primary workspace: Dashboard + Orchestrator + Agents
 // Supporting pages: Memory, Context, Activity, System, Settings
+const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: MessageSquare, path: ORCHESTRATOR_ROUTE };
 const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Briefcase, path: '/agents' };
 
 const ROUTE_PAGES: RouteItem[] = [
@@ -127,7 +128,11 @@ const ROUTE_PAGES: RouteItem[] = [
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
-  // Check agents route first (primary workspace)
+  // Check orchestrator route
+  if (pathname === ORCHESTRATOR_NAV.path || pathname.startsWith(ORCHESTRATOR_NAV.path + '/')) {
+    return ORCHESTRATOR_NAV;
+  }
+  // Check agents route (primary workspace)
   if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
     return AGENTS_ROUTE;
   }
@@ -192,9 +197,9 @@ function AuthenticatedLayoutInner({
       }
 
       // For remaining surfaces (work, review, create, etc.), use surface system
-      // If not on dashboard, navigate there first
-      if (!isHomeRoute(window.location.pathname)) {
-        router.push(HOME_ROUTE);
+      // If not on orchestrator, navigate there first (surfaces live on the chat page)
+      if (!isOrchestratorRoute(window.location.pathname)) {
+        router.push(ORCHESTRATOR_ROUTE);
       }
       // Use handoff version if we have a message from TP
       if (handoffMessage) {
@@ -206,13 +211,12 @@ function AuthenticatedLayoutInner({
     [setSurface, setSurfaceWithHandoff, router]
   );
 
-  // Navigate to home (handles both route nav and surface reset)
+  // Navigate to home (dashboard)
   const navigateToHome = useCallback(() => {
     if (!isOnHome) {
       router.push(HOME_ROUTE);
     }
-    setSurface({ type: 'idle' });
-  }, [isOnHome, router, setSurface]);
+  }, [isOnHome, router]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -223,18 +227,17 @@ function AuthenticatedLayoutInner({
     }
   }, [dropdownOpen]);
 
-  // ADR-037: Get current display info based on context
+  // Get current display info based on context
   const getCurrentDisplay = () => {
     if (currentRoute) {
-      // On a route page (e.g., /platforms, /docs, /settings)
       return {
         icon: currentRoute.icon,
         label: currentRoute.label,
       };
     }
-    // On home route = Agent
+    // On home route = Dashboard
     return {
-      icon: Sparkles,
+      icon: LayoutDashboard,
       label: HOME_LABEL,
     };
   };
@@ -277,14 +280,13 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary workspace: TP + Agents */}
+                {/* Primary workspace: Dashboard + Orchestrator + Agents */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isOnHome) {
                       router.push(HOME_ROUTE);
                     }
-                    setSurface({ type: 'idle' });
                     setDropdownOpen(false);
                   }}
                   className={cn(
@@ -292,8 +294,23 @@ function AuthenticatedLayoutInner({
                     isOnHome && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <LayoutDashboard className="w-4 h-4" />
                   {HOME_LABEL}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(ORCHESTRATOR_ROUTE);
+                    setSurface({ type: 'idle' });
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    isOrchestratorRoute(pathname) && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  {ORCHESTRATOR_LABEL}
                 </button>
                 <button
                   onClick={(e) => {

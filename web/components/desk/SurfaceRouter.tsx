@@ -16,7 +16,7 @@
  * - agent-review → /agents/[id] (inline review)
  *
  * ADR-067 Migration:
- * - agent-create → DELETED (creation handled by TP chat — /dashboard?create)
+ * - agent-create → DELETED (creation handled by TP chat — /orchestrator?create)
  *
  * Remaining surfaces (TP-invoked only):
  * - context-editor: Edit specific memory

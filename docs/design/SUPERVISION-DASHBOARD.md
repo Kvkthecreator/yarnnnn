@@ -1,7 +1,7 @@
 # Supervision Dashboard — Route Restructure & Autonomous Surfacing
 
 **Date:** 2026-03-16
-**Status:** Proposed
+**Status:** Implemented (Phases 1-3)
 **Related:**
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model, grouping
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces
@@ -235,27 +235,29 @@ The rename is cosmetic in the UI layer — no backend changes. The TP system pro
 
 ## Implementation Phases
 
-### Phase 1: Route Restructure (Minimal)
-- Move TP chat from `/dashboard` to `/orchestrator`
-- Create placeholder `/dashboard` page with "Coming soon" or redirect
-- Update sidebar navigation labels and icons
-- Update all internal links (agent detail "Open in chat" → `/orchestrator?agent_id=X`)
+### Phase 1: Route Restructure (Minimal) -- IMPLEMENTED
+- [x] Move TP chat from `/dashboard` to `/orchestrator`
+- [x] Update sidebar navigation (Dashboard + Orchestrator + Agents primary)
+- [x] Update all internal links (5 hardcoded refs + OAuth default)
+- [x] Add `/orchestrator` to middleware protected routes + robots.txt
+- [x] Update ADR-110 test assertions for new OAuth redirect path
 
-### Phase 2: Dashboard MVP
-- `GET /api/dashboard/summary` endpoint (reuses Composer maturity logic)
-- Agent health grid (compact cards with maturity indicator)
-- Composer activity feed (from activity_log)
-- "Ask Orchestrator" quick-access button
+### Phase 2: Dashboard MVP -- IMPLEMENTED
+- [x] `GET /api/dashboard/summary` endpoint (maturity, Composer actions, attention, stats)
+- [x] Agent health grid (status dot, maturity badge, edit trend, approval rate)
+- [x] Composer activity feed (lifecycle actions + bootstraps from activity_log)
+- [x] "Ask Orchestrator" quick-access button
+- [x] Summary stats row (active agents, runs/week, maturity distribution)
 
-### Phase 3: Attention System
-- Attention banner with auto-paused agents, pending suggestions
-- Dismissible items (tracked in localStorage or user preferences)
-- Deep links to relevant agent detail pages
+### Phase 3: Attention System -- IMPLEMENTED
+- [x] Attention banner for auto-paused agents
+- [x] Attention banner for recently failed runs
+- [x] Deep links to agent detail pages from all items
 
-### Phase 4: Refinement
-- Summary stats row
-- Maturity trend sparklines (if data warrants)
-- Customizable dashboard layout (user can hide sections)
+### Phase 4: Refinement (Future)
+- [ ] Dismissible attention items (localStorage or user preferences)
+- [ ] Maturity trend sparklines (if data warrants)
+- [ ] Customizable dashboard layout (user can hide sections)
 
 ---
 
@@ -276,3 +278,4 @@ The rename is cosmetic in the UI layer — no backend changes. The TP system pro
 | Date | Change |
 |------|--------|
 | 2026-03-16 | Initial proposal — route restructure, supervision dashboard, Orchestrator rename |
+| 2026-03-16 | Implemented Phases 1-3: route restructure, dashboard MVP, attention system |

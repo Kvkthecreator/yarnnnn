@@ -418,7 +418,7 @@ def get_frontend_redirect_url(
     """
     Get the URL to redirect the user to after OAuth.
 
-    ADR-110: Default redirect to /dashboard with provider + bootstrapped params.
+    ADR-110: Default redirect to /orchestrator with provider + bootstrapped params.
     If redirect_to is provided (e.g. "/system"), return there instead —
     this handles reconnects where the user should land back where they started.
     On error, redirects to settings page.
@@ -431,8 +431,8 @@ def get_frontend_redirect_url(
             "provider": redirect_provider,
             "status": "connected",
         }
-        # Use caller-specified path if provided, otherwise default to /dashboard (ADR-110)
-        target_path = redirect_to if redirect_to else "/dashboard"
+        # Use caller-specified path if provided, otherwise default to /orchestrator (ADR-110)
+        target_path = redirect_to if redirect_to else "/orchestrator"
         return f"{base_url}{target_path}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting

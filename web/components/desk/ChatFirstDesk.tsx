@@ -15,6 +15,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import {
   Sparkles,
   CheckCircle2,
@@ -413,7 +414,7 @@ export function ChatFirstDesk() {
     if (searchParams?.has('create')) {
       setInput('I want to create a new agent');
       textareaRef.current?.focus();
-      router.replace('/dashboard', { scroll: false });
+      router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
     }
   }, [searchParams, router]);
 
@@ -426,7 +427,7 @@ export function ChatFirstDesk() {
     const status = searchParams?.get('status');
     if (provider && status === 'connected') {
       setBootstrapProvider(provider);
-      router.replace('/dashboard', { scroll: false });
+      router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
 
       // Poll for bootstrap agent to appear (created by sync completion)
       const BOOTSTRAP_TITLES: Record<string, string> = {

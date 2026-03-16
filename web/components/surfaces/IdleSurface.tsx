@@ -33,6 +33,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import { useDesk } from '@/contexts/DeskContext';
 import { usePlatformOnboardingState } from '@/hooks/usePlatformOnboardingState';
 import {
@@ -332,7 +333,7 @@ export function IdleSurface() {
         <div className="grid grid-cols-2 gap-3">
           {/* Create Agent - Primary (ADR-035: Full-screen surface) */}
           <button
-            onClick={() => router.push('/dashboard?create')}
+            onClick={() => router.push(`${ORCHESTRATOR_ROUTE}?create`)}
             className="p-4 border-2 border-dashed border-primary/30 rounded-lg hover:border-primary/50 hover:bg-primary/5 text-left"
           >
             <div className="flex items-center gap-2 mb-1">

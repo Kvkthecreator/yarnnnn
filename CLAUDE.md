@@ -246,7 +246,7 @@ You MUST:
 
 ### ADR-057: Streamlined Onboarding
 
-- OAuth redirects to `/dashboard?provider=X&status=connected`
+- OAuth redirects to `/orchestrator?provider=X&status=connected`
 - `PlatformSyncStatus` detects params and opens source selection modal
 - Tier-gated source limits (free = 1 per platform)
 
@@ -276,6 +276,7 @@ You MUST:
 | Agent Execution | `api/services/agent_execution.py` |
 | Agent Pipeline | `api/services/agent_pipeline.py` |
 | Agent Routes | `api/routes/agents.py` |
+| Dashboard Summary | `api/routes/dashboard.py` (Supervision Dashboard) |
 | Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
 | Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
 | Platform API Clients | `api/integrations/core/{slack,google,notion}_client.py` |
@@ -286,6 +287,9 @@ You MUST:
 | Frontend API Client | `web/lib/api/client.ts` |
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding UI | `web/components/onboarding/` |
+| Supervision Dashboard | `web/app/(authenticated)/dashboard/page.tsx` |
+| Orchestrator (TP Chat) | `web/app/(authenticated)/orchestrator/page.tsx` |
+| Route Constants | `web/lib/routes.ts` (HOME_ROUTE, ORCHESTRATOR_ROUTE) |
 
 ---
 

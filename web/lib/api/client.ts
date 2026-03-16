@@ -1245,6 +1245,51 @@ export const api = {
         timestamps: Record<string, string>;
       }>("/api/system/sync-timestamps"),
   },
+
+  // Supervision Dashboard
+  dashboard: {
+    getSummary: () =>
+      request<{
+        agents: Array<{
+          id: string;
+          title: string;
+          status: string;
+          origin: string;
+          skill: string;
+          scope: string;
+          sources: Array<{ provider?: string; resource_id?: string }>;
+          last_run_at: string | null;
+          maturity: 'nascent' | 'developing' | 'mature';
+          approval_rate: number | null;
+          edit_trend: number | null;
+          total_runs: number;
+        }>;
+        composer_actions: Array<{
+          type: 'created' | 'paused' | 'observation';
+          summary: string;
+          agent_id?: string;
+          agent_title?: string;
+          created_at: string;
+          metadata: Record<string, unknown>;
+        }>;
+        attention: Array<{
+          type: 'auto_paused' | 'failed' | 'declining';
+          message: string;
+          agent_id: string;
+          agent_title: string;
+        }>;
+        stats: {
+          total_agents: number;
+          active_agents: number;
+          runs_this_week: number;
+          maturity_distribution: {
+            nascent: number;
+            developing: number;
+            mature: number;
+          };
+        };
+      }>("/api/dashboard/summary"),
+  },
 };
 
 export default api;

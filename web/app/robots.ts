@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
           "/auth/",
           "/admin/",
           "/dashboard/",
+          "/orchestrator/",
           "/activity/",
           "/memory/",
           "/context/",
