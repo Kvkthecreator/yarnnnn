@@ -81,6 +81,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             .neq("status", "archived")
             .execute()
         )
+        # Note: origin IS selected above — used by maturity signals and lifecycle guards
         agents = result.data or []
     except Exception as e:
         logger.warning(f"[COMPOSER] Agent query failed: {e}")
@@ -169,15 +170,25 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                     "title": agent["title"],
                     "skill": agent.get("skill"),
                     "scope": agent.get("scope"),
+                    "origin": agent.get("origin"),
                     "total_runs": 0,
                     "maturity": "nascent",
                 })
                 continue
 
-            # Approval rate: approved or delivered / total completed
+            # Approval rate: weighted signal from explicit approval vs auto-delivery
+            # Explicit approval (user reviewed and approved) = full trust signal
+            # Delivered (auto-delivered, never reviewed) = partial signal (0.5 weight)
+            # This prevents maturity inflation from unreviewed outputs
             completed = [r for r in runs if r.get("status") in ("approved", "delivered", "rejected")]
-            approved = [r for r in runs if r.get("status") in ("approved", "delivered")]
-            approval_rate = len(approved) / len(completed) if completed else 0.0
+            explicitly_approved = len([r for r in runs if r.get("status") == "approved"])
+            auto_delivered = len([r for r in runs if r.get("status") == "delivered"])
+            rejected = len([r for r in runs if r.get("status") == "rejected"])
+            if completed:
+                weighted_approvals = explicitly_approved + (auto_delivered * 0.5)
+                approval_rate = weighted_approvals / len(completed)
+            else:
+                approval_rate = 0.0
 
             # Edit distance trend: are edits decreasing? (convergence = agent improving)
             distances = [
@@ -219,6 +230,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                 "title": agent["title"],
                 "skill": agent.get("skill"),
                 "scope": agent.get("scope"),
+                "origin": agent.get("origin"),
                 "total_runs": total_runs,
                 "approval_rate": round(approval_rate, 2),
                 "edit_trend": round(edit_trend, 2) if edit_trend is not None else None,
@@ -284,9 +296,11 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     Returns (should_act, reason).
     "Nothing to do" is first-class — most heartbeats should return False.
     """
-    # No platforms connected — nothing to compose from
-    if not assessment["connected_platforms"]:
-        return False, "HEARTBEAT_OK: no platforms connected"
+    # No substrate at all — no platforms, no agents, nothing to compose from
+    # Platform connections are the onramp, not the engine (FOUNDATIONS.md).
+    # Users with agents but no platforms (e.g., research agents, file uploads) still get heartbeat.
+    if not assessment["connected_platforms"] and assessment["agents"]["active"] == 0:
+        return False, "HEARTBEAT_OK: no substrate (no platforms, no agents)"
 
     # ADR-111 Phase 5: Lifecycle — underperformers need attention (even at tier limit)
     underperformers = assessment.get("maturity", {}).get("underperformers", [])
@@ -739,7 +753,15 @@ async def run_lifecycle_assessment(
             total_runs = up.get("total_runs", 0)
 
             # Only auto-pause if clearly underperforming (many runs, low approval)
-            # Don't dissolve user_configured agents — just pause + observe
+            # NEVER auto-pause user_configured agents — respect manual overrides (ADR-111)
+            origin = up.get("origin", "user_configured")
+            if origin == "user_configured":
+                result["observations"].append(
+                    f"Underperformer '{title}' is user-configured — skipping auto-pause "
+                    f"({total_runs} runs, {approval_rate:.0%} approval)"
+                )
+                continue
+
             if total_runs >= 8 and approval_rate < 0.3:
                 try:
                     client.table("agents").update({

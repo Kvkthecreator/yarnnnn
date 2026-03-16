@@ -204,6 +204,7 @@ All agent creation paths now funnel through single `create_agent_record()`.
 - ✓ `api/jobs/unified_scheduler.py` — Heartbeat wired as scheduled event:
   - Free tier: daily (midnight UTC window)
   - Pro tier: every scheduler cycle (5 min, cheap-first = negligible cost)
+  - User discovery: platform connections OR active agents (not platform-bound — FOUNDATIONS.md)
   - `composer_heartbeat` + `agent_bootstrapped` activity log events
 - ✓ `origin="composer"` for Composer-created agents
 - ✓ Dashboard "Auto" badge extended to cover `composer` + `system_bootstrap` origins
@@ -224,9 +225,9 @@ All agent creation paths now funnel through single `create_agent_record()`.
 ### Phase 5: Lifecycle Progression ✓ (Implemented 2026-03-16)
 
 - ✓ `api/services/composer.py` — maturity signals + lifecycle assessment:
-  - `heartbeat_data_query()` enriched with per-agent maturity signals: run count, approval rate, edit distance trend, tenure, maturity classification (nascent/developing/mature), underperformer detection
+  - `heartbeat_data_query()` enriched with per-agent maturity signals: run count, weighted approval rate (explicit approval=1.0, auto-delivered=0.5 — prevents maturity inflation from unreviewed outputs), edit distance trend, tenure, origin, maturity classification (nascent/developing/mature), underperformer detection
   - `should_composer_act()` extended with lifecycle triggers: underperformer detection (fires even at tier limit), mature agent expansion, cross-agent pattern consolidation
-  - `run_lifecycle_assessment()`: deterministic lifecycle actions — auto-pause underperformers (<30% approval, 8+ runs), auto-create synthesis agents from mature digests, cross-agent consolidation
+  - `run_lifecycle_assessment()`: deterministic lifecycle actions — auto-pause underperformers (<30% approval, 8+ runs, **only system-created agents** — user_configured agents are never auto-paused per manual override invariant), auto-create synthesis agents from mature digests, cross-agent consolidation
   - `run_composer_assessment()` routes lifecycle triggers to `run_lifecycle_assessment()` (no LLM needed)
   - `_build_composer_prompt()` includes maturity data for LLM assessment path
   - `run_heartbeat()` logs lifecycle actions to activity log
@@ -274,6 +275,7 @@ All agent creation paths now funnel through single `create_agent_record()`.
 |------|--------|
 | 2026-03-13 | v1 — Composer as backend service, three confidence tiers, event-only triggers |
 | 2026-03-16 | v2 — Major revision: Composer reframed as TP capability (not service) per FOUNDATIONS Axiom 5. Three bounded contexts (Composer/Heartbeat/Bootstrap). Autonomy-first posture (bias toward action). Platform content as onramp. Proactive/coordinator reframe. Heartbeat as TP's autonomous cadence. Two-order control model. |
+| 2026-03-16 | v2.1 — Autonomy hardening: (1) Origin guard on lifecycle pause — user_configured agents never auto-paused. (2) Weighted approval rate — explicit approval=1.0, auto-delivered=0.5, prevents maturity inflation. (3) Heartbeat broadened to users with agents but no platform connections. |
 
 ## References
 

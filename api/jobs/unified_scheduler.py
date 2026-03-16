@@ -648,13 +648,21 @@ async def run_unified_scheduler():
         from services.composer import run_heartbeat
         from services.platform_limits import get_user_tier
 
-        # Get all users with active platform connections
+        # Get all users with substrate: platform connections OR active agents
+        # Platform connections are the onramp, but users with research/knowledge
+        # agents (no platforms) still need Heartbeat (FOUNDATIONS.md: platform ≠ engine)
         active_conn = supabase.table("platform_connections").select(
             "user_id"
         ).in_("status", ["connected", "active"]).execute()
         heartbeat_user_ids_set = set(
             row["user_id"] for row in (active_conn.data or [])
         )
+        # Also include users with active agents but no platform connections
+        active_agents_users = supabase.table("agents").select(
+            "user_id"
+        ).eq("status", "active").execute()
+        for row in (active_agents_users.data or []):
+            heartbeat_user_ids_set.add(row["user_id"])
 
         for hb_uid in heartbeat_user_ids_set:
             # Tier gating: free = daily only (midnight window), pro = every cycle

@@ -90,9 +90,16 @@ async def get_dashboard_summary(client: UserClient):
                 total_runs = len(runs)
 
                 if total_runs > 0:
+                    # Weighted approval: explicit approval = 1.0, auto-delivered = 0.5
+                    # Matches composer.py maturity logic — prevents inflation from unreviewed outputs
                     completed = [r for r in runs if r.get("status") in ("approved", "delivered", "rejected")]
-                    approved = [r for r in runs if r.get("status") in ("approved", "delivered")]
-                    approval_rate = round(len(approved) / len(completed), 2) if completed else None
+                    explicitly_approved = len([r for r in runs if r.get("status") == "approved"])
+                    auto_delivered = len([r for r in runs if r.get("status") == "delivered"])
+                    if completed:
+                        weighted = explicitly_approved + (auto_delivered * 0.5)
+                        approval_rate = round(weighted / len(completed), 2)
+                    else:
+                        approval_rate = None
 
                     # Edit distance trend
                     distances = [
