@@ -9,14 +9,17 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "yarnnn turns connected work context into autonomous work-agents. Define a specialist, connect sources, review runs, and let quality compound over time.",
+    "yarnnn connects to your work tools and creates autonomous agents that improve with every cycle. Connect, supervise, compound.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
     "autonomous ai workflow",
     "agent automation",
-    "work agents",
+    "ai agents",
     "context powered agent",
+    "slack ai summary",
+    "gmail ai digest",
+    "ai meeting prep",
   ],
 });
 
@@ -30,19 +33,19 @@ export default function HowItWorksPage() {
     step: [
       {
         "@type": "HowToStep",
-        name: "Define your agent specialist (type + mode)",
+        name: "Connect your tools — Slack, Gmail, Notion, or Calendar",
       },
       {
         "@type": "HowToStep",
-        name: "Connect sources from Slack, Gmail, Notion, and Calendar",
+        name: "Agents run on schedule and produce output",
       },
       {
         "@type": "HowToStep",
-        name: "Review run output and approve",
+        name: "Review, approve, or refine agent output",
       },
       {
         "@type": "HowToStep",
-        name: "Let memory and context compound each cycle",
+        name: "Quality compounds as context and memory accumulate",
       },
     ],
   };
@@ -59,22 +62,22 @@ export default function HowItWorksPage() {
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Configure once.
+              Connect once.
               <br />
               <span className="text-white/50">Supervise from there.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn combines TP Chat — your single interactive surface — with background work-agents.
-              You define intent and constraints, work-agents execute and learn through supervised runs.
+              yarnnn connects to your work tools and creates agents that run in the background.
+              You supervise their output from a dashboard. Quality compounds with every cycle.
             </p>
           </section>
 
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">Define work in plain language</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">Create agents in plain language</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Use TP Chat to describe what you need, or configure work-agents directly in the UI.
-                You choose type, mode, sources, and constraints. yarnnn handles orchestration.
+                Use the Orchestrator to describe what you need. yarnnn figures out
+                the right agent setup — sources, schedule, and output format.
               </p>
 
               <div className="border border-white/10 rounded-2xl p-6 bg-white/5 max-w-2xl">
@@ -90,8 +93,8 @@ export default function HowItWorksPage() {
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-2">
-                        Great. I&apos;ll configure a <span className="text-white">status</span> agent in
-                        <span className="text-white"> recurring</span> mode.
+                        Great. I&apos;ll set up a <span className="text-white">weekly status</span> agent
+                        pulling from <span className="text-white">#engineering</span> and your Notion docs.
                       </p>
                       <p className="text-white/70 text-sm">
                         Do you want Monday 9:00 AM delivery and a concise executive format?
@@ -119,44 +122,44 @@ export default function HowItWorksPage() {
               </div>
 
               <p className="text-white/30 text-xs mt-6 max-w-xl">
-                You can start via conversation or direct UI controls. Both routes use the same execution model.
+                You can also connect a platform and let yarnnn create your first agent automatically.
               </p>
             </div>
           </section>
 
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">Execution model</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">What agents can do</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Types define intent. Modes define behavior. Together they form a specialist that improves over time.
+                Each agent has a job and a schedule. yarnnn matches the right setup to what you need.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Type = what is being built</div>
+                  <div className="text-lg font-medium mb-3">Recap</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Use intent-first types such as digest, brief, status, watch, deep_research, coordinator, or custom.
+                    Daily or weekly summaries of Slack channels, Gmail labels, or Notion pages. The most common starting point.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Mode = when/how it acts</div>
+                  <div className="text-lg font-medium mb-3">Meeting Prep</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Choose recurring, goal, reactive, proactive, or coordinator behavior based on how work should run.
+                    Before each meeting, yarnnn pulls relevant context from email, Slack, and docs into a briefing.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Runs = supervision loop</div>
+                  <div className="text-lg font-medium mb-3">Watch</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Each run creates output you can review. You approve or refine. Feedback informs future generation.
+                    Monitor channels or topics for emerging themes. Get alerted when something needs your attention.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Context = performance moat</div>
+                  <div className="text-lg font-medium mb-3">Research</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Synced platform context plus agent memory lets specialists improve with tenure, not reset.
+                    Track a topic, competitor, or market. Combines your internal context with web research.
                   </p>
                 </div>
               </div>
@@ -174,10 +177,10 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">01</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Define specialist intent</h3>
+                    <h3 className="text-xl font-medium mb-3">Connect your tools</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Pick a type and mode, then define structure, audience, and constraints.
-                      This is where you encode how good output should look.
+                      Link Slack, Gmail, Notion, or Calendar. Choose which channels, labels, or
+                      pages to include. yarnnn creates your first agent automatically.
                     </p>
                   </div>
                 </div>
@@ -185,10 +188,10 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">02</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Connect context sources</h3>
+                    <h3 className="text-xl font-medium mb-3">Agents run on schedule</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Select channels, labels, pages, and calendar context.
-                      yarnnn syncs selected sources and keeps them current based on tier cadence.
+                      Each agent executes in the background and produces output you can review.
+                      Your dashboard shows agent health, recent activity, and anything needing attention.
                     </p>
                   </div>
                 </div>
@@ -198,8 +201,8 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-3">Review and refine</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Work-agents execute in the background and produce runs.
-                      You review, edit, approve, and maintain supervision control.
+                      Approve, edit, or redirect. Your feedback teaches the agent
+                      your preferred structure, tone, and priorities.
                     </p>
                   </div>
                 </div>
@@ -209,8 +212,8 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-3">Compound quality</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Repeated runs on the same specialist increase fidelity to your style and goals.
-                      The output improves because context and memory accumulate.
+                      Each cycle makes the agent better. Context deepens, memory
+                      accumulates, and supervision effort drops over time.
                     </p>
                   </div>
                 </div>
@@ -238,7 +241,7 @@ export default function HowItWorksPage() {
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Domain observations for watch/proactive/coordinator specialists</p>
+                    <p className="text-white/70 text-sm">Domain observations for monitoring and research agents</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
@@ -253,7 +256,7 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Example prompts</h2>
               <p className="text-white/50 leading-relaxed mb-12">
-                Typical ways users configure specialists.
+                Typical ways users create agents.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -267,13 +270,13 @@ export default function HowItWorksPage() {
                   <p className="text-white/70 text-sm italic">&ldquo;Watch customer-feedback threads and brief me when themes emerge.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Run deep research on this competitor set until complete.&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Research this competitor set and give me a weekly update.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
                   <p className="text-white/70 text-sm italic">&ldquo;Before my exec meetings, generate a prep brief from email + docs.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Set up a coordinator to trigger follow-ups when client threads stall.&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Summarize my week across Slack, Gmail, and Notion every Friday.&rdquo;</p>
                 </div>
               </div>
             </div>
@@ -285,7 +288,7 @@ export default function HowItWorksPage() {
                 Ready to run autonomous work?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start with one specialist. Then scale your system as context and confidence grow.
+                Start with one agent. Scale your system as context and confidence grow.
               </p>
               <Link
                 href="/auth/login"

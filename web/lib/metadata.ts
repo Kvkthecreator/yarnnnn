@@ -14,7 +14,7 @@ export const BRAND = {
   name: "yarnnn",
   tagline: "Autonomous AI that knows your work",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs autonomous agents that improve through supervised execution.",
+    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates autonomous agents that run recurring work and improve with every cycle.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
   ogImage: "/assets/logos/yarn-logo-light.png",
 };
@@ -83,7 +83,7 @@ export function getBaseMetadata(): Metadata {
 
 /**
  * Helper to create page-specific metadata
- * Usage: export const metadata = getPageMetadata("Chat", "Your work-agents hub");
+ * Usage: export const metadata = getPageMetadata("Dashboard", "Your agents at a glance");
  */
 export function getPageMetadata(title: string, description?: string): Metadata {
   return {

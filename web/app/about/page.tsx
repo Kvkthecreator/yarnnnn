@@ -59,7 +59,7 @@ export default function AboutPage() {
                 source grounding, and supervision loops that improve quality each cycle.
               </p>
               <p className="text-white font-medium">
-                yarnnn is our answer: a system of agent specialists that learns from your world and your approvals.
+                yarnnn is our answer: a system of autonomous agents that learns from your world and your approvals.
               </p>
             </div>
           </section>
@@ -79,7 +79,7 @@ export default function AboutPage() {
                       decisions, relationships, timing, and source history.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn connects directly to work platforms and accumulates evidence that improves future runs.
+                      yarnnn connects to your work platforms and accumulates context that improves every future run.
                     </p>
                   </div>
                 </div>
@@ -94,7 +94,7 @@ export default function AboutPage() {
                       refined, and approved with clear control points.
                     </p>
                     <p className="text-white/30 text-sm">
-                      In yarnnn, users supervise work-agents instead of manually rebuilding the same outputs.
+                      In yarnnn, you supervise agents instead of manually rebuilding the same outputs.
                     </p>
                   </div>
                 </div>
@@ -109,7 +109,7 @@ export default function AboutPage() {
                       Others should react to events, review proactively, or coordinate downstream work.
                     </p>
                     <p className="text-white/30 text-sm">
-                      That is why yarnnn supports recurring, goal, reactive, proactive, and coordinator modes.
+                      yarnnn agents adapt their behavior to fit the work — scheduled recaps, event-driven prep, ongoing monitoring, or deep research.
                     </p>
                   </div>
                 </div>
@@ -120,11 +120,11 @@ export default function AboutPage() {
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Persistent source context plus specialist memory creates durable performance gains.
+                      Persistent source context plus agent memory creates durable performance gains.
                       Over time, approval effort drops while quality rises.
                     </p>
                     <p className="text-white/30 text-sm">
-                      The longer a specialist runs, the harder its accumulated intelligence is to replicate elsewhere.
+                      The longer an agent runs, the harder its accumulated intelligence is to replicate elsewhere.
                     </p>
                   </div>
                 </div>
@@ -143,7 +143,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not just a chat UI</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    TP Chat is your interface into a running system of work-agents, not the product itself.
+                    The Orchestrator is your interface into a running system of agents, not the product itself.
                   </p>
                 </div>
                 <div>
@@ -200,10 +200,10 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Build your first specialist.
+                Build your first agent.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Connect your stack, define one agent, and run the supervision loop.
+                Connect your tools, let yarnnn create your first agent, and start supervising.
               </p>
               <Link
                 href="/auth/login"

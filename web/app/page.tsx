@@ -10,15 +10,19 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Autonomous AI That Knows Your Work",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs autonomous agents for you. It learns from every cycle so your outputs improve over time.",
+    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates autonomous agents that improve with every cycle. Connect once, supervise from there.",
   path: "/",
   keywords: [
     "autonomous ai",
+    "ai agent platform",
     "ai work agent",
+    "slack ai summary",
+    "gmail ai digest",
+    "ai meeting prep",
+    "autonomous workflow",
     "context aware ai",
     "agent automation",
     "human in the loop ai",
-    "work agents",
   ],
 });
 
@@ -57,8 +61,8 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Connect your tools once. Configure agents once.
-                  yarnnn runs recurring, reactive, and proactive work in the background.
+                  Connect your tools once. yarnnn creates agents that run
+                  recurring work in the background and improve with every cycle.
                   You supervise outcomes.
                 </p>
 
@@ -101,7 +105,7 @@ export default function LandingPage() {
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Context in. Agents out.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   yarnnn continuously accumulates context from your connected tools,
-                  then runs specialist work-agents that learn from every run.
+                  then runs agents that learn from every cycle.
                   The longer you use it, the less manual work remains.
                 </p>
               </div>
@@ -115,34 +119,34 @@ export default function LandingPage() {
               How yarnnn works
             </h2>
             <p className="text-[#1a1a1a]/50 text-center mb-16 max-w-xl mx-auto">
-              Define the specialist once, then supervise outputs.
+              Connect once, supervise from there.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Define your work-agent</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Connect your tools</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Use TP Chat to describe what you need, or configure directly in the UI.
-                  Example: weekly digest, reactive watch, or proactive briefing specialist.
+                  Link Slack, Gmail, Notion, or Calendar. yarnnn reads your data
+                  and automatically creates agents matched to your workflow.
                 </p>
               </div>
 
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">02</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Connect your work stack</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Agents run in the background</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Connect Slack, Gmail, Notion, and Calendar.
-                  yarnnn keeps context fresh and accumulates what proves significant.
+                  Each agent produces output on schedule — recaps, digests, meeting prep,
+                  research. Your dashboard shows what they&apos;ve done and what needs attention.
                 </p>
               </div>
 
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">03</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review runs, not prompts</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review and refine</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Each work-agent run creates output you review. You approve or refine.
-                  Those edits become learned behavior for the next cycle.
+                  Approve, edit, or redirect. Your feedback becomes learned behavior
+                  for the next cycle. Quality compounds over time.
                 </p>
               </div>
             </div>
@@ -157,10 +161,10 @@ export default function LandingPage() {
                 <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
                   Compounding context,
                   <br />
-                  <span className="text-[#1a1a1a]/50">per specialist.</span>
+                  <span className="text-[#1a1a1a]/50">per agent.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  Every sync and every approved run improves the same work-agent.
+                  Every sync and every approved run improves the same agent.
                   Quality grows with usage instead of resetting on every interaction.
                 </p>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">
@@ -198,7 +202,7 @@ export default function LandingPage() {
               What yarnnn handles
             </h2>
             <p className="text-[#1a1a1a]/50 mb-12 max-w-xl">
-              Purpose-built agents across recurring updates, event-driven watch, and research workflows.
+              Purpose-built agents for recurring updates, monitoring, research, and cross-platform synthesis.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -259,7 +263,7 @@ export default function LandingPage() {
               Put autonomous work on your calendar.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 50 messages/month, 2 agents, daily sync
+              Free: 50 messages/month, 2 agents, 1x daily sync
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
               Pro: unlimited messages, 10 agents, hourly sync — $19/mo

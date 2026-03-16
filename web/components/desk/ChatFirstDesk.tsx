@@ -539,7 +539,7 @@ export function ChatFirstDesk() {
     },
     {
       id: 'create-agent',
-      label: 'Create work-agent',
+      label: 'Create agent',
       icon: Sparkles,
       verb: 'show',
       onSelect: () => setShowCreateCards((prev) => !prev),

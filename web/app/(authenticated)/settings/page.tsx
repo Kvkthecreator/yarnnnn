@@ -337,7 +337,7 @@ export default function SettingsPage() {
               Subscription activated!
             </p>
             <p className="text-sm text-green-700 dark:text-green-300">
-              Your subscription is now active. Enjoy expanded sources, faster syncs, and more work-agents.
+              Your subscription is now active. Enjoy expanded sources, faster syncs, and more agents.
             </p>
           </div>
         </div>
@@ -444,7 +444,7 @@ export default function SettingsPage() {
                   { label: "Gmail labels", used: limits.usage.gmail_labels, limit: limits.limits.gmail_labels },
                   { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
                   { label: "Monthly messages", used: limits.usage.monthly_messages_used, limit: limits.limits.monthly_messages },
-                  { label: "Active work-agents", used: limits.usage.active_agents, limit: limits.limits.active_agents },
+                  { label: "Active agents", used: limits.usage.active_agents, limit: limits.limits.active_agents },
                 ].map((row) => {
                   const percent = row.limit === -1 ? 0 : Math.min(100, Math.round((row.used / Math.max(1, row.limit)) * 100));
                   const formatUsage = (used: number, limit: number) =>
@@ -486,7 +486,7 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-2xl font-semibold">{usageMetrics.agents}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {usageMetrics.agents === 1 ? "Active work-agent" : "Active work-agents"}
+                  {usageMetrics.agents === 1 ? "Active agent" : "Active agents"}
                 </p>
               </div>
 
@@ -565,7 +565,7 @@ export default function SettingsPage() {
                     <div>
                       <div className="font-medium">Agent Ready</div>
                       <div className="text-sm text-muted-foreground">
-                        Get notified when a scheduled work-agent is ready for review
+                        Get notified when a scheduled agent is ready for review
                       </div>
                     </div>
                   </div>
@@ -593,7 +593,7 @@ export default function SettingsPage() {
                     <div>
                       <div className="font-medium">Agent Failed</div>
                       <div className="text-sm text-muted-foreground">
-                        Get notified when a work-agent fails to generate
+                        Get notified when a agent fails to generate
                       </div>
                     </div>
                   </div>

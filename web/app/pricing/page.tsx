@@ -21,7 +21,7 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Active work-agents", free: "2", pro: "10" },
+  { name: "Active agents", free: "2", pro: "10" },
   { name: "Platforms available", free: "All 4", pro: "All 4" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
   { name: "Gmail labels", free: "5", pro: "Unlimited" },
@@ -86,7 +86,7 @@ export default function PricingPage() {
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
                 Start free, upgrade when you need more.
-                Every plan includes all four integrations and supervised work-agents.
+                Every plan includes all four integrations and supervised agents.
               </p>
             </div>
 
@@ -108,7 +108,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>2 active work-agents</span>
+                    <span>2 active agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -154,7 +154,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 active work-agents</span>
+                    <span>10 active agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
