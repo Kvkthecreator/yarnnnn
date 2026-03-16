@@ -71,7 +71,7 @@ def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
     if not providers:
         if skill == "research":
             return "research"
-        return "knowledge" if skill in ("monitor", "research") else "cross_platform"
+        return "knowledge" if skill in ("monitor", "research", "custom") else "cross_platform"
 
     if len(providers) == 1:
         return "platform"
