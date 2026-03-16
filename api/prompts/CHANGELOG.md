@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.10] - Knowledge Corpus Signals in Composer (ADR-114 Phases 1-3)
+
+### Added
+- `api/services/composer.py`: `heartbeat_data_query()` step 9 — queries `workspace_files` for `/knowledge/` corpus: per-class counts (digests/analyses/briefs/research/insights), latest timestamp, producing agents. Single DB query, zero LLM cost.
+- `api/services/composer.py`: `should_composer_act()` — three new knowledge-substrate heuristics: `knowledge_gap_analysis` (10+ digests, 0 analyses, no synthesize agent), `stale_knowledge` (latest file >7d old, agents active), `knowledge_asymmetry` (80%+ digests, ≤1 non-digest). All route to LLM assessment.
+
+### Changed
+- `api/services/composer.py`: `_build_composer_prompt()` v1.1 — added "Knowledge Corpus" section with per-class file counts, recency, and producing agents. LLM now sees accumulated outputs, not just platform metadata.
+- `api/services/composer.py`: `run_heartbeat()` assessment_summary includes `knowledge_files` count.
+- `COMPOSER_SYSTEM_PROMPT` version: v1.0 → v1.1.
+
+### Not included (deferred)
+- `knowledge_gap_research` trigger: needs keyword extraction from digest content (ADR-114 Open Question 2).
+- `agents_consuming`: needs provenance tracking for workspace reads (ADR-114 Open Question 3).
+
+### Expected behavior
+- Composer now detects when agents are perceiving (producing digests) but not reasoning (no analyses/research).
+- After 10 digests accumulate with 0 analyses and no synthesize agent, triggers LLM assessment.
+- Stale knowledge (>7d old, agents active) triggers LLM assessment.
+- Knowledge asymmetry (>80% digests) triggers LLM assessment.
+- LLM assessment prompt now includes substrate context: "8 digest files, 0 analyses" vs just "2 digest agents, 3 runs each."
+
+---
+
 ## [2026.03.16.9] - Event-Driven Composer Heartbeat (ADR-114)
 
 ### Added

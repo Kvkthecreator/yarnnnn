@@ -1,6 +1,6 @@
 # ADR-114: Composer Substrate-Aware Assessment
 
-**Status:** Proposed
+**Status:** Phases 1-3 Implemented, Phase 4 Proposed
 **Date:** 2026-03-16
 **Builds on:** ADR-111 (Agent Composer), ADR-107 (Knowledge Filesystem), FOUNDATIONS.md Axiom 2 (Recursive Perception)
 
@@ -146,6 +146,18 @@ Update `COMPOSER_SYSTEM_PROMPT` principles:
 - **Phase 3/4 are prompt changes only:** Same Haiku model, same token budget, richer context
 - **Backwards compatible:** All existing heuristics and lifecycle logic remain unchanged. New signals are additive.
 - **Stale doc cleanup:** FOUNDATIONS.md Axiom 2 references `platform_content (platform="yarnnn")` — update to reference `/knowledge/` filesystem per ADR-107
+
+### Implementation Status (2026-03-16)
+
+**Phases 1-3 implemented** in `api/services/composer.py`:
+- Phase 1: `heartbeat_data_query()` step 9 queries `/knowledge/` files by content class. Returns `knowledge.by_class`, `knowledge.latest_at`, `knowledge.agents_producing`. Version files excluded via regex.
+- Phase 2: Three heuristics in `should_composer_act()`: `knowledge_gap_analysis` (10+ digests, 0 analyses), `stale_knowledge` (>7d), `knowledge_asymmetry` (80%+ digests). All route to LLM assessment.
+- Phase 3: `_build_composer_prompt()` includes "Knowledge Corpus" section. LLM sees accumulated outputs.
+- `knowledge_gap_research` deferred (needs keyword extraction — Open Question 2).
+- `agents_consuming` deferred (needs provenance tracking — Open Question 3).
+- Event-driven heartbeat also shipped (separate commit): `maybe_trigger_heartbeat()` fires after agent delivery and platform sync.
+
+**Phase 4 (Composer Prompt v2.0)** remains proposed — requires COMPOSER_SYSTEM_PROMPT rewrite to shift framing from "assess platforms and agents" to "assess knowledge substrate."
 
 ## Relationship to Existing Architecture
 

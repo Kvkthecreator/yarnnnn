@@ -24,6 +24,7 @@ Tier gating:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
@@ -253,6 +254,55 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     from services.platform_limits import check_agent_limit
     can_create, limit_message = check_agent_limit(client, user_id)
 
+    # 9. Knowledge corpus signals (ADR-114 Phase 1)
+    # Single DB query on workspace_files with indexed path prefix. Zero LLM cost.
+    _VERSION_FILE_RE = re.compile(r"/v\d+\.md$")
+    KNOWLEDGE_CLASSES = ["digests", "analyses", "briefs", "research", "insights"]
+    knowledge = {
+        "total_files": 0,
+        "by_class": {c: 0 for c in KNOWLEDGE_CLASSES},
+        "latest_at": None,
+        "agents_producing": [],
+    }
+    try:
+        ws_result = (
+            client.table("workspace_files")
+            .select("path, metadata, updated_at")
+            .eq("user_id", user_id)
+            .like("path", "/knowledge/%")
+            .execute()
+        )
+        rows = [r for r in (ws_result.data or []) if not _VERSION_FILE_RE.search(r.get("path", ""))]
+
+        # Count by content class
+        for row in rows:
+            path = row.get("path", "")
+            for cls in KNOWLEDGE_CLASSES:
+                if path.startswith(f"/knowledge/{cls}/"):
+                    knowledge["by_class"][cls] += 1
+                    break
+
+        knowledge["total_files"] = sum(knowledge["by_class"].values())
+
+        # Latest file timestamp
+        timestamps = [r.get("updated_at") for r in rows if r.get("updated_at")]
+        if timestamps:
+            knowledge["latest_at"] = max(timestamps)
+
+        # Agents producing: distinct agent_id from metadata → agent titles
+        producing_ids = set()
+        for row in rows:
+            meta = row.get("metadata") or {}
+            aid = meta.get("agent_id")
+            if aid:
+                producing_ids.add(aid)
+        agent_id_to_title = {a["id"]: a["title"] for a in agents}
+        knowledge["agents_producing"] = sorted(
+            agent_id_to_title[aid] for aid in producing_ids if aid in agent_id_to_title
+        )
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Knowledge corpus query failed: {e}")
+
     return {
         "user_id": user_id,
         "timestamp": now.isoformat(),
@@ -290,6 +340,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             "can_create": can_create,
             "limit_message": limit_message if not can_create else None,
         },
+        "knowledge": knowledge,  # ADR-114 Phase 1
     }
 
 
@@ -358,6 +409,43 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     digest_agents = [s for s in signals if s.get("skill") == "digest" and s.get("total_runs", 0) >= 3]
     if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["skills_present"]:
         return True, f"cross_agent_pattern: {len(digest_agents)} active digest agents — synthesis agent would consolidate insights"
+
+    # ADR-114 Phase 2: Knowledge-substrate heuristics
+    knowledge = assessment.get("knowledge", {})
+    by_class = knowledge.get("by_class", {})
+    total_knowledge = knowledge.get("total_files", 0)
+
+    # knowledge_gap_analysis: many digests, no analyses, no synthesize agent
+    if (by_class.get("digests", 0) >= 10
+            and by_class.get("analyses", 0) == 0
+            and "synthesize" not in assessment["agents"]["skills_present"]):
+        return True, (
+            f"knowledge_gap_analysis: {by_class['digests']} digest files but 0 analyses "
+            "— system is perceiving but not reasoning"
+        )
+
+    # stale_knowledge: latest /knowledge/ file > 7 days old, agents still active
+    if knowledge.get("latest_at") and assessment["agents"]["active"] > 0:
+        try:
+            latest_dt = datetime.fromisoformat(knowledge["latest_at"].replace("Z", "+00:00"))
+            days_stale = (now - latest_dt).days
+            if days_stale > 7:
+                return True, (
+                    f"stale_knowledge: most recent knowledge file is {days_stale}d old "
+                    f"but {assessment['agents']['active']} agents active"
+                )
+        except (ValueError, TypeError):
+            pass
+
+    # knowledge_asymmetry: 80%+ of knowledge is digests, minimal reasoning output
+    if total_knowledge >= 10:
+        digest_count = by_class.get("digests", 0)
+        non_digest = total_knowledge - digest_count
+        if digest_count / total_knowledge >= 0.8 and non_digest <= 1:
+            return True, (
+                f"knowledge_asymmetry: {digest_count}/{total_knowledge} knowledge files are digests "
+                "— system needs reasoning agents (analyses/research)"
+            )
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
@@ -549,7 +637,7 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v1.0 — ADR-114 establishes versioning baseline.
+# Composer Prompt v1.1 — ADR-114 Phases 1-3: knowledge corpus signals.
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
 
@@ -584,6 +672,21 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     for a in assessment["agents"]["active_list"]:
         agents_summary.append(f"- {a['title']} (skill={a['skill']}, scope={a['scope']})")
 
+    # ADR-114 Phase 3: Knowledge corpus summary
+    knowledge = assessment.get("knowledge", {})
+    by_class = knowledge.get("by_class", {})
+    knowledge_lines = []
+    for cls in ["digests", "analyses", "research", "briefs", "insights"]:
+        knowledge_lines.append(f"- {cls.title()}: {by_class.get(cls, 0)} files")
+    if knowledge.get("latest_at"):
+        knowledge_lines.append(f"- Most recent: {knowledge['latest_at']}")
+    producing = knowledge.get("agents_producing", [])
+    if producing:
+        knowledge_lines.append(f"- Producing agents: {', '.join(producing)}")
+    else:
+        knowledge_lines.append("- No agents have produced knowledge yet")
+    knowledge_section = chr(10).join(knowledge_lines)
+
     # ADR-111 Phase 5: Include maturity data when available
     maturity_summary = []
     for s in assessment.get("maturity", {}).get("signals", []):
@@ -611,6 +714,9 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
 ## Coverage
 - Platforms with digest: {assessment['coverage']['platforms_with_digest']}
 - Platforms without digest: {assessment['coverage']['platforms_without_digest']}
+
+## Knowledge Corpus ({knowledge.get('total_files', 0)} files)
+{knowledge_section}
 
 ## Health
 - Stale agents (not run recently): {len(assessment['health']['stale_agents'])}
@@ -1019,6 +1125,7 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "stale_agents": len(assessment["health"]["stale_agents"]),
             "mature_agents": len(assessment.get("maturity", {}).get("mature_agents", [])),
             "underperformers": len(assessment.get("maturity", {}).get("underperformers", [])),
+            "knowledge_files": assessment.get("knowledge", {}).get("total_files", 0),
         },
         "composer_result": None,
         "supervisory_reviews": [],
