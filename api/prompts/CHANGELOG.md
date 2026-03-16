@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.9] - Event-Driven Composer Heartbeat (ADR-114)
+
+### Added
+- `api/services/composer.py`: `maybe_trigger_heartbeat()` — DB-debounced event trigger for substrate changes. Pro: 3min debounce. Free: midnight-window only (same as cron). Writes `composer_heartbeat` activity_log with `"origin": "event"` and `trigger_event`/`trigger_metadata`.
+- `api/services/agent_execution.py`: Trigger heartbeat after delivered agent runs (`trigger_event: "agent_run_delivered"`).
+- `api/workers/platform_worker.py`: Trigger heartbeat after platform sync with new content (`trigger_event: "platform_synced"`).
+
+### Changed
+- `api/jobs/unified_scheduler.py`: Added `"origin": "cron"` to heartbeat metadata to distinguish from event-driven heartbeats.
+
+### Not included (intentionally)
+- OAuth `platform_connected` trigger omitted: fires before content exists, risks premature composition since coverage-gap logic keys off connected platforms. Post-sync trigger covers this path safely.
+- This is a *responsiveness* upgrade (changes *when* Composer looks), not a *substrate awareness* upgrade (changes *what* it sees). ADR-114 Phase 1 (knowledge corpus signals in `heartbeat_data_query()`) is the real substrate tightening.
+
+### Known limitations
+- DB-backed debounce is not atomic. Cron and event can race and both pass the check, producing two heartbeats. Blast radius: two Haiku calls worst case. Advisory locks deferred.
+
+### Expected behavior
+- Pro: Composer reassesses within ~3min of substrate changes (delivered runs, syncs) instead of waiting for next cron cycle.
+- Free: event-driven heartbeats only fire in midnight UTC window, keeping Free truly daily.
+- Cron heartbeat remains backstop. Event-driven is supplementary.
+- Dashboard System Pulse updates sooner after agent activity (Pro users).
+
+---
+
 ## [2026.03.16.8] - Composer Prompt Versioning Baseline (ADR-114)
 
 ### Established

@@ -917,6 +917,16 @@ async def execute_agent_generation(
         except Exception:
             pass  # Non-fatal — never block execution
 
+        # ADR-114: Event-driven Composer heartbeat on delivered runs
+        if final_status == "delivered":
+            try:
+                from services.composer import maybe_trigger_heartbeat
+                await maybe_trigger_heartbeat(client, user_id, "agent_run_delivered", {
+                    "agent_id": str(agent_id), "skill": skill,
+                })
+            except Exception:
+                pass  # Non-fatal
+
         return {
             "success": final_status == "delivered",
             "run_id": version_id,

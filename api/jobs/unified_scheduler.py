@@ -696,6 +696,7 @@ async def run_unified_scheduler():
                         event_type="composer_heartbeat",
                         summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
                         metadata={
+                            "origin": "cron",  # ADR-114: distinguish from event-driven heartbeats
                             "should_act": hb_result.get("should_act", False),
                             "reason": hb_result.get("reason", ""),
                             "agents_created": created_count,

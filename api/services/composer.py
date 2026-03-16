@@ -1086,3 +1086,119 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             logger.warning(f"[COMPOSER] Supervisory review error for {agent.get('title')}: {e}")
 
     return heartbeat_result
+
+
+# =============================================================================
+# Event-Driven Heartbeat Trigger (ADR-114)
+# =============================================================================
+
+# Debounce window — how recently a heartbeat must have fired to skip.
+# Pro: 3 minutes (responsive to substrate changes, not spammy).
+# Free: midnight-window only (same constraint as cron — keeps Free truly daily).
+#
+# Known limitation: DB-backed debounce is not atomic. Cron and an event-driven
+# trigger can both pass the check concurrently if they race within the same
+# window. Blast radius is low (two idempotent heartbeats, worst case two Haiku
+# calls). True mutual exclusion would require advisory locks or a debounce table.
+_DEBOUNCE_PRO = timedelta(minutes=3)
+
+
+async def maybe_trigger_heartbeat(
+    client: Any,
+    user_id: str,
+    trigger_event: str,
+    trigger_metadata: dict | None = None,
+) -> dict | None:
+    """
+    Event-driven Composer heartbeat with DB-backed debounce.
+
+    Called after substrate-changing events (agent run delivered, platform synced).
+    Checks whether a heartbeat fired recently enough to skip, then runs the full
+    heartbeat + writes activity_log if not debounced.
+
+    This is a *responsiveness* upgrade — it changes *when* Composer looks, not
+    *what* it sees. Substrate-awareness (Composer reading /knowledge/ corpus) is
+    ADR-114 Phase 1, separate from this.
+
+    Cost: 1 DB query (debounce check). If debounced, zero additional cost.
+    If not debounced, same cost as cron heartbeat.
+
+    Returns heartbeat result dict, or None if debounced/skipped.
+    """
+    now = datetime.now(timezone.utc)
+
+    # Determine tier — Free users only get event-driven heartbeats in midnight window
+    try:
+        from services.platform_limits import get_user_tier
+        tier = get_user_tier(client, user_id)
+    except Exception:
+        tier = "free"
+
+    if tier == "free":
+        # Same constraint as cron: midnight UTC window only
+        if not (now.hour == 0 and now.minute < 5):
+            logger.debug(f"[COMPOSER] Event heartbeat skipped for free user {user_id} (not midnight window)")
+            return None
+
+    cutoff = (now - _DEBOUNCE_PRO).isoformat()
+
+    # Check last heartbeat time (single DB query)
+    try:
+        result = (
+            client.table("activity_log")
+            .select("created_at")
+            .eq("user_id", user_id)
+            .eq("event_type", "composer_heartbeat")
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            logger.debug(
+                f"[COMPOSER] Event heartbeat debounced for {user_id} "
+                f"(last: {result.data[0]['created_at']}, trigger: {trigger_event})"
+            )
+            return None
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Debounce check failed for {user_id}: {e}")
+        # On debounce check failure, skip rather than risk runaway heartbeats
+        return None
+
+    # Not debounced — run full heartbeat
+    logger.info(f"[COMPOSER] Event-driven heartbeat for {user_id} (trigger: {trigger_event})")
+    try:
+        hb_result = await run_heartbeat(client, user_id)
+
+        # Write activity_log event (same shape as cron, plus event origin)
+        try:
+            from services.activity_log import write_activity
+            composer_result = hb_result.get("composer_result") or {}
+            supervisory = hb_result.get("supervisory_reviews", [])
+            lifecycle_actions = composer_result.get("lifecycle_actions", [])
+            created_count = len(composer_result.get("agents_created", []))
+
+            await write_activity(
+                client=client,
+                user_id=user_id,
+                event_type="composer_heartbeat",
+                summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
+                metadata={
+                    "origin": "event",
+                    "trigger_event": trigger_event,
+                    "trigger_metadata": trigger_metadata or {},
+                    "should_act": hb_result.get("should_act", False),
+                    "reason": hb_result.get("reason", ""),
+                    "agents_created": created_count,
+                    "lifecycle_actions": len(lifecycle_actions),
+                    "supervisory_reviews": len(supervisory),
+                    **hb_result.get("assessment_summary", {}),
+                },
+            )
+        except Exception:
+            pass  # Non-fatal
+
+        return hb_result
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Event-driven heartbeat failed for {user_id}: {e}")
+        return None

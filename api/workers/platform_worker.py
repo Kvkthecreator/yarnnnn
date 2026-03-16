@@ -358,6 +358,17 @@ async def _sync_platform_inner(
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Bootstrap check failed (non-fatal): {e}")
 
+        # ADR-114: Event-driven Composer heartbeat after sync with new content
+        items_synced = sync_result.get("items_synced", 0)
+        if sync_success and items_synced > 0:
+            try:
+                from services.composer import maybe_trigger_heartbeat
+                await maybe_trigger_heartbeat(client, user_id, "platform_synced", {
+                    "platform": provider, "items_synced": items_synced,
+                })
+            except Exception:
+                pass  # Non-fatal
+
         return {
             "success": sync_success,
             "provider": provider,
