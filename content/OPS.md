@@ -1,6 +1,6 @@
 # YARNNN Content Ops
 
-**Last consolidated:** 2026-03-13
+**Last consolidated:** 2026-03-16
 **Replaces:** `_ops/POSTING_WORKFLOW.md`, `_templates/*.md` (7 files), `calendar/` format docs
 
 ---
@@ -15,7 +15,7 @@ Claude in Chrome (visual browser automation). No APIs, no developer accounts. Re
 
 | Platform | Status | Method |
 |----------|--------|--------|
-| Twitter/X (@KVKitsme) | Signed in | Claude navigates, types, posts (with Kevin's confirmation) |
+| Twitter/X (@KVKitsme) | Signed in (Premium) | Claude navigates, types, posts (with Kevin's confirmation). Threads + Articles available. |
 | LinkedIn (yarnnn company page) | Signed in | Claude posts as company page via `linkedin.com/company/99368741/admin/dashboard/` |
 | Medium | Signed in | Import from blog URL preferred; manual compose also works |
 | Reddit | **Kevin posts manually** | Claude in Chrome blocked on Reddit. Claude drafts, Kevin pastes. |
@@ -34,6 +34,7 @@ Claude in Chrome (visual browser automation). No APIs, no developer accounts. Re
 - **Medium**: Set canonical URL to yarnnn.com/blog version. Remove logo image that imports. Fix title suffix.
 - **Reddit**: Kevin must have comment history in a subreddit before posting. Max 1 post/month per high-traffic sub.
 - **Reddit markdown**: Use `*` for bullets (not `-`), `*text*` for italics (not `_text_`). Files in `posts/reddit/` should already be in Reddit format.
+- **X Articles**: Always publish blog first (24-48h lead time for Google indexing). Include "Originally published at yarnnn.com/blog/[slug]" at the bottom. For high-priority posts, publish a thread on blog day AND an X Article 3-7 days later — thread for reach, article for depth/permanence.
 
 ---
 
@@ -41,17 +42,82 @@ Claude in Chrome (visual browser automation). No APIs, no developer accounts. Re
 
 ### Blog Post (yarnnn.com/blog)
 
-1,500-2,500 words. YARNNN brand voice.
+**Updated 2026-03-16.** See `STRATEGY.md § Readability Standard` for full rationale.
 
-**Title**: Match a GEO target query.
-**Opening (2-3 sentences)**: Directly answer the title question. Self-contained, quotable. LLMs pull from first paragraphs.
-**Section 1 — The Problem**: What's broken. Reference competitors by name.
-**Section 2 — The Framework**: Define the named concept. The intellectual contribution.
-**Section 3 — How It Works** (optional): Concrete examples. Can reference YARNNN.
-**Section 4 — Comparison**: YARNNN vs alternatives. High GEO value.
-**Closing**: Restate thesis. Link to related canonical posts. No hard CTA.
+Two formats. Both use YARNNN brand voice + readability rules from `VOICE_AND_BRAND.md`.
 
-Checklist: Title matches GEO query? Opening answers it? Named concept defined? Competitors referenced? LLM would cite this?
+#### Standalone post (800-1,200 words)
+
+The default format. Every sentence earns its place.
+
+```
+Title — makes the claim (matches a GEO query)
+
+[1-2 sentences] — States the complete thesis. This IS the answer.
+A reader who stops here still knows the argument.
+
+---
+
+## [Question-format H2] — Core argument (~400 words)
+Evidence, examples, specific data points (2-3 citations).
+Max 3 sentences per paragraph. Bold one key sentence.
+
+## [Question-format H2] — Nuance or counterargument (~300 words)
+Where the thesis gets complicated. Concede what's fair.
+One analogy max.
+
+## [Question-format H2] — What this means (~200 words)
+Implications for the reader. Why they should care now.
+
+Related reading links. No hard CTA.
+```
+
+#### Pillar/hub post (1,500-2,000 words)
+
+Reserved for the 5 hub pages (see `STRATEGY.md § Consolidation Plan`). Same readability rules but more sections and deeper evidence. Refreshed quarterly.
+
+```
+Title — definitive claim for the theme cluster
+
+[2-3 sentences] — Complete thesis. Self-contained, quotable, GEO-citable.
+
+## [Question H2] — The problem (reference competitors by name)
+## [Question H2] — The framework (define the named concept)
+## [Question H2] — How it works (concrete examples, can reference YARNNN)
+## [Question H2] — Comparison (YARNNN vs alternatives, high GEO value)
+## [Question H2] — Open questions (intellectual honesty)
+
+Related spoke links. No hard CTA.
+```
+
+#### Blog post checklist
+
+- [ ] Title matches a GEO target query?
+- [ ] Thesis stated in first 30 words?
+- [ ] First 150 words form a complete, quotable answer?
+- [ ] H2 headers are question-format?
+- [ ] Each section has one bolded key sentence?
+- [ ] No paragraph exceeds 3 sentences?
+- [ ] Hedges removed unless specifically necessary?
+- [ ] Max one analogy per argument?
+- [ ] 2-3 statistics or citations included?
+- [ ] Named concept defined? Competitors referenced?
+- [ ] Internal links to hub page (if spoke) or to spokes (if hub)?
+- [ ] Word count within range? (800-1,200 standalone / 1,500-2,000 hub)
+
+#### Cross-posting pipeline (every blog post)
+
+**Atomic content approach:** Don't write 1,200 words then compress. Start small, expand up.
+
+1. **Tweet-length thesis** (1-2 sentences, <280 chars) — the core insight
+2. **LinkedIn native post** (200-300 words) — thesis + one supporting argument + engagement question
+3. **Blog post** (800-1,200 words) — full argument with evidence
+4. **X Article** — cross-post from blog (see X Article template below)
+5. **Medium cross-post** — import from blog within 1 week, set canonical
+
+**Timing:** Blog goes live first (let Google index 24-48h). Twitter thread + LinkedIn same day or next day. X Article + Medium within 1 week. Reddit when natural opportunity arises.
+
+This ensures every piece of content has a natural short form at every length. The blog post isn't the source that gets compressed — the insight is the source that gets expanded per platform.
 
 ---
 
@@ -80,6 +146,24 @@ Each tweet must work in isolation. End with a question, not a CTA.
 
 ---
 
+### X Article
+
+**Added 2026-03-16.** Requires X Premium.
+
+800-1,200 words. Kevin's voice or YARNNN brand (match the blog post's voice). Cross-post from Thursday blog content — X Articles are the X-native equivalent of Medium cross-posts.
+
+**Why X Articles matter**: X Articles live on x.com, get indexed by Google, are shareable as native X content, and show up in X search. Unlike threads, they don't fragment the argument across tweets. Unlike external links, they don't get algorithmic suppression. This is the best of both worlds for long-form on X.
+
+**Structure**: Same as the blog post. Don't rewrite — adapt lightly for the platform.
+
+**Canonical note**: X Articles don't support canonical URL tags the way Medium does. To protect SEO, blog goes live first and gets indexed (24-48h minimum) before the X Article publishes. The X Article should include a "Originally published at yarnnn.com/blog/[slug]" line at the bottom.
+
+**Cross-posting with threads**: For high-priority posts, publish BOTH a thread (day of blog publish, for engagement/reach) AND an X Article (3-7 days later, for depth/indexing/permanence). The thread hooks attention; the article captures readers who want the full argument without leaving X.
+
+**File location**: `posts/x-articles/` (create as needed, matching blog post slugs).
+
+---
+
 ### LinkedIn Personal Post
 
 500-800 words. Kevin's voice.
@@ -96,9 +180,9 @@ Max 3 hashtags. No links in body. Short paragraphs, white space.
 
 ### LinkedIn Article
 
-1,000-1,500 words. YARNNN brand voice. Cross-post Thursday blog content.
+800-1,200 words. YARNNN brand voice. Cross-post Thursday blog content. Same readability rules as blog (question H2s, short paragraphs, bolded key sentences).
 
-Title + thesis opening + 3-5 sections with subheads + closing. Include author tagline. No product pitch.
+Title + thesis opening + 3-5 sections with question subheads + closing. Include author tagline. No product pitch.
 
 ---
 
@@ -108,7 +192,7 @@ Import from `medium.com/p/import` → fix title (remove " | yarnnn") → delete 
 
 Tags: "Artificial Intelligence," "AI Agents," "Productivity," "Technology," "Future of Work."
 
-Publish within 24h of blog going live. Never edit Medium independently.
+Publish within 1 week of blog going live (was 24h — giving Google more indexing time first). Never edit Medium independently.
 
 ---
 
@@ -139,7 +223,8 @@ File location: `posts/reddit/track1/{pillar}/` and `posts/reddit/track2/{pillar}
 | Monday | P1 (Category) | Twitter + LinkedIn | YARNNN/Kevin | Short: sharp take through thesis lens |
 | Tuesday | P2a (Thesis) or P4 (Founder) | LinkedIn personal | Kevin | 500-800 word narrative |
 | Wednesday | P3 (Build-in-Public) | Twitter | Kevin | Build update connected to thesis |
-| Thursday | P1 or P2 (Long-form) | Blog + Medium + LinkedIn article | YARNNN brand | Canonical GEO content |
+| Thursday | P1 or P2 (Long-form) | Blog + Twitter thread + LinkedIn article | YARNNN brand | Canonical GEO content. Thread same day. |
+| Mon-Wed (following week) | — | X Article + Medium | Match blog voice | Cross-post last Thursday's blog. X Article first, Medium second. |
 | Friday | P4 (Founder) or P2a | Twitter | Kevin | Personal take, ClawdBot, hot take |
 
 ### Monthly Thursday Rotation (GEO)
@@ -162,6 +247,7 @@ content/
 │   ├── reddit/track1/
 │   ├── reddit/track2/
 │   ├── twitter/
+│   ├── x-articles/      ← X Article cross-posts (match blog slugs)
 │   ├── medium/
 │   └── {blog posts}
 ├── calendar/            ← weekly planning files (2026-WXX.md)

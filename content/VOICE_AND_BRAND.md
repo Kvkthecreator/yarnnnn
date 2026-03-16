@@ -1,6 +1,6 @@
 # YARNNN Voice & Brand
 
-**Last consolidated:** 2026-03-13
+**Last consolidated:** 2026-03-16
 **Replaces:** `_voice/kevin-voice.md`, `_voice/yarnnn-brand-voice.md`, `_voice/named-concepts.md`, `_creatives/_brand/BRAND.md`
 
 ---
@@ -37,6 +37,14 @@ Warm but direct. Builder-authentic. Occasionally vulnerable. Opinionated without
 - No marketing language. Never "game-changing," "revolutionary," "cutting-edge," "unlock," "leverage."
 - Honest about limitations. Credibility > polish.
 - Numbers when available. "17,830 GitHub stars in 24 hours" not "massive traction."
+
+### Readability (Kevin's voice)
+
+Kevin's voice is naturally punchier than brand voice, but the same readability rules apply. Key additions for Kevin-authored content:
+
+- **Lead with the opinion, not the setup.** "The SaaSpocalypse is aimed at the wrong target" not "In late February, markets erased hundreds of billions in value from enterprise software stocks."
+- **Short paragraphs are the default.** Kevin's best social content uses 1-2 sentence paragraphs. Blog posts in Kevin's voice should do the same.
+- **The LinkedIn version is the editing target.** When writing a Kevin-voice blog post, write the LinkedIn version (300-500 words) first. Then expand to blog length. This ensures the insight survives at every length.
 
 ### Kevin talks about
 
@@ -83,6 +91,18 @@ Authoritative but generous. Clear but not dumbed-down. Thesis-driven — every p
 - Structured for LLM consumption. Clear titles, direct opening paragraphs, defined terms.
 - No hype. Never "revolutionary." Describe what happens and why it matters.
 - Concede where appropriate. "ChatGPT is incredibly powerful" before explaining what it lacks.
+
+### Readability rules (brand voice — applies to blog, Medium, LinkedIn articles)
+
+These rules exist because our blog posts are intellectually rigorous but physically dense. The brand voice should feel *authoritative and generous*, not *academic and exhausting.* See `STRATEGY.md § Readability Standard` for full rationale.
+
+- **Thesis in sentence one.** The opening sentence makes the claim. Not a setup, not a scene-setter, not "The AI industry has..." — the argument itself. Everything that follows is evidence.
+- **Max 3 sentences per paragraph.** Dense 5-6 sentence blocks are the primary readability killer. Break them. Short paragraphs create visual rhythm and let important sentences breathe.
+- **Bold one key sentence per section.** The sentence that, read alone, still communicates the section's point. This serves scanners and gives AI search engines a highlighted passage.
+- **Kill hedges by default.** "To be fair," "there's a reasonable argument that," "these aren't necessarily competing" — these are reflex phrases that dilute every claim. Write the confident version first. Add qualification only when a specific claim genuinely requires it.
+- **One analogy per argument.** If you need four examples to make one point, you don't trust the first example. Pick the strongest. The reader gets it.
+- **Question-format H2 headers.** "The Retrieval Default" → "Why does the industry default to retrieval?" Questions serve scanners (should I read this section?) and GEO (query matching) simultaneously.
+- **Paragraphs never start with "It's worth noting," "Interestingly," or "To be clear."** These are filler. Start with the substance.
 
 ### Example openings
 

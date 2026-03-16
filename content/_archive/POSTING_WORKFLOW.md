@@ -14,7 +14,8 @@ Claude in Chrome can navigate to any platform you're signed into, interact with 
 
 | Platform | URL | Status | Compose Method |
 |----------|-----|--------|----------------|
-| X/Twitter | x.com/home | Signed in (@KVKitsme) | Click "What's happening?" → type → Post button |
+| X/Twitter (tweets) | x.com/home | Signed in (@KVKitsme, Premium) | Click "What's happening?" → type → Post button |
+| X/Twitter (articles) | x.com/i/articles | Signed in (@KVKitsme, Premium) | Articles tab → Write → paste content → Publish |
 | LinkedIn | linkedin.com/company/99368741/admin/ | Signed in (yarnnn company page) | "+ Create" → "Start a post" → type → Post button |
 | Medium | medium.com/new-story | Signed in | Click "Write" → type title + body → "..." menu for canonical URL → Publish |
 | Reddit (r/yarnnn) | reddit.com/r/yarnnn | **Manual — Kevin posts** (Claude in Chrome blocked) | Kevin pastes prepared content directly |
@@ -73,6 +74,16 @@ When Kevin says "post it":
 - Click the "+" button to add next tweet in thread
 - Repeat for each tweet in the thread
 - Confirm → click "Post all"
+
+### X/Twitter — Article (Premium feature)
+- Navigate to x.com → Articles tab in side nav (or x.com/i/articles)
+- Click "Write"
+- Add title, paste body content (supports headings, bold, italics, embedded media, lists)
+- Up to 25,000 characters on Premium tier
+- Add canonical link back to yarnnn.com/blog in article footer
+- Confirm → click Publish
+- Articles appear on dedicated Articles tab on @KVKitsme profile and in followers' timelines
+- **No daily rate limit** (unlike Medium's 2/day)
 
 ### LinkedIn — Company Page Post (CRITICAL: always post as yarnnn, NEVER as Kevin's personal profile)
 - Navigate to linkedin.com/company/99368741/admin/dashboard/

@@ -1,6 +1,6 @@
 # YARNNN Content Strategy
 
-**Last consolidated:** 2026-03-13
+**Last consolidated:** 2026-03-16
 **Replaces:** `_strategy/CONTENT_STRATEGY_v1.md`, `_strategy/ENGAGEMENT_STRATEGY_v1.md`, `_strategy/GEO_QUERY_TARGETS.md`
 
 ---
@@ -10,6 +10,96 @@
 > **"Context is what makes AI autonomy meaningful."**
 
 Every piece of content orbits this. The reason every agent startup disappoints is that autonomy without context produces generic output. YARNNN solves that by accumulating context from real work platforms.
+
+---
+
+## Readability Standard
+
+**Last updated:** 2026-03-16
+
+### Why this section exists
+
+Our blog posts are intellectually strong but physically exhausting to read. Dense paragraph blocks, slow builds to the thesis, over-qualification, and redundant analogies make readers work harder than they should. The irony: our LinkedIn adaptations (300-550 words) often communicate insights *more effectively* than the blog originals (1,200-1,800 words). Readability isn't a concession — it's what makes the writing land.
+
+### The golden zone
+
+Content must simultaneously serve three audiences: human readers scanning for insight, search engines evaluating authority, and AI search engines selecting content to cite. The intersection is:
+
+| Signal | What it requires |
+|--------|-----------------|
+| Human readability | Thesis in first 30 words. Short paragraphs. No hedge padding. One analogy per argument. Visual breathing room. |
+| SEO authority | 800-1,200 words for standalones, 1,500-2,000 for pillar hubs. Question-format H2s. Internal linking. Defined terms. |
+| GEO citability | Complete answer in first 150 words. Statistics/citations (2-3 per post). Named entities for adjacency. Structured data. |
+
+The key insight: **front-loading the thesis satisfies all three simultaneously.** When the first paragraph is a complete, quotable answer, humans get the insight immediately, Google sees topical relevance, and AI search engines have a citable passage.
+
+### Six rules (apply to all new content; retrofit to pillar posts)
+
+**1. Thesis in the first 30 words.** Not a scene-setter. Not context. The claim itself. If a reader bounces after one sentence, they should still know the argument.
+
+**2. Max 3 sentences per paragraph in argument sections.** Short paragraphs create visual breathing room and let key sentences stand alone. Opinion posts already do this naturally — core/technical posts must too.
+
+**3. Bold the single most important sentence per section.** Not headings (we have those). The one sentence in body text that, read alone, still communicates the point.
+
+**4. Kill hedges on first draft; add back only where intellectually necessary.** "To be fair," "there's a reasonable argument," and "these aren't necessarily competing" are reflex phrases, not strategic choices. Write the confident version first. Then decide: does this *specific* claim actually need qualification?
+
+**5. One analogy per argument.** If you have four examples that make the same point, pick the strongest. Mention the others in a parenthetical if you must. The reader gets it after one.
+
+**6. Question-format H2 headers.** "The Retrieval Default" → "Why does the industry default to retrieval?" AI engines match queries to headers. Humans scan headers to decide whether to read a section. Questions do both jobs.
+
+### Target word counts (updated)
+
+| Format | Target | Previous |
+|--------|--------|----------|
+| Blog standalone | 800-1,200 words | 1,500-2,500 |
+| Blog pillar/hub | 1,500-2,000 words | (no distinction) |
+| Series parts | 1,200-1,500 words | 1,500-2,500 |
+| Opinion/hot-take | 500-800 words | (same) |
+
+The shift isn't about dumbing down — it's about every sentence earning its place. Our best existing posts ("The 90-Day Moat" at 877 words, "Citrini 2028 Crisis" at 960 words) already hit this range. They're tighter, punchier, and more memorable than the 1,500+ word posts.
+
+### Before/after example
+
+**Current opening of "The Accumulation Thesis" (150 words before the thesis):**
+> The AI industry has settled on retrieval as the default approach to giving models access to external information. RAG — Retrieval-Augmented Generation — is everywhere. When a user asks a question, the system searches a knowledge base, grabs relevant chunks, and feeds them to the model alongside the query. It's elegant, it's well-understood, and it works for a wide range of use cases. But there's a different pattern emerging...
+
+**Rewritten (65 words, thesis in sentence one):**
+> **Accumulation will beat retrieval for AI agents that do real work.** RAG — fetching relevant documents when a user asks — works brilliantly for Q&A. But agents that need to produce autonomous output (client updates, project briefs, status reports) need context that builds over time, not context assembled on demand. That's the architectural fork the industry isn't talking about yet.
+
+Same thesis. Same voice. Half the words. The argument lands in sentence one.
+
+---
+
+## Content Consolidation Plan
+
+**Last updated:** 2026-03-16
+
+### The problem: keyword cannibalization
+
+We have 11 posts about context/accumulation competing against each other for the same queries. When someone searches "AI context accumulation," Google and AI search find 6+ pages on our site with overlapping arguments. None is the definitive answer. None ranks as well as one strong page would.
+
+### Hub-and-spoke architecture
+
+For each major theme: one definitive "hub" page (pillar content, 1,500-2,000 words) with supporting "spokes" (800-1,000 words, each with a distinct angle). Every spoke links back to its hub.
+
+**Five hubs (consolidate from existing posts):**
+
+1. **Context Accumulation** (hub) — "The Accumulation Thesis" expanded. Absorbs core arguments from "Why We Chose Accumulation Over Retrieval," "Accumulated Intelligence," "Why Context Should Compound."
+2. **Cross-Platform Synthesis** (hub) — "The Case for Cross-Platform Synthesis" expanded. Absorbs "Cross-Platform Synthesis: The Category Problem."
+3. **Supervision & Trust** (hub) — "Why We Build for Supervision" expanded. "The Supervision Model" and "Why AI Agents Need to Earn Trust" become spokes.
+4. **The Solo Operator** (series, no changes) — 5 parts, complementary, no redundancy.
+5. **The Future of AI Work** (series, no changes) — 5 parts, clear progression.
+
+**Specific consolidations:**
+
+| Action | Posts | Rationale |
+|--------|-------|-----------|
+| Merge | "The Personalization Trap" + "Difference Between Personalization and Production" | Nearly identical thesis |
+| Merge | "Time as Missing Dimension" + "Temporal Context: Why When Matters" | Same argument, different wrappers |
+| Merge | "The Statelessness Problem" + "The Context Gap" | Overlapping problem statements |
+| Retire → redirect | "Context vs. Memory" | Subsumed by accumulation hub |
+
+**Result:** 46 → ~40 posts. 5-6 pillar pages that each rank for one clear query cluster. 301 redirects preserve SEO equity for retired URLs.
 
 ---
 
@@ -79,12 +169,15 @@ Frequency: 1x/week.
 
 | Platform | Role | Voice | Cadence |
 |----------|------|-------|---------|
-| **Twitter/X** | Awareness + thought leadership | Kevin | 3x/week (Mon/Wed/Fri) |
+| **Twitter/X (threads)** | Awareness + thought leadership | Kevin | 3x/week (Mon/Wed/Fri) |
+| **X Articles** | Long-form GEO amplification on X | Kevin or YARNNN brand | Cross-post from blog (1x/week, 3-7 days after blog) |
 | **LinkedIn** | ICP activation | Kevin (personal), YARNNN (articles) | 1-2x/week (Tue/Thu) |
 | **yarnnn.com/blog** | Canonical GEO hub | YARNNN brand | 1x/week (Thursday) |
 | **Medium** | GEO amplification | YARNNN brand | Cross-post from blog |
 | **Reddit** | Core GEO channel | Kevin | Track 1 (r/yarnnn archive): match blog. Track 2 (high-traffic subs): 2-3/pillar cycle |
 | **Indie Hackers** | Build-in-public | Kevin | 1-2x/month |
+
+**X Articles vs Medium**: Both are cross-post channels, but they serve different audiences. X Articles reach the X-native audience (AI/tech builders, founders) without algorithmic link suppression. Medium reaches the broader search/SEO audience. Both should cross-post every blog post; X Articles are higher priority because the audience overlap with our ICP is stronger.
 
 **Not active yet**: Product Hunt, Hacker News (Show HN), YouTube, podcasts, newsletter. Save these for post-seed or when retention data exists.
 
@@ -112,21 +205,28 @@ Frequency: 1x/week.
 2. Original frameworks rank higher (named concepts are citable)
 3. Cross-platform repetition amplifies signal
 4. Adjacency to high-traffic entities (OpenClaw, AutoGPT, ChatGPT, Devin) matters
+5. **First 150 words are the citation candidate.** AI search engines evaluate opening content for direct-answer fitness. Front-load the thesis — see Readability Standard § Rule 1.
+6. **Statistics and named citations increase citation rate 30-40%.** Opinion posts do this well (HBR, Citrini data). Core/technical posts must add 2-3 specific data points or source citations per post.
+7. **Recency bias is severe.** AI search citations drop sharply after ~3 months. Pillar/hub pages must be refreshed quarterly (update date, add recent examples, adjust claims).
 
 ### GEO Tiers
 
 | Tier | What | Frequency |
 |------|------|-----------|
-| 1. Canonical content | One long-form post per named concept on yarnnn.com/blog | Monthly |
-| 2. Cross-platform seeding | Short-form versions across Twitter, LinkedIn, Medium, Reddit | Ongoing |
+| 1. Pillar hubs | One 1,500-2,000 word definitive page per theme cluster (see Consolidation Plan) | Refresh quarterly |
+| 2. Cross-platform seeding | Short-form versions across Twitter, LinkedIn, Medium, Reddit | Ongoing (every post) |
 | 3. Comparison/positioning | YARNNN vs AutoGPT, vs ChatGPT, vs Devin | Monthly |
 | 4. Answer-worthy content | Posts structured to directly answer LLM queries | Monthly |
 
 ### Monthly Thursday Long-Form Rotation
 
-Week 1: Tier 1 (canonical concept definition) → Week 2: Tier 3 (comparison) → Week 3: Tier 1 (another concept) → Week 4: Tier 4 (query match)
+Week 1: Tier 1 (pillar hub refresh or new concept) → Week 2: Tier 3 (comparison) → Week 3: Tier 1 (different hub) → Week 4: Tier 4 (query match)
 
 ~75% discovery-level, ~25% conversion-level.
+
+### Quarterly Pillar Refresh Checklist
+
+For each of the 5 hub pages, once per quarter: update `lastModified` date, add 1-2 recent real-world examples, verify statistics are current, check that internal spoke links still resolve, re-test in ChatGPT/Perplexity/Gemini for citation presence.
 
 ### GEO Query Targets
 
