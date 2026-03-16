@@ -924,8 +924,8 @@ async def execute_agent_generation(
                 await maybe_trigger_heartbeat(client, user_id, "agent_run_delivered", {
                     "agent_id": str(agent_id), "skill": skill,
                 })
-            except Exception:
-                pass  # Non-fatal
+            except Exception as e:
+                logger.warning(f"[EXEC] Event heartbeat trigger failed: {e}")
 
         return {
             "success": final_status == "delivered",

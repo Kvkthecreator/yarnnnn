@@ -366,8 +366,8 @@ async def _sync_platform_inner(
                 await maybe_trigger_heartbeat(client, user_id, "platform_synced", {
                     "platform": provider, "items_synced": items_synced,
                 })
-            except Exception:
-                pass  # Non-fatal
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Event heartbeat trigger failed: {e}")
 
         return {
             "success": sync_success,

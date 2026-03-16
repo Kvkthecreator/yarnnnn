@@ -1125,6 +1125,7 @@ async def maybe_trigger_heartbeat(
 
     Returns heartbeat result dict, or None if debounced/skipped.
     """
+    logger.info(f"[COMPOSER] maybe_trigger_heartbeat called: user={user_id[:8]}, trigger={trigger_event}")
     now = datetime.now(timezone.utc)
 
     # Determine tier — Free users only get event-driven heartbeats in midnight window
