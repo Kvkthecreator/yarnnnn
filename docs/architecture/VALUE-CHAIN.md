@@ -131,10 +131,10 @@ Each phase's output is the next phase's input. This is the product's compounding
 - Sufficient accumulated substrate (enough runs, enough data to reason over)
 
 **What it produces**:
-- High-confidence agents auto-created (with "Auto" badge on dashboard)
-- Medium-confidence agents suggested to user via Composer Activity feed
-- Cross-platform agents that synthesize across Slack + Gmail + Notion
-- Knowledge/research agents that go beyond platform digests — trend monitoring, competitive intelligence, project tracking
+- High-confidence agents auto-created (with "Auto" badge on dashboard) — coverage gap fills are deterministic, no LLM
+- Cross-platform synthesis agents created when mature digests exist (lifecycle expansion)
+- LLM-assessed agents (Haiku) for non-obvious opportunities — engaged user patterns, cross-platform synthesis
+- Lifecycle actions: underperformer pausing (<30% approval, 8+ runs), cross-agent consolidation
 
 **Design principle**: The Composer reasons about the full substrate — not just "which platforms are connected" but what agent outputs exist, what patterns emerge across platforms, what the user's feedback signals indicate they care about. Platform content is the onramp; accumulated agent work is the signal.
 
@@ -267,18 +267,16 @@ This is FOUNDATIONS.md Axiom 4 in practice: value comes from accumulated attenti
 | **3. Bootstrap** | **Shipped** | Deterministic digest creation + inline first-run execution |
 | **4. First Value** | **Shipped** | Bootstrap executes first run inline (not waiting for scheduler) |
 | **5. Accumulate** | **Shipped** | Agent outputs → `/knowledge/` (ADR-107). Feedback → learned preferences (ADR-101). Sync continues on schedule. |
-| **6. Compose** | **Partially shipped** | Bootstrap bounded context active. Heartbeat assessment logic exists (`composer.py`) but scheduler activation deferred. Coverage gap detection works. LLM-driven compositional reasoning (cross-platform agent creation) pending scheduler wiring. |
-| **7. Compound** | **Infrastructure ready** | `QueryKnowledge` primitive lets agents search `/knowledge/`. No second-order agents exist yet — depends on Phase 6 Heartbeat activation to create them. Manually creatable via TP chat today. |
+| **6. Compose** | **Shipped** | All three bounded contexts active: Bootstrap (deterministic, ADR-110), Heartbeat (scheduled in `unified_scheduler.py`, tier-gated: Free=daily, Pro=every 5min), Lifecycle (underperformer pausing, scope expansion, cross-agent consolidation). LLM reasoning (Haiku) fires only when `should_composer_act()` identifies actionable gaps. |
+| **7. Compound** | **Infrastructure ready** | `QueryKnowledge` primitive lets agents search `/knowledge/`. Cross-platform and synthesis agents auto-created by Composer when mature digests exist. Second-order agent creation is autonomous — depends on sufficient L1 digest accumulation (typically week 2+). |
 
-### What "Partially shipped" means for Phase 6
+### Composer Bounded Contexts (ADR-111)
 
-The Composer has three bounded contexts (ADR-111):
+1. **Bootstrap** — deterministic agent creation on platform connect. Inline first-run execution. **Shipped.**
+2. **Heartbeat** — periodic TP self-assessment on cadence. `run_heartbeat()` called from `unified_scheduler.py` per user. Free=midnight UTC only, Pro=every 5-min cycle. 7 trigger conditions: coverage gaps, underperformers, lifecycle expansion, cross-platform opportunity, stale agents, engaged user, cross-agent patterns. **Shipped.**
+3. **Lifecycle** — underperformer pausing (auto-pause at <30% approval, 8+ runs), scope expansion (mature digests → synthesis agent), cross-agent consolidation. **Shipped.**
 
-1. **Bootstrap** — deterministic agent creation on platform connect. **Shipped.**
-2. **Heartbeat** — periodic TP self-assessment on cadence. **Code exists** (`should_composer_act()`, `heartbeat_data_query()`), **scheduler call deferred**. When activated, this is the mechanism that creates cross-platform and synthesis agents autonomously.
-3. **Lifecycle** — underperformer pausing, scope expansion, cross-agent consolidation. **Partially implemented** (underperformer detection exists, expansion logic pending).
-
-The gap between "Phases 1-5 shipped" and "Phases 6-7 fully autonomous" is one scheduler activation + LLM reasoning wiring. The decision infrastructure exists; the action path needs connection.
+Phase 7 readiness depends on Phase 6 creating second-order agents, which requires sufficient accumulated L1 outputs — a function of time, not missing code.
 
 ---
 
