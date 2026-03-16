@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.5] - Fix: Headless agent tool-narration leak + output validation
+
+### Changed
+- `api/services/agent_execution.py`: Added empty-context handling guidance to headless system prompt — agents must produce properly formatted "no activity" output instead of narrating tool usage. Added `_strip_tool_narration()` to detect and reject drafts that are purely tool-use narration (e.g., "Let me check what platform content is available"). Added blocking retry for critically short drafts (<20 words) — forces a synthesis call with explicit instructions to produce content.
+- Expected behavior: Agents that receive empty context or get no results from tools will now produce a structured "no recent activity" output in the correct format, instead of leaking internal reasoning as the final output. Critically short outputs trigger an automatic retry before delivery.
+
+---
+
 ## [2026.03.16.4] - ADR-111 Phase 5: Lifecycle Progression
 
 ### Changed

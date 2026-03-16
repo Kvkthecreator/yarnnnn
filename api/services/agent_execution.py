@@ -152,6 +152,42 @@ async def create_version_record(
     return result.data[0] if result.data else {"id": version_id}
 
 
+# Patterns that indicate the model narrated its tool usage instead of producing content
+_NARRATION_PATTERNS = [
+    "let me check",
+    "let me search",
+    "let me look",
+    "i'll search",
+    "i'll check",
+    "i'll look",
+    "i will search",
+    "i will check",
+    "let me see what",
+    "checking the",
+    "searching for",
+    "looking for platform content",
+    "let me find",
+]
+
+
+def _strip_tool_narration(draft: str) -> str:
+    """
+    Strip tool-use narration from draft if the entire output is just narration.
+
+    Returns cleaned draft, or empty string if draft was purely narration.
+    """
+    lines = [line.strip() for line in draft.strip().splitlines() if line.strip()]
+    if not lines:
+        return ""
+
+    # If the entire draft is 1-3 short lines that match narration patterns, reject it
+    if len(lines) <= 3 and len(draft.split()) < 30:
+        draft_lower = draft.lower()
+        if any(pattern in draft_lower for pattern in _NARRATION_PATTERNS):
+            logger.warning(f"[GENERATE] Stripped tool narration from draft: {draft[:100]}")
+            return ""
+
+    return draft
 
 
 def _build_headless_system_prompt(
@@ -265,7 +301,15 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
 - Use tools ONLY if the gathered context in the user message is clearly insufficient to produce the agent.
 - Prefer generating from the provided context — most agents have enough.
 - If you do use a tool, do so in the first turn, then generate in the next.
-- NEVER use tools to stall — if context is adequate, generate immediately."""
+- NEVER use tools to stall — if context is adequate, generate immediately.
+- NEVER narrate your tool usage in the final output. Do not write things like "Let me check..." or "I'll search for..." — your output must be the finished agent content only.
+
+## Empty Context Handling
+If the gathered context says "(No context available)" or tools return no results:
+- Still produce the agent in the requested format and structure.
+- Note briefly that no recent activity was found for the period.
+- Do NOT output investigation narration or meta-commentary about missing data.
+- A short, properly formatted "no activity" output is always better than a tool-use narrative."""
 
     # Inject trigger context when available
     if trigger_context:
@@ -539,10 +583,41 @@ async def generate_draft_inline(
         if not draft:
             raise ValueError("Agent produced empty draft")
 
-        # Validate output (non-blocking - just log warnings)
+        # Detect critically bad output: tool-use narration leaked into draft
+        draft = _strip_tool_narration(draft)
+
+        if not draft:
+            raise ValueError("Agent produced only tool-use narration, no actual content")
+
+        # Validate output (non-blocking for soft issues, blocking for critical)
         validation = validate_output(skill, draft, type_config)
         if not validation.get("valid"):
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
+
+        # Block critically short output and force a retry synthesis
+        word_count = len(draft.split())
+        if word_count < 20:
+            logger.warning(f"[GENERATE] Draft critically short ({word_count} words), forcing synthesis retry")
+            messages.append({"role": "assistant", "content": draft})
+            messages.append({"role": "user", "content": (
+                "Your output was too short and incomplete. You MUST produce the full agent content "
+                "in the requested format now. If no platform activity was found, still produce a "
+                "properly structured output noting the lack of activity. Do not narrate — just write the content."
+            )})
+            retry_response = await chat_completion_with_tools(
+                messages=messages,
+                system=system_prompt,
+                tools=[],
+                model=SONNET_MODEL,
+                max_tokens=4000,
+            )
+            if retry_response.usage:
+                total_input_tokens += retry_response.usage.get("input_tokens", 0)
+                total_output_tokens += retry_response.usage.get("output_tokens", 0)
+            retry_draft = (retry_response.text or "").strip()
+            if len(retry_draft.split()) > word_count:
+                draft = retry_draft
+                logger.info(f"[GENERATE] Synthesis retry produced {len(draft.split())} words")
 
         # ADR-101: Return draft + token usage for per-agent cost tracking
         usage = {
