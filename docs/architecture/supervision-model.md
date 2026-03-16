@@ -76,7 +76,7 @@ These two dimensions are not in conflict—they're complementary:
 │                                                                 │
 │   What user supervises:     How user supervises:                │
 │   ┌─────────────────────┐   ┌─────────────────────┐            │
-│   │   DELIVERABLES      │   │        TP           │            │
+│   │      AGENTS          │   │        TP           │            │
 │   │   (data objects)    │◄──│  (interaction layer)│            │
 │   │                     │   │                     │            │
 │   │ • Review drafts     │   │ • "Make it shorter" │            │
@@ -138,7 +138,7 @@ The review page exemplifies the supervision model:
 │ Weekly Status Report - Review                          │
 ├────────────────────────────────────────────────────────┤
 │                                                        │
-│ [Draft content displayed here - DELIVERABLE]          │
+│ [Draft content displayed here - AGENT OUTPUT]         │
 │                                                        │
 ├────────────────────────────────────────────────────────┤
 │ Refine with AI:                           [TP LAYER]  │
@@ -234,12 +234,49 @@ ADR-020 proposed inverting chat and content. The supervision model refines this:
 
 ---
 
+## Evolution: Two-Layer Intelligence and Autonomy-First (2026-03-16)
+
+FOUNDATIONS.md v2 extends the supervision model in two important ways:
+
+### TP as Autonomous Supervisor (not just reactive interface)
+
+The original model frames TP as the user's **interaction surface** — the user directs, TP executes. FOUNDATIONS Axiom 5 and ADR-111 (revised) add an autonomous dimension:
+
+- **TP Composer**: TP autonomously creates and configures agents based on compositional judgment
+- **TP Heartbeat**: TP periodically assesses agent workforce health without user prompting
+- **TP Supervisory**: TP reviews individual agent performance and decides on lifecycle changes
+
+The user's role shifts from **directing** to **supervising** to (at tenured state) **overseeing**. TP does more autonomously as it accumulates compositional judgment about what works for this user.
+
+### Agents as Developing Entities (not just data objects)
+
+The original model frames agents as "first-class data entities." FOUNDATIONS Axiom 3 extends this — agents are **developing entities** with:
+
+- **Intentions** that evolve (not just static configuration)
+- **Capabilities** earned through feedback (read → analyze → write-back → act)
+- **Autonomy** that graduates per-capability (supervised → semi-autonomous → autonomous)
+
+This doesn't change the supervision model's core insight (user supervises, TP facilitates). It extends it: what the user supervises becomes richer over time, and TP's autonomous capabilities reduce the supervision burden.
+
+See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis.
+
+### Feedback vs Configuration (orthogonal axes)
+
+The supervision model implicitly treats all user input as "supervision." The hardened framing distinguishes:
+
+- **Feedback** (qualitative): edits, approvals, dismissals → improves output quality, compounds over time
+- **Configuration** (control/scoping): instructions, sources, schedule, tool scope → defines boundaries, changed deliberately
+
+Both are supervision. But they serve different purposes and flow through different channels.
+
+---
+
 ## Summary
 
 **The supervision model provides a unified framework:**
 
-1. **Agents** = what user supervises (data, artifacts, quality)
-2. **TP** = how user supervises (interaction, refinement, delegation)
-3. **User** = supervisor who oversees AI-produced work
+1. **Agents** = what user supervises (developing entities that accumulate domain expertise)
+2. **TP** = how user supervises (interaction surface + autonomous compositor/supervisor)
+3. **User** = supervisor whose role shifts from directing → supervising → overseeing as tenure increases
 
 This resolves the apparent tension between "agents as first-class" and "TP as primary interface" by recognizing they operate in different dimensions—one is data, one is interaction. Both are first-class in their domain.

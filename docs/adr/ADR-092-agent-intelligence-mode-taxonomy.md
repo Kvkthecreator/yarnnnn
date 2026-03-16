@@ -393,6 +393,45 @@ The agent types themselves (`meeting_prep`, `silence_alert`, `contact_drift`) ar
 
 ---
 
+## Revision Notes (2026-03-16): Proactive/Coordinator as TP Capabilities
+
+FOUNDATIONS.md v2 (Axiom 1: Two Layers of Intelligence, Axiom 5: Composer as TP Capability) reframes the conceptual ownership of proactive and coordinator modes:
+
+### What Changes Conceptually
+
+**Proactive mode** — described above as "living specialist that periodically reviews its own domain and decides whether to generate." Under FOUNDATIONS.md:
+- The review pass is reframed as **TP's supervisory capability** — TP assessing whether a specific agent should produce output right now.
+- The agent still provides the domain assessment (it knows its domain better than TP). But the *decision to review* and the *decision to act on the assessment* belong to TP.
+- Mechanically: TP's Heartbeat (ADR-111 revised) invokes per-agent review. Agent returns domain observations. TP/Heartbeat decides: generate / observe / sleep.
+
+**Coordinator mode** — described above as "meta-specialist that creates or activates other agents." Under FOUNDATIONS.md:
+- Agent creation is **TP's Composer capability** — TP spawning agents based on assessed need.
+- The coordinator agent's domain knowledge (what events warrant new agents) remains valuable as input to TP's composition.
+- Mechanically: The CreateAgent primitive shifts from agent-invoked to TP/Composer-invoked. The assessment logic that lives in coordinator agent instructions becomes part of Composer's assessment model.
+
+### What Does NOT Change
+
+- **The mode taxonomy** (recurring, goal, reactive, proactive, coordinator) remains valid as execution character descriptions
+- **The scheduler mechanics** (proactive_next_review_at, review cadence, lightweight Haiku review) are preserved
+- **The agent_memory structures** (review_log, observations, created_agents) remain as designed
+- **The graduated response** (observe / generate / sleep) is preserved
+- **RefreshPlatformContent in headless mode** — unchanged
+
+### What Changes Mechanically (future — ADR-111 Phase 4)
+
+- TP Heartbeat becomes the trigger for proactive/coordinator reviews, replacing direct scheduler dispatch
+- Agent review pass returns assessment to TP, not autonomous action decision
+- CreateAgent invocation shifts from coordinator agent headless → TP Composer
+- AdvanceAgentSchedule remains available as a TP/Composer primitive
+
+### Impact on Decision Tests
+
+The five decision tests below remain valid. Two additional tests from agent-model-comparison.md (2026-03-16 revision):
+- 6: Does this strengthen TP's compositional authority?
+- 7: Does this reduce platform dependency over time?
+
+---
+
 ## Decision tests (per agent-model-comparison.md)
 
 1. **Does this strengthen the agent as the unit of intelligence?** Yes. Intelligence moves entirely into agents. L3 stops reasoning.

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.1] - ADR-111 Phase 1: Complete singular agent creation path
+
+### Changed
+- `api/routes/agents.py`: POST `/agents` now delegates to shared `create_agent_record()` instead of inline insert. Local `infer_scope()` replaced with import from `services.agent_creation`. Tier check and response formatting remain as route concerns.
+- `api/services/agent_creation.py`: Added `infer_scope()` (moved from routes, handles sources + skill + mode). Added `description` and `platform_variant` optional params. Scope inference upgraded from simple `SKILL_TO_SCOPE` dict to full `infer_scope()` logic.
+- `api/agents/tp_prompts/behaviors.py`: Fixed 3 stale `Write(ref="agent:new", ...)` examples → `CreateAgent(...)` to match tools.py.
+- Expected behavior: All agent creation paths (UI form, TP chat, coordinator, bootstrap) now funnel through single `create_agent_record()`. No behavioral change for users — same validation, same workspace seeding, same response shape.
+
+---
+
 ## [2026.03.15.2] - ADR-112: RefreshPlatformContent sync lock awareness
 
 ### Changed

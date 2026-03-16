@@ -1,15 +1,16 @@
-# ADR-111: Agent Composer
+# ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** Proposed
-**Date:** 2026-03-13
+**Status:** Implemented (Phase 1 + Phase 2), Proposed (Phases 3-5) — Revised 2026-03-16
+**Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
-**Related:** ADR-092 (Coordinator Mode), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap), ADR-106 (Workspace Architecture)
+**Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture)
+**Analysis:** [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../architecture/FOUNDATIONS.md)
 
 ---
 
 ## Context
 
-### The Naming Problem
+### The Naming Problem (unchanged)
 
 The current codebase has two agent creation mechanisms that are both mislabeled:
 
@@ -17,23 +18,39 @@ The current codebase has two agent creation mechanisms that are both mislabeled:
 
 2. **`CreateAgent` primitive** (headless/coordinator only) — A dedicated agent creator, but scoped exclusively to coordinator agents. Has its own field processing, origin tracking, and workspace seeding — duplicating logic from Write's `_process_agent()`.
 
-**Problem:** Two code paths for the same operation (creating agents), with different defaults, different field handling, and different mode gating. This violates singular implementation. Neither path includes any assessment intelligence — both are dumb writers that insert what they're told.
+**Problem:** Two code paths for the same operation (creating agents), with different defaults, different field handling, and different mode gating. This violates singular implementation.
 
-### The Missing Layer
+### The Missing Capability (reframed)
 
-Between "user has substrate" (connections, files, knowledge) and "agents exist" there is no **assessment and orchestration layer**. Today:
+Between "user has substrate" and "agents exist" there is no compositional judgment. Today:
 
-- **Platform connections** → user must manually create matching digest agents
-- **Uploaded files** → no agent suggestion at all (knowledge-scope agents are invisible)
-- **Multi-platform substrate** → no cross-platform agent suggestion (Work Summary, Meeting Prep)
-- **Accumulated knowledge** → no longitudinal agent suggestion (Domain Tracker, Proactive Insights)
-- **Agent maturity** → no lifecycle progression (digest → monitor → synthesize as tenure grows)
+- **Platform connections** → user must manually create matching digest agents (or bootstrap creates one deterministically)
+- **Uploaded files** → no agent creation at all
+- **Multi-platform substrate** → no cross-platform agent creation
+- **Agent maturity** → no lifecycle progression
+- **TP has no heartbeat** — only fires when user sends a chat message
 
-The Composer is this missing layer. It is not a primitive — it is a **service** that assesses substrate, matches templates, and orchestrates agent creation through the existing creation infrastructure.
+This is a missing **TP capability** — not a missing service. Per FOUNDATIONS.md Axiom 5: the Composer is TP exercising judgment about what attention patterns the user's work requires. It is not a separate service, agent type, or subsystem.
+
+### Platform Content Is an Onramp, Not the Engine
+
+Platform sync seeds context and meets users where their work already lives. But agent work extends far beyond platform digests — research, synthesis, monitoring, write-back, cross-platform analysis. As agent quality and accumulated substrate improve, dependency on fresh platform data decreases. The recursive accumulation (agent outputs → next agent's input → user feedback → refined output) is the enduring value.
+
+**Implication:** TP's compositional triggers cannot be framed primarily around "which platforms are connected." TP must reason about the full range of agent intentions and work patterns.
+
+### Autonomy Is the Architecture, Not a Feature
+
+The system is designed autonomous-first. TP's default is to act; the user's default is to correct through feedback. This means:
+
+- Bias toward creating agents, not suggesting them
+- Existing feedback infrastructure (stop/edit/delete, edit history learning) is the correction mechanism
+- The ability to constrain autonomy is the business model lever (tier gating), not the architectural foundation
+
+---
 
 ## Decision
 
-### 1. Unify Agent Creation into a Single Primitive
+### 1. Unify Agent Creation into a Single Primitive (unchanged)
 
 **Rename and harden the agent creation path.** Extract `_process_agent()` from `Write` into a dedicated `CreateAgent` primitive available in **both** chat and headless modes, with mode-specific defaults.
 
@@ -41,8 +58,8 @@ The Composer is this missing layer. It is not a primitive — it is a **service*
 |--------|---------------------|-------------------------------|-------------------|
 | **Name** | `Write` | `CreateAgent` | `CreateAgent` |
 | **Mode** | chat only | headless only | chat + headless |
-| **Origin default** | (none) | `coordinator_created` | mode-dependent: `user_configured` (chat), `coordinator_created` (headless), `system_bootstrap` (bootstrap), `composer` (composer) |
-| **Field processing** | `_process_agent()` in write.py | inline in coordinator.py | shared `create_agent_record()` in new `agent_creation.py` |
+| **Origin default** | (none) | `coordinator_created` | mode-dependent: `user_configured` (chat), `composer` (headless/composer), `system_bootstrap` (bootstrap) |
+| **Field processing** | `_process_agent()` in write.py | inline in coordinator.py | shared `create_agent_record()` in `agent_creation.py` |
 | **Workspace seeding** | Yes (AGENT.md) | Yes (AGENT.md) | Yes (shared) |
 | **Scope inference** | Yes (ADR-109) | Yes (ADR-109) | Yes (shared) |
 | **Dedup check** | No | Yes (coordinator memory) | Optional (caller decides) |
@@ -50,156 +67,203 @@ The Composer is this missing layer. It is not a primitive — it is a **service*
 
 **`Write` primitive continues to exist** for memories and documents — it just no longer handles `ref="agent:new"`. If TP calls `Write(ref="agent:new", ...)`, it gets a clear error: "Use CreateAgent to create agents."
 
-**Migration:**
-- Extract shared agent creation logic into `api/services/agent_creation.py`
-- `CreateAgent` tool definition updated with full field documentation (skill, scope, schedule, sources, instructions)
-- Both chat-mode TP and headless coordinators call the same `create_agent_record()` function
-- Coordinator-specific logic (dedup, origin override) stays in coordinator.py but calls shared function
-- TP prompt updated: `Write(ref="agent:new")` → `CreateAgent(title, skill, ...)`
+### 2. Composer as TP Capability (revised — was "Composer Service")
 
-### 2. Introduce the Composer Service
+**The Composer is not a service.** It is TP exercising compositional judgment, implemented as three bounded contexts that are architecturally cohesive but independently controllable.
 
-The Composer is a **backend service** (not an agent, not a primitive) that:
+#### Three Bounded Contexts
+
+**Bootstrap** — first-run seeding after platform connection:
+- Deterministic, zero-LLM fast-path for highest-confidence agents
+- Fires synchronously post-OAuth + first sync completion
+- Template mapping: Slack→Recap, Gmail→Digest, Notion→Summary
+- Unique timing requirement: must be fast (30-60 seconds to first value)
+- Preserves existing `onboarding_bootstrap.py` mechanics
+- Tier-gatable: all tiers get bootstrap, count/type varies
+
+**Heartbeat** — periodic TP self-assessment:
+- TP's autonomous cadence for evaluating agent workforce health and completeness
+- Independent of external triggers — TP thinks on its own schedule
+- Lightweight data query first (cheap, no LLM); LLM reasoning only when assessment warrants action
+- "Nothing to do" is first-class outcome (HEARTBEAT_OK equivalent)
+- Assesses: coverage gaps, underperforming agents, stale agents, maturity signals, user behavior shifts
+- Tier-gatable: frequency varies by tier (Free: daily, Pro: more frequent)
+
+**Composer** — the compositional judgment itself:
+- Assessment logic that evaluates substrate and decides what agents should exist
+- Invoked by Bootstrap (on platform connect), Heartbeat (on schedule), or events (feedback, maturity)
+- Creates agents with detailed first-order configuration (instructions, scope, tools, schedule, sources)
+- Also adjusts, expands, or dissolves existing agents based on accumulated judgment
+- Tier-gatable: scope and agent count limits vary by tier
 
 ```
-assess_substrate(user_id) → SubstrateSnapshot
-  ├── connections: [{platform, status, source_count, last_sync}]
-  ├── uploaded_files: [{name, type, size, content_summary}]
-  ├── workspace_files: [{path, type}]
-  ├── existing_agents: [{id, skill, scope, sources, status}]
-  └── usage_signals: [{type, count}]  # what they've asked TP about
+Bootstrap ⊂ Composer (bootstrap is a specific Composer invocation)
+Heartbeat → Composer (heartbeat triggers Composer assessment)
+Events → Composer (platform connect, feedback, maturity → Composer assessment)
 
-match_templates(snapshot) → [AgentRecommendation]
-  ├── template: TemplateLabel  # from ADR-109 canonical table
-  ├── confidence: float  # how obvious this recommendation is
-  ├── rationale: str  # why this agent for this substrate
-  ├── sources: [DataSource]  # pre-populated
-  ├── requires: [str]  # unmet prerequisites (e.g., "connect Gmail for full context")
-  └── priority: int  # ordering hint
-
-scaffold(recommendations, mode) → [AgentCreated]
-  mode = "auto" | "suggest"
-  ├── auto: create immediately (bootstrap path, high-confidence only)
-  └── suggest: return recommendations for TP/UI to present
+Composer is the capability.
+Heartbeat is the autonomous cadence.
+Bootstrap is the first-run special case.
 ```
 
-### 3. Composer Trigger Points
+#### Composer Assessment Model
 
-| Event | Composer Mode | What Happens |
-|-------|--------------|--------------|
-| **Platform connected + first sync** | `auto` (high confidence only) | Bootstrap path — deterministic digest creation (ADR-110) |
-| **File uploaded to workspace** | `suggest` | Composer returns knowledge-scope recommendations; TP presents them |
-| **Second platform connected** | `suggest` | Composer recommends cross-platform agents (Work Summary, Meeting Prep) |
-| **Agent reaches N runs with low edit distance** | `suggest` | Composer recommends upgrade (digest → monitor, or add Proactive Insights) |
-| **User asks TP "what else can yarnnn do?"** | `suggest` | Composer returns full gap analysis as TP context |
-| **Nightly cron (low frequency)** | `suggest` | Passive substrate assessment, surfaces recommendations in next TP session |
+When Composer fires (via heartbeat, event, or bootstrap), it evaluates:
 
-### 4. Confidence Tiers
+1. **Substrate**: Connected platforms, synced sources, uploaded files, user chat topics, accumulated workspace content
+2. **Workforce**: Existing agents — modes, scopes, recent output quality, feedback patterns
+3. **Gaps**: What attention is warranted that no agent currently provides?
+4. **Health**: Which agents are producing value? Which are stale or underperforming?
+5. **Maturity**: Which agents are ready for scope expansion? Which should be dissolved?
 
-The Composer operates at two confidence levels:
+**Priority, dedup, and override handling:**
+- **Hierarchy**: Some agents are higher-value than others. Platform digest before cross-platform synthesis before research.
+- **Dedup**: Don't create an agent that duplicates existing coverage.
+- **Manual overrides**: If user has manually created/configured an agent, Composer respects that as explicit signal.
+- **Accumulated judgment**: What has this user kept vs dismissed? TP learns from feedback patterns.
 
-**High confidence (auto-create, no LLM):**
-- Single platform connected → matching digest agent
-- This is the ADR-110 bootstrap path, subsumed by Composer
+#### Two Orthogonal Axes
 
-**Medium confidence (suggest via TP, optional LLM):**
-- Multi-platform → Work Summary recommendation
-- Calendar + other platforms → Meeting Prep recommendation
-- Uploaded competitive docs → Domain Tracker recommendation
-- Accumulated 2+ weeks of content → Proactive Insights recommendation
+**Feedback** (qualitative) — improves output quality, informs TP's compositional judgment. Signals: edits, approvals, dismissals. Accumulates and compounds.
 
-**Low confidence (present as options, never auto-create):**
-- Deep Dive (requires user-specified research question)
-- Custom agents
-- Coordinator agents
+**Configuration** (control/scoping) — defines what an agent can do. Set by TP at creation, adjustable by user. Includes: instructions, sources, schedule, mode, tool scope. Changed deliberately, not gradually.
 
-### 5. Substrate Types and Template Affinity
+TP Composer operates on both: it *configures* agents at creation and *learns from feedback* to improve compositional judgment.
 
-| Substrate | Detected By | Natural Templates | Confidence |
-|-----------|-------------|-------------------|------------|
-| Single platform connection | `platform_connections` query | Platform digest (Slack Recap, Gmail Digest, Notion Summary) | High |
-| Multi-platform connections | 2+ distinct platforms in connections | Work Summary, Meeting Prep | Medium |
-| Calendar connection | Google Calendar in connections | Meeting Prep (requires cross-platform context) | Medium |
-| Uploaded documents | `filesystem_documents` or `workspace_files` with user uploads | Domain Tracker, Deep Dive | Medium |
-| Accumulated knowledge | `workspace_files` in `/knowledge/` above threshold | Proactive Insights | Medium |
-| Agent maturity signal | Agent with 5+ runs, avg_edit_distance < 0.1 | Monitor upgrade, Proactive Insights | Low |
+#### Two Orders of Control
 
-### 6. Composer Is Not an Agent
+**First order — TP Composer**: Creates agents with configuration (instructions, scope, tools, schedule). Manages lifecycle. Meta-cognitive orchestration.
 
-**Why a service, not a coordinator agent:**
+**Second order — Agent execution**: Each agent operates within configured boundaries. Tool scope, execution limits, feedback-driven quality improvement. Domain-cognitive controls.
 
-- Bootstrap (high confidence) must fire synchronously post-OAuth — scheduler latency is unacceptable for "first 60 seconds"
-- Assessment is mostly deterministic (count connections, check existing agents, lookup template table) — LLM is optional for medium-confidence recommendations
-- Composer needs to be callable from multiple sites (OAuth callback, file upload handler, TP context enrichment, nightly cron) — agents only run via scheduler
-- No persistent state needed beyond what already exists (connections, agents, workspace_files)
+### 3. Proactive/Coordinator Reframe (new — see also ADR-092 revision notes)
 
-**A coordinator agent could be layered on top later** for the autonomous lifecycle progression case (agent maturity → recommend upgrade), where periodic review cadence makes sense.
+Per FOUNDATIONS.md Axiom 5:
+
+> "Proactive review (per-agent 'should I generate?') is better understood as **TP's supervisory capability** — TP assessing whether a specific agent should produce output right now."
+> "Coordinator mode (creating child agents) is **the Composer capability itself** — TP spawning agents based on assessed need."
+
+**Disposition of existing code:**
+
+| Existing | Disposition |
+|----------|------------|
+| `proactive_review.py` | **Becomes TP's per-agent supervisory check** — invoked by Heartbeat. Mechanically similar (Haiku review pass), but conceptually owned by TP, not agent self-assessment. |
+| Coordinator CreateAgent primitive | **Absorbed into Composer** — TP is the only entity that creates agents. The primitive is preserved; the invocation shifts from agent headless → TP compositional mode. |
+| `onboarding_bootstrap.py` | **Becomes Bootstrap bounded context** — preserved as fast-path for deterministic creation. Composer subsumes for non-obvious cases. |
+| `unified_scheduler.py` | **Extended** — adds Heartbeat as a scheduled TP event alongside agent runs. |
+
+### 4. Composer Triggers (revised — was event-only)
+
+| Trigger | Source | What Composer Assesses |
+|---------|--------|----------------------|
+| **Platform connected + first sync** | Event (sync completion) | What agents does this platform warrant? (Bootstrap fast-path) |
+| **Heartbeat cadence** | Periodic (cron) | Is the agent workforce healthy and complete? Gaps? Stale agents? Maturity signals? |
+| **Agent run + user feedback** | Event (edit/approve/dismiss) | Does this agent need adjustment? Does feedback pattern suggest new agents? |
+| **Agent maturity threshold** | Event (N runs with stable output) | Ready for scope expansion or capability upgrade? |
+| **User chat topic** | Event (TP session) | User discusses topic no agent covers → note for next Heartbeat assessment |
+| **File uploaded** | Event (workspace write) | What knowledge/research agents does this warrant? |
+
+### 5. Cost Model
+
+Following OpenClaw's "cheap checks first, models only when you need them":
+
+- **Heartbeat data query**: ~0 cost (DB queries for agent stats, run counts, feedback)
+- **LLM reasoning**: Only when assessment identifies potential action. Est: 1-3 LLM calls/day/user at steady state.
+- **Bootstrap**: Zero LLM for deterministic templates.
+- **Per-agent supervisory review** (reframed proactive): Lightweight Haiku call, same as current `proactive_review.py`.
+
+---
 
 ## Phased Implementation
 
-### Phase 1: CreateAgent Primitive Unification
+### Phase 1: CreateAgent Primitive Unification ✓ (Implemented 2026-03-16)
 
-- Extract `_process_agent()` into `api/services/agent_creation.py` as `create_agent_record()`
-- New `CreateAgent` tool definition in `api/services/primitives/create_agent.py` (chat + headless)
-- `Write` primitive rejects `ref="agent:new"` with redirect message
-- Coordinator's `handle_create_agent()` calls shared `create_agent_record()`
-- Update TP prompt: document `CreateAgent` as the agent creation tool
-- Update `api/prompts/CHANGELOG.md`
+- ✓ `api/services/agent_creation.py` — shared `create_agent_record()` with `infer_scope()`
+- ✓ `api/services/primitives/coordinator.py` — CreateAgent in chat + headless modes
+- ✓ `api/services/primitives/write.py` — rejects `ref="agent:new"` with redirect
+- ✓ `api/routes/agents.py` — POST `/agents` delegates to `create_agent_record()`
+- ✓ `api/agents/tp_prompts/tools.py` + `behaviors.py` — CreateAgent documented
+- ✓ `api/prompts/CHANGELOG.md` — updated
 
-### Phase 2: Onboarding Bootstrap (ADR-110)
+All agent creation paths now funnel through single `create_agent_record()`.
 
-- `api/services/onboarding_bootstrap.py` — deterministic bootstrap service
-- Calls `create_agent_record()` with `origin="system_bootstrap"`
-- Wired into platform sync completion handler
-- OAuth redirect updated to return to dashboard
-- Dashboard UX shows generating agent
+### Phase 2: Bootstrap Bounded Context ✓ (Implemented 2026-03-16)
 
-### Phase 3: Composer Service (Suggest Mode)
+- ✓ `api/services/onboarding_bootstrap.py` — deterministic fast-path
+- ✓ Calls `create_agent_record()` with `origin="system_bootstrap"`
+- ✓ Wired into platform sync completion handler (`platform_worker.py`)
+- ✓ First run executes immediately (Axiom 6: 30-60 second value)
 
-- `api/services/composer.py` — `assess_substrate()`, `match_templates()`, `scaffold()`
-- Wired into TP context enrichment: when user has unmatched substrate, TP sees recommendations
-- Wired into file upload handler: uploaded files trigger `suggest` mode
-- Wired into second-platform-connected event
+### Phase 3: Heartbeat + Composer Assessment
 
-### Phase 4: Lifecycle Progression (Future)
+- Add TP Heartbeat as scheduled event in `unified_scheduler.py`
+- Composer assessment logic: substrate query → gap analysis → action decision
+- Lightweight data pass first; LLM only when warranted
+- Auto-create agents based on assessment (bias toward action)
+- Activity log + dashboard attribution for Composer-created agents
+- `origin="composer"` for Composer-created agents
 
-- Agent maturity signals feed into Composer
-- Composer recommends upgrades (digest → monitor, add Proactive Insights)
-- Optionally implemented as a system coordinator for periodic review
+### Phase 4: Supervisory Reframe
+
+- Reframe `proactive_review.py` as TP's per-agent supervisory check
+- Heartbeat invokes per-agent review for proactive-mode agents
+- Agent returns domain assessment → TP (Heartbeat) decides action
+- Coordinator mode → Composer capability: agent creation decisions flow through Composer
+
+### Phase 5: Lifecycle Progression
+
+- Agent maturity signals feed into Composer assessment
+- Composer adjusts agent scope, configuration, or dissolves underperformers
+- Cross-agent pattern detection (Heartbeat identifies cross-agent insights)
+
+---
 
 ## Consequences
 
 ### Positive
-- **Single agent creation path** — eliminates dual Write/_process_agent vs CreateAgent/handle_create_agent
-- **Full taxonomy becomes accessible** — knowledge, research, and autonomous agents get surfaced naturally through substrate matching, not just platform-scoped digests
-- **File uploads lead somewhere** — uploading docs without platform connections now has a clear agent path (Domain Tracker, Deep Dive)
-- **Progressive sophistication** — bootstrap is instant and dumb; Composer adds intelligence gradually; lifecycle adds autonomy later
-- **TP gets richer context** — Composer recommendations injected into TP sessions mean the orchestrator can proactively suggest agents during conversation
+- **Single agent creation path** — eliminates dual Write/_process_agent vs CreateAgent
+- **Autonomy-first** — TP acts on judgment; user corrects through feedback
+- **Full taxonomy becomes accessible** — knowledge, research, and autonomous agents surfaced through Composer assessment
+- **TP gets a heartbeat** — periodic self-assessment closes the gap between reactive-only TP and the autonomous system vision
+- **Cohesive but controllable** — three bounded contexts can be independently tier-gated
+- **Platform dependency decreases over time** — Composer's assessment increasingly uses recursive substrate (agent outputs, user feedback), not just platform data
 
 ### Negative
-- **New service to maintain** — Composer is a new abstraction layer between substrate and agents
-- **Recommendation quality** — medium-confidence suggestions may be wrong; user must be able to dismiss easily
-- **Primitive rename requires prompt update** — TP must learn to use `CreateAgent` instead of `Write(ref="agent:new")`
+- **Composer assessment quality** — auto-created agents may not match user intent (mitigated: feedback loop + stop/edit/delete)
+- **Primitive rename requires prompt update** — TP must learn `CreateAgent` instead of `Write(ref="agent:new")`
+- **Heartbeat adds compute cost** — lightweight data queries are free; LLM calls are not (mitigated: tier gating, cheap-first pattern)
 
 ### Neutral
-- Bootstrap (ADR-110) ships independently as Phase 2 — Composer enhances but doesn't block it
-- `Write` primitive continues for memories and documents — no disruption to non-agent creation
-- `origin` field gains two new values: `system_bootstrap` and `composer`
+- Bootstrap (ADR-110) preserved mechanically — Composer enhances but doesn't block it
+- `Write` primitive continues for memories and documents
+- `origin` field gains `composer` value alongside existing `system_bootstrap`, `user_configured`, `coordinator_created`
+
+---
 
 ## Open Questions
 
-1. **Should Composer auto-create cross-platform agents (medium confidence)?** Or always suggest? Auto-creating a Work Summary when second platform connects is aggressive but high-value.
+1. **Heartbeat cadence**: Daily baseline + event-driven? Tied to sync frequency tier? Start with daily, observe.
+2. **Heartbeat execution model**: Headless TP call with Composer context? Or specialized lightweight pipeline? Likely headless — reuses infrastructure.
+3. **Per-agent supervisory integration**: Heartbeat reviews all agents in one pass, or one-at-a-time triggered by Heartbeat? Latter is more scalable.
+4. **Coordinator mode sunset timeline**: When does coordinator shift from agent mode to TP Composer capability? Phase 4 target — mechanical code preserved, conceptual ownership shifts.
+5. **Attribution UX**: How does dashboard communicate "system created this agent"? Dismiss/keep flow?
+6. **Tier boundary design**: What's gated per tier? Agent count? Agent types? Heartbeat frequency? Composer scope?
 
-2. **How does Composer interact with tier limits?** If free tier has 2 agent slots and bootstrap fills 1, Composer can only suggest 1 more. Should Composer prioritize recommendations by value?
+---
 
-3. **Should Composer recommendations persist?** If user dismisses a suggestion, should it come back? (Probably not — track dismissed recommendations to avoid nagging.)
+## Revision History
 
-4. **LLM involvement in medium-confidence tier?** Pure heuristics may suffice for "you have Slack + Calendar → suggest Meeting Prep." LLM adds value for nuanced cases (analyzing uploaded doc content to determine right agent type). Could be Phase 3+ optimization.
+| Date | Change |
+|------|--------|
+| 2026-03-13 | v1 — Composer as backend service, three confidence tiers, event-only triggers |
+| 2026-03-16 | v2 — Major revision: Composer reframed as TP capability (not service) per FOUNDATIONS Axiom 5. Three bounded contexts (Composer/Heartbeat/Bootstrap). Autonomy-first posture (bias toward action). Platform content as onramp. Proactive/coordinator reframe. Heartbeat as TP's autonomous cadence. Two-order control model. |
 
 ## References
 
-- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) — coordinator mode, CreateAgent primitive
+- [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) — Axiom 5 (Composer as TP capability), Axiom 6 (autonomy as direction)
+- [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md) — benchmarks, corrections, hardened framing
+- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) — proactive/coordinator modes (being reframed as TP capabilities)
 - [ADR-109: Agent Framework](ADR-109-agent-framework.md) — Scope × Skill × Trigger taxonomy, canonical template table
-- [ADR-110: Onboarding Bootstrap](ADR-110-onboarding-bootstrap.md) — deterministic bootstrap, subsumed by Composer Phase 2
+- [ADR-110: Onboarding Bootstrap](ADR-110-onboarding-bootstrap.md) — becomes Bootstrap bounded context
 - [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — workspace as substrate signal
-- [Agent Framework (canonical)](../architecture/agent-framework.md) — template definitions
+- [Agent Model Comparison](../architecture/agent-model-comparison.md) — YARNNN position, two-layer intelligence, decision tests

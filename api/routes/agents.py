@@ -54,42 +54,8 @@ Skill = Literal[
 ]
 
 
-def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
-    """
-    ADR-109: Auto-infer scope from sources + skill + mode.
-
-    Scope is never user-configured — it's derived from what the agent knows about.
-
-    Rules:
-    1. orchestrate skill → autonomous
-    2. research skill with no sources → research
-    3. 0 platform sources → knowledge (or cross_platform fallback)
-    4. 1 provider → platform
-    5. 2+ providers → cross_platform
-    6. proactive/coordinator mode with autonomous skill → autonomous
-    """
-    if skill == "orchestrate":
-        return "autonomous"
-
-    if mode in ("proactive", "coordinator") and skill in ("synthesize", "research"):
-        return "autonomous"
-
-    # Count distinct providers from integration sources
-    providers = set()
-    for s in sources:
-        provider = s.get("provider") if isinstance(s, dict) else None
-        if provider:
-            providers.add(provider)
-
-    if not providers:
-        if skill == "research":
-            return "research"
-        return "knowledge" if skill in ("monitor", "research") else "cross_platform"
-
-    if len(providers) == 1:
-        return "platform"
-
-    return "cross_platform"
+# ADR-111: Scope inference moved to shared agent_creation module
+from services.agent_creation import infer_scope
 
 
 # =============================================================================
@@ -518,10 +484,12 @@ async def create_agent(
     Create a new recurring agent.
 
     ADR-053: Enforces active agent limits based on user tier.
+    ADR-111: Delegates to shared create_agent_record() for singular implementation.
     """
     from services.platform_limits import check_agent_limit
+    from services.agent_creation import create_agent_record
 
-    # ADR-053: Check agent limit before creation
+    # ADR-053: Check agent limit before creation (route concern — not in shared function)
     allowed, message = check_agent_limit(auth.client, auth.user_id)
     if not allowed:
         raise HTTPException(
@@ -532,9 +500,6 @@ async def create_agent(
                 "upgrade_url": "/settings?tab=billing",
             }
         )
-
-    # Calculate next_run_at based on schedule
-    next_run_at = calculate_next_run(request.schedule)
 
     # Handle type_config - use provided or get defaults
     type_config = request.type_config
@@ -547,50 +512,34 @@ async def create_agent(
     # Validate type_config against the skill
     validated_config = validate_skill_config(request.skill, type_config)
 
-    # ADR-109: Scope is auto-inferred from sources + skill + mode
     sources_raw = [s.model_dump() for s in request.sources]
-    scope = infer_scope(sources_raw, request.skill, request.mode)
 
-    # Create agent
-    agent_data = {
-        "user_id": auth.user_id,
-        "title": request.title,
-        "scope": scope,
-        "skill": request.skill,
-        "type_config": validated_config,
-        # ADR-031: Platform-native variants
-        "platform_variant": request.platform_variant,
-        "description": request.description,
-        "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
-        "schedule": request.schedule.model_dump(),
-        "sources": sources_raw,
-        "status": "active",
-        "next_run_at": next_run_at,
-        # ADR-028: Destination-first agents
-        "destination": request.destination,
-        # ADR-092: Mode taxonomy (trigger axis)
-        "mode": request.mode,
-    }
-
-    result = (
-        auth.client.table("agents")
-        .insert(agent_data)
-        .execute()
+    # ADR-111: Single creation path via create_agent_record()
+    result = await create_agent_record(
+        client=auth.client,
+        user_id=auth.user_id,
+        title=request.title,
+        skill=request.skill,
+        origin="user_configured",
+        description=request.description,
+        platform_variant=request.platform_variant,
+        agent_instructions=request.agent_instructions,
+        sources=sources_raw,
+        schedule=request.schedule.model_dump() if request.schedule else None,
+        mode=request.mode,
+        trigger_type=request.trigger_type if request.trigger_type != "schedule" else None,
+        recipient_context=request.recipient_context.model_dump() if request.recipient_context else None,
+        type_config=validated_config,
+        destination=request.destination,
     )
 
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create agent")
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
 
-    agent = result.data[0]
-    logger.info(f"[AGENT] Created: {agent['id']} - {agent['title']}")
+    agent = result["agent"]
 
-    # ADR-106: Workspace is the singular source of truth for instructions
-    from services.workspace import AgentWorkspace, get_agent_slug, get_agent_intelligence
-    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
-    if request.agent_instructions:
-        await ws.write("AGENT.md", request.agent_instructions,
-                       summary="Agent identity and behavioral instructions")
-
+    # ADR-106: Workspace intelligence for response
+    from services.workspace import get_agent_intelligence
     intelligence = await get_agent_intelligence(auth.client, auth.user_id, agent)
 
     return AgentResponse(
@@ -599,7 +548,6 @@ async def create_agent(
         scope=agent.get("scope", "cross_platform"),
         skill=agent.get("skill", "custom"),
         type_config=agent.get("type_config"),
-        # ADR-031: Platform-native variants
         platform_variant=agent.get("platform_variant"),
         project_id=None,  # ADR-034: Deprecated
         recipient_context=agent.get("recipient_context"),
@@ -609,11 +557,8 @@ async def create_agent(
         created_at=agent["created_at"],
         updated_at=agent["updated_at"],
         next_run_at=agent.get("next_run_at"),
-        # ADR-028: Destination-first agents
         destination=agent.get("destination"),
-        # ADR-068: Agent origin
         origin=agent.get("origin", "user_configured"),
-        # ADR-106: Workspace is source of truth
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
         mode=agent.get("mode", "recurring"),

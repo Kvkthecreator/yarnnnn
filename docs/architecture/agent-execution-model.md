@@ -151,25 +151,31 @@ Backend Orchestration
 ```
 
 **Review pass pipeline** (`proactive`, `coordinator` modes — ADR-092):
+
+> **Note (2026-03-16):** FOUNDATIONS.md v2 reframes the review pass as **TP's supervisory capability**. The agent provides domain assessment; TP (via Heartbeat) decides the action. Current code has the agent returning action decisions directly — this is mechanically preserved but conceptually shifts to TP ownership in ADR-111 Phase 4. See ADR-092 revision notes.
+
 ```
-Backend Orchestration
-├── 1. Trigger (proactive_next_review_at <= NOW())
-├── 2. Agent (mode="headless", review prompt)  ← review invocation
+TP Heartbeat / Supervisory Pass
+├── 1. Trigger: Heartbeat cadence or proactive_next_review_at <= NOW()
+├── 2. Agent (mode="headless", review prompt)  ← domain assessment
 │   ├── Receives: agent_instructions + agent_memory + source context
 │   ├── Can use: Search, Read, List, CrossPlatformQuery, RefreshPlatformContent
-│   ├── Coordinator also: CreateAgent, AdvanceAgentSchedule
-│   └── Returns: {action: "generate"|"observe"|"create_child"|"advance_schedule"|"sleep", ...}
-├── 3. Orchestration acts on returned action:
+│   └── Returns: domain observations + assessment (what's changed, what's notable)
+├── 3. TP/Heartbeat decides action based on agent assessment:
 │   ├── generate → proceeds to standard generation pipeline above
 │   ├── observe → appends note to agent_memory.review_log
-│   ├── create_child → creates child agent + executes immediately
+│   ├── create (Composer) → TP creates agent via Composer capability
 │   ├── advance_schedule → sets another agent's next_run_at = now
-│   └── sleep → sets proactive_next_review_at = agent-specified time
+│   └── sleep → sets proactive_next_review_at = specified time
 └── 4. Activity logging
 ```
 
+> **Current implementation:** Agent still returns `{action: "generate"|"observe"|...}` and orchestration acts on it directly. The TP decision layer is the Phase 4 target (ADR-111). The mechanical difference is small — agent assessment informs the decision either way — but the ownership distinction matters for the two-layer intelligence model.
+
 **Orchestration's responsibilities:**
-- **Coordinator/proactive review phase** (ADR-092): Schedule review passes for `proactive` and `coordinator` agents, act on agent's returned action
+- **TP Heartbeat** (ADR-111 revised): Periodic assessment of agent workforce, triggers per-agent supervisory reviews
+- **Per-agent supervisory review** (ADR-092, reframed): Agent provides domain assessment, TP/Heartbeat decides action
+- **Composer** (ADR-111 revised): Creates/adjusts/dissolves agents based on compositional judgment
 - **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested agents
 - **Execution phase**: Execute agents on trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
 

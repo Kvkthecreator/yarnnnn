@@ -169,6 +169,50 @@ When evaluating an architectural proposal, ask:
 
 ---
 
+## Evolution: Two-Layer Intelligence and Autonomy-First (2026-03-16)
+
+The original comparison above (March 2026) accurately captures the agent-side model. FOUNDATIONS.md v2 adds two critical dimensions that affect how YARNNN relates to both benchmarks:
+
+### Two-Layer Intelligence
+
+YARNNN has a meta-cognitive layer (TP) that neither Claude Code nor OpenClaw have in the same form:
+
+- **Claude Code**: No meta-layer. User is the orchestrator.
+- **OpenClaw**: Single agent per workspace. The agent is both domain-cognitive and self-orchestrating (heartbeat = self-assessment). No separation between "who decides what to do" and "who does it."
+- **YARNNN**: TP (meta-cognitive) orchestrates and composes. Agents (domain-cognitive) execute. TP creates agents, monitors their health, adjusts their configuration, dissolves them. Agents develop domain expertise but don't manage their own lifecycle.
+
+This means YARNNN takes OpenClaw's heartbeat pattern but applies it **at the meta-cognitive layer** — TP periodically assesses the whole agent workforce, not each agent self-assessing. The cost savings of sleep-between-triggers (Principle 2 above) are preserved for agents; the awareness is centralized in TP's heartbeat.
+
+### Platform Content as Onramp, Not Engine
+
+The original comparison implicitly frames platform sync as the ongoing fuel for agents. The refined model:
+
+- **Platform content is the onramp** — it seeds context, meets users where their work lives, and jumpstarts agent work from existing data
+- **As agent quality improves, platform dependency decreases** — the agents' own outputs, observations, theses, and cross-references become the primary substrate (Axiom 2: recursive perception)
+- **The enduring moat is recursive accumulation**, not breadth of platform integrations
+
+This strengthens YARNNN's position relative to both benchmarks: Claude Code has no accumulation at all; OpenClaw accumulates within a single workspace but doesn't have the multi-agent recursive substrate where one agent's output feeds another agent's input.
+
+### Autonomy as Architecture
+
+The original comparison describes YARNNN as "task-based foundation with agent-like extensions." The hardened framing:
+
+- **Autonomy is the default architecture**, not a feature layered on top of tasks
+- **TP's bias is toward action** — create agents, configure them, let feedback correct
+- **The user's role shifts from directing to supervising** as tenure increases
+
+This is a stronger position than "feels like a living agent" (Principle from the original). It's: **the system works for you from the moment you connect**. The sophistication of what it does increases with accumulated judgment.
+
+### Updated Decision Tests
+
+Add to the existing five:
+
+6. **Does this strengthen TP's compositional authority?** If the proposal requires agents to self-orchestrate (create other agents, decide their own lifecycle), it's undermining the two-layer model.
+
+7. **Does this reduce platform dependency over time?** If the proposal makes agents more dependent on fresh platform data rather than accumulated substrate, it's drifting away from the recursive perception model.
+
+---
+
 ## What This Document Is Not
 
 This is not an argument that YARNNN's model is objectively superior. It's an argument that YARNNN's model is the right one for YARNNN's product thesis — many specialized work products that improve with use. Other models serve other theses well.
@@ -184,3 +228,5 @@ This document exists to prevent the architectural gravity of larger projects (Cl
 - [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — the schema that completes the agent as agent
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — full OpenClaw comparison (v4, Section 12)
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — implementation sequence
+- [FOUNDATIONS.md](FOUNDATIONS.md) — canonical axioms (two-layer intelligence, recursive perception, autonomy as direction)
+- [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md) — TP heartbeat, auto-create posture, OpenClaw/Claude SDK benchmarks

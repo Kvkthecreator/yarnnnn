@@ -197,19 +197,19 @@ async def _dispatch_medium_reactive(
                     metadata={
                         "trigger_type": trigger_type,
                         "note": observation[:200],
-                        "observation_count": len(observations),
+                        "observation_count": count,
                         "threshold": threshold,
                     },
                 )
             except Exception:
                 pass  # Non-fatal
 
-            logger.info(f"[DISPATCH] reactive observation {len(observations)}/{threshold}: {title}")
+            logger.info(f"[DISPATCH] reactive observation {count}/{threshold}: {title}")
             return {
                 "action": "memory_updated",
                 "success": True,
                 "agent_id": agent_id,
-                "observation_count": len(observations),
+                "observation_count": count,
                 "threshold": threshold,
             }
 

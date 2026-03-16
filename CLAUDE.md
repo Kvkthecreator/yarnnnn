@@ -48,8 +48,8 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
 - **ADR-106**: Agent Workspace Architecture - virtual filesystem over Postgres (`workspace_files` table); agents interact via path-based operations; archetype-driven strategies (reporter/analyst/researcher/operator); reasoning agents drive own context gathering from workspace instead of receiving platform dumps; replaces `agent_memory` JSONB; storage-agnostic abstraction layer preserves optionality for cloud storage
 - **ADR-109**: Agent Framework — Scope × Skill × Trigger taxonomy replacing the 7-type system (ADR-093). Scope (what it knows: platform/cross_platform/knowledge/research/autonomous) determines context strategy. Skill (what it does: digest/prepare/monitor/research/synthesize/orchestrate/act) determines prompt + primitives. Trigger (when it acts) = preserved ADR-092 modes. `agent_type` column → `scope` + `skill` columns. Templates are user-facing convenience layer. Canonical reference: `docs/architecture/agent-framework.md`. (Docs complete, code migration pending.)
-- **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Gmail→Digest, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Subsumed by Composer (ADR-111) in later phase. (Proposed.)
-- **ADR-111**: Agent Composer — assessment + scaffolding layer between user substrate and agent creation. Unifies Write/CreateAgent into single `CreateAgent` primitive (chat + headless). Introduces `assess_substrate()` → `match_templates()` → `scaffold()` pipeline. High-confidence = auto-create (bootstrap); medium-confidence = suggest via TP; low = present as options. Makes knowledge/research/autonomous agents discoverable through substrate matching, not just platform digests. (Proposed.)
+- **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Gmail→Digest, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Becomes Bootstrap bounded context within Composer (ADR-111). (Implemented.)
+- **ADR-111**: Agent Composer — TP's compositional capability (not a separate service). Three bounded contexts: **Bootstrap** (deterministic fast-path), **Heartbeat** (periodic TP self-assessment of agent workforce), **Composer** (assessment + creation/adjustment/dissolution). Unifies Write/CreateAgent into single `CreateAgent` primitive. Autonomy-first: bias toward action, feedback as correction. Proactive/coordinator modes reframed as TP supervisory capabilities. Platform content as onramp (dependency decreases over time). (Proposed, revised 2026-03-16.)
 - **ADR-112**: Sync Efficiency & Concurrency Control — three layers: (1) atomic sync lock on `platform_connections` replacing `SCHEDULE_WINDOW_MINUTES` timing hack, (2) platform-level heartbeat fast-path (Gmail historyId, Calendar syncToken, Slack latest, Notion search) to skip source iteration when nothing changed, (3) per-source skip hints (deferred). Coordinates all three sync paths (scheduled, manual, TP RefreshPlatformContent). (Implemented.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
@@ -270,9 +270,9 @@ You MUST:
 | Agent Workspace | `api/services/workspace.py` (ADR-106) |
 | Workspace Primitives | `api/services/primitives/workspace.py` (ADR-106) |
 | Agent Framework (canonical) | `docs/architecture/agent-framework.md` (ADR-109) |
-| Agent Creation (shared) | `api/services/agent_creation.py` (ADR-111, planned) |
-| Agent Composer | `api/services/composer.py` (ADR-111, planned) |
-| Onboarding Bootstrap | `api/services/onboarding_bootstrap.py` (ADR-110, planned) |
+| Agent Creation (shared) | `api/services/agent_creation.py` (ADR-111 Phase 1, planned) |
+| TP Composer / Heartbeat | TP capability, not separate service (ADR-111 revised, Phases 3-4) |
+| Onboarding Bootstrap | `api/services/onboarding_bootstrap.py` (ADR-110, implemented) |
 | Agent Execution | `api/services/agent_execution.py` |
 | Agent Pipeline | `api/services/agent_pipeline.py` |
 | Agent Routes | `api/routes/agents.py` |

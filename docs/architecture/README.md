@@ -39,6 +39,8 @@
 |----------|--------|-------------|--------|
 | [workspace-architecture-landscape.md](../analysis/workspace-architecture-landscape.md) | **Living** | 2026-03-03 | Compass for ADR-087/088/089. Implementation sequence, architecture mapping, naming debt, decision log |
 | [workspace-architecture-analysis-2026-03-02.md](../analysis/workspace-architecture-analysis-2026-03-02.md) | **Archive** | 2026-03-03 | Full v1–v5 analysis: FK-scoping → JSONB → typed files → OpenClaw comparison → consolidation |
+| [tp-composer-autonomy-analysis.md](../analysis/tp-composer-autonomy-analysis.md) | **Living** | 2026-03-16 | TP Composer autonomy: heartbeat, auto-create posture, OpenClaw/Claude SDK benchmarks, event + periodic triggers |
+| [agent-developmental-model-considerations.md](../analysis/agent-developmental-model-considerations.md) | **Parked** | 2026-03-16 | Agent lifecycle, intentions, capabilities, autonomy graduation — deferred pending TP Composer clarity |
 
 ## Key ADRs (Workspace Architecture)
 

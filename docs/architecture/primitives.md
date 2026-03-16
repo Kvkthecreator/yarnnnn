@@ -58,7 +58,7 @@ Users without platform connections can still provide rich context via documents 
 | **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
 
-> **Planned (ADR-111):** Agent creation will be extracted from Write into a dedicated **CreateAgent** primitive available in both chat and headless modes. Write will continue handling memory and document creation. See [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md) for the unification plan.
+> **Planned (ADR-111 Phase 1):** Agent creation will be extracted from Write into a dedicated **CreateAgent** primitive available in both chat and headless modes. Write will continue handling memory and document creation. Currently two paths exist: Write's `_process_agent()` (chat) and coordinator.py's `CreateAgent` (headless). Both will be unified via shared `create_agent_record()` in `agent_creation.py`. See [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md) (revised 2026-03-16: Composer reframed as TP capability, not service).
 
 > **Note**: Todo and Respond primitives were removed per ADR-038 (Filesystem-as-Context).
 > Todo will return when multi-step workflows require 30+ second operations.

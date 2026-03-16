@@ -14,6 +14,8 @@
 
 ---
 
+> **Relationship to FOUNDATIONS.md (2026-03-16):** This framework describes the **initial configuration** of an agent — its starting point. FOUNDATIONS.md Axiom 3 (Agents as Developing Entities) describes how agents evolve beyond this initial configuration over time: intentions become dynamic and multiple, capabilities are earned through feedback, autonomy graduates per-capability. The Scope × Skill × Trigger taxonomy is the seed; the developmental trajectory is the growth. See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis on developmental trajectory. See [ADR-092 revision notes](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for reframing of proactive/coordinator modes as TP supervisory capabilities.
+
 ## Foundational Principle
 
 Every agent answers two irreducible questions:
@@ -64,6 +66,8 @@ coordinator/orchestrate skill              → autonomous
 The user never thinks "platform scope" — they think "my Slack channels." Scope is a system-internal execution strategy classification.
 
 ### Knowledge-scope boundary (inception principle)
+
+> **Implementation status (2026-03-16):** This boundary is documented as architectural intent but not yet enforced in code. Current execution strategies do not block `platform_content` access for knowledge-scope agents. Enforcement deferred to Phase 3 (ADR-106 workspace architecture). The design principle remains valid — the accumulation loop should be forced to work before boundaries are relaxed.
 
 Knowledge-scope agents have **NO access** to `platform_content` at inception. If no accumulated knowledge exists, the agent explicitly reports this:
 

@@ -380,11 +380,13 @@ When a agent executes:
 
 ADR-066 removed this complexity. All agents are now effectively `full_auto` (delivery-first). Users can pause or archive agents, but there is no pre-delivery approval step.
 
-**Deprecation path**: The `governance` field remains in the database schema and API responses for backwards compatibility. It is marked `deprecated=True` in Pydantic models (as of 2026-02-19). Plan: Remove entirely in Phase 3 cleanup (Option A per CLAUDE.md discipline: "Delete legacy code when replacing with new implementation").
+**Deprecation path**: The `governance` and `governance_ceiling` columns should be dropped from the `agents` table and removed from Pydantic models. Target: next schema cleanup migration. No code depends on these fields — all execution logic ignores them. Per CLAUDE.md discipline: "Delete legacy code when replacing with new implementation."
 
-**Rationale**: All agent outputs land in the user's own platforms (Slack DM, Gmail drafts, Notion pages). The user is the audience. Pre-approval adds friction without value — the user can always delete the delivered output if it's incorrect.
+> **Note (2026-03-16):** FOUNDATIONS.md Axiom 3 introduces a developmental autonomy model (supervised → semi-autonomous → autonomous → trusted) that may *eventually* reintroduce graduated governance — but as TP's supervisory capability over agent capabilities (ADR-111 Phase 4), not as a per-agent configuration field. The old governance model is unrelated and should still be removed.
 
-**Open question**: Signal-emergent agents may warrant a review-before-send gate (as originally stated in ADR-068), since they're proactive and unexpected. This is deferred to Phase 3. Current behavior: signal-emergent agents deliver immediately, same as all others.
+**Rationale**: All agent outputs land in the user's own platforms (Slack DM, Gmail drafts, Notion pages). The user is the audience. Pre-approval adds friction without value — the user can always delete the delivered output if it's incorrect. This aligns with the autonomy-first posture (FOUNDATIONS Axiom 6): TP acts, user corrects through feedback.
+
+**Resolved (2026-03-16)**: The prior open question about signal-emergent agents warranting review-before-send is resolved: signal processing is dissolved (ADR-092). Coordinator-created agents (`origin=coordinator_created`) deliver immediately, same as all others. Under the revised model (ADR-111), Composer-created agents (`origin=composer`) also deliver immediately — the feedback loop (user stops/edits/deletes) is the correction mechanism.
 
 ---
 

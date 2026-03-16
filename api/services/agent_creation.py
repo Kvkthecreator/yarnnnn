@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
 VALID_SKILLS = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
 
-# Infer scope from skill when not provided
+# Fallback scope from skill (used when infer_scope can't reason about sources)
 SKILL_TO_SCOPE = {
     "digest": "platform",
     "prepare": "platform",
@@ -39,6 +39,44 @@ SKILL_TO_SCOPE = {
     "act": "autonomous",
     "custom": "knowledge",
 }
+
+
+def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
+    """
+    ADR-109: Auto-infer scope from sources + skill + mode.
+
+    Scope is never user-configured — it's derived from what the agent knows about.
+
+    Rules:
+    1. orchestrate skill → autonomous
+    2. proactive/coordinator mode with synthesis/research skill → autonomous
+    3. research skill with no platform sources → research
+    4. 0 platform sources → knowledge (or cross_platform fallback)
+    5. 1 provider → platform
+    6. 2+ providers → cross_platform
+    """
+    if skill == "orchestrate":
+        return "autonomous"
+
+    if mode in ("proactive", "coordinator") and skill in ("synthesize", "research"):
+        return "autonomous"
+
+    # Count distinct providers from integration sources
+    providers = set()
+    for s in sources:
+        provider = s.get("provider") if isinstance(s, dict) else None
+        if provider:
+            providers.add(provider)
+
+    if not providers:
+        if skill == "research":
+            return "research"
+        return "knowledge" if skill in ("monitor", "research") else "cross_platform"
+
+    if len(providers) == 1:
+        return "platform"
+
+    return "cross_platform"
 
 # Columns allowed in agents table INSERT (prevents Supabase 400)
 AGENT_COLUMNS = {
@@ -64,6 +102,8 @@ async def create_agent_record(
     origin: str = "user_configured",
     *,
     scope: Optional[str] = None,
+    description: Optional[str] = None,
+    platform_variant: Optional[str] = None,
     agent_instructions: Optional[str] = None,
     sources: Optional[list] = None,
     schedule: Optional[dict] = None,
@@ -101,9 +141,9 @@ async def create_agent_record(
     if skill not in VALID_SKILLS:
         skill = "custom"
 
-    # Infer scope from skill if not provided or invalid
+    # Infer scope from sources + skill + mode if not provided or invalid
     if not scope or scope not in VALID_SCOPES:
-        scope = SKILL_TO_SCOPE.get(skill, "knowledge")
+        scope = infer_scope(sources or [], skill, mode)
 
     # Build schedule JSONB
     sched = schedule.copy() if schedule else {}
@@ -154,6 +194,11 @@ async def create_agent_record(
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
     }
+
+    if description:
+        agent_data["description"] = description
+    if platform_variant:
+        agent_data["platform_variant"] = platform_variant
 
     if trigger_type:
         agent_data["trigger_type"] = trigger_type

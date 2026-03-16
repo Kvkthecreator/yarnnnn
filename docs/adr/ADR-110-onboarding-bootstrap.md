@@ -103,9 +103,15 @@ Call site: `platform_worker.py` after successful source sync, or `platform_sync_
 - Dashboard detects params, shows "Your Slack Recap is generating..." inline
 - Template picker hides the template for the bootstrapped platform
 
-### Phase 3: Superseded by Composer (ADR-111)
+### Phase 3: Bootstrap as Composer Bounded Context (ADR-111 revised)
 
-Bootstrap becomes the Composer's fast-path for deterministic cases. The Composer subsumes bootstrap logic and extends it to non-obvious agent types (knowledge-scope, cross-platform, research).
+Bootstrap is one of three bounded contexts within TP's Composer capability (ADR-111 revised 2026-03-16):
+
+- **Bootstrap**: Deterministic, zero-LLM fast-path for highest-confidence agents (this ADR — preserved)
+- **Heartbeat**: TP's periodic self-assessment of agent workforce health (new)
+- **Composer**: The compositional judgment that creates/adjusts/dissolves agents (new)
+
+Bootstrap is not "superseded" — it remains the fast-path for platform-connect events where the right agent is obvious. Composer extends coverage to non-obvious agent types (knowledge, cross-platform, research) and adds the Heartbeat cadence for ongoing assessment. The three contexts are architecturally cohesive but independently tier-gatable.
 
 ## Consequences
 

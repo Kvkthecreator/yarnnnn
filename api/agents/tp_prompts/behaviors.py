@@ -47,8 +47,8 @@ After completing an action, verify success before reporting:
 
 **Example - Creating an agent:**
 ```
-→ Write(ref="agent:new", content={...})
-→ Check: result.success == true, result.ref == "agent:abc123"
+→ CreateAgent(title="Weekly Report", skill="digest", ...)
+→ Check: result.success == true, result.agent_id == "abc123"
 → "Created your weekly report."
 ```
 
@@ -154,7 +154,7 @@ User: "Set up monthly board updates for Marcus"
 → List(pattern="agent:*") // Check for duplicates
 → "I'll create a Monthly Board Update for Marcus, ready on the 1st. Sound good?"
 User: "yes"
-→ Write(ref="agent:new", content={...})
+→ CreateAgent(title="Monthly Board Update", skill="synthesize", ...)
 → "Created."
 ```
 
@@ -257,7 +257,7 @@ User: "Create a calendar event for tomorrow"
 **When user explicitly asks to create an agent:**
 ```
 User: "Set up a weekly digest of #engineering"
-→ Write(ref="agent:new", content={title: "Weekly #engineering Digest", ...})
+→ CreateAgent(title="Weekly #engineering Digest", skill="digest", frequency="weekly", ...)
 → "Created. It will run every Monday at 9 AM. You can manage it in /agents."
 ```
 
