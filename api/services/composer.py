@@ -93,14 +93,22 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     skills_present = set(a.get("skill", "custom") for a in active_agents)
 
     # 4. Platform coverage — which platforms have digest agents?
+    # Check both sources[].provider AND bootstrap title patterns (bootstrap agents
+    # may have empty sources before first sync populates them — ADR-110/113)
+    _TITLE_TO_PLATFORM = {"Slack Recap": "slack", "Gmail Digest": "google", "Notion Summary": "notion"}
     platforms_with_digest = set()
     for agent in active_agents:
         if agent.get("skill") == "digest":
+            # Source-based detection (populated agents)
             for src in (agent.get("sources") or []):
                 if isinstance(src, dict):
                     provider = src.get("provider")
                     if provider:
                         platforms_with_digest.add(provider)
+            # Title-based detection (bootstrap agents with empty sources)
+            title_platform = _TITLE_TO_PLATFORM.get(agent.get("title"))
+            if title_platform:
+                platforms_with_digest.add(title_platform)
 
     platforms_without_digest = [
         p for p in connected_platforms
