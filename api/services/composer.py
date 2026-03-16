@@ -1,16 +1,18 @@
 """
-TP Composer — ADR-111 Phase 3: Heartbeat + Composer Assessment
+TP Composer — ADR-111 Phases 3-5: Heartbeat + Composer Assessment + Lifecycle
 
 TP's compositional capability, implemented as:
 1. Heartbeat data query (cheap DB checks, zero LLM)
 2. Composer assessment (LLM reasoning, only when warranted)
+3. Lifecycle progression (maturity signals, dissolution, scope expansion)
 
 The Heartbeat runs on the unified scheduler cadence. It queries the user's
-substrate (platforms, agents, content, feedback) and decides whether Composer
-needs to reason about creating/adjusting/dissolving agents.
+substrate (platforms, agents, content, feedback, maturity) and decides whether
+Composer needs to reason about creating/adjusting/dissolving agents.
 
 Cost model (per ADR-111):
-- Heartbeat data query: ~0 cost (DB queries)
+- Heartbeat data query: ~0 cost (DB queries + per-agent maturity signals)
+- Lifecycle actions: ~0 cost (deterministic, no LLM)
 - LLM reasoning: only when assessment identifies potential action
 - "Nothing to do" is first-class outcome (HEARTBEAT_OK)
 
@@ -46,16 +48,24 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     now = datetime.now(timezone.utc)
 
     # 1. Connected platforms
+    # selected_sources lives inside landscape JSONB, not as a top-level column
     platforms = []
     try:
         result = (
             client.table("platform_connections")
-            .select("platform, status, selected_sources")
+            .select("platform, status, landscape")
             .eq("user_id", user_id)
             .in_("status", ["connected", "active"])
             .execute()
         )
-        platforms = result.data or []
+        # Extract selected_sources from landscape JSONB for downstream use
+        for row in (result.data or []):
+            landscape = row.get("landscape") or {}
+            platforms.append({
+                "platform": row["platform"],
+                "status": row["status"],
+                "selected_sources": landscape.get("selected_sources", []),
+            })
     except Exception as e:
         logger.warning(f"[COMPOSER] Platform query failed: {e}")
 
@@ -128,7 +138,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                 client.table("agent_runs")
                 .select("id", count="exact")
                 .in_("agent_id", agent_ids)
-                .in_("status", ["approved", "edited"])
+                .in_("status", ["approved", "delivered"])
                 .gte("approved_at", week_ago)
                 .execute()
             )
@@ -136,7 +146,90 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     except Exception as e:
         logger.warning(f"[COMPOSER] Feedback query failed: {e}")
 
-    # 7. Tier check — how many agents can user have?
+    # 7. ADR-111 Phase 5: Per-agent maturity signals
+    # Run count, approval rate, edit distance trend, tenure
+    maturity_signals = []
+    try:
+        for agent in active_agents:
+            aid = agent["id"]
+            runs_result = (
+                client.table("agent_runs")
+                .select("status, edit_distance_score, approved_at, created_at")
+                .eq("agent_id", aid)
+                .order("created_at", desc=True)
+                .limit(20)
+                .execute()
+            )
+            runs = runs_result.data or []
+            total_runs = len(runs)
+
+            if total_runs == 0:
+                maturity_signals.append({
+                    "agent_id": aid,
+                    "title": agent["title"],
+                    "skill": agent.get("skill"),
+                    "scope": agent.get("scope"),
+                    "total_runs": 0,
+                    "maturity": "nascent",
+                })
+                continue
+
+            # Approval rate: approved or delivered / total completed
+            completed = [r for r in runs if r.get("status") in ("approved", "delivered", "rejected")]
+            approved = [r for r in runs if r.get("status") in ("approved", "delivered")]
+            approval_rate = len(approved) / len(completed) if completed else 0.0
+
+            # Edit distance trend: are edits decreasing? (convergence = agent improving)
+            distances = [
+                r["edit_distance_score"] for r in runs
+                if r.get("edit_distance_score") is not None
+            ]
+            edit_trend = None  # None = insufficient data
+            if len(distances) >= 3:
+                recent_avg = sum(distances[:3]) / 3
+                older_avg = sum(distances[3:min(6, len(distances))]) / max(1, min(3, len(distances) - 3))
+                if older_avg > 0:
+                    # Negative = improving (less editing needed), positive = degrading
+                    edit_trend = (recent_avg - older_avg) / older_avg
+
+            # Tenure: days since agent created
+            tenure_days = 0
+            created_at = agent.get("created_at", "")
+            try:
+                created_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                tenure_days = (now - created_dt).days
+            except (ValueError, TypeError):
+                pass
+
+            # Classify maturity stage
+            if total_runs >= 10 and approval_rate >= 0.8:
+                maturity = "mature"
+            elif total_runs >= 5 and approval_rate >= 0.6:
+                maturity = "developing"
+            elif total_runs >= 1:
+                maturity = "nascent"
+            else:
+                maturity = "nascent"
+
+            # Underperformer detection: 5+ runs with <40% approval
+            is_underperformer = total_runs >= 5 and approval_rate < 0.4
+
+            maturity_signals.append({
+                "agent_id": aid,
+                "title": agent["title"],
+                "skill": agent.get("skill"),
+                "scope": agent.get("scope"),
+                "total_runs": total_runs,
+                "approval_rate": round(approval_rate, 2),
+                "edit_trend": round(edit_trend, 2) if edit_trend is not None else None,
+                "tenure_days": tenure_days,
+                "maturity": maturity,
+                "is_underperformer": is_underperformer,
+            })
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Maturity signal query failed: {e}")
+
+    # 8. Tier check — how many agents can user have?
     from services.platform_limits import check_agent_limit
     can_create, limit_message = check_agent_limit(client, user_id)
 
@@ -165,6 +258,11 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                 for a in stale_agents
             ],
         },
+        "maturity": {
+            "signals": maturity_signals,
+            "mature_agents": [s for s in maturity_signals if s.get("maturity") == "mature"],
+            "underperformers": [s for s in maturity_signals if s.get("is_underperformer")],
+        },
         "feedback": {
             "recent_count": feedback_count,
         },
@@ -186,13 +284,30 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     Returns (should_act, reason).
     "Nothing to do" is first-class — most heartbeats should return False.
     """
-    # Can't create agents if at tier limit
-    if not assessment["tier"]["can_create"]:
-        return False, "HEARTBEAT_OK: at tier agent limit"
-
     # No platforms connected — nothing to compose from
     if not assessment["connected_platforms"]:
         return False, "HEARTBEAT_OK: no platforms connected"
+
+    # ADR-111 Phase 5: Lifecycle — underperformers need attention (even at tier limit)
+    underperformers = assessment.get("maturity", {}).get("underperformers", [])
+    if underperformers:
+        titles = [u["title"] for u in underperformers[:3]]
+        return True, f"lifecycle_underperformer: {len(underperformers)} agents underperforming (<40% approval): {titles}"
+
+    # ADR-111 Phase 5: Lifecycle — mature agents ready for scope expansion
+    mature = assessment.get("maturity", {}).get("mature_agents", [])
+    expandable = [
+        m for m in mature
+        if m.get("scope") == "platform" and m.get("skill") == "digest"
+        and m.get("total_runs", 0) >= 10
+    ]
+    if expandable and len(assessment["connected_platforms"]) >= 2:
+        titles = [e["title"] for e in expandable[:2]]
+        return True, f"lifecycle_expansion: {len(expandable)} mature digest agents may warrant cross-platform synthesis: {titles}"
+
+    # Can't create agents if at tier limit (but lifecycle checks above still fire)
+    if not assessment["tier"]["can_create"]:
+        return False, "HEARTBEAT_OK: at tier agent limit"
 
     # Coverage gap: platform connected but no digest agent
     gaps = assessment["coverage"]["platforms_without_digest"]
@@ -214,6 +329,13 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # Active feedback suggests engaged user — check for expansion opportunities
     if assessment["feedback"]["recent_count"] >= 5 and assessment["agents"]["active"] <= 2:
         return True, "engaged_user: high feedback + low agent count — may benefit from more agents"
+
+    # ADR-111 Phase 5: Cross-agent pattern — multiple digest agents producing
+    # similar content from overlapping sources (consolidation opportunity)
+    signals = assessment.get("maturity", {}).get("signals", [])
+    digest_agents = [s for s in signals if s.get("skill") == "digest" and s.get("total_runs", 0) >= 3]
+    if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["skills_present"]:
+        return True, f"cross_agent_pattern: {len(digest_agents)} active digest agents — synthesis agent would consolidate insights"
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
@@ -256,26 +378,29 @@ async def run_composer_assessment(
     reason: str,
 ) -> dict:
     """
-    Run Composer's LLM assessment and auto-create agents when warranted.
+    Run Composer's assessment and auto-create/adjust agents when warranted.
 
-    Bias toward action: if the assessment clearly warrants an agent, create it.
-    For ambiguous cases, log the observation for next heartbeat.
+    Routes to appropriate handler based on trigger reason:
+    - coverage_gap → deterministic gap-fill (no LLM)
+    - lifecycle_* / cross_agent_* → lifecycle assessment (no LLM)
+    - everything else → LLM reasoning
 
     Returns:
         {
-            "action": "created" | "observed" | "skipped",
+            "action": "created" | "lifecycle" | "observed" | "skipped",
             "agents_created": [...],
+            "lifecycle_actions": [...],
             "observations": [...],
         }
     """
     result = {
         "action": "observed",
         "agents_created": [],
+        "lifecycle_actions": [],
         "observations": [],
     }
 
     # Fast path: deterministic gap-filling (no LLM needed)
-    # If coverage gap is just missing platform digests, create them directly
     gaps = assessment["coverage"]["platforms_without_digest"]
     if gaps and reason.startswith("coverage_gap"):
         for platform in gaps:
@@ -289,6 +414,21 @@ async def run_composer_assessment(
                 })
         if result["agents_created"]:
             result["action"] = "created"
+        return result
+
+    # ADR-111 Phase 5: Lifecycle assessment path (no LLM — deterministic)
+    if reason.startswith(("lifecycle_", "cross_agent_")):
+        lifecycle_result = await run_lifecycle_assessment(client, user_id, assessment, reason)
+        result["lifecycle_actions"] = lifecycle_result.get("actions_taken", [])
+        result["observations"].extend(lifecycle_result.get("observations", []))
+
+        # Lifecycle actions that create agents go into agents_created too
+        for action in result["lifecycle_actions"]:
+            if action.get("action") == "created":
+                result["agents_created"].append(action)
+
+        if result["lifecycle_actions"]:
+            result["action"] = "lifecycle"
         return result
 
     # LLM assessment path for non-obvious cases
@@ -420,6 +560,19 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     for a in assessment["agents"]["active_list"]:
         agents_summary.append(f"- {a['title']} (skill={a['skill']}, scope={a['scope']})")
 
+    # ADR-111 Phase 5: Include maturity data when available
+    maturity_summary = []
+    for s in assessment.get("maturity", {}).get("signals", []):
+        parts = [f"- {s['title']}: {s['maturity']}"]
+        if s.get("total_runs"):
+            parts.append(f"{s['total_runs']} runs")
+        if s.get("approval_rate") is not None:
+            parts.append(f"{s['approval_rate']:.0%} approval")
+        if s.get("edit_trend") is not None:
+            direction = "improving" if s["edit_trend"] < 0 else "degrading"
+            parts.append(f"edits {direction}")
+        maturity_summary.append(", ".join(parts))
+
     return f"""Assess this user's agent workforce and recommend action.
 
 ## Trigger
@@ -438,6 +591,9 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
 ## Health
 - Stale agents (not run recently): {len(assessment['health']['stale_agents'])}
 - Recent user feedback events: {assessment['feedback']['recent_count']}
+
+## Agent Maturity
+{chr(10).join(maturity_summary) if maturity_summary else 'No maturity data yet'}
 
 ## Constraints
 - Can create new agents: {assessment['tier']['can_create']}
@@ -550,6 +706,137 @@ def _infer_sources_for_skill(skill: str, assessment: dict) -> list:
                 return sources
 
     return []
+
+
+# =============================================================================
+# Lifecycle Progression (ADR-111 Phase 5)
+# =============================================================================
+
+async def run_lifecycle_assessment(
+    client: Any,
+    user_id: str,
+    assessment: dict,
+    reason: str,
+) -> dict:
+    """
+    ADR-111 Phase 5: Handle lifecycle triggers — dissolution, adjustment, expansion.
+
+    Unlike Composer creation assessment, lifecycle operates on EXISTING agents.
+    Returns: {"actions_taken": [...], "observations": [...]}
+    """
+    result = {
+        "actions_taken": [],
+        "observations": [],
+    }
+
+    # Underperformer dissolution: pause agents with consistently poor approval
+    if reason.startswith("lifecycle_underperformer"):
+        underperformers = assessment.get("maturity", {}).get("underperformers", [])
+        for up in underperformers:
+            agent_id = up["agent_id"]
+            title = up["title"]
+            approval_rate = up.get("approval_rate", 0)
+            total_runs = up.get("total_runs", 0)
+
+            # Only auto-pause if clearly underperforming (many runs, low approval)
+            # Don't dissolve user_configured agents — just pause + observe
+            if total_runs >= 8 and approval_rate < 0.3:
+                try:
+                    client.table("agents").update({
+                        "status": "paused",
+                    }).eq("id", agent_id).eq("user_id", user_id).execute()
+
+                    result["actions_taken"].append({
+                        "action": "paused",
+                        "agent_id": agent_id,
+                        "title": title,
+                        "reason": f"Underperforming: {total_runs} runs, {approval_rate:.0%} approval rate",
+                    })
+                    logger.info(f"[COMPOSER] Paused underperformer: {title} ({agent_id}), "
+                                f"approval={approval_rate:.0%}, runs={total_runs}")
+                except Exception as e:
+                    logger.warning(f"[COMPOSER] Failed to pause {title}: {e}")
+            else:
+                result["observations"].append(
+                    f"Monitoring underperformer: {title} ({total_runs} runs, "
+                    f"{approval_rate:.0%} approval) — needs more data before action"
+                )
+
+    # Scope expansion: mature platform digest → suggest cross-platform synthesis
+    elif reason.startswith("lifecycle_expansion"):
+        mature = assessment.get("maturity", {}).get("mature_agents", [])
+        expandable = [
+            m for m in mature
+            if m.get("scope") == "platform" and m.get("skill") == "digest"
+            and m.get("total_runs", 0) >= 10
+        ]
+        if expandable and assessment["tier"]["can_create"]:
+            # Auto-create a synthesis agent that builds on mature digests
+            from services.agent_creation import create_agent_record
+
+            # Gather all platform sources for cross-platform agent
+            all_sources = []
+            for p in assessment["platform_details"]:
+                all_sources.extend(p.get("selected_sources") or [])
+
+            if all_sources:
+                titles = [e["title"] for e in expandable]
+                create_result = await create_agent_record(
+                    client=client,
+                    user_id=user_id,
+                    title="Weekly Cross-Platform Insights",
+                    skill="synthesize",
+                    origin="composer",
+                    frequency="weekly",
+                    sources=all_sources,
+                    description=f"Cross-platform synthesis based on mature agents: {', '.join(titles)}",
+                )
+                if create_result.get("success"):
+                    result["actions_taken"].append({
+                        "action": "created",
+                        "agent_id": create_result["agent_id"],
+                        "title": "Weekly Cross-Platform Insights",
+                        "skill": "synthesize",
+                        "reason": f"Lifecycle expansion: {len(expandable)} mature digest agents warrant synthesis",
+                    })
+                    logger.info(f"[COMPOSER] Lifecycle expansion: created synthesis agent "
+                                f"({create_result['agent_id']})")
+        else:
+            result["observations"].append(
+                f"{len(expandable)} mature digest agents detected but can't expand "
+                f"(tier limit: {not assessment['tier']['can_create']})"
+            )
+
+    # Cross-agent pattern: multiple digests → synthesis consolidation
+    elif reason.startswith("cross_agent_pattern"):
+        # Same action as expansion — create synthesis agent
+        if assessment["tier"]["can_create"]:
+            from services.agent_creation import create_agent_record
+
+            all_sources = []
+            for p in assessment["platform_details"]:
+                all_sources.extend(p.get("selected_sources") or [])
+
+            if all_sources:
+                create_result = await create_agent_record(
+                    client=client,
+                    user_id=user_id,
+                    title="Weekly Cross-Platform Insights",
+                    skill="synthesize",
+                    origin="composer",
+                    frequency="weekly",
+                    sources=all_sources,
+                )
+                if create_result.get("success"):
+                    result["actions_taken"].append({
+                        "action": "created",
+                        "agent_id": create_result["agent_id"],
+                        "title": "Weekly Cross-Platform Insights",
+                        "skill": "synthesize",
+                        "reason": "Cross-agent pattern: consolidating multiple digest agents into synthesis",
+                    })
+
+    return result
 
 
 # =============================================================================
@@ -698,6 +985,8 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "active_agents": assessment["agents"]["active"],
             "coverage_gaps": len(assessment["coverage"]["platforms_without_digest"]),
             "stale_agents": len(assessment["health"]["stale_agents"]),
+            "mature_agents": len(assessment.get("maturity", {}).get("mature_agents", [])),
+            "underperformers": len(assessment.get("maturity", {}).get("underperformers", [])),
         },
         "composer_result": None,
         "supervisory_reviews": [],
@@ -727,6 +1016,27 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
                             "trigger": "heartbeat",
                         },
                     )
+            except Exception:
+                pass  # Non-fatal
+
+        # ADR-111 Phase 5: Activity log for lifecycle actions (pause, adjust)
+        if composer_result.get("lifecycle_actions"):
+            try:
+                from services.activity_log import write_activity
+                for action in composer_result["lifecycle_actions"]:
+                    if action.get("action") == "paused":
+                        await write_activity(
+                            client=client,
+                            user_id=user_id,
+                            event_type="agent_scheduled",
+                            summary=f"Composer paused: {action.get('title', 'Unknown')} — {action.get('reason', '')}",
+                            event_ref=action.get("agent_id"),
+                            metadata={
+                                "lifecycle_action": "paused",
+                                "reason": action.get("reason"),
+                                "trigger": "heartbeat",
+                            },
+                        )
             except Exception:
                 pass  # Non-fatal
     else:

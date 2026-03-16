@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.4] - ADR-111 Phase 5: Lifecycle Progression
+
+### Changed
+- `api/services/composer.py`: `heartbeat_data_query()` enriched with per-agent maturity signals (run count, approval rate, edit distance trend, tenure, maturity stage, underperformer flag). `should_composer_act()` extended with lifecycle triggers (underperformer, expansion, cross-agent pattern). New `run_lifecycle_assessment()` handles deterministic lifecycle actions (pause underperformers, create synthesis from mature digests). `run_composer_assessment()` routes lifecycle triggers without LLM. `_build_composer_prompt()` includes maturity data for LLM path.
+- `api/jobs/unified_scheduler.py`: `composer_lifecycle` counter tracks lifecycle actions in summary + heartbeat metadata.
+- Expected behavior: Heartbeat now detects agent maturity patterns. Agents with 8+ runs and <30% approval are auto-paused. Mature digest agents (10+ runs, 80%+ approval) across 2+ platforms trigger automatic cross-platform synthesis agent creation. 3+ active digest agents trigger consolidation. All lifecycle actions are deterministic (zero LLM cost).
+
+---
+
 ## [2026.03.16.3] - ADR-111 Phase 4: Supervisory Reframe
 
 ### Changed

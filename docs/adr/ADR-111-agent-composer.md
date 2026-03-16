@@ -1,6 +1,6 @@
 # ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** Implemented (Phases 1-4), Proposed (Phase 5) — Revised 2026-03-16
+**Status:** Implemented (Phases 1-5) — Revised 2026-03-16
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
 **Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture)
@@ -221,11 +221,17 @@ All agent creation paths now funnel through single `create_agent_record()`.
 - ✓ `api/services/proactive_review.py` — docstring reframed as TP's supervisory capability
   - Mechanical flow preserved; conceptual ownership is TP's Heartbeat
 
-### Phase 5: Lifecycle Progression
+### Phase 5: Lifecycle Progression ✓ (Implemented 2026-03-16)
 
-- Agent maturity signals feed into Composer assessment
-- Composer adjusts agent scope, configuration, or dissolves underperformers
-- Cross-agent pattern detection (Heartbeat identifies cross-agent insights)
+- ✓ `api/services/composer.py` — maturity signals + lifecycle assessment:
+  - `heartbeat_data_query()` enriched with per-agent maturity signals: run count, approval rate, edit distance trend, tenure, maturity classification (nascent/developing/mature), underperformer detection
+  - `should_composer_act()` extended with lifecycle triggers: underperformer detection (fires even at tier limit), mature agent expansion, cross-agent pattern consolidation
+  - `run_lifecycle_assessment()`: deterministic lifecycle actions — auto-pause underperformers (<30% approval, 8+ runs), auto-create synthesis agents from mature digests, cross-agent consolidation
+  - `run_composer_assessment()` routes lifecycle triggers to `run_lifecycle_assessment()` (no LLM needed)
+  - `_build_composer_prompt()` includes maturity data for LLM assessment path
+  - `run_heartbeat()` logs lifecycle actions to activity log
+- ✓ `api/jobs/unified_scheduler.py` — `composer_lifecycle` counter in summary + heartbeat metadata
+- ✓ Cost model preserved: maturity signals are pure DB queries, lifecycle actions are deterministic
 
 ---
 

@@ -642,6 +642,7 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     composer_users = 0
     composer_created = 0
+    composer_lifecycle = 0  # ADR-111 Phase 5: lifecycle actions (pause, expand)
     proactive_reviewed = 0  # ADR-111 Phase 4: populated by supervisory reviews in Heartbeat
     try:
         from services.composer import run_heartbeat
@@ -666,12 +667,17 @@ async def run_unified_scheduler():
                 hb_result = await run_heartbeat(supabase, hb_uid)
                 composer_users += 1
 
-                created_count = len((hb_result.get("composer_result") or {}).get("agents_created", []))
+                composer_result = hb_result.get("composer_result") or {}
+                created_count = len(composer_result.get("agents_created", []))
                 composer_created += created_count
 
                 # ADR-111 Phase 4: Count supervisory reviews from Heartbeat
                 supervisory = hb_result.get("supervisory_reviews", [])
                 proactive_reviewed += len(supervisory)
+
+                # ADR-111 Phase 5: Count lifecycle actions from Heartbeat
+                lifecycle_actions = composer_result.get("lifecycle_actions", [])
+                composer_lifecycle += len(lifecycle_actions)
 
                 # Write heartbeat event
                 try:
@@ -685,6 +691,7 @@ async def run_unified_scheduler():
                             "should_act": hb_result.get("should_act", False),
                             "reason": hb_result.get("reason", ""),
                             "agents_created": created_count,
+                            "lifecycle_actions": len(lifecycle_actions),
                             "supervisory_reviews": len(supervisory),
                             **hb_result.get("assessment_summary", {}),
                         },
@@ -823,7 +830,9 @@ async def run_unified_scheduler():
     if composer_users > 0:
         composer_summary = f"composer={composer_users} users"
         if composer_created > 0:
-            composer_summary += f" ({composer_created} agents created)"
+            composer_summary += f" ({composer_created} created)"
+        if composer_lifecycle > 0:
+            composer_summary += f" ({composer_lifecycle} lifecycle)"
         summary_parts.append(composer_summary)
 
     # -------------------------------------------------------------------------
@@ -852,6 +861,7 @@ async def run_unified_scheduler():
             "proactive_reviewed": proactive_reviewed,
             "composer_users": composer_users,
             "composer_created": composer_created,
+            "composer_lifecycle": composer_lifecycle,
             "memory_extracted": memory_extracted,
             "errors": errors_encountered if errors_encountered else None,
             "cycle_started_at": now.isoformat(),

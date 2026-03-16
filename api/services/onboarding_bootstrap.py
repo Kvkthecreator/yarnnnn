@@ -192,18 +192,24 @@ async def _has_synced_content(client: Any, user_id: str, platform: str) -> bool:
 
 
 async def _get_synced_sources(client: Any, user_id: str, platform: str) -> list:
-    """Get the user's selected sources for this platform."""
+    """Get the user's selected sources for this platform.
+
+    selected_sources lives inside landscape JSONB, not as a top-level column.
+    """
     try:
         result = (
             client.table("platform_connections")
-            .select("selected_sources")
+            .select("landscape")
             .eq("user_id", user_id)
             .eq("platform", platform)
             .single()
             .execute()
         )
-        if result.data and result.data.get("selected_sources"):
-            return result.data["selected_sources"]
+        if result.data:
+            landscape = result.data.get("landscape") or {}
+            sources = landscape.get("selected_sources", [])
+            if sources:
+                return sources
     except Exception:
         pass
     return []
