@@ -148,6 +148,7 @@ async def phase1_heartbeat_data_query(supabase) -> PhaseResult:
         assert_in(r, "signal has title", "title", sig)
         assert_in(r, "signal has maturity", "maturity", sig)
         assert_in(r, "signal has total_runs", "total_runs", sig)
+        assert_in(r, "signal has origin", "origin", sig)
         assert_true(r, "maturity stage valid",
                     sig["maturity"] in ("nascent", "developing", "mature"),
                     f"got {sig['maturity']}")
@@ -198,10 +199,19 @@ def phase2_should_composer_act() -> PhaseResult:
     assert_eq(r, "Coverage gap → True", should_act, True)
     assert_true(r, "Reason mentions coverage_gap", "coverage_gap" in reason, reason)
 
-    # No platforms → False
-    no_platforms = {**healthy, "connected_platforms": []}
-    should_act, reason = should_composer_act(no_platforms)
-    assert_eq(r, "No platforms → False", should_act, False)
+    # No platforms but has agents → still runs (substrate-wide heartbeat)
+    no_platforms_with_agents = {**healthy, "connected_platforms": []}
+    should_act, reason = should_composer_act(no_platforms_with_agents)
+    # Has 3 active agents + no synthesize → cross_platform_opportunity fires
+    # OR it falls through to HEARTBEAT_OK. Either way, not blocked by missing platforms.
+    assert_true(r, "No platforms + active agents → not blocked",
+                "no substrate" not in reason, f"Reason wrongly blocked: {reason}")
+
+    # No platforms AND no agents → False (no substrate)
+    no_substrate = {**healthy, "connected_platforms": [], "agents": {"active": 0, "skills_present": []}}
+    should_act, reason = should_composer_act(no_substrate)
+    assert_eq(r, "No substrate (no platforms, no agents) → False", should_act, False)
+    assert_true(r, "Reason mentions no substrate", "no substrate" in reason, reason)
 
     # At tier limit → False (but no lifecycle triggers)
     at_limit = {**healthy, "tier": {"can_create": False, "limit_message": "limit"}}
@@ -319,6 +329,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
                 "title": f"{TEST_PREFIX}Underperformer",
                 "skill": "digest",
                 "scope": "platform",
+                "origin": "composer",
                 "total_runs": 10,
                 "approval_rate": 0.2,
                 "maturity": "nascent",
@@ -374,6 +385,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
             "underperformers": [{
                 "agent_id": agent_id,
                 "title": f"{TEST_PREFIX}Mild",
+                "origin": "composer",
                 "total_runs": 4,
                 "approval_rate": 0.35,
             }],
@@ -422,6 +434,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
             "underperformers": [{
                 "agent_id": "fake-id",
                 "title": "Fake Agent",
+                "origin": "composer",
                 "total_runs": 3,  # Below pause threshold
                 "approval_rate": 0.35,
             }],
@@ -520,6 +533,229 @@ def phase5_maturity_signals() -> PhaseResult:
 
 
 # =============================================================================
+# Phase 6: Origin guard — user_configured agents never auto-paused
+# =============================================================================
+
+async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
+    """Test that lifecycle NEVER auto-pauses user_configured agents."""
+    logger.info("\n[Phase 6] Origin Guard — user_configured protection")
+    r = PhaseResult("Origin Guard")
+
+    from services.composer import run_lifecycle_assessment
+    from services.agent_creation import create_agent_record
+
+    # Create a user-configured agent (simulating manual creation)
+    agent_result = await create_agent_record(
+        client=supabase,
+        user_id=TEST_USER_ID,
+        title=f"{TEST_PREFIX}UserCreated",
+        skill="digest",
+        origin="user_configured",
+        frequency="daily",
+    )
+    assert_true(r, "Created user_configured agent", agent_result.get("success") is True,
+                agent_result.get("message", ""))
+    if not agent_result.get("success"):
+        return r
+
+    user_agent_id = agent_result["agent_id"]
+    ids["agent_ids"].append(user_agent_id)
+
+    # Create a composer-created agent (should be pausable)
+    composer_result = await create_agent_record(
+        client=supabase,
+        user_id=TEST_USER_ID,
+        title=f"{TEST_PREFIX}ComposerCreated",
+        skill="digest",
+        origin="composer",
+        frequency="daily",
+    )
+    assert_true(r, "Created composer agent", composer_result.get("success") is True)
+    if not composer_result.get("success"):
+        return r
+
+    composer_agent_id = composer_result["agent_id"]
+    ids["agent_ids"].append(composer_agent_id)
+
+    # Build assessment with BOTH as underperformers
+    assessment = {
+        "connected_platforms": ["slack"],
+        "platform_details": [{"platform": "slack", "selected_sources": []}],
+        "agents": {"active": 2, "skills_present": ["digest"], "active_list": []},
+        "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
+        "health": {"stale_agents": []},
+        "maturity": {
+            "signals": [],
+            "mature_agents": [],
+            "underperformers": [
+                {
+                    "agent_id": user_agent_id,
+                    "title": f"{TEST_PREFIX}UserCreated",
+                    "skill": "digest",
+                    "origin": "user_configured",
+                    "total_runs": 10,
+                    "approval_rate": 0.2,
+                    "is_underperformer": True,
+                },
+                {
+                    "agent_id": composer_agent_id,
+                    "title": f"{TEST_PREFIX}ComposerCreated",
+                    "skill": "digest",
+                    "origin": "composer",
+                    "total_runs": 10,
+                    "approval_rate": 0.2,
+                    "is_underperformer": True,
+                },
+            ],
+        },
+        "feedback": {"recent_count": 0},
+        "tier": {"can_create": True, "limit_message": None},
+    }
+
+    result = await run_lifecycle_assessment(
+        supabase, TEST_USER_ID, assessment, "lifecycle_underperformer: test"
+    )
+
+    actions = result.get("actions_taken", [])
+    observations = result.get("observations", [])
+
+    # user_configured should NOT be paused — should appear in observations
+    paused_ids = [a["agent_id"] for a in actions if a.get("action") == "paused"]
+    assert_true(r, "user_configured agent NOT paused",
+                user_agent_id not in paused_ids,
+                f"user_configured was paused! actions: {actions}")
+    assert_true(r, "user_configured appears in observations",
+                any("user-configured" in obs.lower() or "UserCreated" in obs for obs in observations),
+                f"Expected observation about skipping, got: {observations}")
+
+    # composer-created SHOULD be paused
+    assert_true(r, "composer agent WAS paused",
+                composer_agent_id in paused_ids,
+                f"composer agent not paused. actions: {actions}")
+
+    # Verify DB state
+    user_db = supabase.table("agents").select("status").eq("id", user_agent_id).single().execute()
+    assert_eq(r, "user_configured agent still active in DB", user_db.data.get("status"), "active")
+
+    composer_db = supabase.table("agents").select("status").eq("id", composer_agent_id).single().execute()
+    assert_eq(r, "composer agent paused in DB", composer_db.data.get("status"), "paused")
+
+    return r
+
+
+# =============================================================================
+# Phase 7: Weighted approval rate
+# =============================================================================
+
+def phase7_weighted_approval() -> PhaseResult:
+    """Test weighted approval: explicit=1.0, auto-delivered=0.5."""
+    logger.info("\n[Phase 7] Weighted Approval Rate")
+    r = PhaseResult("Weighted Approval")
+
+    def calc_weighted(approved, delivered, rejected):
+        """Replicate the weighted logic from composer.py."""
+        total = approved + delivered + rejected
+        if total == 0:
+            return 0.0
+        return (approved + delivered * 0.5) / total
+
+    # All approved → 100%
+    assert_eq(r, "10 approved, 0 delivered → 1.0",
+              round(calc_weighted(10, 0, 0), 2), 1.0)
+
+    # All delivered (no explicit approval) → 50%
+    assert_eq(r, "0 approved, 10 delivered → 0.5",
+              round(calc_weighted(0, 10, 0), 2), 0.5)
+
+    # Mix: 5 approved, 5 delivered → 75%
+    assert_eq(r, "5 approved, 5 delivered → 0.75",
+              round(calc_weighted(5, 5, 0), 2), 0.75)
+
+    # With rejections: 3 approved, 4 delivered, 3 rejected → (3 + 2) / 10 = 0.5
+    assert_eq(r, "3 approved, 4 delivered, 3 rejected → 0.5",
+              round(calc_weighted(3, 4, 3), 2), 0.5)
+
+    # Maturity implications: 10 auto-delivered runs should NOT be "mature"
+    # because 50% approval < 80% threshold
+    rate_all_delivered = calc_weighted(0, 10, 0)
+    is_mature = rate_all_delivered >= 0.8
+    assert_eq(r, "All auto-delivered → NOT mature (50% < 80%)", is_mature, False)
+
+    # Maturity: 8 approved + 2 delivered → (8 + 1) / 10 = 90% → mature
+    rate_mostly_approved = calc_weighted(8, 2, 0)
+    is_mature2 = rate_mostly_approved >= 0.8
+    assert_eq(r, "8 approved + 2 delivered → mature (90% >= 80%)", is_mature2, True)
+
+    # Underperformer: 2 approved, 8 delivered → (2 + 4) / 10 = 60% → NOT underperformer
+    rate_mixed = calc_weighted(2, 8, 0)
+    is_under = rate_mixed < 0.4
+    assert_eq(r, "2 approved + 8 delivered → NOT underperformer (60% >= 40%)", is_under, False)
+
+    # Underperformer: 0 approved, 3 delivered, 7 rejected → (0 + 1.5) / 10 = 15% → underperformer
+    rate_bad = calc_weighted(0, 3, 7)
+    is_under2 = rate_bad < 0.4
+    assert_eq(r, "0 approved, 3 delivered, 7 rejected → underperformer (15% < 40%)", is_under2, True)
+
+    return r
+
+
+# =============================================================================
+# Phase 8: Substrate-wide heartbeat (no platforms)
+# =============================================================================
+
+def phase8_substrate_heartbeat() -> PhaseResult:
+    """Test heartbeat works for users with agents but no platforms."""
+    logger.info("\n[Phase 8] Substrate-Wide Heartbeat")
+    r = PhaseResult("Substrate Heartbeat")
+
+    from services.composer import should_composer_act
+
+    # User with agents but no platforms — should NOT be blocked
+    research_user = {
+        "connected_platforms": [],
+        "agents": {"active": 2, "skills_present": ["research", "custom"]},
+        "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
+        "health": {"stale_agents": []},
+        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "feedback": {"recent_count": 3},
+        "tier": {"can_create": True, "limit_message": None},
+    }
+    should_act, reason = should_composer_act(research_user)
+    assert_true(r, "No platforms + active agents → NOT blocked by substrate check",
+                "no substrate" not in reason,
+                f"Blocked: {reason}")
+
+    # User with underperforming agent, no platforms — lifecycle should still fire
+    research_underperformer = {
+        **research_user,
+        "maturity": {
+            "signals": [],
+            "mature_agents": [],
+            "underperformers": [{"agent_id": "x", "title": "Bad Research", "approval_rate": 0.2}],
+        },
+    }
+    should_act2, reason2 = should_composer_act(research_underperformer)
+    assert_eq(r, "Underperformer with no platforms → True", should_act2, True)
+    assert_true(r, "Reason is lifecycle", "lifecycle_underperformer" in reason2, reason2)
+
+    # Zero everything — blocked
+    empty = {
+        "connected_platforms": [],
+        "agents": {"active": 0, "skills_present": []},
+        "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
+        "health": {"stale_agents": []},
+        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "feedback": {"recent_count": 0},
+        "tier": {"can_create": True, "limit_message": None},
+    }
+    should_act3, reason3 = should_composer_act(empty)
+    assert_eq(r, "No substrate at all → False", should_act3, False)
+    assert_true(r, "Reason mentions no substrate", "no substrate" in reason3, reason3)
+
+    return r
+
+
+# =============================================================================
 # Cleanup
 # =============================================================================
 
@@ -588,6 +824,15 @@ async def main():
 
         # Phase 5: Maturity math (pure logic)
         results.append(phase5_maturity_signals())
+
+        # Phase 6: Origin guard (real DB — creates test agents)
+        results.append(await phase6_origin_guard(supabase, ids))
+
+        # Phase 7: Weighted approval (pure logic)
+        results.append(phase7_weighted_approval())
+
+        # Phase 8: Substrate-wide heartbeat (pure logic)
+        results.append(phase8_substrate_heartbeat())
 
     except Exception as e:
         import traceback
