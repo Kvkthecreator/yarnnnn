@@ -276,17 +276,23 @@ def compute_smart_defaults(
     max_sources: int,
 ) -> list[dict]:
     """
-    ADR-079: Auto-select the most valuable sources up to tier limit.
+    ADR-079 + ADR-113: Auto-select the most valuable sources up to tier limit.
 
     Called when landscape is first discovered and no sources are selected,
     or when backfilling existing users. Returns a list of selected source
     objects ({"id": ..., "name": ..., "type": ...}).
 
+    Uses only metadata already available from landscape discovery (zero extra
+    API calls). The agent decides what's important within synced content —
+    this function only decides which sources to sync.
+
     Selection heuristics per platform:
-    - Slack: Sort by num_members desc (busy channels = more context)
+    - Slack: Score by work-signal (name patterns, purpose text, member count).
+             Deprioritize social/noise channels. Boost team/project channels.
     - Gmail: INBOX + SENT first, then user-created labels (skip system noise)
     - Calendar: ALL calendars (unlimited, tiny data volume)
-    - Notion: Sort by last_edited desc (recently active pages = most relevant)
+    - Notion: Boost databases and workspace-level pages over nested untitled pages.
+              Sort by last_edited within tiers.
     """
     if not resources:
         return []
@@ -339,12 +345,7 @@ def compute_smart_defaults(
             })
 
     elif provider == "slack":
-        # Sort by num_members descending — busiest channels have most context
-        ranked = sorted(
-            resources,
-            key=lambda r: r.get("metadata", {}).get("num_members", 0),
-            reverse=True,
-        )
+        ranked = _score_slack_channels(resources)
         for r in ranked[:max_sources]:
             selected.append({
                 "id": r["id"],
@@ -353,14 +354,7 @@ def compute_smart_defaults(
             })
 
     elif provider == "notion":
-        # Sort by last_edited descending — recently active pages are most relevant
-        def notion_sort_key(r):
-            edited = r.get("metadata", {}).get("last_edited", "")
-            # Deprioritize "Untitled" pages
-            name_penalty = "0" if r.get("name", "").startswith("Untitled") else "1"
-            return (name_penalty, edited or "")
-
-        ranked = sorted(resources, key=notion_sort_key, reverse=True)
+        ranked = _score_notion_pages(resources)
         for r in ranked[:max_sources]:
             selected.append({
                 "id": r["id"],
@@ -369,6 +363,143 @@ def compute_smart_defaults(
             })
 
     return selected
+
+
+# =============================================================================
+# Slack Channel Scoring
+# =============================================================================
+
+# Channels whose names match these patterns are likely social/noise — deprioritize
+_SLACK_NOISE_PATTERNS = {
+    "random", "social", "watercooler", "off-topic", "offtopic",
+    "fun", "music", "pets", "food", "games", "memes", "sports",
+    "books", "movies", "photos", "birthdays", "celebrations",
+}
+
+# Channels whose names match these patterns are likely work-relevant — boost
+_SLACK_WORK_PATTERNS = {
+    "team", "eng", "engineering", "product", "design", "ops", "devops",
+    "infrastructure", "infra", "security", "data", "analytics", "platform",
+    "backend", "frontend", "mobile", "api", "deploy", "release",
+    "incident", "oncall", "on-call", "alerts", "monitoring",
+    "standup", "stand-up", "sync", "all-hands", "allhands",
+    "announcements", "announce", "general", "company", "org",
+    "leadership", "exec", "strategy", "planning", "roadmap",
+    "project", "sprint", "launch", "growth", "marketing", "sales",
+    "support", "customers", "feedback", "hiring", "recruiting",
+}
+
+# Purpose/topic text signals that suggest work channels
+_SLACK_WORK_KEYWORDS = {
+    "project", "team", "sprint", "deploy", "release", "incident",
+    "standup", "sync", "updates", "decisions", "planning", "roadmap",
+    "engineering", "product", "design", "support", "customers",
+}
+
+# Purpose/topic text signals that suggest noise channels
+_SLACK_NOISE_KEYWORDS = {
+    "fun", "random", "off-topic", "social", "non-work", "watercooler",
+    "memes", "pets", "games", "music", "food",
+}
+
+
+def _score_slack_channels(resources: list[dict]) -> list[dict]:
+    """
+    Score Slack channels by work-relevance using available metadata.
+
+    Scoring (higher = more likely to be selected):
+    - Base: num_members (normalized, minor factor)
+    - Boost: channel name matches work patterns (+3)
+    - Boost: purpose/topic text contains work keywords (+2)
+    - Penalty: channel name matches noise patterns (-5)
+    - Penalty: purpose/topic text contains noise keywords (-3)
+    - Penalty: private channels with <3 members (-1, likely DM-like)
+    """
+    scored = []
+    max_members = max(
+        (r.get("metadata", {}).get("num_members", 0) for r in resources),
+        default=1,
+    ) or 1  # avoid division by zero
+
+    for r in resources:
+        meta = r.get("metadata", {})
+        name = r.get("name", "").lower().lstrip("#")
+        num_members = meta.get("num_members", 0)
+        is_private = meta.get("is_private", False)
+        purpose = (meta.get("purpose") or "").lower() if isinstance(meta.get("purpose"), str) else ""
+        topic = (meta.get("topic") or "").lower() if isinstance(meta.get("topic"), str) else ""
+        context_text = f"{purpose} {topic}"
+
+        # Base score: member count normalized to 0-2 range
+        score = (num_members / max_members) * 2
+
+        # Name-based signals
+        name_parts = set(name.replace("-", " ").replace("_", " ").split())
+        if name_parts & _SLACK_WORK_PATTERNS:
+            score += 3
+        if name_parts & _SLACK_NOISE_PATTERNS:
+            score -= 5
+
+        # Purpose/topic text signals
+        context_words = set(context_text.replace("-", " ").replace("_", " ").split())
+        if context_words & _SLACK_WORK_KEYWORDS:
+            score += 2
+        if context_words & _SLACK_NOISE_KEYWORDS:
+            score -= 3
+
+        # Private channels with very few members are likely DM-like
+        if is_private and num_members < 3:
+            score -= 1
+
+        scored.append((score, r))
+
+    # Sort by score descending, then by member count as tiebreaker
+    scored.sort(key=lambda x: (x[0], x[1].get("metadata", {}).get("num_members", 0)), reverse=True)
+    return [r for _, r in scored]
+
+
+# =============================================================================
+# Notion Page Scoring
+# =============================================================================
+
+def _score_notion_pages(resources: list[dict]) -> list[dict]:
+    """
+    Score Notion pages by likely relevance using available metadata.
+
+    Scoring:
+    - Boost: databases over pages (+3, databases are usually project trackers / meeting notes)
+    - Boost: workspace-level pages (+2, top-level = org-important)
+    - Penalty: Untitled pages (-3, usually scratch / empty)
+    - Base: last_edited recency (more recent = more relevant)
+    """
+    scored = []
+
+    for r in resources:
+        meta = r.get("metadata", {})
+        name = r.get("name", "")
+        resource_type = r.get("type", "page")
+        parent_type = meta.get("parent_type", "")
+        edited = meta.get("last_edited", "") or ""
+
+        score = 0
+
+        # Type: databases are typically higher-value (project boards, wikis, trackers)
+        if resource_type == "database":
+            score += 3
+
+        # Hierarchy: workspace-level pages are usually important
+        if parent_type == "workspace":
+            score += 2
+
+        # Name quality
+        if name.startswith("Untitled") or not name.strip():
+            score -= 3
+
+        scored.append((score, edited, r))
+
+    # Sort by score descending, then by last_edited descending (recent first)
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [r for _, _, r in scored]
 
 
 async def refresh_landscape(

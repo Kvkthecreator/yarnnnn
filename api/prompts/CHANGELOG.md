@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.7] - ADR-113: Auto Source Selection — eliminate manual prerequisite + smarter heuristics
+
+### Changed
+- `api/routes/integrations.py`: OAuth callback now auto-discovers landscape, applies `compute_smart_defaults()`, and kicks off first sync as BackgroundTask. Users no longer need to manually select sources before sync begins.
+- `api/integrations/core/oauth.py`: Default post-OAuth redirect changed from `/orchestrator` to `/dashboard`. Users see their platform connected and syncing progress.
+- `web/app/(authenticated)/dashboard/page.tsx`: Empty state platform cards trigger OAuth directly (no redirect to context page). Transitional state reframed from "Select sources to sync" to "Customize synced sources" (optional). Added "Connect more platforms" section. Loading state on connect buttons.
+- `api/services/landscape.py`: `compute_smart_defaults()` upgraded from single-signal sorting to multi-signal scoring. Slack: name pattern matching (boost work channels like `team-`, `eng-`, `incident`; penalize noise like `random`, `social`, `fun`) + purpose/topic keyword analysis + member count as tiebreaker. Notion: boost databases (+3), workspace-level pages (+2), penalize Untitled (-3), recency tiebreaker. Gmail/Calendar unchanged.
+- `docs/design/USER_FLOW_ONBOARDING_V4.md`: Updated to V5 reflecting auto-selection flow.
+- `docs/adr/ADR-113-auto-source-selection.md`: New ADR documenting the change and heuristics.
+- Expected behavior: Platform connection is now a single click → auto-discover → auto-select → auto-sync → auto-bootstrap flow. Manual source curation moves from prerequisite to optional refinement. Auto-selected sources are now work-biased, not just popularity-biased.
+
+---
+
 ## [2026.03.16.6] - Orchestrator surface alignment: commands, starter cards, plus menu
 
 ### Changed

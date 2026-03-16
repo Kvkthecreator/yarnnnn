@@ -418,9 +418,10 @@ def get_frontend_redirect_url(
     """
     Get the URL to redirect the user to after OAuth.
 
-    ADR-110: Default redirect to /orchestrator with provider + bootstrapped params.
-    If redirect_to is provided (e.g. "/system"), return there instead —
-    this handles reconnects where the user should land back where they started.
+    ADR-113: Default redirect to /dashboard with provider + status params.
+    Auto-selection + sync already kicked off in callback — user lands on
+    dashboard to see progress. If redirect_to is provided (e.g. "/system"),
+    return there instead — this handles reconnects from other pages.
     On error, redirects to settings page.
     """
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
@@ -431,8 +432,8 @@ def get_frontend_redirect_url(
             "provider": redirect_provider,
             "status": "connected",
         }
-        # Use caller-specified path if provided, otherwise default to /orchestrator (ADR-110)
-        target_path = redirect_to if redirect_to else "/orchestrator"
+        # Use caller-specified path if provided, otherwise default to /dashboard (ADR-113)
+        target_path = redirect_to if redirect_to else "/dashboard"
         return f"{base_url}{target_path}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting

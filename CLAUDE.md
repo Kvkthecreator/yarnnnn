@@ -51,6 +51,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Gmail→Digest, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Becomes Bootstrap bounded context within Composer (ADR-111). (Implemented.)
 - **ADR-111**: Agent Composer — TP's compositional capability (not a separate service). Three bounded contexts: **Bootstrap** (deterministic fast-path), **Heartbeat** (periodic TP self-assessment of agent workforce), **Composer** (assessment + creation/adjustment/dissolution). Unifies Write/CreateAgent into single `CreateAgent` primitive. Autonomy-first: bias toward action, feedback as correction. Proactive/coordinator modes reframed as TP supervisory capabilities. Platform content as onramp (dependency decreases over time). Lifecycle progression: per-agent maturity signals (run count, approval rate, edit distance trend), auto-pause underperformers, auto-create synthesis from mature digests, cross-agent pattern detection. (Implemented — all 5 phases.)
 - **ADR-112**: Sync Efficiency & Concurrency Control — three layers: (1) atomic sync lock on `platform_connections` replacing `SCHEDULE_WINDOW_MINUTES` timing hack, (2) platform-level heartbeat fast-path (Gmail historyId, Calendar syncToken, Slack latest, Notion search) to skip source iteration when nothing changed, (3) per-source skip hints (deferred). Coordinates all three sync paths (scheduled, manual, TP RefreshPlatformContent). (Implemented.)
+- **ADR-113**: Auto Source Selection — eliminates manual source selection as prerequisite for platform connections. OAuth callback auto-discovers landscape, applies `compute_smart_defaults()`, kicks off first sync immediately. Post-OAuth redirect changed from `/orchestrator` to `/dashboard`. Context pages become optional refinement, not first-time entry point. Dashboard platform cards trigger OAuth directly. (Implemented.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -244,11 +245,12 @@ You MUST:
 - `api/services/primitives/workspace.py` — ReadWorkspace, WriteWorkspace, SearchWorkspace, QueryKnowledge
 - `api/services/execution_strategies.py` — AnalystStrategy, ResearcherStrategy additions
 
-### ADR-057: Streamlined Onboarding
+### ADR-057: Streamlined Onboarding (updated by ADR-113)
 
-- OAuth redirects to `/orchestrator?provider=X&status=connected`
-- `PlatformSyncStatus` detects params and opens source selection modal
-- Tier-gated source limits (free = 1 per platform)
+- OAuth callback auto-discovers landscape + auto-selects sources + kicks off sync (ADR-113)
+- Redirects to `/dashboard?provider=X&status=connected`
+- Source curation on context pages is optional refinement, not prerequisite
+- Tier-gated source limits enforced by `compute_smart_defaults()` max_sources
 
 ### ADR-056: Per-Source Sync
 

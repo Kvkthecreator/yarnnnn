@@ -13,7 +13,7 @@
  * See docs/design/SUPERVISION-DASHBOARD.md for design rationale.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -28,7 +28,7 @@ import {
   Brain,
   TrendingDown,
   TrendingUp,
-  Plug,
+  Plus,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
@@ -97,6 +97,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +117,19 @@ export default function DashboardPage() {
     }
     load();
     return () => { cancelled = true; };
+  }, []);
+
+  // ADR-113: Trigger OAuth directly from dashboard (no redirect to context page)
+  const handleConnect = useCallback(async (platform: string) => {
+    setConnecting(platform);
+    try {
+      const authProvider = platform === 'calendar' ? 'google' : platform;
+      const result = await api.integrations.getAuthorizationUrl(authProvider);
+      window.location.href = result.authorization_url;
+    } catch (err) {
+      console.error(`Failed to initiate ${platform} OAuth:`, err);
+      setConnecting(null);
+    }
   }, []);
 
   if (loading) {
@@ -151,17 +165,24 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Primary path: connect platforms */}
+          {/* Primary path: connect platforms — ADR-113: OAuth directly, auto-selects sources */}
           <div className="space-y-3">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Connect a platform to get started</h2>
             <div className="grid grid-cols-2 gap-3">
               {(['slack', 'gmail', 'notion', 'calendar'] as const).map((platform) => (
                 <button
                   key={platform}
-                  onClick={() => router.push(`/context/${platform === 'calendar' ? 'google' : platform}`)}
-                  className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left"
+                  onClick={() => handleConnect(platform)}
+                  disabled={connecting !== null}
+                  className={cn(
+                    "flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left",
+                    connecting === platform && "opacity-70",
+                  )}
                 >
-                  {getPlatformIcon(platform, 'w-5 h-5')}
+                  {connecting === platform
+                    ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    : getPlatformIcon(platform, 'w-5 h-5')
+                  }
                   <span className="text-sm font-medium capitalize">{platform === 'calendar' ? 'Google Calendar' : platform}</span>
                 </button>
               ))}
@@ -193,14 +214,19 @@ export default function DashboardPage() {
   }
 
   // Transitional state: platforms connected but no agents yet
+  // ADR-113: Sources auto-selected, sync in progress — show progress, not source selection CTA
   if (hasNoAgents) {
+    const unconnected = (['slack', 'gmail', 'notion', 'calendar'] as const).filter(
+      (p) => !connected_platforms.includes(p === 'calendar' ? 'google' : p) && !connected_platforms.includes(p)
+    );
+
     return (
       <div className="h-full overflow-auto">
         <div className="max-w-2xl mx-auto px-4 md:px-6 py-12 space-y-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <p className="text-muted-foreground mt-2">
-              Your platforms are connected. Agents will appear here once they&apos;re created.
+              Your platforms are syncing. Agents will appear here automatically.
             </p>
           </div>
 
@@ -214,19 +240,44 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Two paths forward */}
+          {/* Actions */}
           <div className="grid gap-3">
+            {/* Connect more platforms (if any unconnected) */}
+            {unconnected.length > 0 && (
+              <div className="p-4 rounded-lg border border-dashed border-border">
+                <p className="text-sm font-medium mb-3">Connect more platforms</p>
+                <div className="flex flex-wrap gap-2">
+                  {unconnected.map((platform) => (
+                    <button
+                      key={platform}
+                      onClick={() => handleConnect(platform)}
+                      disabled={connecting !== null}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      {connecting === platform
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : getPlatformIcon(platform, 'w-3.5 h-3.5')
+                      }
+                      <span className="capitalize">{platform === 'calendar' ? 'Calendar' : platform}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Refine sources (optional, not prerequisite) */}
             <button
               onClick={() => router.push('/context')}
               className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
             >
-              <Plug className="w-5 h-5 text-muted-foreground" />
+              <Plus className="w-5 h-5 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Select sources to sync</p>
-                <p className="text-xs text-muted-foreground">Choose channels, labels, or pages — agents are created from your sources</p>
+                <p className="text-sm font-medium">Customize synced sources</p>
+                <p className="text-xs text-muted-foreground">Add or remove specific channels, labels, or pages</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
             </button>
+
             <button
               onClick={() => router.push(ORCHESTRATOR_ROUTE)}
               className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"

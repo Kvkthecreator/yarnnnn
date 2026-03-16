@@ -526,13 +526,13 @@ async def phase11_oauth_and_activity(supabase, ids: dict) -> PhaseResult:
     logger.info("\n[Phase 11] OAuth Redirect + Activity Log")
     r = PhaseResult("OAuth & Activity")
 
-    # Verify OAuth redirect now goes to /orchestrator (post-dashboard restructure)
+    # ADR-113: Verify OAuth redirect goes to /dashboard (auto-selection, no manual step)
     from integrations.core.oauth import get_frontend_redirect_url
 
     url = get_frontend_redirect_url(True, "slack")
-    assert_true(r, "OAuth redirect goes to /orchestrator",
-                "/orchestrator?" in url,
-                f"Expected /orchestrator, got: {url}")
+    assert_true(r, "OAuth redirect goes to /dashboard",
+                "/dashboard?" in url,
+                f"Expected /dashboard, got: {url}")
     assert_true(r, "OAuth redirect includes provider=slack",
                 "provider=slack" in url,
                 f"Missing provider param: {url}")

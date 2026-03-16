@@ -2356,6 +2356,7 @@ async def initiate_oauth(
 @router.get("/integrations/{provider}/callback")
 async def oauth_callback(
     provider: str,
+    background_tasks: BackgroundTasks,
     code: str = Query(..., description="Authorization code from provider"),
     state: str = Query(..., description="State parameter for CSRF protection"),
     error: Optional[str] = Query(None, description="Error from provider"),
@@ -2449,6 +2450,69 @@ async def oauth_callback(
             ))
         except Exception:
             pass  # Non-fatal
+
+        # ADR-113: Auto-discover landscape + auto-select sources + kick off sync
+        # This eliminates the manual source-selection prerequisite.
+        try:
+            user_id_for_auto = token_data["user_id"]
+
+            # Re-read the integration row (we just upserted it)
+            auto_result = service_client.table("platform_connections").select(
+                "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape"
+            ).eq("user_id", user_id_for_auto).eq("platform", provider).limit(1).execute()
+
+            if auto_result.data:
+                integration_row = auto_result.data[0]
+
+                from services.landscape import discover_landscape, compute_smart_defaults
+                from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+
+                landscape_data = await discover_landscape(provider, user_id_for_auto, integration_row)
+
+                if landscape_data.get("resources"):
+                    # Compute smart defaults within tier limits
+                    limits = get_limits_for_user(service_client, user_id_for_auto)
+                    limit_field = PROVIDER_LIMIT_MAP.get(
+                        "gmail" if provider == "google" else provider,
+                        "slack_channels"
+                    )
+                    max_sources = getattr(limits, limit_field, 5)
+                    if max_sources == -1:
+                        max_sources = 999
+
+                    smart_selected = compute_smart_defaults(
+                        provider, landscape_data["resources"], max_sources
+                    )
+                    landscape_data["selected_sources"] = smart_selected
+
+                    # Store landscape + selected sources
+                    service_client.table("platform_connections").update({
+                        "landscape": landscape_data,
+                        "landscape_discovered_at": datetime.utcnow().isoformat(),
+                    }).eq("id", integration_row["id"]).execute()
+
+                    logger.info(
+                        f"[INTEGRATIONS] ADR-113: Auto-selected {len(smart_selected)} sources "
+                        f"for {provider} user {user_id_for_auto[:8]}"
+                    )
+
+                    # Kick off first sync immediately (BackgroundTask)
+                    if smart_selected:
+                        from workers.platform_worker import sync_platform
+                        source_ids = [s["id"] for s in smart_selected]
+                        background_tasks.add_task(sync_platform, user_id_for_auto, provider, source_ids)
+                        logger.info(
+                            f"[INTEGRATIONS] ADR-113: Triggered initial sync for {provider} "
+                            f"user {user_id_for_auto[:8]} ({len(source_ids)} sources)"
+                        )
+                else:
+                    logger.info(
+                        f"[INTEGRATIONS] ADR-113: No resources discovered for {provider} "
+                        f"user {user_id_for_auto[:8]}, skipping auto-selection"
+                    )
+        except Exception as e:
+            # Non-fatal: auto-selection is best-effort. User can still select manually.
+            logger.warning(f"[INTEGRATIONS] ADR-113: Auto-selection failed for {provider}: {e}")
 
         # Redirect to frontend with success
         return RedirectResponse(

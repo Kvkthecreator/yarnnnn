@@ -1,25 +1,25 @@
-# User Flow: Two-Path Onboarding (v4)
+# User Flow: Two-Path Onboarding (v5)
 
 > **Status**: Current
 > **Date**: 2026-03-16
-> **Supersedes**: [Onboarding V3](archive/USER_FLOW_ONBOARDING_V2.md) (2026-02-26)
-> **Related**: ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap), ADR-111 (Agent Composer), [Supervision Dashboard](SUPERVISION-DASHBOARD.md), [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md)
+> **Supersedes**: [Onboarding V4](archive/) (2026-03-16), [Onboarding V3](archive/USER_FLOW_ONBOARDING_V2.md) (2026-02-26)
+> **Related**: ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap), ADR-111 (Agent Composer), ADR-113 (Auto Source Selection), [Supervision Dashboard](SUPERVISION-DASHBOARD.md), [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md)
 
 ---
 
-## What Changed Since V3
+## What Changed Since V4
 
-V3 assumed a single path: connect platforms → select sources → accumulate context → use TP. This reflected the original product model where platform connections were the engine.
+V4 required manual source selection as a prerequisite after platform connection: OAuth → context page → pick sources → sync → bootstrap. This created friction at the moment of highest user intent.
 
-With ADR-111 (Agent Composer) and the Supervision Dashboard, YARNNN's model is now:
+With ADR-113 (Auto Source Selection), the flow is now:
 
-1. **Platforms are the onramp, not the engine.** They provide the fastest time-to-first-value (connect → auto-created agent → first delivery in minutes). But the long-term product is autonomous agents — not platform sync.
+1. **Sources are auto-selected at connection time.** `compute_smart_defaults()` picks the highest-signal sources (busiest Slack channels, INBOX/SENT for Gmail, recently-edited Notion pages, all calendars) up to tier limits.
 
-2. **The Orchestrator is always available.** Users can create agents for topics, research, or tasks without any platform connection. Platform-less agents (research, knowledge, task) are first-class.
+2. **Sync starts immediately.** No manual step between connecting and syncing. The OAuth callback discovers landscape, applies defaults, and kicks off the first sync as a background task.
 
-3. **The dashboard is the landing page.** Users land on a supervision view, not a chat interface. The home page reflects "what's happening" rather than waiting for input.
+3. **Users land on the dashboard, not a context page.** Post-OAuth redirect goes to `/dashboard` where users see their platform connected and syncing. Source curation is optional refinement, not a gate.
 
-These changes require a **two-path onboarding** design: platform connection as the default recommended path, and Orchestrator as the alternative for users who want topic/task-based work immediately.
+4. **Context pages are for refinement, not setup.** Users can still add/remove sources at any time from `/context/{platform}`, but this is an escape hatch — not the first-time entry point.
 
 ---
 
@@ -36,12 +36,12 @@ These changes require a **two-path onboarding** design: platform connection as t
 ## User Journey
 
 ```
-OPEN  →  CHOOSE PATH  →  FIRST AGENT  →  FIRST DELIVERY  →  SUPERVISION
- │           │                │                │                │
- ▼           ▼                ▼                ▼                ▼
-Dashboard   Platform CTA    Auto-created     Output in        Dashboard
-empty       OR Orchestrator  (bootstrap)     inbox/channel    shows health
-state       chat             OR chat-created  or in-app       + activity
+OPEN  →  CONNECT  →  AUTO-SYNC  →  FIRST AGENT  →  FIRST DELIVERY  →  SUPERVISION
+ │          │           │              │                │                │
+ ▼          ▼           ▼              ▼                ▼                ▼
+Dashboard  OAuth      Smart defaults  Bootstrap        Output in        Dashboard
+empty      (direct)   + background    (automatic)      inbox/channel    shows health
+state                 sync starts                      or in-app        + activity
 ```
 
 ---
@@ -65,7 +65,7 @@ Dashboard shows a clean welcome with **two paths**:
 │  agents that deliver recurring insights.             │
 │                                                      │
 │  ┌─────────────┐  ┌─────────────┐                    │
-│  │ [Slack]      │  │ [Gmail]      │                   │
+│  │ [Slack]      │  │ [Gmail]      │  ← OAuth direct  │
 │  │  Slack       │  │  Gmail       │                   │
 │  ├─────────────┤  ├─────────────┤                    │
 │  │ [Notion]     │  │ [Calendar]   │                   │
@@ -82,23 +82,22 @@ Dashboard shows a clean welcome with **two paths**:
 
 ### Design decisions
 
-- **Platform cards are primary** because they lead to the fastest time-to-value (connect → auto-bootstrap → first delivery). Most users have at least one platform.
+- **Platform cards trigger OAuth directly** (ADR-113). No intermediate context page. One click starts the entire flow.
 - **Orchestrator is secondary but visible** for topic-first users who don't want to commit platforms yet.
 - **No "skip" button** — both paths are productive. There's no empty "I'll figure it out later" state.
 - **No tier info at this stage** — don't frontload pricing before the user sees value.
 
 ---
 
-## Stage 2a: Platform Path (Connect → Bootstrap → Supervise)
+## Stage 2a: Platform Path (Connect → Auto-Sync → Bootstrap → Supervise)
 
 ### Flow
 
-1. **User clicks platform card** → OAuth redirect → returns to `/context/{platform}?status=connected`
-2. **Source selection** on context page (unchanged from v3: landscape discovery, smart defaults, recommended grouping)
-3. **Import prompt** → sources sync
-4. **Onboarding Bootstrap** (ADR-110): post-sync, system auto-creates matching digest agent with `origin=system_bootstrap`
-5. **First run** executes immediately → user sees first delivery
-6. **User returns to Dashboard** → sees agent in health grid with status
+1. **User clicks platform card** → OAuth redirect → callback auto-discovers landscape + auto-selects sources (ADR-113) → kicks off first sync → redirects to `/dashboard?provider={platform}&status=connected`
+2. **Dashboard shows transitional state**: platform connected, sync in progress, "agents will appear automatically"
+3. **Onboarding Bootstrap** (ADR-110): post-sync, system auto-creates matching digest agent with `origin=system_bootstrap`
+4. **First run** executes immediately → user sees first delivery
+5. **Dashboard transitions to active state** → agent appears in health grid
 
 ### What the user sees after connecting
 
@@ -108,20 +107,33 @@ Dashboard transitions from empty state to **transitional state**:
 ┌──────────────────────────────────────────────────────┐
 │              Dashboard                                │
 │                                                      │
-│  Your platforms are connected. Agents will appear     │
-│  here once they're created.                          │
+│  Your platforms are syncing. Agents will appear      │
+│  here automatically.                                 │
 │                                                      │
 │      [✓ slack]  [✓ gmail]                            │
 │                                                      │
-│  [🔌] Select sources to sync                         │
-│       Choose channels, labels, or pages              │
+│  ┌ Connect more platforms ─────────────────────────┐ │
+│  │  [notion]  [calendar]                           │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  [+] Customize synced sources                        │
+│      Add or remove specific channels, labels, pages  │
 │                                                      │
 │  [💬] Ask the Orchestrator                           │
 │       Create or configure agents through conversation │
 └──────────────────────────────────────────────────────┘
 ```
 
-This transitional state appears between platform connection and agent creation. Once onboarding bootstrap creates the first agent, the dashboard shows the full supervision view.
+### Key differences from V4
+
+- **No source selection step.** Sources auto-selected by `compute_smart_defaults()` at OAuth callback time.
+- **User lands on dashboard**, not context page. They see progress, not a form.
+- **"Customize synced sources"** is an optional refinement link, not a prerequisite CTA.
+- **"Connect more platforms"** is surfaced directly in the transitional state.
+
+### Source curation (optional)
+
+Users who want to change which sources are synced can visit `/context/{platform}` at any time. The context page shows auto-selected sources with checkboxes to add/remove. This is the same UI as before — just no longer the first-time entry point.
 
 ### Composer follow-up (ADR-111)
 
@@ -159,8 +171,8 @@ This is a natural conversation — not a modal or blocker.
 
 | State | Condition | Display |
 |-------|-----------|---------|
-| **Empty** | No platforms, no agents | Two-path welcome (platform cards + Orchestrator) |
-| **Transitional** | Platforms connected, no agents | Connected platforms summary + source selection CTA + Orchestrator CTA |
+| **Empty** | No platforms, no agents | Two-path welcome (platform OAuth cards + Orchestrator) |
+| **Transitional** | Platforms connected, no agents | Connected platforms + syncing message + connect more + customize sources (optional) |
 | **Active** | 1+ agents | Full supervision dashboard (health grid, stats, Composer activity, attention) |
 
 ### What the active dashboard shows
@@ -185,7 +197,7 @@ All non-user-created agents show a single **"Auto"** badge regardless of interna
 |-----------|----------|---------|
 | Dashboard page | `web/app/(authenticated)/dashboard/page.tsx` | Empty state + transitional + supervision views |
 | Orchestrator page | `web/app/(authenticated)/orchestrator/page.tsx` | TP chat (moved from /dashboard in v3) |
-| Context pages | `web/app/(authenticated)/context/` | Platform connection + source selection (unchanged) |
+| Context pages | `web/app/(authenticated)/context/` | Source refinement (no longer first-time entry point) |
 | `PlatformIcons` | `web/components/ui/PlatformIcons.tsx` | Platform icon rendering |
 
 ### Backend
@@ -193,9 +205,10 @@ All non-user-created agents show a single **"Auto"** badge regardless of interna
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/dashboard/summary` | Dashboard payload: agents, Composer actions, attention, connected platforms, stats |
-| `GET /integrations/{provider}/landscape` | Discover resources + recommended flag |
-| `PUT /integrations/{provider}/sources` | Save selected sources |
-| `POST /integrations/{provider}/import` | Start foreground import |
+| `GET /integrations/{provider}/callback` | OAuth callback: stores tokens + auto-discovers landscape + auto-selects sources + kicks off sync (ADR-113) |
+| `GET /integrations/{provider}/landscape` | Discover resources + recommended flag (also auto-selects if no prior selection) |
+| `PUT /integrations/{provider}/sources` | Save selected sources (for manual refinement) |
+| `POST /integrations/{provider}/sync` | Trigger on-demand sync |
 | Onboarding bootstrap | Auto-creates digest agent post-sync (ADR-110) |
 | Composer heartbeat | Assesses substrate, suggests/creates agents (ADR-111) |
 
@@ -203,9 +216,9 @@ All non-user-created agents show a single **"Auto"** badge regardless of interna
 
 ```
 Dashboard (empty state)
-  ├─ Path A: Platform → OAuth → /context/{platform} → source selection
-  │    → import → bootstrap → first agent + first run → dashboard (active)
-  │    → Composer heartbeat → additional agents → dashboard updates
+  ├─ Path A: Platform → OAuth → callback auto-discovers + auto-selects + starts sync
+  │    → /dashboard (transitional) → sync completes → bootstrap → first agent + first run
+  │    → dashboard (active) → Composer heartbeat → additional agents
   │
   └─ Path B: Orchestrator → /orchestrator → chat → CreateAgent
        → agent created → dashboard (active) → first run on schedule
@@ -213,26 +226,16 @@ Dashboard (empty state)
 
 ---
 
-## Differences from V3
+## Differences from V4
 
-| Aspect | V3 | V4 |
+| Aspect | V4 | V5 (ADR-113) |
 |--------|----|----|
-| Landing page | TP chat (`/dashboard`) | Supervision dashboard (`/dashboard`) |
-| TP location | `/dashboard` | `/orchestrator` |
-| Onboarding entry | Platform cards only | Two paths: platforms + Orchestrator |
-| Empty state | PlatformSyncStatus component | Purpose-built welcome with two-path design |
-| Post-connect | Return to TP chat | Return to context page → dashboard shows transitional state |
-| Agent creation | User drives via TP chat | Auto (bootstrap/Composer) + manual (Orchestrator chat) |
-| Agent visibility | Agent list page only | Dashboard health grid + agent list page |
-| Origin display | Per-type labels (bootstrap, composer, etc.) | Unified "Auto" badge |
-
----
-
-## Archived Components
-
-These v3 components are no longer part of the primary onboarding flow:
-- `PlatformSyncStatus` as dashboard landing — replaced by dashboard empty states
-- Dashboard = TP chat assumption — dashboard is now supervision, TP is at `/orchestrator`
+| Post-OAuth redirect | `/context/{platform}` → manual source selection | `/dashboard` → see progress |
+| Source selection | Prerequisite (manual) | Auto (smart defaults), manual = optional refinement |
+| First sync trigger | After user saves source selection | Immediately at OAuth callback |
+| Dashboard platform cards | Navigate to context page | Trigger OAuth directly |
+| Transitional state CTA | "Select sources to sync" | "Customize synced sources" (optional) |
+| Time-to-first-sync | User-dependent (requires manual action) | Seconds after OAuth callback |
 
 ---
 
@@ -243,3 +246,4 @@ These v3 components are no longer part of the primary onboarding flow:
 - [ADR-057: Streamlined Onboarding](../adr/ADR-057-streamlined-onboarding-gated-sync.md)
 - [ADR-110: Onboarding Bootstrap](../adr/ADR-110-onboarding-bootstrap.md)
 - [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md)
+- [ADR-113: Auto Source Selection](../adr/ADR-113-auto-source-selection.md)
