@@ -295,20 +295,25 @@ As TP improves at intent detection and configuration inference, the structured f
 
 ## Implementation Priorities
 
-### Immediate (ADR-109 cleanup)
-1. Update `STARTER_CARDS` to use correct ADR-109 skill names and add platform context
-2. Add platform icons to agent cards (sidebar + list page)
-3. Fix the "What type of work-agent?" modal to use template-style prompts
+### Implemented
+1. ~~Add platform icons to agent cards~~ — Dashboard agent health grid uses `getPlatformIcon()` derived from `sources[].provider` (2026-03-16)
+2. ~~Agent portfolio dashboard~~ — Supervision Dashboard at `/dashboard` with agent health grid, maturity badges, edit trend arrows, approval rates, Composer activity feed, attention banners (2026-03-16)
+3. ~~Origin badges~~ — All non-user origins (`system_bootstrap`, `composer`, `coordinator_created`) collapsed to unified "Auto" badge in dashboard + activity page (2026-03-16)
+4. ~~Two-path onboarding~~ — Dashboard empty state shows platform connect cards (primary) + Orchestrator chat (alternative). See [USER_FLOW_ONBOARDING_V4.md](USER_FLOW_ONBOARDING_V4.md) (2026-03-16)
+
+### Immediate
+5. Update `STARTER_CARDS` to use correct ADR-109 skill names and add platform context
+6. Fix the "What type of work-agent?" modal to use template-style prompts
 
 ### Near-term
-4. Source-affinity grouping when agent count ≥ 6
-5. Template config (backend-driven, replaces hardcoded `STARTER_CARDS`)
-6. Creation flow: Source → Job → Configure (for structured creation path)
+7. Source-affinity grouping when agent count ≥ 6
+8. Template config (backend-driven, replaces hardcoded `STARTER_CARDS`)
+9. Creation flow: Source → Job → Configure (for structured creation path)
 
 ### Future
-7. Chat-first creation as default (TP infers everything from natural language)
-8. Template bundles ("Slack Power User" → creates digest + monitor + responder)
-9. Agent portfolio dashboard (cross-agent analytics, cost, quality metrics)
+10. Chat-first creation as default (TP infers everything from natural language)
+11. Template bundles ("Slack Power User" → creates digest + monitor + responder)
+12. Maturity trend sparklines on dashboard
 
 ---
 
@@ -317,3 +322,4 @@ As TP improves at intent detection and configuration inference, the structured f
 | Date | Change |
 |------|--------|
 | 2026-03-13 | Initial principles — source-first mental model, progressive disclosure, platform icons, source-affinity grouping |
+| 2026-03-16 | Updated priorities: platform icons on dashboard, supervision dashboard, origin badge collapse, two-path onboarding — all implemented |

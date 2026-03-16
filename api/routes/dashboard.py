@@ -51,7 +51,21 @@ async def get_dashboard_summary(client: UserClient):
     except Exception as e:
         logger.warning(f"[DASHBOARD] Agent query failed: {e}")
 
-    # 2. Per-agent maturity signals (same logic as composer.py heartbeat_data_query)
+    # 2. Connected platforms (for empty state detection)
+    connected_platforms = []
+    try:
+        result = (
+            db.table("platform_connections")
+            .select("platform, status")
+            .eq("user_id", user_id)
+            .in_("status", ["connected", "active"])
+            .execute()
+        )
+        connected_platforms = [r["platform"] for r in (result.data or [])]
+    except Exception as e:
+        logger.warning(f"[DASHBOARD] Platform query failed: {e}")
+
+    # 3. Per-agent maturity signals (same logic as composer.py heartbeat_data_query)
     active_agents = [a for a in agents_raw if a.get("status") == "active"]
     agent_health = []
 
@@ -221,6 +235,7 @@ async def get_dashboard_summary(client: UserClient):
         "agents": agent_health,
         "composer_actions": composer_actions,
         "attention": attention,
+        "connected_platforms": connected_platforms,
         "stats": {
             "total_agents": len(agents_raw),
             "active_agents": len(active_agents),

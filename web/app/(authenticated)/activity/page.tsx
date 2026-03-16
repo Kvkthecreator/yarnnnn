@@ -626,9 +626,7 @@ export default function ActivityPage() {
                                   )}
                                   {config.category === 'agents' && origin && origin !== 'user_configured' && (
                                     <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                      {origin === 'coordinator_created' ? 'coordinator' :
-                                       origin === 'system_bootstrap' ? 'bootstrap' :
-                                       origin === 'composer' ? 'composer' : 'auto'}
+                                      Auto
                                     </span>
                                   )}
                                 </div>

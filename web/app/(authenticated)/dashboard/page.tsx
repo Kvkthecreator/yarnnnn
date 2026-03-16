@@ -19,7 +19,6 @@ import {
   Loader2,
   MessageSquare,
   AlertTriangle,
-  CheckCircle2,
   XCircle,
   Pause,
   ArrowRight,
@@ -29,6 +28,7 @@ import {
   Brain,
   TrendingDown,
   TrendingUp,
+  Plug,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
@@ -134,8 +134,117 @@ export default function DashboardPage() {
     );
   }
 
-  const { agents, composer_actions, attention, stats } = data;
+  const { agents, composer_actions, attention, connected_platforms, stats } = data;
+  const hasNoPlatforms = connected_platforms.length === 0;
+  const hasNoAgents = agents.length === 0;
 
+  // Empty state: no platforms connected yet
+  if (hasNoPlatforms && hasNoAgents) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="max-w-2xl mx-auto px-4 md:px-6 py-12 space-y-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Welcome to YARNNN</h1>
+            <p className="text-muted-foreground mt-2">
+              Connect your work platforms and YARNNN will create agents that
+              deliver recurring insights — automatically.
+            </p>
+          </div>
+
+          {/* Primary path: connect platforms */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Connect a platform to get started</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {(['slack', 'gmail', 'notion', 'calendar'] as const).map((platform) => (
+                <button
+                  key={platform}
+                  onClick={() => router.push(`/context/${platform === 'calendar' ? 'google' : platform}`)}
+                  className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left"
+                >
+                  {getPlatformIcon(platform, 'w-5 h-5')}
+                  <span className="text-sm font-medium capitalize">{platform === 'calendar' ? 'Google Calendar' : platform}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="flex-1 border-t border-border" />
+          </div>
+
+          {/* Alternative path: ask Orchestrator */}
+          <button
+            onClick={() => router.push(ORCHESTRATOR_ROUTE)}
+            className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left"
+          >
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Ask the Orchestrator</p>
+              <p className="text-xs text-muted-foreground">Create agents for topics, research, or tasks — no platform needed</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Transitional state: platforms connected but no agents yet
+  if (hasNoAgents) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="max-w-2xl mx-auto px-4 md:px-6 py-12 space-y-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground mt-2">
+              Your platforms are connected. Agents will appear here once they&apos;re created.
+            </p>
+          </div>
+
+          {/* Connected platforms summary */}
+          <div className="flex items-center justify-center gap-3">
+            {connected_platforms.map((p) => (
+              <div key={p} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40">
+                {getPlatformIcon(p, 'w-4 h-4')}
+                <span className="text-xs font-medium text-green-700 dark:text-green-400 capitalize">{p}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Two paths forward */}
+          <div className="grid gap-3">
+            <button
+              onClick={() => router.push('/context')}
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
+            >
+              <Plug className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Select sources to sync</p>
+                <p className="text-xs text-muted-foreground">Choose channels, labels, or pages — agents are created from your sources</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+            </button>
+            <button
+              onClick={() => router.push(ORCHESTRATOR_ROUTE)}
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
+            >
+              <MessageSquare className="w-5 h-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Ask the Orchestrator</p>
+                <p className="text-xs text-muted-foreground">Create or configure agents through conversation</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal state: agents exist — supervision dashboard
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
@@ -184,27 +293,15 @@ export default function DashboardPage() {
         {/* Agent Health Grid */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Agent Health</h2>
-          {agents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No agents yet.</p>
-              <button
-                onClick={() => router.push(`${ORCHESTRATOR_ROUTE}?create`)}
-                className="mt-2 text-primary hover:underline text-sm"
-              >
-                Create your first agent
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {agents.map((agent) => (
-                <AgentHealthCard
-                  key={agent.id}
-                  agent={agent}
-                  onClick={() => router.push(`/agents/${agent.id}`)}
-                />
-              ))}
-            </div>
-          )}
+          <div className="grid gap-3">
+            {agents.map((agent) => (
+              <AgentHealthCard
+                key={agent.id}
+                agent={agent}
+                onClick={() => router.push(`/agents/${agent.id}`)}
+              />
+            ))}
+          </div>
         </section>
 
         {/* Composer Activity Feed */}
@@ -285,7 +382,7 @@ function AgentHealthCard({ agent, onClick }: { agent: AgentHealth; onClick: () =
           <span className="text-sm font-medium truncate">{agent.title}</span>
           {agent.origin && agent.origin !== 'user_configured' && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              {agent.origin === 'composer' ? 'Composer' : agent.origin === 'system_bootstrap' ? 'Bootstrap' : 'Auto'}
+              Auto
             </span>
           )}
         </div>

@@ -1,6 +1,6 @@
 # User Flow: Platform-First Onboarding (v3)
 
-> **Status**: Current (Updated 2026-03-04 — ADR-091 dashboard/workspace changes noted)
+> **Status**: Superseded by [USER_FLOW_ONBOARDING_V4.md](../USER_FLOW_ONBOARDING_V4.md) (2026-03-16)
 > **Date**: 2026-02-26
 > **Supersedes**: Onboarding V2 (2026-02-09)
 > **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-079 (Smart Source Auto-Selection), ADR-091 (Workspace Layout)

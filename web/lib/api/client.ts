@@ -1278,6 +1278,7 @@ export const api = {
           agent_id: string;
           agent_title: string;
         }>;
+        connected_platforms: string[];
         stats: {
           total_agents: number;
           active_agents: number;
