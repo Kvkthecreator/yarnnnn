@@ -356,27 +356,34 @@ export default function DashboardPage() {
         </div>
 
         {/* System Pulse — last heartbeat status */}
-        {heartbeat_pulse && (
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card text-sm">
-            <HeartPulse className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="text-muted-foreground">Last heartbeat</span>
-            <span className="font-medium">
-              {formatDistanceToNow(new Date(heartbeat_pulse.last_run_at), { addSuffix: true })}
-            </span>
-            {heartbeat_pulse.lifecycle_actions.length > 0 ? (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                {heartbeat_pulse.lifecycle_actions.length} action{heartbeat_pulse.lifecycle_actions.length !== 1 ? 's' : ''}
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card text-sm">
+          <HeartPulse className="w-4 h-4 text-muted-foreground shrink-0" />
+          {heartbeat_pulse ? (
+            <>
+              <span className="text-muted-foreground">Last heartbeat</span>
+              <span className="font-medium">
+                {formatDistanceToNow(new Date(heartbeat_pulse.last_run_at), { addSuffix: true })}
               </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">All healthy</span>
-            )}
-            {heartbeat_pulse.agents_assessed > 0 && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {heartbeat_pulse.agents_assessed} agents assessed
-              </span>
-            )}
-          </div>
-        )}
+              {heartbeat_pulse.lifecycle_actions.length > 0 ? (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  {heartbeat_pulse.lifecycle_actions.length} action{heartbeat_pulse.lifecycle_actions.length !== 1 ? 's' : ''}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">All healthy</span>
+              )}
+              {heartbeat_pulse.agents_assessed > 0 && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {heartbeat_pulse.agents_assessed} agents assessed
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-muted-foreground">System heartbeat</span>
+              <span className="text-xs text-muted-foreground">Scheduled — runs daily at midnight UTC</span>
+            </>
+          )}
+        </div>
 
         {/* Progression — value chain milestones for newer users */}
         {progression && (
