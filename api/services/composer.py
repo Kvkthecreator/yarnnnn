@@ -427,8 +427,9 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # stale_knowledge: latest /knowledge/ file > 7 days old, agents still active
     if knowledge.get("latest_at") and assessment["agents"]["active"] > 0:
         try:
+            _now = datetime.now(timezone.utc)
             latest_dt = datetime.fromisoformat(knowledge["latest_at"].replace("Z", "+00:00"))
-            days_stale = (now - latest_dt).days
+            days_stale = (_now - latest_dt).days
             if days_stale > 7:
                 return True, (
                     f"stale_knowledge: most recent knowledge file is {days_stale}d old "
