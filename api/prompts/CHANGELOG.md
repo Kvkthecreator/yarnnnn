@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.16.6] - Orchestrator surface alignment: commands, starter cards, plus menu
+
+### Changed
+- `api/services/commands.py`: Renamed `/status` → `/summary`, `/digest` → `/recap`, `/brief` → `/prep`, `/deep-research` → `/research`. Updated `/create` to remove "or memory" ambiguity. Added 4 capability commands: `/search` (platform content), `/sync` (refresh), `/memory` (save preference), `/web` (web search). All command prompts updated to use `CreateAgent(...)` instead of stale `Write(ref="agent:new", ...)`.
+- `web/components/desk/ChatFirstDesk.tsx`: Starter cards split into "Create an agent" (6 templates) and "Or ask directly" (3 capability cards: search platforms, web research, ask anything). Replaced generic "Just chat" catch-all. Plus menu expanded: added web search, refresh platforms, save to memory. Panel tab renamed "Sources" → "Platforms".
+- Expected behavior: Users now discover TP's full capabilities (search, sync, memory, web research) from the welcome screen, slash commands, and plus menu — not just agent creation. Command names align with ADR-109 skill taxonomy.
+
+---
+
 ## [2026.03.16.5] - Fix: Headless agent tool-narration leak + output validation
 
 ### Changed

@@ -4,7 +4,9 @@ Slash Commands System (ADR-025 Claude Code Alignment)
 Commands are packaged workflows triggered by slash commands or intent recognition.
 Each command expands to a system prompt addition that guides TP through a structured process.
 
-Streamlined to use primitives (Read, Write, Edit, List, Search, Execute, Todo, Clarify).
+Two categories:
+1. Agent creation commands — structured flows to create recurring agents
+2. Capability commands — surface TP's built-in abilities (search, sync, memory, web research)
 """
 
 import logging
@@ -14,43 +16,34 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Command Definitions - Using Primitives Only
+# Command Definitions
 # =============================================================================
 
 COMMANDS: Dict[str, Dict[str, Any]] = {
     # =========================================================================
-    # Generic Creation Command
+    # Agent Creation Commands (ADR-109: Scope × Skill × Trigger)
     # =========================================================================
     "create": {
         "name": "create",
-        "description": "Create a new agent or memory",
+        "description": "Create a new recurring agent",
         "trigger_patterns": ["/create"],
         "system_prompt_addition": """
 ---
 
-## Active Command: Create
+## Active Command: Create Agent
 
-User wants to create something. Ask what type with Clarify:
+User wants to create an agent. Guide them through setup:
 
-```
-Clarify(
-  question="What would you like to create?",
-  options=["Agent (recurring report)", "Memory (save a fact)"]
-)
-```
+1. Ask what kind: `Clarify(question="What should this agent do?", options=["Platform recap", "Meeting prep", "Work summary", "Research & insights"])`
+2. Based on choice, ask platform/frequency/recipient as needed
+3. Confirm and create with `CreateAgent(...)`
 
-**If agent:** Ask for type, frequency, recipient, then confirm and create.
-**If memory:** Ask what to remember, then create.
-
-Keep it simple - one question at a time.
+Keep it simple — one question at a time.
 """,
     },
 
-    # =========================================================================
-    # Agent Commands (ADR-109: Scope × Skill × Trigger)
-    # =========================================================================
-    "status": {
-        "name": "status",
+    "summary": {
+        "name": "summary",
         "description": "Create a work summary agent — synthesize activity across platforms",
         "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status agent", "summarize my work", "platform summary"],
         "skill": "synthesize",
@@ -66,17 +59,17 @@ Create a work summary agent — synthesizes activity across the user's connected
 2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
 3. Ask frequency preference: `Clarify(question="How often?", options=["Daily", "Weekly", "Biweekly", "Monthly"])`
 4. Confirm: "I'll create a [frequency] Work Summary for [recipient]. Ready?"
-5. On confirmation: `Write(ref="agent:new", content={title, skill: "synthesize", frequency, recipient_name})`
+5. On confirmation: `CreateAgent(title="Work Summary", skill="synthesize", frequency=..., recipient_name=...)`
 6. Offer first draft
 
 **Defaults:** frequency=weekly, skill=synthesize
 """,
     },
 
-    "digest": {
-        "name": "digest",
+    "recap": {
+        "name": "recap",
         "description": "Create a platform recap — catch up on everything across a connected platform",
-        "trigger_patterns": ["recap", "platform recap", "slack recap", "gmail recap", "notion recap", "email recap", "slack digest", "email digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent"],
+        "trigger_patterns": ["recap", "platform recap", "slack recap", "gmail recap", "notion recap", "email recap", "slack digest", "email digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
         "skill": "digest",
         "system_prompt_addition": """
 ---
@@ -90,7 +83,7 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
 2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Gmail", "Notion", "Calendar"])`
 3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
 4. Confirm: "I'll create a [frequency] [Platform] Recap. Ready?"
-5. On confirmation: `Write(ref="agent:new", content={title: "[Platform] Recap", skill: "digest", frequency, primary_platform})` — sources auto-populated with ALL synced sources for that platform
+5. On confirmation: `CreateAgent(title="[Platform] Recap", skill="digest", frequency=..., sources=[all synced sources for platform])`
 6. Offer first draft
 
 **Important:**
@@ -101,9 +94,9 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
 """,
     },
 
-    "brief": {
-        "name": "brief",
-        "description": "Set up auto meeting prep — every morning, reads your calendar and preps you for the day's meetings",
+    "prep": {
+        "name": "prep",
+        "description": "Set up auto meeting prep — daily briefings from your calendar",
         "trigger_patterns": ["meeting prep", "auto meeting prep", "calendar prep", "daily briefing", "brief", "meeting brief", "event prep", "call prep", "1:1 prep"],
         "skill": "prepare",
         "system_prompt_addition": """
@@ -123,7 +116,7 @@ Set up daily auto meeting prep — every morning, YARNNN reads the user's Google
 3. If no calendar: "Auto Meeting Prep requires Google Calendar. Let's connect it first." → guide to connections
 4. Ask delivery time: `Clarify(question="What time should your meeting prep arrive?", options=["7:00 AM", "8:00 AM", "9:00 AM"])`
 5. Confirm: "I'll set up Auto Meeting Prep — every morning at [time], you'll get a briefing for the day's meetings. Ready?"
-6. On confirmation: `Write(ref="agent:new", content={title: "Auto Meeting Prep", skill: "prepare", frequency: "daily", sources: [all calendar + all connected platform sources]})`
+6. On confirmation: `CreateAgent(title="Auto Meeting Prep", skill="prepare", frequency="daily", sources=[all calendar + all connected platform sources])`
 
 **Important:**
 - Title: "Auto Meeting Prep" (fixed — not user-customizable)
@@ -133,8 +126,8 @@ Set up daily auto meeting prep — every morning, YARNNN reads the user's Google
 """,
     },
 
-    "deep-research": {
-        "name": "deep-research",
+    "research": {
+        "name": "research",
         "description": "Set up Proactive Insights — watches your platforms and surfaces what matters",
         "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "what should I know", "investigate", "research this", "look into", "find out about"],
         "skill": "synthesize",
@@ -150,7 +143,7 @@ Set up Proactive Insights — YARNNN watches the user's connected platforms for 
 2. If duplicate exists, tell the user they already have Proactive Insights set up and offer to open it
 3. Confirm: "I'll scan your connected platforms regularly and surface emerging themes with external context. Would you like a daily or weekly pulse?"
 4. Ask frequency: `Clarify(question="How often should I check for insights?", options=["Weekly (recommended)", "Daily"])`
-5. On confirmation: `Write(ref="agent:new", content={title: "Proactive Insights", skill: "synthesize", mode: "proactive"})`
+5. On confirmation: `CreateAgent(title="Proactive Insights", skill="synthesize", mode="proactive")`
 - Sources: ALL connected platform sources (Slack, Gmail, Notion, Calendar) — for cross-platform signal detection
 - One per user — check duplicates before creating
 - Defaults: mode=proactive, skill=synthesize, scope=autonomous
@@ -158,10 +151,76 @@ Set up Proactive Insights — YARNNN watches the user's connected platforms for 
 """,
     },
 
-    # NOTE: monitor, custom, orchestrate commands hidden pre-launch (2026-03-06).
-    # Command keys and backend strategies remain — only UI creation paths removed.
-    # Restore when: monitor needs real-time infra; custom needs product validation;
-    # orchestrate needs power-user adoption.
+    # =========================================================================
+    # Capability Commands — surface TP's built-in abilities
+    # =========================================================================
+    "search": {
+        "name": "search",
+        "description": "Search across your connected platforms (Slack, Gmail, Notion, Calendar)",
+        "trigger_patterns": ["search my platforms", "find in slack", "find in gmail", "find in notion", "search for", "look up"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Platform Search
+
+User wants to search their connected platform data.
+
+Use `Search(query="...", scope="platform_content")` to find relevant content. If results seem stale, use `RefreshPlatformContent(platform="...")` first, then search again.
+
+Ask the user what they're looking for if not clear from context. You can filter by platform: `Search(query="...", scope="platform_content", platform="slack")`.
+""",
+    },
+
+    "sync": {
+        "name": "sync",
+        "description": "Refresh platform data — pull latest from Slack, Gmail, Notion, or Calendar",
+        "trigger_patterns": ["sync my", "refresh my", "update my", "pull latest", "resync"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Platform Sync
+
+User wants fresh data from their platforms.
+
+Use `RefreshPlatformContent(platform="...")` to pull the latest. If user doesn't specify a platform, check which are connected with `list_integrations()` and ask which to refresh, or refresh all.
+
+Report back what was synced and how many items were updated.
+""",
+    },
+
+    "memory": {
+        "name": "memory",
+        "description": "Save a preference, fact, or instruction to your memory",
+        "trigger_patterns": ["remember that", "save to memory", "note that", "keep in mind"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Save Memory
+
+User wants to save something to their persistent memory.
+
+Use `SaveMemory(content="...", entry_type="...")` where entry_type is one of: fact, preference, instruction.
+
+If the user's intent is clear, save immediately and confirm. If ambiguous, ask what they'd like to remember.
+""",
+    },
+
+    "web": {
+        "name": "web",
+        "description": "Search the web for current information, news, or research",
+        "trigger_patterns": ["search the web", "web search", "google", "look up online", "what's happening with", "latest news"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Web Search
+
+User wants information from the web (not their own platforms).
+
+Use `WebSearch(query="...", context="...", max_results=5)` to find current information. Summarize findings concisely.
+
+Good for: current events, competitor research, technical docs, industry trends.
+""",
+    },
 }
 
 

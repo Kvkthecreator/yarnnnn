@@ -9,7 +9,7 @@
  *
  * Panel tabs:
  * - Agents: compact entry cards linking to /agents/[id]
- * - Sources: connected platforms + document uploads (PlatformSyncStatus component)
+ * - Platforms: connected platforms + document uploads (PlatformSyncStatus component)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -31,6 +31,8 @@ import {
   Globe,
   Layers,
   Brain,
+  RefreshCw,
+  Bookmark,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -274,55 +276,81 @@ function formatTokenCount(tokens: number): string {
 }
 
 // =============================================================================
-// Agent creation templates — source-first, per AGENT-PRESENTATION-PRINCIPLES.md
+// Starter templates — agent creation + TP capabilities
 // =============================================================================
 
-const STARTER_TEMPLATES = [
+type TemplateIcon = 'slack' | 'gmail' | 'notion' | 'calendar' | 'cross-platform' | 'globe' | 'search' | 'brain';
+
+/** Agent creation templates — source-first, per AGENT-PRESENTATION-PRINCIPLES.md */
+const AGENT_TEMPLATES = [
   {
     id: 'slack-recap',
     label: 'Slack Recap',
     description: 'Daily or weekly summary of your Slack channels',
     prompt: 'Set up a recurring Slack recap for me',
-    icon: 'slack' as const,
+    icon: 'slack' as TemplateIcon,
   },
   {
     id: 'gmail-digest',
     label: 'Gmail Digest',
     description: 'Daily or weekly digest of your Gmail labels',
     prompt: 'Set up a recurring Gmail digest for me',
-    icon: 'gmail' as const,
+    icon: 'gmail' as TemplateIcon,
   },
   {
     id: 'notion-summary',
     label: 'Notion Summary',
     description: 'Daily or weekly summary of your Notion pages',
     prompt: 'Set up a recurring Notion summary for me',
-    icon: 'notion' as const,
+    icon: 'notion' as TemplateIcon,
   },
   {
     id: 'meeting-prep',
     label: 'Meeting Prep',
     description: 'Reads your calendar and preps you for the day\'s meetings',
     prompt: 'Set up daily meeting prep from my calendar and Slack',
-    icon: 'calendar' as const,
+    icon: 'calendar' as TemplateIcon,
   },
   {
     id: 'work-summary',
     label: 'Work Summary',
     description: 'Weekly synthesis across all your connected platforms',
     prompt: 'Set up a weekly work summary across my platforms',
-    icon: 'cross-platform' as const,
+    icon: 'cross-platform' as TemplateIcon,
   },
   {
     id: 'proactive-insights',
     label: 'Proactive Insights',
     description: 'Spots emerging themes and researches them for you',
     prompt: 'Set up proactive insights that research trends across my platforms',
-    icon: 'globe' as const,
+    icon: 'globe' as TemplateIcon,
   },
 ];
 
-type TemplateIcon = typeof STARTER_TEMPLATES[number]['icon'];
+/** Capability templates — surface TP's built-in abilities beyond agent creation */
+const CAPABILITY_TEMPLATES = [
+  {
+    id: 'search-platforms',
+    label: 'Search platforms',
+    description: 'Find anything across your Slack, Gmail, Notion, and Calendar',
+    prompt: 'Search across my connected platforms for ',
+    icon: 'search' as TemplateIcon,
+  },
+  {
+    id: 'web-research',
+    label: 'Web research',
+    description: 'Search the web for current info, news, or trends',
+    prompt: 'Search the web for ',
+    icon: 'globe' as TemplateIcon,
+  },
+  {
+    id: 'ask-anything',
+    label: 'Ask anything',
+    description: 'I can search your platforms, create agents, save preferences, and more',
+    prompt: 'What can you help me with?',
+    icon: 'brain' as TemplateIcon,
+  },
+];
 
 /** Map template icon keys to React nodes — platform icons + lucide fallbacks */
 function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
@@ -339,6 +367,8 @@ function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
       return <Layers className="w-full h-full" />;
     case 'globe':
       return <Globe className="w-full h-full" />;
+    case 'search':
+      return <Search className="w-full h-full" />;
     default:
       return <Brain className="w-full h-full" />;
   }
@@ -531,13 +561,6 @@ export function ChatFirstDesk() {
   // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
-      id: 'attach-image',
-      label: 'Attach image',
-      icon: ImagePlus,
-      verb: 'attach',
-      onSelect: () => fileInputRef.current?.click(),
-    },
-    {
       id: 'create-agent',
       label: 'Create agent',
       icon: Sparkles,
@@ -546,13 +569,50 @@ export function ChatFirstDesk() {
     },
     {
       id: 'search-platforms',
-      label: 'Search my platforms',
+      label: 'Search platforms',
       icon: Search,
       verb: 'prompt',
       onSelect: () => {
         setInput('Search across my connected platforms for ');
         textareaRef.current?.focus();
       },
+    },
+    {
+      id: 'web-search',
+      label: 'Web search',
+      icon: Globe,
+      verb: 'prompt',
+      onSelect: () => {
+        setInput('Search the web for ');
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'refresh-sync',
+      label: 'Refresh platforms',
+      icon: RefreshCw,
+      verb: 'prompt',
+      onSelect: () => {
+        setInput('Refresh my platform data');
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'save-memory',
+      label: 'Save to memory',
+      icon: Bookmark,
+      verb: 'prompt',
+      onSelect: () => {
+        setInput('Remember that ');
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'attach-image',
+      label: 'Attach image',
+      icon: ImagePlus,
+      verb: 'attach',
+      onSelect: () => fileInputRef.current?.click(),
     },
   ];
 
@@ -581,8 +641,8 @@ export function ChatFirstDesk() {
       content: <SessionsPanel sessions={sessions} />,
     },
     {
-      id: 'context',
-      label: 'Sources',
+      id: 'platforms',
+      label: 'Platforms',
       content: <ContextPanel />,
     },
   ];
@@ -687,47 +747,67 @@ export function ChatFirstDesk() {
                   <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                   <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    Pick a starting point, or just type anything below.
+                    Create an agent, search your platforms, or just ask anything.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl mx-auto">
-                  {STARTER_TEMPLATES.filter((tpl) => {
-                    // ADR-110: Hide template for bootstrapped platform
-                    if (!bootstrapProvider) return true;
-                    const platformMap: Record<string, string> = {
-                      'slack-recap': 'slack',
-                      'gmail-digest': 'gmail',
-                      'notion-summary': 'notion',
-                    };
-                    return platformMap[tpl.id] !== bootstrapProvider;
-                  }).map((tpl) => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => {
-                        setInput(tpl.prompt);
-                        textareaRef.current?.focus();
-                      }}
-                      className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-4 h-4 shrink-0 text-muted-foreground">
-                          {getTemplateIcon(tpl.icon)}
-                        </span>
-                        <span className="text-sm font-medium">{tpl.label}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setInput('What can you help me with?');
-                      textareaRef.current?.focus();
-                    }}
-                    className="flex flex-col items-start gap-1 p-3 rounded-lg border border-dashed border-border hover:border-primary/30 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <span className="text-sm font-medium">Just chat</span>
-                    <span className="text-xs text-muted-foreground leading-snug">Ask me anything about your work</span>
-                  </button>
+                <div className="max-w-2xl mx-auto space-y-4">
+                  {/* Agent creation cards */}
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Create an agent</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {AGENT_TEMPLATES.filter((tpl) => {
+                        // ADR-110: Hide template for bootstrapped platform
+                        if (!bootstrapProvider) return true;
+                        const platformMap: Record<string, string> = {
+                          'slack-recap': 'slack',
+                          'gmail-digest': 'gmail',
+                          'notion-summary': 'notion',
+                        };
+                        return platformMap[tpl.id] !== bootstrapProvider;
+                      }).map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => {
+                            setInput(tpl.prompt);
+                            textareaRef.current?.focus();
+                          }}
+                          className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-4 h-4 shrink-0 text-muted-foreground">
+                              {getTemplateIcon(tpl.icon)}
+                            </span>
+                            <span className="text-sm font-medium">{tpl.label}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Capability cards */}
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Or ask directly</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {CAPABILITY_TEMPLATES.map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => {
+                            setInput(tpl.prompt);
+                            textareaRef.current?.focus();
+                          }}
+                          className="flex flex-col items-start gap-1 p-3 rounded-lg border border-dashed border-border hover:border-primary/30 hover:bg-muted/50 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-4 h-4 shrink-0 text-muted-foreground">
+                              {getTemplateIcon(tpl.icon)}
+                            </span>
+                            <span className="text-sm font-medium">{tpl.label}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -843,7 +923,7 @@ export function ChatFirstDesk() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {STARTER_TEMPLATES.map((tpl) => (
+                  {AGENT_TEMPLATES.map((tpl) => (
                     <button
                       key={tpl.id}
                       onClick={() => {
