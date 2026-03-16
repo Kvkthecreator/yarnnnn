@@ -123,7 +123,7 @@ This isn't a better chatbot or a memory add-on for existing LLMs. It's a new lay
 
 But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work. YARNNN is building that substrate.
 
-**The compounding loop**: Connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf.
+**The compounding loop**: Connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf. (For the canonical phase-by-phase breakdown of this loop, see [VALUE-CHAIN.md](architecture/VALUE-CHAIN.md).)
 
 **Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
 

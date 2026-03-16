@@ -205,7 +205,7 @@ Not all knowledge is equal. YARNNN retains what proved significant:
 - **Retained content**: When an agent references content during execution, or the Orchestrator references it in conversation, that content is marked *retained* — kept indefinitely.
 - **Agent outputs**: Everything an agent produces is written back to the knowledge base as permanently retained, searchable content. This closes the loop: one agent's output becomes another agent's input.
 
-Over time, the knowledge base accumulates a curated corpus of everything that actually mattered in the user's work. This is the compounding advantage — a corpus that grows more valuable with every agent execution and every user interaction.
+Over time, the knowledge base accumulates a curated corpus of everything that actually mattered in the user's work. This is the compounding advantage — a corpus that grows more valuable with every agent execution and every user interaction. For the full value realization chain — from connection through first value to compounding second-order agents — see [VALUE-CHAIN.md](VALUE-CHAIN.md).
 
 ---
 

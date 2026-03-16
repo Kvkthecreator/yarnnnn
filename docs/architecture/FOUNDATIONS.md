@@ -218,7 +218,7 @@ The product vision is: **sign up, connect, watch it work for you.**
 8. Agents develop over time — deeper expertise, broader capabilities, higher autonomy
 ```
 
-Steps 3-5 are the Composer capability. Step 7 closes the recursive loop (Axiom 2). Step 8 is agent development (Axiom 3).
+Steps 3-5 are the Composer capability. Step 7 closes the recursive loop (Axiom 2). Step 8 is agent development (Axiom 3). For the canonical phase-by-phase breakdown of this flow — including timeline, separation of concerns, and the compounding mechanism — see [VALUE-CHAIN.md](VALUE-CHAIN.md).
 
 ### Two Modes of Value
 
