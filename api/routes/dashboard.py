@@ -42,7 +42,7 @@ async def get_dashboard_summary(client: UserClient):
     try:
         result = (
             db.table("agents")
-            .select("id, title, status, origin, skill, scope, sources, created_at, last_run_at")
+            .select("id, title, status, origin, skill, scope, sources, created_at, last_run_at, next_run_at, schedule")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -134,6 +134,8 @@ async def get_dashboard_summary(client: UserClient):
             "scope": agent.get("scope"),
             "sources": agent.get("sources", []),
             "last_run_at": agent.get("last_run_at"),
+            "next_run_at": agent.get("next_run_at"),
+            "schedule": agent.get("schedule"),
             "maturity": maturity,
             "approval_rate": approval_rate,
             "edit_trend": edit_trend,
@@ -238,11 +240,64 @@ async def get_dashboard_summary(client: UserClient):
     except Exception as e:
         logger.warning(f"[DASHBOARD] Weekly runs query failed: {e}")
 
+    # 6. Heartbeat pulse — last composer heartbeat for this user
+    heartbeat_pulse = None
+    try:
+        result = (
+            db.table("activity_log")
+            .select("created_at, metadata")
+            .eq("user_id", user_id)
+            .eq("event_type", "composer_heartbeat")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            hb = result.data[0]
+            hb_meta = hb.get("metadata") or {}
+            heartbeat_pulse = {
+                "last_run_at": hb["created_at"],
+                "outcome": hb_meta.get("assessment_action", "unknown"),
+                "lifecycle_actions": hb_meta.get("lifecycle_actions", []),
+                "agents_assessed": hb_meta.get("agents_assessed", 0),
+            }
+    except Exception as e:
+        logger.warning(f"[DASHBOARD] Heartbeat pulse query failed: {e}")
+
+    # 7. Progression milestones — value chain position for newer users
+    oldest_agent = min(
+        (a.get("created_at") for a in agents_raw if a.get("created_at")),
+        default=None,
+    )
+    account_age_days = 0
+    if oldest_agent:
+        try:
+            created = datetime.fromisoformat(oldest_agent.replace("Z", "+00:00"))
+            account_age_days = (now - created).days
+        except (ValueError, TypeError):
+            pass
+
+    progression = None
+    if len(active_agents) < 5 or account_age_days < 21:
+        total_runs_all = sum(ah["total_runs"] for ah in agent_health)
+        has_mature = any(ah["maturity"] == "mature" for ah in agent_health if ah["status"] == "active")
+        has_developing = any(ah["maturity"] == "developing" for ah in agent_health if ah["status"] == "active")
+        progression = {
+            "platforms_connected": len(connected_platforms),
+            "active_agents": len(active_agents),
+            "total_runs": total_runs_all,
+            "has_developing_agent": has_developing,
+            "has_mature_agent": has_mature,
+            "account_age_days": account_age_days,
+        }
+
     return {
         "agents": agent_health,
         "composer_actions": composer_actions,
         "attention": attention,
         "connected_platforms": connected_platforms,
+        "heartbeat_pulse": heartbeat_pulse,
+        "progression": progression,
         "stats": {
             "total_agents": len(agents_raw),
             "active_agents": len(active_agents),

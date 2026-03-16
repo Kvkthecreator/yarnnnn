@@ -1259,6 +1259,8 @@ export const api = {
           scope: string;
           sources: Array<{ provider?: string; resource_id?: string }>;
           last_run_at: string | null;
+          next_run_at: string | null;
+          schedule: string | null;
           maturity: 'nascent' | 'developing' | 'mature';
           approval_rate: number | null;
           edit_trend: number | null;
@@ -1279,6 +1281,20 @@ export const api = {
           agent_title: string;
         }>;
         connected_platforms: string[];
+        heartbeat_pulse: {
+          last_run_at: string;
+          outcome: string;
+          lifecycle_actions: string[];
+          agents_assessed: number;
+        } | null;
+        progression: {
+          platforms_connected: number;
+          active_agents: number;
+          total_runs: number;
+          has_developing_agent: boolean;
+          has_mature_agent: boolean;
+          account_age_days: number;
+        } | null;
         stats: {
           total_agents: number;
           active_agents: number;

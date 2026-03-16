@@ -29,12 +29,15 @@ import {
   TrendingDown,
   TrendingUp,
   Plus,
+  Clock,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { SKILL_LABELS } from '@/lib/constants/agents';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isTomorrow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Skill } from '@/types';
 
@@ -86,6 +89,17 @@ function getAgentSourceIcon(agent: AgentHealth): React.ReactNode {
       : <Brain className="w-4 h-4 text-muted-foreground" />;
   }
   return getPlatformIcon(providers[0], 'w-4 h-4');
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function formatNextRun(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isToday(date)) return `Today ${format(date, 'h:mma').toLowerCase()}`;
+  if (isTomorrow(date)) return `Tomorrow ${format(date, 'h:mma').toLowerCase()}`;
+  return format(date, 'EEE h:mma').toLowerCase();
 }
 
 // =============================================================================
@@ -148,7 +162,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { agents, composer_actions, attention, connected_platforms, stats } = data;
+  const { agents, composer_actions, attention, connected_platforms, heartbeat_pulse, progression, stats } = data;
   const hasNoPlatforms = connected_platforms.length === 0;
   const hasNoAgents = agents.length === 0;
 
@@ -341,6 +355,34 @@ export default function DashboardPage() {
           />
         </div>
 
+        {/* System Pulse — last heartbeat status */}
+        {heartbeat_pulse && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card text-sm">
+            <HeartPulse className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Last heartbeat</span>
+            <span className="font-medium">
+              {formatDistanceToNow(new Date(heartbeat_pulse.last_run_at), { addSuffix: true })}
+            </span>
+            {heartbeat_pulse.lifecycle_actions.length > 0 ? (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                {heartbeat_pulse.lifecycle_actions.length} action{heartbeat_pulse.lifecycle_actions.length !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">All healthy</span>
+            )}
+            {heartbeat_pulse.agents_assessed > 0 && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {heartbeat_pulse.agents_assessed} agents assessed
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Progression — value chain milestones for newer users */}
+        {progression && (
+          <ProgressionBar progression={progression} />
+        )}
+
         {/* Agent Health Grid */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Agent Health</h2>
@@ -454,7 +496,7 @@ function AgentHealthCard({ agent, onClick }: { agent: AgentHealth; onClick: () =
         </div>
       </div>
 
-      {/* Maturity + last run */}
+      {/* Maturity + timing */}
       <div className="flex items-center gap-2 shrink-0">
         {agent.edit_trend !== null && (
           agent.edit_trend < 0
@@ -464,11 +506,18 @@ function AgentHealthCard({ agent, onClick }: { agent: AgentHealth; onClick: () =
               : null
         )}
         <MaturityBadge maturity={agent.maturity} />
-        {agent.last_run_at && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-0.5">
+          {agent.last_run_at && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
+            </span>
+          )}
+          {agent.next_run_at && agent.status === 'active' && (
+            <span className="text-xs text-muted-foreground/70 whitespace-nowrap">
+              Next: {formatNextRun(agent.next_run_at)}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );
@@ -500,5 +549,51 @@ function ComposerActionCard({ action, onClick }: { action: ComposerAction; onCli
       </div>
       {onClick && <ArrowRight className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />}
     </Wrapper>
+  );
+}
+
+type Progression = NonNullable<DashboardData['progression']>;
+
+function ProgressionBar({ progression }: { progression: Progression }) {
+  const milestones = [
+    { label: 'Platform connected', done: progression.platforms_connected > 0 },
+    { label: 'First agent running', done: progression.active_agents > 0 },
+    { label: '10+ runs completed', done: progression.total_runs >= 10 },
+    { label: 'Agent developing', done: progression.has_developing_agent },
+    { label: 'Agent mature', done: progression.has_mature_agent },
+  ];
+  const completed = milestones.filter((m) => m.done).length;
+
+  return (
+    <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium">Getting started</p>
+        <span className="text-xs text-muted-foreground">{completed}/{milestones.length}</span>
+      </div>
+      <div className="flex gap-1.5">
+        {milestones.map((m, i) => (
+          <div
+            key={i}
+            className={cn(
+              'h-1.5 flex-1 rounded-full',
+              m.done ? 'bg-primary' : 'bg-muted',
+            )}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {milestones.map((m, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            {m.done
+              ? <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+              : <Circle className="w-3.5 h-3.5 text-muted-foreground/40" />
+            }
+            <span className={cn('text-xs', m.done ? 'text-foreground' : 'text-muted-foreground')}>
+              {m.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
