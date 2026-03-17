@@ -49,20 +49,22 @@ def _classify_workspace_density(
 
     Returns "sparse", "developing", or "dense". Determines Composer eagerness:
     - sparse: eager — bias toward creating work (junior employee mode)
-    - developing: balanced — current heuristics
+    - developing: proactive — still propose new agent types the workspace lacks
     - dense: conservative — quality-focused, accumulation thesis
     """
     non_nascent = sum(1 for s in maturity_signals if s.get("maturity") not in ("nascent", None))
 
-    # Dense: substantial knowledge + agents with track record
-    if total_knowledge_files > 20 and non_nascent >= 2:
+    # Dense: substantial knowledge + agents with proven track record
+    # This is the graduation threshold — Composer trusts the workforce
+    if total_knowledge_files > 50 and non_nascent >= 3:
         return "dense"
 
-    # Sparse: very little produced yet
+    # Sparse: bootstrap phase — very early, needs immediate scaffolding
     if total_knowledge_files < 5 and total_agent_runs < 10:
         return "sparse"
 
-    # Everything else: developing
+    # Developing: the system is producing but hasn't graduated.
+    # Composer should still be proactive about proposing new agent types.
     return "developing"
 
 
@@ -490,20 +492,25 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
                 "— system needs reasoning agents (analyses/research)"
             )
 
-    # ADR-115: Sparse workspace — the system has substrate but hasn't produced
-    # meaningful knowledge yet. Route to LLM for eager scaffolding (research,
-    # analysis, or other high-value agents). This turns "healthy but empty" from
-    # a terminal HEARTBEAT_OK into a trigger for proactive composition.
+    # ADR-115: Workspace density — route non-dense workspaces to LLM for
+    # proactive composition. Dense workspaces have graduated; sparse/developing
+    # workspaces need Composer to actively propose new agent types.
     workspace_density = assessment.get("workspace_density", "developing")
-    if workspace_density == "sparse":
+    if workspace_density != "dense":
         has_substrate = assessment["agents"]["active"] > 0 or assessment["connected_platforms"]
         if has_substrate:
             total_runs = assessment.get("total_agent_runs", 0)
             total_kf = assessment.get("knowledge", {}).get("total_files", 0)
-            return True, (
-                f"sparse_workspace: {total_kf} knowledge files, {total_runs} total runs "
-                "— eager scaffolding mode"
-            )
+            if workspace_density == "sparse":
+                return True, (
+                    f"sparse_workspace: {total_kf} knowledge files, {total_runs} total runs "
+                    "— eager scaffolding mode"
+                )
+            else:
+                return True, (
+                    f"developing_workspace: {total_kf} knowledge files, {total_runs} total runs "
+                    "— propose agents for missing skills"
+                )
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
@@ -704,7 +711,8 @@ You assess the user's knowledge substrate — accumulated agent outputs, platfor
 ## Principles
 - Bias toward action: if an agent would clearly help, recommend creating it
 - In sparse workspaces (few knowledge files, few runs): be eager. Propose research or analysis agents even without perfect signal. Early outputs that the user corrects are more valuable than silence. Think like a junior employee — attempt the task, accept feedback, improve.
-- In dense workspaces (many knowledge files, mature agents): be conservative. Only propose agents that fill clear gaps in the knowledge corpus.
+- In developing workspaces (some knowledge, no mature agents): be proactive. If the workspace only has digest agents, propose a research or analysis agent. If it has no cross-platform synthesis, propose one. The goal is to build out the full skill spectrum — not wait for perfect conditions.
+- In dense workspaces (many knowledge files, mature agents): be conservative. The workforce has proven itself. Only propose agents that fill clear gaps in the knowledge corpus.
 - Start with highest-value agents: digests (perception) before synthesis (cross-cutting themes) before analysis (deep reasoning) before research (external knowledge). Each layer builds on accumulated outputs from the layer below.
 - Respect what exists: don't duplicate coverage. If a digest already exists, don't create another.
 - One agent per decision: recommend at most ONE new agent per assessment
@@ -764,9 +772,9 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     density = assessment.get("workspace_density", "developing")
     total_runs = assessment.get("total_agent_runs", 0)
     density_label = {
-        "sparse": f"SPARSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be eager, propose new agents",
-        "developing": f"DEVELOPING ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — balanced approach",
-        "dense": f"DENSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be conservative, quality-focused",
+        "sparse": f"SPARSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be eager, propose new agents even without perfect signal",
+        "developing": f"DEVELOPING ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — propose agents for skill types the workspace lacks (research, analysis)",
+        "dense": f"DENSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — workforce is mature, only act on clear gaps",
     }.get(density, "DEVELOPING")
 
     return f"""Assess this user's agent workforce and recommend action.

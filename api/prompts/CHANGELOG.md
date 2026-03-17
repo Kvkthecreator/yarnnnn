@@ -10,19 +10,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ### Added
 - `api/services/composer.py`: `_classify_workspace_density()` — pure function classifying workspace as sparse/developing/dense from knowledge file count, total agent runs, and maturity signals. Zero additional DB queries.
-- `api/services/composer.py`: `should_composer_act()` — new `sparse_workspace` heuristic fires before `HEARTBEAT_OK` when workspace has substrate but few knowledge files (<5) and few runs (<10). Routes to LLM assessment for eager scaffolding.
+- `api/services/composer.py`: `should_composer_act()` — `sparse_workspace` and `developing_workspace` heuristics fire before `HEARTBEAT_OK`. Both route to LLM assessment. Only `dense` workspaces reach HEARTBEAT_OK through the density gate.
 - `api/services/composer.py`: `heartbeat_data_query()` return dict includes `workspace_density` and `total_agent_runs`.
-- `api/services/composer.py`: `_build_composer_prompt()` includes "Workspace Density" section telling LLM whether to be eager or conservative.
+- `api/services/composer.py`: `_build_composer_prompt()` includes "Workspace Density" section telling LLM whether to be eager, proactive, or conservative.
 
 ### Changed
-- `COMPOSER_SYSTEM_PROMPT` v1.1 → v1.2: Reframed from "assess platforms and agents" to "assess knowledge substrate." Added eager/conservative principles gated on workspace density. Added value chain ordering (digests → synthesis → analysis → research).
+- `COMPOSER_SYSTEM_PROMPT` v1.1 → v1.2: Reframed from "assess platforms and agents" to "assess knowledge substrate." Three density-aware principles: sparse (eager), developing (proactive — fill skill gaps), dense (conservative). Value chain ordering (digests → synthesis → analysis → research).
 - `run_heartbeat()` assessment_summary includes `workspace_density` and `total_agent_runs`.
 
 ### Expected behavior
-- New workspaces with connected platforms but <5 knowledge files will trigger LLM assessment instead of returning HEARTBEAT_OK.
-- LLM receives "Workspace Density: SPARSE" context and is instructed to be eager — proposing research or analysis agents even without perfect signal.
-- As knowledge accumulates (>5 files, >10 runs), workspace transitions to "developing" and Composer reverts to balanced behavior.
-- Dense workspaces (>20 files, 2+ non-nascent agents) get conservative treatment.
+- **Sparse** (<5 knowledge files, <10 runs): LLM assessment with "be eager" framing.
+- **Developing** (between sparse and dense): LLM assessment with "fill skill gaps" framing. Proposes research/analysis if workspace only has digests.
+- **Dense** (>50 knowledge files, 3+ non-nascent agents): HEARTBEAT_OK unless other heuristics fire.
+- **Behavioral delta from v1.1**: A workspace like kvkthecreator's (13 kf, 12 runs, all digests) now triggers `developing_workspace` → LLM assessment, instead of HEARTBEAT_OK. The LLM sees "propose agents for skill types the workspace lacks."
 - Self-correcting: eager-mode agents that underperform are still caught by `lifecycle_underperformer` (8+ runs, <30% approval).
 
 ---

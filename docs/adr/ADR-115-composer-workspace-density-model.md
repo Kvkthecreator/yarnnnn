@@ -43,21 +43,26 @@ workspace_density = classify_workspace_density(assessment)
 
 | Density | Condition | Composer Behavior |
 |---------|-----------|-------------------|
-| `sparse` | total_knowledge_files < 5 AND sum(total_runs) < 10 | **Eager** — bias toward creating work |
-| `developing` | total_knowledge_files 5-20 OR any agent has maturity != "nascent" | **Balanced** — current heuristics |
-| `dense` | total_knowledge_files > 20 AND 2+ agents non-nascent | **Conservative** — quality-focused |
+| `sparse` | total_knowledge_files < 5 AND sum(total_runs) < 10 | **Eager** — propose agents even without perfect signal |
+| `developing` | everything between sparse and dense | **Proactive** — propose agents for skill types the workspace lacks |
+| `dense` | total_knowledge_files > 50 AND 3+ non-nascent agents | **Conservative** — workforce graduated, only act on clear gaps |
+
+**Key design choice**: only `dense` workspaces return HEARTBEAT_OK through the density gate. Both `sparse` and `developing` route to LLM assessment. The difference is framing — sparse says "be eager, attempt anything", developing says "fill skill gaps." Dense is the graduation threshold where Composer trusts the workforce.
 
 ### Sparse workspace triggers
 
-When `workspace_density == "sparse"`, Composer gains one new heuristic that fires *before* the current `HEARTBEAT_OK` return:
+When `workspace_density != "dense"`, Composer routes to LLM assessment instead of returning HEARTBEAT_OK:
 
 ```python
-# sparse_workspace: the system has substrate but hasn't produced meaningful knowledge yet
-if workspace_density == "sparse" and (assessment["agents"]["active"] > 0 or assessment["connected_platforms"]):
-    return True, "sparse_workspace: workspace has {n} knowledge files and {r} total runs — eager scaffolding mode"
+# Both sparse and developing workspaces route to LLM — only dense graduates to HEARTBEAT_OK
+if workspace_density != "dense" and has_substrate:
+    if workspace_density == "sparse":
+        return True, "sparse_workspace: ... — eager scaffolding mode"
+    else:
+        return True, "developing_workspace: ... — propose agents for missing skills"
 ```
 
-This routes to the **existing LLM assessment path** (`run_composer_assessment`). The LLM receives the full workspace context and decides what to create. No new deterministic creation path needed.
+This routes to the **existing LLM assessment path** (`run_composer_assessment`). The LLM receives the full workspace context including density label and decides what to create (or observe). No new deterministic creation path needed.
 
 ### COMPOSER_SYSTEM_PROMPT v1.2: Eager framing
 
@@ -105,7 +110,7 @@ Also surface in `_build_composer_prompt()` and `run_heartbeat()` assessment_summ
 
 ## Self-Correcting Properties
 
-1. **Sparse → developing is automatic**: As eager-mode agents run and produce knowledge files, `total_knowledge_files` increases. Once it crosses 5 (with runs > 10), density becomes "developing" and Composer reverts to balanced behavior.
+1. **Sparse → developing → dense is automatic**: As agents run and produce knowledge, density progresses. Once it crosses 50 files with 3+ non-nascent agents, density becomes "dense" and Composer becomes conservative.
 2. **Underperformer lifecycle still fires**: If an eagerly-created agent gets poor feedback, the existing `lifecycle_underperformer` heuristic pauses it (8+ runs, <30% approval). The junior employee gets coached.
 3. **Tier limits still apply**: Sparse workspace eagerness can't exceed the user's agent limit. Free tier (2 agents) naturally constrains overeager creation.
 4. **No new DB queries**: Density is computed from signals already in the assessment dict.
