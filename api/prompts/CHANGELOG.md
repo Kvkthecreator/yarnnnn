@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.15] - Composer capability awareness + AGENT.md hints (ADR-118 Phase C)
+
+### Changed
+- `api/services/composer.py`: COMPOSER_SYSTEM_PROMPT gains "Output Capabilities (ADR-118)" section — teaches Composer that agents can produce PDF, PPTX, XLSX, and chart outputs via RuntimeDispatch. Composer may now suggest rich outputs when scaffolding agents.
+- `api/services/agent_creation.py`: AGENT.md seed appends "Available Capabilities" section for synthesize, research, monitor, and custom skill agents. Agents see RuntimeDispatch availability in their identity file.
+
+### Expected behavior
+- **Composer considers rich outputs when scaffolding agents.** When proposing a weekly synthesis for a manager, Composer may include "Produce a PDF summary" in the agent's instructions.
+- **Agents know they can render.** AGENT.md for applicable skills includes a capability reference, so the headless prompt includes RuntimeDispatch awareness.
+- **No change for digest/prepare agents.** These skills produce email-native content — no capability hints added.
+
+---
+
 ## [2026.03.17.14] - RuntimeDispatch primitive + render infrastructure (ADR-118 Phase B)
 
 ### Added

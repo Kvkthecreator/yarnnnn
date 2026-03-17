@@ -751,8 +751,34 @@ async def get_agent(
     feedback_summary = compute_feedback_summary(approved_versions)
 
     # ADR-106: Read from workspace (source of truth)
-    from services.workspace import get_agent_intelligence
+    from services.workspace import get_agent_intelligence, get_agent_slug
     intelligence = await get_agent_intelligence(auth.client, auth.user_id, agent)
+
+    # ADR-118: Query rendered outputs for this agent
+    rendered_outputs = []
+    try:
+        slug = get_agent_slug(agent)
+        ro_result = (
+            auth.client.table("workspace_files")
+            .select("path, content_url, content_type, metadata, updated_at")
+            .eq("user_id", auth.user_id)
+            .like("path", f"/agents/{slug}/outputs/%")
+            .not_.is_("content_url", "null")
+            .order("updated_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        for f in (ro_result.data or []):
+            rendered_outputs.append({
+                "filename": f["path"].rsplit("/", 1)[-1],
+                "url": f["content_url"],
+                "content_type": f.get("content_type", ""),
+                "size_bytes": (f.get("metadata") or {}).get("size_bytes", 0),
+                "render_type": (f.get("metadata") or {}).get("render_type", ""),
+                "updated_at": f.get("updated_at"),
+            })
+    except Exception:
+        pass  # Non-fatal
 
     return {
         "agent": AgentResponse(
@@ -814,6 +840,7 @@ async def get_agent(
             for v in versions
         ],
         "feedback_summary": feedback_summary,
+        "rendered_outputs": rendered_outputs,
     }
 
 

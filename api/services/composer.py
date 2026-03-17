@@ -858,7 +858,16 @@ IMPORTANT for create actions:
 - "instructions" (required): Specific behavioral directives for the agent — what to focus on, how to structure output, what to prioritize. These guide the agent's actual execution. Be specific to this workspace's context, not generic.
 
 Valid skills: digest, prepare, monitor, research, synthesize, custom
-Valid frequencies: daily, weekly, biweekly, monthly"""
+Valid frequencies: daily, weekly, biweekly, monthly
+
+## Output Capabilities (ADR-118)
+Agents can produce rich outputs beyond text:
+- **Documents**: PDF reports, DOCX files (via RuntimeDispatch + pandoc)
+- **Presentations**: PPTX slide decks (via RuntimeDispatch + python-pptx)
+- **Spreadsheets**: XLSX files with formatted tables (via RuntimeDispatch + openpyxl)
+- **Charts**: PNG/SVG visualizations (via RuntimeDispatch + matplotlib)
+
+All agents default to email delivery. When scaffolding agents, consider whether rich outputs would serve the user better than plain text. For example: a weekly synthesis for a manager might benefit from a PDF attachment alongside the email body. Include this in the agent's instructions if appropriate (e.g., "Produce a PDF summary alongside the email body")."""
 
 
 def _build_composer_prompt(assessment: dict, reason: str) -> str:

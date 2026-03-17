@@ -23,10 +23,11 @@ import {
   Copy,
   Database,
   ArrowLeft,
+  Download,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Agent, AgentRun, SourceSnapshot } from '@/types';
+import type { Agent, AgentRun, SourceSnapshot, RenderedOutput } from '@/types';
 
 // =============================================================================
 // Helpers
@@ -117,18 +118,36 @@ export function SourcePills({ snapshots }: { snapshots: SourceSnapshot[] }) {
 // VersionPreviewFull — full-height version render for the panel
 // =============================================================================
 
+const FILE_TYPE_ICONS: Record<string, string> = {
+  pdf: '\u{1F4C4}',
+  docx: '\u{1F4DD}',
+  pptx: '\u{1F4CA}',
+  xlsx: '\u{1F4CA}',
+  png: '\u{1F5BC}',
+  svg: '\u{1F5BC}',
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 function VersionPreviewFull({
   version,
   agent,
   onBack,
   onRunNow,
   running,
+  renderedOutputs,
 }: {
   version: AgentRun;
   agent: Agent;
   onBack: () => void;
   onRunNow: () => void;
   running: boolean;
+  renderedOutputs?: RenderedOutput[];
 }) {
   const [copied, setCopied] = useState(false);
   const content = version.final_content || version.draft_content || '';
@@ -213,6 +232,34 @@ function VersionPreviewFull({
           </div>
         ) : null}
 
+        {/* ADR-118: Rendered output downloads */}
+        {renderedOutputs && renderedOutputs.length > 0 && (
+          <div className="px-4 py-3 border-t border-border">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Attachments</p>
+            <div className="space-y-1.5">
+              {renderedOutputs.map((ro, i) => {
+                const ext = ro.filename.split('.').pop() || '';
+                return (
+                  <a
+                    key={i}
+                    href={ro.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-border rounded-md hover:bg-muted/60 transition-colors group"
+                  >
+                    <span className="text-sm">{FILE_TYPE_ICONS[ext] || '\u{1F4CE}'}</span>
+                    <span className="text-sm flex-1 truncate">{ro.filename}</span>
+                    {ro.size_bytes > 0 && (
+                      <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(ro.size_bytes)}</span>
+                    )}
+                    <Download className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Meta: tokens, sources */}
         {content && (
           <div className="px-3 py-2 border-t border-border flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -248,11 +295,13 @@ export function RunsPanel({
   agent,
   onRunNow,
   running,
+  renderedOutputs,
 }: {
   versions: AgentRun[];
   agent: Agent;
   onRunNow: () => void;
   running: boolean;
+  renderedOutputs?: RenderedOutput[];
 }) {
   // null = list mode, number = preview mode (index into versions)
   const [previewIdx, setPreviewIdx] = useState<number | null>(
@@ -274,6 +323,7 @@ export function RunsPanel({
         onBack={() => setPreviewIdx(null)}
         onRunNow={onRunNow}
         running={running}
+        renderedOutputs={renderedOutputs}
       />
     );
   }

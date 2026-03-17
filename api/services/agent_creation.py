@@ -227,7 +227,11 @@ async def create_agent_record(
             try:
                 from services.workspace import AgentWorkspace, get_agent_slug
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
-                await ws.write("AGENT.md", instructions_text,
+                # ADR-118: Append capability reference for agents that may produce rich outputs
+                agent_md = instructions_text
+                if skill in ("synthesize", "research", "monitor", "custom"):
+                    agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PDF documents, PPTX presentations, XLSX spreadsheets, PNG/SVG charts. Use these when structured data or formatted reports would serve the recipient better than plain text."
+                await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
             except Exception as e:
                 logger.warning(f"[AGENT_CREATION] Workspace seed failed for {entity_id}: {e}")

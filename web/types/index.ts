@@ -552,10 +552,21 @@ export interface FeedbackSummary {
   learned_preferences: string[];  // Human-readable preferences
 }
 
+// ADR-118: Rendered output file reference
+export interface RenderedOutput {
+  filename: string;
+  url: string;
+  content_type: string;
+  size_bytes: number;
+  render_type: string;
+  updated_at?: string;
+}
+
 export interface AgentDetail {
   agent: Agent;
   versions: AgentRun[];
   feedback_summary?: FeedbackSummary;
+  rendered_outputs?: RenderedOutput[];
 }
 
 export interface VersionUpdate {

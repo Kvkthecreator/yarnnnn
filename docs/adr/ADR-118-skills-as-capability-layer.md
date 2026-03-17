@@ -1,6 +1,6 @@
 # ADR-118: Skills as Capability Layer
 
-> **Status**: Phase A+B implemented. Phase C proposed (Composer capability awareness + frontend).
+> **Status**: Implemented (Phase A+B+C). All three phases shipped.
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Supersedes**: None

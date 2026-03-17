@@ -36,7 +36,7 @@ import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceL
 import { RunsPanel } from '@/components/agents/AgentRunDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/agents/AgentDrawerPanels';
 import { AgentChatArea } from '@/components/agents/AgentChatArea';
-import type { Agent, AgentRun, AgentSession } from '@/types';
+import type { Agent, AgentRun, AgentSession, RenderedOutput } from '@/types';
 
 // =============================================================================
 // Helpers: platform icon (source-first, AGENT-PRESENTATION-PRINCIPLES.md)
@@ -112,6 +112,7 @@ export default function AgentWorkspacePage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [versions, setVersions] = useState<AgentRun[]>([]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [renderedOutputs, setRenderedOutputs] = useState<RenderedOutput[]>([]);
 
   // UI
   const [running, setRunning] = useState(false);
@@ -128,6 +129,7 @@ export default function AgentWorkspacePage() {
       setAgent(detail.agent);
       setVersions(detail.versions);
       setSessions(sessionData);
+      setRenderedOutputs(detail.rendered_outputs || []);
     } catch (err) {
       console.error('Failed to load agent:', err);
     } finally {
@@ -229,6 +231,7 @@ export default function AgentWorkspacePage() {
           agent={agent}
           onRunNow={handleRunNow}
           running={running}
+          renderedOutputs={renderedOutputs}
         />
       ),
     },

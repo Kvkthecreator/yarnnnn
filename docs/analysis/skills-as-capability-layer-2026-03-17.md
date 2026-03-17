@@ -1,6 +1,6 @@
 # Skills as the Capability Layer: From Text Substrate to General-Purpose Agent Execution
 
-> **Status**: ADR-118 formalized. Phase A+B implemented. Phase C proposed (Composer awareness + frontend).
+> **Status**: ADR-118 formalized. All three phases (A+B+C) implemented.
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Context**: Observation that Claude Code's skill pattern (Remotion for video, pptx/xlsx/docx for documents) proves that structured instructions + filesystem = indefinitely expandable agent capabilities. What does this mean for yarnnn?
