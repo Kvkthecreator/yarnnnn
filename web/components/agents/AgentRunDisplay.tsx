@@ -283,7 +283,7 @@ export function RunsPanel({
     return (
       <div className="flex flex-col items-center justify-center p-6 text-center h-full">
         <FileText className="w-8 h-8 text-muted-foreground/30 mb-3" />
-        <p className="text-sm text-muted-foreground mb-3">No deliveries yet</p>
+        <p className="text-sm text-muted-foreground mb-3">No runs yet</p>
         <button
           onClick={onRunNow}
           disabled={running || agent.status === 'archived' || missingSourcesWarning}

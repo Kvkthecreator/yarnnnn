@@ -25,6 +25,13 @@ import {
   ListTodo,
   Eye,
   Bell,
+  Globe,
+  Bookmark,
+  Monitor,
+  Sparkles,
+  FolderSearch,
+  Brain,
+  CalendarClock,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { MessageBlock } from '@/types/desk';
@@ -35,7 +42,7 @@ interface InlineToolCallProps {
 }
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  // Primitives (ADR-080)
+  // Core primitives (ADR-080)
   Read: Eye,
   Write: Plus,
   Edit: Pencil,
@@ -45,12 +52,28 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
+  // Agent lifecycle (ADR-111)
+  CreateAgent: Sparkles,
+  AdvanceAgentSchedule: CalendarClock,
+  // Intelligence (ADR-087/106)
+  SaveMemory: Bookmark,
+  GetSystemState: Monitor,
+  WebSearch: Globe,
+  web_search: Globe,
   // Platform tools
   list_integrations: Eye,
   list_platform_resources: List,
   sync_platform_resource: Play,
   get_sync_status: Eye,
   RefreshPlatformContent: Play,
+  // Workspace primitives (ADR-106)
+  ReadWorkspace: Eye,
+  WriteWorkspace: Plus,
+  SearchWorkspace: FolderSearch,
+  QueryKnowledge: Brain,
+  ListWorkspace: List,
+  DiscoverAgents: Search,
+  ReadAgentContext: Eye,
   // Notification
   send_notification: Bell,
   todo_write: ListTodo,

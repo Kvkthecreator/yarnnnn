@@ -119,8 +119,8 @@ SkillConfig = Union[
 class FeedbackSummary(BaseModel):
     """Summary of learned preferences from user feedback (ADR-018)."""
     has_feedback: bool = False
-    total_versions: int = 0
-    approved_versions: int = 0
+    total_runs: int = 0
+    approved_runs: int = 0
     avg_quality: Optional[float] = None  # Average (1 - edit_distance_score) as percentage
     learned_preferences: list[str] = Field(default_factory=list)  # Human-readable preferences
 
@@ -134,8 +134,8 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
     if not approved_versions:
         return FeedbackSummary(
             has_feedback=False,
-            total_versions=0,
-            approved_versions=0,
+            total_runs=0,
+            approved_runs=0,
         )
 
     # Calculate average quality (1 - edit_distance = quality)
@@ -187,8 +187,8 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
 
     return FeedbackSummary(
         has_feedback=len(learned) > 0 or avg_quality is not None,
-        total_versions=len(approved_versions),
-        approved_versions=len(approved_versions),
+        total_runs=len(approved_versions),
+        approved_runs=len(approved_versions),
         avg_quality=avg_quality,
         learned_preferences=learned[:8],  # Limit to 8 items
     )

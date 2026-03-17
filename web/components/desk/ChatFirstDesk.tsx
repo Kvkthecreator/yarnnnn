@@ -192,9 +192,9 @@ function AgentsPanel() {
     if (status === 'rejected') return 'Needs revision';
 
     if (agent.version_count) {
-      return `${agent.version_count} version${agent.version_count !== 1 ? 's' : ''}`;
+      return `${agent.version_count} run${agent.version_count !== 1 ? 's' : ''}`;
     }
-    return 'No deliveries yet';
+    return 'No runs yet';
   };
 
   if (loading) {

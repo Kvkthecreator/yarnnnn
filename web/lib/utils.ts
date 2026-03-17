@@ -12,43 +12,51 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Maps internal tool names to user-facing status messages.
  *
+ * Tool names match backend primitives (api/services/primitives/*.py).
  * Pattern follows Claude Code:
  * - Present participle ("Checking...", "Creating...")
  * - Describes the action, not the tool
  * - Brief and scannable
  */
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  // Communication tools
-  respond: "Responding",
-  clarify: "Asking for clarification",
+  // Core primitives (ADR-080)
+  Read: "Reading content",
+  Write: "Writing content",
+  Edit: "Editing content",
+  List: "Listing resources",
+  Search: "Searching",
+  Execute: "Executing action",
+  Todo: "Tracking progress",
+  Respond: "Responding",
+  Clarify: "Asking for clarification",
 
-  // Work tools
-  create_work: "Creating work",
-  list_work: "Listing work",
-  get_work: "Getting work details",
-  update_work: "Updating work",
-  delete_work: "Deleting work",
+  // Agent lifecycle (ADR-111)
+  CreateAgent: "Creating agent",
+  AdvanceAgentSchedule: "Advancing schedule",
 
-  // Memory tools
-  list_memories: "Searching memories",
-  create_memory: "Saving to memory",
-  update_memory: "Updating memory",
-  delete_memory: "Removing memory",
+  // Intelligence (ADR-087/106)
+  SaveMemory: "Saving to memory",
+  GetSystemState: "Checking system state",
+  WebSearch: "Searching the web",
+  web_search: "Searching the web",  // Legacy alias
 
-  // Agent tools
-  list_agents: "Listing agents",
-  get_agent: "Getting agent",
-  create_agent: "Creating agent",
-  update_agent: "Updating agent",
-  run_agent: "Running agent",
-
-  // Platform operation tools (ADR-039)
+  // Platform tools (ADR-039)
+  RefreshPlatformContent: "Refreshing platform data",
   list_integrations: "Checking connected platforms",
   list_platform_resources: "Listing resources",
   sync_platform_resource: "Syncing data",
   get_sync_status: "Checking sync status",
 
-  // Notification tools (ADR-040)
+  // Workspace primitives (ADR-106)
+  ReadWorkspace: "Reading workspace",
+  WriteWorkspace: "Writing to workspace",
+  SearchWorkspace: "Searching workspace",
+  QueryKnowledge: "Querying knowledge base",
+  ListWorkspace: "Listing workspace files",
+  DiscoverAgents: "Discovering agents",
+  ReadAgentContext: "Reading agent context",
+
+  // Notification
   send_notification: "Sending notification",
 
   // Todo tracking
@@ -116,11 +124,19 @@ export function getToolDisplayMessage(
 
 /**
  * Fallback formatter for unknown tools.
- * Converts snake_case to "Title Case..." format.
+ * Converts PascalCase or snake_case to readable format.
  */
 function formatToolName(toolName: string): string {
+  // Handle PascalCase (e.g., "ReadWorkspace" → "Read workspace")
+  if (toolName.includes("_")) {
+    return toolName
+      .split("_")
+      .map((word, i) => i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word)
+      .join(" ");
+  }
+  // PascalCase split
   return toolName
-    .split("_")
-    .map((word, i) => i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word)
-    .join(" ");
+    .replace(/([A-Z])/g, " $1")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
 }
