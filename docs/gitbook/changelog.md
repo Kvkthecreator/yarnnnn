@@ -2,6 +2,15 @@
 
 Notable updates to YARNNN and GitBook docs.
 
+## March 2026
+
+### Public docs overhaul (Mar 17)
+- Rebuilt the GitBook information architecture around the current product model
+- Replaced deliverable-era pages with public docs for Thinking Partner, agents, and first value after connect
+- Updated plans to the current Free + Pro structure
+- Updated API docs to reflect the current chat and agents endpoints
+- Added source-of-truth guidance separating public docs from canonical architecture and ADRs
+
 <!-- AUTO_SYNC_START -->
 ## Auto-synced updates
 
@@ -26,8 +35,6 @@ Notable updates to YARNNN and GitBook docs.
 - 2026-03-04 `7e56516` docs(ADR-092): agent intelligence & mode taxonomy
 - 2026-03-04 `c190893` feat(ADR-088): implement trigger dispatch — Phase 1
 <!-- AUTO_SYNC_END -->
-
-## March 2026
 
 ### Agent taxonomy update (Mar 4)
 - Replaced legacy agent taxonomy with 7 purpose-first types (`digest`, `brief`, `status`, `watch`, `deep_research`, `coordinator`, `custom`)

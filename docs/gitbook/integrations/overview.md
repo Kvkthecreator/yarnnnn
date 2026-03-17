@@ -1,42 +1,46 @@
-# Integrations — Connect Your Work Tools
+# Integrations
 
-YARNNN connects to four platforms to give the AI system real work context.
+YARNNN connects to the tools where your work already happens so TP and your agents can operate with real context.
 
-## Supported integrations
+## Supported platforms
 
-| Platform | What YARNNN reads | What you choose |
+| Platform | What YARNNN reads | Typical first value |
 |---|---|---|
-| [**Slack**](slack.md) | Channel messages | Which channels to follow |
-| [**Gmail**](gmail.md) | Emails | Which labels to track |
-| [**Notion**](notion.md) | Pages and databases | Which pages to sync |
-| [**Google Calendar**](google-calendar.md) | Upcoming events | Automatic — no selection needed |
+| [Slack](slack.md) | Selected channel activity | Team recap, signal watch, discussion summary |
+| [Gmail](gmail.md) | Selected label content | Inbox digest, client recap, status context |
+| [Notion](notion.md) | Selected pages and databases | Doc-grounded summary, project context, research input |
+| [Google Calendar](google-calendar.md) | Upcoming events and calendars | Schedule context and stronger meeting prep once paired with other sources |
 
-## How it works
+## Connection model
 
-1. Click **Connect** on a platform
-2. Authorize read-only access through the platform's login
-3. Select which sources YARNNN should follow (where applicable)
-4. Content sync starts and updates on your tier cadence
+When you connect a platform, YARNNN:
 
-**YARNNN is read-only.** It can see your content but never posts, sends, or modifies anything.
+1. authenticates through OAuth
+2. receives read-only access
+3. discovers available sources
+4. applies smart default coverage
+5. starts syncing
 
-## Limits and sync cadence
+You can refine source coverage later from the product.
 
-Source limits and sync frequency are tier-based and can vary by provider. See [Plans](../plans/plans.md) for current enforced limits.
+## Why integrations matter
 
-## Why multi-platform context matters
+Integrations are the onramp into the system's substrate.
 
-- Cross-platform questions become grounded and complete
-- Agents can combine evidence across systems
-- Output quality improves as context accumulates
+They make it possible to:
 
-## Use YARNNN from Claude or ChatGPT
+- answer questions grounded in your real work
+- bootstrap useful starter agents quickly
+- synthesize across platforms instead of staying in a single silo
+- build better output over time as the substrate deepens
 
-Use the [MCP connector](mcp-connector.md) to access YARNNN context and agents from external AI tools.
+## External AI access
 
-## Security and privacy
+You can also use YARNNN from Claude or ChatGPT through the [MCP connector](mcp-connector.md).
 
-- Read-only access
-- Encrypted transport and storage
-- User-scoped data isolation
-- Disconnect at any time
+## Security
+
+- all integrations are read-only
+- tokens are encrypted at rest
+- data is scoped to your account
+- you can disconnect any integration at any time

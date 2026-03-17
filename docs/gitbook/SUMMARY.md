@@ -6,13 +6,13 @@
 
 * [Quickstart](getting-started/quickstart.md)
 * [Connecting your tools](getting-started/connecting-your-tools.md)
-* [Creating your first agent](getting-started/creating-your-first-agent.md)
+* [First value after connect](getting-started/first-value-after-connect.md)
 
 ## How It Works
 
+* [How YARNNN works](concepts/how-yarnnn-works.md)
+* [Thinking Partner](concepts/thinking-partner.md)
 * [What are agents?](concepts/what-are-agents.md)
-* [Agent types and modes](concepts/agent-types-and-modes.md)
-* [The AI assistant](concepts/ai-assistant.md)
 * [How YARNNN learns](concepts/how-yarnnn-learns.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
 

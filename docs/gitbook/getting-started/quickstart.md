@@ -1,62 +1,63 @@
-# Quickstart — Set Up YARNNN in 5 Minutes
+# Quickstart
 
-YARNNN is an AI agent that connects to your work tools and produces output on your behalf. Here's how to get started.
+Start with one platform, one useful output, and one feedback loop.
 
-## Step 1: Create your account
+## 1. Create your account
 
-Sign up at [app.yarnnn.com](https://app.yarnnn.com). You'll land on your dashboard immediately.
+Sign in at [app.yarnnn.com](https://app.yarnnn.com).
 
-## Step 2: Connect your first tool
+You will land on the dashboard, where you can connect tools and inspect the system as it starts working.
 
-Click **Connect** on any platform card:
+## 2. Connect one platform
 
-- **Slack** — so YARNNN can read your team conversations
-- **Gmail** — so YARNNN can reference your emails
-- **Notion** — so YARNNN can access your docs and databases
-- **Google Calendar** — so YARNNN knows your schedule
+Choose the platform that already contains the clearest signal for your work:
 
-You'll be asked to authorize read-only access. YARNNN never posts, sends, or modifies anything in your connected tools.
+- **Slack** for team discussion and decisions
+- **Gmail** for inbox and client communication
+- **Notion** for docs and project state
+- **Google Calendar** for schedule-aware prep
 
-All four platforms are available on every plan, including Free.
+If you want the fastest autonomous first output, start with **Slack, Gmail, or Notion**. Calendar is most useful once YARNNN also has other work context to pull from.
 
-## Step 3: Choose what to sync
+YARNNN uses read-only access. It does not post, send, or modify content in your connected tools.
 
-After connecting, pick which sources YARNNN should follow:
+## 3. Let YARNNN handle the first pass
 
-| Platform | What you select |
-|---|---|
-| **Slack** | Which channels to follow (e.g., #engineering, #product) |
-| **Gmail** | Which labels to track (e.g., Inbox, Important) |
-| **Notion** | Which pages or databases to read |
-| **Calendar** | Syncs automatically — nothing to select |
+After connection, YARNNN:
 
-**Tip:** Start with 2-3 high-value sources. You can always add more later.
+- discovers available sources
+- applies smart default coverage
+- starts the first sync
+- creates a matching starter agent
 
-## Step 4: Talk to the AI assistant
+You do not need to fully configure the system before seeing value.
 
-Open the AI assistant from any page and ask something like:
+## 4. Review the first output
 
-> "What's been happening in #engineering this week?"
+Once the first run lands:
 
-> "Summarize my recent emails about the product launch"
+- approve it if it is already useful
+- edit it if it is too broad or misses emphasis
+- ask the Thinking Partner to refine the agent
 
-> "What meetings do I have tomorrow?"
+This first run is the fastest way to teach the system what "good" looks like for you.
 
-The assistant already has access to your connected tools — no need to paste anything.
+## 5. Use the Thinking Partner
 
-## Step 5: Create your first agent
+Ask the Thinking Partner to help with follow-up work, for example:
 
-A agent is a recurring output YARNNN produces for you on autopilot. For example:
+> "Make this recap tighter and focus on blockers."
 
-> "Create a weekly digest of #engineering, delivered every Monday at 9am"
+> "Create a status update agent for leadership."
 
-You can set this up through the wizard on your dashboard, or just tell the AI assistant what you want.
+> "What changed across Slack and Gmail about the launch?"
 
-See [Creating your first agent](creating-your-first-agent.md) for a full walkthrough.
+## 6. Expand only after you see value
 
-## What happens next
+Once one agent is producing useful work:
 
-- YARNNN syncs your sources on a regular schedule
-- Agents run automatically and produce drafts for your review
-- The system learns your preferences and gets better over time
-- You review, approve, and occasionally tweak — that's it
+- add another platform
+- widen or narrow coverage
+- create additional agents for status, watch, research, or prep
+
+The right onboarding strategy is usually narrow first, then compound.

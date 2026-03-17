@@ -1,62 +1,86 @@
 # Connecting Your Tools
 
-YARNNN works by staying connected to the tools you already use. The more it can see, the more useful it becomes.
+YARNNN becomes useful by staying connected to the places where your work already happens.
 
-## How connecting works
+## What happens when you connect a tool
 
-1. Click **Connect** on a platform card
-2. You're redirected to the platform (Slack, Google, or Notion) to authorize
-3. YARNNN gets **read-only access** — it can see your content but never post, send, or change anything
-4. You choose exactly which sources (channels, labels, pages) YARNNN should follow
+1. You authorize YARNNN through the platform's OAuth flow
+2. YARNNN gets read-only access
+3. It discovers the available sources on that platform
+4. It applies smart default coverage for the first sync
+5. You can refine that coverage later if needed
 
-## What each platform gives YARNNN
+The important shift is this: connection is not supposed to dump you into a long manual setup flow. It is supposed to move you quickly toward first value.
 
-### Slack — Team conversations
+## What each platform adds
 
-YARNNN reads messages from your selected channels. This means it can:
-- Summarize what happened in a channel this week
-- Answer questions about team discussions
-- Produce recurring digests of channel activity
+### Slack
 
-**You choose:** Which channels to sync. Start with the ones where important decisions happen.
+YARNNN can:
 
-### Gmail — Email context
+- summarize team discussion
+- track ongoing themes and blockers
+- answer questions about what happened in selected channels
 
-YARNNN reads emails from your selected labels. This means it can:
-- Reference specific email threads when you ask questions
-- Include email context in agents like status reports
-- Help you stay on top of a busy inbox
+Best starting use cases:
 
-**You choose:** Which labels to sync. Inbox, Important, or project-specific labels work well.
+- engineering recap
+- product watch
+- cross-team weekly summary
 
-### Notion — Documents and databases
+### Gmail
 
-YARNNN reads your selected Notion pages. This means it can:
-- Pull information from your docs when answering questions
-- Reference project databases in agents
-- Search across your knowledge base
+YARNNN can:
 
-**You choose:** Which pages and databases to sync.
+- summarize important email threads
+- pull client or stakeholder context into agents
+- combine inbox context with Slack, Notion, and Calendar
 
-### Google Calendar — Your schedule
+Best starting use cases:
 
-YARNNN reads your upcoming events. This means it can:
-- Generate meeting prep before your meetings start
-- Answer "What do I have today?" with your actual schedule
-- Factor in your availability when planning
+- client communication digest
+- inbox summary
+- stakeholder status synthesis
 
-**No selection needed** — Calendar syncs automatically.
+### Notion
 
-## Changing or removing connections
+YARNNN can:
 
-- **Change sources:** Go to **Context** → select a platform → update your selection
-- **Disconnect:** Go to **Context** → click a platform → **Disconnect**
+- reference docs and databases in grounded responses
+- build status or research output from written project context
+- combine formal docs with conversations from other platforms
 
-When you disconnect, YARNNN stops syncing and removes the connection. Previously synced content expires on its own.
+Best starting use cases:
 
-## Privacy and security
+- project summary
+- research brief
+- status update grounded in current documentation
 
-- YARNNN has **read-only** access — it cannot post, send emails, or modify your data
-- Your data is encrypted and isolated — no other user can see it
-- You can revoke access at any time from YARNNN or from the platform's own settings
+### Google Calendar
+
+YARNNN can:
+
+- generate meeting prep
+- answer schedule-aware questions
+- use upcoming events as timing context for other work
+
+Calendar is especially useful when paired with Slack and Gmail.
+
+## Refining coverage later
+
+After the first sync, go to the Context area if you want to:
+
+- add or remove Slack channels
+- change Gmail labels
+- narrow or expand Notion page coverage
+- disconnect a platform entirely
+
+The best pattern is to start with the defaults, judge the first output, then tighten only where needed.
+
+## Security and privacy
+
+- integrations are read-only
+- data is encrypted in transit and at rest
 - OAuth tokens are encrypted at rest
+- your data is isolated to your account
+- you can disconnect any integration at any time

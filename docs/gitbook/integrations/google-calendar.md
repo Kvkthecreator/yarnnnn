@@ -1,13 +1,13 @@
 # Google Calendar Integration
 
-Connect Google Calendar so YARNNN knows your schedule — enabling meeting prep, time-aware responses, and schedule-based agents.
+Connect Google Calendar so YARNNN understands your schedule and can prepare work around it.
 
 ## What YARNNN can do with Calendar
 
-- **Meeting prep** — generate a briefing before your meetings, pulling context from relevant Slack channels and emails
-- **Schedule awareness** — answer "What do I have today?" or "Am I free Thursday afternoon?"
-- **Time-based triggers** — run agents before specific meetings
-- **Cross-reference** — combine schedule context with Slack, Gmail, and Notion
+- generate meeting prep before important events
+- answer schedule-aware questions
+- use upcoming events as timing context for other agents
+- combine schedule context with Slack, Gmail, and Notion
 
 ## Setup
 
@@ -15,12 +15,12 @@ Connect Google Calendar so YARNNN knows your schedule — enabling meeting prep,
 2. Authorize YARNNN through Google's login screen
 3. That's it — Calendar syncs automatically
 
-**No source selection needed.** Calendar events are lightweight and broadly useful, so all your calendars sync automatically.
+Calendar is the lightest integration to start with, but it becomes most useful when paired with Slack, Gmail, or Notion. It adds schedule context immediately; richer meeting-prep output usually needs more than calendar data alone.
 
 **YARNNN is read-only** — it reads your events but never creates, edits, or deletes calendar entries.
 
 ## Example agents using Calendar
 
-- **Daily meeting prep** — briefing for each meeting, generated automatically before it starts
-- **Weekly schedule digest** — overview of your upcoming week
-- **Pre-meeting context pull** — combines calendar events with related Slack and email threads
+- daily meeting prep
+- weekly schedule summary
+- pre-meeting context brief combining events with Slack and email threads

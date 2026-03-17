@@ -1,6 +1,6 @@
 # Authentication
 
-YARNNN API endpoints are protected and require an authenticated user token.
+YARNNN API endpoints are user-scoped and require an authenticated bearer token.
 
 ## Header format
 
@@ -19,9 +19,9 @@ Authorization: Bearer <your-token>
 Requests are user-scoped. Data is isolated by authenticated user identity, including:
 
 - chat sessions
-- agents and versions
+- agents and runs
 - integration sources and synced content
-- memory/profile records
+- profile, memory, and knowledge records
 
 ## Common auth failures
 

@@ -1,62 +1,69 @@
 # How Your Data Is Used
 
-YARNNN connects to your work tools to provide context-aware AI. Here's exactly what happens with your data.
+YARNNN uses your data to ground responses, run agents, and improve output quality over time.
 
 ## What YARNNN reads
 
-| Platform | What's accessed | What's NOT accessed |
-|---|---|---|
-| **Slack** | Messages from channels you select | DMs, channels you don't select |
-| **Gmail** | Emails from labels you select | Drafts, attachments, labels you don't select |
-| **Notion** | Pages and databases you select | Pages you don't select |
-| **Calendar** | Upcoming events (next 7 days) | Historical events |
+| Platform | What YARNNN can access |
+|---|---|
+| Slack | Selected channel content |
+| Gmail | Selected label content |
+| Notion | Selected pages and databases |
+| Google Calendar | Upcoming events and schedule context |
+| Documents | Files you upload directly to YARNNN |
 
-**You control exactly what YARNNN can see.** Nothing is synced without your explicit selection.
+Coverage is user-scoped and can be refined after connection.
 
-## What YARNNN does with your data
+## What YARNNN does with that data
 
-### Powers the AI assistant
+### Grounds TP responses
 
-When you ask a question, the assistant searches your synced content to give you answers grounded in your actual work — not generic internet results.
+When you ask a question, TP can answer from your synced work context instead of relying on generic assumptions.
 
-### Produces agents
+### Produces agent runs
 
-When a agent runs (e.g., your weekly digest), YARNNN reads the relevant synced content and generates a draft.
+Agents use the relevant parts of your substrate to create digests, briefs, status updates, research, and other work products.
 
-### Learns your preferences
+### Improves future output
 
-YARNNN extracts preferences from your interactions (like "prefers bullet points") and stores them so it can personalize future output. You can review and edit these anytime.
+YARNNN also uses:
 
-## What YARNNN does NOT do
+- prior runs
+- approvals and edits
+- standing instructions and preferences
 
-- **Never posts or sends anything** on your behalf in Slack, Gmail, or Notion
-- **Never shares your data** with other users
-- **Never trains external AI models** on your data
-- **Never accesses content** you haven't explicitly selected
-- **Never stores your OAuth passwords** — only encrypted access tokens
+to improve later output quality.
 
-## Data retention
+## What YARNNN does not do
 
-Your synced content is kept as long as it's useful:
+- it does not post, send, or edit content inside Slack, Gmail, Notion, or Calendar
+- it does not share your data with other users
+- it does not train external foundation models on your data
+- it does not store your passwords; it stores encrypted OAuth tokens
 
-- Content actively used by agents or the AI assistant is kept long-term
-- Content that's never referenced naturally expires
-- When you disconnect a platform, syncing stops and content expires on its own
+## Retention model
+
+YARNNN is designed to keep what proves useful and let low-value synced content expire over time.
+
+In practice that means:
+
+- raw synced platform content is not all treated as permanent
+- outputs and feedback that become part of useful work can persist longer
+- disconnecting a platform stops future sync immediately
 
 ## Your controls
 
-| Action | How |
-|---|---|
-| See what's synced | **Context** page shows all connected sources |
-| Change what's synced | Update source selection per platform |
-| Delete preferences | Edit or remove from the **Context** page |
-| Disconnect a platform | One-click disconnect from the **Context** page |
-| Delete your account | Contact support — all data is permanently removed |
+You can:
+
+- change source coverage
+- disconnect integrations
+- update or remove remembered preferences
+- delete uploaded documents
+- reset or delete account-level data through account controls
 
 ## Security
 
-- All data is encrypted in transit and at rest
-- OAuth tokens are encrypted with industry-standard encryption
-- Your data is isolated — no other user can access it
-- YARNNN uses row-level security to scope all queries to your account
-- You can revoke platform access at any time
+- data is encrypted in transit and at rest
+- OAuth tokens are encrypted at rest
+- access is scoped to the authenticated user
+- platform integrations are read-only

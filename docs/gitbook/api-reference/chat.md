@@ -1,6 +1,6 @@
 # Chat API
 
-Chat endpoints power the Thinking Partner experience.
+Chat endpoints power the Thinking Partner / Orchestrator experience.
 
 ## Send message
 
@@ -23,7 +23,7 @@ Notes:
 
 - Response is streamed as `text/event-stream`.
 - The API reuses/creates a chat session automatically.
-- If daily token budget is exceeded for your tier, returns `429`.
+- If your plan budget is exhausted, returns `429`.
 
 ## Get recent chat history
 
@@ -33,10 +33,18 @@ GET /api/chat/history?limit=1
 
 Response includes recent sessions and message arrays.
 
-## List available skills
+## List chat sessions
 
 ```text
-GET /api/skills
+GET /api/chat/sessions
 ```
 
-Returns skill metadata used by the assistant.
+Returns chat session metadata for the current user.
+
+## List available commands
+
+```text
+GET /api/commands
+```
+
+Returns the command definitions the Thinking Partner can expose in the UI.

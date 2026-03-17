@@ -4,23 +4,26 @@
 
 ### What is YARNNN?
 
-YARNNN is an autonomous AI work system that connects to your tools (Slack, Gmail, Notion, Google Calendar), accumulates context, and produces supervised agents on your behalf.
+YARNNN is an autonomous AI work system for recurring knowledge work. It connects to your tools, builds context over time, and runs supervised agents that produce useful output in the background.
 
 ### How is YARNNN different from ChatGPT or Claude?
 
-Most chat tools are prompt-by-prompt and session-centric. YARNNN is system-centric: it runs configured specialists in the background, keeps version history, and improves from execution feedback over time.
+Chat tools are mostly session-centric. YARNNN is system-centric: it keeps synced work context, runs persistent agents, and improves output through supervision and accumulated feedback.
+
+### What is the Thinking Partner?
+
+The Thinking Partner is YARNNN's conversational control layer. In the product it may also be referred to as the Orchestrator. It helps you ask grounded questions, create agents, refine output, and inspect what the system is doing.
 
 ### What kind of work can YARNNN do?
 
-YARNNN supports seven agent types:
+Common work patterns include:
 
-- `digest`
-- `brief`
-- `status`
-- `watch`
-- `deep_research`
-- `coordinator`
-- `custom`
+- recaps and digests
+- meeting prep
+- stakeholder status updates
+- watch agents for themes or risks
+- bounded research
+- cross-platform synthesis
 
 ## Setup & Integrations
 
@@ -34,17 +37,21 @@ No. Integrations are read-only for context ingestion.
 
 ### Can I control what YARNNN can see?
 
-Yes. You choose sources per platform (channels/labels/pages), and you can update selections at any time.
+Yes. YARNNN starts with smart defaults after connection, and you can refine source coverage at any time.
 
 ## Agents
 
-### Do agents have version history?
+### Do I have to create agents manually?
 
-Yes. Every generation creates an immutable agent version you can review, approve, reject, and compare over time.
+Not always. Slack, Gmail, and Notion can bootstrap a starter agent after the first sync. You can also create or refine agents through the Thinking Partner. Calendar is primarily schedule context and becomes more valuable once paired with other sources.
+
+### Do agents have run history?
+
+Yes. Every generation creates a run you can inspect and review over time.
 
 ### How do agents improve over time?
 
-Each specialist uses prior version feedback and memory to adapt future output. Consistent edits become persistent behavior.
+Each agent learns from prior runs, approvals, edits, and instructions. Consistent feedback becomes future behavior.
 
 ### What execution modes are available?
 

@@ -1,48 +1,43 @@
-# YARNNN — AI That Works While You Don't
+# What Is YARNNN?
 
-YARNNN is an AI work agent that connects to your everyday tools, learns how you work, and produces real output on your behalf — automatically, on a schedule, improving over time.
+YARNNN is an autonomous AI work system for recurring knowledge work.
 
-## The problem
+It connects to the tools where your work already lives, builds context over time, and runs agents that produce useful output in the background while you supervise quality.
 
-You spend hours every week on repetitive knowledge work: summarizing Slack threads, prepping for meetings, writing status updates, and staying on top of email. AI chatbots can help, but only when you remember to open them, paste context, and prompt from scratch.
+## The short version
+
+YARNNN has two core surfaces:
+
+- **Thinking Partner**: the conversational layer you use to ask questions, create agents, and refine the system
+- **Agents**: persistent specialists that keep working over time
+
+The product is designed around a simple promise:
+
+1. connect a high-signal platform
+2. get a real first output quickly
+3. improve the system through feedback instead of repeated setup
 
 ## How YARNNN is different
 
-YARNNN is not a chatbot you talk to when you need help. It's an autonomous AI work system that continuously syncs your work context and runs specialist agents in the background.
-
-| Traditional AI tools | YARNNN |
+| Generic AI chat | YARNNN |
 |---|---|
-| You paste context every time | Connects to your tools and stays up to date |
-| Forgets everything between sessions | Accumulates memory and context over time |
-| You do the work, AI assists | AI does the work, you supervise |
-| On-demand only | Runs on schedule or by intelligent trigger |
+| Starts from the prompt in front of it | Starts from your connected work context |
+| Helps with one task at a time | Maintains agents that keep working over time |
+| Little compounding value | Learns from runs, edits, and accumulated context |
+| You operate every step | You supervise a system that increasingly works for you |
 
 ## What you can do with YARNNN
 
-- Generate recurring digests, briefs, and status updates automatically
-- Run proactive or reactive specialists that surface signal when it matters
-- Ask context-grounded questions across Slack, Gmail, Notion, and Calendar
-- Trigger agents from YARNNN, Claude, or ChatGPT via MCP connector
-- Improve quality over time as agents learn from your edits
+- get Slack recaps, Gmail digests, status updates, and meeting prep automatically
+- ask cross-platform questions grounded in your actual work
+- refine agents through conversation instead of configuration-heavy workflows
+- access YARNNN from Claude or ChatGPT through the MCP connector
+- compound quality over time as feedback and prior runs accumulate
 
-## How it works
+## Where to start
 
-1. Connect your tools
-2. Configure agents (type + mode + sources)
-3. Review and supervise outputs
-4. Let each specialist improve through execution history
-
-## Get started
-
-- [Quickstart guide](getting-started/quickstart.md)
+- [Quickstart](getting-started/quickstart.md)
+- [First value after connect](getting-started/first-value-after-connect.md)
+- [How YARNNN works](concepts/how-yarnnn-works.md)
+- [Thinking Partner](concepts/thinking-partner.md)
 - [What are agents?](concepts/what-are-agents.md)
-- [Agent types and modes](concepts/agent-types-and-modes.md)
-- [Versioning & sync](resources/versioning.md)
-
-## Maintainer note
-
-To refresh GitBook changelog/version metadata from recent commits:
-
-```bash
-python3 scripts/sync_gitbook.py
-```

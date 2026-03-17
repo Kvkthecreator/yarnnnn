@@ -1,6 +1,6 @@
 # MCP Connector — Claude & ChatGPT
 
-You don't have to visit yarnnn.com every time you want to use YARNNN. With the **MCP connector**, you can access your synced work context, trigger agents, and search across your platforms — all from the AI tool you already have open.
+You do not need to stay inside yarnnn.com to use YARNNN. With the **MCP connector**, Claude or ChatGPT can access your synced work context, inspect agents, and trigger work through YARNNN.
 
 This works with **Claude** (claude.ai, Claude Desktop, Claude Code) and **ChatGPT**.
 
@@ -8,20 +8,21 @@ This works with **Claude** (claude.ai, Claude Desktop, Claude Code) and **ChatGP
 
 Once connected, you can ask your AI tool to:
 
-* **Search your work context** — "Search my Slack and Gmail for anything about the product launch"
-* **Trigger a agent** — "Run my weekly engineering digest now"
-* **Read agent output** — "Show me the latest version of my status report"
-* **Check what's connected** — "What platforms are synced in YARNNN and when did they last update?"
+* **Search your work context** — "Use YARNNN to search Slack and Gmail for anything about the product launch"
+* **Trigger an agent** — "Run my weekly engineering recap in YARNNN"
+* **Read agent output** — "Show me the latest status update from YARNNN"
+* **Check what's connected** — "What platforms are synced in YARNNN?"
 * **View your profile** — "What does YARNNN know about my preferences?"
 
-YARNNN becomes a tool your AI assistant can call — just like it can browse the web or read files.
+YARNNN becomes a context and agent layer your external AI tool can call directly.
 
 ## Prerequisites
 
 Before setting up the connector:
 
-1. You have a YARNNN account with at least one platform connected
-2. Your sources have synced at least once (so there's content to query)
+1. You have a YARNNN account
+2. At least one platform or document source has synced
+3. You want external AI tools to work against YARNNN's substrate instead of starting from zero
 
 ***
 
@@ -35,7 +36,7 @@ Before setting up the connector:
 4. Click **Add**
 5. Complete the authorization when prompted
 
-That's it. Claude can now use YARNNN tools in any conversation. Try asking: _"Use YARNNN to search my Slack for discussions about the Q1 roadmap."_
+That is it. Claude can now use YARNNN tools in any conversation. Try asking: _"Use YARNNN to search my Slack for discussions about the Q1 roadmap."_
 
 <figure><img src="../.gitbook/assets/mcp connect - claud.png" alt=""><figcaption></figcaption></figure>
 
@@ -114,26 +115,25 @@ Replace `YOUR_TOKEN` with your bearer token. YARNNN tools will be available in y
 
 Once connected, your AI tool has access to these YARNNN capabilities:
 
-| What you can ask for                 | What happens                                                   |
-| ------------------------------------ | -------------------------------------------------------------- |
-| "Check my YARNNN status"             | Shows connected platforms, sync freshness, active agents |
-| "Search my Slack/Gmail/Notion for X" | Searches your synced content across platforms                  |
-| "What does YARNNN know about me?"    | Shows your profile, preferences, and learned patterns          |
-| "List my agents"               | Shows all configured agents with schedules               |
-| "Run my weekly digest"               | Triggers a agent to generate a new version now           |
-| "Show my latest status report"       | Retrieves the most recent agent output                   |
+| What you can ask for | What happens |
+|---|---|
+| "Check my YARNNN status" | Shows connected platforms, sync freshness, and active agents |
+| "Search my Slack/Gmail/Notion for X" | Searches synced content across platforms |
+| "What does YARNNN know about me?" | Shows profile, preferences, and learned patterns |
+| "List my agents" | Shows configured agents with schedules |
+| "Run my weekly digest" | Triggers an agent to generate a new run |
+| "Show my latest status report" | Retrieves the latest agent output |
 
 ## Tips
 
-* **Be specific about YARNNN** — say "use YARNNN to search..." so your AI tool knows to use the connector rather than general web search
-* **Works alongside other tools** — YARNNN adds to what Claude/ChatGPT can already do, it doesn't replace anything
-* **Same data, different interface** — everything available via the connector is the same data you see on yarnnn.com
-* **Synced content only** — the connector can only access content from platforms and sources you've already connected and synced in YARNNN
+* **Be explicit** — say "use YARNNN to..." so Claude or ChatGPT uses the connector instead of guessing
+* **Same substrate, different interface** — the connector exposes the same YARNNN context you use in the product
+* **Best after first sync** — the connector is most useful once YARNNN already has grounded context to work with
 
 ## FAQ
 
 **Does this cost extra?** No. The MCP connector is included with your YARNNN plan. It uses the same usage limits as the YARNNN web app.
 
-**Can Claude/ChatGPT modify my YARNNN data?** The connector can trigger agent runs, but it cannot modify your settings, disconnect platforms, or change your profile. It's primarily read-access with the ability to trigger existing agents.
+**Can Claude/ChatGPT modify my YARNNN data?** The connector can trigger existing work, but it is not a general-purpose admin surface for changing all of your settings.
 
-**Do I need to keep yarnnn.com open?** No. The connector works independently. You set up your platforms and agents on yarnnn.com, then use them from Claude or ChatGPT without needing the YARNNN tab open.
+**Do I need to keep yarnnn.com open?** No. Set up platforms and agents once, then use them from Claude or ChatGPT without keeping the YARNNN tab open.

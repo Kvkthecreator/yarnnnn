@@ -1,63 +1,60 @@
 # How YARNNN Learns
 
-Most AI tools are stateless — they start fresh every time you use them. YARNNN is different. It **learns from how you work** and gets better the longer you use it.
+YARNNN improves because it accumulates signal over time instead of starting from zero each session.
 
-## Three ways YARNNN learns
+## Three inputs drive improvement
 
-### 1. From your conversations
+### 1. Your synced work context
 
-When you tell the assistant things like "I prefer bullet points" or "my team has 8 people," YARNNN remembers. These preferences and facts are stored and applied automatically in future sessions.
+As Slack, Gmail, Notion, Calendar, and documents accumulate, later runs can reason from a richer substrate than earlier runs.
 
-You don't need to repeat yourself. Tell YARNNN once, and it knows going forward.
+This is not just retrieval. It is continuity.
 
-### 2. From your edits
+### 2. Your feedback
 
-Every time you edit a agent before approving it, YARNNN pays attention to *what you changed*:
+Approvals, edits, and corrections matter.
 
-- You shortened the intro? YARNNN learns to write shorter intros.
-- You always add a TL;DR? YARNNN starts including one automatically.
-- You prefer a more formal tone? Next version will match.
+If you repeatedly:
 
-These aren't one-time adjustments — they become permanent preferences that improve every future agent.
+- shorten intros
+- ask for more action items
+- remove low-signal details
+- shift the tone toward a specific audience
 
-### 3. From your patterns
+YARNNN treats that as learning signal for future work.
 
-YARNNN quietly observes how you use it:
+### 3. Prior runs
 
-- Which agents you run most often
-- What time of day you typically review things
-- Which types of edits you make consistently
+Previous outputs are useful context too.
 
-These patterns inform suggestions (like recommending a new agent type) and improve timing and formatting of existing ones.
+That means an agent can improve not only from raw platform content, but from what it has already produced and what you taught it about those results.
 
-## What YARNNN remembers
+## What this looks like over time
 
-| What it learns | How it helps |
+| Timeframe | What usually changes |
 |---|---|
-| Your name, role, and company | Personalizes everything from the start |
-| Writing style preferences | Matches your tone and format |
-| Standing instructions | "Always include action items" is applied everywhere |
-| Edit patterns | Anticipates your changes before you make them |
-| Usage patterns | Optimizes timing and suggestions |
+| Week 1 | You calibrate structure, tone, and source coverage |
+| Month 1 | Agents start matching your preferences more reliably |
+| Month 3 | Cross-platform output becomes more specific and useful |
+| Longer-term | The system reflects accumulated understanding, not just recent messages |
 
-## You're always in control
+## What YARNNN may learn
 
-Everything YARNNN learns is visible and editable. Go to the **Context** page to:
+- your preferred structure and level of detail
+- recurring priorities for certain audiences
+- which sources consistently matter
+- how to shape output for specific workflows
+- what kinds of edits you make repeatedly
 
-- **See** everything YARNNN knows about you
-- **Edit** anything that's wrong or outdated
-- **Delete** memories you don't want
-- **Add** new preferences or instructions manually
+## You stay in control
 
-The system learns automatically, but you own the data and can override anything at any time.
+Learning is meant to reduce repetition, not remove oversight.
 
-## The compounding effect
+You can still:
 
-Here's why this matters:
+- edit outputs directly
+- refine agent instructions through TP
+- change source coverage
+- remove or correct information that is no longer useful
 
-- **Week 1**: YARNNN produces decent first drafts. You edit them.
-- **Month 1**: Drafts are noticeably better. Less editing needed.
-- **Month 3**: Agents feel like they were written by someone who knows you.
-- **Month 6+**: The system has built a deep understanding of your work — preferences, context history, patterns. Switching to another tool would mean starting from zero.
-
-This isn't just convenience. It's a compounding advantage — **the longer you use YARNNN, the more valuable it becomes, because it accumulates understanding that no other tool has**.
+The model is supervised improvement, not blind autonomy.

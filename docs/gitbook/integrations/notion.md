@@ -1,31 +1,32 @@
 # Notion Integration
 
-Connect Notion so YARNNN can read your documents and databases, and include them in agents and AI assistant responses.
+Connect Notion so YARNNN can use your docs and databases as structured background context.
 
 ## What YARNNN can do with Notion
 
-- **Answer questions** — "What's the current status of Project Alpha according to our Notion tracker?"
-- **Reference docs** — pull information from your pages when generating agents
-- **Search your knowledge base** — find relevant content using meaning-based search, not just keywords
-- **Cross-reference** — combine Notion content with Slack, Gmail, and Calendar
+- answer questions grounded in docs and project pages
+- use written documentation inside summaries, briefs, and research
+- search across synced documentation semantically
+- combine formal written context with live discussion from other platforms
 
 ## Setup
 
 1. Go to **Context** → click **Connect** on Notion
 2. Authorize YARNNN through Notion's login screen
-3. Select which pages and databases YARNNN should sync
+3. Let YARNNN apply smart default page coverage for the first sync
+4. Refine selected pages and databases later if needed
 
 **YARNNN is read-only** — it reads page content but never creates, edits, or deletes pages in your Notion workspace.
 
-## Tips for getting the most out of Notion
+## Tips
 
-- **Sync pages you actively reference** in your day-to-day work
-- Databases are synced with their properties and all child pages
-- Content updates are picked up on each sync cycle
-- You can change your page selection at any time
+- prioritize pages you actually use to make decisions
+- Notion becomes more valuable when paired with Slack or Gmail
+- trim low-value docs if summaries become too diffuse
+- use Notion-heavy coverage for status and research agents
 
 ## Example agents using Notion
 
-- **Project status report** — pulls current status from a Notion database
-- **Weekly knowledge digest** — summarizes updates to key Notion pages
-- **Cross-platform brief** — combines Notion docs + Slack discussions + Gmail threads
+- project status report
+- weekly doc summary
+- cross-platform brief grounded in docs and discussions

@@ -1,31 +1,32 @@
 # Gmail Integration
 
-Connect Gmail so YARNNN can reference your emails and include them in agents and AI assistant responses.
+Connect Gmail so YARNNN can understand the email side of your work and fold it into grounded output.
 
 ## What YARNNN can do with Gmail
 
-- **Answer questions** — "What did Sarah say about the budget in her last email?"
-- **Produce email digests** — automatic summaries of important emails
-- **Include email context** in agents like status reports
-- **Cross-reference** — combine email context with Slack, Notion, and Calendar
+- answer questions about important threads
+- produce email digests and client recaps
+- use inbox context in status, prep, and research agents
+- combine email with Slack, Notion, and Calendar context
 
 ## Setup
 
 1. Go to **Context** → click **Connect** on Gmail
 2. Authorize YARNNN through Google's login screen
-3. Select which labels YARNNN should follow (e.g., Inbox, Important, custom labels)
+3. Let YARNNN apply smart default label coverage for the first sync
+4. Refine labels later if you want a narrower or broader view
 
 **YARNNN is read-only** — it reads email content but never sends, drafts, or deletes emails.
 
-## Tips for getting the most out of Gmail
+## Tips
 
-- **Start with your most important labels** — Inbox and Important are good starting points
-- Project-specific labels work well if you organize email by topic
-- Only email body text is synced — attachments are not accessed
-- You can change your label selection at any time
+- Inbox and Important are usually strong starting points
+- project-specific labels work well when you want a focused agent
+- narrow coverage if your first digest is too broad
+- use Gmail together with Calendar for better meeting prep
 
 ## Example agents using Gmail
 
-- **Weekly inbox digest** — summary of key emails from the past week
-- **Client communication recap** — pulls from a client-specific label
-- **Cross-platform status report** — combines Gmail + Slack context
+- weekly inbox digest
+- client communication recap
+- stakeholder status update combining Gmail and Slack

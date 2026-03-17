@@ -1,6 +1,6 @@
 # API Reference
 
-YARNNN exposes a REST API for chat, integrations, and agent lifecycle management.
+YARNNN exposes a REST API for chat, integrations, agents, knowledge, and account state.
 
 ## Base URL
 
@@ -15,8 +15,12 @@ https://api.yarnnn.com
 | Chat | `/api/chat` |
 | Agents | `/api/agents` |
 | Integrations | `/api/integrations` |
+| Knowledge | `/api/knowledge` |
+| Documents | `/api/documents` |
+| Subscription | `/api/subscription` |
 | Limits | `/api/user/limits` |
 | System | `/api/system` |
+| Account | `/api/account` |
 
 ## Health check
 
