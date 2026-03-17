@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.8] - Unified Feedback Substrate (ADR-117 Phase 1)
+
+### Changed
+- `api/services/execution_strategies.py`: All four strategies (PlatformBound, CrossPlatform, Research, Analyst) now load agent workspace context via `load_context()`. Raw `_get_past_versions_context()` injection removed — workspace `memory/preferences.md` is the single feedback substrate. Dead helper `_get_past_versions_context()` deleted (singular implementation).
+- `api/services/composer.py`: Lifecycle underperformer path writes coaching feedback to `memory/supervisor-notes.md` via `write_supervisor_notes()`. Composer can now coach agents, not just pause them.
+
+### Added
+- `api/services/feedback_distillation.py`: New module — `distill_feedback_to_workspace()` converts cumulative edit patterns from `agent_runs` into structured behavioral directives in `memory/preferences.md`. `write_supervisor_notes()` bridges Composer lifecycle to agent workspace.
+- `api/routes/agents.py`: PATCH version endpoint triggers async feedback distillation after edit metrics are computed. Every user feedback event updates the agent's workspace preferences.
+
+### Expected behavior
+- **Digest agents gain longitudinal memory.** Previously, digest agents received only a platform dump and raw edit patterns. Now they load their full workspace context (AGENT.md + thesis + memory/preferences.md + observations). Quality compounds across runs.
+- **Feedback distillation converts raw patterns to directives.** "User added: action items" across 4 runs becomes "Always include an Action Items section" in preferences.md. Overwritten each distillation — represents current best understanding.
+- **Composer coaching is visible to agents.** When an underperformer is monitored (not yet paused), Composer writes specific coaching to supervisor-notes.md. The agent sees this on its next run.
+- **No new LLM calls.** Distillation is pure logic; workspace writes use existing AgentWorkspace abstraction.
+
+---
+
 ## [2026.03.17.7] - Consumption Tracking & Composer Dependency Graph (ADR-116 Phase 5)
 
 ### Added

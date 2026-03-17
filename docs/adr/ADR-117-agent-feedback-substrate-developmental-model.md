@@ -1,6 +1,6 @@
 # ADR-117: Agent Feedback Substrate & Developmental Model
 
-**Status:** Proposed (Phase 1 ready for implementation)
+**Status:** Phase 1 Implemented, Phases 2-3 Proposed
 **Date:** 2026-03-17
 **Builds on:** ADR-101 (Intelligence Model), ADR-106 (Workspace Architecture), ADR-109 (Agent Framework), ADR-111 (Composer)
 **Unparks:** `docs/analysis/agent-developmental-model-considerations.md` (was blocked on TP Composer clarity — ADR-111 now implemented)

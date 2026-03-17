@@ -1258,7 +1258,7 @@ async def update_run(
     # Verify ownership through agent
     check = (
         auth.client.table("agents")
-        .select("id, title, destination")
+        .select("id, title, skill, scope, destination")
         .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1358,6 +1358,19 @@ async def update_run(
             ))
         except Exception:
             pass  # Non-fatal
+
+    # ADR-117 Phase 1: Distill cumulative feedback into workspace preferences
+    if request.final_content or request.feedback_notes:
+        try:
+            from services.feedback_distillation import distill_feedback_to_workspace
+            import asyncio
+            asyncio.create_task(distill_feedback_to_workspace(
+                client=auth.client,
+                user_id=auth.user_id,
+                agent=check.data,
+            ))
+        except Exception:
+            pass  # Non-fatal — feedback persists in agent_runs regardless
 
     return VersionResponse(
         id=v["id"],

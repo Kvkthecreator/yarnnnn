@@ -73,6 +73,7 @@ class PlatformBoundStrategy(ExecutionStrategy):
         agent: dict,
     ) -> GatheredContext:
         from services.platform_content import get_content_summary_for_generation
+        from services.workspace import AgentWorkspace, get_agent_slug
 
         sources = agent.get("sources", [])
         # Infer primary platform from sources (first provider found)
@@ -82,7 +83,6 @@ class PlatformBoundStrategy(ExecutionStrategy):
             if p:
                 primary_platform = p
                 break
-        agent_id = agent.get("id")
 
         context_parts = []
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
@@ -142,10 +142,16 @@ class PlatformBoundStrategy(ExecutionStrategy):
         if memories:
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
-        # Add past version feedback
-        past_context = await _get_past_versions_context(client, agent_id)
-        if past_context:
-            context_parts.append(past_context)
+        # ADR-117: Load workspace context (preferences, thesis, observations)
+        # Replaces raw get_past_versions_context() — workspace is the single feedback substrate
+        try:
+            ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+            workspace_context = await ws.load_context()
+            if workspace_context:
+                context_parts.append(f"[AGENT WORKSPACE]\n{workspace_context}")
+                result.sources_used.append("workspace")
+        except Exception as e:
+            logger.warning(f"[PLATFORM_BOUND] Workspace load failed: {e}")
 
         result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
         result.summary["sources_used"] = result.sources_used
@@ -177,9 +183,9 @@ class CrossPlatformStrategy(ExecutionStrategy):
         agent: dict,
     ) -> GatheredContext:
         from services.platform_content import get_content_summary_for_generation
+        from services.workspace import AgentWorkspace, get_agent_slug
 
         sources = agent.get("sources", [])
-        agent_id = agent.get("id")
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
@@ -232,10 +238,15 @@ class CrossPlatformStrategy(ExecutionStrategy):
         if memories:
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
-        # Add past version feedback
-        past_context = await _get_past_versions_context(client, agent_id)
-        if past_context:
-            context_parts.append(past_context)
+        # ADR-117: Load workspace context (preferences, thesis, observations)
+        try:
+            ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+            workspace_context = await ws.load_context()
+            if workspace_context:
+                context_parts.append(f"[AGENT WORKSPACE]\n{workspace_context}")
+                result.sources_used.append("workspace")
+        except Exception as e:
+            logger.warning(f"[CROSS_PLATFORM] Workspace load failed: {e}")
 
         result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
         result.summary["sources_used"] = result.sources_used
@@ -293,11 +304,6 @@ class ResearchStrategy(ExecutionStrategy):
         memories = await _get_user_memories(client, user_id)
         if memories:
             context_parts.append(f"[USER CONTEXT]\n{memories}")
-
-        # 3. Add past version feedback
-        past_context = await _get_past_versions_context(client, agent.get("id"))
-        if past_context:
-            context_parts.append(past_context)
 
         result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No platform context available — use WebSearch for research.)"
 
@@ -358,12 +364,10 @@ class AnalystStrategy(ExecutionStrategy):
         if memories:
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
-        # 3. Add past version feedback
-        past_context = await _get_past_versions_context(client, agent_id)
-        if past_context:
-            context_parts.append(past_context)
+        # ADR-117: Workspace load_context() already includes memory/preferences.md
+        # No separate _get_past_versions_context() needed — workspace is the substrate
 
-        # 4. Build research directive so agent knows to use QueryKnowledge + WebSearch
+        # 3. Build research directive so agent knows to use QueryKnowledge + WebSearch
         research_directive = _build_analyst_directive(title, description)
         result.summary["research_directive"] = research_directive
 
@@ -484,17 +488,8 @@ async def _get_user_memories(client, user_id: str) -> str:
         return ""
 
 
-async def _get_past_versions_context(client, agent_id: str) -> str:
-    """Get past version feedback for learning."""
-    if not agent_id:
-        return ""
-
-    try:
-        from services.agent_pipeline import get_past_versions_context
-        return await get_past_versions_context(client, agent_id)
-    except Exception as e:
-        logger.warning(f"[STRATEGY] Failed to get past versions: {e}")
-        return ""
+# ADR-117: _get_past_versions_context() removed — workspace preferences.md is the
+# single feedback substrate. All strategies now load workspace via load_context().
 
 
 async def _fetch_other_source(client, source: dict) -> str:
