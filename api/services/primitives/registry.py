@@ -37,6 +37,7 @@ from .workspace import (
     READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
+from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -207,6 +208,8 @@ PRIMITIVES = [
     READ_AGENT_CONTEXT_TOOL,
     # User memory — chat only (ADR-108)
     SAVE_MEMORY_TOOL,
+    # Runtime dispatch — headless only (ADR-118)
+    RUNTIME_DISPATCH_TOOL,
 ]
 
 
@@ -235,6 +238,7 @@ HANDLERS: dict[str, Callable] = {
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentContext": handle_read_agent_context,
     "SaveMemory": handle_save_memory,
+    "RuntimeDispatch": handle_runtime_dispatch,
 }
 
 
@@ -326,6 +330,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "ReadAgentContext":       ["headless"],
     # User memory — chat only (ADR-108)
     "SaveMemory":             ["chat"],
+    # Runtime dispatch — headless only (ADR-118)
+    "RuntimeDispatch":        ["headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.

@@ -30,6 +30,7 @@ async def send_email(
     text: Optional[str] = None,
     from_email: Optional[str] = None,
     reply_to: Optional[str] = None,
+    attachments: Optional[list[dict]] = None,
 ) -> EmailResult:
     """
     Send an email via Resend API.
@@ -41,6 +42,8 @@ async def send_email(
         text: Plain text email body (optional, recommended)
         from_email: Sender address (defaults to env var)
         reply_to: Reply-to address (optional)
+        attachments: List of attachment dicts with {filename, path} or {filename, content} (base64)
+                     See https://resend.com/docs/api-reference/emails/send-email#body-parameters
 
     Returns:
         EmailResult with success status and message_id or error
@@ -69,6 +72,9 @@ async def send_email(
 
     if reply_to:
         payload["reply_to"] = reply_to
+
+    if attachments:
+        payload["attachments"] = attachments
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

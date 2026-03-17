@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.14] - RuntimeDispatch primitive + render infrastructure (ADR-118 Phase B)
+
+### Added
+- `api/services/primitives/runtime_dispatch.py`: New `RuntimeDispatch` primitive — headless-only. Allows agents to dispatch rendering (PDF, PPTX, XLSX, charts) during generation. Calls `yarnnn-render` service, uploads to Supabase Storage, writes `workspace_files` row with `content_url`.
+- `api/services/primitives/registry.py`: Registered `RuntimeDispatch` in PRIMITIVES, HANDLERS, and PRIMITIVE_MODES (headless only).
+- `render/`: New render service directory — FastAPI app with 4 handlers: document (pandoc → PDF/DOCX), presentation (python-pptx → PPTX), spreadsheet (openpyxl → XLSX), chart (matplotlib → PNG/SVG).
+
+### Changed
+- `api/services/workspace.py`: `WorkspaceFile` dataclass gains `content_url` field. `read_file()` select includes `content_url`.
+- `api/integrations/exporters/resend.py`: Email delivery now queries `workspace_files` for rendered artifacts with `content_url IS NOT NULL` and includes download links in an "Attachments" section at the bottom of the email.
+- `api/jobs/email.py`: `send_email()` gains optional `attachments` parameter (Resend API attachment support).
+
+### Expected behavior
+- **Headless agents can produce rich artifacts.** RuntimeDispatch is available alongside WriteWorkspace, QueryKnowledge, WebSearch in headless mode. Agents call it to render structured data into downloadable files.
+- **Rendered files appear as email download links.** When a run produces rendered outputs, the Resend exporter includes them as clickable links in the email body.
+- **Workspace tracks rendered outputs.** Every rendered file gets a `workspace_files` row with `content_url` pointing to Supabase Storage. The `content` column stores the spec/description that generated it.
+
+---
+
 ## [2026.03.17.13] - Delivery-aware skill prompts (ADR-118 Phase A)
 
 ### Changed

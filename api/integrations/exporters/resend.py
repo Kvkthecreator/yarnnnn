@@ -116,6 +116,44 @@ class ResendExporter(DestinationExporter):
             logger.warning(f"[RESEND_EXPORT] HTML generation failed, using plain: {e}")
             html_body = f"<html><body><pre style='white-space:pre-wrap;font-family:sans-serif;'>{content}</pre></body></html>"
 
+        # ADR-118: Query for rendered artifacts and include download links
+        try:
+            agent_id = metadata.get("agent_id", "")
+            if agent_id:
+                from services.supabase import get_service_client
+                svc = get_service_client()
+                rendered = (
+                    svc.table("workspace_files")
+                    .select("path, content_url, content_type, metadata")
+                    .eq("user_id", context.user_id)
+                    .like("path", "/agents/%/outputs/%")
+                    .not_.is_("content_url", "null")
+                    .order("updated_at", desc=True)
+                    .limit(5)
+                    .execute()
+                )
+                if rendered.data:
+                    links = []
+                    for f in rendered.data:
+                        fname = f["path"].rsplit("/", 1)[-1]
+                        url = f["content_url"]
+                        size = (f.get("metadata") or {}).get("size_bytes", 0)
+                        size_str = f" ({size // 1024}KB)" if size > 0 else ""
+                        links.append(
+                            f'<li><a href="{url}" style="color:#6366f1;text-decoration:underline;">'
+                            f'{fname}</a>{size_str}</li>'
+                        )
+                    if links:
+                        attachment_html = (
+                            '<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">'
+                            '<p style="margin:0 0 8px 0;font-weight:600;font-size:14px;">Attachments</p>'
+                            f'<ul style="margin:0;padding-left:20px;">{"".join(links)}</ul>'
+                            '</div>'
+                        )
+                        html_body = html_body.replace("</body>", f"{attachment_html}</body>")
+        except Exception as e:
+            logger.debug(f"[RESEND_EXPORT] Rendered artifact query failed (non-fatal): {e}")
+
         try:
             result = await send_email(
                 to=target,

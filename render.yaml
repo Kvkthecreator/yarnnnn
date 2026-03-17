@@ -44,6 +44,21 @@ services:
         sync: false
     healthCheckPath: /health
 
+  # Render Service (ADR-118 Phase B) — agent artifact production
+  - type: web
+    name: yarnnn-render
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: render/Dockerfile
+    dockerContext: render
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+    healthCheckPath: /health
+
 # Cron Jobs
 crons:
   # Unified Scheduler (ADR-017 + ADR-018)

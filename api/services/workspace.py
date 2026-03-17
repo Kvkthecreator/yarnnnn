@@ -33,6 +33,7 @@ class WorkspaceFile:
     content_type: str = "text/markdown"
     metadata: dict = None
     tags: list[str] = None
+    content_url: Optional[str] = None
     updated_at: Optional[datetime] = None
 
     def __post_init__(self):
@@ -97,7 +98,7 @@ class AgentWorkspace:
         try:
             result = (
                 self._db.table("workspace_files")
-                .select("path, content, summary, content_type, metadata, tags, updated_at")
+                .select("path, content, summary, content_type, metadata, tags, content_url, updated_at")
                 .eq("user_id", self._user_id)
                 .eq("path", path)
                 .limit(1)

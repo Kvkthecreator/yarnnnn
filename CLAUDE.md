@@ -89,7 +89,7 @@ Before completing work:
 
 ### 5. Render Service Parity
 
-YARNNN runs on **4 Render services** that share code and env vars (ADR-083: worker + Redis removed). When changing environment variables, secrets, or architectural patterns, check ALL services:
+YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: render service added). When changing environment variables, secrets, or architectural patterns, check ALL services:
 
 | Service | Type | Render ID |
 |---------|------|-----------|
@@ -97,8 +97,9 @@ YARNNN runs on **4 Render services** that share code and env vars (ADR-083: work
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
 | yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
+| yarnnn-render | Web Service (Docker) | `TBD — create via dashboard` |
 
-All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks.
+All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Render service is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib).
 
 **Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
 - `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
@@ -113,17 +114,25 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 
 **MCP Auth model** (ADR-075): OAuth 2.1 for Claude.ai/ChatGPT (auto-approve, tokens stored in `mcp_oauth_*` tables). Static bearer token fallback for Claude Desktop/Code. See `api/mcp_server/oauth_provider.py`.
 
+**Render service env vars** (independent Docker service — ADR-118):
+- `SUPABASE_URL` — For storage uploads
+- `SUPABASE_SERVICE_KEY` — For storage uploads (service key, same as Schedulers)
+
+**RuntimeDispatch env var** (must be on API + Unified Scheduler):
+- `RENDER_SERVICE_URL` — URL of yarnnn-render service (defaults to `https://yarnnn-render.onrender.com`)
+
 **Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
 
 **Impact triggers** — if you change any of these, check the affected services:
 | If you change... | Also check... |
 |-----------------|--------------|
-| Env vars (any) | All 4 services — use Render MCP `update_environment_variables` |
+| Env vars (any) | All 5 services — use Render MCP `update_environment_variables` |
 | OAuth flow / token handling | Unified Scheduler + Platform Sync (they decrypt & use tokens) |
 | Supabase schema (RPC, tables, RLS) | Unified Scheduler + Platform Sync + MCP Server (all use service key) |
 | Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
 | Platform sync logic | Platform Sync cron (runs `platform_worker.py`) |
 | MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
+| Render service / artifact rendering | yarnnn-render (independent Docker service, ADR-118) |
 
 **Note**: All platforms (Slack, Notion, Gmail, Calendar) use Direct API clients — no gateway service needed (ADR-076).
 
@@ -207,7 +216,7 @@ You MUST:
 - `agent_type` — column on `agents` table, **DEPRECATED** by ADR-109 — being replaced by `scope` + `skill`
 - `agent_instructions` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `AGENT.md`
 - `agent_memory` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `memory/*.md`
-- `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search
+- `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search; `content_url` column for rendered binary files (ADR-118)
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
@@ -292,6 +301,8 @@ You MUST:
 | Tier Limits | `api/services/platform_limits.py` |
 | Agent Scheduler | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075, ADR-116 Phase 4: 9 tools) |
+| Render Service | `render/` (ADR-118: pandoc, python-pptx, openpyxl, matplotlib) |
+| RuntimeDispatch Primitive | `api/services/primitives/runtime_dispatch.py` (ADR-118) |
 | Frontend API Client | `web/lib/api/client.ts` |
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding UI | `web/components/onboarding/` |
