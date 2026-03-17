@@ -3,7 +3,7 @@
 **Status:** Implemented (Phases 1-5) — Revised 2026-03-16
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
-**Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture)
+**Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture), ADR-116 (Agent Identity & Inter-Agent Knowledge — extends Composer with agent dependency graph and supply chain reasoning)
 **Analysis:** [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../architecture/FOUNDATIONS.md)
 
 ---
@@ -245,6 +245,7 @@ All agent creation paths now funnel through single `create_agent_record()`.
 - **TP gets a heartbeat** — periodic self-assessment closes the gap between reactive-only TP and the autonomous system vision
 - **Cohesive but controllable** — three bounded contexts can be independently tier-gated
 - **Platform dependency decreases over time** — Composer's assessment increasingly uses recursive substrate (agent outputs, user feedback), not just platform data
+- **Agent supply chain reasoning** (future, ADR-116 Phase 5) — Composer will reason about agent dependency graphs: which agents produce knowledge, which consume it, and where the supply chain has gaps (orphaned producers, missing producers, stale dependencies)
 
 ### Negative
 - **Composer assessment quality** — auto-created agents may not match user intent (mitigated: feedback loop + stop/edit/delete)

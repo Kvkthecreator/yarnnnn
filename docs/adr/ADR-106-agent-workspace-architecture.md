@@ -255,10 +255,11 @@ PRIMITIVE_MODES = {
 
 ### Phase 3: Interop and UI
 
-1. Expose workspace files as MCP resources
+1. Expose workspace files as MCP resources — see [ADR-116](ADR-116-agent-identity-inter-agent-knowledge.md) Phase 4 for MCP tool specifications (`get_agent_card`, `search_knowledge`, `discover_agents`)
 2. Workspace browser in frontend UI (inspect agent state, edit directives)
-3. A2A Agent Card generation from workspace
-4. Evaluate cloud storage migration (S3/GCS) based on scale needs
+3. A2A Agent Card auto-generation from AGENT.md + thesis.md — see [ADR-116](ADR-116-agent-identity-inter-agent-knowledge.md) Phase 4 for agent-card.json schema
+4. Cross-agent workspace reading (read-only) — see [ADR-116](ADR-116-agent-identity-inter-agent-knowledge.md) Phase 3 for `ReadAgentContext` primitive
+5. Evaluate cloud storage migration (S3/GCS) based on scale needs
 
 ---
 
@@ -266,8 +267,8 @@ PRIMITIVE_MODES = {
 
 1. **Reasoning agents that improve with tenure.** Thesis evolves across runs. Observations compound. Working notes persist.
 2. **Inspectable agent intelligence.** Users browse workspace files. Debug by reading, not querying.
-3. **Cross-agent intelligence.** Coordinator reads child agents' theses. Agents reference each other's workspace items.
-4. **Protocol-native interop.** Workspace files map directly to MCP resources and A2A capabilities.
+3. **Cross-agent intelligence.** Coordinator reads child agents' theses. Agents reference each other's workspace items. See [ADR-116](ADR-116-agent-identity-inter-agent-knowledge.md) for agent discovery, cross-agent reading, and consumption tracking.
+4. **Protocol-native interop.** Workspace files map directly to MCP resources and A2A capabilities. Agent card auto-generated from workspace (ADR-116 Phase 4).
 5. **Storage-agnostic future.** Abstraction layer preserves optionality. Swap Postgres for S3 without changing agent code.
 
 ---

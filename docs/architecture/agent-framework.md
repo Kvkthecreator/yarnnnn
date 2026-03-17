@@ -7,6 +7,7 @@
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies
 - [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem, three storage domains
+- [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — agent discovery, cross-agent reading, agent cards, MCP exposure
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md)
 - [Analysis: Agent Taxonomy First Principles](../analysis/agent-taxonomy-first-principles-2026-03-12.md) — full discourse and stress-testing
@@ -107,10 +108,11 @@ SKILL_PRIMITIVES = {
     "prepare":      ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "WebSearch"],
     "monitor":      ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace"],
     "research":     ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "WebSearch", "ReadWorkspace", "WriteWorkspace", "SearchWorkspace"],
-    "synthesize":   ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "SearchWorkspace"],
-    "orchestrate":  ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "CreateAgent", "AdvanceAgentSchedule"],
+    "synthesize":   ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "SearchWorkspace", "DiscoverAgents", "ReadAgentContext"],
+    "orchestrate":  ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "CreateAgent", "AdvanceAgentSchedule", "DiscoverAgents", "ReadAgentContext"],
     "act":          ["Search", "Read", "QueryKnowledge", "SlackReply", "SlackPost", "SendEmail", "UpdateNotionPage"],  # future, gated by ActionPolicy
 }
+# DiscoverAgents, ReadAgentContext: ADR-116 — inter-agent discovery and cross-agent workspace reading
 ```
 
 ### Action capability is policy, not dimension

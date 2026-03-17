@@ -176,7 +176,7 @@ Composer does NOT need direct platform access. It reads the *accumulated results
 
 1. **Frequency of knowledge query:** Should the workspace_files count be cached per-heartbeat, or is the query cheap enough to run every cycle?
 2. **Theme extraction:** Phase 2 mentions "topics repeated in digests" — this requires either keyword extraction from recent /knowledge/ files or a lightweight embedding query. Defer to Phase 3?
-3. **Cross-agent consumption tracking:** How do we know which agents read /knowledge/ vs raw platform_content? Need provenance tracking in workspace reads.
+3. **Cross-agent consumption tracking:** How do we know which agents read /knowledge/ vs raw platform_content? Need provenance tracking in workspace reads. **CRITICAL — resolved by [ADR-116](ADR-116-agent-identity-inter-agent-knowledge.md) Phase 5:** consumption log tracks agent-to-agent references, Composer builds dependency graph for supply chain reasoning (orphaned producers, missing producers, stale dependencies).
 
 ## References
 

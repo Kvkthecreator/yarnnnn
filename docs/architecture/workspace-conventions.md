@@ -62,8 +62,12 @@ YARNNN's workspace conventions deliberately mirror Claude Code's filesystem mode
 ├── runs/                       # Immutable output history
 │   └── v{N}.md                 # Output + metadata per execution
 │
-└── references/                 # (future) Cross-agent references
-    └── {ref}.md                # Cached content from other agents/sources
+├── references/                 # Cross-agent references (ADR-116)
+│   └── {agent-slug}.md         # Cached identity/thesis from referenced agent
+│
+└── agent-card.json             # Auto-generated agent identity card (ADR-116 Phase 4)
+                                # Machine-readable: skill, scope, thesis summary, maturity
+                                # Regenerated on each run
 ```
 
 ### Knowledge Filesystem (shared, agent-produced — ADR-107)
@@ -220,16 +224,17 @@ When extending the workspace with new file types:
 - `agent_instructions` column migrated to `AGENT.md` as source of truth
 - `user_memory` KV table migrated to `/memory/` filesystem (ADR-108)
 
-### Phase 3 (planned)
+### Phase 3 (planned — see [ADR-116](../adr/ADR-116-agent-identity-inter-agent-knowledge.md))
+- `agent-card.json` auto-generated from AGENT.md + thesis.md + maturity signals (ADR-116 Phase 4)
+- `references/{agent-slug}.md` for cross-agent cached identity/thesis (ADR-116 Phase 3)
+- MCP resource URI mapping: `workspace://agents/{slug}/AGENT.md` (ADR-116 Phase 4)
+- MCP tools: `get_agent_card`, `search_knowledge`, `discover_agents` (ADR-116 Phase 4)
 - `hooks/` directory for agent-level event triggers
-- `agent-card.json` for A2A interop (auto-generated from AGENT.md + thesis)
-- MCP resource URI mapping: `workspace://agents/{slug}/AGENT.md`
 - Workspace browser UI for inspecting/editing agent state
 
 ### Future (speculative)
-- `references/` for cross-agent cached content
 - Cloud storage backend (S3/GCS) via abstraction layer swap
-- Agent-to-agent workspace sharing protocols
+- Agent-to-agent workspace sharing protocols beyond read-only
 
 ---
 
@@ -238,6 +243,7 @@ When extending the workspace with new file types:
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR with convention spec
 - [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` shared filesystem
 - [ADR-108: User Memory Filesystem Migration](../adr/ADR-108-user-memory-filesystem-migration.md) — `/memory/` global user state
+- [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — agent discovery, cross-agent reading, agent cards, references/ spec
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer model mapped to workspace
 - [Naming Conventions](naming-conventions.md) — broader YARNNN naming system
 - [Agent Execution Model](agent-execution-model.md) — how orchestration invokes agents
