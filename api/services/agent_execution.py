@@ -196,9 +196,10 @@ def _build_headless_system_prompt(
     research_directive: Optional[str] = None,
     agent: Optional[dict] = None,
     user_context: Optional[list] = None,
+    workspace_preferences: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081/087/101/109).
+    Build system prompt for headless mode generation (ADR-080/081/087/101/109/117).
 
     Args:
         skill: The agent skill (digest, prepare, synthesize, etc.)
@@ -206,12 +207,10 @@ def _build_headless_system_prompt(
         research_directive: Optional research instruction for research-scope agents
         agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
+        workspace_preferences: Optional workspace memory/preferences.md content (ADR-117)
 
     Returns:
         Complete system prompt string
-
-    Note: Feedback/learned preferences are in workspace memory/preferences.md,
-    loaded by strategies via load_context() into gathered context (ADR-117).
     """
     prompt = f"""You are generating a {skill} agent.
 
@@ -277,8 +276,16 @@ The user has set these behavioral directives for this agent:
         if memory_parts:
             prompt += "\n\n## Agent Memory\n" + "\n".join(memory_parts)
 
-    # ADR-117: Learned preferences now in workspace memory/preferences.md,
-    # loaded by all strategies via load_context(). No system prompt injection needed.
+    # ADR-117: Inject learned preferences into system prompt for high salience.
+    # Preferences are distilled from edit patterns by feedback_distillation.py
+    # and stored in workspace memory/preferences.md.
+    if workspace_preferences:
+        prompt += f"""
+
+## Learned Preferences (from user edit history)
+{workspace_preferences}
+
+Follow these preferences closely — they reflect what the user has consistently edited in past outputs."""
 
     # ADR-081: Research directive overrides default tool guidance
     if research_directive:
@@ -399,8 +406,8 @@ async def generate_draft_inline(
             if priorities:
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
-    # ADR-117: Feedback preferences now in workspace memory/preferences.md,
-    # loaded by strategies via load_context(). No separate injection needed.
+    # ADR-117: Preferences read from workspace and injected into system prompt
+    # via _build_headless_system_prompt(workspace_preferences=...) for high salience.
 
     # ADR-106 Phase 2: Load intelligence from workspace (source of truth)
     from services.workspace import AgentWorkspace, get_agent_slug
@@ -409,6 +416,7 @@ async def generate_draft_inline(
 
     # Read workspace-based intelligence
     ws_instructions = await ws.read("AGENT.md") or ""
+    ws_preferences = await ws.read("memory/preferences.md") or ""
     ws_observations = await ws.get_observations()
     ws_review_log = await ws.get_review_log()
     ws_goal = await ws.get_goal()
@@ -426,7 +434,6 @@ async def generate_draft_inline(
     }
 
     # Build skill-specific prompt (user message)
-    # ADR-117: Feedback preferences in workspace memory/preferences.md, loaded by strategies
     prompt = build_skill_prompt(
         skill=skill,
         config=type_config,
@@ -462,6 +469,7 @@ async def generate_draft_inline(
     # ADR-109: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
         skill, trigger_context, research_directive, workspace_agent, user_context,
+        workspace_preferences=ws_preferences,
     )
 
     # ADR-109: Tool round limit based on scope

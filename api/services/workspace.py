@@ -508,6 +508,12 @@ class AgentWorkspace:
                 continue
             content = await self.read(f"memory/{filename}")
             if content:
+                # ADR-117: Window observations to last 10 entries to prevent token bloat.
+                # Observations append forever; only recent entries are useful signal.
+                if filename == "observations.md":
+                    lines = content.strip().split("\n")
+                    if len(lines) > 10:
+                        content = "\n".join(lines[-10:])
                 label = filename.replace(".md", "").replace("-", " ").title()
                 parts.append(f"## Memory: {label}\n{content}")
 

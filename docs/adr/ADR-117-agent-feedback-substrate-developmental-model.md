@@ -215,7 +215,7 @@ Phase 3 may require:
 
 | Component | Before ADR-117 | After ADR-117 |
 |-----------|----------------|---------------|
-| Digest agent feedback | Raw edit pattern injection via `get_past_versions_context()` | Distilled `preferences.md` via workspace `load_context()` |
+| Digest agent feedback | Raw edit pattern injection via `get_past_versions_context()` | Distilled `preferences.md` — dual-injected: system prompt (high salience) + gathered context via `load_context()` |
 | Digest agent memory | None — no workspace context loaded | Full workspace: AGENT.md + thesis + memory + preferences |
 | Composer → agent coaching | Composer pauses/promotes but can't coach | `supervisor-notes.md` in agent workspace |
 | Agent self-reflection | Analyst/research only (in `_build_analyst_directive`) | All skills — `_extract_run_observation()` + `record_observation(source="self")` in `agent_execution.py` |
@@ -231,6 +231,14 @@ Phase 3 may require:
 | **ADR-109** | Scope × Skill × Trigger remains the initial configuration. Intentions (Phase 3) extend, not replace — an agent gains intentions while preserving its seed taxonomy. |
 | **ADR-111** | Composer gains coaching capability (supervisor-notes). Intention proposal is a new Composer action alongside create/observe/adjust/dissolve. |
 | **FOUNDATIONS.md** | Axiom 3 (Agents as Developing Entities) is formalized. Axiom 5 (TP's Compositional Capability) extended with coaching write-path. |
+
+## Implementation Notes (Post-E2E Qualitative Fixes)
+
+Two qualitative issues identified after E2E testing passed:
+
+1. **Preferences prompt position (fixed):** `preferences.md` was only loaded via `load_context()` into gathered context (user message), where it could be drowned out by platform data. Fix: `_build_headless_system_prompt()` now accepts `workspace_preferences` and injects them as `## Learned Preferences` in the system prompt — same salience as Agent Instructions. Dual injection preserved (system prompt + user message), matching ADR-104 pattern.
+
+2. **Observation token bloat (fixed):** `observations.md` appends forever with no pruning. After 50+ runs, the full file wastes context window on repetitive entries. Fix: `load_context()` windows observations to last 10 entries. Full history preserved in workspace for manual review.
 
 ## What This Is NOT
 

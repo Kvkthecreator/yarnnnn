@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.12] - Preferences system prompt injection + observation windowing (ADR-117)
+
+### Changed
+- `api/services/agent_execution.py`: `_build_headless_system_prompt()` now accepts `workspace_preferences` param and injects `memory/preferences.md` content into the system prompt under "## Learned Preferences". Previously preferences were only in the user-message context blob where they could be drowned out by platform data.
+- `api/services/agent_execution.py`: `generate_draft_inline()` reads `memory/preferences.md` from workspace and passes it to the system prompt builder.
+- `api/services/workspace.py`: `load_context()` now windows `observations.md` to last 10 entries. Prevents token bloat as observations accumulate over many runs.
+
+### Expected behavior
+- **Preferences have high salience.** Injected into system prompt alongside Agent Instructions and Agent Memory — same position as behavioral directives. The model sees "Always include Action Items (added in 4/5 runs)" at the same priority level as user instructions, not buried after 3000 tokens of Slack messages.
+- **Dual injection preserved.** Preferences still appear in gathered context via `load_context()` (user message) AND in system prompt. Matches ADR-104 pattern for agent_instructions.
+- **Observation window.** After 50 runs, only the last 10 observations are loaded. Full history preserved in workspace file for manual review. No information loss — just context window efficiency.
+
+---
+
 ## [2026.03.17.11] - Remove dead past_versions from skill prompts (ADR-117 cleanup)
 
 ### Removed
