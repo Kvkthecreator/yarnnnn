@@ -1097,7 +1097,7 @@ async def get_source_freshness(
             result.append(SourceFreshnessItem(
                 source_index=idx,
                 source_type=source_type,
-                provider=source.get("provider"),
+                provider=source.get("provider") or source.get("platform"),
                 last_fetched_at=completed_at,
                 last_status=latest.get("status"),
                 items_fetched=latest.get("items_fetched", 0),
@@ -1108,7 +1108,7 @@ async def get_source_freshness(
             result.append(SourceFreshnessItem(
                 source_index=idx,
                 source_type=source_type,
-                provider=source.get("provider"),
+                provider=source.get("provider") or source.get("platform"),
                 last_fetched_at=None,
                 last_status=None,
                 items_fetched=0,

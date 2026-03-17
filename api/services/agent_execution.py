@@ -919,11 +919,11 @@ async def execute_agent_generation(
         # Build snapshot from the agent's source configs
         sources_for_snapshot = []
         for source in agent.get("sources", []):
-            if source.get("type") == "integration_import":
+            if source.get("provider") or source.get("platform"):
                 sources_for_snapshot.append({
-                    "platform": source.get("provider"),
-                    "resource_id": source.get("resource_id"),
-                    "resource_name": source.get("resource_name"),
+                    "platform": source.get("provider") or source.get("platform"),
+                    "resource_id": source.get("resource_id") or source.get("id"),
+                    "resource_name": source.get("resource_name") or source.get("name"),
                     "user_id": user_id,
                 })
         await record_source_snapshots(

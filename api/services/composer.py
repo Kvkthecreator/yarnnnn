@@ -173,7 +173,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             # Source-based detection (populated agents)
             for src in (agent.get("sources") or []):
                 if isinstance(src, dict):
-                    provider = src.get("provider")
+                    provider = src.get("provider") or src.get("platform")
                     if provider:
                         platforms_with_digest.add(provider)
             # Title-based detection (bootstrap agents with empty sources)

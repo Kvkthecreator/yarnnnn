@@ -403,7 +403,7 @@ def _infer_source_platform(sources: list) -> str:
     if not sources:
         return "default"
     for source in sources:
-        provider = source.get("provider", "")
+        provider = source.get("provider") or source.get("platform", "")
         if provider in _PLATFORM_DIGEST_SIGNALS:
             return provider
     return "default"
