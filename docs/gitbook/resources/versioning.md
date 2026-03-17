@@ -18,18 +18,19 @@ Public docs may simplify. They should not contradict canonical docs.
 
 | Field | Value |
 |---|---|
-| Last synced (UTC) | `2026-03-04 07:33:57Z` |
-| Docs version | `v5.0.0-docs.20260304` |
+| Last synced (UTC) | `2026-03-17 02:18:50Z` |
+| Docs version | `v5.0.0-docs.20260317` |
 | API version | `5.0.0` |
 | Web version | `5.0.0` |
-| Source commit | `45ff552` |
-| Source range | `c190893..45ff552` |
-| New commits since last sync | `0` |
+| Source commit | `147a7bc` |
+| Source range | `45ff552..147a7bc` |
+| New commits since last sync | `157` |
 
 ## Recent sync history
 
 | Synced at (UTC) | Docs version | Commit | Range | Commits |
 |---|---|---|---|---|
+| `2026-03-17 02:18:50Z` | `v5.0.0-docs.20260317` | `147a7bc` | `45ff552..147a7bc` | `157` |
 | `2026-03-04 07:32:45Z` | `v5.0.0-docs.20260304` | `45ff552` | `0c9ab5e..45ff552` | `18` |
 <!-- GITBOOK_VERSIONING_END -->
 
