@@ -7,8 +7,8 @@ Computes edit metrics between draft and final content:
 - Structured diff for review
 
 These metrics feed the Feedback layer of the agent intelligence model
-(ADR-101). get_past_versions_context() in agent_pipeline.py aggregates
-them into "learned preferences" injected into the headless system prompt.
+(ADR-101). feedback_distillation.py distills them into workspace
+memory/preferences.md, loaded by all strategies via load_context() (ADR-117).
 """
 
 import re

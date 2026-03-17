@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.9] - Singular Implementation Cleanup (ADR-117)
+
+### Removed
+- `api/services/agent_execution.py`: Removed `get_past_versions_context` import, `learned_preferences` parameter from `_build_headless_system_prompt()`, and `## Learned Preferences` system prompt injection block. Feedback preferences are now loaded from workspace `memory/preferences.md` via strategy-level `load_context()`.
+- `api/services/agent_pipeline.py`: Deleted `get_past_versions_context()` function entirely (was ~40 lines). This was the last remaining dual feedback path — raw edit pattern injection alongside workspace preferences.
+- `api/services/feedback_engine.py`: Updated docstring to reference `feedback_distillation.py` instead of removed function.
+
+### Expected behavior
+- **One feedback path, not two.** Before this change, agents received feedback via both workspace preferences (new) AND raw `learned_preferences` injection in the system prompt (old). Now only workspace preferences exist — singular implementation per ADR-117.
+- **No behavioral change for agents.** The same feedback signals reach agents, just through the workspace substrate instead of direct prompt injection.
+
+---
+
 ## [2026.03.17.8] - Unified Feedback Substrate (ADR-117 Phase 1)
 
 ### Changed

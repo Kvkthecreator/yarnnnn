@@ -9,7 +9,7 @@ Contains:
 - SKILL_PROMPTS: Per-skill prompt templates for LLM synthesis
 - build_skill_prompt(): Assembles prompt from agent config
 - validate_output(): Per-skill output validation
-- get_past_versions_context(): Past version feedback for learning
+- (ADR-117: get_past_versions_context removed — feedback in workspace preferences.md)
 """
 
 import logging
@@ -604,48 +604,8 @@ def validate_output(skill: str, content: str, config: dict) -> dict:
 
 
 
-async def get_past_versions_context(client, agent_id: str) -> str:
-    """
-    Get context from past versions including feedback patterns.
-
-    Returns a formatted string with learned preferences from edit history.
-    """
-    # Get recent versions with edits (ADR-101: include 'delivered' for delivery-first model)
-    versions_result = (
-        client.table("agent_runs")
-        .select("version_number, edit_categories, edit_distance_score, feedback_notes")
-        .eq("agent_id", agent_id)
-        .in_("status", ["approved", "delivered"])
-        .order("version_number", desc=True)
-        .limit(5)
-        .execute()
-    )
-
-    versions = versions_result.data or []
-
-    if not versions:
-        return ""
-
-    # Aggregate feedback patterns
-    patterns = []
-    for v in versions:
-        categories = v.get("edit_categories", {})
-        if categories:
-            if categories.get("additions"):
-                patterns.append(f"User added: {', '.join(categories['additions'][:3])}")
-            if categories.get("deletions"):
-                patterns.append(f"User removed: {', '.join(categories['deletions'][:3])}")
-
-        if v.get("feedback_notes"):
-            patterns.append(f"Feedback: {v['feedback_notes']}")
-
-    if not patterns:
-        return ""
-
-    return f"""
-LEARNED PREFERENCES (from past versions):
-{chr(10).join(f'- {p}' for p in patterns[:10])}
-
-Apply these preferences when producing this version."""
+# ADR-117: get_past_versions_context() removed — feedback now distilled to
+# workspace memory/preferences.md by feedback_distillation.py.
+# All strategies load preferences via AgentWorkspace.load_context().
 
 

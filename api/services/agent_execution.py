@@ -32,7 +32,6 @@ This module replaces:
 Preserves from agent_pipeline.py:
 - Skill-specific prompts (SKILL_PROMPTS, build_skill_prompt)
 - Output validation (validate_output)
-- Past versions context (get_past_versions_context)
 """
 
 import logging
@@ -196,7 +195,6 @@ def _build_headless_system_prompt(
     research_directive: Optional[str] = None,
     agent: Optional[dict] = None,
     user_context: Optional[list] = None,
-    learned_preferences: Optional[str] = None,
 ) -> str:
     """
     Build system prompt for headless mode generation (ADR-080/081/087/101/109).
@@ -207,10 +205,12 @@ def _build_headless_system_prompt(
         research_directive: Optional research instruction for research-scope agents
         agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
-        learned_preferences: Optional formatted string from get_past_versions_context()
 
     Returns:
         Complete system prompt string
+
+    Note: Feedback/learned preferences are in workspace memory/preferences.md,
+    loaded by strategies via load_context() into gathered context (ADR-117).
     """
     prompt = f"""You are generating a {skill} agent.
 
@@ -276,9 +276,8 @@ The user has set these behavioral directives for this agent:
         if memory_parts:
             prompt += "\n\n## Agent Memory\n" + "\n".join(memory_parts)
 
-    # ADR-101: Inject learned preferences (feedback from past version edits)
-    if learned_preferences:
-        prompt += f"\n\n## Learned Preferences\n{learned_preferences}"
+    # ADR-117: Learned preferences now in workspace memory/preferences.md,
+    # loaded by all strategies via load_context(). No system prompt injection needed.
 
     # ADR-081: Research directive overrides default tool guidance
     if research_directive:
@@ -378,7 +377,6 @@ async def generate_draft_inline(
     from services.agent_pipeline import (
         build_skill_prompt,
         validate_output,
-        get_past_versions_context,
     )
 
     agent_id = agent.get("id")
@@ -400,8 +398,8 @@ async def generate_draft_inline(
             if priorities:
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
-    # Get past versions context for feedback patterns
-    past_versions = await get_past_versions_context(client, agent_id) if agent_id else ""
+    # ADR-117: Feedback preferences now in workspace memory/preferences.md,
+    # loaded by strategies via load_context(). No separate injection needed.
 
     # ADR-106 Phase 2: Load intelligence from workspace (source of truth)
     from services.workspace import AgentWorkspace, get_agent_slug
@@ -464,7 +462,6 @@ async def generate_draft_inline(
     # ADR-109: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
         skill, trigger_context, research_directive, workspace_agent, user_context,
-        learned_preferences=past_versions,
     )
 
     # ADR-109: Tool round limit based on scope
