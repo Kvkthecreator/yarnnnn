@@ -1,6 +1,6 @@
 # Skills as the Capability Layer: From Text Substrate to General-Purpose Agent Execution
 
-> **Status**: Analysis / Discourse
+> **Status**: ADR-118 formalized. Phase A implemented (delivery-by-default). Phase B proposed (render service).
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Context**: Observation that Claude Code's skill pattern (Remotion for video, pptx/xlsx/docx for documents) proves that structured instructions + filesystem = indefinitely expandable agent capabilities. What does this mean for yarnnn?
@@ -265,7 +265,7 @@ In a mature A2A ecosystem, yarnnn agents would delegate to specialized external 
 
 **Verdict**: Architecturally elegant, practically premature. The dispatch primitive should be designed to accommodate this path — if the adapter interface is clean, swapping "call CloudConvert API" for "delegate to document-agent via A2A" is a configuration change, not a rewrite.
 
-### Decision: Path B now, designed for Path C later
+### Decision: Hybrid (Path A for lightweight + Path B for heavy), designed for Path C later
 
 The dispatch primitive should be adapter-based:
 
@@ -382,17 +382,19 @@ Phase 1: Template parameterization
   └─ Composer aware of available templates when scaffolding
   └─ No runtime adapter yet — the "rendering" is client-side or deferred
 
-Phase 2: First runtime adapter + feedback loop
-  └─ One adapter (document conversion: markdown+template → .docx/.pdf)
+Phase 2: Render service + first capability + feedback loop
+  └─ Deploy yarnnn-render on Render (one service, fat Docker image)
+  └─ First local handler: pandoc (markdown+template → .docx/.pdf)
   └─ workspace_files extended with content_url (S3-backed)
   └─ Feedback mechanism for non-text outputs designed and built
   └─ Capability gating: agents earn RuntimeDispatch via approval history
   └─ Full recursive loop: render → deliver → user feedback → agent learns → better render
 
-Phase 3: Adapter generalization
-  └─ Second adapter (image or video rendering)
-  └─ Adapter registry formalized (config-driven)
-  └─ Cost tracking per-adapter per-agent
+Phase 3: Capability expansion
+  └─ Additional local handlers (python-pptx, matplotlib, pillow)
+  └─ First delegated adapter (Remotion Cloud for video)
+  └─ Capability registry formalized (config-driven)
+  └─ Cost tracking per-capability per-agent
   └─ Only after Phase 2's feedback loop is proven
 
 Phase 4: Ecosystem (monitor, don't build yet)
@@ -411,6 +413,217 @@ Claude Code gains capabilities by installing skills. Yarnnn gains capabilities b
 This is the self-awareness the evolution requires. Yarnnn can have indefinitely many capabilities — but each agent earns its capabilities individually, through demonstrated quality, accumulated feedback, and graduated trust. The platform doesn't "get video" — a specific agent earns the ability to render video after proving it understands the domain well enough for that output to be worth rendering.
 
 This is the moat. It's not the runtime adapter (anyone can call an API). It's the judgment about when a rendered output is warranted, accumulated over every previous run's feedback.
+
+---
+
+## Decision Validation: Stress-Testing the Derived Approach
+
+Before hardening this into an implementation plan, each axiom-derived constraint was challenged with its strongest counter-argument.
+
+### Challenge 1: "Earned runtime" creates a worse first-run experience
+
+**Counter**: If rendering capabilities exist, why force a new agent through 5 runs of plain markdown before it can produce a PDF? The user's first impression is ugly text, not a polished document. That's a worse product.
+
+**Resolution**: Template parameterization (Phase 1) is available from day one. Composer can scaffold a bootstrap agent that uses a pre-built template immediately — choosing the right template + filling parameters is not a capability that needs to be earned. What's earned is *generative* runtime dispatch (Phase 2+) — producing novel output structures without template guardrails. The distinction: templated rendering = supervised mode (no gate). Generative rendering = autonomous mode (gated). This means the user's first digest can arrive as a branded PDF if a template exists. The gate only applies to unconstrained rendering.
+
+**Verdict**: Constraint holds, but the documentation must be explicit that templates are ungated. Updated in phasing.
+
+### Challenge 2: Metadata-as-accumulation is over-engineering
+
+**Counter**: Most users just want the PDF. Is the workspace row + metadata framing adding real value or philosophical overhead?
+
+**Resolution**: Without the metadata, the agent has no record of what it produced, what parameters it used, or what feedback it received. It literally cannot improve on the next run. And cross-agent perception (ADR-116) already requires workspace rows for inter-agent reads. This isn't new infrastructure — it's using what exists. The metadata is also small (one row per output, not a new table), and the schema change is minimal (`content_url` column on `workspace_files`).
+
+**Verdict**: Not over-engineering. It's the mechanism that makes the feedback loop possible. **Strong hold.**
+
+### Challenge 3: Capability gating adds premature complexity
+
+**Counter**: For a 1-person team, automated capability gating (tracking approval rates, defining thresholds) is premature. Just ship rendering for all agents and gate later.
+
+**Resolution**: The gating doesn't need to be automated in Phase 2. It starts as a Composer heuristic — a conditional in Composer's scaffolding prompt: "If the agent has a template and 3+ approved runs, include RuntimeDispatch in its primitive set." That's a prompt change, not a system. Automated gating (threshold tracking, auto-promotion) comes in Phase 3+ if the pattern warrants it.
+
+**Verdict**: Constraint holds with simplified implementation. Gating = Composer prompt heuristic, not an automated system.
+
+### Challenge 4: "Depth over breadth" loses the positioning battle
+
+**Counter**: If a competitor ships video + documents + images + social and yarnnn only has documents, does "one adapter done well" lose the market?
+
+**Resolution**: The target audience (knowledge workers) already has Canva, Google Docs, Figma, etc. for format variety. What they don't have is an agent that produces a better report each week because it learned from their feedback. The value proposition is "your agent improves with tenure" — not "your agent supports 5 formats." For spray-and-pray marketing tools, breadth matters. For accumulated-quality autonomous agents, depth is the differentiator. If the audience shifts toward content-creator personas, revisit — but the current ICP validates depth.
+
+**Verdict**: Holds for current audience. Flag as a monitoring point if ICP evolves.
+
+### Challenge 5: Zero-config limits power users
+
+**Counter**: Some users want to choose adapters, set quality parameters, configure rendering options. Zero-config as a hard constraint limits the product ceiling.
+
+**Resolution**: Zero-config is the default, not the ceiling. The same pattern as source selection (ADR-113): auto-discovered by default, manually refinable through chat surface (ADR-105) or context pages. Power users modify agent instructions, swap templates, adjust output parameters. Zero-config means the first experience is effortless, not that configuration is impossible.
+
+**Verdict**: Holds. Zero-config default + optional refinement.
+
+### Infrastructure Model: Hybrid Render Service
+
+The infrastructure decision was re-evaluated from first principles against code maintenance, scalability, cost, and stability. The result: a **hybrid render service** — one self-hosted Render web service for lightweight transformations, with delegation to third-party APIs for heavy compute.
+
+#### The service
+
+One new Render web service (`yarnnn-render`). Fat Docker image (~800MB-1GB) bundling lightweight Python/CLI tools. Single `POST /render` endpoint that routes internally by capability type. For capabilities that exceed what the service can handle (video, AI images), the same endpoint delegates to third-party APIs. The agent never knows which path runs.
+
+#### Capability classification
+
+**Local handlers** (bundled in Docker image, fixed cost, no external dependencies):
+
+| Capability | Tool | Render time | RAM | Docker footprint |
+|---|---|---|---|---|
+| Documents (md → docx/pdf) | pandoc | 100-500ms | <128MB | ~200MB |
+| Presentations (spec → pptx) | python-pptx | 200-800ms | <128MB | ~50MB |
+| Spreadsheets (spec → xlsx) | openpyxl | 100-300ms | <128MB | ~30MB |
+| Charts/visualizations | matplotlib + plotly | 200-1000ms | <256MB | ~300MB |
+| Simple images (template → png/svg) | pillow + cairosvg | 100-500ms | <128MB | ~150MB |
+| Email templates | jinja2 + mjml | <100ms | <64MB | ~20MB |
+| Data exports (csv, json) | stdlib | <50ms | <64MB | 0 |
+
+All handlers: CPU-fast (<1s), low-memory (<256MB), stateless. This covers the vast majority of knowledge-worker output types.
+
+**Delegated to third-party APIs** (per-call cost, heavy compute):
+
+| Capability | Service | Why not local | Cost/call | Phase |
+|---|---|---|---|---|
+| Video rendering | Remotion Cloud / Shotstack | 2-4GB RAM, 30-120s, headless Chrome | $0.05-0.50 | Phase 3 |
+| AI image generation | Replicate / Together / OpenAI | Needs GPU | $0.01-0.10 | Phase 3 |
+| Audio generation | ElevenLabs / future | Specialized model | $0.01-0.05 | Phase 4+ |
+
+**Routing heuristic**: if a capability fits in <256MB RAM and <5s render time → local. Otherwise → delegated. This boundary is stable as capabilities grow.
+
+#### Why hybrid beats the alternatives
+
+| Dimension | Pure third-party (CloudConvert) | Pure self-hosted (Lambda) | Hybrid render service |
+|---|---|---|---|
+| **Code maintenance** | Low code, but API versioning + vendor monitoring | High — AWS IAM, CloudWatch, per-function deploys | Medium — one Dockerfile, pinned deps, quarterly updates |
+| **Scalability** | Their problem, but rate limits yours | Your problem, full control | Fixed cost for 80%, delegated for 20% |
+| **Cost at 1K agents/wk** | ~$40/mo | ~$7/mo + AWS overhead | ~$7/mo (local) + ~$0 (no delegated yet) |
+| **Cost at 10K agents/wk** | ~$400/mo | ~$14/mo + AWS overhead | ~$14/mo + ~$200/mo (delegated) |
+| **Stability** | Third-party uptime for ALL renders | Your uptime for ALL renders | Your uptime for core 80%, third-party for heavy 20% |
+| **Ops overhead** | API keys, webhooks, polling, vendor monitoring | AWS account, IAM, CloudWatch, cold starts | One Render service (same as existing 4) |
+
+### Cost Model (Hybrid)
+
+| Scale | Local renders (fixed) | Delegated renders (variable) | Total render | Claude API (reference) | Render as % of API |
+|---|---|---|---|---|---|
+| 50 agents/week | $7/mo | $0 | $7/mo | $100-250/mo | 3-7% |
+| 200 agents/week | $7/mo | ~$5/mo | $12/mo | $400-1,000/mo | 1-3% |
+| 1,000 agents/week | $7/mo | ~$25/mo | $32/mo | $2,000-5,000/mo | 0.6-1.6% |
+| 5,000 agents/week | $14/mo (2 instances) | ~$100/mo | $114/mo | $10,000-25,000/mo | 0.5-1.1% |
+| 10,000 agents/week | $14/mo | ~$200/mo | $214/mo | $20,000-50,000/mo | 0.4-1.1% |
+
+**Key insight**: render cost stays under 3% of Claude API cost at every scale. The local portion is fixed. The variable portion only kicks in for heavy capabilities (Phase 3+). Cost model does not change business fundamentals.
+
+**Comparison to pure third-party at scale**:
+
+| Scale | CloudConvert (all renders) | Hybrid | Annual savings |
+|---|---|---|---|
+| 1,000 agents/week | ~$40/mo | $7/mo | $396/yr |
+| 10,000 agents/week | ~$400/mo | $14/mo (local only) | $4,632/yr |
+
+### Scalability Assessment
+
+The bottleneck at scale is not the render service:
+
+- **Agent pipeline** (Claude API calls): Already the scaling constraint. Runtime dispatch adds one local function call (~100-500ms) — faster than an external API call.
+- **Render service**: Stateless. Each render is independent. A single $7/mo Render instance handles hundreds of renders per hour. Horizontal scaling (2-3 instances) handles thousands.
+- **S3 storage**: Scales indefinitely. Only needed for binary outputs (PDFs are small; video is Phase 3+).
+- **Feedback metadata**: One `workspace_files` row per output. Postgres handles millions trivially.
+- **Indefinite capabilities**: Adding a new local handler doesn't change the scaling profile. The service handles N types at the same throughput because each render is independent and fast. The Docker image can hold 15-20 capability types before reaching ~2-3GB (well within Render's limits).
+
+### Stability Assessment
+
+**Local handlers**: no external API calls during rendering. If Render is up (and your other 4 services already depend on this), rendering is up. Pandoc, python-pptx, matplotlib — among the most stable libraries in the Python ecosystem. No rate limits. No third-party deprecation. No pricing surprises.
+
+**Delegated handlers**: third-party uptime, but blast radius is contained. If Remotion Cloud is down, only video agents are affected. Text, document, presentation, chart agents all continue on the local path. This is a strict improvement over pure third-party (where CloudConvert downtime affects ALL rendering).
+
+**Operational overhead for a 1-person team**: one Dockerfile to maintain (quarterly dependency updates, CI-tested). One Render service to monitor (same dashboard as existing 4). No API keys for local handlers (only for delegated ones when added in Phase 3+). Less operational surface than a CloudConvert integration (no webhook handlers, no polling, no vendor monitoring for the core path).
+
+### Future-Proofing Assessment
+
+The adapter interface (`execute(spec) → RuntimeResult`) accommodates all foreseeable execution models:
+
+| Future scenario | Change required | Agent-facing change |
+|---|---|---|
+| New local capability (e.g., audio waveform) | Add handler function + pip dependency | None |
+| Promote delegated → local (e.g., self-host video) | Move handler from external adapter to local | None |
+| A2A ecosystem matures | New delegated adapter class | None |
+| Desktop/local component | New adapter routing to user's machine | None |
+| Docker image too large (15+ capabilities) | Split into "light" and "heavy" services | None |
+
+The service architecture allows capability migration in both directions (local ↔ delegated) without changing the agent-facing contract. The cost of being wrong on any individual capability classification is one code change.
+
+### Validation Summary
+
+All five axiom-derived constraints hold under stress testing. The main refinements:
+
+1. **Templates are ungated** — only generative runtime dispatch is earned. Bootstrap agents can use templates from day one.
+2. **Capability gating starts as a Composer prompt heuristic**, not an automated system. Automated gating deferred to Phase 3+.
+3. **Cost is negligible** relative to existing Claude API spend (<10% marginal increase).
+4. **Depth-over-breadth holds for current ICP** (knowledge workers). Monitor if audience shifts.
+5. **Adapter interface is future-proof** because the abstraction is at the right layer and the cost of being wrong is low.
+
+**Decision confidence: High.** No counter-argument undermined the core approach. The refinements are implementation details, not directional changes.
+
+---
+
+## Terminology & Capability Model
+
+### The SKILL.md vs AGENT.md Question
+
+Claude Code uses SKILL.md to teach an agent *how* to do something (render video, build spreadsheets). Yarnnn uses AGENT.md to define *who* the agent is (identity, directives, memory references). These are different concerns:
+
+- **AGENT.md** = identity + behavioral directives (WHO the agent is)
+- **SKILL.md** (Claude Code) = capability instructions (HOW to use a tool/runtime)
+
+In Claude Code, these conflate because sessions are stateless — the skill IS the agent for that session. In yarnnn, agents persist across runs with accumulated memory. An agent's identity is independent of any single capability.
+
+### Why SKILL.md Doesn't Port to Yarnnn
+
+Claude Code's skills are unbounded because the local machine is the runtime — any skill file can teach the agent to invoke any local tool. In yarnnn, capabilities are bounded by what the platform has adapters for. You can't install a "video rendering skill" if there's no video adapter. **The adapter defines the capability boundary, not the instruction file.**
+
+This means the skill concept is absorbed by the runtime registry. There's no separate "skill installation" step. The platform has an explicit set of capabilities (defined by adapters), and AGENT.md references which capabilities an agent is authorized to use.
+
+### The Capability Model
+
+| Concept | What it is | Where it lives | Who creates it |
+|---|---|---|---|
+| **Capability** | A runtime adapter the platform can dispatch to | Runtime registry (config) | Engineering (deliberate addition) |
+| **AGENT.md** | Agent identity, directives, capability authorizations | Agent workspace | Composer (scaffolding) + user (refinement) |
+| **Capability guide** | Shared reference: how to use a specific capability | `/capabilities/{name}/guide.md` in workspace | Engineering (per-adapter documentation) |
+| **Template** | Pre-built output structure an agent parameterizes | `/templates/{name}/` in workspace | Engineering + user uploads (brand kits) |
+
+### Explicit vs. Buffet
+
+The capability set is **explicit and curated**, not an open-ended buffet. Each capability requires:
+
+1. **An adapter** (engineering investment: 50-100 lines + error handling)
+2. **A cost model** (per-call pricing, tier gating rules)
+3. **A feedback mechanism** (how users provide input on this output type)
+4. **A capability guide** (shared instructions agents reference)
+
+This is a deliberate addition per capability, not a user-installable skill. The set grows with engineering investment and validation, not with user demand alone.
+
+**Why this is a feature, not a limitation**: it gives capability gating clear boundaries (Axiom 3), cost control (Axiom 4), quality assurance, and clear Composer inputs ("here are the N things agents can produce beyond text"). The Composer can only scaffold what it knows about — an explicit registry makes this deterministic.
+
+### Glossary Update
+
+For consistency across the codebase and documentation:
+
+| Term | Definition | Replaces |
+|---|---|---|
+| **Capability** | A registered, platform-level runtime adapter with defined I/O contracts | "skill" (in runtime context) |
+| **AGENT.md** | Per-agent identity file: directives, memory refs, capability authorizations | Unchanged from ADR-106 |
+| **Capability guide** | Shared documentation teaching agents how to use a specific capability | "skill file" (in yarnnn context) |
+| **Template** | Pre-built output structure parameterized by agents | New concept |
+| **Runtime adapter** | Code that dispatches a spec to an execution service and returns a result | New concept |
+| **Runtime registry** | Config mapping capability types to adapter classes | New concept |
+| **Capability gating** | The feedback-earned progression from text → template → generative rendering | Extension of Axiom 3 |
+
+**Note**: "Skill" remains valid in the ADR-109 Scope × Skill × Trigger taxonomy (where it means "what the agent does" — digest, prepare, monitor, etc.). The term is NOT used for runtime capabilities to avoid confusion with Claude Code's SKILL.md pattern.
 
 ---
 
@@ -470,11 +683,12 @@ Templates as a first-class concept, before any rendering:
 - **Why before runtime**: Axiom 3 — template parameterization is the "supervised" mode of runtime. The agent learns to produce structured specs before earning the ability to render them. If the spec is bad, rendering just makes a bad output look polished.
 - **Success metric**: agents produce structured output specs that are coherent and well-parameterized, even before rendering exists
 
-### Phase 2: First Runtime Adapter + Feedback Loop (Near-term+)
+### Phase 2: Render Service + First Capability + Feedback Loop (Near-term+)
 
-One adapter, end-to-end, with the full feedback mechanism:
-- `RuntimeDispatch` primitive added to agent pipeline (adapter-based, ~200 lines)
-- First adapter: document conversion (markdown + template → .docx/.pdf) via CloudConvert or minimal Cloud Run
+Deploy the hybrid render service, prove the pattern with one capability, build the feedback loop:
+- Deploy `yarnnn-render` on Render (5th service — Dockerfile + single endpoint)
+- `RuntimeDispatch` primitive added to agent pipeline (~200 lines)
+- First local handler: document conversion (markdown + template → .docx/.pdf) via pandoc
 - `workspace_files` extended with `content_url` column (S3-backed binary references)
 - **Critical design work**: feedback mechanism for non-text outputs — how does a user "edit" a PDF? Options: annotate, reject with comments, approve with notes, provide text-level edits the agent translates to next render
 - Capability gating: agents earn `RuntimeDispatch` access via approval history (Axiom 3)
@@ -482,14 +696,15 @@ One adapter, end-to-end, with the full feedback mechanism:
 - **Why the feedback loop is the hard part**: Axiom 4 — a rendered output without feedback is a dead artifact. The adapter is 50 lines. The feedback mechanism is the design problem that makes this valuable.
 - **Success metric**: an agent produces a formatted .docx weekly report, user provides feedback on it, next week's report is measurably better
 
-### Phase 3: Adapter Generalization (Medium-term — only after Phase 2 feedback loop is proven)
+### Phase 3: Capability Expansion (Medium-term — only after Phase 2 feedback loop is proven)
 
-Expand to additional output modalities:
-- Second adapter: Remotion Cloud rendering (single-frame images or full video)
-- Adapter registry formalized as config (JSON/YAML mapping runtime types to adapter classes)
-- Cost tracking per-adapter per-agent (for tier gating)
+Expand the render service with additional local handlers + first delegated capability:
+- Add local handlers: presentations (python-pptx), charts (matplotlib), simple images (pillow)
+- First delegated adapter: Remotion Cloud rendering for video (single-frame images or full video)
+- Capability registry formalized as config (JSON/YAML mapping types to local handlers or external adapters)
+- Cost tracking per-capability per-agent (for tier gating)
 - Feedback mechanism generalized across output types (some modalities may need different feedback patterns)
-- **Gate**: Phase 2's feedback loop must be working and producing measurable improvement before investing in additional adapters
+- **Gate**: Phase 2's feedback loop must be working and producing measurable improvement before investing in additional capabilities
 - **Success metric**: an agent produces branded social graphics that improve with user feedback across iterations
 
 ### Phase 4: Ecosystem Delegation (Future — monitor, don't build)
@@ -503,71 +718,60 @@ If the A2A/MCP ecosystem matures:
 
 ---
 
-## Open Questions for Continued Discourse
+## Open Questions (Remaining)
 
-1. **Skill marketplace**: If skills are infinitely composable, does yarnnn eventually have a skill marketplace? Users (or TP) install skills to expand agent capabilities, analogous to Claude Code's skill ecosystem.
+*Questions 1, 4, and 5 from v2 were resolved by the Terminology & Capability Model section (capabilities are explicit/curated, not a marketplace; templates precede generative rendering as a developmental stage; capability guides are engineering-authored, not user-installed).*
 
-2. **Runtime cost model**: Who pays for Lambda renders? Is this a tier-gated feature? Does the agent need to "budget" its runtime invocations?
+1. **Runtime cost model**: Tier-gated rendering? Per-call costs are low ($0.01/conversion) but at scale could be material. Should Pro tier include unlimited rendering while Free tier limits to N renders/month? Does the agent need to "budget" its runtime invocations?
 
-3. **Self-assessment for non-text outputs**: How does an agent evaluate whether its video/document/presentation is good? Can it invoke a review runtime (e.g., screenshot the first frame and analyze it) before delivering?
+2. **Self-assessment for non-text outputs**: How does an agent evaluate whether its document/video/presentation is good before delivering? Options: invoke a review step (e.g., screenshot first page, analyze via vision), compare against template expectations, or rely entirely on user feedback post-delivery. This is relevant for Phase 2 feedback loop design.
 
-4. **Template vs. generative**: Should agents primarily parameterize templates (safer, more predictable) or generate from scratch (more flexible, less predictable)? Is this a per-skill decision or a platform-wide stance?
+3. **Cross-agent capability awareness**: Can one agent read another's rendered outputs and metadata? Already possible via ReadAgentContext (ADR-116 Phase 3), but the question is whether capability metadata (what template was used, what parameters, what feedback) should be exposed cross-agent or kept private.
 
-5. **Skill authoring**: Who writes skills? If users can author skills (like Claude Code users can write SKILL.md files), the platform becomes extensible by users, not just by engineering. This maps to the "workspace IS identity" thesis from ADR-116.
-
-6. **Cross-agent skill sharing**: Can one agent's skill be readable by another? A "video" agent could read a "brand" agent's workspace to understand visual guidelines. This is already possible via ReadAgentContext (ADR-116 Phase 3) but the skill-awareness dimension is new.
+4. **Template authoring UX**: Users can upload brand kits / templates (Phase 1). What's the UX? File upload via chat? Dashboard page? Can TP help the user create a template from examples? This is a product design question, not an architecture question.
 
 ---
 
-## Decision Branches (Active)
+## Decision Branches
 
-Documenting the thought branches that remain open. These should be revisited as implementation progresses.
+### Resolved
 
-### Branch 1: Build vs. Buy for first runtime
+**Branch 2 (Template-first vs. generative-first)**: **Resolved — template-first.** The first-principles derivation (Axiom 3) makes this a developmental sequence, not a choice: templates are the supervised mode of runtime, generative rendering is the autonomous mode earned through feedback. Not a branch anymore — it's the phasing.
 
-**Option A**: Minimal Cloud Run service with pandoc (self-hosted, ~$5/mo on Render)
-- Pro: No third-party dependency, full control, no per-call cost
-- Con: Another service to maintain, deploy, monitor
+**Branch 1 (Build vs. Buy for first adapter)**: **Resolved — hybrid render service.** Self-hosted Render service for lightweight capabilities (documents, presentations, charts, images, spreadsheets — covering 80%+ of knowledge-worker output types). Third-party API delegation for heavy compute (video, AI images — Phase 3+). Re-assessment against code maintenance, scalability, cost projections, and stability all favor the hybrid model over pure third-party. See Infrastructure Model section for full analysis.
 
-**Option B**: CloudConvert API ($0.01/conversion, hosted)
-- Pro: Zero maintenance, battle-tested, supports 200+ formats
-- Con: Per-call cost, external dependency
-
-**Leaning**: Option B for speed of proof, with the understanding that the adapter interface makes swapping trivial. Don't over-invest in infrastructure before validating that users want formatted outputs.
-
-### Branch 2: Template-first vs. generative-first
-
-**Option A**: Agents parameterize pre-built templates (safer, more brand-consistent)
-**Option B**: Agents generate artifacts from scratch (more flexible, less predictable)
-
-**Leaning**: Template-first. The Remotion video templates and the brand design system already exist. Agents choosing the right template + filling parameters is a higher-confidence path than agents writing React from scratch. Generative can be layered on for advanced/mature agents.
+### Active
 
 ### Branch 3: When to expose this to users
 
-**Option A**: Build runtime dispatch as internal infrastructure, expose gradually
-**Option B**: Ship it as a visible feature ("your agents can now produce documents/videos")
+**Option A**: Build as internal infrastructure, expose gradually
+**Option B**: Ship as a visible feature
 
-**Leaning**: Option A first. Prove the pipeline works end-to-end with one agent type (e.g., weekly report as .docx). Once reliable, surface it as a capability users can see and request.
+**Leaning**: Option A. Prove the pipeline works end-to-end before marketing it. But note: if Composer auto-scaffolds agents with template capabilities (Axiom 6 — zero-config), users encounter it organically without a feature launch. The "exposure" may be implicit.
 
 ### Branch 4: Autonomous creative production pipeline
 
 The runtime layer + existing content strategy + autonomous agents = a system that could produce blog posts, cross-posts, social graphics, video clips, and email sequences autonomously, improving with tenure. The differentiator from existing AI content tools is quality through accumulated understanding, not volume through generation.
 
-**Not deciding this now.** Documenting the trajectory. The skills + runtime architecture makes this possible without additional conceptual work — it's a product positioning decision, not a technical one.
+**Not deciding this now.** Documenting the trajectory. This is a product positioning decision, not a technical one. The architecture supports it without additional conceptual work.
 
 ---
 
 ## Summary
 
-The insight is correct: skills are the indefinitely expandable capability layer, and the pattern already works for yarnnn's text substrate. The gaps are in execution (runtime dispatch) and delivery (binary output handling), not in the skill model itself.
+Skills are the indefinitely expandable capability layer. The pattern already works for yarnnn's text substrate. The gaps are in execution (runtime dispatch) and delivery (binary output handling), not in the skill model itself.
 
-**Key reframe from discourse**: the runtime layer does not require self-hosted infrastructure. Third-party APIs provide the same execution substrate via API calls — the same pattern yarnnn already uses for platform sync. The dispatch primitive is an adapter interface that can swap implementations without changing the agent-facing contract.
+**Infrastructure approach**: Hybrid render service. One new Render web service (`yarnnn-render`) with a fat Docker image bundling lightweight tools (pandoc, python-pptx, matplotlib, pillow, openpyxl). Single `POST /render` endpoint, routes internally by capability type. Heavy compute (video, AI images) delegated to third-party APIs via the same endpoint. Local handlers cover 80%+ of knowledge-worker output types at fixed cost ($7-14/mo). Render cost stays under 3% of Claude API spend at every scale. The adapter interface (`execute(spec) → RuntimeResult`) accommodates capability migration in both directions (local ↔ delegated) without agent-facing changes.
 
-**Key derivation from first principles**: the axioms converge on a specific approach that is more constrained than "just add API adapters." Runtime dispatch is an agent capability earned through feedback-gated progression, not a platform-wide feature. The implementation priority is feedback loop depth over runtime breadth. Templates precede rendering. The user never configures runtimes — Composer scaffolds agents with appropriate capabilities.
+**Capability model**: Capabilities are explicit and curated (not a buffet). Each requires an adapter, cost model, feedback mechanism, and capability guide. SKILL.md (Claude Code's pattern) does not port — capabilities are bounded by the adapter registry, not by instruction files. AGENT.md absorbs capability authorizations. The "skill" term in ADR-109 (digest, monitor, etc.) remains distinct from runtime capabilities.
 
-**Macro positioning**: yarnnn evolves toward a cloud-native agent platform with indefinitely expandable output modalities. The differentiator from Claude Code/OpenClaw is that capability expansion follows a developmental model (agents earn capabilities through tenure) rather than a stateless model (install skill, use immediately). The differentiator from AI content generators is quality through accumulated understanding rather than volume through generation.
+**Developmental model**: Runtime access follows the same earned-progression as other capabilities (Axiom 3). Templates are ungated (available from day one via Composer scaffolding). Generative runtime dispatch is earned through demonstrated quality. Capability gating starts as a Composer prompt heuristic, not an automated system.
 
-**Interim decision (high confidence)**: Proceed with the axiom-derived phasing — text substrate excellence → template parameterization → first runtime adapter with full feedback loop → adapter generalization → ecosystem delegation. Path B (third-party API orchestration) for adapters when they arrive. The feedback mechanism for non-text outputs is the hardest and most valuable design problem; solve it before scaling runtimes.
+**Implementation priority**: Feedback loop depth over runtime breadth (Axiom 4). One adapter with a working feedback mechanism is more valuable than five adapters with static output. The feedback mechanism for non-text outputs (how users "edit" a PDF) is the hardest and most valuable design problem.
+
+**Phasing**: Text substrate excellence → template parameterization → render service + first capability + feedback loop → capability expansion → ecosystem delegation.
+
+**Decision confidence**: High. All five axiom-derived constraints held under stress testing. Counter-arguments produced refinements (templates ungated, gating as heuristic, monitor ICP shifts) but no directional changes.
 
 ---
 
@@ -578,3 +782,5 @@ The insight is correct: skills are the indefinitely expandable capability layer,
 | 2026-03-17 | v1 — Initial analysis: skills as capability layer, execution substrate gap, implementation phases |
 | 2026-03-17 | v2 — Added runtime implementation paths (self-hosted Lambda vs. third-party API vs. A2A), macro positioning analysis, decision branches, revised implementation phases to reflect API-first approach |
 | 2026-03-17 | v3 — First-principles derivation from FOUNDATIONS.md axioms. Each axiom constrains the implementation space: runtime as agent capability (Ax1), output re-enters perception substrate (Ax2), runtime access earned through progression (Ax3), feedback loop depth over runtime breadth (Ax4), zero-config via Composer (Ax6). Revised phasing: templates precede runtime adapters. Upgraded interim decision to high confidence. Removed standalone competitor comparison, folded strategic insight into macro positioning. |
+| 2026-03-17 | v4 — Decision validation: stress-tested all five axiom-derived constraints against strongest counter-arguments. Added cost & operational model (runtime <10% marginal cost). Added scalability assessment (no new bottlenecks). Added future-proofing assessment (adapter interface accommodates all foreseeable models). Added Terminology & Capability Model section: resolved SKILL.md vs AGENT.md question (capabilities absorbed by runtime registry, explicit/curated set, SKILL.md doesn't port), glossary alignment. Key refinement: templates are ungated (bootstrap agents use from day one), only generative runtime dispatch is earned. Decision confidence: high. |
+| 2026-03-17 | v5 — Infrastructure model revised: hybrid render service replaces pure third-party API orchestration. One self-hosted Render service (`yarnnn-render`) for lightweight capabilities (pandoc, python-pptx, matplotlib, pillow, openpyxl — 80%+ of knowledge-worker outputs), third-party API delegation for heavy compute (video, AI images — Phase 3+). Full re-assessment against code maintenance (one Dockerfile < N API integrations), scalability (stateless, embarrassingly parallel, handles 15-20 capability types), cost projections (fixed $7-14/mo local + variable delegated, <3% of Claude API at all scales, saves $4.6K/yr vs CloudConvert at 10K agents), stability (no external dependencies for core path, blast radius contained for delegated). Branch 1 resolved. Capability classification table added (local vs. delegated with routing heuristic). Phasing updated: Phase 2 deploys render service, Phase 3 expands local handlers + adds first delegated adapter. |

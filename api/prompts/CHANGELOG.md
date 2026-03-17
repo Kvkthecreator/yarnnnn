@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.13] - Delivery-aware skill prompts (ADR-118 Phase A)
+
+### Changed
+- `api/services/agent_pipeline.py`: Added DELIVERY directive to `digest`, `prepare`, `synthesize`, `monitor`, and `research` skill prompts. Each now instructs the model that output will be emailed directly, and to write for mobile scanning — short paragraphs, bold key names/decisions, lead with action items.
+- `api/services/onboarding_bootstrap.py`: Bootstrap agents now set `destination={"platform": "email", "target": <user_email>, "format": "send"}` via `get_user_email()`. Previously bootstrap agents had no destination — outputs were invisible.
+- `api/services/composer.py`: All 4 agent creation paths (deterministic digest, LLM-driven, lifecycle expansion, cross-agent pattern) now set email destination by default.
+- `api/services/primitives/coordinator.py`: `CreateAgent` tool schema now accepts `destination` field. Both coordinator and chat mode auto-default to email delivery when no destination specified.
+
+### Expected behavior
+- **Every auto-created agent delivers to user's inbox.** Bootstrap, Composer, and coordinator-created agents all default to email via Resend exporter. No user configuration needed.
+- **Skill prompts produce email-optimized output.** Digests, preps, syntheses, monitors, and research reports are written for mobile scanning — shorter paragraphs, bolder key info, action-item-first structure.
+- **No regression for existing agents.** Agents with explicit destinations are unchanged. Agents without destinations continue to work (delivery is best-effort, non-fatal).
+
+---
+
 ## [2026.03.17.12] - Preferences system prompt injection + observation windowing (ADR-117)
 
 ### Changed

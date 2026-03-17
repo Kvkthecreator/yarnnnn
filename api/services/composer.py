@@ -757,6 +757,16 @@ async def _create_digest_for_platform(
         logger.info(f"[COMPOSER] No sources for {platform}, skipping digest creation")
         return None
 
+    # ADR-118: Default email delivery
+    destination = None
+    try:
+        from services.agent_execution import get_user_email
+        user_email = get_user_email(client, user_id)
+        if user_email:
+            destination = {"platform": "email", "target": user_email, "format": "send"}
+    except Exception:
+        pass
+
     result = await create_agent_record(
         client=client,
         user_id=user_id,
@@ -765,6 +775,7 @@ async def _create_digest_for_platform(
         origin="composer",
         frequency="daily",
         sources=sources,
+        destination=destination,
         execute_now=True,
     )
 
@@ -1010,6 +1021,16 @@ async def _execute_composer_decisions(
     # Infer sources for the new agent
     sources = _infer_sources_for_skill(skill, assessment)
 
+    # ADR-118: Default email delivery
+    destination = None
+    try:
+        from services.agent_execution import get_user_email
+        user_email = get_user_email(client, user_id)
+        if user_email:
+            destination = {"platform": "email", "target": user_email, "format": "send"}
+    except Exception:
+        pass
+
     result = await create_agent_record(
         client=client,
         user_id=user_id,
@@ -1020,6 +1041,7 @@ async def _execute_composer_decisions(
         agent_instructions=instructions,
         frequency=frequency,
         sources=sources,
+        destination=destination,
         execute_now=True,
     )
 
@@ -1153,6 +1175,15 @@ async def run_lifecycle_assessment(
 
             if all_sources:
                 titles = [e["title"] for e in expandable]
+                # ADR-118: Default email delivery
+                _dest = None
+                try:
+                    from services.agent_execution import get_user_email
+                    _email = get_user_email(client, user_id)
+                    if _email:
+                        _dest = {"platform": "email", "target": _email, "format": "send"}
+                except Exception:
+                    pass
                 create_result = await create_agent_record(
                     client=client,
                     user_id=user_id,
@@ -1162,6 +1193,7 @@ async def run_lifecycle_assessment(
                     frequency="weekly",
                     sources=all_sources,
                     description=f"Cross-platform synthesis based on mature agents: {', '.join(titles)}",
+                    destination=_dest,
                 )
                 if create_result.get("success"):
                     result["actions_taken"].append({
@@ -1190,6 +1222,15 @@ async def run_lifecycle_assessment(
                 all_sources.extend(p.get("selected_sources") or [])
 
             if all_sources:
+                # ADR-118: Default email delivery
+                _dest2 = None
+                try:
+                    from services.agent_execution import get_user_email
+                    _email2 = get_user_email(client, user_id)
+                    if _email2:
+                        _dest2 = {"platform": "email", "target": _email2, "format": "send"}
+                except Exception:
+                    pass
                 create_result = await create_agent_record(
                     client=client,
                     user_id=user_id,
@@ -1198,6 +1239,7 @@ async def run_lifecycle_assessment(
                     origin="composer",
                     frequency="weekly",
                     sources=all_sources,
+                    destination=_dest2,
                 )
                 if create_result.get("success"):
                     result["actions_taken"].append({

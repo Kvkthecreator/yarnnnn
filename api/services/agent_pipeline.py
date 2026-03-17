@@ -96,6 +96,9 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
+DELIVERY: This output will be emailed directly to the user's inbox.
+Write for scanning on mobile — short paragraphs, bold key names and decisions, no walls of text.
+
 INSTRUCTIONS:
 - Write in a clear, scannable style appropriate for catching someone up
 - Be specific: use names, numbers, dates, and direct references from the context
@@ -133,6 +136,9 @@ GATHERED CONTEXT:
 {gathered_context}
 
 {recipient_context}
+
+DELIVERY: This output will be emailed directly to the user's inbox each morning.
+Write for scanning on mobile — lead with what requires action, keep each meeting's prep tight and skimmable.
 
 INSTRUCTIONS:
 This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate the most useful prep you can.
@@ -215,6 +221,9 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
+DELIVERY: This output will be emailed directly to the recipient.
+Write for scanning on mobile — lead with decisions and action items, bold key names, keep paragraphs short.
+
 INSTRUCTIONS:
 - Write in {tone} tone appropriate for {audience}
 - Be specific: use names, numbers, and dates from the context
@@ -269,6 +278,9 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
+DELIVERY: This output will be emailed directly to the user's inbox.
+Write for scanning on mobile — lead with the most actionable signal, keep it concise.
+
 INSTRUCTIONS:
 - Surface what's worth the user's attention in this domain since last report
 - Flag emerging patterns, notable developments, and early signals
@@ -290,6 +302,9 @@ GATHERED CONTEXT (from your connected platforms + web research):
 {gathered_context}
 
 {recipient_context}
+
+DELIVERY: This output will be emailed directly to the user's inbox.
+Write for scanning on mobile — lead with the strongest signal, bold key findings, link external sources.
 
 INSTRUCTIONS:
 You produce autonomous intelligence — things the user should know but didn't think to ask about. Your advantage: you can see what's happening inside the user's organization AND research what's happening externally.

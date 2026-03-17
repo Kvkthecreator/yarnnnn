@@ -106,6 +106,10 @@ Always use the user's stated frequency — don't override with defaults.""",
             "dedup_key": {
                 "type": "string",
                 "description": "Unique key to prevent duplicates (coordinator mode)"
+            },
+            "destination": {
+                "type": "object",
+                "description": "Delivery destination. Schema: {platform: 'email'|'slack'|'notion', target: string, format: string}. Default: email to user's address."
             }
         },
         "required": ["title", "skill"]
@@ -136,6 +140,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
     sources = input.get("sources")
     dedup_key = input.get("dedup_key", "")
     trigger_context = input.get("trigger_context", {})
+    destination = input.get("destination")
 
     # Detect mode: coordinator (headless) vs chat
     coordinator_id = getattr(auth, "coordinator_agent_id", None)
@@ -159,6 +164,16 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
         if sources is None:
             sources = getattr(auth, "agent_sources", []) or []
 
+        # ADR-118: Default to email delivery if no destination specified
+        if destination is None:
+            try:
+                from services.agent_execution import get_user_email
+                user_email = get_user_email(auth.client, auth.user_id)
+                if user_email:
+                    destination = {"platform": "email", "target": user_email, "format": "send"}
+            except Exception:
+                pass  # Non-fatal — agent works without delivery
+
         result = await create_agent_record(
             client=auth.client,
             user_id=auth.user_id,
@@ -173,6 +188,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             execute_now=True,
             recipient_context=recipient_context or None,
             type_config=type_config or None,
+            destination=destination,
         )
 
         if result.get("success"):
@@ -216,6 +232,16 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 
     else:
         # Chat mode: user-configured, respect schedule
+        # ADR-118: Default to email delivery if no destination specified
+        if destination is None:
+            try:
+                from services.agent_execution import get_user_email
+                user_email = get_user_email(auth.client, auth.user_id)
+                if user_email:
+                    destination = {"platform": "email", "target": user_email, "format": "send"}
+            except Exception:
+                pass
+
         result = await create_agent_record(
             client=auth.client,
             user_id=auth.user_id,
@@ -230,6 +256,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             timezone_str=input.get("timezone"),
             recipient_context=recipient_context or None,
             type_config=type_config or None,
+            destination=destination,
         )
 
         return result

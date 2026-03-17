@@ -89,6 +89,16 @@ async def maybe_bootstrap_agent(
     # Get synced sources for this platform
     sources = await _get_synced_sources(client, user_id, platform)
 
+    # ADR-118: Default email delivery — user gets output in their inbox, zero config.
+    destination = None
+    try:
+        from services.agent_execution import get_user_email
+        user_email = get_user_email(client, user_id)
+        if user_email:
+            destination = {"platform": "email", "target": user_email, "format": "send"}
+    except Exception as e:
+        logger.warning(f"[BOOTSTRAP] Failed to get user email for delivery: {e}")
+
     # Create the agent via shared creation path
     from services.agent_creation import create_agent_record
 
@@ -101,6 +111,7 @@ async def maybe_bootstrap_agent(
         description=template.get("description"),
         frequency=template["frequency"],
         sources=sources,
+        destination=destination,
         execute_now=True,  # Immediate first run
     )
 
