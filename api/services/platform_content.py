@@ -940,7 +940,7 @@ async def has_fresh_content_since(
     source_filters = []
     for source in agent_sources:
         provider = source.get("provider") or source.get("platform")
-        resource_id = source.get("resource_id")
+        resource_id = source.get("resource_id") or source.get("id")
         if provider and resource_id:
             source_filters.append((provider, resource_id))
 

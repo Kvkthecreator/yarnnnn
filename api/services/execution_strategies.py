@@ -76,10 +76,10 @@ class PlatformBoundStrategy(ExecutionStrategy):
         from services.workspace import AgentWorkspace, get_agent_slug
 
         sources = agent.get("sources", [])
-        # Infer primary platform from sources (first provider found)
+        # Infer primary platform from sources (first provider/platform found)
         primary_platform = None
         for s in sources:
-            p = s.get("provider")
+            p = s.get("provider") or s.get("platform")
             if p:
                 primary_platform = p
                 break
@@ -95,15 +95,16 @@ class PlatformBoundStrategy(ExecutionStrategy):
         # Include sources with type="integration_import" or sources missing the type field
         # (untyped sources are treated as integration_import with a warning)
         def _is_integration(s):
-            return s.get("type") == "integration_import" or (not s.get("type") and s.get("provider"))
+            return s.get("type") == "integration_import" or (s.get("provider") or s.get("platform"))
 
         def _matches_platform(s):
+            p = s.get("provider") or s.get("platform")
             return (
-                s.get("provider") == primary_platform
-                or (s.get("provider") == "google" and primary_platform in google_platforms)
+                p == primary_platform
+                or (p == "google" and primary_platform in google_platforms)
             )
 
-        untyped = [s for s in sources if not s.get("type") and s.get("provider")]
+        untyped = [s for s in sources if s.get("type") not in ("integration_import",) and (s.get("provider") or s.get("platform"))]
         if untyped:
             logger.warning(
                 f"[PLATFORM_BOUND] {len(untyped)} sources missing 'type' field — "
@@ -189,19 +190,11 @@ class CrossPlatformStrategy(ExecutionStrategy):
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
-        integration_sources = [s for s in sources if s.get("type") == "integration_import"]
-        other_sources = [s for s in sources if s.get("type") != "integration_import"]
+        # Sources with provider/platform are integration sources (DataSource or bootstrap format)
+        integration_sources = [s for s in sources if s.get("provider") or s.get("platform")]
+        other_sources = [s for s in sources if not (s.get("provider") or s.get("platform"))]
 
-        # Warn about sources missing the type field — these get silently dropped
-        untyped = [s for s in sources if not s.get("type") and s.get("provider")]
-        if untyped:
-            logger.warning(
-                f"[CROSS_PLATFORM] {len(untyped)} sources missing 'type' field — "
-                f"treating as integration_import: {[s.get('provider') for s in untyped]}"
-            )
-            integration_sources.extend(untyped)
-
-        providers = list({s.get("provider", "unknown") for s in integration_sources})
+        providers = list({(s.get("provider") or s.get("platform", "unknown")) for s in integration_sources})
 
         logger.info(
             f"[CROSS_PLATFORM] Reading platform_content for {len(providers)} providers: {providers}"

@@ -137,8 +137,8 @@ async def check_agent_freshness(
 
     for source in sources:
         platform = source.get("provider") or source.get("platform")
-        resource_id = source.get("resource_id")
-        resource_name = source.get("resource_name", "")
+        resource_id = source.get("resource_id") or source.get("id")
+        resource_name = source.get("resource_name") or source.get("name", "")
 
         if not platform or not resource_id:
             continue
@@ -342,7 +342,7 @@ async def record_source_snapshots(
 
         for source in sources_used:
             platform = source.get("provider") or source.get("platform")
-            resource_id = source.get("resource_id")
+            resource_id = source.get("resource_id") or source.get("id")
 
             if not platform or not resource_id:
                 continue

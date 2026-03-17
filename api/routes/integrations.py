@@ -3014,10 +3014,14 @@ async def update_selected_sources(
     for source_id in allowed_ids:
         if source_id in resource_map:
             r = resource_map[source_id]
+            # Infer platform: Google resources have metadata.platform (gmail/calendar),
+            # otherwise use the connection provider directly
+            platform = r.get("metadata", {}).get("platform") or provider
             selected_sources.append({
                 "id": source_id,
                 "name": r.get("name", source_id),
                 "type": r.get("type", "unknown"),
+                "platform": platform,
             })
 
     # Update landscape with selected sources
