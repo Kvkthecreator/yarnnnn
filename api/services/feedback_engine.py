@@ -211,8 +211,22 @@ def normalize_text(text: str) -> str:
 def summarize_content(content: str, max_length: int = 100) -> str:
     """
     Summarize content to a short description.
+
+    Prefers section-level labels over raw content lines, since these
+    produce better preferences when distilled by feedback_distillation.py.
     """
     content = content.strip()
+
+    # Extract clean section header if present (## Action Items → Action Items)
+    header_match = re.match(r"^#{1,4}\s+(.+)$", content)
+    if header_match:
+        return header_match.group(1).strip()
+
+    # Bold header (**Key Decisions** → Key Decisions)
+    bold_match = re.match(r"^\*\*([^*]+)\*\*", content)
+    if bold_match and len(bold_match.group(1)) < 60:
+        return bold_match.group(1).strip()
+
     if len(content) <= max_length:
         return content
 
