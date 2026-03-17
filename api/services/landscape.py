@@ -280,7 +280,7 @@ def compute_smart_defaults(
 
     Called when landscape is first discovered and no sources are selected,
     or when backfilling existing users. Returns a list of selected source
-    objects ({"id": ..., "name": ..., "type": ...}).
+    objects ({"id": ..., "name": ..., "type": ..., "platform": ...}).
 
     Uses only metadata already available from landscape discovery (zero extra
     API calls). The agent decides what's important within synced content —
@@ -310,6 +310,7 @@ def compute_smart_defaults(
                 "id": cal["id"],
                 "name": cal.get("name", ""),
                 "type": cal.get("type", "calendar"),
+                "platform": "calendar",
             })
 
         # Gmail: prioritize high-value labels
@@ -342,6 +343,7 @@ def compute_smart_defaults(
                 "id": r["id"],
                 "name": r.get("name", ""),
                 "type": r.get("type", "label"),
+                "platform": "gmail",
             })
 
     elif provider == "slack":
@@ -351,6 +353,7 @@ def compute_smart_defaults(
                 "id": r["id"],
                 "name": r.get("name", ""),
                 "type": r.get("type", "channel"),
+                "platform": "slack",
             })
 
     elif provider == "notion":
@@ -360,6 +363,7 @@ def compute_smart_defaults(
                 "id": r["id"],
                 "name": r.get("name", ""),
                 "type": r.get("type", "page"),
+                "platform": "notion",
             })
 
     return selected

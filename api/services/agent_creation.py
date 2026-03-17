@@ -64,7 +64,7 @@ def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
     # Count distinct providers from integration sources
     providers = set()
     for s in sources:
-        provider = s.get("provider") if isinstance(s, dict) else None
+        provider = (s.get("provider") or s.get("platform")) if isinstance(s, dict) else None
         if provider:
             providers.add(provider)
 

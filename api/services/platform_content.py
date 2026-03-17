@@ -689,10 +689,11 @@ async def get_content_for_agent(
 
     for source in agent_sources:
         provider = source.get("provider") or source.get("platform")
-        # DataSource model uses "source" field; legacy/manual entries may use "resource_id"
-        resource_id = source.get("source") or source.get("resource_id")
+        # DataSource model uses "source" field; bootstrap sources use "id"
+        resource_id = source.get("source") or source.get("resource_id") or source.get("id")
 
         if not provider:
+            logger.warning(f"[CONTENT] Skipping source with no provider/platform: {source}")
             continue
 
         # Normalize provider → platform_content.platform
@@ -744,7 +745,7 @@ async def get_content_for_agent(
         # Fallback: if no items found by resource_id, try matching by resource_name
         # This handles cases where sources use human-readable names instead of platform IDs
         if not items:
-            resource_name = source.get("resource_name") or source.get("label", "")
+            resource_name = source.get("resource_name") or source.get("name") or source.get("label", "")
             if resource_name:
                 # Strip leading # from channel names for matching
                 clean_name = resource_name.lstrip("#")
