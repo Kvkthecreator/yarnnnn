@@ -1,0 +1,20 @@
+{
+  "name": "yarnnn-video",
+  "version": "1.0.0",
+  "description": "Remotion video compositions for yarnnn",
+  "scripts": {
+    "dev": "npx remotion studio src/index.ts",
+    "build": "npx remotion render src/index.ts",
+    "render": "npx remotion render src/index.ts YarnnnIntro out/intro.mp4"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@remotion/cli": "^4.0.436",
+    "@remotion/tailwind": "^4.0.436",
+    "remotion": "^4.0.436"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "typescript": "^5.9.3"
+  }
+}
