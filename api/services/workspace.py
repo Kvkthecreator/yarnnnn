@@ -1186,6 +1186,9 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
     review_log = await ws.get_review_log()
     created_agents = await ws.get_created_agents()
     last_generated_at = await ws.get_state("last_generated_at")
+    # ADR-117: Feedback substrate files — surface in API for dashboard visibility
+    preferences = (await ws.read("memory/preferences.md") or "").strip()
+    supervisor_notes = (await ws.read("memory/supervisor-notes.md") or "").strip()
 
     memory = {}
     if observations:
@@ -1198,6 +1201,10 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
         memory["created_agents"] = created_agents
     if last_generated_at:
         memory["last_generated_at"] = last_generated_at
+    if preferences:
+        memory["preferences"] = preferences
+    if supervisor_notes:
+        memory["supervisor_notes"] = supervisor_notes
 
     return {
         "agent_instructions": instructions or None,

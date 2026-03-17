@@ -212,7 +212,8 @@ export default function AgentWorkspacePage() {
   const memory = agent.agent_memory;
   const observations = memory?.observations || [];
   const reviewLog = memory?.review_log || [];
-  const memoryCount = observations.length + reviewLog.length;
+  const memoryCount = observations.length + reviewLog.length
+    + (memory?.preferences ? 1 : 0) + (memory?.supervisor_notes ? 1 : 0);
 
   // ==========================================================================
   // Panel tabs

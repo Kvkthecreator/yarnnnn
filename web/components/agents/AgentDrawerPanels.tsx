@@ -22,8 +22,11 @@ import {
   ChevronDown,
   Eye,
   MessageSquare,
+  Lightbulb,
+  Shield,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import type {
   Agent,
@@ -41,12 +44,14 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
   const observations = memory?.observations || [];
   const reviewLog = memory?.review_log || [];
   const goal = memory?.goal;
+  const preferences = memory?.preferences;
+  const supervisorNotes = memory?.supervisor_notes;
 
-  if (observations.length === 0 && reviewLog.length === 0 && !goal) {
+  if (observations.length === 0 && reviewLog.length === 0 && !goal && !preferences && !supervisorNotes) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
-          No observations yet. The agent accumulates knowledge as it processes content for this agent.
+          No memory yet. The agent accumulates knowledge as it runs and receives feedback.
         </p>
       </div>
     );
@@ -78,6 +83,28 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
               ))}
             </ul>
           )}
+        </div>
+      )}
+      {preferences && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-md">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Lightbulb className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Learned Preferences</span>
+          </div>
+          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
+            <ReactMarkdown>{preferences}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+      {supervisorNotes && (
+        <div className="p-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-md">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Shield className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Supervisor Notes</span>
+          </div>
+          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
+            <ReactMarkdown>{supervisorNotes}</ReactMarkdown>
+          </div>
         </div>
       )}
       {observations.map((obs, i) => (
@@ -134,6 +161,15 @@ function composePromptPreview(
     parts.push(instructions.trim());
   }
 
+  // System prompt: learned preferences (ADR-117 — high salience injection)
+  if (memory?.preferences) {
+    parts.push('');
+    parts.push('## Learned Preferences (from user edit history)');
+    parts.push(memory.preferences);
+    parts.push('');
+    parts.push('Follow these preferences closely — they reflect what the user has consistently edited in past outputs.');
+  }
+
   // System prompt: memory section (read-only, from agent_memory)
   if (memory) {
     const memParts: string[] = [];
@@ -152,6 +188,10 @@ function composePromptPreview(
       memory.review_log.slice(-3).forEach(entry => {
         memParts.push(`- ${entry.date}: ${entry.note}`);
       });
+    }
+    if (memory.supervisor_notes) {
+      memParts.push('**Supervisor coaching:**');
+      memParts.push(memory.supervisor_notes);
     }
     if (memParts.length) {
       parts.push('');

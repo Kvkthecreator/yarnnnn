@@ -372,7 +372,7 @@ export interface AgentReviewLogEntry {
   next_review_at?: string;
 }
 
-// ADR-087/092/101: Agent memory structure
+// ADR-087/092/101/117: Agent memory structure
 export interface AgentMemory {
   observations?: AgentObservation[];
   goal?: AgentGoal;
@@ -384,6 +384,9 @@ export interface AgentMemory {
     dedup_key?: string;
   }>;
   last_generated_at?: string;
+  // ADR-117: Feedback substrate — workspace memory files surfaced for dashboard visibility
+  preferences?: string;        // memory/preferences.md content (distilled from edit patterns)
+  supervisor_notes?: string;   // memory/supervisor-notes.md content (Composer coaching)
 }
 
 // ADR-087: Agent mode (ADR-092: extended with reactive, proactive, coordinator)
