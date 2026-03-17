@@ -195,6 +195,8 @@ async def create_agent_record(
         "updated_at": now.isoformat(),
     }
 
+    if instructions_text:
+        agent_data["agent_instructions"] = instructions_text
     if description:
         agent_data["description"] = description
     if platform_variant:

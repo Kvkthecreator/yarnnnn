@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.5] - Agent Identity Quality: Composer Dedup + Rich Creation
+
+### Changed
+- `api/services/composer.py`: COMPOSER_SYSTEM_PROMPT v1.3 — response format now requires `description` and `instructions` fields on create actions. LLM provides workspace-contextualized identity for each agent it creates, not just title+skill.
+- `api/services/composer.py`: `_execute_composer_decisions()` — passes `description` and `agent_instructions` through to `create_agent_record()`. Agents created by Composer now have differentiated identity from birth.
+- `api/services/composer.py`: Dedup logic upgraded from title-only to title + skill. Non-per-platform skills (synthesize, research, etc.) are one-per-workspace. Prevents creative title variants from creating duplicate coverage.
+- `api/services/agent_creation.py`: `create_agent_record()` — resolved instructions (explicit or DEFAULT_INSTRUCTIONS fallback) now written to `agent_instructions` DB column, not just AGENT.md. Agents are no longer hollow shells.
+- `api/services/onboarding_bootstrap.py`: Bootstrap templates now include `description` field. Bootstrap agents get dashboard-visible descriptions from day one.
+
+### Expected behavior
+- Composer-created agents now have: (1) LLM-authored description visible on dashboard, (2) workspace-specific instructions guiding execution, (3) differentiated AGENT.md. No more empty instructions/description.
+- Skill dedup prevents: "Weekly Cross-Platform Synthesis" AND "Weekly Analysis: Patterns & Gaps" both being created as `skill=synthesize`. Second creation blocked with log: "Skill 'synthesize' already covered by '...'".
+- Digest and monitor skills are exempt from skill dedup (multiple per-platform digests are valid).
+- All agents (bootstrap, composer, user-created) now persist `agent_instructions` in DB column. Previously only AGENT.md received the instructions text.
+
+---
+
+## [2026.03.17.4] - Cross-Agent Workspace Reading (ADR-116 Phase 3)
+
+### Added
+- `api/services/primitives/workspace.py`: `ReadAgentContext` tool — new headless primitive. Agents can read another agent's identity files (AGENT.md, thesis.md) and memory files. Read-only, same-user scoped.
+- `api/services/primitives/registry.py`: `ReadAgentContext` registered as headless-only primitive.
+
+### Expected behavior
+- Synthesis agents call `DiscoverAgents()` → pick an agent → `ReadAgentContext(agent_id="<uuid>")` to deeply understand that agent's perspective before synthesizing. The full inter-agent reading chain is now operational.
+- Only identity and memory files exposed. Working notes (`working/`) and past runs (`runs/`) are excluded — process artifacts, not identity.
+- Memory files truncated to 1000 chars each for token budget control.
+- Agent lookup validates same-user ownership. Returns agent_not_found for non-existent or other-user agents.
+
+---
+
 ## [2026.03.17.3] - Inter-Agent Knowledge Infrastructure (ADR-116 Phases 1-2)
 
 ### Added

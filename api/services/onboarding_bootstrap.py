@@ -28,16 +28,19 @@ BOOTSTRAP_TEMPLATES = {
         "title": "Slack Recap",
         "skill": "digest",
         "frequency": "daily",
+        "description": "Daily recap of Slack activity across your connected channels.",
     },
     "gmail": {
         "title": "Gmail Digest",
         "skill": "digest",
         "frequency": "daily",
+        "description": "Daily digest of Gmail activity across your connected labels.",
     },
     "notion": {
         "title": "Notion Summary",
         "skill": "digest",
         "frequency": "daily",
+        "description": "Daily summary of Notion activity across your connected pages.",
     },
     # Calendar excluded — Meeting Prep requires cross-platform context (ADR-110)
 }
@@ -95,6 +98,7 @@ async def maybe_bootstrap_agent(
         title=template["title"],
         skill=template["skill"],
         origin="system_bootstrap",
+        description=template.get("description"),
         frequency=template["frequency"],
         sources=sources,
         execute_now=True,  # Immediate first run

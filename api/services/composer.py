@@ -759,7 +759,7 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v1.2 — ADR-115: workspace density model (eager/conservative).
+# Composer Prompt v1.3 — agent identity quality (description, instructions, skill dedup).
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
 
@@ -779,13 +779,17 @@ Respond with ONLY a JSON object:
 
 To create an agent:
 ```json
-{"action": "create", "title": "Weekly Cross-Platform Status", "skill": "synthesize", "frequency": "weekly", "reason": "User has 2+ platforms connected with active digests — synthesis would surface cross-cutting themes"}
+{"action": "create", "title": "Weekly Cross-Platform Synthesis", "skill": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes and decisions that span platforms.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections — decisions in Slack that relate to Notion docs, email threads that reference channel discussions. Flag items that appear in multiple platforms. Use two-part format: cross-platform synthesis first, then per-platform highlights.", "reason": "User has 2+ platforms with active digests producing knowledge — synthesis would surface cross-cutting themes"}
 ```
 
 To observe (no action):
 ```json
 {"action": "observe", "reason": "Workforce is healthy. No clear gaps."}
 ```
+
+IMPORTANT for create actions:
+- "description" (required): One sentence explaining what this agent does and why it's valuable. Shown to the user on the dashboard.
+- "instructions" (required): Specific behavioral directives for the agent — what to focus on, how to structure output, what to prioritize. These guide the agent's actual execution. Be specific to this workspace's context, not generic.
 
 Valid skills: digest, prepare, monitor, research, synthesize, custom
 Valid frequencies: daily, weekly, biweekly, monthly"""
@@ -906,24 +910,45 @@ async def _execute_composer_decisions(
     title = decision.get("title", "").strip()
     skill = decision.get("skill", "custom")
     frequency = decision.get("frequency", "weekly")
+    description = decision.get("description", "").strip() or None
+    instructions = decision.get("instructions", "").strip() or None
 
     if not title:
         logger.warning("[COMPOSER] LLM recommended create but no title provided")
         return []
 
-    # Dedup: check if an agent with this title already exists
+    # Dedup: check title match OR skill match (prevents creative title variants)
     try:
-        existing = (
+        # Check 1: exact title match
+        title_match = (
             client.table("agents")
-            .select("id")
+            .select("id, title")
             .eq("user_id", user_id)
             .eq("title", title)
             .neq("status", "archived")
             .execute()
         )
-        if existing.data:
+        if title_match.data:
             logger.info(f"[COMPOSER] Agent '{title}' already exists, skipping")
             return []
+
+        # Check 2: skill match — one agent per skill type (except digest, which is per-platform)
+        if skill not in ("digest", "monitor"):
+            skill_match = (
+                client.table("agents")
+                .select("id, title")
+                .eq("user_id", user_id)
+                .eq("skill", skill)
+                .neq("status", "archived")
+                .execute()
+            )
+            if skill_match.data:
+                existing_title = skill_match.data[0].get("title", "unknown")
+                logger.info(
+                    f"[COMPOSER] Skill '{skill}' already covered by '{existing_title}', "
+                    f"skipping '{title}'"
+                )
+                return []
     except Exception:
         pass
 
@@ -936,6 +961,8 @@ async def _execute_composer_decisions(
         title=title,
         skill=skill,
         origin="composer",
+        description=description,
+        agent_instructions=instructions,
         frequency=frequency,
         sources=sources,
         execute_now=True,
