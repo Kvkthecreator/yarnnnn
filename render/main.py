@@ -10,6 +10,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -42,10 +43,25 @@ class RenderResponse(BaseModel):
     error: Optional[str] = None
 
 
-def _get_supabase():
-    """Lazy init Supabase client."""
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+async def _upload_to_storage(file_bytes: bytes, storage_path: str, content_type: str) -> str:
+    """Upload file to Supabase Storage via REST API and return public URL.
+
+    Uses direct HTTP instead of supabase-py client because the service key
+    may be in sb_secret_ format (not a JWT), which the Python client's storage
+    module rejects. The REST API accepts it via apikey + Authorization headers.
+    """
+    upload_url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{storage_path}"
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": content_type,
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(upload_url, content=file_bytes, headers=headers)
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f"Storage upload HTTP {resp.status_code}: {resp.text}")
+
+    return f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{storage_path}"
 
 
 @app.get("/health")
@@ -82,19 +98,12 @@ async def render(req: RenderRequest):
         )
 
     try:
-        client = _get_supabase()
         date_prefix = datetime.now(timezone.utc).strftime("%Y/%m/%d")
         ext = req.output_format
         filename = req.filename or f"{req.type}-{uuid.uuid4().hex[:8]}"
         storage_path = f"{date_prefix}/{filename}.{ext}"
 
-        client.storage.from_(STORAGE_BUCKET).upload(
-            path=storage_path,
-            file=file_bytes,
-            file_options={"content-type": content_type},
-        )
-
-        output_url = client.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
+        output_url = await _upload_to_storage(file_bytes, storage_path, content_type)
 
         return RenderResponse(
             success=True,

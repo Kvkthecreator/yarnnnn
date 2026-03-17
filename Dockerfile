@@ -12,6 +12,7 @@ RUN apt-get update && \
         texlive-latex-recommended \
         texlive-fonts-recommended \
         texlive-latex-extra \
+        lmodern \
         fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
 
