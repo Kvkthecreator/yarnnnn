@@ -36,6 +36,37 @@ COMPOSER_MAX_TOKENS = 2048
 
 
 # =============================================================================
+# Workspace Density Classification (ADR-115)
+# =============================================================================
+
+def _classify_workspace_density(
+    total_knowledge_files: int,
+    total_agent_runs: int,
+    maturity_signals: list[dict],
+) -> str:
+    """
+    Classify workspace density from signals already in the assessment dict.
+
+    Returns "sparse", "developing", or "dense". Determines Composer eagerness:
+    - sparse: eager — bias toward creating work (junior employee mode)
+    - developing: balanced — current heuristics
+    - dense: conservative — quality-focused, accumulation thesis
+    """
+    non_nascent = sum(1 for s in maturity_signals if s.get("maturity") not in ("nascent", None))
+
+    # Dense: substantial knowledge + agents with track record
+    if total_knowledge_files > 20 and non_nascent >= 2:
+        return "dense"
+
+    # Sparse: very little produced yet
+    if total_knowledge_files < 5 and total_agent_runs < 10:
+        return "sparse"
+
+    # Everything else: developing
+    return "developing"
+
+
+# =============================================================================
 # Heartbeat Data Query (Zero LLM — cheap DB checks)
 # =============================================================================
 
@@ -303,6 +334,15 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     except Exception as e:
         logger.warning(f"[COMPOSER] Knowledge corpus query failed: {e}")
 
+    # 10. Workspace density classification (ADR-115)
+    # Pure function over signals already computed — zero additional queries.
+    total_runs = sum(s.get("total_runs", 0) for s in maturity_signals)
+    workspace_density = _classify_workspace_density(
+        total_knowledge_files=knowledge["total_files"],
+        total_agent_runs=total_runs,
+        maturity_signals=maturity_signals,
+    )
+
     return {
         "user_id": user_id,
         "timestamp": now.isoformat(),
@@ -341,6 +381,8 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             "limit_message": limit_message if not can_create else None,
         },
         "knowledge": knowledge,  # ADR-114 Phase 1
+        "workspace_density": workspace_density,  # ADR-115
+        "total_agent_runs": total_runs,  # ADR-115 — surfaced for prompt/logging
     }
 
 
@@ -446,6 +488,21 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
             return True, (
                 f"knowledge_asymmetry: {digest_count}/{total_knowledge} knowledge files are digests "
                 "— system needs reasoning agents (analyses/research)"
+            )
+
+    # ADR-115: Sparse workspace — the system has substrate but hasn't produced
+    # meaningful knowledge yet. Route to LLM for eager scaffolding (research,
+    # analysis, or other high-value agents). This turns "healthy but empty" from
+    # a terminal HEARTBEAT_OK into a trigger for proactive composition.
+    workspace_density = assessment.get("workspace_density", "developing")
+    if workspace_density == "sparse":
+        has_substrate = assessment["agents"]["active"] > 0 or assessment["connected_platforms"]
+        if has_substrate:
+            total_runs = assessment.get("total_agent_runs", 0)
+            total_kf = assessment.get("knowledge", {}).get("total_files", 0)
+            return True, (
+                f"sparse_workspace: {total_kf} knowledge files, {total_runs} total runs "
+                "— eager scaffolding mode"
             )
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
@@ -638,15 +695,17 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v1.1 — ADR-114 Phases 1-3: knowledge corpus signals.
+# Composer Prompt v1.2 — ADR-115: workspace density model (eager/conservative).
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
 
-You assess the user's connected platforms, existing agents, and work patterns to identify gaps in their agent workforce.
+You assess the user's knowledge substrate — accumulated agent outputs, platform connections, workspace files, and work patterns — to identify gaps in their cognitive workforce.
 
 ## Principles
 - Bias toward action: if an agent would clearly help, recommend creating it
-- Start with highest-value agents: platform digests before cross-platform synthesis before research
+- In sparse workspaces (few knowledge files, few runs): be eager. Propose research or analysis agents even without perfect signal. Early outputs that the user corrects are more valuable than silence. Think like a junior employee — attempt the task, accept feedback, improve.
+- In dense workspaces (many knowledge files, mature agents): be conservative. Only propose agents that fill clear gaps in the knowledge corpus.
+- Start with highest-value agents: digests (perception) before synthesis (cross-cutting themes) before analysis (deep reasoning) before research (external knowledge). Each layer builds on accumulated outputs from the layer below.
 - Respect what exists: don't duplicate coverage. If a digest already exists, don't create another.
 - One agent per decision: recommend at most ONE new agent per assessment
 
@@ -701,10 +760,22 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
             parts.append(f"edits {direction}")
         maturity_summary.append(", ".join(parts))
 
+    # ADR-115: Workspace density context
+    density = assessment.get("workspace_density", "developing")
+    total_runs = assessment.get("total_agent_runs", 0)
+    density_label = {
+        "sparse": f"SPARSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be eager, propose new agents",
+        "developing": f"DEVELOPING ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — balanced approach",
+        "dense": f"DENSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be conservative, quality-focused",
+    }.get(density, "DEVELOPING")
+
     return f"""Assess this user's agent workforce and recommend action.
 
 ## Trigger
 {reason}
+
+## Workspace Density
+{density_label}
 
 ## Connected Platforms
 {', '.join(assessment['connected_platforms']) or 'None'}
@@ -1127,6 +1198,8 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "mature_agents": len(assessment.get("maturity", {}).get("mature_agents", [])),
             "underperformers": len(assessment.get("maturity", {}).get("underperformers", [])),
             "knowledge_files": assessment.get("knowledge", {}).get("total_files", 0),
+            "workspace_density": assessment.get("workspace_density", "developing"),
+            "total_agent_runs": assessment.get("total_agent_runs", 0),
         },
         "composer_result": None,
         "supervisory_reviews": [],

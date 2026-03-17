@@ -157,7 +157,7 @@ Update `COMPOSER_SYSTEM_PROMPT` principles:
 - `agents_consuming` deferred (needs provenance tracking — Open Question 3).
 - Event-driven heartbeat also shipped (separate commit): `maybe_trigger_heartbeat()` fires after agent delivery and platform sync.
 
-**Phase 4 (Composer Prompt v2.0)** remains proposed — requires COMPOSER_SYSTEM_PROMPT rewrite to shift framing from "assess platforms and agents" to "assess knowledge substrate."
+**Phase 4 partially addressed by ADR-115** — `COMPOSER_SYSTEM_PROMPT` v1.2 reframed from "assess platforms and agents" to "assess knowledge substrate" with workspace-density-aware eagerness principles. Full v2.0 prompt rewrite deferred until density model proves out in production.
 
 ## Relationship to Existing Architecture
 
