@@ -68,6 +68,43 @@ def _classify_workspace_density(
     return "developing"
 
 
+def _get_last_assessed_state(client: Any, user_id: str) -> dict | None:
+    """
+    Fetch the state tuple from the most recent composer_heartbeat where should_act=true.
+
+    Returns {"knowledge_files": N, "total_agent_runs": N, "active_agents": N} or None
+    if no prior LLM assessment exists (first-time fire is always allowed).
+
+    ADR-115: Used by should_composer_act() to skip LLM when workspace state hasn't
+    changed since last assessment. One cheap DB query on activity_log (indexed).
+    """
+    try:
+        # Query recent heartbeats (limit 20 — most will be should_act=false,
+        # so we scan a small window to find the last should_act=true).
+        # PostgREST can't filter on JSONB boolean directly, so we fetch and scan.
+        result = (
+            client.table("activity_log")
+            .select("metadata")
+            .eq("user_id", user_id)
+            .eq("event_type", "composer_heartbeat")
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        for row in (result.data or []):
+            meta = row.get("metadata") or {}
+            if str(meta.get("should_act")).lower() == "true":
+                return {
+                    "knowledge_files": int(meta.get("knowledge_files", 0)),
+                    "total_agent_runs": int(meta.get("total_agent_runs", 0)),
+                    "active_agents": int(meta.get("active_agents", 0)),
+                }
+        return None  # No prior LLM assessment — first fire allowed
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Last-assessed state query failed: {e}")
+        return None  # Fail-open: allow LLM fire if query fails
+
+
 # =============================================================================
 # Heartbeat Data Query (Zero LLM — cheap DB checks)
 # =============================================================================
@@ -385,6 +422,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "knowledge": knowledge,  # ADR-114 Phase 1
         "workspace_density": workspace_density,  # ADR-115
         "total_agent_runs": total_runs,  # ADR-115 — surfaced for prompt/logging
+        "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
     }
 
 
@@ -492,15 +530,34 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
                 "— system needs reasoning agents (analyses/research)"
             )
 
-    # ADR-115: Workspace density — route non-dense workspaces to LLM for
-    # proactive composition. Dense workspaces have graduated; sparse/developing
-    # workspaces need Composer to actively propose new agent types.
+    # ADR-115: Workspace density + state-change gate.
+    # Non-dense workspaces route to LLM, but ONLY when workspace state has
+    # actually changed since last LLM assessment. Prevents repeated Haiku calls
+    # with identical context (288/day → ~2-5/day).
     workspace_density = assessment.get("workspace_density", "developing")
     if workspace_density != "dense":
         has_substrate = assessment["agents"]["active"] > 0 or assessment["connected_platforms"]
         if has_substrate:
             total_runs = assessment.get("total_agent_runs", 0)
             total_kf = assessment.get("knowledge", {}).get("total_files", 0)
+            active_agents = assessment["agents"]["active"]
+
+            # State-change gate: compare current state against last LLM assessment.
+            # If nothing changed, skip — the LLM has no new information.
+            # None means no prior assessment exists → always fire (first time).
+            last = assessment.get("last_assessed_state")
+            if last is not None:
+                state_changed = (
+                    total_kf != last.get("knowledge_files", 0)
+                    or total_runs != last.get("total_agent_runs", 0)
+                    or active_agents != last.get("active_agents", 0)
+                )
+                if not state_changed:
+                    return False, (
+                        f"HEARTBEAT_OK: {workspace_density} workspace, awaiting new signal "
+                        f"(kf={total_kf}, runs={total_runs}, agents={active_agents})"
+                    )
+
             if workspace_density == "sparse":
                 return True, (
                     f"sparse_workspace: {total_kf} knowledge files, {total_runs} total runs "

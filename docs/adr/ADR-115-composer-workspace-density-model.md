@@ -51,18 +51,52 @@ workspace_density = classify_workspace_density(assessment)
 
 ### Sparse workspace triggers
 
-When `workspace_density != "dense"`, Composer routes to LLM assessment instead of returning HEARTBEAT_OK:
+When `workspace_density != "dense"`, Composer routes to LLM assessment — but **only when workspace state has changed** since the last LLM assessment:
 
 ```python
-# Both sparse and developing workspaces route to LLM — only dense graduates to HEARTBEAT_OK
-if workspace_density != "dense" and has_substrate:
-    if workspace_density == "sparse":
-        return True, "sparse_workspace: ... — eager scaffolding mode"
-    else:
-        return True, "developing_workspace: ... — propose agents for missing skills"
+# State-change gate: compare current state against last LLM assessment.
+# Three signals form the state tuple:
+#   (knowledge_files, total_agent_runs, active_agents)
+# If any changed → LLM reasons. If unchanged → skip.
+# None (no prior assessment) → always fire (first time).
+
+last = assessment.get("last_assessed_state")
+if last is not None:
+    state_changed = (kf != last["knowledge_files"]
+                     or runs != last["total_agent_runs"]
+                     or agents != last["active_agents"])
+    if not state_changed:
+        return False, "HEARTBEAT_OK: developing workspace, awaiting new signal"
+
+if workspace_density == "sparse":
+    return True, "sparse_workspace: ... — eager scaffolding mode"
+else:
+    return True, "developing_workspace: ... — propose agents for missing skills"
 ```
 
 This routes to the **existing LLM assessment path** (`run_composer_assessment`). The LLM receives the full workspace context including density label and decides what to create (or observe). No new deterministic creation path needed.
+
+### State-change gate: LLM reasons only on new signal
+
+The state-change gate prevents repeated Haiku calls with identical context. Without it, a developing workspace triggers 288 LLM calls/day (every 5-min heartbeat). With it, LLM fires only when something actually changed — ~2-5 calls/day, proportional to actual workspace activity.
+
+**"Last assessed state" source:** The most recent `composer_heartbeat` activity_log entry where `should_act=true`. The three state signals (`knowledge_files`, `total_agent_runs`, `active_agents`) are already stored in heartbeat metadata. One query on activity_log (limit 20, scan for should_act=true).
+
+**Fail-open:** If the query fails or no prior assessment exists, the gate allows LLM fire. First heartbeat for any user always fires.
+
+**Cost model:**
+
+| Without state gate | With state gate |
+|--------------------|-----------------|
+| ~288 Haiku/day per Pro user | ~2-5 Haiku/day per Pro user |
+| ~$0.06/day per user | ~$0.001/day per user |
+
+**What counts as "state changed":**
+- `knowledge.total_files` — new knowledge produced by an agent run
+- `total_agent_runs` — new runs completed
+- `agents.active` — agent created, paused, or archived
+
+If any differs from the last assessment → fire. Simple tuple comparison.
 
 ### COMPOSER_SYSTEM_PROMPT v1.2: Eager framing
 

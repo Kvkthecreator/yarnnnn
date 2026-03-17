@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.2] - State-Change Gate for Density-Triggered LLM (ADR-115)
+
+### Added
+- `api/services/composer.py`: `_get_last_assessed_state()` — fetches state tuple (knowledge_files, total_agent_runs, active_agents) from the most recent `composer_heartbeat` where `should_act=true`. One query on activity_log (limit 20).
+- `api/services/composer.py`: `should_composer_act()` — state-change comparison before density-triggered LLM fire. If workspace state unchanged since last assessment, returns `HEARTBEAT_OK: awaiting new signal` instead of calling LLM.
+
+### Expected behavior
+- First heartbeat for any user always fires LLM (no prior assessment exists).
+- Subsequent heartbeats only fire LLM when knowledge_files, total_agent_runs, or active_agents has changed.
+- If an agent delivers (kf increments) → next heartbeat fires LLM. If LLM returns "observe" → subsequent heartbeats skip until next state change.
+- **Cost reduction**: ~288 Haiku/day → ~2-5/day per Pro user for developing workspaces.
+- Mechanical heuristics (coverage_gap, underperformer, stale_agents) are unaffected — they fire regardless of state-change gate.
+- Fail-open: if activity_log query fails, LLM fires (safe default).
+
+---
+
 ## [2026.03.17.1] - Workspace Density Model in Composer (ADR-115)
 
 ### Added
