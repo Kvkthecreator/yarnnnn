@@ -1,3 +1,18 @@
+/**
+ * ProductDemo — 30s product explainer.
+ *
+ * Uses shared design system (fonts, colors, platform SVGs, yarn ball).
+ * Minimal and punchy — closer to ad style than a tutorial.
+ *
+ * Scenes:
+ *   1. Logo reveal (3s)
+ *   2. Hook — "Your AI forgot everything. Again." (4s)
+ *   3. Connect platforms — 4 icons animate in (5s)
+ *   4. Agents at work — mock cards (6s)
+ *   5. Compounding — quality rises (5s)
+ *   6. CTA (4s)
+ */
+
 import React from "react";
 import {
   AbsoluteFill,
@@ -5,70 +20,39 @@ import {
   useCurrentFrame,
   useVideoConfig,
   interpolate,
-  spring,
   Easing,
 } from "remotion";
+import {
+  COLOR,
+  FONT,
+  YarnBall,
+  Watermark,
+  PlatformSVG,
+  useFadeIn,
+  useSlideUp,
+  useSpring,
+} from "../design";
 
-// ── Brand constants ──
-const BG = "#faf8f5";
-const FG = "#1a1a1a";
-const MUTED = "rgba(26, 26, 26, 0.45)";
-const ACCENT_SLACK = "#611f69";
-const ACCENT_GMAIL = "#c5221f";
-const ACCENT_NOTION = "#37352f";
-const ACCENT_CALENDAR = "#4285f4";
-const GREEN = "#16a34a";
-const AMBER = "#d97706";
-
-// ── Shared animation helpers ──
-const useFadeIn = (delay = 0, duration = 15) => {
-  const frame = useCurrentFrame();
-  return interpolate(frame, [delay, delay + duration], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.out(Easing.quad),
-  });
-};
-
-const useSlideUp = (delay = 0) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const progress = spring({ frame, fps, delay, config: { damping: 200 } });
-  return interpolate(progress, [0, 1], [40, 0]);
-};
-
-// ── Scene 1: Logo + Tagline ──
-const SceneIntro: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const logoScale = spring({ frame, fps, config: { damping: 15, stiffness: 80 } });
+// ── Scene 1: Logo ──
+const SceneLogo: React.FC = () => {
+  const scale = useSpring(0, { damping: 15, stiffness: 80 });
   const tagOpacity = useFadeIn(25, 20);
   const tagY = useSlideUp(25);
 
   return (
-    <AbsoluteFill
-      style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center" }}
-    >
-      <div
-        style={{
-          transform: `scale(${logoScale})`,
-          fontFamily: "'Pacifico', cursive, system-ui",
-          fontSize: 140,
-          color: FG,
-          letterSpacing: "-0.02em",
-        }}
-      >
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center" }}>
+      <div style={{ transform: `scale(${scale})`, fontFamily: FONT.brand, fontSize: 140, color: COLOR.fg }}>
         yarnnn
       </div>
       <div
         style={{
           opacity: tagOpacity,
           transform: `translateY(${tagY}px)`,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 36,
-          color: MUTED,
+          fontFamily: FONT.body,
+          fontSize: 32,
+          color: COLOR.muted,
           marginTop: 20,
-          fontWeight: 300,
+          fontWeight: 400,
         }}
       >
         Autonomous AI that already knows your work.
@@ -77,508 +61,237 @@ const SceneIntro: React.FC = () => {
   );
 };
 
-// ── Scene 2: The Problem ──
-const SceneProblem: React.FC = () => {
-  const headlineOpacity = useFadeIn(0, 20);
-  const headlineY = useSlideUp(0);
-  const subOpacity = useFadeIn(20, 20);
-  const subY = useSlideUp(20);
-  const highlightOpacity = useFadeIn(50, 15);
+// ── Scene 2: Hook ──
+const SceneHook: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const lineOneScale = useSpring(0, { damping: 15, stiffness: 120 });
+  const ballScale = useSpring(Math.round(0.5 * fps), { damping: 12 });
+  const lineTwoDelay = Math.round(0.9 * fps);
+  const lineTwoOpacity = interpolate(frame, [lineTwoDelay, lineTwoDelay + 12], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const lineTwoY = interpolate(frame, [lineTwoDelay, lineTwoDelay + 12], [50, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.quad),
+  });
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: BG,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 120,
-      }}
-    >
-      <div style={{ textAlign: "center", maxWidth: 1200 }}>
-        <div
-          style={{
-            opacity: headlineOpacity,
-            transform: `translateY(${headlineY}px)`,
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 64,
-            fontWeight: 500,
-            color: FG,
-            lineHeight: 1.2,
-          }}
-        >
-          Most AI starts blank
-          <br />
-          every session.
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center", padding: 80 }}>
+      <div style={{ transform: `scale(${lineOneScale})`, textAlign: "center", marginBottom: 40 }}>
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          Your AI forgot
         </div>
-        <div
-          style={{
-            opacity: subOpacity,
-            transform: `translateY(${subY}px)`,
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 32,
-            color: MUTED,
-            marginTop: 32,
-            fontWeight: 300,
-            lineHeight: 1.5,
-          }}
-        >
-          So you keep rebuilding context.
-          <br />
-          Gathering the same information. Restating the same goals.
-        </div>
-        <div
-          style={{
-            opacity: highlightOpacity,
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 36,
-            color: FG,
-            marginTop: 48,
-            fontWeight: 500,
-          }}
-        >
-          What if your AI remembered everything?
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          everything.
         </div>
       </div>
+      <div style={{ transform: `scale(${ballScale})` }}>
+        <YarnBall size={56} />
+      </div>
+      <div style={{ opacity: lineTwoOpacity, transform: `translateY(${lineTwoY}px)`, marginTop: 40, textAlign: "center" }}>
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          Again.
+        </div>
+      </div>
+      <Watermark />
     </AbsoluteFill>
   );
 };
 
-// ── Scene 3: Connect Your Tools ──
-const PlatformIcon: React.FC<{
-  label: string;
-  color: string;
-  delay: number;
-  letter: string;
-}> = ({ label, color, delay, letter }) => {
+// ── Scene 3: Connect ──
+const SceneConnect: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const scale = spring({ frame, fps, delay, config: { damping: 12, stiffness: 120 } });
-  const labelOpacity = interpolate(frame, [delay + 15, delay + 25], [0, 1], {
+  const titleScale = useSpring(0, { damping: 200 });
+  const platforms = [
+    { name: "Slack", color: COLOR.slack, delay: Math.round(0.4 * fps) },
+    { name: "Gmail", color: COLOR.gmail, delay: Math.round(0.6 * fps) },
+    { name: "Notion", color: COLOR.notion, delay: Math.round(0.8 * fps) },
+    { name: "Calendar", color: COLOR.calendar, delay: Math.round(1.0 * fps) },
+  ];
+  const subDelay = Math.round(1.5 * fps);
+  const subOpacity = interpolate(frame, [subDelay, subDelay + 15], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-      <div
-        style={{
-          width: 120,
-          height: 120,
-          borderRadius: 28,
-          backgroundColor: color,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          transform: `scale(${scale})`,
-          boxShadow: `0 8px 32px ${color}33`,
-        }}
-      >
-        <span style={{ fontSize: 48, color: "#fff", fontWeight: 700, fontFamily: "system-ui" }}>
-          {letter}
-        </span>
-      </div>
-      <span
-        style={{
-          opacity: labelOpacity,
-          fontSize: 22,
-          color: MUTED,
-          fontFamily: "system-ui, sans-serif",
-          fontWeight: 400,
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-};
-
-const SceneConnect: React.FC = () => {
-  const titleOpacity = useFadeIn(0, 15);
-  const titleY = useSlideUp(0);
-  const arrowOpacity = useFadeIn(60, 15);
-
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: BG,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          opacity: titleOpacity,
-          transform: `translateY(${titleY}px)`,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 48,
-          fontWeight: 500,
-          color: FG,
-          marginBottom: 64,
-          textAlign: "center",
-        }}
-      >
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center" }}>
+      <div style={{ transform: `scale(${titleScale})`, fontFamily: FONT.body, fontSize: 56, fontWeight: 900, color: COLOR.fg, marginBottom: 56, letterSpacing: "-0.02em" }}>
         Connect once.
       </div>
-
-      <div style={{ display: "flex", gap: 64, alignItems: "center" }}>
-        <PlatformIcon label="Slack" color={ACCENT_SLACK} delay={10} letter="S" />
-        <PlatformIcon label="Gmail" color={ACCENT_GMAIL} delay={18} letter="G" />
-        <PlatformIcon label="Notion" color={ACCENT_NOTION} delay={26} letter="N" />
-        <PlatformIcon label="Calendar" color={ACCENT_CALENDAR} delay={34} letter="C" />
+      <div style={{ display: "flex", gap: 48 }}>
+        {platforms.map(({ name, color, delay }) => {
+          const s = useSpring(delay, { damping: 12, stiffness: 120 });
+          return (
+            <div key={name} style={{ transform: `scale(${s})`, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <PlatformSVG name={name} color={color} size={100} iconSize={36} />
+              <span style={{ fontFamily: FONT.body, fontSize: 18, color: COLOR.muted, fontWeight: 400 }}>{name}</span>
+            </div>
+          );
+        })}
       </div>
-
-      <div
-        style={{
-          opacity: arrowOpacity,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 28,
-          color: MUTED,
-          marginTop: 56,
-          fontWeight: 300,
-        }}
-      >
-        yarnnn reads your data and creates agents automatically.
+      <div style={{ opacity: subOpacity, fontFamily: FONT.body, fontSize: 28, color: COLOR.muted, marginTop: 48, fontWeight: 400 }}>
+        Agents appear automatically.
       </div>
+      <Watermark />
     </AbsoluteFill>
   );
 };
 
-// ── Scene 4: Agents at Work (Dashboard mock) ──
+// ── Scene 4: Dashboard ──
 const AgentCard: React.FC<{
   title: string;
   platform: string;
   platformColor: string;
   skill: string;
-  status: string;
   runs: number;
   delay: number;
-}> = ({ title, platform, platformColor, skill, status, runs, delay }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const scale = spring({ frame, fps, delay, config: { damping: 200 } });
-  const opacity = interpolate(scale, [0, 1], [0, 1]);
+}> = ({ title, platform, platformColor, skill, runs, delay }) => {
+  const scale = useSpring(delay, { damping: 200 });
 
   return (
-    <div
-      style={{
-        opacity,
-        transform: `scale(${scale})`,
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: "28px 32px",
-        width: 360,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-        border: "1px solid rgba(0,0,0,0.06)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            backgroundColor: platformColor,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: "system-ui" }}>
-            {platform[0]}
-          </span>
-        </div>
+    <div style={{ opacity: scale, transform: `scale(${scale})`, backgroundColor: "#fff", borderRadius: 16, padding: "24px 28px", width: 340, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <PlatformSVG name={platform} color={platformColor} size={36} iconSize={16} />
         <div>
-          <div style={{ fontSize: 18, fontWeight: 600, color: FG, fontFamily: "system-ui" }}>
-            {title}
-          </div>
-          <div style={{ fontSize: 13, color: MUTED, fontFamily: "system-ui" }}>{skill}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: COLOR.fg, fontFamily: FONT.body }}>{title}</div>
+          <div style={{ fontSize: 12, color: COLOR.muted, fontFamily: FONT.body }}>{skill}</div>
         </div>
-        <div
-          style={{
-            marginLeft: "auto",
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            backgroundColor: status === "active" ? GREEN : AMBER,
-          }}
-        />
+        <div style={{ marginLeft: "auto", width: 10, height: 10, borderRadius: "50%", backgroundColor: COLOR.green }} />
       </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 13,
-          color: MUTED,
-          fontFamily: "system-ui",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLOR.muted, fontFamily: FONT.body }}>
         <span>{runs} runs</span>
-        <span style={{ color: GREEN, fontWeight: 500 }}>
-          {status === "active" ? "Active" : "Paused"}
-        </span>
+        <span style={{ color: COLOR.green, fontWeight: 600 }}>Active</span>
       </div>
     </div>
   );
 };
 
 const SceneDashboard: React.FC = () => {
-  const titleOpacity = useFadeIn(0, 15);
-  const titleY = useSlideUp(0);
-  const statsOpacity = useFadeIn(15, 15);
+  const { fps } = useVideoConfig();
+  const titleScale = useSpring(0, { damping: 200 });
+  const subOpacity = useFadeIn(12, 15);
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: BG,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 80,
-      }}
-    >
-      <div
-        style={{
-          opacity: titleOpacity,
-          transform: `translateY(${titleY}px)`,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 48,
-          fontWeight: 500,
-          color: FG,
-          marginBottom: 16,
-          textAlign: "center",
-        }}
-      >
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center", padding: 80 }}>
+      <div style={{ transform: `scale(${titleScale})`, fontFamily: FONT.body, fontSize: 52, fontWeight: 900, color: COLOR.fg, marginBottom: 8, textAlign: "center", letterSpacing: "-0.02em" }}>
         Agents run in the background.
       </div>
-      <div
-        style={{
-          opacity: statsOpacity,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 24,
-          color: MUTED,
-          marginBottom: 48,
-          fontWeight: 300,
-          textAlign: "center",
-        }}
-      >
+      <div style={{ opacity: subOpacity, fontFamily: FONT.body, fontSize: 24, color: COLOR.muted, marginBottom: 44, fontWeight: 400 }}>
         You supervise outcomes.
       </div>
-
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
-        <AgentCard
-          title="Slack Recap"
-          platform="Slack"
-          platformColor={ACCENT_SLACK}
-          skill="Digest · Daily 9am"
-          status="active"
-          runs={14}
-          delay={20}
-        />
-        <AgentCard
-          title="Gmail Digest"
-          platform="Gmail"
-          platformColor={ACCENT_GMAIL}
-          skill="Digest · Daily 8am"
-          status="active"
-          runs={12}
-          delay={28}
-        />
-        <AgentCard
-          title="Meeting Prep"
-          platform="Calendar"
-          platformColor={ACCENT_CALENDAR}
-          skill="Prepare · Daily 7am"
-          status="active"
-          runs={10}
-          delay={36}
-        />
+      <div style={{ display: "flex", gap: 20, justifyContent: "center" }}>
+        <AgentCard title="Slack Recap" platform="Slack" platformColor={COLOR.slack} skill="Digest · Daily 9am" runs={14} delay={Math.round(0.5 * fps)} />
+        <AgentCard title="Gmail Digest" platform="Gmail" platformColor={COLOR.gmail} skill="Digest · Daily 8am" runs={12} delay={Math.round(0.7 * fps)} />
+        <AgentCard title="Meeting Prep" platform="Calendar" platformColor={COLOR.calendar} skill="Prepare · Daily 7am" runs={10} delay={Math.round(0.9 * fps)} />
       </div>
+      <Watermark />
     </AbsoluteFill>
   );
 };
 
-// ── Scene 5: The Compounding Effect ──
+// ── Scene 5: Compounding ──
 const SceneCompound: React.FC = () => {
   const frame = useCurrentFrame();
-  const headOpacity = useFadeIn(0, 15);
-  const headY = useSlideUp(0);
-
-  const steps = [
-    "Sources sync and context deepens",
-    "Agent memory captures what works",
-    "Output quality rises each cycle",
-    "You supervise with less effort over time",
-  ];
+  const { fps } = useVideoConfig();
+  const headScale = useSpring(0, { damping: 200 });
+  const ballScale = useSpring(Math.round(0.4 * fps), { damping: 12 });
+  const bottomDelay = Math.round(0.8 * fps);
+  const bottomOpacity = interpolate(frame, [bottomDelay, bottomDelay + 15], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const bottomY = interpolate(frame, [bottomDelay, bottomDelay + 15], [50, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.quad),
+  });
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: BG,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 120,
-      }}
-    >
-      <div style={{ textAlign: "center", maxWidth: 900 }}>
-        <div
-          style={{
-            opacity: headOpacity,
-            transform: `translateY(${headY}px)`,
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 52,
-            fontWeight: 500,
-            color: FG,
-            marginBottom: 56,
-            lineHeight: 1.2,
-          }}
-        >
-          Quality compounds
-          <br />
-          <span style={{ color: MUTED }}>with every cycle.</span>
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center", padding: 80 }}>
+      <div style={{ transform: `scale(${headScale})`, textAlign: "center", marginBottom: 40 }}>
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          context
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
-          {steps.map((step, i) => {
-            const delay = 15 + i * 12;
-            const opacity = interpolate(frame, [delay, delay + 12], [0, 1], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            });
-            const x = interpolate(frame, [delay, delay + 12], [30, 0], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-              easing: Easing.out(Easing.quad),
-            });
-            const isLast = i === steps.length - 1;
-            return (
-              <div
-                key={i}
-                style={{
-                  opacity,
-                  transform: `translateX(${x}px)`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    backgroundColor: isLast ? "rgba(26,26,26,0.15)" : "rgba(26,26,26,0.08)",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    fontSize: 15,
-                    color: isLast ? FG : MUTED,
-                    fontFamily: "system-ui",
-                  }}
-                >
-                  {i + 1}
-                </div>
-                <span
-                  style={{
-                    fontSize: isLast ? 24 : 22,
-                    fontWeight: isLast ? 600 : 400,
-                    color: isLast ? FG : "rgba(26,26,26,0.6)",
-                    fontFamily: "system-ui, sans-serif",
-                  }}
-                >
-                  {step}
-                </span>
-              </div>
-            );
-          })}
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          compounds
         </div>
       </div>
+      <div style={{ transform: `scale(${ballScale})` }}>
+        <YarnBall size={56} />
+      </div>
+      <div style={{ opacity: bottomOpacity, transform: `translateY(${bottomY}px)`, marginTop: 40, textAlign: "center" }}>
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          every cycle
+        </div>
+        <div style={{ fontFamily: FONT.body, fontSize: 80, fontWeight: 900, color: COLOR.fg, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+          gets better
+        </div>
+      </div>
+      <Watermark />
     </AbsoluteFill>
   );
 };
 
 // ── Scene 6: CTA ──
 const SceneCTA: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const logoScale = spring({ frame, fps, config: { damping: 200 } });
-  const ctaOpacity = useFadeIn(20, 20);
-  const ctaY = useSlideUp(20);
-  const subOpacity = useFadeIn(35, 15);
+  const logoScale = useSpring(0, { damping: 15, stiffness: 80 });
+  const ballScale = useSpring(15, { damping: 12 });
+  const ctaOpacity = useFadeIn(25, 15);
+  const ctaY = useSlideUp(25);
 
   return (
-    <AbsoluteFill
-      style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center" }}
-    >
-      <div
-        style={{
-          transform: `scale(${logoScale})`,
-          fontFamily: "'Pacifico', cursive, system-ui",
-          fontSize: 100,
-          color: FG,
-        }}
-      >
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, justifyContent: "center", alignItems: "center" }}>
+      <div style={{ transform: `scale(${logoScale})`, fontFamily: FONT.brand, fontSize: 120, color: COLOR.fg }}>
         yarnnn
+      </div>
+      <div style={{ transform: `scale(${ballScale})`, marginTop: 24 }}>
+        <YarnBall size={48} />
       </div>
       <div
         style={{
           opacity: ctaOpacity,
           transform: `translateY(${ctaY}px)`,
-          marginTop: 40,
-          padding: "18px 48px",
-          backgroundColor: FG,
-          borderRadius: 8,
-          fontFamily: "system-ui, sans-serif",
+          marginTop: 36,
+          fontFamily: FONT.body,
           fontSize: 28,
-          color: "#faf8f5",
-          fontWeight: 500,
+          color: COLOR.muted,
+          fontWeight: 400,
         }}
       >
-        Start with yarnnn
+        Connect once. Supervise from there.
       </div>
-      <div
-        style={{
-          opacity: subOpacity,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 20,
-          color: MUTED,
-          marginTop: 24,
-          fontWeight: 300,
-        }}
-      >
-        Free to start · Connect once, supervise from there
-      </div>
+      <Watermark />
     </AbsoluteFill>
   );
 };
 
-// ── Main Composition ──
+// ── Main composition ──
 export const ProductDemo: React.FC = () => {
   const { fps } = useVideoConfig();
 
-  // Scene durations in seconds → frames
   const scenes = [
-    { duration: 4, Component: SceneIntro },     // 0-4s: Logo + tagline
-    { duration: 6, Component: SceneProblem },    // 4-10s: The problem
-    { duration: 6, Component: SceneConnect },    // 10-16s: Connect platforms
-    { duration: 7, Component: SceneDashboard },  // 16-23s: Dashboard mock
-    { duration: 6, Component: SceneCompound },   // 23-29s: Compounding
-    { duration: 4, Component: SceneCTA },        // 29-33s: CTA
+    { seconds: 3, Component: SceneLogo },
+    { seconds: 4, Component: SceneHook },
+    { seconds: 5, Component: SceneConnect },
+    { seconds: 6, Component: SceneDashboard },
+    { seconds: 5, Component: SceneCompound },
+    { seconds: 4, Component: SceneCTA },
   ];
 
   let offset = 0;
-
   return (
-    <AbsoluteFill style={{ backgroundColor: BG }}>
-      {scenes.map(({ duration, Component }, i) => {
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg }}>
+      {scenes.map(({ seconds, Component }, i) => {
         const from = offset;
-        const durationInFrames = duration * fps;
-        offset += durationInFrames;
+        const dur = seconds * fps;
+        offset += dur;
         return (
-          <Sequence
-            key={i}
-            from={from}
-            durationInFrames={durationInFrames}
-            premountFor={fps}
-          >
+          <Sequence key={i} from={from} durationInFrames={dur} premountFor={fps}>
             <Component />
           </Sequence>
         );
