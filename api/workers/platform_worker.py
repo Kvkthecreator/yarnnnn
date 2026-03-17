@@ -429,7 +429,11 @@ async def _heartbeat_check(client, user_id: str, provider: str, integration: dic
             current_latest = await slack.get_channels_latest(bot_token, channel_ids)
 
             prev_latest = sync_cursor.get("slack_channel_latest", {})
-            if prev_latest and current_latest == prev_latest:
+            # Don't trust heartbeat if all values are "0" — means bot can't read channel info
+            all_zero = all(v == "0" for v in current_latest.values()) if current_latest else True
+            if all_zero:
+                logger.warning(f"[HEARTBEAT] Slack: all channel latest values are '0' — bot may not have access, forcing full sync")
+            if prev_latest and current_latest == prev_latest and not all_zero:
                 return True  # No changes
 
             # Store updated cursor
