@@ -48,6 +48,7 @@ class SearchResult:
     content: str
     rank: float = 0.0
     updated_at: Optional[datetime] = None
+    metadata: Optional[dict] = None  # ADR-116: knowledge provenance (agent_id, skill, scope)
 
 
 class AgentWorkspace:
@@ -781,6 +782,44 @@ class KnowledgeBase:
             ]
         except Exception as e:
             logger.warning(f"[KNOWLEDGE] Search failed: {query}: {e}")
+            return []
+
+    async def search_by_metadata(
+        self,
+        query: str = None,
+        content_class: str = None,
+        agent_id: str = None,
+        skill: str = None,
+        limit: int = 10,
+    ) -> list[SearchResult]:
+        """ADR-116 Phase 1: Search knowledge base with metadata filters.
+
+        Enables provenance-aware queries like "all digests from the Slack Recap agent"
+        or "all research outputs" without relying on full-text content matching alone.
+        """
+        try:
+            result = self._db.rpc("search_knowledge_by_metadata", {
+                "p_user_id": self._user_id,
+                "p_content_class": content_class,
+                "p_agent_id": agent_id,
+                "p_skill": skill,
+                "p_query": query,
+                "p_limit": limit,
+            }).execute()
+
+            return [
+                SearchResult(
+                    path=r["path"],
+                    summary=r.get("summary"),
+                    content=r["content"][:500] if r.get("content") else "",
+                    rank=0,
+                    updated_at=r.get("updated_at"),
+                    metadata=r.get("metadata"),
+                )
+                for r in (result.data or [])
+            ]
+        except Exception as e:
+            logger.warning(f"[KNOWLEDGE] Metadata search failed: {e}")
             return []
 
     async def read(self, path: str) -> Optional[str]:

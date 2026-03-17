@@ -1,6 +1,6 @@
 # ADR-116: Agent Identity & Inter-Agent Knowledge Infrastructure
 
-**Status:** Proposed
+**Status:** Phases 1-2 Implemented, Phases 3-5 Proposed
 **Date:** 2026-03-17
 **Builds on:** ADR-106 (Workspace Architecture), ADR-107 (Knowledge Filesystem), ADR-109 (Agent Framework), ADR-111 (Composer), ADR-114 (Substrate-Aware Assessment)
 **Related:**
@@ -306,6 +306,23 @@ The workspace IS the identity. The knowledge filesystem IS the communication sub
 | `/knowledge/` | Text-searchable | + metadata-filterable by producer agent |
 | Agent card | Does not exist | Auto-generated from workspace, stored at `/agents/{slug}/agent-card.json` |
 | workspace-conventions.md | `references/` marked "(future)" | Specified: `references/{agent-slug}/` for cached cross-agent context |
+
+---
+
+## Implementation Status (2026-03-17)
+
+**Phases 1-2 implemented:**
+
+- **Phase 1: Knowledge Metadata Search**
+  - `supabase/migrations/111_search_knowledge_by_metadata.sql` — Postgres RPC with filters for `agent_id`, `skill`, `scope`, `content_class`, optional text search. SECURITY DEFINER, granted to `authenticated` + `service_role`.
+  - `api/services/workspace.py`: `KnowledgeBase.search_by_metadata()` — calls new RPC, returns `SearchResult` with metadata provenance.
+  - `api/services/primitives/workspace.py`: `QueryKnowledge` extended with `agent_id` and `skill` parameters. `query` changed from required to optional. Results include `produced_by`, `skill`, `scope`, `version` when metadata available. Existing text-only queries unchanged (same code path).
+
+- **Phase 2: Agent Discovery Primitive**
+  - `api/services/primitives/workspace.py`: `DISCOVER_AGENTS_TOOL` + `handle_discover_agents()` — new headless primitive. Queries `agents` table by skill/scope/status, loads thesis summary (first 300 chars) from each agent's workspace, returns agent cards with maturity signals. Excludes calling agent from results.
+  - `api/services/primitives/registry.py`: `DiscoverAgents` registered in PRIMITIVES, HANDLERS, PRIMITIVE_MODES (headless-only). Available to synthesize and orchestrate skills per agent-framework.md.
+
+**Phases 3-5 proposed** — cross-agent workspace reading, agent card auto-generation + MCP exposure, consumption tracking + Composer dependency graph.
 
 ---
 

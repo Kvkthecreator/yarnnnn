@@ -1,13 +1,14 @@
 """
-Workspace Primitives — ADR-106 / ADR-107
+Workspace & Inter-Agent Primitives — ADR-106 / ADR-107 / ADR-116
 
 Headless-only primitives that let reasoning agents interact with their
-workspace and the shared knowledge base during generation.
+workspace, the shared knowledge base, and other agents.
 
 - ReadWorkspace: read from agent's workspace
 - WriteWorkspace: write to agent's workspace (thesis, observations, working notes)
 - SearchWorkspace: full-text search within agent's workspace
-- QueryKnowledge: search /knowledge/ filesystem + platform_content fallback
+- QueryKnowledge: search /knowledge/ filesystem with metadata filters + platform_content fallback
+- DiscoverAgents: find other agents by skill/scope/status (ADR-116 Phase 2)
 """
 
 import logging
@@ -112,18 +113,30 @@ The knowledge base contains:
 - Synced content from connected platforms (Slack, Gmail, Notion, Calendar) via fallback
 
 Use this to find evidence relevant to your domain. Search by topic, person, keyword.
-Much more targeted than receiving a full platform dump — query for what you need.""",
+Much more targeted than receiving a full platform dump — query for what you need.
+
+You can filter by the agent that produced the knowledge, by skill type, or by content class.
+Use DiscoverAgents first to find agent IDs if you want to query a specific agent's outputs.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query (topic, person, keyword)"
+                "description": "Search query (topic, person, keyword). Optional if filtering by agent_id or skill."
             },
             "content_class": {
                 "type": "string",
                 "enum": ["digests", "analyses", "briefs", "research", "insights"],
                 "description": "Optional: limit to a specific knowledge category"
+            },
+            "agent_id": {
+                "type": "string",
+                "description": "Optional: filter to knowledge produced by a specific agent (UUID)"
+            },
+            "skill": {
+                "type": "string",
+                "enum": ["digest", "prepare", "monitor", "research", "synthesize"],
+                "description": "Optional: filter by the skill type that produced the knowledge"
             },
             "limit": {
                 "type": "integer",
@@ -131,7 +144,7 @@ Much more targeted than receiving a full platform dump — query for what you ne
                 "default": 10
             }
         },
-        "required": ["query"]
+        "required": []
     }
 }
 
@@ -235,29 +248,57 @@ async def handle_search_workspace(auth: Any, input: dict) -> dict:
 
 
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
-    """Handle QueryKnowledge primitive — searches /knowledge/ and falls back to platform_content."""
+    """Handle QueryKnowledge primitive — searches /knowledge/ with optional metadata filters.
+
+    ADR-116 Phase 1: When agent_id or skill filters are provided, uses metadata-aware
+    search (search_knowledge_by_metadata RPC). Otherwise falls back to existing
+    full-text search. Always falls back to platform_content if /knowledge/ is empty.
+    """
     from services.workspace import KnowledgeBase
 
     kb = KnowledgeBase(auth.client, auth.user_id)
-    query = input.get("query", "")
+    query = input.get("query") or None
     content_class = input.get("content_class")
+    agent_id = input.get("agent_id")
+    skill = input.get("skill")
     limit = min(input.get("limit", 10), 30)
 
-    results = await kb.search(query, content_class=content_class, limit=limit)
+    # ADR-116: Use metadata search when filters are provided
+    has_metadata_filters = agent_id or skill
+    if has_metadata_filters or not query:
+        results = await kb.search_by_metadata(
+            query=query,
+            content_class=content_class,
+            agent_id=agent_id,
+            skill=skill,
+            limit=limit,
+        )
+    else:
+        results = await kb.search(query, content_class=content_class, limit=limit)
 
-    if not results:
+    if not results and query:
         # Fall back to searching platform_content for external data
         return await _fallback_platform_content_search(auth, query, None, limit)
+
+    result_items = []
+    for r in results:
+        item = {"path": r.path, "summary": r.summary, "content_preview": r.content}
+        # ADR-116: Include provenance metadata when available
+        if r.metadata:
+            item["produced_by"] = r.metadata.get("agent_id")
+            item["skill"] = r.metadata.get("skill")
+            item["scope"] = r.metadata.get("scope")
+            item["version"] = r.metadata.get("version_number")
+        result_items.append(item)
 
     return {
         "success": True,
         "query": query,
         "content_class": content_class,
-        "count": len(results),
-        "results": [
-            {"path": r.path, "summary": r.summary, "content_preview": r.content}
-            for r in results
-        ],
+        "agent_id": agent_id,
+        "skill": skill,
+        "count": len(result_items),
+        "results": result_items,
     }
 
 
@@ -335,3 +376,124 @@ async def _fallback_platform_content_search(auth: Any, query: str, platform: str
             "results": [],
             "message": "No knowledge base content found. Connected platforms may not have synced yet.",
         }
+
+
+# =============================================================================
+# ADR-116 Phase 2: DiscoverAgents
+# =============================================================================
+
+DISCOVER_AGENTS_TOOL = {
+    "name": "DiscoverAgents",
+    "description": """Discover other agents in this workspace.
+
+Returns a list of agents with their identity, capabilities, and maturity.
+Use this to understand what other agents exist and what knowledge they produce
+before querying their outputs with QueryKnowledge.
+
+Each result includes:
+- Agent ID (use with QueryKnowledge's agent_id filter)
+- Title, skill, scope
+- Thesis summary (what the agent understands about its domain)
+- Sources it monitors
+- Maturity signals (run count, approval rate)""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "skill": {
+                "type": "string",
+                "enum": ["digest", "prepare", "monitor", "research", "synthesize", "orchestrate"],
+                "description": "Optional: filter by skill type"
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["platform", "cross_platform", "knowledge", "research", "autonomous"],
+                "description": "Optional: filter by scope"
+            },
+            "status": {
+                "type": "string",
+                "enum": ["active", "paused"],
+                "description": "Optional: filter by status. Default: active"
+            }
+        },
+        "required": []
+    }
+}
+
+
+async def handle_discover_agents(auth: Any, input: dict) -> dict:
+    """Handle DiscoverAgents primitive — ADR-116 Phase 2.
+
+    Returns agent cards with thesis summaries for inter-agent discovery.
+    Excludes the calling agent itself from results.
+    """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    skill_filter = input.get("skill")
+    scope_filter = input.get("scope")
+    status_filter = input.get("status", "active")
+
+    # Query agents table
+    query = (
+        auth.client.table("agents")
+        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .eq("user_id", auth.user_id)
+        .eq("status", status_filter)
+    )
+    if skill_filter:
+        query = query.eq("skill", skill_filter)
+    if scope_filter:
+        query = query.eq("scope", scope_filter)
+
+    result = query.order("created_at", desc=True).limit(20).execute()
+    agents = result.data or []
+
+    # Exclude the calling agent itself
+    calling_agent = getattr(auth, "agent", None)
+    calling_agent_id = calling_agent.get("id") if calling_agent else None
+    if calling_agent_id:
+        agents = [a for a in agents if a["id"] != calling_agent_id]
+
+    # Load thesis summary for each agent (truncated for token budget)
+    agent_cards = []
+    for agent in agents:
+        slug = get_agent_slug(agent)
+        thesis_summary = None
+        try:
+            ws = AgentWorkspace(auth.client, auth.user_id, slug)
+            thesis = await ws.read("thesis.md")
+            if thesis:
+                thesis_summary = thesis[:300]  # Truncate for token budget
+        except Exception:
+            pass
+
+        # Compute basic maturity signals from available data
+        run_count = 0
+        try:
+            run_result = (
+                auth.client.table("agent_runs")
+                .select("id", count="exact")
+                .eq("agent_id", agent["id"])
+                .execute()
+            )
+            run_count = run_result.count or 0
+        except Exception:
+            pass
+
+        agent_cards.append({
+            "agent_id": agent["id"],
+            "title": agent["title"],
+            "skill": agent.get("skill"),
+            "scope": agent.get("scope"),
+            "sources": agent.get("sources", []),
+            "thesis_summary": thesis_summary,
+            "last_run_at": agent.get("last_run_at"),
+            "maturity": {
+                "runs": run_count,
+            },
+        })
+
+    return {
+        "success": True,
+        "count": len(agent_cards),
+        "agents": agent_cards,
+    }

@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.3] - Inter-Agent Knowledge Infrastructure (ADR-116 Phases 1-2)
+
+### Added
+- `api/services/primitives/workspace.py`: `QueryKnowledge` tool — extended with `agent_id`, `skill` filter parameters. Agents can now query knowledge by producer agent, skill type, and content class. Results include provenance metadata (produced_by, skill, scope, version).
+- `api/services/primitives/workspace.py`: `DiscoverAgents` tool — new headless primitive. Agents can discover sibling agents by skill/scope/status, receiving agent cards with thesis summaries and maturity signals.
+- `api/services/workspace.py`: `KnowledgeBase.search_by_metadata()` — metadata-aware search using new `search_knowledge_by_metadata` RPC.
+- `supabase/migrations/111_search_knowledge_by_metadata.sql` — Postgres RPC for filtering `/knowledge/` by agent_id, skill, scope, content_class.
+
+### Changed
+- `api/services/primitives/registry.py`: `DiscoverAgents` registered as headless-only primitive. Available to synthesize and orchestrate skills per ADR-109 framework.
+- `QueryKnowledge` tool description updated to reference DiscoverAgents for agent ID lookup.
+- `QueryKnowledge` `query` parameter changed from required to optional (metadata-only queries are valid).
+
+### Expected behavior
+- Synthesis agents can now call `DiscoverAgents(skill="digest")` to find digest agents, then `QueryKnowledge(agent_id="<uuid>")` to get exactly that agent's outputs. This is the inter-agent compounding loop.
+- Existing QueryKnowledge calls (text-only, no metadata filters) are unchanged — same code path, same fallback to platform_content.
+- DiscoverAgents excludes the calling agent from results. Returns thesis summary (first 300 chars) and run count for each discovered agent.
+
+---
+
 ## [2026.03.17.2] - State-Change Gate for Density-Triggered LLM (ADR-115)
 
 ### Added
