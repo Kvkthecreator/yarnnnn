@@ -97,7 +97,7 @@ YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: 
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
 | yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
-| yarnnn-render | Web Service (Docker) | `TBD — create via dashboard` |
+| yarnnn-render | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
 
 All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Render service is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib).
 
