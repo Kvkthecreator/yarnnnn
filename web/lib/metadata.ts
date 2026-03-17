@@ -15,7 +15,7 @@ export const BRAND = {
   tagline: "Autonomous AI that knows your work",
   description:
     "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates autonomous agents that run recurring work and improve with every cycle.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };
 

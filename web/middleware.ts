@@ -1,7 +1,38 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
+  const host = request.headers.get("host") || request.nextUrl.host;
+  const forwardedProto = request.headers.get("x-forwarded-proto") || request.nextUrl.protocol.replace(":", "");
+  const pathname = request.nextUrl.pathname;
+
+  // Canonicalize production traffic onto a single HTTPS apex host.
+  if (host === "www.yarnnn.com" || (host === "yarnnn.com" && forwardedProto !== "https")) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.host = "yarnnn.com";
+    return NextResponse.redirect(url, 308);
+  }
+
+  // Legacy public auth entry point kept for backlinks/bookmarks.
+  if (pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url, 308);
+  }
+
+  // Removed pre-v5 routes should return a real gone response, not bounce through auth.
+  const gonePrefixes = ["/baskets", "/blocks", "/projects", "/docs/integrations"];
+  if (gonePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return new NextResponse("Gone", {
+      status: 410,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "x-robots-tag": "noindex, nofollow",
+      },
+    });
+  }
+
   return await updateSession(request);
 }
 
