@@ -347,9 +347,6 @@ export interface GmailDestinationOptions {
   thread_id?: string;  // For replies
 }
 
-// ADR-031: Platform-native agent variants
-export type PlatformVariant = "slack_digest" | "email_summary" | "notion_page" | string;
-
 // ADR-087: Agent memory observation
 export interface AgentObservation {
   date: string;
@@ -407,8 +404,6 @@ export interface Agent {
   scope: Scope;
   skill: Skill;
   type_config?: SkillConfig;
-  // ADR-031: Platform-native variants
-  platform_variant?: PlatformVariant;  // platform-native render variant (legacy field)
   project_id?: string;
   project_name?: string;  // For UI display
   recipient_context?: RecipientContext;
@@ -444,7 +439,6 @@ export interface AgentCreate {
   skill?: Skill;
   type_config?: SkillConfig;
   // ADR-031: Platform-native variants
-  platform_variant?: PlatformVariant;
   project_id?: string;
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
@@ -462,7 +456,6 @@ export interface AgentUpdate {
   skill?: Skill;
   type_config?: SkillConfig;
   // ADR-031: Platform-native variants
-  platform_variant?: PlatformVariant;
   recipient_context?: RecipientContext;
   schedule?: ScheduleConfig;
   sources?: DataSource[];

@@ -277,20 +277,14 @@ class AgentCreate(BaseModel):
     # ADR-109: Skill is user-selected, scope is auto-inferred
     skill: Skill = "custom"
     type_config: Optional[dict] = None  # Skill-specific config, validated per skill
-    # ADR-031: Platform-native variants
-    platform_variant: Optional[str] = None
     recipient_context: Optional[RecipientContext] = None
-    # ADR-031 Phase 4: Trigger configuration
+    # Trigger configuration
     trigger_type: Literal["schedule", "event", "manual"] = "schedule"
     schedule: Optional[ScheduleConfig] = None  # Required if trigger_type='schedule'
     trigger_config: Optional[EventTriggerConfig] = None  # Required if trigger_type='event'
     sources: list[DataSource] = Field(default_factory=list)
     # ADR-028: Destination-first agents
     destination: Optional[dict] = None  # { platform, target, format, options }
-    # ADR-031 Phase 6: Multi-destination support for synthesizers
-    destinations: Optional[list[dict]] = None  # Array of destination configs
-    # ADR-031 Phase 6: Synthesizer flag
-    is_synthesizer: bool = False  # If true, uses cross-platform context assembly
     # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
     # ADR-087: Agent-scoped context
@@ -303,26 +297,15 @@ class AgentUpdate(BaseModel):
     title: Optional[str] = None
     skill: Optional[Skill] = None
     type_config: Optional[dict] = None
-    # ADR-031: Platform-native variants
-    platform_variant: Optional[str] = None
     recipient_context: Optional[RecipientContext] = None
-    # ADR-031 Phase 4: Trigger configuration
     trigger_type: Optional[Literal["schedule", "event", "manual"]] = None
     schedule: Optional[ScheduleConfig] = None
     trigger_config: Optional[EventTriggerConfig] = None
     sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
-    # ADR-028: Destination-first agents
     destination: Optional[dict] = None
-    # ADR-031 Phase 6: Multi-destination support
-    destinations: Optional[list[dict]] = None
-    # ADR-031 Phase 6: Synthesizer flag
-    is_synthesizer: Optional[bool] = None
-    # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
-    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
-    # ADR-092: Proactive/coordinator review scheduling
     proactive_next_review_at: Optional[str] = None
     description: Optional[str] = None
 
@@ -335,8 +318,6 @@ class AgentResponse(BaseModel):
     scope: str = "cross_platform"
     skill: str = "custom"
     type_config: Optional[dict] = None
-    # ADR-031: Platform-native variants
-    platform_variant: Optional[str] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
@@ -355,11 +336,6 @@ class AgentResponse(BaseModel):
     latest_version_status: Optional[str] = None
     # ADR-028: Destination-first agents
     destination: Optional[dict] = None  # { platform, target, format, options }
-    # ADR-031 Phase 6: Multi-destination support
-    destinations: list[dict] = Field(default_factory=list)  # Array of destination configs
-    # ADR-031 Phase 6: Synthesizer fields
-    is_synthesizer: bool = False  # Uses cross-platform context assembly
-    linked_resources: Optional[list[dict]] = None  # Project resources for synthesizers
     # Quality metrics (ADR-018: feedback loop)
     quality_score: Optional[float] = None
     quality_trend: Optional[str] = None
@@ -522,7 +498,6 @@ async def create_agent(
         skill=request.skill,
         origin="user_configured",
         description=request.description,
-        platform_variant=request.platform_variant,
         agent_instructions=request.agent_instructions,
         sources=sources_raw,
         schedule=request.schedule.model_dump() if request.schedule else None,
@@ -548,7 +523,7 @@ async def create_agent(
         scope=agent.get("scope", "cross_platform"),
         skill=agent.get("skill", "custom"),
         type_config=agent.get("type_config"),
-        platform_variant=agent.get("platform_variant"),
+
         project_id=None,  # ADR-034: Deprecated
         recipient_context=agent.get("recipient_context"),
         schedule=agent["schedule"],
@@ -679,8 +654,6 @@ async def list_agents(
             scope=d.get("scope", "cross_platform"),
             skill=d.get("skill", "custom"),
             type_config=d.get("type_config"),
-            # ADR-031: Platform-native variants
-            platform_variant=d.get("platform_variant"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=d.get("recipient_context"),
@@ -788,7 +761,7 @@ async def get_agent(
         skill=agent.get("skill", "custom"),
             type_config=agent.get("type_config"),
             # ADR-031: Platform-native variants
-            platform_variant=agent.get("platform_variant"),
+    
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=agent.get("recipient_context"),
@@ -880,9 +853,6 @@ async def update_agent(
         # Validate against current or new skill
         target_skill = request.skill or check.data.get("skill", "custom")
         update_data["type_config"] = validate_skill_config(target_skill, request.type_config)
-    # ADR-031: Platform-native variants
-    if request.platform_variant is not None:
-        update_data["platform_variant"] = request.platform_variant
     if request.recipient_context is not None:
         update_data["recipient_context"] = request.recipient_context.model_dump()
     if request.schedule is not None:
@@ -935,8 +905,6 @@ async def update_agent(
         scope=d.get("scope", "cross_platform"),
         skill=d.get("skill", "custom"),
         type_config=d.get("type_config"),
-        # ADR-031: Platform-native variants
-        platform_variant=d.get("platform_variant"),
         project_id=None,  # ADR-034: Deprecated
         recipient_context=d.get("recipient_context"),
         schedule=d["schedule"],

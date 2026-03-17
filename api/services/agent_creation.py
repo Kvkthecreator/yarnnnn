@@ -81,10 +81,9 @@ def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
 # Columns allowed in agents table INSERT (prevents Supabase 400)
 AGENT_COLUMNS = {
     "id", "user_id", "project_id", "title", "description",
-    "recipient_context", "template_structure", "schedule", "sources",
+    "recipient_context", "schedule", "sources",
     "status", "created_at", "updated_at", "last_run_at", "next_run_at",
-    "type_config", "destination", "platform_variant", "destinations",
-    "is_synthesizer", "domain_id", "origin", "agent_instructions",
+    "type_config", "destination", "origin", "agent_instructions",
     "agent_memory", "mode", "proactive_next_review_at", "trigger_type",
     "trigger_config", "last_triggered_at", "scope", "skill",
 }
@@ -103,7 +102,6 @@ async def create_agent_record(
     *,
     scope: Optional[str] = None,
     description: Optional[str] = None,
-    platform_variant: Optional[str] = None,
     agent_instructions: Optional[str] = None,
     sources: Optional[list] = None,
     schedule: Optional[dict] = None,
@@ -199,8 +197,6 @@ async def create_agent_record(
         agent_data["agent_instructions"] = instructions_text
     if description:
         agent_data["description"] = description
-    if platform_variant:
-        agent_data["platform_variant"] = platform_variant
 
     if trigger_type:
         agent_data["trigger_type"] = trigger_type

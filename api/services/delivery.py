@@ -464,12 +464,12 @@ class DeliveryService:
 
         # Get agent title
         agent = self.client.table("agents").select(
-            "id, title, platform_variant, scope, skill, mode"
+            "id, title, scope, skill, mode"
         ).eq("id", version.data["agent_id"]).single().execute()
 
         content = version.data.get("final_content") or version.data.get("draft_content", "")
         title = agent.data.get("title", "YARNNN Agent") if agent.data else "Agent"
-        platform_variant = agent.data.get("platform_variant") if agent.data else None
+        platform_variant = None  # Was agents.platform_variant column, dropped in migration 113
 
         results = []
         succeeded = 0
