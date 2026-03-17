@@ -11,7 +11,9 @@ workspace, the shared knowledge base, and other agents.
 - DiscoverAgents: find other agents by skill/scope/status (ADR-116 Phase 2)
 """
 
+import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -172,6 +174,48 @@ Call with no arguments to see top-level files, or pass a path to list a subdirec
 # Handlers
 # =============================================================================
 
+
+async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str]):
+    """ADR-116 Phase 5: Log cross-agent references for consumption tracking.
+
+    When an agent reads knowledge or context from another agent, record the
+    reference so Composer can build an agent dependency graph.
+    Writes to the consuming agent's memory/references.json.
+    Non-fatal — never blocks the calling primitive.
+    """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    calling_agent = getattr(auth, "agent", None)
+    if not calling_agent or not referenced_agent_ids:
+        return
+
+    try:
+        slug = get_agent_slug(calling_agent)
+        ws = AgentWorkspace(auth.client, auth.user_id, slug)
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Read existing references
+        existing = await ws.read("memory/references.json")
+        refs = {}
+        if existing:
+            try:
+                refs = json.loads(existing)
+            except json.JSONDecodeError:
+                refs = {}
+
+        # Update references (keyed by agent_id, latest timestamp wins)
+        for aid in referenced_agent_ids:
+            refs[aid] = {"last_read": now}
+
+        await ws.write(
+            "memory/references.json",
+            json.dumps(refs, indent=2),
+            summary="Cross-agent references (auto-tracked)",
+        )
+    except Exception as e:
+        logger.debug(f"[WORKSPACE] Reference logging failed (non-fatal): {e}")
+
+
 async def handle_read_workspace(auth: Any, input: dict) -> dict:
     """Handle ReadWorkspace primitive."""
     from services.workspace import AgentWorkspace, get_agent_slug
@@ -290,6 +334,15 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             item["scope"] = r.metadata.get("scope")
             item["version"] = r.metadata.get("version_number")
         result_items.append(item)
+
+    # ADR-116 Phase 5: Log cross-agent references
+    referenced_ids = set()
+    for item in result_items:
+        produced_by = item.get("produced_by")
+        if produced_by:
+            referenced_ids.add(produced_by)
+    if referenced_ids:
+        await _log_cross_agent_reference(auth, list(referenced_ids))
 
     return {
         "success": True,
@@ -497,3 +550,110 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
         "count": len(agent_cards),
         "agents": agent_cards,
     }
+
+
+# =============================================================================
+# ADR-116 Phase 3: ReadAgentContext
+# =============================================================================
+
+READ_AGENT_CONTEXT_TOOL = {
+    "name": "ReadAgentContext",
+    "description": """Read another agent's identity and domain understanding.
+
+Use after DiscoverAgents to deeply understand a specific agent's perspective
+before synthesizing or building on its work.
+
+Available file sets:
+- 'identity' (default): AGENT.md (behavioral instructions) + thesis.md (domain understanding)
+- 'memory': memory/*.md files (observations, preferences, topic-scoped memory)
+- 'all': identity + memory
+
+Read-only. You cannot modify another agent's workspace.
+Working notes (working/) and past runs (runs/) are excluded — those are process artifacts, not identity.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "agent_id": {
+                "type": "string",
+                "description": "UUID of the target agent (from DiscoverAgents results)"
+            },
+            "files": {
+                "type": "string",
+                "enum": ["identity", "memory", "all"],
+                "description": "Which files to read. Default: 'identity' (AGENT.md + thesis.md)"
+            }
+        },
+        "required": ["agent_id"]
+    }
+}
+
+
+async def handle_read_agent_context(auth: Any, input: dict) -> dict:
+    """Handle ReadAgentContext primitive — ADR-116 Phase 3.
+
+    Read-only cross-agent workspace access for identity files.
+    Restricted to synthesize, research, orchestrate skills (enforced by PRIMITIVE_MODES).
+    """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    target_agent_id = input.get("agent_id", "")
+    files_mode = input.get("files", "identity")
+
+    # Look up the target agent (must belong to same user)
+    try:
+        result = (
+            auth.client.table("agents")
+            .select("id, title, skill, scope, status")
+            .eq("user_id", auth.user_id)
+            .eq("id", target_agent_id)
+            .limit(1)
+            .execute()
+        )
+        agents = result.data or []
+    except Exception as e:
+        return {"success": False, "error": "query_failed", "message": str(e)}
+
+    if not agents:
+        return {
+            "success": False,
+            "error": "agent_not_found",
+            "message": f"Agent {target_agent_id} not found or not owned by this user.",
+        }
+
+    target_agent = agents[0]
+    slug = get_agent_slug(target_agent)
+    ws = AgentWorkspace(auth.client, auth.user_id, slug)
+
+    response = {
+        "success": True,
+        "agent_id": target_agent_id,
+        "agent_title": target_agent.get("title"),
+        "skill": target_agent.get("skill"),
+        "scope": target_agent.get("scope"),
+    }
+
+    # Read identity files (AGENT.md + thesis.md)
+    if files_mode in ("identity", "all"):
+        agent_md = await ws.read("AGENT.md")
+        thesis = await ws.read("thesis.md")
+        response["agent_md"] = agent_md
+        response["thesis"] = thesis
+
+    # Read memory files
+    if files_mode in ("memory", "all"):
+        memory_files = {}
+        try:
+            files = await ws.list("memory/")
+            for f in files:
+                # f is a path string like "memory/observations.md"
+                content = await ws.read(f)
+                if content:
+                    memory_files[f] = content[:1000]  # Truncate for token budget
+        except Exception:
+            pass
+        response["memory_files"] = memory_files
+
+    # ADR-116 Phase 5: Log cross-agent reference
+    await _log_cross_agent_reference(auth, [target_agent_id])
+
+    return response

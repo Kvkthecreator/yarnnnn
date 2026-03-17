@@ -373,7 +373,55 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     except Exception as e:
         logger.warning(f"[COMPOSER] Knowledge corpus query failed: {e}")
 
-    # 10. Workspace density classification (ADR-115)
+    # 10. ADR-116 Phase 5: Agent dependency graph from consumption tracking
+    # Read memory/references.json from each agent's workspace to build producer→consumer edges.
+    agent_id_to_title = {a["id"]: a.get("title", "Untitled") for a in agents}
+    agent_graph = {
+        "edges": [],
+        "orphaned_producers": [],
+        "consumed_producer_ids": [],
+    }
+    try:
+        from services.workspace import AgentWorkspace, get_agent_slug
+        import json as _json
+
+        consumed_ids = set()
+
+        # Read references from each active agent
+        for agent_data in active_agents:
+            slug = get_agent_slug(agent_data)
+            ws = AgentWorkspace(client, user_id, slug)
+            refs_content = await ws.read("memory/references.json")
+            if refs_content:
+                try:
+                    refs = _json.loads(refs_content)
+                    for producer_id in refs:
+                        agent_graph["edges"].append({
+                            "producer_id": producer_id,
+                            "producer_title": agent_id_to_title.get(producer_id, "Unknown"),
+                            "consumer_id": agent_data["id"],
+                            "consumer_title": agent_data.get("title", "Untitled"),
+                        })
+                        consumed_ids.add(producer_id)
+                except (_json.JSONDecodeError, TypeError):
+                    pass
+
+        agent_graph["consumed_producer_ids"] = list(consumed_ids)
+
+        # Detect orphaned producers: agents producing knowledge that no one consumes
+        # Use knowledge["agents_producing"] titles + agent_id_to_title inverse lookup
+        title_to_id = {v: k for k, v in agent_id_to_title.items()}
+        for title in knowledge.get("agents_producing", []):
+            aid = title_to_id.get(title)
+            if aid and aid not in consumed_ids:
+                agent_graph["orphaned_producers"].append({
+                    "agent_id": aid,
+                    "title": title,
+                })
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Agent graph query failed: {e}")
+
+    # 11. Workspace density classification (ADR-115)
     # Pure function over signals already computed — zero additional queries.
     total_runs = sum(s.get("total_runs", 0) for s in maturity_signals)
     workspace_density = _classify_workspace_density(
@@ -423,6 +471,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "workspace_density": workspace_density,  # ADR-115
         "total_agent_runs": total_runs,  # ADR-115 — surfaced for prompt/logging
         "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
+        "agent_graph": agent_graph,  # ADR-116 Phase 5
     }
 
 
@@ -491,6 +540,12 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     digest_agents = [s for s in signals if s.get("skill") == "digest" and s.get("total_runs", 0) >= 3]
     if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["skills_present"]:
         return True, f"cross_agent_pattern: {len(digest_agents)} active digest agents — synthesis agent would consolidate insights"
+
+    # ADR-116 Phase 5: Orphaned producers — agents producing knowledge nobody consumes
+    orphaned = assessment.get("agent_graph", {}).get("orphaned_producers", [])
+    if len(orphaned) >= 2:
+        titles = [o["title"] for o in orphaned[:3]]
+        return True, f"orphaned_producers: {len(orphaned)} agents produce knowledge no agent consumes: {titles}"
 
     # ADR-114 Phase 2: Knowledge-substrate heuristics
     knowledge = assessment.get("knowledge", {})

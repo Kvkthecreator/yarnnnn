@@ -34,6 +34,7 @@ from .workspace import (
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
     LIST_WORKSPACE_TOOL, handle_list_workspace,
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
+    READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from services.platform_tools import is_platform_tool, handle_platform_tool
@@ -202,6 +203,8 @@ PRIMITIVES = [
     LIST_WORKSPACE_TOOL,
     # Inter-agent discovery — headless only (ADR-116)
     DISCOVER_AGENTS_TOOL,
+    # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
+    READ_AGENT_CONTEXT_TOOL,
     # User memory — chat only (ADR-108)
     SAVE_MEMORY_TOOL,
 ]
@@ -230,6 +233,7 @@ HANDLERS: dict[str, Callable] = {
     "QueryKnowledge": handle_query_knowledge,
     "ListWorkspace": handle_list_workspace,
     "DiscoverAgents": handle_discover_agents,
+    "ReadAgentContext": handle_read_agent_context,
     "SaveMemory": handle_save_memory,
 }
 
@@ -318,6 +322,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "ListWorkspace":          ["headless"],
     # Inter-agent discovery — headless only (ADR-116)
     "DiscoverAgents":         ["headless"],
+    # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
+    "ReadAgentContext":       ["headless"],
     # User memory — chat only (ADR-108)
     "SaveMemory":             ["chat"],
 }

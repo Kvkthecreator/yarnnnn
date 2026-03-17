@@ -2,7 +2,7 @@
 YARNNN MCP Server — ADR-075
 
 FastMCP server exposing YARNNN backend services as MCP tools.
-Phase 1: Full tool surface (6 tools).
+9 tools: 6 core (ADR-075) + 3 agent identity & knowledge (ADR-116 Phase 4).
 
 Two-layer auth:
 - Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer token (Claude Desktop)
@@ -297,3 +297,195 @@ async def search_content(
         })
 
     return {"success": True, "results": items, "count": len(items)}
+
+
+# =============================================================================
+# ADR-116 Phase 4: Agent Identity & Knowledge MCP Tools
+# =============================================================================
+
+@mcp.tool()
+async def get_agent_card(
+    ctx: Context,
+    agent_id: str,
+) -> dict:
+    """Get an agent's identity card — who it is, what it does, how mature it is.
+
+    Returns structured agent identity including description, thesis summary,
+    sources, schedule, and maturity signals. Use discover_agents() first to
+    find agent IDs.
+
+    Args:
+        agent_id: UUID of the agent
+    """
+    auth = ctx.request_context.lifespan_context["auth"]
+    import json
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    # Verify ownership
+    result = (
+        auth.client.table("agents")
+        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .eq("user_id", auth.user_id)
+        .eq("id", agent_id)
+        .limit(1)
+        .execute()
+    )
+    agents = result.data or []
+    if not agents:
+        return {"success": False, "error": "Agent not found or not accessible"}
+
+    agent = agents[0]
+    slug = get_agent_slug(agent)
+    ws = AgentWorkspace(auth.client, auth.user_id, slug)
+
+    # Try to read pre-generated card first
+    card_content = await ws.read("agent-card.json")
+    if card_content:
+        try:
+            return {"success": True, "agent_card": json.loads(card_content)}
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback: build card on the fly from workspace
+    agent_md = await ws.read("AGENT.md")
+    thesis = await ws.read("thesis.md")
+
+    description = None
+    if agent_md:
+        for p in agent_md.strip().split("\n\n"):
+            stripped = p.strip()
+            if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+                description = stripped[:300]
+                break
+
+    return {
+        "success": True,
+        "agent_card": {
+            "agent_id": agent["id"],
+            "title": agent["title"],
+            "slug": slug,
+            "skill": agent.get("skill"),
+            "scope": agent.get("scope"),
+            "status": agent.get("status"),
+            "description": description,
+            "thesis_summary": thesis[:300] if thesis else None,
+            "sources": agent.get("sources", []),
+            "schedule": agent.get("schedule"),
+            "last_run_at": agent.get("last_run_at"),
+        },
+    }
+
+
+@mcp.tool()
+async def search_knowledge(
+    ctx: Context,
+    query: Optional[str] = None,
+    content_class: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    skill: Optional[str] = None,
+    limit: int = 10,
+) -> dict:
+    """Search YARNNN's accumulated agent-produced knowledge.
+
+    Searches digests, analyses, briefs, research, and insights produced by
+    YARNNN's agent fleet. Filter by producing agent, skill type, or content class.
+
+    Args:
+        query: Optional text search (topic, person, keyword)
+        content_class: Optional filter: digests, analyses, briefs, research, insights
+        agent_id: Optional filter by producing agent UUID
+        skill: Optional filter by skill type: digest, prepare, monitor, research, synthesize
+        limit: Max results (default 10, max 30)
+    """
+    auth = ctx.request_context.lifespan_context["auth"]
+    from services.workspace import KnowledgeBase
+
+    kb = KnowledgeBase(auth.client, auth.user_id)
+    limit = min(limit, 30)
+
+    has_metadata_filters = agent_id or skill
+    if has_metadata_filters or not query:
+        results = await kb.search_by_metadata(
+            query=query,
+            content_class=content_class,
+            agent_id=agent_id,
+            skill=skill,
+            limit=limit,
+        )
+    else:
+        results = await kb.search(query, content_class=content_class, limit=limit)
+
+    items = []
+    for r in results:
+        item = {
+            "path": r.path,
+            "summary": r.summary,
+            "content_preview": r.content[:500] if r.content else None,
+            "updated_at": str(r.updated_at) if r.updated_at else None,
+        }
+        if r.metadata:
+            item["produced_by"] = r.metadata.get("agent_id")
+            item["skill"] = r.metadata.get("skill")
+            item["scope"] = r.metadata.get("scope")
+        items.append(item)
+
+    return {"success": True, "results": items, "count": len(items)}
+
+
+@mcp.tool()
+async def discover_agents(
+    ctx: Context,
+    skill: Optional[str] = None,
+    scope: Optional[str] = None,
+    status: Optional[str] = None,
+) -> dict:
+    """Discover available agents by capability.
+
+    Returns agent cards for YARNNN's agent fleet. Use this to understand
+    what agents exist, what domains they cover, and what knowledge they produce.
+
+    Args:
+        skill: Optional filter: digest, prepare, monitor, research, synthesize, orchestrate
+        scope: Optional filter: platform, cross_platform, knowledge, research, autonomous
+        status: Optional filter: active (default), paused
+    """
+    auth = ctx.request_context.lifespan_context["auth"]
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    query = (
+        auth.client.table("agents")
+        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .eq("user_id", auth.user_id)
+        .eq("status", status or "active")
+    )
+    if skill:
+        query = query.eq("skill", skill)
+    if scope:
+        query = query.eq("scope", scope)
+
+    result = query.order("created_at", desc=True).limit(20).execute()
+    agents = result.data or []
+
+    agent_cards = []
+    for agent in agents:
+        slug = get_agent_slug(agent)
+        thesis_summary = None
+        try:
+            ws = AgentWorkspace(auth.client, auth.user_id, slug)
+            thesis = await ws.read("thesis.md")
+            if thesis:
+                thesis_summary = thesis[:300]
+        except Exception:
+            pass
+
+        agent_cards.append({
+            "agent_id": agent["id"],
+            "title": agent["title"],
+            "skill": agent.get("skill"),
+            "scope": agent.get("scope"),
+            "sources": agent.get("sources", []),
+            "thesis_summary": thesis_summary,
+            "last_run_at": agent.get("last_run_at"),
+        })
+
+    return {"success": True, "agents": agent_cards, "count": len(agent_cards)}

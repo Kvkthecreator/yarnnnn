@@ -1,6 +1,6 @@
 # ADR-116: Agent Identity & Inter-Agent Knowledge Infrastructure
 
-**Status:** Phases 1-2 Implemented, Phases 3-5 Proposed
+**Status:** Phases 1-5 Implemented
 **Date:** 2026-03-17
 **Builds on:** ADR-106 (Workspace Architecture), ADR-107 (Knowledge Filesystem), ADR-109 (Agent Framework), ADR-111 (Composer), ADR-114 (Substrate-Aware Assessment)
 **Related:**
@@ -322,7 +322,19 @@ The workspace IS the identity. The knowledge filesystem IS the communication sub
   - `api/services/primitives/workspace.py`: `DISCOVER_AGENTS_TOOL` + `handle_discover_agents()` — new headless primitive. Queries `agents` table by skill/scope/status, loads thesis summary (first 300 chars) from each agent's workspace, returns agent cards with maturity signals. Excludes calling agent from results.
   - `api/services/primitives/registry.py`: `DiscoverAgents` registered in PRIMITIVES, HANDLERS, PRIMITIVE_MODES (headless-only). Available to synthesize and orchestrate skills per agent-framework.md.
 
-**Phases 3-5 proposed** — cross-agent workspace reading, agent card auto-generation + MCP exposure, consumption tracking + Composer dependency graph.
+- **Phase 3: Cross-Agent Workspace Reading**
+  - `api/services/primitives/workspace.py`: `READ_AGENT_CONTEXT_TOOL` + `handle_read_agent_context()` — new headless primitive. Read-only access to another agent's AGENT.md, thesis.md, and memory files. Validates same-user ownership. Memory files truncated to 1000 chars for token budget.
+  - `api/services/primitives/registry.py`: `ReadAgentContext` registered in PRIMITIVES, HANDLERS, PRIMITIVE_MODES (headless-only).
+  - Three file modes: `identity` (AGENT.md + thesis.md), `memory` (memory/*.md), `all` (both). Working notes and runs excluded.
+
+- **Phase 4: Agent Card & MCP Exposure**
+  - `api/services/agent_execution.py`: `_generate_agent_card()` — auto-generates `agent-card.json` in agent workspace after each successful run. Card includes description (from AGENT.md), thesis summary, maturity signals (run count, knowledge files produced), schedule, and interop metadata.
+  - `api/mcp_server/server.py`: 3 new MCP tools — `get_agent_card` (reads pre-generated card or builds on-the-fly), `search_knowledge` (metadata-aware knowledge search), `discover_agents` (fleet discovery with thesis summaries). Total MCP tools: 9 (6 core + 3 ADR-116).
+
+- **Phase 5: Consumption Tracking & Composer Wiring**
+  - `api/services/primitives/workspace.py`: `_log_cross_agent_reference()` — writes `memory/references.json` to consuming agent's workspace when QueryKnowledge or ReadAgentContext returns results referencing other agents.
+  - `api/services/composer.py`: `heartbeat_data_query()` step 10 — reads `memory/references.json` from each active agent to build `agent_graph` with edges (producer→consumer), orphaned producers, and consumed IDs.
+  - `api/services/composer.py`: `should_composer_act()` — new `orphaned_producers` heuristic: triggers Composer when 2+ agents produce knowledge no agent consumes.
 
 ---
 

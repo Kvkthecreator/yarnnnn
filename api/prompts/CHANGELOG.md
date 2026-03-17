@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.7] - Consumption Tracking & Composer Dependency Graph (ADR-116 Phase 5)
+
+### Added
+- `api/services/primitives/workspace.py`: `_log_cross_agent_reference()` — writes `memory/references.json` to consuming agent's workspace. Called from QueryKnowledge (when results reference other agents) and ReadAgentContext (always).
+- `api/services/composer.py`: `heartbeat_data_query()` step 10 — reads reference logs from all active agents, builds `agent_graph` with edges, orphaned producers, consumed IDs.
+- `api/services/composer.py`: `should_composer_act()` — `orphaned_producers` heuristic: 2+ agents producing unconsumed knowledge triggers Composer.
+
+### Expected behavior
+- Cross-agent consumption tracked implicitly via workspace reference files. Composer heartbeat aggregates into dependency graph.
+- Orphaned producer detection: agents producing knowledge no other agent consumes → Composer fires to suggest synthesis or pause.
+
+---
+
+## [2026.03.17.6] - Agent Card Auto-Generation & MCP Tools (ADR-116 Phase 4)
+
+### Added
+- `api/services/agent_execution.py`: `_generate_agent_card()` — auto-generates `agent-card.json` after each successful run. Schema v1 with description, thesis, maturity, interop.
+- `api/mcp_server/server.py`: 3 new MCP tools — `get_agent_card`, `search_knowledge`, `discover_agents`. Total: 9 tools.
+
+### Expected behavior
+- External agents (Claude Desktop, ChatGPT) can discover YARNNN's fleet, query knowledge by agent/skill, and read agent cards.
+- Cards auto-regenerate per run. Fresh maturity signals always available.
+
+---
+
 ## [2026.03.17.5] - Agent Identity Quality: Composer Dedup + Rich Creation
 
 ### Changed

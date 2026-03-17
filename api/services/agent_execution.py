@@ -655,6 +655,97 @@ async def update_version_for_delivery(
 
 
 # =============================================================================
+# ADR-116 Phase 4: Agent Card Auto-Generation
+# =============================================================================
+
+async def _generate_agent_card(client, user_id: str, agent: dict, version_number: int):
+    """
+    Auto-generate agent-card.json in the agent's workspace after each run.
+
+    The card is a structured, machine-readable identity derived from workspace
+    files + database metadata. Consumed by DiscoverAgents, MCP tools, and
+    external agents (Claude Desktop, ChatGPT).
+    """
+    import json
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    agent_id = agent.get("id")
+    slug = get_agent_slug(agent)
+    ws = AgentWorkspace(client, user_id, slug)
+
+    # Read identity files for card generation
+    agent_md = await ws.read("AGENT.md")
+    thesis = await ws.read("thesis.md")
+
+    # Extract first paragraph of AGENT.md as description
+    description = None
+    if agent_md:
+        paragraphs = agent_md.strip().split("\n\n")
+        # Skip frontmatter/headers, find first real paragraph
+        for p in paragraphs:
+            stripped = p.strip()
+            if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+                description = stripped[:300]
+                break
+
+    # Compute maturity signals
+    run_count = 0
+    try:
+        run_result = (
+            client.table("agent_runs")
+            .select("id", count="exact")
+            .eq("agent_id", agent_id)
+            .execute()
+        )
+        run_count = run_result.count or 0
+    except Exception:
+        pass
+
+    # Count knowledge files produced by this agent via metadata RPC
+    knowledge_files_count = 0
+    try:
+        kf_result = client.rpc("search_knowledge_by_metadata", {
+            "p_user_id": user_id,
+            "p_agent_id": str(agent_id),
+            "p_limit": 100,
+        }).execute()
+        knowledge_files_count = len(kf_result.data or [])
+    except Exception:
+        pass
+
+    card = {
+        "schema_version": "1",
+        "agent_id": str(agent_id),
+        "title": agent.get("title"),
+        "slug": slug,
+        "skill": agent.get("skill"),
+        "scope": agent.get("scope"),
+        "description": description,
+        "thesis_summary": thesis[:300] if thesis else None,
+        "sources": agent.get("sources", []),
+        "schedule": agent.get("schedule"),
+        "maturity": {
+            "total_runs": run_count,
+            "knowledge_files_produced": knowledge_files_count,
+            "latest_version": version_number,
+        },
+        "last_run_at": agent.get("last_run_at"),
+        "interop": {
+            "mcp_resource": f"workspace://agents/{slug}/",
+            "input_format": "platform_content",
+            "output_format": "markdown",
+        },
+    }
+
+    await ws.write(
+        "agent-card.json",
+        json.dumps(card, indent=2, default=str),
+        summary=f"Agent card for {agent.get('title')} (auto-generated)",
+    )
+    logger.info(f"[EXEC] ADR-116: Agent card generated for {slug}")
+
+
+# =============================================================================
 # Main Entry Point - ADR-042, ADR-045, ADR-066 Delivery-First
 # =============================================================================
 
@@ -885,6 +976,14 @@ async def execute_agent_generation(
             except Exception as e:
                 logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
                 # Non-fatal — don't block delivery
+
+        # ADR-116 Phase 4: Auto-generate agent card after successful run
+        if final_status == "delivered":
+            try:
+                await _generate_agent_card(client, user_id, agent, next_version)
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-116: Agent card generation failed: {e}")
+                # Non-fatal
 
         logger.info(
             f"[EXEC] Complete: {title}, version={next_version}, "
