@@ -3,11 +3,11 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") || request.nextUrl.host;
-  const forwardedProto = request.headers.get("x-forwarded-proto") || request.nextUrl.protocol.replace(":", "");
   const pathname = request.nextUrl.pathname;
 
-  // Canonicalize production traffic onto a single HTTPS apex host.
-  if (host === "www.yarnnn.com" || (host === "yarnnn.com" && forwardedProto !== "https")) {
+  // Redirect www → apex. HTTPS is enforced by the hosting platform (Vercel),
+  // so we only need to handle the subdomain redirect here.
+  if (host === "www.yarnnn.com") {
     const url = request.nextUrl.clone();
     url.protocol = "https:";
     url.host = "yarnnn.com";
