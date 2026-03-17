@@ -2,17 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  const host = request.headers.get("host") || request.nextUrl.host;
   const pathname = request.nextUrl.pathname;
 
-  // Redirect www → apex. HTTPS is enforced by the hosting platform (Vercel),
-  // so we only need to handle the subdomain redirect here.
-  if (host === "www.yarnnn.com") {
-    const url = request.nextUrl.clone();
-    url.protocol = "https:";
-    url.host = "yarnnn.com";
-    return NextResponse.redirect(url, 308);
-  }
+  // Domain canonicalization (apex ↔ www) is handled by Vercel's domain
+  // settings — do NOT add host-based redirects here to avoid loops.
 
   // Legacy public auth entry point kept for backlinks/bookmarks.
   if (pathname === "/login") {
