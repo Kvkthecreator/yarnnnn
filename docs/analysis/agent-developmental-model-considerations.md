@@ -1,21 +1,23 @@
 # Agent Developmental Model — Considerations
 
-> **Status**: Analysis (pre-decision)
-> **Date**: 2026-03-16
-> **Context**: Emerged from FOUNDATIONS.md v2 audit. Parked here pending TP Composer architecture clarity.
-> **Dependency**: TP Composer autonomy must be defined first — agent developmental trajectory is downstream of TP's supervisory/compositional role.
+> **Status**: **Formalized** — insights in this doc are now captured in [ADR-117: Agent Feedback Substrate & Developmental Model](../adr/ADR-117-agent-feedback-substrate-developmental-model.md)
+> **Date**: 2026-03-16 (formalized 2026-03-17)
+> **Context**: Emerged from FOUNDATIONS.md v2 audit. Was parked pending TP Composer architecture clarity.
+> **Dependency resolution**: TP Composer is now architecturally defined (ADR-111 Phases 1-5 implemented, ADR-114/115 substrate awareness and density model shipped). The sequencing principle is satisfied.
 
 ---
 
-## Why This Is Parked
+## Status: UNPARKED
 
-The agent developmental model (Axiom 3 in FOUNDATIONS.md) describes how agents evolve over time — intentions, capabilities, autonomy. But **who steers that evolution** is TP (Axiom 1). Until TP's Composer capability is architecturally clear, designing agent-side developmental mechanics risks:
+The blocking dependency — TP Composer autonomy — is resolved:
+- **ADR-111** (Agent Composer): Implemented Phases 1-5. Composer is TP's meta-cognitive layer with bootstrap, heartbeat, assessment, creation, and lifecycle capabilities.
+- **ADR-114** (Substrate-Aware Assessment): Composer reasons over knowledge corpus, not just platform metadata.
+- **ADR-115** (Workspace Density Model): Composer eagerness calibrated to workspace maturity.
 
-1. Building agent autonomy that conflicts with TP's supervisory authority
-2. Duplicating decision-making between TP and agents
-3. Evaluating qualitative progression without a clear control surface
-
-The sequencing principle: **TP Composer autonomy first → agent developmental model second.**
+The insights below are now formalized in **ADR-117**, which defines:
+- Phase 1: Unified feedback distillation for all agent types (not just analyst)
+- Phase 2: Agent self-reflection (post-generation observations)
+- Phase 3: Intentions architecture (multi-skill within one agent identity)
 
 ---
 

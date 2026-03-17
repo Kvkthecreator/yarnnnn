@@ -1,11 +1,13 @@
 # ADR-101: Agent Intelligence Model
 
 **Date:** 2026-03-09
-**Status:** Implemented
+**Status:** Implemented (storage updated by ADR-106, feedback substrate extended by ADR-117)
 **Related:**
 - [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md)
 - [ADR-092: Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md)
 - [ADR-093: Type Taxonomy](ADR-093-agent-types-overhaul.md)
+- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — Phase 1 migrated Directives and Memory storage from DB columns to workspace files
+- [ADR-117: Agent Feedback Substrate & Developmental Model](ADR-117-agent-feedback-substrate-developmental-model.md) — extends feedback to all agent types, distillation, self-reflection
 
 ---
 
@@ -31,9 +33,9 @@ Every agent has four distinct layers of knowledge:
 | Layer | What it is | Who writes | Who reads | Schema field(s) |
 |-------|-----------|-----------|----------|-----------------|
 | **Skills** | How to do the job — type-specific format, structure, tool budget | System (hardcoded per type) | Headless agent (type prompt) | `type_config` JSONB + `DEFAULT_INSTRUCTIONS` dict + type prompt templates in `agent_pipeline.py` |
-| **Directives** | User's behavioral constraints — tone, priorities, audience | User (UI, chat, API) | Headless agent (system prompt) + proactive review | `agent_instructions` TEXT + `recipient_context` JSONB |
-| **Memory** | What happened — observations, review decisions, goals | System (triggers, review passes) + user (chat) | Headless agent (system prompt) + proactive review | `agent_memory` JSONB: `{observations, goal, review_log, created_agents}` |
-| **Feedback** | How well it's doing — edit patterns from user corrections | System (on version approval/edit) | Headless agent (type prompt, as "learned preferences") | `edit_distance_score` FLOAT + `edit_categories` JSONB + `feedback_notes` TEXT on `agent_runs` |
+| **Directives** | User's behavioral constraints — tone, priorities, audience | User (UI, chat, API) | Headless agent (system prompt) + proactive review | `/agents/{slug}/AGENT.md` workspace file (was `agent_instructions` TEXT — migrated ADR-106 Phase 1) |
+| **Memory** | What happened — observations, review decisions, goals | System (triggers, review passes) + user (chat) | Headless agent (system prompt) + proactive review | `/agents/{slug}/memory/*.md` workspace files (was `agent_memory` JSONB — migrated ADR-106 Phase 1) |
+| **Feedback** | How well it's doing — edit patterns from user corrections | System (on version approval/edit) | Headless agent (type prompt, as "learned preferences") | `edit_distance_score` FLOAT + `edit_categories` JSONB + `feedback_notes` TEXT on `agent_runs`. Distilled to `/agents/{slug}/memory/preferences.md` (ADR-117 Phase 1). |
 
 ### Prompt composition order
 

@@ -226,7 +226,7 @@ async def get_due_agents(supabase_client) -> list[dict]:
     # their own trigger paths (event_triggers.py and proactive_next_review_at).
     result = (
         supabase_client.table("agents")
-        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, agent_memory, mode, trigger_config")
+        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["recurring", "goal"])
         .lte("next_run_at", now.isoformat())
@@ -251,7 +251,7 @@ async def get_due_proactive_agents(supabase_client) -> list[dict]:
 
     result = (
         supabase_client.table("agents")
-        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, agent_memory, mode, trigger_config")
+        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["proactive", "coordinator"])
         .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
