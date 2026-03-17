@@ -96,8 +96,6 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
-{past_versions}
-
 INSTRUCTIONS:
 - Write in a clear, scannable style appropriate for catching someone up
 - Be specific: use names, numbers, dates, and direct references from the context
@@ -135,8 +133,6 @@ GATHERED CONTEXT:
 {gathered_context}
 
 {recipient_context}
-
-{past_versions}
 
 INSTRUCTIONS:
 This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate the most useful prep you can.
@@ -219,8 +215,6 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
-{past_versions}
-
 INSTRUCTIONS:
 - Write in {tone} tone appropriate for {audience}
 - Be specific: use names, numbers, and dates from the context
@@ -275,8 +269,6 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
-{past_versions}
-
 INSTRUCTIONS:
 - Surface what's worth the user's attention in this domain since last report
 - Flag emerging patterns, notable developments, and early signals
@@ -298,8 +290,6 @@ GATHERED CONTEXT (from your connected platforms + web research):
 {gathered_context}
 
 {recipient_context}
-
-{past_versions}
 
 INSTRUCTIONS:
 You produce autonomous intelligence — things the user should know but didn't think to ask about. Your advantage: you can see what's happening inside the user's organization AND research what's happening externally.
@@ -364,8 +354,6 @@ GATHERED CONTEXT:
 
 {recipient_context}
 
-{past_versions}
-
 INSTRUCTIONS:
 - Assess the current state of the domain against the dispatch rules
 - Identify what work has been triggered, completed, or is pending
@@ -386,8 +374,6 @@ GATHERED CONTEXT:
 {gathered_context}
 
 {recipient_context}
-
-{past_versions}
 
 INSTRUCTIONS:
 - Follow the description and structure notes above precisely
@@ -429,7 +415,6 @@ def build_skill_prompt(
     agent: dict,
     gathered_context: str,
     recipient_text: str,
-    past_versions: str,
 ) -> str:
     """Build the skill-specific synthesis prompt (ADR-109)."""
 
@@ -446,7 +431,6 @@ def build_skill_prompt(
     fields = {
         "gathered_context": gathered_context,
         "recipient_context": recipient_text,
-        "past_versions": past_versions,
         "title": agent.get("title", "Agent"),
         "user_instructions": user_instructions,
     }
@@ -541,7 +525,6 @@ def build_skill_prompt(
             "user_instructions": user_instructions,
             "gathered_context": gathered_context,
             "recipient_context": recipient_text,
-            "past_versions": past_versions,
         })
 
 

@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.11] - Remove dead past_versions from skill prompts (ADR-117 cleanup)
+
+### Removed
+- `api/services/agent_pipeline.py`: Deleted `past_versions` parameter from `build_skill_prompt()` and all 7 skill prompt templates. Was always passed as empty string since ADR-117 moved feedback to workspace.
+- `api/services/agent_execution.py`: Removed `past_versions=""` argument from `build_skill_prompt()` call.
+
+### Expected behavior
+- **No behavioral change.** `past_versions` was already empty string in all calls since ADR-117 Phase 1. This removes dead code per singular implementation discipline.
+- **Prompt templates are ~1 blank line shorter** each — the `{past_versions}` placeholder injected an empty line between recipient context and instructions.
+
+---
+
 ## [2026.03.17.10] - Agent Self-Reflection for All Skills (ADR-117 Phase 2)
 
 ### Added

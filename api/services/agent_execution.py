@@ -426,14 +426,13 @@ async def generate_draft_inline(
     }
 
     # Build skill-specific prompt (user message)
-    # ADR-101: past_versions moved to system prompt as learned_preferences
+    # ADR-117: Feedback preferences in workspace memory/preferences.md, loaded by strategies
     prompt = build_skill_prompt(
         skill=skill,
         config=type_config,
         agent=workspace_agent,
         gathered_context=gathered_context,
         recipient_text=recipient_str,
-        past_versions="",
     )
 
     # ADR-108: Read user context from /memory/ files instead of user_memory table
