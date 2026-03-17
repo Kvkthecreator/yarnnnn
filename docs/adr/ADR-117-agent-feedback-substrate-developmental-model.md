@@ -1,6 +1,6 @@
 # ADR-117: Agent Feedback Substrate & Developmental Model
 
-**Status:** Phase 1 Implemented, Phases 2-3 Proposed
+**Status:** Phases 1-2 Implemented, Phase 3 Proposed
 **Date:** 2026-03-17
 **Builds on:** ADR-101 (Intelligence Model), ADR-106 (Workspace Architecture), ADR-109 (Agent Framework), ADR-111 (Composer)
 **Unparks:** `docs/analysis/agent-developmental-model-considerations.md` (was blocked on TP Composer clarity — ADR-111 now implemented)
@@ -125,27 +125,28 @@ if decision.get("coaching"):
 
 This bridges the gap where Composer knows the agent is underperforming but the agent doesn't know why.
 
-### Phase 2: Agent Self-Reflection
+### Phase 2: Agent Self-Reflection (Implemented)
 
 **Goal:** Agents write brief post-generation observations, accumulating longitudinal domain awareness.
 
 After generating output, the execution pipeline appends a structured observation:
 
 ```python
-# In agent_execution.py, after successful generation
-observation = _extract_observation(draft_content, gathered_context)
+# In agent_execution.py, after successful delivery
+observation = _extract_run_observation(draft, sources_used, items_fetched, skill)
 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
 await ws.record_observation(observation, source="self")
 ```
 
-The observation is lightweight — extracted from the generation itself, not a separate LLM call:
-- What topics dominated this run
-- What sources had thin/no data
-- What the agent would investigate further given more time
+The observation is lightweight — rule-based extraction, not a separate LLM call:
+- Topics covered (from markdown headers in generated content)
+- Source coverage (which platforms contributed, item count)
+- Data volume signal (thin output vs dense output)
+- Skill-specific notes (e.g., low activity for digests, limited coverage for synthesis)
 
 For digest agents this creates the longitudinal awareness they currently lack: "Slack #engineering has been quiet for 3 consecutive runs" or "Gmail action items keep recurring around quarterly planning."
 
-**The analyst directive already asks for this** (`_build_analyst_directive` lines 400-403). Phase 2 extends self-reflection to all skills, not just analyst scope.
+Self-reflection is now universal across all skills, not just analyst scope.
 
 ### Phase 3: Intentions Architecture
 
@@ -217,7 +218,7 @@ Phase 3 may require:
 | Digest agent feedback | Raw edit pattern injection via `get_past_versions_context()` | Distilled `preferences.md` via workspace `load_context()` |
 | Digest agent memory | None — no workspace context loaded | Full workspace: AGENT.md + thesis + memory + preferences |
 | Composer → agent coaching | Composer pauses/promotes but can't coach | `supervisor-notes.md` in agent workspace |
-| Agent self-reflection | Analyst/research only (in `_build_analyst_directive`) | All skills — post-generation observation append |
+| Agent self-reflection | Analyst/research only (in `_build_analyst_directive`) | All skills — `_extract_run_observation()` + `record_observation(source="self")` in `agent_execution.py` |
 | Multi-skill agents | Not possible — one agent, one skill forever | Intentions within agent identity (Phase 3) |
 | `get_past_versions_context()` | Active — raw pattern injection in all strategies | Phase 1: deleted — replaced by workspace preferences |
 

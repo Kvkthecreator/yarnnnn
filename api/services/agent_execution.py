@@ -35,6 +35,7 @@ Preserves from agent_pipeline.py:
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
@@ -655,6 +656,52 @@ async def update_version_for_delivery(
 # ADR-116 Phase 4: Agent Card Auto-Generation
 # =============================================================================
 
+def _extract_run_observation(
+    draft: str,
+    sources_used: list[str],
+    items_fetched: int,
+    skill: str,
+) -> str:
+    """
+    Extract a lightweight observation from a completed run — ADR-117 Phase 2.
+
+    Rule-based, no LLM call. Captures:
+    - Topics covered (from markdown headers)
+    - Source coverage (which platforms contributed, data volume)
+    - Skill-specific signals
+    """
+    parts = []
+
+    # Topic extraction from headers
+    headers = re.findall(r"^#+\s+(.+)$", draft, re.MULTILINE)
+    if headers:
+        # Take up to 5 topic headers, skip generic ones
+        topics = [h.strip() for h in headers if len(h.strip()) > 3][:5]
+        if topics:
+            parts.append(f"Topics: {', '.join(topics)}")
+
+    # Source coverage
+    if sources_used:
+        parts.append(f"Sources: {', '.join(sources_used)} ({items_fetched} items)")
+    else:
+        parts.append("No platform sources used")
+
+    # Data volume signal
+    word_count = len(draft.split())
+    if word_count < 100:
+        parts.append("Thin output — limited source data")
+    elif word_count > 2000:
+        parts.append(f"Dense output ({word_count} words)")
+
+    # Skill-specific signals
+    if skill == "digest" and items_fetched < 5:
+        parts.append("Low activity period — few items to digest")
+    elif skill == "synthesize" and len(sources_used) < 2:
+        parts.append("Cross-platform synthesis with limited platform coverage")
+
+    return "; ".join(parts) if parts else f"{skill} run completed"
+
+
 async def _generate_agent_card(client, user_id: str, agent: dict, version_number: int):
     """
     Auto-generate agent-card.json in the agent's workspace after each run.
@@ -972,6 +1019,21 @@ async def execute_agent_generation(
                 logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
             except Exception as e:
                 logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
+                # Non-fatal — don't block delivery
+
+        # ADR-117 Phase 2: Post-generation self-reflection for all skills
+        if final_status == "delivered" and draft:
+            try:
+                from services.workspace import AgentWorkspace, get_agent_slug
+                observation = _extract_run_observation(
+                    draft, gathered_result.sources_used,
+                    gathered_result.items_fetched, skill,
+                )
+                ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+                await ws.record_observation(observation, source="self")
+                logger.info(f"[EXEC] ADR-117: Recorded self-observation for {title}")
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-117: Self-observation failed: {e}")
                 # Non-fatal — don't block delivery
 
         # ADR-116 Phase 4: Auto-generate agent card after successful run

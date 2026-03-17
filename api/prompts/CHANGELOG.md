@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.17.10] - Agent Self-Reflection for All Skills (ADR-117 Phase 2)
+
+### Added
+- `api/services/agent_execution.py`: `_extract_run_observation()` — rule-based observation extraction from generated content. Captures topics (from markdown headers), source coverage, data volume signals, and skill-specific notes. No LLM call.
+- `api/services/agent_execution.py`: Post-delivery hook calls `ws.record_observation(observation, source="self")` after every successful agent run. Appends timestamped observation to `memory/observations.md`.
+
+### Expected behavior
+- **All agents accumulate longitudinal awareness.** Previously only analyst/research agents wrote observations (via `_build_analyst_directive`). Now every skill — digest, synthesize, monitor, prepare, research — records a self-observation after each run.
+- **Observations are lightweight.** Topics from headers, source coverage stats, data volume. Example: `"Topics: Team Updates, Action Items; Sources: slack (12 items); Dense output (1500 words)"`.
+- **Observations visible on next run.** `memory/observations.md` is loaded via `load_context()` (Phase 1). Over 10 runs, patterns emerge: "Slack #engineering quiet for 3 runs", "Gmail action items recurring around quarterly planning".
+- **Non-fatal.** Observation failure never blocks delivery or downstream processing.
+
+---
+
 ## [2026.03.17.9] - Singular Implementation Cleanup (ADR-117)
 
 ### Removed
