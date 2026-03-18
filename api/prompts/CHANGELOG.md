@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.12] - Intent decomposition & project intentions (ADR-120 Phase 4)
+
+### Changed
+- `api/services/agent_pipeline.py`: PM role prompt v2 — added `{intentions}`, `{budget_status}` template fields, `update_work_plan` as 5th PM action, budget-aware decision rules.
+- `api/services/agent_pipeline.py`: PM validation now accepts `update_work_plan` action; requires `work_plan` object.
+- `api/services/workspace.py`: `read_project()` parses `## Intentions` section (type/description/format/delivery/budget/deadline per intention). Backward-compat: derives single intention from `## Intent` + `## Delivery` when no intentions section exists.
+- `api/services/workspace.py`: `write_project()` accepts optional `intentions` list, writes `## Intentions` section.
+- `api/services/agent_execution.py`: `_load_pm_project_context()` injects intentions + budget_status into PM prompt context.
+- `api/services/agent_execution.py`: `_handle_pm_decision()` handles `update_work_plan` action (writes `memory/work_plan.md`); graceful degradation overrides assemble/advance → escalate when budget exhausted.
+- `api/services/primitives/project_execution.py`: New `UpdateProjectIntent` primitive (headless-only) — PM can refine assembly_spec, delivery, intentions without touching title/contributors.
+- `api/services/primitives/registry.py`: Registered `UpdateProjectIntent` (headless-only mode gate).
+
+### Expected behavior
+- PM's first run on a new project produces `update_work_plan` action, writing operational decomposition to `memory/work_plan.md`.
+- Multi-intention projects specify per-intention format, delivery, and budget in `## Intentions` section.
+- PM sees budget status; reduces assembly when budget >80%, escalates when exhausted.
+- Existing projects without intentions section work unchanged (backward-compat fallback).
+
+---
+
 ## [2026.03.18.11] - Work budget governor (ADR-120 Phase 3)
 
 ### Added

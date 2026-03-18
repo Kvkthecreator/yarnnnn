@@ -1,6 +1,6 @@
 # ADR-120: Project Execution & Work Budget
 
-> **Status**: Phases 1-3 Implemented, Phases 4-5 Proposed
+> **Status**: Phases 1-4 Implemented, Phase 5 Proposed
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
@@ -233,11 +233,12 @@ The PM manages all active intentions, scheduling and budgeting across them.
 - Composer heartbeat: work_budget status in heartbeat data
 - Graceful degradation deferred to Phase 4 (PM pausing, escalation)
 
-### Phase 4: Intent Decomposition & Project Intentions
-- PM work plan generation (`work-plan.md`)
-- Multi-intention support in PROJECT.md
-- Per-intention trigger, output format, delivery, budget allocation
-- `UpdateProjectIntent` primitive
+### Phase 4: Intent Decomposition & Project Intentions (Implemented)
+- PM work plan generation — `update_work_plan` PM action writes `memory/work_plan.md` with decomposed intent (cadence, skills, budget/cycle, contributor roles)
+- Multi-intention support — `## Intentions` section in PROJECT.md with per-intention type (recurring/goal/reactive), format, delivery, budget, deadline; backward-compatible with single-intention projects
+- `UpdateProjectIntent` primitive — headless-only, PM can refine assembly_spec, delivery, intentions (not title/contributors — Composer's domain)
+- PM prompt v2 — intentions + budget_status injected; budget-aware rules (reduce frequency when low, escalate when exhausted)
+- Graceful degradation — `_handle_pm_decision()` overrides assemble/advance to escalate when budget exhausted
 
 ### Phase 5: Composer v2.0
 - Composer prompt updated with project awareness, skill library (8 skills), PM delegation

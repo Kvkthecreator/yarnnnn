@@ -303,3 +303,116 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.error(f"[PM] Failed to advance contributor {agent_slug}: {e}")
         return {"success": False, "error": "advance_failed", "message": str(e)}
+
+
+# =============================================================================
+# UpdateProjectIntent (headless only, ADR-120 Phase 4)
+# =============================================================================
+
+UPDATE_PROJECT_INTENT_TOOL = {
+    "name": "UpdateProjectIntent",
+    "description": """Refine a project's assembly spec, delivery config, or intentions.
+
+Used by PM agents to update operational project settings. Does NOT change
+title or contributors (those are TP/Composer's domain).
+
+Provide only the fields you want to update — unspecified fields are preserved.
+
+Required: project_slug
+Optional: assembly_spec, delivery, intentions""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_slug": {
+                "type": "string",
+                "description": "Project slug",
+            },
+            "assembly_spec": {
+                "type": "string",
+                "description": "Updated assembly instructions",
+            },
+            "delivery": {
+                "type": "object",
+                "description": "Updated delivery config: {channel, target}",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "target": {"type": "string"},
+                },
+            },
+            "intentions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string", "description": "recurring, goal, or reactive"},
+                        "description": {"type": "string"},
+                        "format": {"type": "string"},
+                        "delivery": {"type": "object"},
+                        "budget": {"type": "string"},
+                        "deadline": {"type": "string"},
+                    },
+                },
+                "description": "Updated intentions list",
+            },
+        },
+        "required": ["project_slug"],
+    },
+}
+
+
+async def handle_update_project_intent(auth: Any, input: dict) -> dict:
+    """
+    Update project's operational config (assembly_spec, delivery, intentions).
+    Preserves title, intent summary, and contributors — those are Composer's domain.
+    """
+    from services.workspace import ProjectWorkspace
+
+    project_slug = input.get("project_slug", "").strip()
+    if not project_slug:
+        return {"success": False, "error": "missing_slug", "message": "project_slug is required"}
+
+    pw = ProjectWorkspace(auth.client, auth.user_id, project_slug)
+
+    # Read current project
+    project = await pw.read_project()
+    if not project:
+        return {
+            "success": False,
+            "error": "not_found",
+            "message": f"Project not found: /projects/{project_slug}/",
+        }
+
+    # Merge provided fields (only update what's supplied)
+    updated_assembly_spec = input.get("assembly_spec", project.get("assembly_spec", ""))
+    updated_delivery = input.get("delivery", project.get("delivery", {}))
+    updated_intentions = input.get("intentions", project.get("intentions", []))
+
+    # Write back with merged fields
+    success = await pw.write_project(
+        title=project.get("title", project_slug),
+        intent=project.get("intent", {}),
+        contributors=project.get("contributors", []),
+        assembly_spec=updated_assembly_spec,
+        delivery=updated_delivery,
+        intentions=updated_intentions,
+    )
+
+    if not success:
+        return {"success": False, "error": "write_failed", "message": "Failed to update PROJECT.md"}
+
+    updated_fields = []
+    if "assembly_spec" in input:
+        updated_fields.append("assembly_spec")
+    if "delivery" in input:
+        updated_fields.append("delivery")
+    if "intentions" in input:
+        updated_fields.append(f"intentions ({len(updated_intentions)} items)")
+
+    logger.info(f"[PM] Updated project intent for {project_slug}: {', '.join(updated_fields)}")
+
+    return {
+        "success": True,
+        "project_slug": project_slug,
+        "updated_fields": updated_fields,
+        "message": f"Updated {', '.join(updated_fields)} for project '{project.get('title', project_slug)}'",
+    }

@@ -1753,6 +1753,7 @@ class ProjectWorkspace:
             "contributors": [],
             "assembly_spec": "",
             "delivery": {},
+            "intentions": [],
             "status": "active",
         }
 
@@ -1802,6 +1803,33 @@ class ProjectWorkspace:
                     value = stripped[key_end + 3:].strip()
                     result["delivery"][key] = value
 
+            elif current_section == "intentions":
+                # Top-level intention line: "- recurring: description"
+                if stripped.startswith("- ") and ":" in stripped and not stripped.startswith("- format:") and not stripped.startswith("- delivery:") and not stripped.startswith("- budget:") and not stripped.startswith("- deadline:"):
+                    parts = stripped[2:].split(":", 1)
+                    result["intentions"].append({
+                        "type": parts[0].strip(),
+                        "description": parts[1].strip(),
+                    })
+                # Sub-fields: "  - format: pptx", "  - delivery: email → target", etc.
+                elif stripped.startswith("- ") and ":" in stripped and result["intentions"]:
+                    current_intention = result["intentions"][-1]
+                    key_val = stripped[2:].split(":", 1)
+                    key = key_val[0].strip()
+                    value = key_val[1].strip() if len(key_val) > 1 else ""
+                    if key == "delivery" and "→" in value:
+                        d_parts = value.split("→", 1)
+                        current_intention["delivery"] = {
+                            "channel": d_parts[0].strip(),
+                            "target": d_parts[1].strip(),
+                        }
+                    elif key == "budget":
+                        current_intention["budget"] = value
+                    elif key == "deadline":
+                        current_intention["deadline"] = value
+                    else:
+                        current_intention[key] = value
+
             elif current_section == "status":
                 if stripped:
                     result["status"] = stripped
@@ -1809,6 +1837,15 @@ class ProjectWorkspace:
         # Flush final section
         if current_section == "assembly_spec":
             result["assembly_spec"] = "\n".join(buffer_lines).strip()
+
+        # ADR-120 P4: Backward-compat — derive single intention from intent+delivery if no intentions section
+        if not result["intentions"] and result["intent"]:
+            derived = {"type": "recurring", "description": result["intent"].get("purpose", result["intent"].get("deliverable", ""))}
+            if result["intent"].get("format"):
+                derived["format"] = result["intent"]["format"]
+            if result["delivery"]:
+                derived["delivery"] = result["delivery"]
+            result["intentions"] = [derived]
 
         return result
 
@@ -1819,6 +1856,7 @@ class ProjectWorkspace:
         contributors: list[dict],
         assembly_spec: str = "",
         delivery: dict = None,
+        intentions: list[dict] = None,
     ) -> bool:
         """Write PROJECT.md from structured data.
 
@@ -1828,6 +1866,7 @@ class ProjectWorkspace:
             contributors: [{agent_slug, expected_contribution}]
             assembly_spec: How contributions combine
             delivery: {channel, target}
+            intentions: [{type, description, format?, delivery?: {channel, target}, budget?, deadline?}]
         """
         lines = [f"# {title}", "", "## Intent"]
         for key in ["deliverable", "audience", "format", "purpose"]:
@@ -1848,6 +1887,26 @@ class ProjectWorkspace:
                 if key in delivery:
                     label = key.capitalize()
                     lines.append(f"- **{label}**: {delivery[key]}")
+
+        # ADR-120 P4: Multi-intention support
+        if intentions:
+            lines.extend(["", "## Intentions"])
+            for intention in intentions:
+                itype = intention.get("type", "recurring")
+                desc = intention.get("description", "")
+                lines.append(f"- {itype}: {desc}")
+                if intention.get("format"):
+                    lines.append(f"  - format: {intention['format']}")
+                if intention.get("delivery"):
+                    d = intention["delivery"]
+                    if isinstance(d, dict):
+                        lines.append(f"  - delivery: {d.get('channel', '')} → {d.get('target', '')}")
+                    else:
+                        lines.append(f"  - delivery: {d}")
+                if intention.get("budget"):
+                    lines.append(f"  - budget: {intention['budget']}")
+                if intention.get("deadline"):
+                    lines.append(f"  - deadline: {intention['deadline']}")
 
         return await self.write(
             "PROJECT.md",

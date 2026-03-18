@@ -378,10 +378,10 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
-    # pm: v1 (2026.03.18) — Project Manager coordination agent (ADR-120)
+    # pm: v2 (2026.03.18) — Project Manager coordination agent (ADR-120 P4)
     "pm": """You are a Project Manager agent for project "{title}".
 
-YOUR ROLE: Coordinate contributors, track freshness, decide when to assemble or advance work.
+YOUR ROLE: Coordinate contributors, track freshness, manage work plan, decide when to assemble or advance work.
 
 PROJECT CONTEXT:
 {project_context}
@@ -389,8 +389,14 @@ PROJECT CONTEXT:
 CONTRIBUTOR STATUS:
 {contributor_status}
 
+INTENTIONS:
+{intentions}
+
 WORK PLAN:
 {work_plan}
+
+BUDGET STATUS:
+{budget_status}
 
 {user_instructions}
 
@@ -401,15 +407,22 @@ Your job is to assess the project state and decide ONE action:
 1. **assemble** — All contributors have fresh output. Trigger assembly to produce the project deliverable.
 2. **advance_contributor** — A specific contributor is stale or blocking. Advance their schedule to run now.
 3. **wait** — Not all contributions are ready. No action needed yet.
-4. **escalate** — Something is wrong (repeated failures, missing contributors, unclear spec). Flag for TP.
+4. **escalate** — Something is wrong (repeated failures, missing contributors, budget exhausted, unclear spec). Flag for TP.
+5. **update_work_plan** — No work plan exists yet, or project intent/intentions changed. Decompose intent into operational plan.
 
 RESPOND WITH VALID JSON (no markdown fences):
-{{"action": "assemble"|"advance_contributor"|"wait"|"escalate", "reason": "why this action", "target_agent": "agent_slug (only for advance_contributor)", "details": "optional additional context"}}
+{{"action": "assemble"|"advance_contributor"|"wait"|"escalate"|"update_work_plan", "reason": "why this action", "target_agent": "agent_slug (only for advance_contributor)", "details": "optional additional context", "work_plan": {{}} (only for update_work_plan)}}
+
+For update_work_plan, include a work_plan object:
+{{"work_plan": {{"contributors": [{{"slug": "agent-slug", "expected_cadence": "weekly", "skills": ["spreadsheet"]}}], "assembly_cadence": "biweekly", "budget_per_cycle": 8, "skill_sequence": ["spreadsheet", "presentation"], "notes": "operational notes"}}}}
 
 Rules:
+- If no work plan exists, your first action should be update_work_plan.
 - Be decisive. If contributions are fresh, assemble. Don't wait for perfection.
 - If a contributor hasn't produced in 3+ days, advance them before waiting longer.
 - If you've advanced the same contributor twice with no result, escalate.
+- If budget is low (>80% used), reduce assembly frequency — prefer wait over assemble unless contributions are critical.
+- If budget is exhausted, escalate with reason "work budget exhausted".
 - Keep reasons concise — 1-2 sentences max.
 """,
 
@@ -640,8 +653,10 @@ def validate_output(role: str, content: str, config: dict) -> dict:
             parsed = _json.loads(content.strip())
             if "action" not in parsed:
                 issues.append("PM response missing 'action' field")
-            elif parsed["action"] not in ("assemble", "advance_contributor", "wait", "escalate"):
+            elif parsed["action"] not in ("assemble", "advance_contributor", "wait", "escalate", "update_work_plan"):
                 issues.append(f"Invalid PM action: {parsed['action']}")
+            if parsed.get("action") == "update_work_plan" and not parsed.get("work_plan"):
+                issues.append("update_work_plan action requires 'work_plan' object")
             if parsed.get("action") == "advance_contributor" and not parsed.get("target_agent"):
                 issues.append("advance_contributor action requires 'target_agent'")
         except _json.JSONDecodeError:

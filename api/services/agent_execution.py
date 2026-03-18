@@ -151,10 +151,44 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     # Read work plan
     work_plan = await pw.read("memory/work_plan.md")
 
+    # ADR-120 P4: Format intentions for PM prompt
+    intentions_lines = []
+    for i in project.get("intentions", []):
+        itype = i.get("type", "recurring")
+        desc = i.get("description", "")
+        intentions_lines.append(f"- {itype}: {desc}")
+        if i.get("format"):
+            intentions_lines.append(f"  format: {i['format']}")
+        if i.get("delivery"):
+            d = i["delivery"]
+            if isinstance(d, dict):
+                intentions_lines.append(f"  delivery: {d.get('channel', '')} → {d.get('target', '')}")
+            else:
+                intentions_lines.append(f"  delivery: {d}")
+        if i.get("budget"):
+            intentions_lines.append(f"  budget: {i['budget']}")
+
+    # ADR-120 P4: Work budget status for graceful degradation
+    budget_status = "Unknown"
+    try:
+        from services.platform_limits import check_work_budget
+        budget_ok, wu_used, wu_limit = check_work_budget(client, user_id)
+        pct = int(wu_used / wu_limit * 100) if wu_limit > 0 else 0
+        if not budget_ok:
+            budget_status = f"EXHAUSTED — {wu_used}/{wu_limit} units used (100%)"
+        elif pct >= 80:
+            budget_status = f"LOW — {wu_used}/{wu_limit} units used ({pct}%)"
+        else:
+            budget_status = f"OK — {wu_used}/{wu_limit} units used ({pct}%)"
+    except Exception:
+        pass
+
     return {
         "project_context": "\n".join(project_lines),
         "contributor_status": "\n".join(contributor_lines) if contributor_lines else "No contributors listed.",
-        "work_plan": work_plan or "No work plan set.",
+        "intentions": "\n".join(intentions_lines) if intentions_lines else "No explicit intentions set.",
+        "work_plan": work_plan or "No work plan set. Your first action should be update_work_plan.",
+        "budget_status": budget_status,
     }
 
 
@@ -293,6 +327,19 @@ async def _handle_pm_decision(
 
     logger.info(f"[PM] Decision for {project_slug}: action={action}, reason={reason}")
 
+    # ADR-120 P4: Graceful degradation — override to escalate if budget exhausted
+    if action in ("assemble", "advance_contributor") and action != "escalate":
+        try:
+            from services.platform_limits import check_work_budget
+            budget_ok, wu_used, wu_limit = check_work_budget(client, user_id)
+            if not budget_ok:
+                logger.info(f"[PM] Budget exhausted ({wu_used}/{wu_limit}), overriding {action} → escalate")
+                action = "escalate"
+                reason = f"Work budget exhausted ({wu_used}/{wu_limit} units). Original action was {decision.get('action')}: {reason}"
+                details = "PM paused due to budget exhaustion. Resume when budget resets or is increased."
+        except Exception:
+            pass  # Non-fatal — proceed with original action
+
     if action == "assemble":
         try:
             result = await _execute_pm_assemble(client, user_id, agent, project_slug, type_config)
@@ -335,6 +382,48 @@ async def _handle_pm_decision(
         except Exception as e:
             logger.error(f"[PM] Advance contributor failed: {e}")
             return {"pm_action": "advance_contributor", "success": False, "error": str(e)}
+
+    elif action == "update_work_plan":
+        # ADR-120 P4: PM decomposes intent into operational work plan
+        try:
+            import json as _wp_json
+            from services.workspace import ProjectWorkspace
+
+            work_plan_data = decision.get("work_plan", {})
+            pw = ProjectWorkspace(client, user_id, project_slug)
+
+            # Format work plan as markdown
+            wp_lines = [
+                f"# Work Plan — {project_slug}",
+                f"\n**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+                f"**Reason:** {reason}",
+            ]
+            if work_plan_data.get("assembly_cadence"):
+                wp_lines.append(f"\n## Assembly Cadence\n{work_plan_data['assembly_cadence']}")
+            if work_plan_data.get("budget_per_cycle"):
+                wp_lines.append(f"\n## Budget per Cycle\n{work_plan_data['budget_per_cycle']} work units")
+            if work_plan_data.get("contributors"):
+                wp_lines.append("\n## Contributors")
+                for c in work_plan_data["contributors"]:
+                    cadence = c.get("expected_cadence", "as needed")
+                    skills = ", ".join(c.get("skills", []))
+                    wp_lines.append(f"- {c.get('slug', '?')}: cadence={cadence}, skills={skills}")
+            if work_plan_data.get("skill_sequence"):
+                wp_lines.append(f"\n## Skill Sequence\n{' → '.join(work_plan_data['skill_sequence'])}")
+            if work_plan_data.get("notes"):
+                wp_lines.append(f"\n## Notes\n{work_plan_data['notes']}")
+
+            await pw.write(
+                "memory/work_plan.md",
+                "\n".join(wp_lines),
+                summary=f"Work plan: {reason[:80]}",
+            )
+
+            logger.info(f"[PM] Work plan written for {project_slug}: {reason}")
+            return {"pm_action": "update_work_plan", "success": True, "reason": reason}
+        except Exception as e:
+            logger.error(f"[PM] Failed to write work plan: {e}")
+            return {"pm_action": "update_work_plan", "success": False, "error": str(e)}
 
     elif action == "wait":
         logger.info(f"[PM] Waiting on {project_slug}: {reason}")
