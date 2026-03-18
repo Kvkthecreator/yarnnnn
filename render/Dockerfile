@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install pandoc for document rendering (markdown → PDF/DOCX)
+# System deps: pandoc (documents/reports), fonts, Node.js (mermaid-cli), Chromium (mermaid rendering)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         pandoc \
@@ -9,7 +9,15 @@ RUN apt-get update && \
         texlive-fonts-recommended \
         texlive-latex-extra \
         fonts-dejavu \
+        nodejs \
+        npm \
+        chromium \
     && rm -rf /var/lib/apt/lists/*
+
+# Mermaid CLI for diagram rendering (uses Puppeteer + Chromium)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+RUN npm install -g @mermaid-js/mermaid-cli
 
 WORKDIR /app
 COPY requirements.txt .

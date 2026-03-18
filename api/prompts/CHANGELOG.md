@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.8] - Expand skill library — 4 new skills (ADR-118 D.4)
+
+### Added
+- `render/skills/mermaid/` — **diagram** skill. Mermaid syntax → PNG/SVG via mermaid-cli (mmdc). Supports flowcharts, sequence diagrams, class/state/ER diagrams, Gantt, pie, mindmap, timeline. Docker: Chromium + Node.js + @mermaid-js/mermaid-cli.
+- `render/skills/html/` — **report** skill. Markdown → styled self-contained HTML via pandoc. Embedded CSS for clean, print-friendly reports. No new Docker deps (pandoc already installed).
+- `render/skills/data/` — **data_export** skill. Structured data → CSV (with UTF-8 BOM for Excel) or JSON (pretty-printed). Pure Python stdlib, no Docker deps.
+- `render/skills/image/` — **image** skill. Layout spec → PNG/JPG via Pillow. Text + rect elements on configurable canvas. Layout presets (card 1200x630, banner 1200x300, square 1080x1080). No new Docker deps (Pillow already installed).
+- `render/Dockerfile`: Added `nodejs`, `npm`, `chromium` apt packages + `@mermaid-js/mermaid-cli` npm global install for diagram rendering.
+
+### Expected behavior
+- **Auto-discovered.** All 4 skills picked up by `_discover_skills()` on startup — no registry or API changes needed. RuntimeDispatch types: `diagram`, `report`, `data_export`, `image`.
+- **Total skill count: 8.** document, presentation, spreadsheet, chart, diagram, report, data_export, image.
+
+---
+
 ## [2026.03.18.7] - Skill auto-discovery (ADR-118 D.4)
 
 ### Changed
