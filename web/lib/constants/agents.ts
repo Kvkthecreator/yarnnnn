@@ -7,7 +7,6 @@ export const ROLE_LABELS: Record<Role, string> = {
   synthesize: 'Work Summary',
   monitor: 'Watch',
   research: 'Research',
-  orchestrate: 'Coordinator',
   act: 'Action',
   custom: 'Custom',
 };

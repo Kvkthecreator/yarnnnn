@@ -243,7 +243,6 @@ export type Role =
   | "monitor"     // Track, diff, alert — domain watching
   | "research"    // Investigate, analyze — bounded research
   | "synthesize"  // Connect, derive insight — cross-source synthesis
-  | "orchestrate" // Coordinate, dispatch — agent fleet management
   | "act"         // Execute, respond, post — platform actions (future)
   | "custom";     // User-defined
 
