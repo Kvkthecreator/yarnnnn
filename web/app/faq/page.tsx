@@ -22,7 +22,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an autonomous AI platform for recurring knowledge work. It connects to Slack, Gmail, Notion, and Calendar, then runs agents that produce real output in the background and improve with every cycle.",
+          "yarnnn is an autonomous AI platform for recurring knowledge work. It connects to Slack, Gmail, Notion, and Calendar, then runs persistent agents that deliver real work in the background and improve with every cycle.",
       },
       {
         question: "What is the Orchestrator?",
@@ -32,7 +32,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "Chat tools are session-centric — they reset every time. yarnnn is system-centric: it maintains synced work context, runs agents on schedule, and improves them over time through supervised feedback loops.",
+          "Chat tools are session-centric — they reset every time. yarnnn is system-centric: it maintains synced work context, runs agents on schedule, and improves them over time through supervision and feedback loops.",
       },
       {
         question: "Is yarnnn an AI agent platform?",
@@ -62,7 +62,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Can yarnnn post or edit things in my tools?",
         answer:
-          "No. Integrations are read-only for context ingestion. You stay in control of all output and delivery decisions.",
+          "Source integrations are read-only for context ingestion. Delivery is separate: yarnnn can send outputs to destinations you configure, but it does not silently mutate the source systems it reads from.",
       },
     ],
   },
@@ -72,7 +72,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What are agents?",
         answer:
-          "Agents are autonomous entities that produce output on a schedule. Each has its own instructions, memory, and sources. You supervise their runs from the dashboard.",
+          "Agents are autonomous entities that deliver recurring work on a schedule. Each has its own instructions, memory, and sources. You supervise their runs from the dashboard.",
       },
       {
         question: "What kinds of agents can I create?",
@@ -87,7 +87,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do agents improve over time?",
         answer:
-          "Each approved or edited run becomes signal for future execution. Agents learn your preferred structure, emphasis, and tone as they accumulate feedback.",
+          "Each delivered, reviewed, or edited run becomes signal for future execution. Agents learn your preferred structure, emphasis, and tone as they accumulate feedback.",
       },
     ],
   },

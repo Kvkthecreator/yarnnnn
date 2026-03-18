@@ -10,7 +10,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Autonomous AI That Knows Your Work",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates autonomous agents that improve with every cycle. Connect once, supervise from there.",
+    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then creates persistent agents that deliver recurring work and improve with every cycle. Connect once, supervise from there.",
   path: "/",
   keywords: [
     "autonomous ai",
@@ -62,8 +62,8 @@ export default function LandingPage() {
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
                   Connect your tools once. yarnnn creates agents that run
-                  recurring work in the background and improve with every cycle.
-                  You supervise outcomes.
+                  recurring work in the background, deliver useful work products,
+                  and improve with every cycle. You supervise outcomes.
                 </p>
 
                 <Link
@@ -105,7 +105,8 @@ export default function LandingPage() {
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Context in. Agents out.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   yarnnn continuously accumulates context from your connected tools,
-                  then runs agents that learn from every cycle.
+                  then runs agents that learn from every cycle and produce
+                  recurring work products instead of one-off answers.
                   The longer you use it, the less manual work remains.
                 </p>
               </div>
@@ -136,16 +137,17 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">02</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Agents run in the background</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Each agent produces output on schedule — recaps, digests, meeting prep,
-                  research. Your dashboard shows what they&apos;ve done and what needs attention.
+                  Each agent delivers work on schedule — recaps, briefs, meeting prep,
+                  research, and richer artifacts when the job requires them.
+                  Your dashboard shows what they&apos;ve done and what needs attention.
                 </p>
               </div>
 
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">03</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review and refine</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review and redirect</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Approve, edit, or redirect. Your feedback becomes learned behavior
+                  Review, edit, or redirect. Your feedback becomes learned behavior
                   for the next cycle. Quality compounds over time.
                 </p>
               </div>
@@ -164,7 +166,7 @@ export default function LandingPage() {
                   <span className="text-[#1a1a1a]/50">per agent.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  Every sync and every approved run improves the same agent.
+                  Every sync and every supervised run improves the same agent.
                   Quality grows with usage instead of resetting on every interaction.
                 </p>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">

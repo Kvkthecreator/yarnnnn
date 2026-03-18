@@ -75,7 +75,7 @@ After the first sync, go to the Context area if you want to:
 - narrow or expand Notion page coverage
 - disconnect a platform entirely
 
-The best pattern is to start with the defaults, judge the first output, then tighten only where needed.
+The best pattern is to start with the defaults, judge the first result, then tighten only where needed.
 
 ## Security and privacy
 

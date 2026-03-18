@@ -24,7 +24,6 @@ Most users begin with one of these:
 - **Status Update**: synthesize updates for a stakeholder or team
 - **Watch**: monitor a topic and surface meaningful signal
 - **Research**: investigate a bounded question and return a structured result
-- **Coordinator**: supervise a set of related agents or recurring workflows
 
 ## Modes
 
@@ -36,15 +35,14 @@ Modes describe how an agent decides when to act.
 | `goal` | Runs toward a specific objective |
 | `reactive` | Runs when event-driven conditions are met |
 | `proactive` | Reviews a domain periodically and acts when warranted |
-| `coordinator` | Supervises or dispatches work across agents |
+| `coordinator` | Participates in a supervisory review loop managed by the system |
 
 ## What supervision looks like
 
 Every run gives you something concrete to evaluate.
 
-- review the output
+- review the work
 - edit it if needed
-- approve it when it is good
 - refine the instructions through TP
 
 That feedback becomes part of the agent's future behavior.

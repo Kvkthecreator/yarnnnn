@@ -12,7 +12,7 @@ This is not just retrieval. It is continuity.
 
 ### 2. Your feedback
 
-Approvals, edits, and corrections matter.
+Edits, follow-up direction, and corrections matter.
 
 If you repeatedly:
 
@@ -35,7 +35,7 @@ That means an agent can improve not only from raw platform content, but from wha
 |---|---|
 | Week 1 | You calibrate structure, tone, and source coverage |
 | Month 1 | Agents start matching your preferences more reliably |
-| Month 3 | Cross-platform output becomes more specific and useful |
+| Month 3 | Cross-platform work becomes more specific and useful |
 | Longer-term | The system reflects accumulated understanding, not just recent messages |
 
 ## What YARNNN may learn
@@ -43,7 +43,7 @@ That means an agent can improve not only from raw platform content, but from wha
 - your preferred structure and level of detail
 - recurring priorities for certain audiences
 - which sources consistently matter
-- how to shape output for specific workflows
+- how to shape work for specific workflows
 - what kinds of edits you make repeatedly
 
 ## You stay in control

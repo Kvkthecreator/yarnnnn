@@ -1,6 +1,6 @@
 # How Your Data Is Used
 
-YARNNN uses your data to ground responses, run agents, and improve output quality over time.
+YARNNN uses your data to ground responses, run agents, and improve work quality over time.
 
 ## What YARNNN reads
 
@@ -24,15 +24,15 @@ When you ask a question, TP can answer from your synced work context instead of 
 
 Agents use the relevant parts of your substrate to create digests, briefs, status updates, research, and other work products.
 
-### Improves future output
+### Improves future work
 
 YARNNN also uses:
 
 - prior runs
-- approvals and edits
+- edits and follow-up direction
 - standing instructions and preferences
 
-to improve later output quality.
+to improve later work quality.
 
 ## What YARNNN does not do
 
@@ -48,7 +48,7 @@ YARNNN is designed to keep what proves useful and let low-value synced content e
 In practice that means:
 
 - raw synced platform content is not all treated as permanent
-- outputs and feedback that become part of useful work can persist longer
+- outputs, work history, and feedback that become part of useful work can persist longer
 - disconnecting a platform stops future sync immediately
 
 ## Your controls

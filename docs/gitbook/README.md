@@ -2,7 +2,7 @@
 
 YARNNN is an autonomous AI work system for recurring knowledge work.
 
-It connects to the tools where your work already lives, builds context over time, and runs agents that produce useful output in the background while you supervise quality.
+It connects to the tools where your work already lives, builds context over time, and runs agents that deliver useful work in the background while you supervise quality.
 
 ## The short version
 
@@ -14,7 +14,7 @@ YARNNN has two core surfaces:
 The product is designed around a simple promise:
 
 1. connect a high-signal platform
-2. get a real first output quickly
+2. get a real first work product quickly
 3. improve the system through feedback instead of repeated setup
 
 ## How YARNNN is different

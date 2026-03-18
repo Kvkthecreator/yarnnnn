@@ -1,8 +1,8 @@
 # YARNNN
 
-**Autonomous AI that works on your behalf — powered by accumulated context from your real work platforms.**
+**Autonomous AI that knows your work.**
 
-Yarn connects to the tools you already use (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and works autonomously: producing deliverables, surfacing signals, and operating as a thinking partner that already knows your context.
+YARNNN connects to Slack, Gmail, Notion, and Calendar, accumulates context over time, and creates persistent agents that handle recurring knowledge work. The system is built around supervision, not repeated prompting: agents run, deliver work, and improve through feedback and history.
 
 ## Quick Start
 
@@ -30,18 +30,25 @@ yarnnn/
 ├── supabase/            # Database
 │   └── migrations/      # SQL migrations
 └── docs/                # Documentation
-    ├── ESSENCE.md       # Core thesis & architecture
-    ├── GTM_POSITIONING.md  # Go-to-market messaging
+    ├── ESSENCE.md       # Canonical product narrative
+    ├── architecture/FOUNDATIONS.md   # First-principles cognitive architecture
+    ├── architecture/agent-framework.md # Scope × Role × Trigger
     └── adr/             # Architecture Decision Records
 ```
 
 ## Core Concepts
 
-- **Thinking Partner (TP)**: Context-aware AI agent with primitive-based tools, sub-agent delegation, and web search — it knows your work world before you say a word
-- **Deliverables**: Autonomous, scheduled work outputs (reports, digests, briefs) that improve over time through feedback loops
-- **Platform Sync**: Continuous synchronization with Slack, Gmail, Notion, Calendar — the raw material for context accumulation
-- **Memory & Context**: Four-layer model (Memory → Activity → Context → Work) with bidirectional learning — generation flows down, learning flows up
+- **Thinking Partner (TP)**: The system's meta-intelligence for conversation, supervision, and agent scaffolding
+- **Persistent Agents**: Domain specialists with their own memory, workspace, directives, and run history
+- **Compounding Context**: Synced platform data, workspace memory, prior outputs, and user feedback all improve future runs
+- **Recurring Work Products**: Agents produce summaries, briefs, monitoring outputs, research, and richer rendered artifacts when the job requires them
 
 ## Documentation
 
-See [docs/ESSENCE.md](docs/ESSENCE.md) for the core thesis and architecture.
+Start with:
+
+- [docs/ESSENCE.md](docs/ESSENCE.md)
+- [docs/architecture/FOUNDATIONS.md](docs/architecture/FOUNDATIONS.md)
+- [docs/architecture/agent-framework.md](docs/architecture/agent-framework.md)
+- [docs/adr/ADR-118-skills-as-capability-layer.md](docs/adr/ADR-118-skills-as-capability-layer.md)
+- [docs/adr/ADR-119-workspace-filesystem-architecture.md](docs/adr/ADR-119-workspace-filesystem-architecture.md)

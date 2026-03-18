@@ -19,7 +19,7 @@ Example request:
 ```json
 {
   "title": "Weekly Engineering Recap",
-  "skill": "digest",
+  "role": "digest",
   "trigger_type": "schedule",
   "mode": "recurring",
   "schedule": {
@@ -43,7 +43,7 @@ Example request:
 
 Notes:
 
-- `skill` defines what kind of work the agent does
+- `role` defines what kind of work the agent does
 - `trigger_type` controls whether the agent is scheduled, event-driven, or manual
 - `mode` defines how it decides when to act
 - `scope` is inferred server-side from the sources and configuration
@@ -69,7 +69,7 @@ PATCH /api/agents/{agent_id}
 Common update fields:
 
 - `title`
-- `skill`
+- `role`
 - `mode`
 - `schedule`
 - `sources`

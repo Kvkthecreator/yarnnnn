@@ -1,6 +1,6 @@
 # Quickstart
 
-Start with one platform, one useful output, and one feedback loop.
+Start with one platform, one useful work product, and one feedback loop.
 
 ## 1. Create your account
 
@@ -17,7 +17,7 @@ Choose the platform that already contains the clearest signal for your work:
 - **Notion** for docs and project state
 - **Google Calendar** for schedule-aware prep
 
-If you want the fastest autonomous first output, start with **Slack, Gmail, or Notion**. Calendar is most useful once YARNNN also has other work context to pull from.
+If you want the fastest autonomous first result, start with **Slack, Gmail, or Notion**. Calendar is most useful once YARNNN also has other work context to pull from.
 
 YARNNN uses read-only access. It does not post, send, or modify content in your connected tools.
 
@@ -32,11 +32,11 @@ After connection, YARNNN:
 
 You do not need to fully configure the system before seeing value.
 
-## 4. Review the first output
+## 4. Review the first result
 
 Once the first run lands:
 
-- approve it if it is already useful
+- keep it as-is if it is already useful
 - edit it if it is too broad or misses emphasis
 - ask the Thinking Partner to refine the agent
 

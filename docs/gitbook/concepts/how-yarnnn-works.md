@@ -26,13 +26,13 @@ This is the raw substrate:
 
 YARNNN does not expect you to configure everything manually before seeing value.
 
-After the first sync, it creates a matching starter agent for the platform you connected. That gives you a real output quickly instead of leaving you on an empty dashboard.
+After the first sync, it creates a matching starter agent for the platform you connected. That gives you a real work product quickly instead of leaving you on an empty dashboard.
 
 ## 4. Supervise
 
 You review what the system produces.
 
-- approve when it is good
+- keep it as-is when it is good
 - edit when it misses the mark
 - ask the Thinking Partner to adjust the agent
 
@@ -46,7 +46,7 @@ Over time it builds on:
 
 - synced platform context
 - prior agent runs
-- your approvals and edits
+- your edits and follow-up direction
 - standing preferences and instructions
 
 That accumulation is what lets later output feel specific instead of generic.

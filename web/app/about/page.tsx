@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — Why we built yarnnn",
   description:
-    "We built yarnnn because useful AI work requires persistent context and supervised autonomy. Specialists should improve over time, not restart every session.",
+    "We built yarnnn because useful AI work requires persistent context and supervised autonomy. Specialists should improve over time and deliver useful work, not restart every session.",
   path: "/about",
   keywords: [
     "about yarnnn",
@@ -59,7 +59,7 @@ export default function AboutPage() {
                 source grounding, and supervision loops that improve quality each cycle.
               </p>
               <p className="text-white font-medium">
-                yarnnn is our answer: a system of autonomous agents that learns from your world and your approvals.
+                yarnnn is our answer: a system of autonomous agents that learns from your world and your supervision.
               </p>
             </div>
           </section>
@@ -90,8 +90,8 @@ export default function AboutPage() {
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      The goal is not faster prompting. The goal is reliable autonomous output that can be reviewed,
-                      refined, and approved with clear control points.
+                      The goal is not faster prompting. The goal is reliable autonomous work that can be reviewed,
+                      refined, and redirected with clear control points.
                     </p>
                     <p className="text-white/30 text-sm">
                       In yarnnn, you supervise agents instead of manually rebuilding the same outputs.
@@ -121,7 +121,7 @@ export default function AboutPage() {
                   <div className="text-white/50">
                     <p className="mb-4">
                       Persistent source context plus agent memory creates durable performance gains.
-                      Over time, approval effort drops while quality rises.
+                      Over time, supervision effort drops while quality rises.
                     </p>
                     <p className="text-white/30 text-sm">
                       The longer an agent runs, the harder its accumulated intelligence is to replicate elsewhere.
@@ -161,7 +161,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not uncontrolled automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    The model is supervised autonomy with run history, review states, and explicit user control.
+                    The model is supervised autonomy with run history, delivery history, and explicit user control.
                   </p>
                 </div>
               </div>
@@ -190,7 +190,7 @@ export default function AboutPage() {
                 <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-2">People shifting from execution to supervision</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    If you want fewer repetitive drafting cycles and more high-quality approvals, yarnnn is built for that transition.
+                    If you want fewer repetitive drafting cycles and more high-quality supervision, yarnnn is built for that transition.
                   </p>
                 </div>
               </div>

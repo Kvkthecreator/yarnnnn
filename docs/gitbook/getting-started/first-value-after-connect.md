@@ -10,7 +10,7 @@ After you connect **Slack, Gmail, or Notion**, YARNNN moves through a short sequ
 2. Auto-selects a small set of high-signal defaults
 3. Starts the first sync
 4. Creates a matching starter agent
-5. Runs that agent and surfaces the first output
+5. Runs that agent and surfaces the first result
 
 For example:
 
@@ -25,13 +25,13 @@ Calendar is different: it adds schedule context immediately, but its best standa
 Treat the first run as a calibration pass.
 
 - Read it end to end
-- Approve it if it is already useful
+- Keep it as-is if it is already useful
 - Edit it if the emphasis, tone, or structure is off
 - Ask the Thinking Partner to refine the agent if needed
 
 You do not need to perfect the system before seeing value. The product is built around supervised improvement.
 
-## If the first output is too broad or too noisy
+## If the first result is too broad or too noisy
 
 That usually means coverage should be tightened, not that the model is wrong.
 

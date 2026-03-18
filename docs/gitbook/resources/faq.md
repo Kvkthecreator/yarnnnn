@@ -4,15 +4,15 @@
 
 ### What is YARNNN?
 
-YARNNN is an autonomous AI work system for recurring knowledge work. It connects to your tools, builds context over time, and runs supervised agents that produce useful output in the background.
+YARNNN is an autonomous AI work system for recurring knowledge work. It connects to your tools, builds context over time, and runs supervised agents that deliver useful work in the background.
 
 ### How is YARNNN different from ChatGPT or Claude?
 
-Chat tools are mostly session-centric. YARNNN is system-centric: it keeps synced work context, runs persistent agents, and improves output through supervision and accumulated feedback.
+Chat tools are mostly session-centric. YARNNN is system-centric: it keeps synced work context, runs persistent agents, and improves work quality through supervision and accumulated feedback.
 
 ### What is the Thinking Partner?
 
-The Thinking Partner is YARNNN's conversational control layer. In the product it may also be referred to as the Orchestrator. It helps you ask grounded questions, create agents, refine output, and inspect what the system is doing.
+The Thinking Partner is YARNNN's conversational control layer. In the product it may also be referred to as the Orchestrator. It helps you ask grounded questions, create agents, refine work, and inspect what the system is doing.
 
 ### What kind of work can YARNNN do?
 
@@ -33,7 +33,7 @@ Slack, Gmail, Notion, and Google Calendar.
 
 ### Can YARNNN post in Slack, send emails, or edit Notion pages?
 
-No. Integrations are read-only for context ingestion.
+Source integrations are read-only for context ingestion. Delivery is separate: YARNNN can send outputs to destinations you configure, but it does not silently modify the source systems it reads from.
 
 ### Can I control what YARNNN can see?
 
@@ -51,7 +51,7 @@ Yes. Every generation creates a run you can inspect and review over time.
 
 ### How do agents improve over time?
 
-Each agent learns from prior runs, approvals, edits, and instructions. Consistent feedback becomes future behavior.
+Each agent learns from prior runs, edits, and instructions. Consistent feedback becomes future behavior.
 
 ### What execution modes are available?
 

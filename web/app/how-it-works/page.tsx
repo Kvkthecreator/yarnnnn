@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "yarnnn connects to your work tools and creates autonomous agents that improve with every cycle. Connect, supervise, compound.",
+    "yarnnn connects to your work tools and creates autonomous agents that deliver recurring work and improve with every cycle. Connect, supervise, compound.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
@@ -37,11 +37,11 @@ export default function HowItWorksPage() {
       },
       {
         "@type": "HowToStep",
-        name: "Agents run on schedule and produce output",
+        name: "Agents run on schedule and deliver work",
       },
       {
         "@type": "HowToStep",
-        name: "Review, approve, or refine agent output",
+        name: "Review, refine, or redirect agent output",
       },
       {
         "@type": "HowToStep",
@@ -68,7 +68,7 @@ export default function HowItWorksPage() {
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
               yarnnn connects to your work tools and creates agents that run in the background.
-              You supervise their output from a dashboard. Quality compounds with every cycle.
+              You supervise their work from a dashboard. Quality compounds with every cycle.
             </p>
           </section>
 
@@ -77,7 +77,7 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Create agents in plain language</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
                 Use the Orchestrator to describe what you need. yarnnn figures out
-                the right agent setup — sources, schedule, and output format.
+                the right agent setup — sources, schedule, delivery, and work product.
               </p>
 
               <div className="border border-white/10 rounded-2xl p-6 bg-white/5 max-w-2xl">
@@ -111,7 +111,7 @@ export default function HowItWorksPage() {
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-3">
-                        Done. First run will be ready on schedule.
+                        Done. First run will be delivered on schedule.
                       </p>
                       <div className="mt-3 pt-3 border-t border-white/10">
                         <p className="text-white/40 text-xs">Agent configured successfully.</p>
@@ -190,7 +190,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-3">Agents run on schedule</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Each agent executes in the background and produces output you can review.
+                      Each agent executes in the background and delivers work you can review.
                       Your dashboard shows agent health, recent activity, and anything needing attention.
                     </p>
                   </div>
@@ -201,7 +201,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-3">Review and refine</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Approve, edit, or redirect. Your feedback teaches the agent
+                      Review, edit, or redirect. Your feedback teaches the agent
                       your preferred structure, tone, and priorities.
                     </p>
                   </div>
@@ -233,7 +233,7 @@ export default function HowItWorksPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Preferred structure, tone, and prioritization patterns from approvals</p>
+                    <p className="text-white/70 text-sm">Preferred structure, tone, and prioritization patterns from edits and follow-up direction</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
@@ -245,7 +245,7 @@ export default function HowItWorksPage() {
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Execution history that improves future output quality and relevance</p>
+                    <p className="text-white/70 text-sm">Execution and delivery history that improves future output quality and relevance</p>
                   </div>
                 </div>
               </div>
