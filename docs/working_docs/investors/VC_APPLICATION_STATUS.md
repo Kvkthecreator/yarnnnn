@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-10
+**Last Updated**: 2026-03-18
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -30,6 +30,7 @@
 | Techstars (Fall '26) | Accelerator | May–June 2026 | $220K ($20K for 5% + $200K uncapped MFN SAFE). Applications typically open May–June for Sept start. Target: Anywhere (remote) or NYC program. Apply after traction sprint |
 | HF0 Residency | Residency | Fall 2026 | $500K–$1M for 5%. Requires repeat founders — may be hard filter, applying anyway. 12-week SF residency |
 | Sazze Partners | Pre-seed | **NOW — priority** | $500K–$3M checks. Seoul + San Jose. Thesis: Korean-American founders, AI/SaaS. Perfect thesis match. Direct outreach via sazze.vc/contact |
+| YC (Summer 2026) | Accelerator | **May 4, 2026** | $500K ($125K for 7% + $375K uncapped SAFE). Application draft saved at apply.ycombinator.com. **Remaining before submit: founder video (1 min), complete profile, demo video (optional), update traction numbers closer to deadline.** Batch: July–September in SF. |
 
 ---
 
@@ -73,7 +74,9 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [x] **Sazze Partners (Greg Kim)**: LinkedIn connection request sent 2026-03-13. Note: "안녕하세요! — Korean founder heading to LA/SF (US citizen), Building yarnnn.com, raising Pre-seed, targeting US market. Thought Sazze's Korean founder thesis would be a great fit. Would love to connect!" Awaiting acceptance → then send longer DM
 - [x] **Sazze Partners (Kathy Ku)**: Meeting held 2026-03-17. Kathy requested deck to review with team. **Deck sent — awaiting team review.**
 - [x] **Lorimer Ventures (Zach Magdovitz @magdovitz)**: He followed Kevin on X. Operator-investor, $50K–$300K checks, seed-stage, B2B/SaaS. Built tools at Attentive, Yext, Mailchimp. **DM sent 2026-03-17 — awaiting reply.**
+- [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18 to jk@fortitudevc.com with deck attached (IR Deck v16). Principal, SF Bay Area, Cornell. She explicitly welcomes pitch decks in her LinkedIn bio. Also sent LinkedIn connection request. **Awaiting reply.**
 - [ ] **Mischief VC**: Researched 2026-03-17. Jack Altman's fund, SF, $1–5M checks, seed/Series A, AI/software focus. Strong sector fit — finding contact method to pitch
 - [ ] **NVIDIA Inception**: Free startup program (no equity). Benefits: cloud credits ($25K–$100K AWS), hardware pricing, VC networking events, co-marketing badges. Application started 2026-03-17 — **BLOCKED: requires secondary contact (different person with @yarnnn.com email).** Need to recruit an advisor/friend to list. URL: programs.nvidia.com/phoenix/application. No deadline, rolling.
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
 - [ ] **HF0 Fall '26**: Watch for application opening. Apply despite repeat-founder requirement
+- [ ] **YC S26**: Draft saved 2026-03-18. Deadline May 4, 8pm PT. **TODO before submit**: (1) record 1-min founder video, (2) complete founder profile, (3) optional: record 3-min demo video, (4) update traction numbers with user data from sprint. Revisit in late April.
