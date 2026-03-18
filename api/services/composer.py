@@ -430,6 +430,63 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         maturity_signals=maturity_signals,
     )
 
+    # 12. ADR-120: Project health signals — active projects + PM status
+    projects_health = {
+        "total_projects": 0,
+        "active_pms": 0,
+        "stale_projects": [],
+        "projects_without_pm": [],
+    }
+    try:
+        project_files = (
+            client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", user_id)
+            .like("path", "/projects/%/PROJECT.md")
+            .execute()
+        )
+        project_slugs = []
+        for f in (project_files.data or []):
+            # Extract slug from path: /projects/{slug}/PROJECT.md
+            parts = f["path"].split("/")
+            if len(parts) >= 3:
+                project_slugs.append(parts[2])
+
+        projects_health["total_projects"] = len(project_slugs)
+
+        # Check PM agents for each project
+        pm_agents = [a for a in active_agents if a.get("role") == "pm"]
+        pm_project_slugs = set()
+        for pm in pm_agents:
+            # PM's project_slug is in type_config — but we don't have type_config in the select above
+            # So look it up if PM agents exist
+            pass
+
+        # Simpler approach: count PM role agents and check staleness
+        projects_health["active_pms"] = len(pm_agents)
+
+        for pm in pm_agents:
+            last_run = pm.get("last_run_at")
+            if last_run:
+                try:
+                    last_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+                    if now - last_dt > timedelta(days=7):
+                        projects_health["stale_projects"].append({
+                            "pm_agent_id": pm["id"],
+                            "pm_title": pm["title"],
+                            "last_run_at": last_run,
+                        })
+                except (ValueError, TypeError):
+                    pass
+
+        # Projects without PM: total_projects > active_pms
+        if projects_health["total_projects"] > projects_health["active_pms"]:
+            projects_health["projects_without_pm_count"] = (
+                projects_health["total_projects"] - projects_health["active_pms"]
+            )
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Project health query failed: {e}")
+
     return {
         "user_id": user_id,
         "timestamp": now.isoformat(),
@@ -472,6 +529,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "total_agent_runs": total_runs,  # ADR-115 — surfaced for prompt/logging
         "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
         "agent_graph": agent_graph,  # ADR-116 Phase 5
+        "projects": projects_health,  # ADR-120 Phase 1
     }
 
 
@@ -623,6 +681,17 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
                     f"developing_workspace: {total_kf} knowledge files, {total_runs} total runs "
                     "— propose agents for missing skills"
                 )
+
+    # ADR-120: Project health heuristics
+    projects = assessment.get("projects", {})
+    stale_pms = projects.get("stale_projects", [])
+    if stale_pms:
+        titles = [p["pm_title"] for p in stale_pms[:3]]
+        return True, f"project_pm_stale: {len(stale_pms)} PM agents haven't run in 7+ days: {titles}"
+
+    no_pm_count = projects.get("projects_without_pm_count", 0)
+    if no_pm_count > 0:
+        return True, f"project_no_pm: {no_pm_count} project(s) exist without a PM agent"
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 

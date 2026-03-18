@@ -42,6 +42,11 @@ from .project import (
     CREATE_PROJECT_TOOL, handle_create_project,
     READ_PROJECT_TOOL, handle_read_project,
 )
+from .project_execution import (
+    CHECK_CONTRIBUTOR_FRESHNESS_TOOL, handle_check_contributor_freshness,
+    READ_PROJECT_STATUS_TOOL, handle_read_project_status,
+    REQUEST_CONTRIBUTOR_ADVANCE_TOOL, handle_request_contributor_advance,
+)
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -217,6 +222,10 @@ PRIMITIVES = [
     # Project primitives — chat + headless (ADR-119 Phase 2)
     CREATE_PROJECT_TOOL,
     READ_PROJECT_TOOL,
+    # PM project execution primitives — headless only (ADR-120 Phase 1)
+    CHECK_CONTRIBUTOR_FRESHNESS_TOOL,
+    READ_PROJECT_STATUS_TOOL,
+    REQUEST_CONTRIBUTOR_ADVANCE_TOOL,
 ]
 
 
@@ -248,6 +257,9 @@ HANDLERS: dict[str, Callable] = {
     "RuntimeDispatch": handle_runtime_dispatch,
     "CreateProject": handle_create_project,
     "ReadProject": handle_read_project,
+    "CheckContributorFreshness": handle_check_contributor_freshness,
+    "ReadProjectStatus": handle_read_project_status,
+    "RequestContributorAdvance": handle_request_contributor_advance,
 }
 
 
@@ -344,6 +356,10 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     # Project primitives — chat + headless (ADR-119 Phase 2)
     "CreateProject":          ["chat", "headless"],
     "ReadProject":            ["chat", "headless"],
+    # PM project execution — headless only (ADR-120 Phase 1)
+    "CheckContributorFreshness":  ["headless"],
+    "ReadProjectStatus":          ["headless"],
+    "RequestContributorAdvance":  ["headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.

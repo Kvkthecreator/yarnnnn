@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "act", "custom"}
+VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "act", "pm", "custom"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources)
 ROLE_TO_SCOPE = {
@@ -36,6 +36,7 @@ ROLE_TO_SCOPE = {
     "research": "research",
     "synthesize": "cross_platform",
     "act": "autonomous",
+    "pm": "knowledge",
     "custom": "knowledge",
 }
 
@@ -222,6 +223,9 @@ async def create_agent_record(
                 agent_md = instructions_text
                 if role in ("synthesize", "research", "monitor", "custom"):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PDF documents, PPTX presentations, XLSX spreadsheets, PNG/SVG charts. Use these when structured data or formatted reports would serve the recipient better than plain text."
+                if role == "pm":
+                    project_slug = (type_config or {}).get("project_slug", "unknown")
+                    agent_md += f"\n\n## Project Context\nThis PM agent coordinates project `{project_slug}`. Check contributor freshness, trigger assembly when contributions are ready, manage the work plan. Escalate to TP if stuck."
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
             except Exception as e:

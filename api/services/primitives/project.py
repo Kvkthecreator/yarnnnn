@@ -187,14 +187,45 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[PROJECT] Failed to seed contributor workspace {c['agent_slug']}: {e}")
 
-    logger.info(f"[PROJECT] ADR-119 P2: Created project '{title}' ({project_slug}) with {len(contributors)} contributors")
+    # ADR-120 Phase 1: Auto-create PM agent for this project
+    pm_agent_id = None
+    try:
+        from services.agent_creation import create_agent_record
+
+        pm_result = await create_agent_record(
+            auth.client, auth.user_id,
+            title=f"PM: {title}",
+            role="pm",
+            origin="composer",
+            mode="recurring",
+            schedule={"frequency": "daily", "time": "08:00"},
+            type_config={"project_slug": project_slug},
+            agent_instructions=f"Manage project '{title}': {assembly_spec or 'coordinate contributors and trigger assembly when ready'}",
+        )
+        if pm_result.get("success"):
+            pm_agent_id = pm_result["agent_id"]
+            logger.info(f"[PROJECT] ADR-120: Created PM agent {pm_agent_id} for project {project_slug}")
+            # Store PM agent ID in project workspace memory
+            await pw.write(
+                "memory/pm_agent.json",
+                _json.dumps({"pm_agent_id": pm_agent_id, "pm_title": f"PM: {title}"}),
+                summary="PM agent reference",
+                content_type="application/json",
+            )
+        else:
+            logger.warning(f"[PROJECT] ADR-120: PM creation failed: {pm_result.get('message')}")
+    except Exception as e:
+        logger.warning(f"[PROJECT] ADR-120: PM auto-creation failed: {e}")
+
+    logger.info(f"[PROJECT] ADR-119 P2 + ADR-120: Created project '{title}' ({project_slug}) with {len(contributors)} contributors, PM={pm_agent_id}")
 
     return {
         "success": True,
         "project_slug": project_slug,
         "title": title,
         "contributors": [{"agent_slug": c["agent_slug"], "agent_id": c["agent_id"]} for c in contributors],
-        "message": f"Project '{title}' created at /projects/{project_slug}/",
+        "pm_agent_id": pm_agent_id,
+        "message": f"Project '{title}' created at /projects/{project_slug}/" + (f" with PM agent" if pm_agent_id else ""),
     }
 
 

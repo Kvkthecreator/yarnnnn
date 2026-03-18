@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.9] - PM agent role + project execution primitives (ADR-120 Phase 1)
+
+### Added
+- `api/services/agent_creation.py`: Added `pm` role to `VALID_ROLES`, mapped to `knowledge` scope in `ROLE_TO_SCOPE`. PM agents get project-specific AGENT.md seeding.
+- `api/services/agent_pipeline.py`: PM role prompt (v1) — structured JSON action output (assemble/advance_contributor/wait/escalate). PM validation checks JSON structure and required fields. `build_role_prompt()` handles PM `project_context`/`contributor_status`/`work_plan` template fields.
+- `api/services/primitives/project_execution.py`: Three new headless-only primitives — `CheckContributorFreshness` (per-contributor freshness vs last assembly), `ReadProjectStatus` (full project state), `RequestContributorAdvance` (advance contributor schedule to now).
+- `api/services/primitives/project.py`: `handle_create_project()` auto-creates PM agent (role=pm, origin=composer, daily schedule) and stores reference in `memory/pm_agent.json`.
+- `api/services/agent_execution.py`: PM context injection (`_load_pm_project_context`) loads project identity + freshness into type_config before `build_role_prompt`. Project heartbeat (`_maybe_trigger_project_heartbeat`) advances PM schedule when contributor produces output (1h debounce). PM gets 4 tool rounds.
+- `api/services/composer.py`: Project health signals in `heartbeat_data_query()` (active projects, PM count, stale PMs). Two new heuristics in `should_composer_act()`: `project_pm_stale` (PM idle 7+ days) and `project_no_pm` (project without PM agent).
+
+### Expected behavior
+- Creating a project via `CreateProject` now auto-provisions a PM agent. PM runs daily by default, but schedule is advanced when any contributor produces new output (project heartbeat).
+- PM agents output structured JSON decisions, not prose. Validation enforces JSON with valid action field.
+- Composer heartbeat detects projects without PMs and stale PMs.
+
+---
+
 ## [2026.03.18.8] - Expand skill library — 4 new skills (ADR-118 D.4)
 
 ### Added

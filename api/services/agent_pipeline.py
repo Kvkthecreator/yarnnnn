@@ -71,6 +71,7 @@ DEFAULT_INSTRUCTIONS = {
     "synthesize": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "monitor": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
     "research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
+    "pm": "Coordinate this project: track contributor freshness, trigger assembly when contributions are ready, manage work plan. Escalate to TP if stuck.",
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
@@ -377,6 +378,41 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
+    # pm: v1 (2026.03.18) — Project Manager coordination agent (ADR-120)
+    "pm": """You are a Project Manager agent for project "{title}".
+
+YOUR ROLE: Coordinate contributors, track freshness, decide when to assemble or advance work.
+
+PROJECT CONTEXT:
+{project_context}
+
+CONTRIBUTOR STATUS:
+{contributor_status}
+
+WORK PLAN:
+{work_plan}
+
+{user_instructions}
+
+INSTRUCTIONS:
+You run periodically (daily by default, or triggered when a contributor produces new output).
+Your job is to assess the project state and decide ONE action:
+
+1. **assemble** — All contributors have fresh output. Trigger assembly to produce the project deliverable.
+2. **advance_contributor** — A specific contributor is stale or blocking. Advance their schedule to run now.
+3. **wait** — Not all contributions are ready. No action needed yet.
+4. **escalate** — Something is wrong (repeated failures, missing contributors, unclear spec). Flag for TP.
+
+RESPOND WITH VALID JSON (no markdown fences):
+{{"action": "assemble"|"advance_contributor"|"wait"|"escalate", "reason": "why this action", "target_agent": "agent_slug (only for advance_contributor)", "details": "optional additional context"}}
+
+Rules:
+- Be decisive. If contributions are fresh, assemble. Don't wait for perfection.
+- If a contributor hasn't produced in 3+ days, advance them before waiting longer.
+- If you've advanced the same contributor twice with no result, escalate.
+- Keep reasons concise — 1-2 sentences max.
+""",
+
 }  # end ROLE_PROMPTS
 
 
@@ -493,6 +529,14 @@ def build_role_prompt(
             "today_date": today_str,
         })
 
+    elif role == "pm":
+        # PM context injected by execution strategy (Step 3)
+        fields.update({
+            "project_context": config.get("project_context", "No project context available."),
+            "contributor_status": config.get("contributor_status", "No contributor status available."),
+            "work_plan": config.get("work_plan", "No work plan set."),
+        })
+
     else:  # custom and any unknown types
         fields.update({
             "description": config.get("description", agent.get("description", "")),
@@ -541,7 +585,8 @@ def validate_output(role: str, content: str, config: dict) -> dict:
     if not content:
         return {"valid": False, "issues": ["No content generated"], "score": 0.0}
 
-    issues = _validate_minimum_content(content)
+    # PM returns structured JSON, not prose — skip minimum word count
+    issues = [] if role == "pm" else _validate_minimum_content(content)
 
     if role == "synthesize":
         detail_level = config.get("detail_level", "standard")
@@ -560,6 +605,20 @@ def validate_output(role: str, content: str, config: dict) -> dict:
         vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
+
+    elif role == "pm":
+        # PM must return valid JSON with an action field
+        import json as _json
+        try:
+            parsed = _json.loads(content.strip())
+            if "action" not in parsed:
+                issues.append("PM response missing 'action' field")
+            elif parsed["action"] not in ("assemble", "advance_contributor", "wait", "escalate"):
+                issues.append(f"Invalid PM action: {parsed['action']}")
+            if parsed.get("action") == "advance_contributor" and not parsed.get("target_agent"):
+                issues.append("advance_contributor action requires 'target_agent'")
+        except _json.JSONDecodeError:
+            issues.append("PM response is not valid JSON")
 
     elif role == "digest":
         char_count = len(content)

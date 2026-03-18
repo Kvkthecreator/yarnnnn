@@ -90,6 +90,163 @@ async def _fetch_skill_docs() -> Optional[str]:
         logger.warning(f"[GENERATE] Failed to fetch skill docs from output gateway: {e}")
     return None
 
+async def _load_pm_project_context(client, user_id: str, project_slug: str) -> dict:
+    """
+    ADR-120: Load project context for PM agent's prompt injection.
+
+    Returns dict with keys matching PM role prompt template fields:
+    - project_context: PROJECT.md summary
+    - contributor_status: per-contributor freshness
+    - work_plan: work plan text or placeholder
+    """
+    from services.workspace import ProjectWorkspace
+    from services.primitives.project_execution import handle_check_contributor_freshness
+
+    pw = ProjectWorkspace(client, user_id, project_slug)
+
+    # Read project identity
+    project = await pw.read_project()
+    if not project:
+        return {
+            "project_context": f"Project '{project_slug}' not found.",
+            "contributor_status": "Unknown",
+            "work_plan": "No work plan.",
+        }
+
+    # Format project context
+    intent = project.get("intent", {})
+    project_lines = [
+        f"**Title:** {project.get('title', project_slug)}",
+        f"**Deliverable:** {intent.get('deliverable', 'Not specified')}",
+        f"**Audience:** {intent.get('audience', 'Not specified')}",
+        f"**Format:** {intent.get('format', 'Not specified')}",
+        f"**Contributors:** {len(project.get('contributors', []))}",
+    ]
+    if project.get("assembly_spec"):
+        project_lines.append(f"**Assembly:** {project['assembly_spec'][:200]}")
+
+    # Check contributor freshness
+    class _FakeAuth:
+        def __init__(self, c, uid):
+            self.client = c
+            self.user_id = uid
+    fake_auth = _FakeAuth(client, user_id)
+    freshness = await handle_check_contributor_freshness(fake_auth, {"project_slug": project_slug})
+
+    contributor_lines = []
+    for c in freshness.get("contributors", []):
+        status = "FRESH" if c["is_fresh"] else "STALE"
+        days = f" ({c['days_since']}d ago)" if c["days_since"] is not None else " (never contributed)"
+        contributor_lines.append(
+            f"- {c['agent_slug']}: {status}{days} — expected: {c.get('expected_contribution', 'unspecified')}"
+        )
+
+    if freshness.get("last_assembly_date"):
+        contributor_lines.append(f"\nLast assembly: {freshness['last_assembly_date']}")
+    else:
+        contributor_lines.append("\nNo assemblies yet.")
+
+    contributor_lines.append(f"All fresh: {'YES' if freshness.get('all_fresh') else 'NO'}")
+
+    # Read work plan
+    work_plan = await pw.read("memory/work_plan.md")
+
+    return {
+        "project_context": "\n".join(project_lines),
+        "contributor_status": "\n".join(contributor_lines) if contributor_lines else "No contributors listed.",
+        "work_plan": work_plan or "No work plan set.",
+    }
+
+
+async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, agent_slug: str):
+    """
+    ADR-120: After a contributor produces output, check if it belongs to any project.
+    If yes, advance the PM agent's schedule to now (debounced by 1 hour).
+
+    This reuses existing scheduler infrastructure — no new dispatch path.
+    """
+    from services.workspace import AgentWorkspace
+
+    ws = AgentWorkspace(client, user_id, agent_slug)
+
+    # Read agent's project memberships
+    projects_json = await ws.read("memory/projects.json")
+    if not projects_json:
+        return  # Agent isn't in any projects
+
+    import json as _json
+    try:
+        projects = _json.loads(projects_json)
+    except _json.JSONDecodeError:
+        return
+
+    if not projects:
+        return
+
+    from services.workspace import ProjectWorkspace
+
+    for project_entry in projects:
+        project_slug = project_entry.get("project_slug")
+        if not project_slug:
+            continue
+
+        # Read PM agent reference
+        pw = ProjectWorkspace(client, user_id, project_slug)
+        pm_json = await pw.read("memory/pm_agent.json")
+        if not pm_json:
+            continue
+
+        try:
+            pm_ref = _json.loads(pm_json)
+        except _json.JSONDecodeError:
+            continue
+
+        pm_agent_id = pm_ref.get("pm_agent_id")
+        if not pm_agent_id:
+            continue
+
+        # Debounce: check if PM ran in the last hour
+        try:
+            pm_result = (
+                client.table("agents")
+                .select("id, last_run_at, next_run_at")
+                .eq("id", pm_agent_id)
+                .eq("user_id", user_id)
+                .eq("status", "active")
+                .maybe_single()
+                .execute()
+            )
+            if not pm_result or not pm_result.data:
+                continue
+
+            pm_agent = pm_result.data
+            last_run = pm_agent.get("last_run_at")
+
+            if last_run:
+                last_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+                hours_since = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+                if hours_since < 1:
+                    logger.info(
+                        f"[PM_HEARTBEAT] Debounce: PM {pm_agent_id} ran {hours_since:.1f}h ago for {project_slug}, skipping"
+                    )
+                    continue
+
+            # Advance PM schedule to now
+            now = datetime.now(timezone.utc).isoformat()
+            client.table("agents").update({
+                "next_run_at": now,
+                "updated_at": now,
+            }).eq("id", pm_agent_id).execute()
+
+            logger.info(
+                f"[PM_HEARTBEAT] ADR-120: Advanced PM {pm_agent_id} for project {project_slug} "
+                f"(triggered by {agent_slug})"
+            )
+
+        except Exception as e:
+            logger.warning(f"[PM_HEARTBEAT] Failed to advance PM for {project_slug}: {e}")
+
+
 # Model constants
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
@@ -499,6 +656,14 @@ async def generate_draft_inline(
         },
     }
 
+    # ADR-120: PM agents need project context injected into type_config for build_role_prompt
+    if role == "pm" and type_config.get("project_slug"):
+        try:
+            pm_config = await _load_pm_project_context(client, user_id, type_config["project_slug"])
+            type_config = {**type_config, **pm_config}
+        except Exception as e:
+            logger.warning(f"[GENERATE] PM context injection failed: {e}")
+
     # Build role-specific prompt (user message)
     prompt = build_role_prompt(
         role=role,
@@ -553,6 +718,10 @@ async def generate_draft_inline(
     # Prepare (meeting prep) needs more rounds for per-attendee research + WebSearch
     if role == "prepare":
         max_tool_rounds = max(max_tool_rounds, 5)
+
+    # PM needs tool rounds for project status checks (ADR-120)
+    if role == "pm":
+        max_tool_rounds = max(max_tool_rounds, 4)
 
     # ADR-080: Mode-gated tools and executor
     # ADR-092: Pass agent sources so headless RefreshPlatformContent can scope to them
@@ -1297,6 +1466,14 @@ async def execute_agent_generation(
                 })
             except Exception as e:
                 logger.warning(f"[EXEC] Event heartbeat trigger failed: {e}")
+
+        # ADR-120: Project heartbeat — if this agent contributes to projects,
+        # advance the PM's schedule so it runs on next scheduler cycle
+        if final_status == "delivered" and role != "pm":
+            try:
+                await _maybe_trigger_project_heartbeat(client, user_id, agent, slug)
+            except Exception as e:
+                logger.warning(f"[EXEC] Project heartbeat trigger failed: {e}")
 
         return {
             "success": final_status == "delivered",

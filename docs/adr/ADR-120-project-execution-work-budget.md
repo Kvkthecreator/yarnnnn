@@ -1,6 +1,6 @@
 # ADR-120: Project Execution & Work Budget
 
-> **Status**: Proposed
+> **Status**: Phase 1 Implemented, Phases 2-5 Proposed
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
