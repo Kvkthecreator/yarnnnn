@@ -458,7 +458,7 @@ Each result includes:
         "properties": {
             "role": {
                 "type": "string",
-                "enum": ["digest", "prepare", "monitor", "research", "synthesize", "orchestrate"],
+                "enum": ["digest", "prepare", "monitor", "research", "synthesize"],
                 "description": "Optional: filter by role type"
             },
             "scope": {
@@ -596,7 +596,7 @@ async def handle_read_agent_context(auth: Any, input: dict) -> dict:
     """Handle ReadAgentContext primitive — ADR-116 Phase 3.
 
     Read-only cross-agent workspace access for identity files.
-    Restricted to synthesize, research, orchestrate skills (enforced by PRIMITIVE_MODES).
+    Restricted to synthesize, research roles (enforced by PRIMITIVE_MODES).
     """
     from services.workspace import AgentWorkspace, get_agent_slug
 

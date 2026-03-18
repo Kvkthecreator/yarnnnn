@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
 # Skills that authorize RuntimeDispatch (agents with these roles get SKILL.md injection)
-RUNTIME_DISPATCH_ROLES = {"synthesize", "research", "monitor", "custom", "orchestrate"}
+RUNTIME_DISPATCH_ROLES = {"synthesize", "research", "monitor", "custom"}
 
 # Map skill types to render gateway skill folder names
 SKILL_TYPE_TO_FOLDER = {

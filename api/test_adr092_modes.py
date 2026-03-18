@@ -159,7 +159,7 @@ async def phase1_setup(supabase) -> dict:
             "user_id": TEST_USER_ID,
             "title": f"{TEST_PREFIX}Coordinator",
             "scope": "autonomous",
-            "role": "orchestrate",
+            "role": "synthesize",
             "mode": "coordinator",
             "trigger_type": "schedule",
             "origin": "user_configured",

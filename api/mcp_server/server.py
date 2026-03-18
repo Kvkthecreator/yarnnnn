@@ -445,7 +445,7 @@ async def discover_agents(
     what agents exist, what domains they cover, and what knowledge they produce.
 
     Args:
-        role: Optional filter: digest, prepare, monitor, research, synthesize, orchestrate
+        role: Optional filter: digest, prepare, monitor, research, synthesize
         scope: Optional filter: platform, cross_platform, knowledge, research, autonomous
         status: Optional filter: active (default), paused
     """

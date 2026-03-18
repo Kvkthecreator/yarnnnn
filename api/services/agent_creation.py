@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
+VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "act", "custom"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources)
 ROLE_TO_SCOPE = {
@@ -35,7 +35,6 @@ ROLE_TO_SCOPE = {
     "monitor": "platform",
     "research": "research",
     "synthesize": "cross_platform",
-    "orchestrate": "autonomous",
     "act": "autonomous",
     "custom": "knowledge",
 }
@@ -48,16 +47,12 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
     Scope is never user-configured — it's derived from what the agent knows about.
 
     Rules:
-    1. orchestrate role → autonomous
-    2. proactive/coordinator mode with synthesis/research role → autonomous
-    3. research role with no platform sources → research
-    4. 0 platform sources → knowledge (or cross_platform fallback)
-    5. 1 provider → platform
-    6. 2+ providers → cross_platform
+    1. proactive/coordinator mode with synthesis/research role → autonomous
+    2. research role with no platform sources → research
+    3. 0 platform sources → knowledge (or cross_platform fallback)
+    4. 1 provider → platform
+    5. 2+ providers → cross_platform
     """
-    if role == "orchestrate":
-        return "autonomous"
-
     if mode in ("proactive", "coordinator") and role in ("synthesize", "research"):
         return "autonomous"
 

@@ -48,7 +48,6 @@ Role = Literal[
     "monitor",     # Track, diff, alert — domain watching
     "research",    # Investigate, analyze — bounded research
     "synthesize",  # Connect, derive insight — cross-source synthesis
-    "orchestrate", # Coordinate, dispatch — agent fleet management
     "act",         # Execute, respond, post — platform actions (future)
     "custom",      # User-defined
 ]
@@ -93,12 +92,6 @@ class ResearchConfig(BaseModel):
     pulse_frequency: Literal["daily", "weekly"] = "weekly"
 
 
-class OrchestrateConfig(BaseModel):
-    """Config for orchestrate role (coordinator that dispatches work)."""
-    domain: str = ""  # Domain this coordinator watches
-    dispatch_rules: list[str] = Field(default_factory=list)  # What triggers dispatching
-
-
 class CustomConfig(BaseModel):
     """Config for custom role."""
     description: str = ""
@@ -111,7 +104,6 @@ SkillConfig = Union[
     SynthesizeConfig,
     MonitorConfig,
     ResearchConfig,
-    OrchestrateConfig,
     CustomConfig,
 ]
 
@@ -202,7 +194,6 @@ def get_default_config(role: str) -> dict:
         "synthesize": SynthesizeConfig(),
         "monitor": MonitorConfig(),
         "research": ResearchConfig(),
-        "orchestrate": OrchestrateConfig(),
         "custom": CustomConfig(),
     }
     return defaults.get(role, defaults["custom"]).model_dump()
@@ -1462,7 +1453,6 @@ def validate_role_config(role: str, config: dict) -> dict:
         "synthesize": SynthesizeConfig,
         "monitor": MonitorConfig,
         "research": ResearchConfig,
-        "orchestrate": OrchestrateConfig,
         "custom": CustomConfig,
     }
 

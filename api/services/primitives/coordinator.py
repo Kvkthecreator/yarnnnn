@@ -34,7 +34,7 @@ Optional: agent_instructions, sources, frequency, day, time, timezone,
           recipient_name, recipient_role, audience, tone, detail_level,
           dedup_key (coordinator mode only)
 
-role: digest|prepare|monitor|research|synthesize|orchestrate|act|custom
+role: digest|prepare|monitor|research|synthesize|act|custom
 frequency: daily|weekly|biweekly|monthly (default: weekly)
 
 Examples:
@@ -52,7 +52,7 @@ Always use the user's stated frequency — don't override with defaults.""",
             },
             "role": {
                 "type": "string",
-                "description": "Role: digest, prepare, synthesize, monitor, research, orchestrate, act, custom"
+                "description": "Role: digest, prepare, synthesize, monitor, research, act, custom"
             },
             "agent_instructions": {
                 "type": "string",

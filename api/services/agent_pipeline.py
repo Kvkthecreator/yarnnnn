@@ -71,7 +71,6 @@ DEFAULT_INSTRUCTIONS = {
     "synthesize": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "monitor": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
     "research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
-    "orchestrate": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
@@ -357,27 +356,6 @@ Rules:
 
 Write the proactive insights now:""",
 
-    "orchestrate": """You are producing a coordinator review titled "{title}".
-
-DOMAIN BEING COORDINATED: {domain}
-DISPATCH RULES:
-{dispatch_rules}
-
-{user_instructions}
-
-GATHERED CONTEXT:
-{gathered_context}
-
-{recipient_context}
-
-INSTRUCTIONS:
-- Assess the current state of the domain against the dispatch rules
-- Identify what work has been triggered, completed, or is pending
-- Surface any gaps or situations that require creating or advancing agents
-- Be analytical and action-oriented — this review drives downstream work
-
-Write the coordinator review now:""",
-
     "custom": """You are producing a custom agent titled "{title}".
 
 {description}
@@ -513,13 +491,6 @@ def build_role_prompt(
         today_str = datetime.now(tz).strftime("%A, %B %-d, %Y")
         fields.update({
             "today_date": today_str,
-        })
-
-    elif role == "orchestrate":
-        dispatch_rules = config.get("dispatch_rules", [])
-        fields.update({
-            "domain": config.get("domain", agent.get("title", "domain")),
-            "dispatch_rules": "\n".join(f"- {r}" for r in dispatch_rules) if dispatch_rules else "- No explicit rules — use judgment",
         })
 
     else:  # custom and any unknown types

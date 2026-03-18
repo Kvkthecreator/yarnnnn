@@ -404,7 +404,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     from services.primitives import execute_primitive
 
     # 4a: All expected role types have instructions (ADR-109: keyed by role name)
-    expected_types = ["digest", "prepare", "synthesize", "monitor", "research", "orchestrate", "custom"]
+    expected_types = ["digest", "prepare", "synthesize", "monitor", "research", "custom"]
     for dtype in expected_types:
         assert_true(r, f"DEFAULT_INSTRUCTIONS[{dtype}] exists",
                     dtype in DEFAULT_INSTRUCTIONS and len(DEFAULT_INSTRUCTIONS[dtype]) > 10,

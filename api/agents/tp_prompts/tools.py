@@ -131,7 +131,7 @@ CreateAgent(
 )
 ```
 
-**Roles:** digest, prepare, monitor, research, synthesize, orchestrate, act, custom
+**Roles:** digest, prepare, monitor, research, synthesize, act, custom
 **Frequency:** daily, weekly, biweekly, monthly (default: weekly)
 **Optional:** agent_instructions, sources, day, time, timezone, recipient_name, recipient_role, audience, tone, detail_level
 

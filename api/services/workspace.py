@@ -731,7 +731,6 @@ class KnowledgeBase:
         "research": "research",
         "monitor": "insights",
         "custom": "analyses",
-        "orchestrate": "analyses",
     }
 
     def __init__(self, db_client, user_id: str):
