@@ -1,6 +1,6 @@
 # ADR-120: Project Execution & Work Budget
 
-> **Status**: Phase 1 Implemented, Phases 2-5 Proposed
+> **Status**: Phases 1-2 Implemented, Phases 3-5 Proposed
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
@@ -215,11 +215,13 @@ The PM manages all active intentions, scheduling and budgeting across them.
 - `CheckContributorFreshness` and `ReadProjectStatus` primitives
 - PM status file (`/projects/{slug}/status.json`)
 
-### Phase 2: Assembly Execution
-- `TriggerAssembly` primitive (compose contributions → LLM → RuntimeDispatch → deliver)
-- Assembly manifest in `/projects/{slug}/assembly/{date}/manifest.json`
-- Delivery from assembly folder (extends `deliver_from_output_folder()`)
-- `RequestContributorAdvance` primitive
+### Phase 2: Assembly Execution (Implemented)
+- PM decision interpreter in `execute_agent_generation()` — parses PM JSON, routes by action
+- Assembly composition via separate LLM call with RuntimeDispatch access (`_compose_assembly()`)
+- Assembly orchestration: contributions → composition → `ProjectWorkspace.assemble()` → deliver
+- `deliver_from_assembly_folder()` mirrors agent output delivery pattern
+- PM actions: `assemble` triggers pipeline, `advance_contributor` reuses P1 primitive, `escalate` writes note
+- PM's `agent_runs` records carry `pm_decision` metadata for audit trail
 
 ### Phase 3: Work Budget Governor
 - `work_units` tracking (table or activity_log extension)

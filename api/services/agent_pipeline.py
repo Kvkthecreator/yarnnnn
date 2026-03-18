@@ -416,6 +416,33 @@ Rules:
 }  # end ROLE_PROMPTS
 
 
+# ADR-120 Phase 2: Assembly composition prompt (v1)
+# Used by _compose_assembly() when PM triggers "assemble" action.
+# Separate from PM's decision prompt — PM decides WHEN; this decides WHAT.
+ASSEMBLY_COMPOSITION_PROMPT = """Compose the following contributions into a single cohesive deliverable.
+
+## Project: {title}
+
+## Intent
+{intent}
+
+## Assembly Instructions
+{assembly_spec}
+
+## Contributions
+
+{contributions}
+
+---
+
+**Your task:** Synthesize these contributions into a unified document that serves the stated intent.
+
+- Integrate insights across contributors — do not simply concatenate sections.
+- Structure the output for the target audience with clear headers and flow.
+- If the intent specifies a rendered format (pptx, pdf, xlsx), use RuntimeDispatch to produce it.
+- The markdown text version is always the primary output — it is the feedback surface for user edits.
+- Attribute key findings to contributors where relevant.
+- Keep the tone professional and consistent throughout."""
 
 
 # Length guidance by detail level (used by status type)

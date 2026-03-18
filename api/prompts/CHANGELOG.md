@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.10] - Assembly execution — PM decision interpreter + composition (ADR-120 Phase 2)
+
+### Added
+- `api/services/agent_execution.py`: PM decision interpreter (`_handle_pm_decision`) parses PM's JSON output and routes by action: `assemble` → `_execute_pm_assemble()`, `advance_contributor` → reuses P1's `handle_request_contributor_advance`, `wait` → no-op, `escalate` → writes note to project workspace. Assembly composition (`_compose_assembly`) performs separate LLM call with RuntimeDispatch access to produce cohesive deliverable from contributions. Assembly orchestration (`_execute_pm_assemble`) gathers contributions, composes, writes via `ProjectWorkspace.assemble()`, delivers via `deliver_from_assembly_folder()`.
+- `api/services/agent_pipeline.py`: `ASSEMBLY_COMPOSITION_PROMPT` (v1) — composition-specific template for combining contributor outputs into unified deliverable. Separate from PM's decision prompt.
+- `api/services/delivery.py`: `deliver_from_assembly_folder()` — delivers project assembly output, mirrors `deliver_from_output_folder()` pattern. Routes through existing `_deliver_email_from_manifest()` or exporter registry.
+- `api/services/workspace.py`: `ProjectWorkspace.update_manifest_delivery()` — updates assembly manifest with delivery status, mirrors AgentWorkspace's version.
+- `api/services/agent_execution.py`: PM branch in `execute_agent_generation()` — after `generate_draft_inline()`, PM's JSON decision is intercepted before normal delivery. PM still creates agent_runs (audit trail) but skips external delivery.
+
+### Expected behavior
+- PM's "assemble" action now triggers full assembly pipeline: gather contributions → LLM composition → RuntimeDispatch (if format requires it) → write to assembly folder → deliver.
+- PM's "advance_contributor" action now actually advances the target agent's schedule.
+- PM's "escalate" action writes an escalation note to the project workspace.
+- PM agent_runs records include `pm_decision` in metadata for audit trail.
+- Assembly delivery uses project's delivery config from PROJECT.md, not the PM agent's destination.
+
+---
+
 ## [2026.03.18.9] - PM agent role + project execution primitives (ADR-120 Phase 1)
 
 ### Added

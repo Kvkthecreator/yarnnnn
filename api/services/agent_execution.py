@@ -247,6 +247,357 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
             logger.warning(f"[PM_HEARTBEAT] Failed to advance PM for {project_slug}: {e}")
 
 
+# =============================================================================
+# ADR-120 Phase 2: PM Decision Interpreter + Assembly Execution
+# =============================================================================
+
+
+async def _handle_pm_decision(
+    client,
+    user_id: str,
+    agent: dict,
+    draft: str,
+    type_config: dict,
+    version_id: str,
+    next_version: int,
+    usage: dict,
+) -> dict:
+    """
+    Interpret PM agent's JSON decision and act on it.
+
+    PM outputs structured JSON: {"action": "assemble"|"advance_contributor"|"wait"|"escalate", ...}
+    This function parses the decision and routes to the appropriate handler.
+
+    Returns result dict with pm_action, success, and action-specific details.
+    """
+    import json as _json
+
+    project_slug = type_config.get("project_slug", "")
+
+    # Parse PM decision
+    try:
+        decision = _json.loads(draft.strip())
+    except _json.JSONDecodeError:
+        # Graceful fallback — PM produced malformed output
+        logger.warning(f"[PM] Failed to parse PM decision as JSON: {draft[:200]}")
+        return {
+            "pm_action": "parse_error",
+            "success": False,
+            "error": "PM output was not valid JSON",
+        }
+
+    action = decision.get("action", "unknown")
+    reason = decision.get("reason", "")
+    target_agent = decision.get("target_agent", "")
+    details = decision.get("details", "")
+
+    logger.info(f"[PM] Decision for {project_slug}: action={action}, reason={reason}")
+
+    if action == "assemble":
+        try:
+            result = await _execute_pm_assemble(client, user_id, agent, project_slug, type_config)
+            return {
+                "pm_action": "assemble",
+                "success": result.get("success", False),
+                "reason": reason,
+                "assembly_folder": result.get("assembly_folder"),
+                "delivery_status": result.get("delivery_status"),
+                "error": result.get("error"),
+            }
+        except Exception as e:
+            logger.error(f"[PM] Assembly execution failed: {e}")
+            return {"pm_action": "assemble", "success": False, "error": str(e)}
+
+    elif action == "advance_contributor":
+        try:
+            from services.primitives.project_execution import handle_request_contributor_advance
+
+            class _FakeAuth:
+                def __init__(self, c, uid):
+                    self.client = c
+                    self.user_id = uid
+
+            result = await handle_request_contributor_advance(
+                _FakeAuth(client, user_id),
+                {
+                    "project_slug": project_slug,
+                    "agent_slug": target_agent,
+                    "reason": reason or "PM requested advance",
+                },
+            )
+            return {
+                "pm_action": "advance_contributor",
+                "success": result.get("success", False),
+                "target_agent": target_agent,
+                "reason": reason,
+                "message": result.get("message", ""),
+            }
+        except Exception as e:
+            logger.error(f"[PM] Advance contributor failed: {e}")
+            return {"pm_action": "advance_contributor", "success": False, "error": str(e)}
+
+    elif action == "wait":
+        logger.info(f"[PM] Waiting on {project_slug}: {reason}")
+        return {"pm_action": "wait", "success": True, "reason": reason}
+
+    elif action == "escalate":
+        # Write escalation note to project workspace for TP visibility
+        try:
+            from services.workspace import ProjectWorkspace
+
+            pw = ProjectWorkspace(client, user_id, project_slug)
+            await pw.write(
+                "memory/escalation.md",
+                f"# PM Escalation\n\n**Date:** {datetime.now(timezone.utc).isoformat()}\n"
+                f"**Reason:** {reason}\n**Details:** {details}\n",
+                summary=f"PM escalation: {reason[:80]}",
+            )
+        except Exception as e:
+            logger.warning(f"[PM] Failed to write escalation note: {e}")
+
+        logger.info(f"[PM] Escalating {project_slug}: {reason}")
+        return {"pm_action": "escalate", "success": True, "reason": reason, "details": details}
+
+    else:
+        logger.warning(f"[PM] Unknown action '{action}' for {project_slug}")
+        return {"pm_action": action, "success": False, "error": f"Unknown PM action: {action}"}
+
+
+async def _execute_pm_assemble(
+    client,
+    user_id: str,
+    agent: dict,
+    project_slug: str,
+    type_config: dict,
+) -> dict:
+    """
+    Execute full assembly pipeline: gather contributions → compose → write → deliver.
+
+    ADR-120 Phase 2: PM decides WHEN; this function decides WHAT.
+    """
+    from services.workspace import ProjectWorkspace
+    from services.supabase import get_service_client as _get_svc
+
+    svc_client = _get_svc()
+    pw = ProjectWorkspace(svc_client, user_id, project_slug)
+
+    # 1. Read project identity
+    project = await pw.read_project()
+    if not project:
+        return {"success": False, "error": f"Project not found: {project_slug}"}
+
+    # 2. Gather all contributions
+    contributor_slugs = await pw.list_contributors()
+    if not contributor_slugs:
+        return {"success": False, "error": "No contributions found"}
+
+    contributions = {}
+    source_paths = []
+    for slug in contributor_slugs:
+        files = await pw.list_contributions(slug)
+        for f in files:
+            content = await pw.read(f"contributions/{slug}/{f}")
+            if content:
+                contributions.setdefault(slug, []).append({"file": f, "content": content})
+                source_paths.append(f"/projects/{project_slug}/contributions/{slug}/{f}")
+
+    if not contributions:
+        return {"success": False, "error": "All contribution files are empty"}
+
+    # 3. Compose assembly via LLM
+    try:
+        composed_text, comp_usage, pending_renders = await _compose_assembly(
+            svc_client, user_id, project, contributions,
+        )
+    except Exception as e:
+        logger.error(f"[PM] Composition LLM call failed: {e}")
+        return {"success": False, "error": f"Composition failed: {e}"}
+
+    if not composed_text:
+        return {"success": False, "error": "Composition produced empty output"}
+
+    # 4. Determine assembly version number
+    existing_assemblies = await pw.list_assemblies()
+    version = len(existing_assemblies) + 1
+
+    # 5. Write assembled output
+    assembly_folder = await pw.assemble(
+        content=composed_text,
+        rendered_files=pending_renders if pending_renders else None,
+        version=version,
+        sources=source_paths,
+    )
+    if not assembly_folder:
+        return {"success": False, "error": "Failed to write assembly folder"}
+
+    logger.info(f"[PM] ADR-120 P2: Assembly v{version} written to /projects/{project_slug}/{assembly_folder}/")
+
+    # 6. Deliver if project has delivery config
+    delivery_status = None
+    delivery = project.get("delivery", {})
+    if delivery and delivery.get("channel"):
+        try:
+            from services.delivery import deliver_from_assembly_folder
+
+            # Resolve user email for email delivery
+            user_email = get_user_email(svc_client, user_id)
+            delivery_result = await deliver_from_assembly_folder(
+                client=svc_client,
+                user_id=user_id,
+                project=project,
+                project_slug=project_slug,
+                assembly_folder=assembly_folder,
+                user_email=user_email,
+            )
+            delivery_status = delivery_result.status.value if delivery_result else None
+            logger.info(f"[PM] Assembly delivery: {delivery_status}")
+        except Exception as e:
+            logger.warning(f"[PM] Assembly delivery failed (non-fatal): {e}")
+            delivery_status = "failed"
+
+    return {
+        "success": True,
+        "assembly_folder": assembly_folder,
+        "version": version,
+        "delivery_status": delivery_status,
+        "contributors": list(contributions.keys()),
+    }
+
+
+async def _compose_assembly(
+    client,
+    user_id: str,
+    project: dict,
+    contributions: dict,
+) -> tuple:
+    """
+    Composition LLM call: combine contributions into a cohesive deliverable.
+
+    Uses chat_completion_with_tools with RuntimeDispatch access for rendered outputs.
+    Returns (composed_text, usage, pending_renders).
+    """
+    from services.anthropic import chat_completion_with_tools
+    from services.primitives.registry import (
+        get_tools_for_mode,
+        create_headless_executor,
+    )
+    from services.agent_pipeline import ASSEMBLY_COMPOSITION_PROMPT
+
+    import json as _json
+
+    # Build contributions text
+    contrib_sections = []
+    for slug, files in contributions.items():
+        section = f"### Contributor: {slug}\n"
+        for f in files:
+            section += f"\n**{f['file']}:**\n{f['content']}\n"
+        contrib_sections.append(section)
+    contributions_text = "\n---\n".join(contrib_sections)
+
+    # Build intent description
+    intent = project.get("intent", {})
+    intent_str = ", ".join(f"{k}: {v}" for k, v in intent.items() if v) or "Not specified"
+
+    # Format composition prompt
+    prompt = ASSEMBLY_COMPOSITION_PROMPT.format(
+        title=project.get("title", "Untitled Project"),
+        intent=intent_str,
+        assembly_spec=project.get("assembly_spec", "Combine contributions into a cohesive deliverable."),
+        contributions=contributions_text,
+    )
+
+    # Build system prompt with skill docs
+    system = """You are composing a project deliverable from multiple agent contributions.
+
+## Output Rules
+- Produce a cohesive, well-structured document that integrates all contributions.
+- Do not simply concatenate — synthesize and organize for the target audience.
+- Use markdown formatting (headers, bullets, tables) for clarity.
+- If a rendered format is specified (pptx, pdf, xlsx), use RuntimeDispatch to produce it.
+- Always produce a text (markdown) version as the primary output.
+- Do not narrate the composition process — just produce the final document."""
+
+    # Add skill docs for RuntimeDispatch access
+    skill_docs = await _fetch_skill_docs()
+    if skill_docs:
+        system += f"""
+
+## Output Skill Documentation
+You have access to RuntimeDispatch for producing binary artifacts.
+Construct input specs according to these skill instructions:
+
+{skill_docs}
+
+When the project intent specifies a rendered format (PPTX, PDF, XLSX, chart),
+use RuntimeDispatch to produce it alongside the text version."""
+
+    # Create executor with RuntimeDispatch access
+    # Use a synthetic agent to enable workspace writes for rendered files
+    headless_tools = get_tools_for_mode("headless")
+    executor = create_headless_executor(client, user_id)
+
+    # Run composition with tool rounds (for RuntimeDispatch)
+    messages = [{"role": "user", "content": prompt}]
+
+    total_input_tokens = 0
+    total_output_tokens = 0
+    composed_text = ""
+
+    for round_num in range(4):  # max 3 tool rounds
+        response = await chat_completion_with_tools(
+            messages=messages,
+            system=system,
+            tools=headless_tools,
+            model=SONNET_MODEL,
+            max_tokens=8000,
+        )
+
+        if response.usage:
+            total_input_tokens += response.usage.get("input_tokens", 0)
+            total_output_tokens += response.usage.get("output_tokens", 0)
+
+        if response.stop_reason in ("end_turn", "max_tokens") or not response.tool_uses:
+            composed_text = (response.text or "").strip()
+            break
+
+        if round_num >= 3:
+            composed_text = (response.text or "").strip()
+            break
+
+        # Execute tools
+        assistant_content = []
+        if response.text:
+            assistant_content.append({"type": "text", "text": response.text})
+        for tu in response.tool_uses:
+            assistant_content.append({
+                "type": "tool_use",
+                "id": tu.id,
+                "name": tu.name,
+                "input": tu.input,
+            })
+        messages.append({"role": "assistant", "content": assistant_content})
+
+        tool_results = []
+        for tu in response.tool_uses:
+            logger.info(f"[COMPOSE] Tool: {tu.name}({str(tu.input)[:100]})")
+            result = await executor(tu.name, tu.input)
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tu.id,
+                "content": _json.dumps(result) if isinstance(result, dict) else str(result),
+            })
+        messages.append({"role": "user", "content": tool_results})
+
+    # Collect rendered files from executor
+    pending_renders = getattr(executor, "auth", None)
+    pending_renders = getattr(pending_renders, "pending_renders", []) if pending_renders else []
+
+    usage = {"input_tokens": total_input_tokens, "output_tokens": total_output_tokens}
+    logger.info(f"[COMPOSE] Composition done: {len(composed_text)} chars, {len(pending_renders)} renders, tokens: {total_input_tokens}/{total_output_tokens}")
+
+    return composed_text, usage, pending_renders
+
+
 # Model constants
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
@@ -844,8 +1195,9 @@ async def generate_draft_inline(
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
 
         # Block critically short output and force a retry synthesis
+        # PM agents output concise JSON (~10-15 words) — skip retry for them
         word_count = len(draft.split())
-        if word_count < 20:
+        if word_count < 20 and role != "pm":
             logger.warning(f"[GENERATE] Draft critically short ({word_count} words), forcing synthesis retry")
             messages.append({"role": "assistant", "content": draft})
             messages.append({"role": "user", "content": (
@@ -1210,6 +1562,78 @@ async def execute_agent_generation(
             "trigger_type": trigger_type,
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
+
+        # ADR-120 Phase 2: PM agents produce JSON decisions, not deliverable content.
+        # Intercept here: parse the decision, act on it, skip normal delivery.
+        if role == "pm":
+            pm_result = await _handle_pm_decision(
+                client, user_id, agent, draft, type_config,
+                version_id, next_version, usage,
+            )
+
+            # Update agent_runs with PM decision metadata
+            now = datetime.now(timezone.utc).isoformat()
+            pm_metadata = {**version_metadata, "pm_decision": pm_result}
+            pm_status = "delivered" if pm_result.get("success", True) else "failed"
+            client.table("agent_runs").update({
+                "status": pm_status,
+                "delivered_at": now,
+                "metadata": pm_metadata,
+            }).eq("id", version_id).execute()
+
+            # Update last_run_at
+            client.table("agents").update({
+                "last_run_at": now,
+            }).eq("id", agent_id).execute()
+
+            logger.info(
+                f"[EXEC] PM complete: {title}, version={next_version}, "
+                f"action={pm_result.get('pm_action')}, success={pm_result.get('success')}"
+            )
+
+            # Activity log for PM run
+            try:
+                from services.activity_log import write_activity
+                from services.supabase import get_service_client as _get_svc_pm
+                await write_activity(
+                    client=_get_svc_pm(),
+                    user_id=user_id,
+                    event_type="agent_run",
+                    summary=f"{title} v{next_version} {pm_result.get('pm_action', 'unknown')}",
+                    event_ref=version_id,
+                    metadata={
+                        "agent_id": str(agent_id),
+                        "version_number": next_version,
+                        "role": role,
+                        "scope": scope,
+                        "strategy": strategy.strategy_name,
+                        "final_status": pm_status,
+                        "pm_action": pm_result.get("pm_action"),
+                        "input_tokens": usage.get("input_tokens", 0),
+                        "output_tokens": usage.get("output_tokens", 0),
+                    },
+                )
+            except Exception:
+                pass
+
+            # Composer heartbeat (PM runs are significant events)
+            try:
+                from services.composer import maybe_trigger_heartbeat
+                await maybe_trigger_heartbeat(client, user_id, "agent_run_delivered", {
+                    "agent_id": str(agent_id), "role": role,
+                    "pm_action": pm_result.get("pm_action"),
+                })
+            except Exception:
+                pass
+
+            return {
+                "success": pm_result.get("success", True),
+                "run_id": version_id,
+                "version_number": next_version,
+                "status": pm_status,
+                "message": f"PM v{next_version}: {pm_result.get('pm_action', 'unknown')} — {pm_result.get('reason', '')}",
+                "strategy": strategy.strategy_name,
+            }
 
         # ADR-073: Mark consumed platform content as retained
         if gathered_result.platform_content_ids:

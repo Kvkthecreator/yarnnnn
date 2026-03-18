@@ -1975,6 +1975,39 @@ class ProjectWorkspace:
         items = await self.list("assembly/")
         return [item.rstrip("/") for item in items if item.endswith("/")]
 
+    async def update_manifest_delivery(
+        self,
+        assembly_folder: str,
+        delivery_status: dict,
+    ) -> bool:
+        """ADR-120 Phase 2: Update assembly manifest.json with delivery status.
+
+        Mirrors AgentWorkspace.update_manifest_delivery() for project assembly folders.
+        """
+        import json as _json
+
+        manifest_content = await self.read(f"{assembly_folder}/manifest.json")
+        if not manifest_content:
+            logger.warning(f"[PROJECT] Manifest not found at {assembly_folder}/manifest.json")
+            return False
+
+        try:
+            manifest = _json.loads(manifest_content)
+        except _json.JSONDecodeError:
+            logger.warning(f"[PROJECT] Invalid manifest JSON at {assembly_folder}")
+            return False
+
+        manifest["delivery"] = delivery_status
+        manifest["status"] = "delivered" if delivery_status.get("status") == "delivered" else manifest.get("status", "active")
+
+        return await self.write(
+            f"{assembly_folder}/manifest.json",
+            _json.dumps(manifest, indent=2),
+            summary=f"Assembly manifest (delivered)",
+            content_type="application/json",
+            lifecycle="delivered",
+        )
+
     # =========================================================================
     # Context loading — for project-aware agents
     # =========================================================================
