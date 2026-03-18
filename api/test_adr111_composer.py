@@ -125,7 +125,7 @@ async def phase1_heartbeat_data_query(supabase) -> PhaseResult:
     agents = assessment["agents"]
     assert_in(r, "agents.total exists", "total", agents)
     assert_in(r, "agents.active exists", "active", agents)
-    assert_in(r, "agents.skills_present exists", "skills_present", agents)
+    assert_in(r, "agents.roles_present exists", "roles_present", agents)
     assert_in(r, "agents.active_list exists", "active_list", agents)
     assert_true(r, "agents.total >= 0", agents["total"] >= 0)
 
@@ -182,7 +182,7 @@ def phase2_should_composer_act() -> PhaseResult:
     # Healthy workforce — should return False
     healthy = {
         "connected_platforms": ["slack", "gmail"],
-        "agents": {"active": 3, "skills_present": ["digest", "synthesize"]},
+        "agents": {"active": 3, "roles_present": ["digest", "synthesize"]},
         "coverage": {"platforms_with_digest": ["slack", "gmail"], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
@@ -208,7 +208,7 @@ def phase2_should_composer_act() -> PhaseResult:
                 "no substrate" not in reason, f"Reason wrongly blocked: {reason}")
 
     # No platforms AND no agents → False (no substrate)
-    no_substrate = {**healthy, "connected_platforms": [], "agents": {"active": 0, "skills_present": []}}
+    no_substrate = {**healthy, "connected_platforms": [], "agents": {"active": 0, "roles_present": []}}
     should_act, reason = should_composer_act(no_substrate)
     assert_eq(r, "No substrate (no platforms, no agents) → False", should_act, False)
     assert_true(r, "Reason mentions no substrate", "no substrate" in reason, reason)
@@ -246,7 +246,7 @@ def phase2_should_composer_act() -> PhaseResult:
             ],
             "underperformers": [],
         },
-        "agents": {"active": 2, "skills_present": ["digest"]},
+        "agents": {"active": 2, "roles_present": ["digest"]},
     }
     should_act, reason = should_composer_act(expansion)
     assert_eq(r, "Mature expansion → True", should_act, True)
@@ -258,7 +258,7 @@ def phase2_should_composer_act() -> PhaseResult:
     cross_agent = {
         **healthy,
         "connected_platforms": ["slack"],
-        "agents": {"active": 4, "skills_present": ["digest"]},
+        "agents": {"active": 4, "roles_present": ["digest"]},
         "maturity": {
             "signals": [
                 {"role": "digest", "total_runs": 5},
@@ -277,7 +277,7 @@ def phase2_should_composer_act() -> PhaseResult:
     # Cross-agent pattern suppressed when synthesize already exists
     cross_agent_with_synth = {
         **cross_agent,
-        "agents": {"active": 4, "skills_present": ["digest", "synthesize"]},
+        "agents": {"active": 4, "roles_present": ["digest", "synthesize"]},
     }
     should_act, reason = should_composer_act(cross_agent_with_synth)
     assert_eq(r, "Cross-agent with synthesize → False", should_act, False)
@@ -318,7 +318,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
     assessment = {
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
-        "agents": {"active": 1, "skills_present": ["digest"], "active_list": []},
+        "agents": {"active": 1, "roles_present": ["digest"], "active_list": []},
         "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {
@@ -417,7 +417,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
     base_assessment = {
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
-        "agents": {"active": 1, "skills_present": ["digest"], "active_list": []},
+        "agents": {"active": 1, "roles_present": ["digest"], "active_list": []},
         "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
@@ -581,7 +581,7 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
     assessment = {
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
-        "agents": {"active": 2, "skills_present": ["digest"], "active_list": []},
+        "agents": {"active": 2, "roles_present": ["digest"], "active_list": []},
         "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {
@@ -713,7 +713,7 @@ def phase8_substrate_heartbeat() -> PhaseResult:
     # User with agents but no platforms — should NOT be blocked
     research_user = {
         "connected_platforms": [],
-        "agents": {"active": 2, "skills_present": ["research", "custom"]},
+        "agents": {"active": 2, "roles_present": ["research", "custom"]},
         "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
@@ -741,7 +741,7 @@ def phase8_substrate_heartbeat() -> PhaseResult:
     # Zero everything — blocked
     empty = {
         "connected_platforms": [],
-        "agents": {"active": 0, "skills_present": []},
+        "agents": {"active": 0, "roles_present": []},
         "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
         "health": {"stale_agents": []},
         "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
