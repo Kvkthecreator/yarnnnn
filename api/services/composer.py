@@ -704,6 +704,24 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     if no_pm_count > 0:
         return True, f"project_no_pm: {no_pm_count} project(s) exist without a PM agent"
 
+    # ADR-120 Phase 5: Composition opportunity — 2+ mature agents with different
+    # roles and no project linking them suggests outputs could be assembled.
+    total_projects = projects.get("total_projects", 0)
+    if total_projects == 0:
+        mature_agents = assessment.get("maturity", {}).get("mature_agents", [])
+        if len(mature_agents) >= 2:
+            mature_roles = {m.get("role") for m in mature_agents if m.get("role")}
+            # Different roles = complementary outputs (e.g., digest + analyst)
+            # Exclude PM-role agents — they don't produce combinable content
+            mature_roles.discard("pm")
+            if len(mature_roles) >= 2:
+                titles = [m["title"] for m in mature_agents[:3]]
+                return True, (
+                    f"composition_opportunity: {len(mature_agents)} mature agents with "
+                    f"roles {sorted(mature_roles)} but no project — outputs may benefit "
+                    f"from assembly: {titles}"
+                )
+
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
 
@@ -905,27 +923,33 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v1.3 — agent identity quality (description, instructions, role dedup).
+# Composer Prompt v2.0 — project awareness, skill library, PM delegation (ADR-120 P5).
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
-COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
+COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents and projects should exist for a user's workspace.
 
 You assess the user's knowledge substrate — accumulated agent outputs, platform connections, workspace files, and work patterns — to identify gaps in their cognitive workforce.
 
 ## Principles
-- Bias toward action: if an agent would clearly help, recommend creating it
+- Bias toward action: if an agent or project would clearly help, recommend creating it
 - In sparse workspaces (few knowledge files, few runs): be eager. Propose research or analysis agents even without perfect signal. Early outputs that the user corrects are more valuable than silence. Think like a junior employee — attempt the task, accept feedback, improve.
 - In developing workspaces (some knowledge, no mature agents): be proactive. If the workspace only has digest agents, propose a research or analysis agent. If it has no cross-platform synthesis, propose one. The goal is to build out the full role spectrum — not wait for perfect conditions.
-- In dense workspaces (many knowledge files, mature agents): be conservative. The workforce has proven itself. Only propose agents that fill clear gaps in the knowledge corpus.
+- In dense workspaces (many knowledge files, mature agents): be conservative. The workforce has proven itself. Only propose agents that fill clear gaps — or a project if 2+ agents produce complementary outputs that would benefit from assembly.
 - Start with highest-value agents: digests (perception) before synthesis (cross-cutting themes) before analysis (deep reasoning) before research (external knowledge). Each layer builds on accumulated outputs from the layer below.
 - Respect what exists: don't duplicate coverage. If a digest already exists, don't create another.
-- One agent per decision: recommend at most ONE new agent per assessment
+- One action per decision: recommend at most ONE new agent OR one new project per assessment
+- Budget awareness: if work budget is exhausted, observe rather than propose new work that can't execute
 
 ## Response Format
 Respond with ONLY a JSON object:
 
 To create an agent:
 ```json
-{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes and decisions that span platforms.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections — decisions in Slack that relate to Notion docs, email threads that reference channel discussions. Flag items that appear in multiple platforms. Use two-part format: cross-platform synthesis first, then per-platform highlights.", "reason": "User has 2+ platforms with active digests producing knowledge — synthesis would surface cross-cutting themes"}
+{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections.", "reason": "2+ platforms with active digests producing knowledge"}
+```
+
+To create a project (combines 2+ agents' outputs into an assembled deliverable):
+```json
+{"action": "create_project", "title": "Q2 Business Review", "intent": {"deliverable": "Executive presentation", "audience": "Leadership", "format": "pptx", "purpose": "Quarterly review"}, "contributors": ["agent-slug-1", "agent-slug-2"], "assembly_spec": "Combine analyst data with writer narrative into slide deck", "delivery": {"channel": "email", "target": "user@example.com"}, "reason": "These agents produce complementary outputs ideal for assembly"}
 ```
 
 To observe (no action):
@@ -935,19 +959,72 @@ To observe (no action):
 
 IMPORTANT for create actions:
 - "description" (required): One sentence explaining what this agent does and why it's valuable. Shown to the user on the dashboard.
-- "instructions" (required): Specific behavioral directives for the agent — what to focus on, how to structure output, what to prioritize. These guide the agent's actual execution. Be specific to this workspace's context, not generic.
+- "instructions" (required): Specific behavioral directives for the agent — what to focus on, how to structure output, what to prioritize. Be specific to this workspace's context, not generic.
 
-Valid skills: digest, prepare, monitor, research, synthesize, custom
+IMPORTANT for create_project actions:
+- A project combines outputs from 2+ existing agents into assembled deliverables (e.g., deck, report)
+- A PM (Project Manager) agent is auto-created to coordinate the project
+- contributors is a list of agent slugs (lowercase-hyphenated titles) already in the workspace
+- intent.format determines which skill is used for rendering (pptx, pdf, xlsx, etc.)
+
+Valid roles: digest, prepare, monitor, research, synthesize, custom
 Valid frequencies: daily, weekly, biweekly, monthly
 
-## Output Capabilities (ADR-118)
-Agents can produce rich outputs beyond text:
-- **Documents**: PDF reports, DOCX files (via RuntimeDispatch + pandoc)
-- **Presentations**: PPTX slide decks (via RuntimeDispatch + python-pptx)
-- **Spreadsheets**: XLSX files with formatted tables (via RuntimeDispatch + openpyxl)
-- **Charts**: PNG/SVG visualizations (via RuntimeDispatch + matplotlib)
+## Skill Library (8 skills for RuntimeDispatch)
+Agents produce rich outputs via these skills:
+- **pdf**: Reports and documents (pandoc)
+- **pptx**: Slide deck presentations (python-pptx)
+- **xlsx**: Spreadsheets with formatted tables (openpyxl)
+- **chart**: PNG/SVG data visualizations (matplotlib)
+- **mermaid**: Diagrams and flowcharts (mermaid-cli)
+- **image**: Generated images (pillow)
+- **data**: Structured data exports (CSV, JSON)
+- **html**: Web-ready formatted content
 
-All agents default to email delivery. When scaffolding agents, consider whether rich outputs would serve the user better than plain text. For example: a weekly synthesis for a manager might benefit from a PDF attachment alongside the email body. Include this in the agent's instructions if appropriate (e.g., "Produce a PDF summary alongside the email body")."""
+All agents default to email delivery. When scaffolding agents, consider whether rich outputs would serve the user better than plain text. Include this in the agent's instructions if appropriate.
+
+## Projects (ADR-120)
+Projects are cross-agent collaboration spaces. When 2+ agents produce complementary outputs (e.g., data + narrative → deck), a project assembles them into a unified deliverable. A PM agent coordinates the project: tracks contributor freshness, triggers assembly when all contributions are ready, manages work plan and budget.
+
+Only recommend create_project when:
+- 2+ mature agents exist with complementary roles (e.g., digest + synthesize, analyst + writer)
+- Their outputs would clearly benefit from assembly into a richer format (deck, report)
+- No existing project already covers this combination"""
+
+
+def _format_projects_section(assessment: dict) -> str:
+    """ADR-120 P5: Format project portfolio for Composer LLM prompt."""
+    projects = assessment.get("projects", {})
+    total = projects.get("total_projects", 0)
+    if total == 0:
+        return "No active projects."
+
+    lines = [f"{total} project(s):"]
+    pms = projects.get("active_pms", 0)
+    lines.append(f"- PM agents: {pms}")
+    stale = projects.get("stale_projects", [])
+    if stale:
+        titles = [p.get("pm_title", "?") for p in stale[:3]]
+        lines.append(f"- Stale PMs (7+ days): {', '.join(titles)}")
+    no_pm = projects.get("projects_without_pm_count", 0)
+    if no_pm:
+        lines.append(f"- Projects without PM: {no_pm}")
+    return "\n".join(lines)
+
+
+def _format_budget_section(assessment: dict) -> str:
+    """ADR-120 P5: Format work budget status for Composer LLM prompt."""
+    wb = assessment.get("work_budget", {})
+    used = wb.get("used", 0)
+    limit = wb.get("limit", -1)
+    if limit <= 0:
+        return "Unlimited"
+    pct = int(used / limit * 100) if limit > 0 else 0
+    if wb.get("exhausted"):
+        return f"EXHAUSTED — {used}/{limit} units ({pct}%). Do NOT propose new agents or projects."
+    elif pct >= 80:
+        return f"LOW — {used}/{limit} units ({pct}%). Be conservative with new proposals."
+    return f"{used}/{limit} units ({pct}%)."
 
 
 def _build_composer_prompt(assessment: dict, reason: str) -> str:
@@ -1021,6 +1098,15 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
 ## Agent Maturity
 {chr(10).join(maturity_summary) if maturity_summary else 'No maturity data yet'}
 
+## Active Projects
+{_format_projects_section(assessment)}
+
+## Work Budget
+{_format_budget_section(assessment)}
+
+## Skill Library
+pdf, pptx, xlsx, chart, mermaid, image, data, html (8 skills available via RuntimeDispatch)
+
 ## Constraints
 - Can create new agents: {assessment['tier']['can_create']}
 
@@ -1057,6 +1143,11 @@ async def _execute_composer_decisions(
         return []
 
     action = decision.get("action", "observe")
+
+    # ADR-120 P5: Handle create_project action
+    if action == "create_project":
+        return await _execute_create_project(client, user_id, decision, assessment)
+
     if action != "create":
         logger.info(f"[COMPOSER] LLM decided: {action} — {decision.get('reason', '')}")
         return []
@@ -1146,6 +1237,89 @@ async def _execute_composer_decisions(
         "title": title,
         "role": role,
         "reason": decision.get("reason", ""),
+    }]
+
+
+async def _execute_create_project(
+    client: Any,
+    user_id: str,
+    decision: dict,
+    assessment: dict,
+) -> list[dict]:
+    """
+    ADR-120 P5: Execute Composer's create_project decision.
+
+    Resolves contributor slugs → agent_ids, then calls handle_create_project()
+    which auto-creates the PM agent and seeds contributor workspaces.
+    """
+    from services.primitives.project import handle_create_project
+    from services.workspace import get_agent_slug
+
+    title = decision.get("title", "").strip()
+    if not title:
+        logger.warning("[COMPOSER] create_project but no title provided")
+        return []
+
+    intent = decision.get("intent", {})
+    contributor_slugs = decision.get("contributors", [])
+    assembly_spec = decision.get("assembly_spec", "")
+    delivery = decision.get("delivery", {})
+    reason = decision.get("reason", "")
+
+    # Resolve slugs to agent_ids
+    contributors = []
+    active_agents = assessment.get("agents", {}).get("active_list", [])
+    for slug in contributor_slugs:
+        for a in active_agents:
+            a_slug = get_agent_slug(a)
+            if a_slug == slug:
+                contributors.append({
+                    "agent_id": a["id"],
+                    "expected_contribution": f"{a.get('role', 'custom')} output",
+                })
+                break
+        else:
+            logger.warning(f"[COMPOSER] Contributor slug '{slug}' not found in active agents")
+
+    if len(contributors) < 2:
+        logger.warning(f"[COMPOSER] create_project needs 2+ contributors, got {len(contributors)}")
+        return []
+
+    # Build auth-like object for the primitive
+    class _ComposerAuth:
+        def __init__(self, c, uid):
+            self.client = c
+            self.user_id = uid
+
+    result = await handle_create_project(
+        _ComposerAuth(client, user_id),
+        {
+            "title": title,
+            "intent": intent,
+            "contributors": contributors,
+            "assembly_spec": assembly_spec,
+            "delivery": delivery,
+        },
+    )
+
+    if not result.get("success"):
+        logger.warning(f"[COMPOSER] Project creation failed: {result.get('message')}")
+        return []
+
+    project_slug = result.get("project_slug", "")
+    pm_agent_id = result.get("pm_agent_id")
+    logger.info(
+        f"[COMPOSER] Created project '{title}' ({project_slug}), "
+        f"PM={pm_agent_id}, contributors={len(contributors)}, reason={reason}"
+    )
+
+    return [{
+        "project_slug": project_slug,
+        "title": title,
+        "pm_agent_id": pm_agent_id,
+        "contributors": len(contributors),
+        "reason": reason,
+        "action_type": "create_project",
     }]
 
 

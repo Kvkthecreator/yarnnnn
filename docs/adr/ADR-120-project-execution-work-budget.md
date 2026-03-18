@@ -1,6 +1,6 @@
 # ADR-120: Project Execution & Work Budget
 
-> **Status**: Phases 1-4 Implemented, Phase 5 Proposed
+> **Status**: Phases 1-5 Implemented
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
@@ -240,10 +240,13 @@ The PM manages all active intentions, scheduling and budgeting across them.
 - PM prompt v2 — intentions + budget_status injected; budget-aware rules (reduce frequency when low, escalate when exhausted)
 - Graceful degradation — `_handle_pm_decision()` overrides assemble/advance to escalate when budget exhausted
 
-### Phase 5: Composer v2.0
-- Composer prompt updated with project awareness, skill library (8 skills), PM delegation
-- System heartbeat extended with project health signals (reads PM status)
-- Composition opportunity detection (cross-agent output patterns → suggest project)
+### Phase 5: Composer v2.0 (Implemented)
+- `COMPOSER_SYSTEM_PROMPT` v2.0 — project awareness (`create_project` action), full skill library (8 skills: pdf, pptx, xlsx, chart, mermaid, image, data, html), work budget awareness in reasoning
+- `_build_composer_prompt()` extended — Active Projects section (count, PM status, stale PMs), Work Budget section (used/limit/%), Skill Library section
+- `_execute_composer_decisions()` — routes `create_project` action to `handle_create_project()` primitive; resolves contributor slugs → agent_ids from assessment
+- `_execute_create_project()` — new function: extracts intent/contributors/assembly_spec/delivery from Composer decision, calls existing `handle_create_project()` (auto-creates PM agent)
+- Composition opportunity detection in `should_composer_act()` — 2+ mature agents with different roles and no existing project triggers LLM path
+- System heartbeat project health signals already in place (P1/P3)
 - Deferred: pricing model migration (credits vs. subscription)
 
 ## Resolved Decisions

@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.13] - Composer v2.0: project awareness + skill library + PM delegation (ADR-120 Phase 5)
+
+### Changed
+- `api/services/composer.py`: `COMPOSER_SYSTEM_PROMPT` v1.3 → v2.0 — added `create_project` action (title, intent, contributors, assembly_spec, delivery), replaced generic "Output Capabilities" with concrete 8-skill library (pdf, pptx, xlsx, chart, mermaid, image, data, html), added Projects section explaining cross-agent collaboration, added budget awareness principle.
+- `api/services/composer.py`: `_build_composer_prompt()` extended with Active Projects, Work Budget, and Skill Library sections via `_format_projects_section()` and `_format_budget_section()` helpers.
+- `api/services/composer.py`: `_execute_composer_decisions()` routes `create_project` to new `_execute_create_project()` — resolves contributor slugs from assessment, calls `handle_create_project()` primitive (auto-creates PM agent).
+- `api/services/composer.py`: `should_composer_act()` — composition opportunity heuristic: 2+ mature agents with different roles and no project triggers LLM path.
+
+### Expected behavior
+- Composer can now autonomously propose project creation when it detects agents producing complementary outputs.
+- Composer sees full skill library and can reference specific skills in agent instructions and project assembly specs.
+- Budget-exhausted state suppresses new agent/project proposals (observe, don't create).
+- `create_project` flows through existing `handle_create_project()` primitive — PM agent auto-created, contributor workspaces seeded.
+
+---
+
 ## [2026.03.18.12] - Intent decomposition & project intentions (ADR-120 Phase 4)
 
 ### Changed
