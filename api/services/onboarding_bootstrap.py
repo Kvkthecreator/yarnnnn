@@ -26,19 +26,19 @@ logger = logging.getLogger(__name__)
 BOOTSTRAP_TEMPLATES = {
     "slack": {
         "title": "Slack Recap",
-        "skill": "digest",
+        "role": "digest",
         "frequency": "daily",
         "description": "Daily recap of Slack activity across your connected channels.",
     },
     "gmail": {
         "title": "Gmail Digest",
-        "skill": "digest",
+        "role": "digest",
         "frequency": "daily",
         "description": "Daily digest of Gmail activity across your connected labels.",
     },
     "notion": {
         "title": "Notion Summary",
-        "skill": "digest",
+        "role": "digest",
         "frequency": "daily",
         "description": "Daily summary of Notion activity across your connected pages.",
     },
@@ -106,7 +106,7 @@ async def maybe_bootstrap_agent(
         client=client,
         user_id=user_id,
         title=template["title"],
-        skill=template["skill"],
+        role=template["role"],
         origin="system_bootstrap",
         description=template.get("description"),
         frequency=template["frequency"],
@@ -169,7 +169,7 @@ async def maybe_bootstrap_agent(
             metadata={
                 "platform": platform,
                 "origin": "system_bootstrap",
-                "skill": template["skill"],
+                "role": template["role"],
             },
         )
     except Exception:
@@ -195,7 +195,7 @@ async def _has_existing_digest(client: Any, user_id: str, platform: str) -> bool
             client.table("agents")
             .select("id")
             .eq("user_id", user_id)
-            .eq("skill", "digest")
+            .eq("role", "digest")
             .eq("title", template["title"])
             .execute()
         )
@@ -207,7 +207,7 @@ async def _has_existing_digest(client: Any, user_id: str, platform: str) -> bool
             client.table("agents")
             .select("id, sources")
             .eq("user_id", user_id)
-            .eq("skill", "digest")
+            .eq("role", "digest")
             .execute()
         )
         for agent in (digest_agents.data or []):

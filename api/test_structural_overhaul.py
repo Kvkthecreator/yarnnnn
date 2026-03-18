@@ -374,7 +374,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
 
     # 3c: Empty user_context should not crash
     prompt_no_ctx = _build_headless_system_prompt(
-        skill="digest",
+        role="digest",
         user_context=None,
     )
     assert_not_in(r, "No User Context section when None", "## User Context", prompt_no_ctx)
@@ -403,7 +403,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     from services.agent_pipeline import DEFAULT_INSTRUCTIONS
     from services.primitives import execute_primitive
 
-    # 4a: All expected skill types have instructions (ADR-109: keyed by skill name)
+    # 4a: All expected role types have instructions (ADR-109: keyed by role name)
     expected_types = ["digest", "prepare", "synthesize", "monitor", "research", "orchestrate", "custom"]
     for dtype in expected_types:
         assert_true(r, f"DEFAULT_INSTRUCTIONS[{dtype}] exists",

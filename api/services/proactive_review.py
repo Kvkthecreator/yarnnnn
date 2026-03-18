@@ -47,7 +47,7 @@ async def _build_review_system_prompt(agent: dict, client=None) -> str:
     from services.workspace import AgentWorkspace, get_agent_slug
 
     title = agent.get("title", "Untitled")
-    skill = agent.get("skill", "custom")
+    role = agent.get("role", "custom")
     mode = agent.get("mode", "proactive")
 
     # ADR-106: Load from workspace (source of truth)
@@ -60,7 +60,7 @@ async def _build_review_system_prompt(agent: dict, client=None) -> str:
     created_agents = await ws.get_created_agents()
     last_generated_at = await ws.get_state("last_generated_at")
 
-    prompt = f"""You are performing a domain review for a {mode} agent: "{title}" (skill: {skill}).
+    prompt = f"""You are performing a domain review for a {mode} agent: "{title}" (role: {role}).
 
 Your job is NOT to generate an agent. Your job is to assess whether conditions in your domain
 warrant generating one right now.
@@ -104,8 +104,8 @@ Respond with ONLY a JSON object — no prose before or after:
 
 The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hours from now if unsure."""
 
-    # Research/synthesize skill with autonomous scope: signal-driven review
-    if skill in ("research", "synthesize") and agent.get("scope") == "autonomous":
+    # Research/synthesize role with autonomous scope: signal-driven review
+    if role in ("research", "synthesize") and agent.get("scope") == "autonomous":
         prompt += """
 
 ## Proactive Insights — Signal Detection

@@ -50,7 +50,7 @@ yarnnn adopts Claude Code's naming conventions directly. No yarnnn-specific term
 - **Skill registry** — the `SKILLS` dict in the gateway that routes dispatch to skill entry points
 - **RuntimeDispatch** — the agent primitive that invokes skills (Claude Code agents just run bash)
 
-**ADR-109 `role` column** (was: `skill`): The `role` column on the `agents` table (digest, monitor, synthesize, etc.) describes what an agent DOES — its behavioral role. Output gateway skills describe what an agent can PRODUCE. Renaming the ADR-109 axis from `skill` to `role` eliminates the naming overload. See Resolved Decision #4.
+**ADR-109 `role` column** (was: `skill`): The `role` column on the `agents` table (digest, monitor, synthesize, act) describes what an agent DOES — its behavioral role. Output gateway skills describe what an agent can PRODUCE. Renaming the ADR-109 axis from `skill` to `role` eliminates the naming overload. See Resolved Decision #4. Note: `orchestrate` was removed from the role taxonomy — orchestration is performed by TP (chat) and Composer (cron service), not by agents.
 
 ### Two-Filesystem Architecture
 
@@ -316,7 +316,7 @@ Yarnnn replicates the Claude Code capabilities model in the cloud:
 | **Skill gating** | Feedback-earned progression from text → template parameterization → generative dispatch. |
 | **Creative assets** | Shared brand resources in `/assets/` accessible to all agents. Part of the content filesystem. |
 | **Template** | Pre-built output structure in `/assets/templates/{skill-name}/` that agents parameterize. |
-| **Role** | What an agent does — its behavioral function (digest, monitor, synthesize, etc.). Column on `agents` table. Was: `skill` in ADR-109, renamed to eliminate overload with output gateway skills. |
+| **Role** | What an agent does — its behavioral function (digest, prepare, monitor, research, synthesize, act). Column on `agents` table. Was: `skill` in ADR-109, renamed to eliminate overload with output gateway skills. `orchestrate` removed — orchestration is TP/Composer, not an agent role. |
 
 ## Resolved Decisions
 

@@ -226,7 +226,7 @@ async def get_due_agents(supabase_client) -> list[dict]:
     # their own trigger paths (event_triggers.py and proactive_next_review_at).
     result = (
         supabase_client.table("agents")
-        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
+        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["recurring", "goal"])
         .lte("next_run_at", now.isoformat())
@@ -251,7 +251,7 @@ async def get_due_proactive_agents(supabase_client) -> list[dict]:
 
     result = (
         supabase_client.table("agents")
-        .select("id, user_id, title, scope, skill, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
+        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
         .eq("status", "active")
         .in_("mode", ["proactive", "coordinator"])
         .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
@@ -418,7 +418,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
     agent_id = agent["id"]
     user_id = agent["user_id"]
     title = agent["title"]
-    skill = agent.get("skill", "custom")
+    role = agent.get("role", "custom")
     schedule = agent.get("schedule", {})
 
     logger.info(f"[AGENT] Processing: {title} ({agent_id})")
@@ -436,7 +436,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                 "agent_id": agent_id,
                 "scheduled_for": datetime.now(timezone.utc).isoformat(),
                 "trigger_reason": "schedule",
-                "skill": skill,
+                "role": role,
             },
         )
     except Exception as e:
@@ -474,7 +474,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                     summary=f"Generated: {title}",
                     event_ref=agent_id,
                     metadata={
-                        "skill": skill,
+                        "role": role,
                         "run_id": result.get("run_id"),
                     },
                 )

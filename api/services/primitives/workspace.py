@@ -135,10 +135,10 @@ Use DiscoverAgents first to find agent IDs if you want to query a specific agent
                 "type": "string",
                 "description": "Optional: filter to knowledge produced by a specific agent (UUID)"
             },
-            "skill": {
+            "role": {
                 "type": "string",
                 "enum": ["digest", "prepare", "monitor", "research", "synthesize"],
-                "description": "Optional: filter by the skill type that produced the knowledge"
+                "description": "Optional: filter by the role type that produced the knowledge"
             },
             "limit": {
                 "type": "integer",
@@ -304,17 +304,17 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     query = input.get("query") or None
     content_class = input.get("content_class")
     agent_id = input.get("agent_id")
-    skill = input.get("skill")
+    role = input.get("role")
     limit = min(input.get("limit", 10), 30)
 
     # ADR-116: Use metadata search when filters are provided
-    has_metadata_filters = agent_id or skill
+    has_metadata_filters = agent_id or role
     if has_metadata_filters or not query:
         results = await kb.search_by_metadata(
             query=query,
             content_class=content_class,
             agent_id=agent_id,
-            skill=skill,
+            skill=role,
             limit=limit,
         )
     else:
@@ -330,7 +330,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         # ADR-116: Include provenance metadata when available
         if r.metadata:
             item["produced_by"] = r.metadata.get("agent_id")
-            item["skill"] = r.metadata.get("skill")
+            item["role"] = r.metadata.get("role")
             item["scope"] = r.metadata.get("scope")
             item["version"] = r.metadata.get("version_number")
         result_items.append(item)
@@ -349,7 +349,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         "query": query,
         "content_class": content_class,
         "agent_id": agent_id,
-        "skill": skill,
+        "role": role,
         "count": len(result_items),
         "results": result_items,
     }
@@ -452,10 +452,10 @@ Each result includes:
     "input_schema": {
         "type": "object",
         "properties": {
-            "skill": {
+            "role": {
                 "type": "string",
                 "enum": ["digest", "prepare", "monitor", "research", "synthesize", "orchestrate"],
-                "description": "Optional: filter by skill type"
+                "description": "Optional: filter by role type"
             },
             "scope": {
                 "type": "string",
@@ -481,19 +481,19 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
     """
     from services.workspace import AgentWorkspace, get_agent_slug
 
-    skill_filter = input.get("skill")
+    role_filter = input.get("role")
     scope_filter = input.get("scope")
     status_filter = input.get("status", "active")
 
     # Query agents table
     query = (
         auth.client.table("agents")
-        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
         .eq("user_id", auth.user_id)
         .eq("status", status_filter)
     )
-    if skill_filter:
-        query = query.eq("skill", skill_filter)
+    if role_filter:
+        query = query.eq("role", role_filter)
     if scope_filter:
         query = query.eq("scope", scope_filter)
 
@@ -535,7 +535,7 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
         agent_cards.append({
             "agent_id": agent["id"],
             "title": agent["title"],
-            "skill": agent.get("skill"),
+            "role": agent.get("role"),
             "scope": agent.get("scope"),
             "sources": agent.get("sources", []),
             "thesis_summary": thesis_summary,
@@ -603,7 +603,7 @@ async def handle_read_agent_context(auth: Any, input: dict) -> dict:
     try:
         result = (
             auth.client.table("agents")
-            .select("id, title, skill, scope, status")
+            .select("id, title, role, scope, status")
             .eq("user_id", auth.user_id)
             .eq("id", target_agent_id)
             .limit(1)
@@ -628,7 +628,7 @@ async def handle_read_agent_context(auth: Any, input: dict) -> dict:
         "success": True,
         "agent_id": target_agent_id,
         "agent_title": target_agent.get("title"),
-        "skill": target_agent.get("skill"),
+        "role": target_agent.get("role"),
         "scope": target_agent.get("scope"),
     }
 

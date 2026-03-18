@@ -29,18 +29,18 @@ CREATE_AGENT_TOOL = {
 Use this to create a recurring agent based on the user's request.
 Always confirm the agent config with the user before calling this in chat.
 
-Required: title, skill
+Required: title, role
 Optional: agent_instructions, sources, frequency, day, time, timezone,
           recipient_name, recipient_role, audience, tone, detail_level,
           dedup_key (coordinator mode only)
 
-skill: digest|prepare|monitor|research|synthesize|orchestrate|act|custom
+role: digest|prepare|monitor|research|synthesize|orchestrate|act|custom
 frequency: daily|weekly|biweekly|monthly (default: weekly)
 
 Examples:
-- CreateAgent(title="Slack Recap", skill="digest", frequency="daily")
-- CreateAgent(title="Weekly Status", skill="synthesize", frequency="weekly", recipient_name="Sarah")
-- CreateAgent(title="Meeting Prep", skill="prepare", frequency="daily", time="08:00")
+- CreateAgent(title="Slack Recap", role="digest", frequency="daily")
+- CreateAgent(title="Weekly Status", role="synthesize", frequency="weekly", recipient_name="Sarah")
+- CreateAgent(title="Meeting Prep", role="prepare", frequency="daily", time="08:00")
 
 Always use the user's stated frequency — don't override with defaults.""",
     "input_schema": {
@@ -50,9 +50,9 @@ Always use the user's stated frequency — don't override with defaults.""",
                 "type": "string",
                 "description": "Title for the agent"
             },
-            "skill": {
+            "role": {
                 "type": "string",
-                "description": "Skill: digest, prepare, synthesize, monitor, research, orchestrate, act, custom"
+                "description": "Role: digest, prepare, synthesize, monitor, research, orchestrate, act, custom"
             },
             "agent_instructions": {
                 "type": "string",
@@ -112,7 +112,7 @@ Always use the user's stated frequency — don't override with defaults.""",
                 "description": "Delivery destination. Schema: {platform: 'email'|'slack'|'notion', target: string, format: string}. Default: email to user's address."
             }
         },
-        "required": ["title", "skill"]
+        "required": ["title", "role"]
     }
 }
 
@@ -135,7 +135,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
     from services.agent_creation import create_agent_record
 
     title = input.get("title", "").strip()
-    skill = input.get("skill", "custom")
+    role = input.get("role", "custom")
     agent_instructions = input.get("agent_instructions", "")
     sources = input.get("sources")
     dedup_key = input.get("dedup_key", "")
@@ -178,7 +178,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             client=auth.client,
             user_id=auth.user_id,
             title=title,
-            skill=skill,
+            role=role,
             origin="coordinator_created",
             agent_instructions=agent_instructions or None,
             sources=sources,
@@ -205,7 +205,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
                     event_ref=agent_id,
                     metadata={
                         "coordinator_id": coordinator_id,
-                        "skill": skill,
+                        "role": role,
                         "dedup_key": dedup_key,
                         "trigger_context": trigger_context,
                     },
@@ -246,7 +246,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
             client=auth.client,
             user_id=auth.user_id,
             title=title,
-            skill=skill,
+            role=role,
             origin="user_configured",
             agent_instructions=agent_instructions or None,
             sources=sources or [],

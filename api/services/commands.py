@@ -46,7 +46,7 @@ Keep it simple — one question at a time.
         "name": "summary",
         "description": "Create a work summary agent — synthesize activity across platforms",
         "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status agent", "summarize my work", "platform summary"],
-        "skill": "synthesize",
+        "role": "synthesize",
         "system_prompt_addition": """
 ---
 
@@ -59,10 +59,10 @@ Create a work summary agent — synthesizes activity across the user's connected
 2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
 3. Ask frequency preference: `Clarify(question="How often?", options=["Daily", "Weekly", "Biweekly", "Monthly"])`
 4. Confirm: "I'll create a [frequency] Work Summary for [recipient]. Ready?"
-5. On confirmation: `CreateAgent(title="Work Summary", skill="synthesize", frequency=..., recipient_name=...)`
+5. On confirmation: `CreateAgent(title="Work Summary", role="synthesize", frequency=..., recipient_name=...)`
 6. Offer first draft
 
-**Defaults:** frequency=weekly, skill=synthesize
+**Defaults:** frequency=weekly, role=synthesize
 """,
     },
 
@@ -70,7 +70,7 @@ Create a work summary agent — synthesizes activity across the user's connected
         "name": "recap",
         "description": "Create a platform recap — catch up on everything across a connected platform",
         "trigger_patterns": ["recap", "platform recap", "slack recap", "gmail recap", "notion recap", "email recap", "slack digest", "email digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
-        "skill": "digest",
+        "role": "digest",
         "system_prompt_addition": """
 ---
 
@@ -83,14 +83,14 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
 2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Gmail", "Notion", "Calendar"])`
 3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
 4. Confirm: "I'll create a [frequency] [Platform] Recap. Ready?"
-5. On confirmation: `CreateAgent(title="[Platform] Recap", skill="digest", frequency=..., sources=[all synced sources for platform])`
+5. On confirmation: `CreateAgent(title="[Platform] Recap", role="digest", frequency=..., sources=[all synced sources for platform])`
 6. Offer first draft
 
 **Important:**
 - Title format: "[Platform] Recap" (e.g., "Slack Recap", "Gmail Recap")
 - Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/labels/pages
 - One recap per platform per user — check duplicates before creating
-- Defaults: frequency=daily, skill=digest
+- Defaults: frequency=daily, role=digest
 """,
     },
 
@@ -98,7 +98,7 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
         "name": "prep",
         "description": "Set up auto meeting prep — daily briefings from your calendar",
         "trigger_patterns": ["meeting prep", "auto meeting prep", "calendar prep", "daily briefing", "brief", "meeting brief", "event prep", "call prep", "1:1 prep"],
-        "skill": "prepare",
+        "role": "prepare",
         "system_prompt_addition": """
 ---
 
@@ -111,18 +111,18 @@ Set up daily auto meeting prep — every morning, YARNNN reads the user's Google
 - One auto meeting prep per user — if one already exists, explain and offer to update it.
 
 **Flow:**
-1. Check for duplicates: `List(pattern="agent:*")` — look for existing prepare skill
+1. Check for duplicates: `List(pattern="agent:*")` — look for existing prepare role
 2. Verify Google Calendar connection: `List(pattern="connection:*")` — check for google/calendar
 3. If no calendar: "Auto Meeting Prep requires Google Calendar. Let's connect it first." → guide to connections
 4. Ask delivery time: `Clarify(question="What time should your meeting prep arrive?", options=["7:00 AM", "8:00 AM", "9:00 AM"])`
 5. Confirm: "I'll set up Auto Meeting Prep — every morning at [time], you'll get a briefing for the day's meetings. Ready?"
-6. On confirmation: `CreateAgent(title="Auto Meeting Prep", skill="prepare", frequency="daily", sources=[all calendar + all connected platform sources])`
+6. On confirmation: `CreateAgent(title="Auto Meeting Prep", role="prepare", frequency="daily", sources=[all calendar + all connected platform sources])`
 
 **Important:**
 - Title: "Auto Meeting Prep" (fixed — not user-customizable)
 - Sources: ALL calendar sources + ALL other connected platform sources (Slack, Gmail, Notion) for cross-platform context about attendees and topics
 - One per user — check duplicates before creating
-- Defaults: frequency=daily, skill=prepare
+- Defaults: frequency=daily, role=prepare
 """,
     },
 
@@ -130,7 +130,7 @@ Set up daily auto meeting prep — every morning, YARNNN reads the user's Google
         "name": "research",
         "description": "Set up Proactive Insights — watches your platforms and surfaces what matters",
         "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "what should I know", "investigate", "research this", "look into", "find out about"],
-        "skill": "synthesize",
+        "role": "synthesize",
         "system_prompt_addition": """
 ---
 
@@ -143,10 +143,10 @@ Set up Proactive Insights — YARNNN watches the user's connected platforms for 
 2. If duplicate exists, tell the user they already have Proactive Insights set up and offer to open it
 3. Confirm: "I'll scan your connected platforms regularly and surface emerging themes with external context. Would you like a daily or weekly pulse?"
 4. Ask frequency: `Clarify(question="How often should I check for insights?", options=["Weekly (recommended)", "Daily"])`
-5. On confirmation: `CreateAgent(title="Proactive Insights", skill="synthesize", mode="proactive")`
+5. On confirmation: `CreateAgent(title="Proactive Insights", role="synthesize", mode="proactive")`
 - Sources: ALL connected platform sources (Slack, Gmail, Notion, Calendar) — for cross-platform signal detection
 - One per user — check duplicates before creating
-- Defaults: mode=proactive, skill=synthesize, scope=autonomous
+- Defaults: mode=proactive, role=synthesize, scope=autonomous
 - Do NOT ask for a research topic — topic selection is autonomous from platform signals
 """,
     },

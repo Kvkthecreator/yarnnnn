@@ -42,7 +42,7 @@ async def get_dashboard_summary(client: UserClient):
     try:
         result = (
             db.table("agents")
-            .select("id, title, status, origin, skill, scope, sources, created_at, last_run_at, next_run_at, schedule")
+            .select("id, title, status, origin, role, scope, sources, created_at, last_run_at, next_run_at, schedule")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -130,7 +130,7 @@ async def get_dashboard_summary(client: UserClient):
             "title": agent["title"],
             "status": agent.get("status"),
             "origin": agent.get("origin"),
-            "skill": agent.get("skill"),
+            "role": agent.get("role"),
             "scope": agent.get("scope"),
             "sources": agent.get("sources", []),
             "last_run_at": agent.get("last_run_at"),

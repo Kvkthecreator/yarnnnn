@@ -198,7 +198,7 @@ async def handle_write(auth: Any, input: dict) -> dict:
 
 # ADR-111: Agent creation logic moved to services/agent_creation.py
 # Re-export for any remaining imports
-from services.agent_creation import VALID_SCOPES, VALID_SKILLS, SKILL_TO_SCOPE  # noqa: F401
+from services.agent_creation import VALID_SCOPES, VALID_ROLES, ROLE_TO_SCOPE  # noqa: F401
 
 
 def _process_memory(data: dict) -> dict:

@@ -1,7 +1,7 @@
 """
 Agents routes - Recurring agent management
 
-ADR-109: Scope × Skill × Trigger Framework
+ADR-109: Scope × Role × Trigger Framework
 
 Endpoints:
 - POST /agents - Create a new agent
@@ -31,7 +31,7 @@ router = APIRouter()
 
 
 # =============================================================================
-# ADR-109: Scope × Skill × Trigger Framework
+# ADR-109: Scope × Role × Trigger Framework
 # =============================================================================
 
 Scope = Literal[
@@ -42,7 +42,7 @@ Scope = Literal[
     "autonomous",      # Full primitive set, agent-driven
 ]
 
-Skill = Literal[
+Role = Literal[
     "digest",      # Compress, summarize — platform recap
     "prepare",     # Anticipate, assemble — meeting prep
     "monitor",     # Track, diff, alert — domain watching
@@ -59,23 +59,23 @@ from services.agent_creation import infer_scope
 
 
 # =============================================================================
-# ADR-109: Skill Configs
+# ADR-109: Role Configs
 # =============================================================================
 
 class DigestConfig(BaseModel):
-    """Config for digest skill. Platform inferred from sources[] at assembly time."""
+    """Config for digest role. Platform inferred from sources[] at assembly time."""
     focus: str = "key discussions and decisions"
     reply_threshold: int = 3    # Min replies to flag as hot thread (Slack)
     reaction_threshold: int = 2  # Min reactions to surface a message (Slack)
 
 
 class PrepareConfig(BaseModel):
-    """Config for prepare skill (auto meeting prep, daily calendar-driven)."""
+    """Config for prepare role (auto meeting prep, daily calendar-driven)."""
     delivery_time: Optional[str] = "08:00"  # Preferred morning delivery time
 
 
 class SynthesizeConfig(BaseModel):
-    """Config for synthesize skill (cross-platform status update, proactive insights)."""
+    """Config for synthesize role (cross-platform status update, proactive insights)."""
     subject: str = ""  # "Engineering Team", "Project Alpha"
     audience: Literal["manager", "stakeholders", "team", "executive"] = "stakeholders"
     detail_level: Literal["brief", "standard", "detailed"] = "standard"
@@ -83,24 +83,24 @@ class SynthesizeConfig(BaseModel):
 
 
 class MonitorConfig(BaseModel):
-    """Config for monitor skill (standing-order intelligence monitoring)."""
+    """Config for monitor role (standing-order intelligence monitoring)."""
     domain: str = ""  # "competitive landscape", "AI regulation", "customer feedback"
     signals: list[str] = Field(default_factory=list)  # What to look for
 
 
 class ResearchConfig(BaseModel):
-    """Config for research skill (bounded investigation)."""
+    """Config for research role (bounded investigation)."""
     pulse_frequency: Literal["daily", "weekly"] = "weekly"
 
 
 class OrchestrateConfig(BaseModel):
-    """Config for orchestrate skill (coordinator that dispatches work)."""
+    """Config for orchestrate role (coordinator that dispatches work)."""
     domain: str = ""  # Domain this coordinator watches
     dispatch_rules: list[str] = Field(default_factory=list)  # What triggers dispatching
 
 
 class CustomConfig(BaseModel):
-    """Config for custom skill."""
+    """Config for custom role."""
     description: str = ""
     structure_notes: Optional[str] = None
 
@@ -194,8 +194,8 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
     )
 
 
-def get_default_config(skill: str) -> dict:
-    """Get default configuration for a skill (ADR-109)."""
+def get_default_config(role: str) -> dict:
+    """Get default configuration for a role (ADR-109)."""
     defaults = {
         "digest": DigestConfig(),
         "prepare": PrepareConfig(),
@@ -205,7 +205,7 @@ def get_default_config(skill: str) -> dict:
         "orchestrate": OrchestrateConfig(),
         "custom": CustomConfig(),
     }
-    return defaults.get(skill, defaults["custom"]).model_dump()
+    return defaults.get(role, defaults["custom"]).model_dump()
 
 
 # =============================================================================
@@ -272,11 +272,11 @@ class DataSource(BaseModel):
 
 
 class AgentCreate(BaseModel):
-    """Create agent request — ADR-109 Scope × Skill × Trigger."""
+    """Create agent request — ADR-109 Scope × Role × Trigger."""
     title: str
-    # ADR-109: Skill is user-selected, scope is auto-inferred
-    skill: Skill = "custom"
-    type_config: Optional[dict] = None  # Skill-specific config, validated per skill
+    # ADR-109: Role is user-selected, scope is auto-inferred
+    role: Role = "custom"
+    type_config: Optional[dict] = None  # Role-specific config, validated per role
     recipient_context: Optional[RecipientContext] = None
     # Trigger configuration
     trigger_type: Literal["schedule", "event", "manual"] = "schedule"
@@ -295,7 +295,7 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     """Update agent request — ADR-109."""
     title: Optional[str] = None
-    skill: Optional[Skill] = None
+    role: Optional[Role] = None
     type_config: Optional[dict] = None
     recipient_context: Optional[RecipientContext] = None
     trigger_type: Optional[Literal["schedule", "event", "manual"]] = None
@@ -311,12 +311,12 @@ class AgentUpdate(BaseModel):
 
 
 class AgentResponse(BaseModel):
-    """Agent response — ADR-109 Scope × Skill × Trigger."""
+    """Agent response — ADR-109 Scope × Role × Trigger."""
     id: str
     title: str
-    # ADR-109: Scope × Skill (replaces agent_type + type_classification)
+    # ADR-109: Scope × Role (replaces agent_type + type_classification)
     scope: str = "cross_platform"
-    skill: str = "custom"
+    role: str = "custom"
     type_config: Optional[dict] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
@@ -480,13 +480,13 @@ async def create_agent(
     # Handle type_config - use provided or get defaults
     type_config = request.type_config
     if type_config is None:
-        if request.skill == "custom" and request.description:
+        if request.role == "custom" and request.description:
             type_config = {"description": request.description or ""}
         else:
-            type_config = get_default_config(request.skill)
+            type_config = get_default_config(request.role)
 
-    # Validate type_config against the skill
-    validated_config = validate_skill_config(request.skill, type_config)
+    # Validate type_config against the role
+    validated_config = validate_role_config(request.role, type_config)
 
     sources_raw = [s.model_dump() for s in request.sources]
 
@@ -495,7 +495,7 @@ async def create_agent(
         client=auth.client,
         user_id=auth.user_id,
         title=request.title,
-        skill=request.skill,
+        role=request.role,
         origin="user_configured",
         description=request.description,
         agent_instructions=request.agent_instructions,
@@ -521,7 +521,7 @@ async def create_agent(
         id=agent["id"],
         title=agent["title"],
         scope=agent.get("scope", "cross_platform"),
-        skill=agent.get("skill", "custom"),
+        role=agent.get("role", "custom"),
         type_config=agent.get("type_config"),
 
         project_id=None,  # ADR-034: Deprecated
@@ -652,7 +652,7 @@ async def list_agents(
             id=d["id"],
             title=d["title"],
             scope=d.get("scope", "cross_platform"),
-            skill=d.get("skill", "custom"),
+            role=d.get("role", "custom"),
             type_config=d.get("type_config"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
@@ -758,7 +758,7 @@ async def get_agent(
             id=agent["id"],
             title=agent["title"],
             scope=agent.get("scope", "cross_platform"),
-        skill=agent.get("skill", "custom"),
+        role=agent.get("role", "custom"),
             type_config=agent.get("type_config"),
             # ADR-031: Platform-native variants
     
@@ -844,15 +844,15 @@ async def update_agent(
 
     if request.title is not None:
         update_data["title"] = request.title
-    if request.skill is not None:
-        update_data["skill"] = request.skill
-        # If skill changes but no new config provided, reset to defaults
+    if request.role is not None:
+        update_data["role"] = request.role
+        # If role changes but no new config provided, reset to defaults
         if request.type_config is None:
-            update_data["type_config"] = get_default_config(request.skill)
+            update_data["type_config"] = get_default_config(request.role)
     if request.type_config is not None:
-        # Validate against current or new skill
-        target_skill = request.skill or check.data.get("skill", "custom")
-        update_data["type_config"] = validate_skill_config(target_skill, request.type_config)
+        # Validate against current or new role
+        target_role = request.role or check.data.get("role", "custom")
+        update_data["type_config"] = validate_role_config(target_role, request.type_config)
     if request.recipient_context is not None:
         update_data["recipient_context"] = request.recipient_context.model_dump()
     if request.schedule is not None:
@@ -861,9 +861,9 @@ async def update_agent(
     if request.sources is not None:
         update_data["sources"] = [s.model_dump() for s in request.sources]
         # ADR-109: Re-infer scope when sources change
-        new_skill = request.skill or check.data.get("skill", "custom")
+        new_role = request.role or check.data.get("role", "custom")
         new_mode = request.mode or check.data.get("mode", "recurring")
-        update_data["scope"] = infer_scope(update_data["sources"], new_skill, new_mode)
+        update_data["scope"] = infer_scope(update_data["sources"], new_role, new_mode)
     if request.status is not None:
         update_data["status"] = request.status
     # ADR-028: Destination-first agents
@@ -903,7 +903,7 @@ async def update_agent(
         id=d["id"],
         title=d["title"],
         scope=d.get("scope", "cross_platform"),
-        skill=d.get("skill", "custom"),
+        role=d.get("role", "custom"),
         type_config=d.get("type_config"),
         project_id=None,  # ADR-034: Deprecated
         recipient_context=d.get("recipient_context"),
@@ -1253,7 +1253,7 @@ async def update_run(
     # Verify ownership through agent
     check = (
         auth.client.table("agents")
-        .select("id, title, skill, scope, destination")
+        .select("id, title, role, scope, destination")
         .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1332,7 +1332,7 @@ async def update_run(
             metadata = {
                 "agent_id": str(agent_id),
                 "run_id": str(run_id),
-                "skill": check.data.get("skill"),
+                "role": check.data.get("role"),
             }
 
             # Track edit patterns for memory extraction
@@ -1451,9 +1451,9 @@ async def list_agent_sessions(
 # Helper Functions
 # =============================================================================
 
-def validate_skill_config(skill: str, config: dict) -> dict:
+def validate_role_config(role: str, config: dict) -> dict:
     """
-    Validate and normalize type_config for a given skill (ADR-109).
+    Validate and normalize type_config for a given role (ADR-109).
     Returns the validated config dict.
     """
     config_classes: dict[str, type[BaseModel]] = {
@@ -1467,12 +1467,12 @@ def validate_skill_config(skill: str, config: dict) -> dict:
     }
 
     try:
-        config_class = config_classes.get(skill, CustomConfig)
+        config_class = config_classes.get(role, CustomConfig)
         validated = config_class(**config)
         return validated.model_dump()
     except Exception as e:
-        logger.warning(f"[AGENT] Invalid type_config for skill={skill}: {e}")
-        return get_default_config(skill)
+        logger.warning(f"[AGENT] Invalid type_config for role={role}: {e}")
+        return get_default_config(role)
 
 
 def calculate_next_run(schedule: ScheduleConfig) -> str:

@@ -15,7 +15,7 @@
 
 ---
 
-> **Relationship to FOUNDATIONS.md (2026-03-16):** This framework describes the **initial configuration** of an agent — its starting point. FOUNDATIONS.md Axiom 3 (Agents as Developing Entities) describes how agents evolve beyond this initial configuration over time: intentions become dynamic and multiple, capabilities are earned through feedback, autonomy graduates per-capability. The Scope × Skill × Trigger taxonomy is the seed; the developmental trajectory is the growth. See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis on developmental trajectory. See [ADR-092 revision notes](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for reframing of proactive/coordinator modes as TP supervisory capabilities.
+> **Relationship to FOUNDATIONS.md (2026-03-16):** This framework describes the **initial configuration** of an agent — its starting point. FOUNDATIONS.md Axiom 3 (Agents as Developing Entities) describes how agents evolve beyond this initial configuration over time: intentions become dynamic and multiple, capabilities are earned through feedback, autonomy graduates per-capability. The Scope × Role × Trigger taxonomy is the seed; the developmental trajectory is the growth. See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis on developmental trajectory. See [ADR-092 revision notes](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for reframing of proactive/coordinator modes as TP supervisory capabilities.
 
 ## Foundational Principle
 
@@ -63,7 +63,6 @@ Users configure **sources** (connect Slack, select channels) and **instructions*
 0 platform sources + any other role        → knowledge
 1 platform                                 → platform
 2+ platforms                               → cross_platform
-coordinator/orchestrate role               → autonomous
 ```
 
 The user never thinks "platform scope" — they think "my Slack channels." Scope is a system-internal execution strategy classification.
@@ -91,8 +90,9 @@ Role determines the agent's **prompt template**, **available primitives**, **out
 | **monitor** | Track, diff, alert | Document or notification | Differential against baseline/thesis, stateful |
 | **research** | Investigate, analyze | Document (report, analysis) | Exploratory, goal-bounded, depth-first |
 | **synthesize** | Connect, derive insight | Document (insight, thesis) | Cross-source, pattern recognition, longitudinal |
-| **orchestrate** | Coordinate, dispatch | Agent actions (create/trigger agents) | Meta-level, reads agent outputs, manages fleet |
 | **act** | Execute, respond, post | Platform action (reply, send, update, post) | Agentic, requires permissions, approval-gated (future) |
+
+> **Removed: `orchestrate`** (2026-03-18). The orchestrate role described coordination that is actually performed by TP (chat) and Composer (cron service) — neither of which is an agent in the database. No orchestrate agent was ever instantiated in code. Agent fleet management is a backend infrastructure concern (Composer, ADR-111), not an agent role. If domain-specific fleet coordination is needed in the future, it can be re-added. See also: the `coordinator` trigger (below) remains valid as a scheduling mode.
 
 ### One agent, one role
 
@@ -111,10 +111,10 @@ ROLE_PRIMITIVES = {
     "monitor":      ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace"],
     "research":     ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "WebSearch", "ReadWorkspace", "WriteWorkspace", "SearchWorkspace"],
     "synthesize":   ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "SearchWorkspace", "DiscoverAgents", "ReadAgentContext"],
-    "orchestrate":  ["Search", "Read", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace", "CreateAgent", "AdvanceAgentSchedule", "DiscoverAgents", "ReadAgentContext"],
     "act":          ["Search", "Read", "QueryKnowledge", "SlackReply", "SlackPost", "SendEmail", "UpdateNotionPage"],  # future, gated by ActionPolicy
 }
 # DiscoverAgents, ReadAgentContext: ADR-116 — inter-agent discovery and cross-agent workspace reading
+# RuntimeDispatch: ADR-118 — added to all roles when agent has authorized skills in AGENT.md
 ```
 
 ### Action capability is policy, not dimension
@@ -132,7 +132,7 @@ class ActionPolicy:
     confidence_threshold: Optional[float]      # auto-approve above this (0.0-1.0)
 ```
 
-An act-skill agent with `auto_approve: false` operates at "staged" level. Same agent with `auto_approve: true` operates at "autonomous" level. That's a policy toggle, not a taxonomy change.
+An act-role agent with `auto_approve: false` operates at "staged" level. Same agent with `auto_approve: true` operates at "autonomous" level. That's a policy toggle, not a taxonomy change.
 
 ---
 
@@ -146,9 +146,11 @@ Trigger determines **scheduler behavior** and **execution lifecycle**. Preserved
 | **goal** | Project | Fixed schedule, stops when objective complete | Goal progress, milestone tracking |
 | **reactive** | On-call | Event-driven, accumulates observations, generates at threshold | Agent-authored event observations |
 | **proactive** | Living specialist | Periodic self-review, generates when conditions warrant | Self-authored domain review log |
-| **coordinator** | Meta-specialist | Periodic review + can create/trigger child agents | Review log + created_agents deduplication |
+| **coordinator** | Meta-specialist | Periodic review via Composer (ADR-111) | Review log + lifecycle signals |
 
-Trigger is important but operational — it governs scheduling, not identity. An agent's character is defined by its Scope × Skill; its lifecycle is governed by its Trigger.
+> **Note on `coordinator` trigger**: This trigger mode subjects the agent to Composer's supervisory review cycle. Composer (a backend service, not an agent) manages fleet-level decisions: creating agents, pausing underperformers, proposing projects. The coordinator trigger is how an agent signals that it participates in this supervisory loop — it does NOT mean the agent itself orchestrates other agents.
+
+Trigger is important but operational — it governs scheduling, not identity. An agent's character is defined by its Scope × Role; its lifecycle is governed by its Trigger.
 
 ---
 
@@ -166,7 +168,6 @@ Monitor         ✓ Channel   ✓ Cross      ✓ Domain    ✓ Market    ─
 Research        ─           ─            ✓ Deep       ✓ Web       ✓ Auto
                                           Dive        Research     Research
 Synthesize      ─           ✓ Status     ✓ Insight   ─           ✓ Proactive
-Orchestrate     ─           ─            ─           ─           ✓ Coord
 Act             ✓ Reply     ✓ Cross-     ─           ─           ✓ Auto
                   /Post       post                                  Action
 
@@ -190,7 +191,6 @@ Templates are pre-configured Scope × Role × Trigger combinations with sensible
 | **Domain Tracker** | knowledge | monitor | proactive | Longitudinal domain monitoring |
 | **Deep Dive** | research | research | goal | Bounded investigation |
 | **Proactive Insights** | autonomous | synthesize | proactive | Self-directed intelligence |
-| **Coordinator** | autonomous | orchestrate | coordinator | Agent fleet management |
 | **Custom** | (inferred) | (user selects) | (user selects) | Full manual configuration |
 
 ### Bootstrap templates (ADR-110, planned)
@@ -309,7 +309,7 @@ Each axis expands independently:
 **New Scope:** `"api"` — agent reads from REST/GraphQL APIs
 - New strategy: `APIStrategy`
 - New primitives: `FetchAPI`, `QueryGraphQL`
-- Skill and Trigger unchanged
+- Role and Trigger unchanged
 
 **New Role:** `"report"` — agent produces formatted, structured reports
 - New prompt template and output validation
@@ -317,7 +317,7 @@ Each axis expands independently:
 
 **New Trigger:** `"continuous"` — agent runs as a long-lived process
 - New scheduler behavior
-- Scope and Skill unchanged
+- Scope and Role unchanged
 
 This is the test of the taxonomy: each expansion touches one axis. The others remain stable.
 
@@ -334,7 +334,7 @@ This is the test of the taxonomy: each expansion touches one axis. The others re
 | `status` | cross_platform | synthesize | recurring |
 | `watch` | knowledge or platform | monitor | proactive |
 | `deep_research` | research | research | goal |
-| `coordinator` | autonomous | orchestrate | coordinator |
+| `coordinator` | autonomous | synthesize | coordinator |
 | `custom` | (inferred from sources) | (inferred or custom) | (preserved) |
 
 ### Schema evolution
@@ -352,7 +352,7 @@ UPDATE agents SET scope = 'cross_platform', role = 'prepare' WHERE agent_type = 
 UPDATE agents SET scope = 'cross_platform', role = 'synthesize' WHERE agent_type = 'status';
 UPDATE agents SET scope = 'knowledge', role = 'monitor' WHERE agent_type = 'watch';
 UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'deep_research';
-UPDATE agents SET scope = 'autonomous', role = 'orchestrate' WHERE agent_type = 'coordinator';
+UPDATE agents SET scope = 'autonomous', role = 'synthesize' WHERE agent_type = 'coordinator';
 UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'custom';
 
 -- Phase 3: Execution pipeline reads scope + role instead of agent_type

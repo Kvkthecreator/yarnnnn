@@ -698,7 +698,7 @@ async def load_surface_content(
         if surface_type == "agent-review" and surface.agentId and surface.versionId:
             # User is reviewing an agent version - fetch the content
             agent_result = client.table("agents")\
-                .select("title, scope, skill")\
+                .select("title, scope, role")\
                 .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
@@ -719,7 +719,7 @@ async def load_surface_content(
                     content = content[:8000] + "\n\n[Content truncated...]"
 
                 return f"""## Currently Viewing: {d['title']} (Run {v['version_number']})
-Type: {d.get('skill', 'custom').replace('_', ' ').title()}
+Type: {d.get('role', 'custom').replace('_', ' ').title()}
 Status: {v['status']}
 
 ### Content:
@@ -729,7 +729,7 @@ Status: {v['status']}
         elif surface_type == "agent-detail" and surface.agentId:
             # User is viewing agent details (not content)
             result = client.table("agents")\
-                .select("title, scope, skill, status, schedule, type_config")\
+                .select("title, scope, role, status, schedule, type_config")\
                 .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
@@ -738,7 +738,7 @@ Status: {v['status']}
             if result.data:
                 d = result.data
                 return f"""## Currently Viewing: {d['title']} (Agent Detail)
-Type: {d.get('skill', 'custom').replace('_', ' ').title()}
+Type: {d.get('role', 'custom').replace('_', ' ').title()}
 Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """

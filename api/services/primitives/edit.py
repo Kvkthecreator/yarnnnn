@@ -158,20 +158,20 @@ async def handle_edit(auth: Any, input: dict) -> dict:
         if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "agent_memory", "agent_instructions")
     }
 
-    # ADR-109: Validate scope/skill if being updated on agents
+    # ADR-109: Validate scope/role if being updated on agents
     if parsed.entity_type == "agent":
-        from services.agent_creation import VALID_SCOPES, VALID_SKILLS
+        from services.agent_creation import VALID_SCOPES, VALID_ROLES
         if "scope" in filtered_changes and filtered_changes["scope"] not in VALID_SCOPES:
             return {
                 "success": False,
                 "error": "invalid_scope",
                 "message": f"Invalid scope. Must be one of: {', '.join(sorted(VALID_SCOPES))}",
             }
-        if "skill" in filtered_changes and filtered_changes["skill"] not in VALID_SKILLS:
+        if "role" in filtered_changes and filtered_changes["role"] not in VALID_ROLES:
             return {
                 "success": False,
-                "error": "invalid_skill",
-                "message": f"Invalid skill. Must be one of: {', '.join(sorted(VALID_SKILLS))}",
+                "error": "invalid_role",
+                "message": f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}",
             }
 
     if not filtered_changes:

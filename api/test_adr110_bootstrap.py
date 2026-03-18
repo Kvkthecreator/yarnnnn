@@ -435,19 +435,19 @@ async def phase9_agent_creation_validation(supabase, ids: dict) -> PhaseResult:
     r = PhaseResult("Agent Creation Shared")
 
     from services.agent_creation import (
-        create_agent_record, VALID_SCOPES, VALID_SKILLS,
-        SKILL_TO_SCOPE, AGENT_COLUMNS,
+        create_agent_record, VALID_SCOPES, VALID_ROLES,
+        ROLE_TO_SCOPE, AGENT_COLUMNS,
     )
 
     # Validate constants
-    assert_eq(r, "8 valid skills", len(VALID_SKILLS), 8)
+    assert_eq(r, "8 valid roles", len(VALID_ROLES), 8)
     assert_eq(r, "5 valid scopes", len(VALID_SCOPES), 5)
     assert_true(r, "digest maps to platform scope",
-                SKILL_TO_SCOPE.get("digest") == "platform")
+                ROLE_TO_SCOPE.get("digest") == "platform")
     assert_true(r, "synthesize maps to cross_platform scope",
-                SKILL_TO_SCOPE.get("synthesize") == "cross_platform")
+                ROLE_TO_SCOPE.get("synthesize") == "cross_platform")
     assert_true(r, "research maps to research scope",
-                SKILL_TO_SCOPE.get("research") == "research")
+                ROLE_TO_SCOPE.get("research") == "research")
 
     # Test invalid role defaults to custom
     result = await create_agent_record(

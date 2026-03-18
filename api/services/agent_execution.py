@@ -448,7 +448,7 @@ async def generate_draft_inline(
     )
 
     agent_id = agent.get("id")
-    role = agent.get("skill", "custom")
+    role = agent.get("role", "custom")
     scope = agent.get("scope", "cross_platform")
     type_config = agent.get("type_config", {})
     recipient_context = agent.get("recipient_context", {})
@@ -838,7 +838,7 @@ async def _generate_agent_card(client, user_id: str, agent: dict, version_number
         "agent_id": str(agent_id),
         "title": agent.get("title"),
         "slug": slug,
-        "skill": agent.get("skill"),
+        "role": agent.get("role"),
         "scope": agent.get("scope"),
         "description": description,
         "thesis_summary": thesis[:300] if thesis else None,
@@ -900,7 +900,7 @@ async def execute_agent_generation(
     )
 
     agent_id = agent.get("id")
-    role = agent.get("skill", "custom")
+    role = agent.get("role", "custom")
     scope = agent.get("scope", "cross_platform")
     title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
@@ -1086,7 +1086,7 @@ async def execute_agent_generation(
                         "agent_id": str(agent_id),
                         "run_id": str(version_id),
                         "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(role, "analyses"),
-                        "skill": role,
+                        "role": role,
                         "scope": scope,
                         "version_number": next_version,
                     },
@@ -1139,7 +1139,7 @@ async def execute_agent_generation(
                 metadata={
                     "agent_id": str(agent_id),
                     "version_number": next_version,
-                    "skill": role,  # ADR-109: For pattern detection
+                    "role": role,  # ADR-109: For pattern detection
                     "scope": scope,
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
@@ -1156,7 +1156,7 @@ async def execute_agent_generation(
             try:
                 from services.composer import maybe_trigger_heartbeat
                 await maybe_trigger_heartbeat(client, user_id, "agent_run_delivered", {
-                    "agent_id": str(agent_id), "skill": role,
+                    "agent_id": str(agent_id), "role": role,
                 })
             except Exception as e:
                 logger.warning(f"[EXEC] Event heartbeat trigger failed: {e}")

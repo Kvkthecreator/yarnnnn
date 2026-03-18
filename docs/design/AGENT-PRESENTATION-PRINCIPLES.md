@@ -3,7 +3,7 @@
 **Date:** 2026-03-13
 **Status:** Active
 **Related:**
-- [Agent Framework: Scope × Skill × Trigger](../architecture/agent-framework.md) — backend taxonomy
+- [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — backend taxonomy
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces
 - [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — layout structure
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — chat-first creation
@@ -12,7 +12,7 @@
 
 ## Core Insight
 
-The backend taxonomy (Scope × Skill × Trigger) is an execution framework — it answers how the system builds and runs agents. The frontend must answer a different question: **how does a user think about, find, and manage their agents?**
+The backend taxonomy (Scope × Role × Trigger) is an execution framework — it answers how the system builds and runs agents. The frontend must answer a different question: **how does a user think about, find, and manage their agents?**
 
 Users don't think in skills or scopes. They think:
 
@@ -20,21 +20,21 @@ Users don't think in skills or scopes. They think:
 - "Am I prepared for tomorrow?" — **job-first**
 - "What's that thing that emails me on Mondays?" — **routine-first**
 
-The agent's identity in the user's mind is formed by the intersection of **what it watches** (platform/sources) and **what it produces** (output on a cadence). Not the skill taxonomy.
+The agent's identity in the user's mind is formed by the intersection of **what it watches** (platform/sources) and **what it produces** (output on a cadence). Not the role taxonomy.
 
 ---
 
 ## Principle 1: Source-First Mental Model
 
-**The user's primary cognitive anchor for an agent is where it reads, not what skill it uses.**
+**The user's primary cognitive anchor for an agent is where it reads, not what role it uses.**
 
-A user with 3 Slack agents thinks "my Slack stuff" — not "my digest, my monitor, and my synthesizer." The platform/source is the stable anchor; the skill is a behavioral detail.
+A user with 3 Slack agents thinks "my Slack stuff" — not "my digest, my monitor, and my synthesizer." The platform/source is the stable anchor; the role is a behavioral detail.
 
 This means:
 
-- **Grouping**: When the agent list grows, group by source affinity (platform icons), not by skill
-- **Creation**: Start with "what do you want to stay on top of?" (source selection), then "how should I help?" (skill selection contextual to the sources)
-- **Visual identity**: Platform icons are the primary visual signal on agent cards, not skill badges
+- **Grouping**: When the agent list grows, group by source affinity (platform icons), not by role
+- **Creation**: Start with "what do you want to stay on top of?" (source selection), then "how should I help?" (role selection contextual to the sources)
+- **Visual identity**: Platform icons are the primary visual signal on agent cards, not role badges
 
 ### Source affinity tiers
 
@@ -47,11 +47,11 @@ This means:
 
 These tiers map cleanly to scope, but the user sees icons, not scope labels.
 
-### Why not skill-first?
+### Why not role-first?
 
-Skills describe *what the agent does* with information — but users don't primarily categorize by processing verb. Consider: you don't think of your email inbox as "a digest skill applied to Gmail." You think "my email." The processing (summarize, alert, prep) is secondary to the source.
+Roles describe *what the agent does* with information — but users don't primarily categorize by processing verb. Consider: you don't think of your email inbox as "a digest role applied to Gmail." You think "my email." The processing (summarize, alert, prep) is secondary to the source.
 
-Exception: the `research` skill with no platform sources. Here the job-to-be-done *is* the identity, because there's no platform anchor. Research agents are source-less — their identity comes from the topic/instructions.
+Exception: the `research` role with no platform sources. Here the job-to-be-done *is* the identity, because there's no platform anchor. Research agents are source-less — their identity comes from the topic/instructions.
 
 ---
 
@@ -90,7 +90,7 @@ The creation flow above can also be expressed as conversation starters:
 "Track AI agent market developments"     → research, research, recurring(weekly)
 ```
 
-The starter cards become **prompt suggestions**, not type selectors. TP infers skill + scope + trigger from the natural language and creates the agent. The user refines in the agent workspace.
+The starter cards become **prompt suggestions**, not type selectors. TP infers role + scope + trigger from the natural language and creates the agent. The user refines in the agent workspace.
 
 ### The two paths coexist
 
@@ -118,7 +118,7 @@ The starter cards become **prompt suggestions**, not type selectors. TP infers s
 |---------|----------|--------|
 | **Platform icon(s)** | Primary visual anchor | Derived from `sources[].provider` |
 | **Title** | Primary text | `agent.title` |
-| **Skill label + schedule** | Secondary text | `SKILL_LABELS[skill]` + schedule summary |
+| **Role label + schedule** | Secondary text | `ROLE_LABELS[role]` + schedule summary |
 | **Destination** | Tertiary | `→ email` / `→ #channel` |
 | **Delivery status** | Status indicator | Latest run status |
 
@@ -136,8 +136,8 @@ function getAgentPlatformIcons(agent: Agent): PlatformIcon[] {
   );
 
   if (providers.size === 0) {
-    // Research/knowledge agents — use skill-derived icon
-    return [agent.skill === 'research' ? 'globe' : 'brain'];
+    // Research/knowledge agents — use role-derived icon
+    return [agent.role === 'research' ? 'globe' : 'brain'];
   }
   return [...providers]; // ['slack'], ['slack', 'notion'], etc.
 }
@@ -163,7 +163,7 @@ Platform icon replaces the generic play/pause as the leading visual element. Act
 
 ## Principle 4: Grouping Emerges From Source Affinity
 
-**As the agent count grows, natural groups form around source affinity — not skill categories.**
+**As the agent count grows, natural groups form around source affinity — not role categories.**
 
 ### Threshold behavior
 
@@ -184,7 +184,7 @@ Platform icon replaces the generic play/pause as the leading visual element. Act
 | **Cross-platform** | Sources from 2+ providers | Stacked icons |
 | **Research & Knowledge** | No platform sources, or knowledge-scope | Globe/brain icon |
 
-Agents with mixed sources (e.g., Slack + Notion) go into "Cross-platform." An agent with only Slack sources goes into "Slack" regardless of skill.
+Agents with mixed sources (e.g., Slack + Notion) go into "Cross-platform." An agent with only Slack sources goes into "Slack" regardless of role.
 
 ### Sorting within groups
 
@@ -194,24 +194,24 @@ Agents with mixed sources (e.g., Slack + Notion) go into "Cross-platform." An ag
 
 ---
 
-## Principle 5: Skills Are Behavioral, Not Taxonomic
+## Principle 5: Roles Are Behavioral, Not Taxonomic
 
-**Skill labels describe behavior ("Recap", "Meeting Prep") — they are not categories users navigate by.**
+**Role labels describe behavior ("Recap", "Meeting Prep") — they are not categories users navigate by.**
 
-Skills appear as:
+Roles appear as:
 - **Secondary label** on agent cards (after the title)
 - **Filter chips** on the agents list page (for power users with 10+ agents)
 - **Contextual options** in the creation flow (Step 2, filtered by source selection)
 
-Skills do NOT appear as:
+Roles do NOT appear as:
 - Primary grouping dimension
 - Navigation categories
 - Tab labels
 - First-level creation choices
 
-### Skill label guidelines
+### Role label guidelines
 
-| Skill | User-facing label | Verb-form (for prompts) |
+| Role | User-facing label | Verb-form (for prompts) |
 |-------|-------------------|-------------------------|
 | digest | Recap | "catch me up on..." |
 | prepare | Meeting Prep | "prep me for..." |
@@ -230,11 +230,11 @@ Skills do NOT appear as:
 
 ### Design for unknown futures
 
-1. **No hardcoded skill grids**: The creation flow derives available options from the backend, filtered by connected sources. Adding a new skill doesn't require frontend changes if it follows the template pattern.
+1. **No hardcoded role grids**: The creation flow derives available options from the backend, filtered by connected sources. Adding a new role doesn't require frontend changes if it follows the template pattern.
 
-2. **Graceful unknown handling**: If a new skill appears that the frontend doesn't have an icon/label for, fall back to the `custom` treatment (generic icon + skill name as label).
+2. **Graceful unknown handling**: If a new role appears that the frontend doesn't have an icon/label for, fall back to the `custom` treatment (generic icon + role name as label).
 
-3. **Source affinity is stable**: Platform providers change slowly (new integration = new icon + group label). Skills change faster (new capability = new behavioral option). Grouping by the stable axis (source) means the UI structure survives skill expansion.
+3. **Source affinity is stable**: Platform providers change slowly (new integration = new icon + group label). Roles change faster (new capability = new behavioral option). Grouping by the stable axis (source) means the UI structure survives role expansion.
 
 4. **Template-driven creation**: The creation cards/prompts come from a `TEMPLATES` config that the backend can extend. The frontend renders whatever templates exist — it doesn't enumerate skills.
 
@@ -249,7 +249,7 @@ interface AgentTemplate {
   icon: PlatformIcon;                  // "slack" | "calendar" | "globe" | ...
   requiredPlatforms?: string[];        // ["slack"] — only show if connected
   defaults: {
-    skill: Skill;
+    role: Role;
     trigger: Trigger;
     scope?: Scope;                     // Usually auto-inferred
   };
@@ -271,7 +271,7 @@ Per ADR-105 and Surface-Action Mapping:
 Agent creation is a mix of both — it starts as a directive ("I want a weekly Slack recap") and finishes as configuration (select channels, set schedule). The ideal flow:
 
 1. User expresses intent in chat (or picks a starter card that prefills the prompt)
-2. TP creates the agent with inferred defaults (skill, scope, trigger, sources)
+2. TP creates the agent with inferred defaults (role, scope, trigger, sources)
 3. User refines via chat ("focus on #engineering and #product only") or drawer (tweak schedule)
 
 The structured creation flow (Source → Job → Configure) serves users who prefer explicit control, and covers cases where TP inference isn't confident enough. Both paths produce the same result — an agent with all three axes configured.
@@ -284,12 +284,12 @@ As TP improves at intent detection and configuration inference, the structured f
 
 | Anti-pattern | Why it fails | Correct approach |
 |-------------|-------------|-----------------|
-| Skill-first picker grid (8+ cards) | Users don't think in processing verbs | Source-first, then contextual skill options |
+| Role-first picker grid (8+ cards) | Users don't think in processing verbs | Source-first, then contextual role options |
 | Scope as user-visible label | "Platform scope" means nothing to users | Show platform icons; scope is system-internal |
 | Flat list at 15+ agents | No visual anchoring, scanning becomes linear | Source-affinity grouping with threshold |
 | Hardcoded creation options | Breaks when skills/templates expand | Template-driven creation from config |
-| Separate page per skill type | Over-engineering; agents are peers regardless of skill | Flat list with source-affinity grouping |
-| Trigger/mode as grouping | "My recurring agents" is useless — they're almost all recurring | Source affinity or skill filter chips |
+| Separate page per role type | Over-engineering; agents are peers regardless of role | Flat list with source-affinity grouping |
+| Trigger/mode as grouping | "My recurring agents" is useless — they're almost all recurring | Source affinity or role filter chips |
 
 ---
 
@@ -302,7 +302,7 @@ As TP improves at intent detection and configuration inference, the structured f
 4. ~~Two-path onboarding~~ — Dashboard empty state shows platform connect cards (primary) + Orchestrator chat (alternative). See [USER_FLOW_ONBOARDING_V4.md](USER_FLOW_ONBOARDING_V4.md) (2026-03-16)
 
 ### Immediate
-5. Update `STARTER_CARDS` to use correct ADR-109 skill names and add platform context
+5. Update `STARTER_CARDS` to use correct ADR-109 role names and add platform context
 6. Fix the "What type of work-agent?" modal to use template-style prompts
 
 ### Near-term

@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-VALID_SKILLS = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
+VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "orchestrate", "act", "custom"}
 
-# Fallback scope from skill (used when infer_scope can't reason about sources)
-SKILL_TO_SCOPE = {
+# Fallback scope from role (used when infer_scope can't reason about sources)
+ROLE_TO_SCOPE = {
     "digest": "platform",
     "prepare": "platform",
     "monitor": "platform",
@@ -41,24 +41,24 @@ SKILL_TO_SCOPE = {
 }
 
 
-def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
+def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
     """
-    ADR-109: Auto-infer scope from sources + skill + mode.
+    ADR-109: Auto-infer scope from sources + role + mode.
 
     Scope is never user-configured — it's derived from what the agent knows about.
 
     Rules:
-    1. orchestrate skill → autonomous
-    2. proactive/coordinator mode with synthesis/research skill → autonomous
-    3. research skill with no platform sources → research
+    1. orchestrate role → autonomous
+    2. proactive/coordinator mode with synthesis/research role → autonomous
+    3. research role with no platform sources → research
     4. 0 platform sources → knowledge (or cross_platform fallback)
     5. 1 provider → platform
     6. 2+ providers → cross_platform
     """
-    if skill == "orchestrate":
+    if role == "orchestrate":
         return "autonomous"
 
-    if mode in ("proactive", "coordinator") and skill in ("synthesize", "research"):
+    if mode in ("proactive", "coordinator") and role in ("synthesize", "research"):
         return "autonomous"
 
     # Count distinct providers from integration sources
@@ -69,9 +69,9 @@ def infer_scope(sources: list, skill: str, mode: str = "recurring") -> str:
             providers.add(provider)
 
     if not providers:
-        if skill == "research":
+        if role == "research":
             return "research"
-        return "knowledge" if skill in ("monitor", "research", "custom") else "cross_platform"
+        return "knowledge" if role in ("monitor", "research", "custom") else "cross_platform"
 
     if len(providers) == 1:
         return "platform"
@@ -85,7 +85,7 @@ AGENT_COLUMNS = {
     "status", "created_at", "updated_at", "last_run_at", "next_run_at",
     "type_config", "destination", "origin", "agent_instructions",
     "agent_memory", "mode", "proactive_next_review_at", "trigger_type",
-    "trigger_config", "last_triggered_at", "scope", "skill",
+    "trigger_config", "last_triggered_at", "scope", "role",
 }
 
 
@@ -97,7 +97,7 @@ async def create_agent_record(
     client: Any,
     user_id: str,
     title: str,
-    skill: str = "custom",
+    role: str = "custom",
     origin: str = "user_configured",
     *,
     scope: Optional[str] = None,
@@ -135,13 +135,13 @@ async def create_agent_record(
     if not title or not title.strip():
         return {"success": False, "error": "missing_title", "message": "title is required"}
 
-    # Validate and default skill
-    if skill not in VALID_SKILLS:
-        skill = "custom"
+    # Validate and default role
+    if role not in VALID_ROLES:
+        role = "custom"
 
-    # Infer scope from sources + skill + mode if not provided or invalid
+    # Infer scope from sources + role + mode if not provided or invalid
     if not scope or scope not in VALID_SCOPES:
-        scope = infer_scope(sources or [], skill, mode)
+        scope = infer_scope(sources or [], role, mode)
 
     # Build schedule JSONB
     sched = schedule.copy() if schedule else {}
@@ -171,7 +171,7 @@ async def create_agent_record(
     instructions_text = agent_instructions
     if not instructions_text:
         from services.agent_pipeline import DEFAULT_INSTRUCTIONS
-        instructions_text = DEFAULT_INSTRUCTIONS.get(skill, DEFAULT_INSTRUCTIONS.get("custom", ""))
+        instructions_text = DEFAULT_INSTRUCTIONS.get(role, DEFAULT_INSTRUCTIONS.get("custom", ""))
 
     entity_id = str(uuid4())
 
@@ -179,7 +179,7 @@ async def create_agent_record(
         "id": entity_id,
         "user_id": user_id,
         "title": title.strip(),
-        "skill": skill,
+        "role": role,
         "scope": scope,
         "mode": mode,
         "origin": origin,
@@ -225,14 +225,14 @@ async def create_agent_record(
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 # ADR-118: Append capability reference for agents that may produce rich outputs
                 agent_md = instructions_text
-                if skill in ("synthesize", "research", "monitor", "custom"):
+                if role in ("synthesize", "research", "monitor", "custom"):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PDF documents, PPTX presentations, XLSX spreadsheets, PNG/SVG charts. Use these when structured data or formatted reports would serve the recipient better than plain text."
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
             except Exception as e:
                 logger.warning(f"[AGENT_CREATION] Workspace seed failed for {entity_id}: {e}")
 
-        logger.info(f"[AGENT_CREATION] Created: {title} ({entity_id}), origin={origin}, skill={skill}")
+        logger.info(f"[AGENT_CREATION] Created: {title} ({entity_id}), origin={origin}, role={role}")
 
         return {
             "success": True,

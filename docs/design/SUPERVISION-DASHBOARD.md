@@ -158,7 +158,7 @@ interface DashboardSummary {
     title: string;
     status: AgentStatus;
     origin: string;
-    skill: string;
+    role: string;
     sources: Source[];
     last_run_at: string | null;
     maturity: 'nascent' | 'developing' | 'mature';

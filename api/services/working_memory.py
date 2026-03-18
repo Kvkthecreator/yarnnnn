@@ -154,7 +154,7 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     scope = {
         "id": agent_id,
         "title": agent.get("title", "Untitled"),
-        "skill": agent.get("skill", "custom"),
+        "role": agent.get("role", "custom"),
     }
 
     if instructions:

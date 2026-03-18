@@ -122,7 +122,7 @@ async def list_agents(
 
     query = (
         auth.client.table("agents")
-        .select("id, title, scope, skill, status, schedule, destination, sources, last_run_at, next_run_at")
+        .select("id, title, scope, role, status, schedule, destination, sources, last_run_at, next_run_at")
         .eq("user_id", auth.user_id)
     )
     if status:
@@ -324,7 +324,7 @@ async def get_agent_card(
     # Verify ownership
     result = (
         auth.client.table("agents")
-        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
         .eq("user_id", auth.user_id)
         .eq("id", agent_id)
         .limit(1)
@@ -364,7 +364,7 @@ async def get_agent_card(
             "agent_id": agent["id"],
             "title": agent["title"],
             "slug": slug,
-            "skill": agent.get("skill"),
+            "role": agent.get("role"),
             "scope": agent.get("scope"),
             "status": agent.get("status"),
             "description": description,
@@ -425,7 +425,7 @@ async def search_knowledge(
         }
         if r.metadata:
             item["produced_by"] = r.metadata.get("agent_id")
-            item["skill"] = r.metadata.get("skill")
+            item["role"] = r.metadata.get("role")
             item["scope"] = r.metadata.get("scope")
         items.append(item)
 
@@ -454,12 +454,12 @@ async def discover_agents(
 
     query = (
         auth.client.table("agents")
-        .select("id, title, skill, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
         .eq("user_id", auth.user_id)
         .eq("status", status or "active")
     )
     if skill:
-        query = query.eq("skill", skill)
+        query = query.eq("role", skill)
     if scope:
         query = query.eq("scope", scope)
 
@@ -481,7 +481,7 @@ async def discover_agents(
         agent_cards.append({
             "agent_id": agent["id"],
             "title": agent["title"],
-            "skill": agent.get("skill"),
+            "role": agent.get("role"),
             "scope": agent.get("scope"),
             "sources": agent.get("sources", []),
             "thesis_summary": thesis_summary,

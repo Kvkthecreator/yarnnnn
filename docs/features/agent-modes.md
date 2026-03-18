@@ -122,7 +122,7 @@ This is YARNNN doing work on your behalf that you didn't explicitly configure. Y
 
 Regardless of mode, every agent carries four layers of knowledge (ADR-101):
 
-- **Skills** — skill-specific format and structure (e.g., a digest always leads with highlights, a synthesize agent always has cross-source connections). Built into the skill's prompt template and primitive set (ADR-109).
+- **Roles** — role-specific format and structure (e.g., a digest always leads with highlights, a synthesize agent always has cross-source connections). Built into the role's prompt template and primitive set (ADR-109).
 - **Directives** — your behavioral instructions and audience context. "Use formal tone." "The audience is the exec team." Set via the Instructions panel or TP chat.
 - **Memory** — what the agent has observed and decided. Structured differently per mode (observations, goals, review log — see ADR-092), but always accumulating per specialist.
 - **Feedback** — what it learned from your edits. When you modify a delivered version, the edit patterns feed into future generations as "learned preferences."
@@ -147,18 +147,18 @@ That compounding per specialist — not per conversation, not per session, but p
 
 ---
 
-## Skill × Trigger — Natural pairings (ADR-109)
+## Role × Trigger — Natural pairings (ADR-109)
 
-Skills and triggers are orthogonal — any combination is valid — but some pairings are the natural home for each skill:
+Roles and triggers are orthogonal — any combination is valid — but some pairings are the natural home for each role:
 
-| Skill | Natural triggers | Notes |
+| Role | Natural triggers | Notes |
 |-------|-----------------|-------|
 | `digest` | recurring, reactive | Platform synthesis. Slack digests pair naturally with reactive (accumulate-then-generate). Calendar digests pair with recurring. |
 | `prepare` | recurring, coordinator, goal | Daily meeting prep is recurring. Calendar-triggered prep works as coordinator children. Standalone prep works as goal. |
 | `monitor` | proactive, reactive | Proactive for open-ended domain monitoring. Reactive for threshold-based event watch. |
 | `research` | goal | Investigation has a defined end. Runs until the research objective is complete. |
 | `synthesize` | recurring, proactive | Recurring for scheduled status updates. Proactive for self-directed intelligence (Proactive Insights). |
-| `orchestrate` | coordinator | The orchestrate skill makes the coordinator trigger discoverable. |
+| `orchestrate` | coordinator | The orchestrate role makes the coordinator trigger discoverable. |
 | `act` | reactive, proactive | Event-driven actions (reactive) or self-initiated actions when warranted (proactive). Future. |
 
-**The key insight:** trigger answers *when/how* an agent decides to act. Skill answers *what it does*. Scope (auto-inferred) answers *what it knows*. These are independent dimensions. A `digest` can be recurring or reactive. A `prepare` can be coordinator-triggered or goal-driven. The names don't imply a trigger or scope.
+**The key insight:** trigger answers *when/how* an agent decides to act. Role answers *what it does*. Scope (auto-inferred) answers *what it knows*. These are independent dimensions. A `digest` can be recurring or reactive. A `prepare` can be coordinator-triggered or goal-driven. The names don't imply a trigger or scope.

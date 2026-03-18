@@ -147,7 +147,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     try:
         result = (
             client.table("agents")
-            .select("id, title, skill, scope, mode, origin, status, created_at, last_run_at, sources")
+            .select("id, title, role, scope, mode, origin, status, created_at, last_run_at, sources")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -160,8 +160,8 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     active_agents = [a for a in agents if a.get("status") == "active"]
     paused_agents = [a for a in agents if a.get("status") == "paused"]
 
-    # 3. Agent skills coverage map
-    skills_present = set(a.get("skill", "custom") for a in active_agents)
+    # 3. Agent roles coverage map
+    roles_present = set(a.get("role", "custom") for a in active_agents)
 
     # 4. Platform coverage — which platforms have digest agents?
     # Check both sources[].provider AND bootstrap title patterns (bootstrap agents
@@ -169,7 +169,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     _TITLE_TO_PLATFORM = {"Slack Recap": "slack", "Gmail Digest": "google", "Notion Summary": "notion"}
     platforms_with_digest = set()
     for agent in active_agents:
-        if agent.get("skill") == "digest":
+        if agent.get("role") == "digest":
             # Source-based detection (populated agents)
             for src in (agent.get("sources") or []):
                 if isinstance(src, dict):
@@ -247,7 +247,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                 maturity_signals.append({
                     "agent_id": aid,
                     "title": agent["title"],
-                    "skill": agent.get("skill"),
+                    "role": agent.get("role"),
                     "scope": agent.get("scope"),
                     "origin": agent.get("origin"),
                     "total_runs": 0,
@@ -307,7 +307,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             maturity_signals.append({
                 "agent_id": aid,
                 "title": agent["title"],
-                "skill": agent.get("skill"),
+                "role": agent.get("role"),
                 "scope": agent.get("scope"),
                 "origin": agent.get("origin"),
                 "total_runs": total_runs,
@@ -439,9 +439,9 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             "total": len(agents),
             "active": len(active_agents),
             "paused": len(paused_agents),
-            "skills_present": list(skills_present),
+            "roles_present": list(roles_present),
             "active_list": [
-                {"id": a["id"], "title": a["title"], "skill": a.get("skill"), "scope": a.get("scope")}
+                {"id": a["id"], "title": a["title"], "role": a.get("role"), "scope": a.get("scope")}
                 for a in active_agents
             ],
         },
@@ -502,7 +502,7 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     mature = assessment.get("maturity", {}).get("mature_agents", [])
     expandable = [
         m for m in mature
-        if m.get("scope") == "platform" and m.get("skill") == "digest"
+        if m.get("scope") == "platform" and m.get("role") == "digest"
         and m.get("total_runs", 0) >= 10
     ]
     if expandable and len(assessment["connected_platforms"]) >= 2:
@@ -526,8 +526,8 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
 
     # Multi-platform opportunity: 2+ platforms connected but no cross-platform agent
     if len(assessment["connected_platforms"]) >= 2:
-        skills = assessment["agents"]["skills_present"]
-        if "synthesize" not in skills and assessment["agents"]["active"] >= 2:
+        roles = assessment["agents"]["roles_present"]
+        if "synthesize" not in roles and assessment["agents"]["active"] >= 2:
             return True, "cross_platform_opportunity: 2+ platforms, no synthesize agent"
 
     # Active feedback suggests engaged user — check for expansion opportunities
@@ -537,8 +537,8 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # ADR-111 Phase 5: Cross-agent pattern — multiple digest agents producing
     # similar content from overlapping sources (consolidation opportunity)
     signals = assessment.get("maturity", {}).get("signals", [])
-    digest_agents = [s for s in signals if s.get("skill") == "digest" and s.get("total_runs", 0) >= 3]
-    if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["skills_present"]:
+    digest_agents = [s for s in signals if s.get("role") == "digest" and s.get("total_runs", 0) >= 3]
+    if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["roles_present"]:
         return True, f"cross_agent_pattern: {len(digest_agents)} active digest agents — synthesis agent would consolidate insights"
 
     # ADR-116 Phase 5: Orphaned producers — agents producing knowledge nobody consumes
@@ -555,7 +555,7 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # knowledge_gap_analysis: many digests, no analyses, no synthesize agent
     if (by_class.get("digests", 0) >= 10
             and by_class.get("analyses", 0) == 0
-            and "synthesize" not in assessment["agents"]["skills_present"]):
+            and "synthesize" not in assessment["agents"]["roles_present"]):
         return True, (
             f"knowledge_gap_analysis: {by_class['digests']} digest files but 0 analyses "
             "— system is perceiving but not reasoning"
@@ -634,17 +634,17 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
 # Agent templates Composer can create (extends bootstrap templates)
 COMPOSER_TEMPLATES = {
     "digest": {
-        "skill": "digest",
+        "role": "digest",
         "mode": "recurring",
         "frequency": "daily",
     },
     "synthesize": {
-        "skill": "synthesize",
+        "role": "synthesize",
         "mode": "recurring",
         "frequency": "weekly",
     },
     "monitor": {
-        "skill": "monitor",
+        "role": "monitor",
         "mode": "recurring",
         "frequency": "daily",
     },
@@ -696,7 +696,7 @@ async def run_composer_assessment(
                 result["agents_created"].append({
                     "agent_id": agent_id,
                     "platform": platform,
-                    "skill": "digest",
+                    "role": "digest",
                     "reason": "coverage_gap",
                 })
         if result["agents_created"]:
@@ -771,7 +771,7 @@ async def _create_digest_for_platform(
         client=client,
         user_id=user_id,
         title=title,
-        skill="digest",
+        role="digest",
         origin="composer",
         frequency="daily",
         sources=sources,
@@ -825,7 +825,7 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v1.3 — agent identity quality (description, instructions, skill dedup).
+# Composer Prompt v1.3 — agent identity quality (description, instructions, role dedup).
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents should exist for a user's workspace.
 
@@ -834,7 +834,7 @@ You assess the user's knowledge substrate — accumulated agent outputs, platfor
 ## Principles
 - Bias toward action: if an agent would clearly help, recommend creating it
 - In sparse workspaces (few knowledge files, few runs): be eager. Propose research or analysis agents even without perfect signal. Early outputs that the user corrects are more valuable than silence. Think like a junior employee — attempt the task, accept feedback, improve.
-- In developing workspaces (some knowledge, no mature agents): be proactive. If the workspace only has digest agents, propose a research or analysis agent. If it has no cross-platform synthesis, propose one. The goal is to build out the full skill spectrum — not wait for perfect conditions.
+- In developing workspaces (some knowledge, no mature agents): be proactive. If the workspace only has digest agents, propose a research or analysis agent. If it has no cross-platform synthesis, propose one. The goal is to build out the full role spectrum — not wait for perfect conditions.
 - In dense workspaces (many knowledge files, mature agents): be conservative. The workforce has proven itself. Only propose agents that fill clear gaps in the knowledge corpus.
 - Start with highest-value agents: digests (perception) before synthesis (cross-cutting themes) before analysis (deep reasoning) before research (external knowledge). Each layer builds on accumulated outputs from the layer below.
 - Respect what exists: don't duplicate coverage. If a digest already exists, don't create another.
@@ -845,7 +845,7 @@ Respond with ONLY a JSON object:
 
 To create an agent:
 ```json
-{"action": "create", "title": "Weekly Cross-Platform Synthesis", "skill": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes and decisions that span platforms.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections — decisions in Slack that relate to Notion docs, email threads that reference channel discussions. Flag items that appear in multiple platforms. Use two-part format: cross-platform synthesis first, then per-platform highlights.", "reason": "User has 2+ platforms with active digests producing knowledge — synthesis would surface cross-cutting themes"}
+{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes and decisions that span platforms.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections — decisions in Slack that relate to Notion docs, email threads that reference channel discussions. Flag items that appear in multiple platforms. Use two-part format: cross-platform synthesis first, then per-platform highlights.", "reason": "User has 2+ platforms with active digests producing knowledge — synthesis would surface cross-cutting themes"}
 ```
 
 To observe (no action):
@@ -874,7 +874,7 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     """Build the user message for Composer LLM assessment."""
     agents_summary = []
     for a in assessment["agents"]["active_list"]:
-        agents_summary.append(f"- {a['title']} (skill={a['skill']}, scope={a['scope']})")
+        agents_summary.append(f"- {a['title']} (role={a['skill']}, scope={a['scope']})")
 
     # ADR-114 Phase 3: Knowledge corpus summary
     knowledge = assessment.get("knowledge", {})
@@ -909,7 +909,7 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     total_runs = assessment.get("total_agent_runs", 0)
     density_label = {
         "sparse": f"SPARSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — be eager, propose new agents even without perfect signal",
-        "developing": f"DEVELOPING ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — propose agents for skill types the workspace lacks (research, analysis)",
+        "developing": f"DEVELOPING ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — propose agents for role types the workspace lacks (research, analysis)",
         "dense": f"DENSE ({knowledge.get('total_files', 0)} knowledge files, {total_runs} total runs) — workforce is mature, only act on clear gaps",
     }.get(density, "DEVELOPING")
 
@@ -983,7 +983,7 @@ async def _execute_composer_decisions(
 
     # Create the recommended agent
     title = decision.get("title", "").strip()
-    skill = decision.get("skill", "custom")
+    role = decision.get("role", "custom")
     frequency = decision.get("frequency", "weekly")
     description = decision.get("description", "").strip() or None
     instructions = decision.get("instructions", "").strip() or None
@@ -992,7 +992,7 @@ async def _execute_composer_decisions(
         logger.warning("[COMPOSER] LLM recommended create but no title provided")
         return []
 
-    # Dedup: check title match OR skill match (prevents creative title variants)
+    # Dedup: check title match OR role match (prevents creative title variants)
     try:
         # Check 1: exact title match
         title_match = (
@@ -1007,20 +1007,20 @@ async def _execute_composer_decisions(
             logger.info(f"[COMPOSER] Agent '{title}' already exists, skipping")
             return []
 
-        # Check 2: skill match — one agent per skill type (except digest, which is per-platform)
-        if skill not in ("digest", "monitor"):
-            skill_match = (
+        # Check 2: role match — one agent per role type (except digest, which is per-platform)
+        if role not in ("digest", "monitor"):
+            role_match = (
                 client.table("agents")
                 .select("id, title")
                 .eq("user_id", user_id)
-                .eq("skill", skill)
+                .eq("role", role)
                 .neq("status", "archived")
                 .execute()
             )
-            if skill_match.data:
-                existing_title = skill_match.data[0].get("title", "unknown")
+            if role_match.data:
+                existing_title = role_match.data[0].get("title", "unknown")
                 logger.info(
-                    f"[COMPOSER] Skill '{skill}' already covered by '{existing_title}', "
+                    f"[COMPOSER] Role '{role}' already covered by '{existing_title}', "
                     f"skipping '{title}'"
                 )
                 return []
@@ -1028,7 +1028,7 @@ async def _execute_composer_decisions(
         pass
 
     # Infer sources for the new agent
-    sources = _infer_sources_for_skill(skill, assessment)
+    sources = _infer_sources_for_role(role, assessment)
 
     # ADR-118: Default email delivery
     destination = None
@@ -1044,7 +1044,7 @@ async def _execute_composer_decisions(
         client=client,
         user_id=user_id,
         title=title,
-        skill=skill,
+        role=role,
         origin="composer",
         description=description,
         agent_instructions=instructions,
@@ -1059,27 +1059,27 @@ async def _execute_composer_decisions(
         return []
 
     agent_id = result["agent_id"]
-    logger.info(f"[COMPOSER] Created '{title}' ({agent_id}), skill={skill}, reason={decision.get('reason', '')}")
+    logger.info(f"[COMPOSER] Created '{title}' ({agent_id}), role={role}, reason={decision.get('reason', '')}")
 
     return [{
         "agent_id": agent_id,
         "title": title,
-        "skill": skill,
+        "role": role,
         "reason": decision.get("reason", ""),
     }]
 
 
-def _infer_sources_for_skill(skill: str, assessment: dict) -> list:
-    """Infer appropriate sources for a new agent based on skill and available platforms."""
+def _infer_sources_for_role(role: str, assessment: dict) -> list:
+    """Infer appropriate sources for a new agent based on role and available platforms."""
     # Synthesize/cross-platform: include all platform sources
-    if skill in ("synthesize", "custom"):
+    if role in ("synthesize", "custom"):
         all_sources = []
         for p in assessment["platform_details"]:
             all_sources.extend(p.get("selected_sources") or [])
         return all_sources
 
-    # Platform-specific skills: use first platform's sources
-    if skill in ("digest", "monitor", "prepare"):
+    # Platform-specific roles: use first platform's sources
+    if role in ("digest", "monitor", "prepare"):
         for p in assessment["platform_details"]:
             sources = p.get("selected_sources") or []
             if sources:
@@ -1170,7 +1170,7 @@ async def run_lifecycle_assessment(
         mature = assessment.get("maturity", {}).get("mature_agents", [])
         expandable = [
             m for m in mature
-            if m.get("scope") == "platform" and m.get("skill") == "digest"
+            if m.get("scope") == "platform" and m.get("role") == "digest"
             and m.get("total_runs", 0) >= 10
         ]
         if expandable and assessment["tier"]["can_create"]:
@@ -1197,7 +1197,7 @@ async def run_lifecycle_assessment(
                     client=client,
                     user_id=user_id,
                     title="Weekly Cross-Platform Insights",
-                    skill="synthesize",
+                    role="synthesize",
                     origin="composer",
                     frequency="weekly",
                     sources=all_sources,
@@ -1209,7 +1209,7 @@ async def run_lifecycle_assessment(
                         "action": "created",
                         "agent_id": create_result["agent_id"],
                         "title": "Weekly Cross-Platform Insights",
-                        "skill": "synthesize",
+                        "role": "synthesize",
                         "reason": f"Lifecycle expansion: {len(expandable)} mature digest agents warrant synthesis",
                     })
                     logger.info(f"[COMPOSER] Lifecycle expansion: created synthesis agent "
@@ -1244,7 +1244,7 @@ async def run_lifecycle_assessment(
                     client=client,
                     user_id=user_id,
                     title="Weekly Cross-Platform Insights",
-                    skill="synthesize",
+                    role="synthesize",
                     origin="composer",
                     frequency="weekly",
                     sources=all_sources,
@@ -1255,7 +1255,7 @@ async def run_lifecycle_assessment(
                         "action": "created",
                         "agent_id": create_result["agent_id"],
                         "title": "Weekly Cross-Platform Insights",
-                        "skill": "synthesize",
+                        "role": "synthesize",
                         "reason": "Cross-agent pattern: consolidating multiple digest agents into synthesis",
                     })
 
@@ -1278,7 +1278,7 @@ async def _get_due_supervisory_agents(client: Any, user_id: str) -> list[dict]:
     try:
         result = (
             client.table("agents")
-            .select("id, user_id, title, scope, skill, type_config, schedule, sources, "
+            .select("id, user_id, title, scope, role, type_config, schedule, sources, "
                     "destination, recipient_context, last_run_at, agent_instructions, "
                     "agent_memory, mode, trigger_config")
             .eq("user_id", user_id)
@@ -1437,7 +1437,7 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
                         event_ref=created.get("agent_id"),
                         metadata={
                             "origin": "composer",
-                            "skill": created.get("skill"),
+                            "role": created.get("role"),
                             "reason": created.get("reason"),
                             "trigger": "heartbeat",
                         },

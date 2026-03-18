@@ -11,11 +11,11 @@ This document was written iteratively across multiple discourse rounds. Some ter
 
 | This document says | ADR-118 canonical term | Notes |
 |---|---|---|
-| "runtime adapter" / "adapter" | **handler** | Both local and delegated execution paths are "handlers" |
+| "runtime adapter" / "adapter" / "handler" | **skill** | Each output type is a skill folder with SKILL.md + scripts (Claude Code conventions). Renamed from "handler" in ADR-118 Phase C. |
 | "render service" | **output gateway** | The execution environment, not just a file converter |
-| "runtime registry" | **handler registry** (`HANDLERS` dict) | The capability library |
+| "runtime registry" / "handler registry" | **skill library** (`render/skills/`) | The capability library — each folder is a skill |
 | "Phase 0/1/2/3/4" | **Phase A/B/C/D** | ADR-118 phases are canonical; this doc's phases reflect reasoning journey |
-| "RuntimeAdapter class" (pseudocode) | Handler function + `HANDLERS` dict | Implementation is simpler than the analysis predicted |
+| "RuntimeAdapter class" (pseudocode) | Skill folder + `SKILL.md` + scripts | Implementation follows Claude Code skill conventions |
 
 Where this document and ADR-118 conflict, **ADR-118 governs**.
 
@@ -47,7 +47,7 @@ The conceptual bones are present:
 | SKILL.md | AGENT.md (workspace) | Implemented (ADR-106) |
 | Filesystem | workspace_files (Postgres) | Implemented (ADR-106) |
 | Skill loading | Agent instructions + workspace context injection | Implemented |
-| Skill taxonomy | Scope × Skill × Trigger (ADR-109) | Docs complete, code migration pending |
+| Skill taxonomy | Scope × Role × Trigger (ADR-109) | Docs complete, code migration pending |
 | Capability progression | Intentions + capability gating (FOUNDATIONS.md Axiom 3) | Conceptual, not implemented |
 
 The parallels are real. A yarnnn agent's `AGENT.md` is functionally identical to a Claude Code `SKILL.md` — both are structured instructions that shape how the LLM reasons before acting. The workspace filesystem (ADR-106) provides path-based file operations over Postgres, which is architecturally equivalent to a local filesystem for writing outputs.
@@ -398,7 +398,7 @@ Phase 1: Template parameterization
 
 Phase 2: Render service + first capability + feedback loop
   └─ Deploy yarnnn-render on Render (one service, fat Docker image)
-  └─ First local handler: pandoc (markdown+template → .docx/.pdf)
+  └─ First local skill: pandoc (markdown+template → .docx/.pdf)
   └─ workspace_files extended with content_url (S3-backed)
   └─ Feedback mechanism for non-text outputs designed and built
   └─ Capability gating: agents earn RuntimeDispatch via approval history
@@ -546,7 +546,7 @@ The bottleneck at scale is not the render service:
 - **Render service**: Stateless. Each render is independent. A single $7/mo Render instance handles hundreds of renders per hour. Horizontal scaling (2-3 instances) handles thousands.
 - **S3 storage**: Scales indefinitely. Only needed for binary outputs (PDFs are small; video is Phase 3+).
 - **Feedback metadata**: One `workspace_files` row per output. Postgres handles millions trivially.
-- **Indefinite capabilities**: Adding a new local handler doesn't change the scaling profile. The service handles N types at the same throughput because each render is independent and fast. The Docker image can hold 15-20 capability types before reaching ~2-3GB (well within Render's limits).
+- **Indefinite capabilities**: Adding a new local skill doesn't change the scaling profile. The service handles N types at the same throughput because each render is independent and fast. The Docker image can hold 15-20 capability types before reaching ~2-3GB (well within Render's limits).
 
 ### Stability Assessment
 
@@ -562,8 +562,8 @@ The adapter interface (`execute(spec) → RuntimeResult`) accommodates all fores
 
 | Future scenario | Change required | Agent-facing change |
 |---|---|---|
-| New local capability (e.g., audio waveform) | Add handler function + pip dependency | None |
-| Promote delegated → local (e.g., self-host video) | Move handler from external adapter to local | None |
+| New local capability (e.g., audio waveform) | Add skill folder + pip dependency | None |
+| Promote delegated → local (e.g., self-host video) | Move skill from external adapter to local | None |
 | A2A ecosystem matures | New delegated adapter class | None |
 | Desktop/local component | New adapter routing to user's machine | None |
 | Docker image too large (15+ capabilities) | Split into "light" and "heavy" services | None |
@@ -637,7 +637,7 @@ For consistency across the codebase and documentation:
 | **Runtime registry** | Config mapping capability types to adapter classes | New concept |
 | **Capability gating** | The feedback-earned progression from text → template → generative rendering | Extension of Axiom 3 |
 
-**Note**: "Skill" remains valid in the ADR-109 Scope × Skill × Trigger taxonomy (where it means "what the agent does" — digest, prepare, monitor, etc.). The term is NOT used for runtime capabilities to avoid confusion with Claude Code's SKILL.md pattern.
+**Note**: The ADR-109 behavioral axis was renamed from "Skill" to "Role" per ADR-118 Resolved Decision #4, making the taxonomy Scope × Role × Trigger. "Role" = what an agent does (digest, prepare, monitor, etc.). "Skill" = output gateway capabilities (pptx, pdf, xlsx, etc.) following Claude Code SKILL.md conventions. This eliminates the naming overload.
 
 ---
 
@@ -702,7 +702,7 @@ Templates as a first-class concept, before any rendering:
 Deploy the hybrid render service, prove the pattern with one capability, build the feedback loop:
 - Deploy `yarnnn-render` on Render (5th service — Dockerfile + single endpoint)
 - `RuntimeDispatch` primitive added to agent pipeline (~200 lines)
-- First local handler: document conversion (markdown + template → .docx/.pdf) via pandoc
+- First local skill: document conversion (markdown + template → .docx/.pdf) via pandoc
 - `workspace_files` extended with `content_url` column (S3-backed binary references)
 - **Critical design work**: feedback mechanism for non-text outputs — how does a user "edit" a PDF? Options: annotate, reject with comments, approve with notes, provide text-level edits the agent translates to next render
 - Capability gating: agents earn `RuntimeDispatch` access via approval history (Axiom 3)

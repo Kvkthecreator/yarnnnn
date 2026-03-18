@@ -1104,7 +1104,7 @@ async def admin_trigger_agent(
         )
         return {
             "agent_id": agent_id,
-            "skill": agent.get("skill"),
+            "role": agent.get("role"),
             "title": agent.get("title"),
             "success": exec_result.get("success", False),
             "run_id": exec_result.get("run_id"),
