@@ -169,7 +169,7 @@ Frequency: 1x/week.
 
 | Platform | Role | Voice | Cadence |
 |----------|------|-------|---------|
-| **Twitter/X (threads)** | Awareness + thought leadership | Kevin | 3x/week (Mon/Wed/Fri) |
+| **Twitter/X (tweets + threads)** | Awareness + thought leadership + blog cross-post | Kevin | 3x/week (Mon/Wed/Fri) + tweet per blog post |
 | **X Articles** | Long-form GEO amplification on X | Kevin or YARNNN brand | Cross-post from blog (1x/week, 3-7 days after blog) |
 | **LinkedIn** | ICP activation | Kevin (personal), YARNNN (articles) | 1-2x/week (Tue/Thu) |
 | **yarnnn.com/blog** | Canonical GEO hub | YARNNN brand | 1x/week (Thursday) |

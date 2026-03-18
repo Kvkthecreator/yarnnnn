@@ -109,13 +109,19 @@ Related spoke links. No hard CTA.
 
 **Atomic content approach:** Don't write 1,200 words then compress. Start small, expand up.
 
-1. **Tweet-length thesis** (1-2 sentences, <280 chars) — the core insight
-2. **LinkedIn native post** (200-300 words) — thesis + one supporting argument + engagement question
-3. **Blog post** (800-1,200 words) — full argument with evidence
-4. **X Article** — cross-post from blog (see X Article template below)
-5. **Medium cross-post** — import from blog within 1 week, set canonical
+1. **Blog post** (800-1,500 words) — full argument with evidence, committed to repo
+2. **LinkedIn company post** (200-400 words) — condensed version posted to yarnnn company page. Includes blog URL at bottom.
+3. **X/Twitter post** (<280 chars) — sharp thesis + blog URL. URLs count as 23 chars regardless of length.
+4. **X Article** — full cross-post from blog (see X Article template below). Published 3-7 days after blog for depth/permanence/indexing.
+5. **Medium draft** — full article pasted via browser, saved as draft. Set canonical URL on publish. Within 1 week of blog.
 
-**Timing:** Blog goes live first (let Google index 24-48h). Twitter thread + LinkedIn same day or next day. X Article + Medium within 1 week. Reddit when natural opportunity arises.
+**Execution method:** Claude in Chrome (visual browser automation). For each platform:
+- **LinkedIn**: Navigate to yarnnn company page → "+ Create" → "Start a post" → type content directly into composer → click Post. Note: LinkedIn's Quill editor sometimes requires JS injection (`editor.innerHTML = ...`) if direct typing fails.
+- **X/Twitter**: Navigate to `x.com/compose/post` → type tweet → verify character count (circle must be blue, not red) → click Post. For threads, use the "+" button to add tweets.
+- **X Articles**: Navigate to `x.com/compose/article` → type/paste content → publish. Include "Originally published at yarnnn.com/blog/[slug]" at bottom.
+- **Medium**: Navigate to `medium.com/new-story` → type title → press Enter → paste body via ClipboardEvent JS injection into ProseMirror editor → saves as draft automatically.
+
+**Timing:** Blog commit first (push to deploy). LinkedIn + X tweet same session. X Article 3-7 days later. Medium within 1 week. Reddit when natural opportunity arises.
 
 This ensures every piece of content has a natural short form at every length. The blog post isn't the source that gets compressed — the insight is the source that gets expanded per platform.
 
