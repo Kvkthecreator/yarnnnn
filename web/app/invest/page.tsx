@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Invest — Pre-Seed",
   description:
-    "yarnnn is raising $500K pre-seed to build the application layer for work context. An autonomous AI platform that accumulates cross-platform context and runs agents on schedule.",
+    "yarnnn is raising $500K pre-seed to build the application layer for work context: persistent agents, accumulated context, and compounding work products for recurring knowledge work.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
@@ -54,8 +54,9 @@ export default function InvestPage() {
               <p>
                 Every platform cycle produces an application layer the platform provider
                 doesn&apos;t own. LLMs are no different. yarnnn is building that layer for work —
-                an autonomous AI platform that connects to your tools, accumulates your context,
-                and runs agents on schedule.
+                an autonomous AI platform that connects to your tools, accumulates context over time,
+                creates persistent agents around recurring jobs, and turns supervision into the default
+                operating model.
               </p>
               <p className="text-white font-medium">
                 We&apos;re raising $500K pre-seed at $5M post-money.
@@ -133,8 +134,21 @@ export default function InvestPage() {
                   <div className="text-white/50">
                     <p>
                       Orchestrator for context-aware conversations. Autonomous agents for scheduled
-                      work — weekly recaps, project summaries, meeting prep —
-                      generated without prompting.
+                      work — weekly recaps, project summaries, meeting prep, and richer
+                      work products — generated without repeated prompting.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-white">Supervision model</h3>
+                  </div>
+                  <div className="text-white/50">
+                    <p>
+                      The product shifts the user from operator to supervisor. Instead of rebuilding
+                      context and regenerating the same draft every cycle, users review, redirect,
+                      and refine a running system that compounds with tenure.
                     </p>
                   </div>
                 </div>
@@ -146,8 +160,8 @@ export default function InvestPage() {
                   <div className="text-white/50">
                     <p>
                       Architecture Decision Records documenting every design choice — from the
-                      unified content layer to five-mode agent intelligence. This is a
-                      purpose-built context engine, not an API wrapper.
+                      unified content layer to workspace outputs and output skills. This is a
+                      purpose-built work system, not an API wrapper.
                     </p>
                   </div>
                 </div>
@@ -176,18 +190,21 @@ export default function InvestPage() {
                 <p>
                   Context is what makes autonomy meaningful — and cross-platform context
                   accumulation is the application layer that no existing company is positioned to own.
+                  But the user-facing expression of that layer is not storage alone. It is persistent
+                  agents that turn accumulated context into recurring work products.
                 </p>
                 <p>
                   Google didn&apos;t become Salesforce. Facebook didn&apos;t become Shopify. AWS
                   didn&apos;t become Datadog. General-purpose platforms always look invincible — until
                   the application layer emerges. LLM providers built code first (the easy case).
                   Work context is the hard case: unstructured, personal, cross-platform, and
-                  domain-specific. Nobody is building that layer yet.
+                  domain-specific. The winner will be the company that turns that substrate into
+                  compounding supervised autonomy.
                 </p>
                 <p className="text-white font-medium">
                   The comparable companies that validated this market — Notion ($11B), Glean ($7.2B),
                   Granola ($250M), Mem.ai ($110M) — all proved demand for AI-powered context.
-                  yarnnn adds the autonomous output layer that none of them have.
+                  yarnnn adds the persistent agent and work-product layer that none of them have.
                 </p>
               </div>
             </div>
