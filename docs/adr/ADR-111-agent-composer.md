@@ -3,7 +3,7 @@
 **Status:** Implemented (Phases 1-5) — Revised 2026-03-16
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
-**Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture), ADR-116 (Agent Identity & Inter-Agent Knowledge — extends Composer with agent dependency graph and supply chain reasoning)
+**Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture), ADR-116 (Agent Identity & Inter-Agent Knowledge — extends Composer with agent dependency graph and supply chain reasoning), ADR-120 (Project Execution & Work Budget — Composer delegates project execution to PM agents, Composer v2.0 prompt in ADR-120 Phase 5)
 **Analysis:** [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../architecture/FOUNDATIONS.md)
 
 ---

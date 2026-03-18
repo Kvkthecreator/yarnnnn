@@ -2,7 +2,7 @@
 
 **Status:** Phases 1-2 Implemented, Phase 3 Proposed
 **Date:** 2026-03-17
-**Builds on:** ADR-101 (Intelligence Model), ADR-106 (Workspace Architecture), ADR-109 (Agent Framework), ADR-111 (Composer)
+**Builds on:** ADR-101 (Intelligence Model), ADR-106 (Workspace Architecture), ADR-109 (Agent Framework), ADR-111 (Composer), ADR-120 (Project Execution — project-level intentions partially address Phase 3 intent model)
 **Unparks:** `docs/analysis/agent-developmental-model-considerations.md` (was blocked on TP Composer clarity — ADR-111 now implemented)
 
 ## Context

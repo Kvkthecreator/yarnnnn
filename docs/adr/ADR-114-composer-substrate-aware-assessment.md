@@ -1,6 +1,6 @@
 # ADR-114: Composer Substrate-Aware Assessment
 
-**Status:** Phases 1-3 Implemented, Phase 4 Proposed
+**Status:** Phases 1-3 Implemented, Phase 4 absorbed into ADR-120 (Project Execution & Work Budget) Phase 5
 **Date:** 2026-03-16
 **Builds on:** ADR-111 (Agent Composer), ADR-107 (Knowledge Filesystem), FOUNDATIONS.md Axiom 2 (Recursive Perception)
 

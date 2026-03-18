@@ -4,7 +4,7 @@
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)
-> **Related**: ADR-116 (Inter-Agent Knowledge), ADR-117 (Feedback Substrate), ADR-111 (Composer)
+> **Related**: ADR-116 (Inter-Agent Knowledge), ADR-117 (Feedback Substrate), ADR-111 (Composer), ADR-120 (Project Execution — PM agents execute within project folders, assembly uses skill library)
 
 ---
 
