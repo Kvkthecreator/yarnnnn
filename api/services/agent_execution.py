@@ -50,33 +50,39 @@ RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render
 # Skills that authorize RuntimeDispatch (agents with these roles get SKILL.md injection)
 RUNTIME_DISPATCH_ROLES = {"synthesize", "research", "monitor", "custom"}
 
-# Map skill types to render gateway skill folder names
-SKILL_TYPE_TO_FOLDER = {
-    "document": "pdf",
-    "presentation": "pptx",
-    "spreadsheet": "xlsx",
-    "chart": "chart",
-}
-
-
 async def _fetch_skill_docs() -> Optional[str]:
     """Fetch SKILL.md content from the output gateway for all available skills.
 
+    ADR-118 D.4: Dynamically discovers available skills from render service
+    instead of hard-coded type→folder mapping. Falls back gracefully.
     Called during headless system prompt assembly (ADR-118 D.1).
-    Returns concatenated SKILL.md content, or None on failure.
-    Graceful degradation — missing docs don't block agent execution.
     """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Fetch all skill docs concurrently
+            # ADR-118 D.4: Discover skills dynamically from render service
+            type_to_folder = {}
+            try:
+                resp = await client.get(f"{RENDER_SERVICE_URL}/skills")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    type_to_folder = data.get("type_to_folder", {})
+            except Exception:
+                pass
+
+            if not type_to_folder:
+                # Fallback: known skill folders (graceful degradation)
+                for folder in ["pdf", "pptx", "xlsx", "chart"]:
+                    type_to_folder[folder] = folder
+
+            # Fetch SKILL.md for each discovered skill
             skill_sections = []
-            for skill_type, folder in SKILL_TYPE_TO_FOLDER.items():
+            for skill_type, folder in type_to_folder.items():
                 try:
                     resp = await client.get(f"{RENDER_SERVICE_URL}/skills/{folder}/SKILL.md")
                     if resp.status_code == 200:
                         skill_sections.append(resp.text)
                 except Exception:
-                    continue  # Skip individual skill failures
+                    continue
 
             if skill_sections:
                 return "\n\n---\n\n".join(skill_sections)

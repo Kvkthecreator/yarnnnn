@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.7] - Skill auto-discovery (ADR-118 D.4)
+
+### Changed
+- `render/main.py`: Replaced hard-coded `SKILLS` dict and `SKILL_TYPE_TO_FOLDER` with auto-discovery from `skills/` directory. Skills are now dynamically imported via `importlib`. SKILL.md frontmatter `name` field maps logical type (e.g., "document") to folder name (e.g., "pdf"). GET /skills endpoint returns `{skills, type_to_folder}` mapping.
+- `render/skills/{pdf,pptx,xlsx}/SKILL.md`: Updated `name` frontmatter to match RuntimeDispatch types (document, presentation, spreadsheet) instead of folder names.
+- `api/services/primitives/runtime_dispatch.py`: Removed static `enum` on `type` field. Now accepts any string — agents learn valid types from SKILL.md docs in their context.
+- `api/services/agent_execution.py`: Replaced hard-coded `SKILL_TYPE_TO_FOLDER` with dynamic fetch from render service's `/skills` endpoint. Falls back to known folders on failure.
+
+### Expected behavior
+- **Install a skill = copy folder + deploy.** New skills auto-discovered on render service startup. No API-side code changes needed. SKILL.md frontmatter determines the RuntimeDispatch type name.
+- **Backwards compatible.** Existing agents using `type="document"` etc. work unchanged. The logical type→folder mapping is preserved via SKILL.md `name` field.
+
+---
+
+## [2026.03.18.6] - Version history for evolving files (ADR-119 Phase 3)
+
+### Changed
+- `api/services/workspace.py` (AgentWorkspace): Added `_archive_to_history()` — copies evolving file content to `/history/{filename}/v{N}.md` before overwrite. `_is_evolving_file()` gates which files get versioned (AGENT.md, thesis.md, memory/*). `_cap_history()` enforces max 5 versions. `list_history()` returns version list. `write()` now increments `version` column for evolving files and archives previous content.
+- `api/services/workspace.py` (KnowledgeBase): Replaced legacy `_archive_if_exists()` + `_next_version_number()` + `_is_version_file()` + `_version_prefix()` + `list_versions()` with new `_archive_to_history()` + `list_history()` following same /history/ subfolder convention. Singular implementation — one versioning pattern for both agent and knowledge files.
+
+### Expected behavior
+- **Evolving files get version history.** AGENT.md, thesis.md, memory/*.md are archived to `/history/{filename}/v{N}.md` before each overwrite. Max 5 versions retained (oldest deleted). Non-evolving files (outputs, working scratch, manifests) skip versioning.
+- **Version column incremented.** The `version` column on `workspace_files` now tracks how many times an evolving file has been overwritten.
+- **Legacy code deleted.** KnowledgeBase's v{N}.md-in-same-directory pattern replaced with /history/ subfolder. No dual approaches.
+
+---
+
 ## [2026.03.18.5] - Project folders (ADR-119 Phase 2)
 
 ### Changed

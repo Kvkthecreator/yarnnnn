@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phase 1-2 Implemented, Phase 3-4 Proposed
+> **Status**: Phase 1-3 Implemented, Phase 4 Proposed
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)

@@ -1,5 +1,5 @@
 ---
-name: xlsx
+name: spreadsheet
 description: "Create spreadsheets from tabular data specs. Produces .xlsx files with styled headers, auto-width columns, and multiple sheets."
 type: local
 tools: ["openpyxl"]

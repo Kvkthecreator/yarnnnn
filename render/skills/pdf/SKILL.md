@@ -1,5 +1,5 @@
 ---
-name: pdf
+name: document
 description: "Create PDF or DOCX documents from markdown. Produces formatted documents using pandoc with LaTeX."
 type: local
 tools: ["pandoc", "texlive-latex-base"]

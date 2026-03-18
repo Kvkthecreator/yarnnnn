@@ -119,6 +119,123 @@ class AgentWorkspace:
             return "ephemeral"
         return "active"
 
+    # ADR-119 Phase 3: Evolving files that get version history on overwrite.
+    # Output folders version by date accumulation, not overwrite history.
+    _EVOLVING_PATTERNS = {"AGENT.md", "thesis.md"}
+    _EVOLVING_DIRS = {"memory/"}
+    _MAX_HISTORY_VERSIONS = 5
+
+    @staticmethod
+    def _is_evolving_file(relative_path: str) -> bool:
+        """ADR-119 Phase 3: Check if a file should get version history on overwrite."""
+        filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
+        if filename in AgentWorkspace._EVOLVING_PATTERNS:
+            return True
+        if any(relative_path.startswith(d) for d in AgentWorkspace._EVOLVING_DIRS):
+            return True
+        return False
+
+    async def _archive_to_history(self, relative_path: str) -> Optional[str]:
+        """ADR-119 Phase 3: Archive current content to /history/{filename}/v{N}.md before overwrite.
+
+        Only called for evolving files. Capped at _MAX_HISTORY_VERSIONS — oldest
+        versions are deleted when the cap is reached.
+
+        Returns the history path if archived, None otherwise.
+        """
+        path = self._full_path(relative_path)
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content, summary, version")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if not rows or not rows[0].get("content"):
+                return None
+
+            existing = rows[0]
+            current_version = existing.get("version", 1)
+
+            # Build history path: /agents/{slug}/history/{filename}/v{N}.md
+            filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
+            history_path = self._full_path(f"history/{filename}/v{current_version}.md")
+
+            self._db.table("workspace_files").insert({
+                "user_id": self._user_id,
+                "path": history_path,
+                "content": existing["content"],
+                "summary": existing.get("summary") or f"v{current_version} archive",
+                "lifecycle": "archived",
+                "metadata": {
+                    "archived_from": path,
+                    "version_number": current_version,
+                },
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+
+            # Cap: delete oldest versions beyond limit
+            await self._cap_history(f"history/{filename}/")
+
+            logger.info(f"[WORKSPACE] ADR-119 P3: Archived {relative_path} v{current_version} → {history_path}")
+            return history_path
+        except Exception as e:
+            logger.warning(f"[WORKSPACE] ADR-119 P3: Archive failed for {relative_path}: {e}")
+            return None
+
+    async def _cap_history(self, history_prefix: str) -> None:
+        """Remove oldest history versions beyond _MAX_HISTORY_VERSIONS."""
+        try:
+            prefix = self._full_path(history_prefix)
+            result = (
+                self._db.table("workspace_files")
+                .select("path, updated_at")
+                .eq("user_id", self._user_id)
+                .like("path", f"{prefix}%")
+                .order("updated_at", desc=True)
+                .execute()
+            )
+            versions = result.data or []
+            if len(versions) > self._MAX_HISTORY_VERSIONS:
+                for old in versions[self._MAX_HISTORY_VERSIONS:]:
+                    self._db.table("workspace_files").delete().eq(
+                        "user_id", self._user_id
+                    ).eq("path", old["path"]).execute()
+        except Exception:
+            pass  # Non-fatal — cap is best-effort
+
+    async def list_history(self, relative_path: str) -> list[dict]:
+        """ADR-119 Phase 3: List version history for an evolving file.
+
+        Returns list of {path, version_number, updated_at} sorted newest first.
+        """
+        filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
+        prefix = self._full_path(f"history/{filename}/")
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("path, metadata, updated_at")
+                .eq("user_id", self._user_id)
+                .like("path", f"{prefix}%")
+                .eq("lifecycle", "archived")
+                .order("updated_at", desc=True)
+                .execute()
+            )
+            return [
+                {
+                    "path": r["path"],
+                    "version_number": (r.get("metadata") or {}).get("version_number", 0),
+                    "updated_at": r.get("updated_at"),
+                }
+                for r in (result.data or [])
+            ]
+        except Exception as e:
+            logger.warning(f"[WORKSPACE] List history failed for {relative_path}: {e}")
+            return []
+
     async def write(self, relative_path: str, content: str, summary: str = None,
                     tags: list[str] = None, lifecycle: str = None,
                     content_type: str = None, content_url: str = None,
@@ -127,15 +244,39 @@ class AgentWorkspace:
 
         ADR-119: lifecycle auto-inferred from path (/working/ → ephemeral).
         Can be overridden via lifecycle parameter.
+        ADR-119 Phase 3: Evolving files (AGENT.md, thesis.md, memory/*) get
+        version history archived to /history/ before overwrite.
         """
+        # ADR-119 Phase 3: Archive evolving files before overwrite
+        if self._is_evolving_file(relative_path):
+            await self._archive_to_history(relative_path)
+
         path = self._full_path(relative_path)
         try:
+            # Read current version to increment
+            current_version = 1
+            if self._is_evolving_file(relative_path):
+                try:
+                    ver_result = (
+                        self._db.table("workspace_files")
+                        .select("version")
+                        .eq("user_id", self._user_id)
+                        .eq("path", path)
+                        .limit(1)
+                        .execute()
+                    )
+                    if ver_result.data:
+                        current_version = (ver_result.data[0].get("version") or 1) + 1
+                except Exception:
+                    pass
+
             data = {
                 "user_id": self._user_id,
                 "path": path,
                 "content": content,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "lifecycle": lifecycle or self._infer_lifecycle(path),
+                "version": current_version,
             }
             if summary is not None:
                 data["summary"] = summary
@@ -812,8 +953,8 @@ class KnowledgeBase:
         if not path.startswith("/knowledge/"):
             path = f"{self._base}/{path}"
         try:
-            # ADR-107 Phase 2: Archive existing content before overwrite
-            await self._archive_if_exists(path)
+            # ADR-119 Phase 3: Archive existing content to /history/ before overwrite
+            await self._archive_to_history(path)
 
             data = {
                 "user_id": self._user_id,
@@ -838,108 +979,102 @@ class KnowledgeBase:
             logger.error(f"[KNOWLEDGE] Write failed: {path}: {e}")
             return False
 
-    async def _archive_if_exists(self, path: str) -> Optional[str]:
-        """
-        ADR-107 Phase 2: If a file exists at path, copy it to v{N}.md.
+    _MAX_HISTORY_VERSIONS = 5
 
-        Returns the archive path if archived, None otherwise.
+    async def _archive_to_history(self, path: str) -> Optional[str]:
+        """ADR-119 Phase 3: Archive current content to /history/{filename}/v{N}.md.
+
+        Replaces legacy v{N}.md-in-same-directory pattern.
+        Capped at _MAX_HISTORY_VERSIONS.
         """
         try:
             result = (
                 self._db.table("workspace_files")
-                .select("content, summary, metadata, tags")
+                .select("content, summary, version")
                 .eq("user_id", self._user_id)
                 .eq("path", path)
                 .limit(1)
                 .execute()
             )
             rows = result.data or []
-            if not rows:
+            if not rows or not rows[0].get("content"):
                 return None
 
             existing = rows[0]
+            current_version = existing.get("version", 1)
 
-            # Determine next version number from sibling v*.md files
-            dir_path = path.rsplit("/", 1)[0] if "/" in path else ""
-            next_version = await self._next_version_number(dir_path, path)
-
-            # Build archive path: same directory, v{N}.md
+            # Build history path: /knowledge/history/{filename}/v{N}.md
             filename = path.rsplit("/", 1)[-1] if "/" in path else path
-            stem = filename.rsplit(".", 1)[0]  # e.g. "latest" or "weekly-slack-digest-2026-03-11"
-            archive_path = f"{dir_path}/v{next_version}.md" if dir_path else f"v{next_version}.md"
-
-            archive_metadata = dict(existing.get("metadata") or {})
-            archive_metadata["archived_from"] = path
-            archive_metadata["version_number"] = next_version
+            history_path = f"{self._base}/history/{filename}/v{current_version}.md"
 
             self._db.table("workspace_files").insert({
                 "user_id": self._user_id,
-                "path": archive_path,
+                "path": history_path,
                 "content": existing["content"],
-                "summary": existing.get("summary") or "",
-                "metadata": archive_metadata,
-                "tags": existing.get("tags") or [],
+                "summary": existing.get("summary") or f"v{current_version} archive",
+                "lifecycle": "archived",
+                "metadata": {
+                    "archived_from": path,
+                    "version_number": current_version,
+                },
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).execute()
 
-            logger.info(f"[KNOWLEDGE] Archived {path} → {archive_path}")
-            return archive_path
+            # Cap oldest versions
+            prefix = f"{self._base}/history/{filename}/"
+            try:
+                cap_result = (
+                    self._db.table("workspace_files")
+                    .select("path, updated_at")
+                    .eq("user_id", self._user_id)
+                    .like("path", f"{prefix}%")
+                    .order("updated_at", desc=True)
+                    .execute()
+                )
+                versions = cap_result.data or []
+                if len(versions) > self._MAX_HISTORY_VERSIONS:
+                    for old in versions[self._MAX_HISTORY_VERSIONS:]:
+                        self._db.table("workspace_files").delete().eq(
+                            "user_id", self._user_id
+                        ).eq("path", old["path"]).execute()
+            except Exception:
+                pass
+
+            logger.info(f"[KNOWLEDGE] ADR-119 P3: Archived {path} v{current_version}")
+            return history_path
         except Exception as e:
-            logger.warning(f"[KNOWLEDGE] Archive failed for {path}: {e}")
+            logger.warning(f"[KNOWLEDGE] ADR-119 P3: Archive failed for {path}: {e}")
             return None
 
-    def _version_prefix(self, dir_path: str) -> str:
-        """Build a LIKE pattern matching only version archive files (v1.md, v2.md, etc.)."""
-        return f"{dir_path}/v"
+    async def list_history(self, path: str) -> list[dict]:
+        """ADR-119 Phase 3: List version history for a knowledge file.
 
-    async def _next_version_number(self, dir_path: str, canonical_path: str) -> int:
-        """Count existing version archive files to determine next version number."""
-        try:
-            # Fetch all files in dir, filter to v{N}.md pattern in Python
-            result = (
-                self._db.table("workspace_files")
-                .select("path")
-                .eq("user_id", self._user_id)
-                .like("path", f"{dir_path}/v%.md")
-                .execute()
-            )
-            # Filter to only true version files: v{digits}.md
-            count = sum(1 for r in (result.data or []) if self._is_version_file(r["path"]))
-            return count + 1
-        except Exception:
-            return 1
-
-    @staticmethod
-    def _is_version_file(path: str) -> bool:
-        """Check if a path is a version archive file (e.g. /knowledge/insights/v3.md)."""
-        import re
-        filename = path.rsplit("/", 1)[-1] if "/" in path else path
-        return bool(re.match(r"^v\d+\.md$", filename))
-
-    async def list_versions(self, path: str) -> list[dict]:
-        """
-        List version history for a knowledge file.
-
-        For a file at /knowledge/research/topic/latest.md, returns all
-        v{N}.md files in the same directory, sorted by version number desc.
+        Returns list of {path, version_number, updated_at} sorted newest first.
         """
         if not path.startswith("/knowledge/"):
             path = f"{self._base}/{path}"
-
-        dir_path = path.rsplit("/", 1)[0] if "/" in path else ""
+        filename = path.rsplit("/", 1)[-1] if "/" in path else path
+        prefix = f"{self._base}/history/{filename}/"
         try:
             result = (
                 self._db.table("workspace_files")
-                .select("path, summary, metadata, updated_at")
+                .select("path, metadata, updated_at")
                 .eq("user_id", self._user_id)
-                .like("path", f"{dir_path}/v%.md")
+                .like("path", f"{prefix}%")
+                .eq("lifecycle", "archived")
                 .order("updated_at", desc=True)
                 .execute()
             )
-            # Filter to only true version files (v{digits}.md)
-            return [r for r in (result.data or []) if self._is_version_file(r["path"])]
+            return [
+                {
+                    "path": r["path"],
+                    "version_number": (r.get("metadata") or {}).get("version_number", 0),
+                    "updated_at": r.get("updated_at"),
+                }
+                for r in (result.data or [])
+            ]
         except Exception as e:
-            logger.warning(f"[KNOWLEDGE] List versions failed for {path}: {e}")
+            logger.warning(f"[KNOWLEDGE] List history failed: {e}")
             return []
 
     async def search(self, query: str, content_class: str = None, limit: int = 20) -> list[SearchResult]:

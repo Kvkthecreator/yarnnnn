@@ -50,8 +50,7 @@ Examples:
         "properties": {
             "type": {
                 "type": "string",
-                "enum": ["document", "presentation", "spreadsheet", "chart"],
-                "description": "Skill type to invoke on the output gateway",
+                "description": "Skill type to invoke (e.g., document, presentation, spreadsheet, chart). See SKILL.md docs in your context for available types.",
             },
             "input": {
                 "type": "object",

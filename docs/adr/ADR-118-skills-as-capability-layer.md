@@ -1,6 +1,6 @@
 # ADR-118: Skills as Capability Layer
 
-> **Status**: Phase A+B+C implemented. Phase D (skills alignment + two-filesystem model + unified output) proposed.
+> **Status**: Phase A+B+C+D.4 implemented. Phase D (remaining: D.5 assets layer, unified output) proposed.
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Supersedes**: None

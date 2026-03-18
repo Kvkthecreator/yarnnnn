@@ -26,15 +26,12 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from skills.pdf.scripts.render import render_pdf
-from skills.pptx.scripts.render import render_pptx
-from skills.xlsx.scripts.render import render_xlsx
-from skills.chart.scripts.render import render_chart
+import importlib
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="yarnnn-render", version="2.1.0")
+app = FastAPI(title="yarnnn-render", version="2.2.0")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
@@ -51,24 +48,67 @@ _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 # ADR-118 D.2: Max request payload size (5MB)
 MAX_REQUEST_SIZE = 5 * 1024 * 1024
 
-# Skill registry — maps skill type to render function (ADR-118)
-SKILLS = {
-    "document": render_pdf,
-    "presentation": render_pptx,
-    "spreadsheet": render_xlsx,
-    "chart": render_chart,
-}
-
 # Skill folder root for serving SKILL.md files
 SKILLS_DIR = Path(__file__).parent / "skills"
 
-# Map skill types to skill folder names
-SKILL_TYPE_TO_FOLDER = {
-    "document": "pdf",
-    "presentation": "pptx",
-    "spreadsheet": "xlsx",
-    "chart": "chart",
-}
+
+def _discover_skills() -> dict:
+    """ADR-118 D.4: Auto-discover skills from skills/ directory.
+
+    Scans for folders with SKILL.md + scripts/render.py.
+    Each skill folder must have a render function named render_{folder_name}.
+    Returns {skill_type: render_function} dict.
+
+    Also reads SKILL.md frontmatter for the skill's 'name' field to map
+    skill types (e.g., "document") to folder names (e.g., "pdf").
+    """
+    skills = {}
+    type_to_folder = {}
+
+    for folder in sorted(SKILLS_DIR.iterdir()):
+        if not folder.is_dir():
+            continue
+        skill_md = folder / "SKILL.md"
+        render_py = folder / "scripts" / "render.py"
+        if not skill_md.exists() or not render_py.exists():
+            continue
+
+        folder_name = folder.name
+
+        # Read SKILL.md frontmatter for skill type name
+        skill_type = folder_name  # default: folder name IS the type
+        try:
+            content = skill_md.read_text(encoding="utf-8")
+            if content.startswith("---"):
+                end = content.index("---", 3)
+                frontmatter_text = content[3:end]
+                for line in frontmatter_text.strip().split("\n"):
+                    if line.startswith("name:"):
+                        val = line.split(":", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            skill_type = val
+                        break
+        except Exception:
+            pass
+
+        # Dynamic import
+        try:
+            module = importlib.import_module(f"skills.{folder_name}.scripts.render")
+            render_fn = getattr(module, f"render_{folder_name}", None)
+            if render_fn is None:
+                logger.warning(f"[SKILLS] No render_{folder_name}() in {render_py}")
+                continue
+            skills[skill_type] = render_fn
+            type_to_folder[skill_type] = folder_name
+            logger.info(f"[SKILLS] Discovered: {skill_type} → skills/{folder_name}/")
+        except Exception as e:
+            logger.error(f"[SKILLS] Failed to load skills/{folder_name}/: {e}")
+
+    return skills, type_to_folder
+
+
+# ADR-118 D.4: Auto-discovered skill registry (replaces hard-coded SKILLS dict)
+SKILLS, SKILL_TYPE_TO_FOLDER = _discover_skills()
 
 
 def _check_rate_limit(caller_id: str) -> bool:
@@ -153,13 +193,17 @@ async def get_skill_md(name: str):
     return skill_path.read_text(encoding="utf-8")
 
 
-@app.get("/skills", response_model=list[str])
+@app.get("/skills")
 async def list_skills():
-    """List available skill folder names."""
-    return sorted(
-        d.name for d in SKILLS_DIR.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    )
+    """List available skills with type→folder mapping.
+
+    ADR-118 D.4: Returns both folder names and the type mapping
+    so the API can dynamically build RuntimeDispatch schema.
+    """
+    return {
+        "skills": sorted(SKILLS.keys()),
+        "type_to_folder": SKILL_TYPE_TO_FOLDER,
+    }
 
 
 @app.post("/render", response_model=RenderResponse)

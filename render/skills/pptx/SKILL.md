@@ -1,5 +1,5 @@
 ---
-name: pptx
+name: presentation
 description: "Create presentations from slide specs. Produces .pptx files from structured JSON input describing slides, layouts, and content."
 type: local
 tools: ["python-pptx"]
