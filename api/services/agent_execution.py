@@ -432,6 +432,13 @@ async def _execute_pm_assemble(
 
     logger.info(f"[PM] ADR-120 P2: Assembly v{version} written to /projects/{project_slug}/{assembly_folder}/")
 
+    # ADR-120 Phase 3: Record assembly work units (2 units per assembly)
+    try:
+        from services.platform_limits import record_work_units as _record_wu_asm
+        _record_wu_asm(svc_client, user_id, "assembly", 2, metadata={"project_slug": project_slug, "version": version})
+    except Exception:
+        pass  # Non-fatal
+
     # 6. Deliver if project has delivery config
     delivery_status = None
     delivery = project.get("delivery", {})
@@ -1616,6 +1623,13 @@ async def execute_agent_generation(
             except Exception:
                 pass
 
+            # ADR-120 Phase 3: Record work units for PM run
+            try:
+                from services.platform_limits import record_work_units as _record_wu
+                _record_wu(client, user_id, "pm_heartbeat", 1, agent_id=str(agent_id))
+            except Exception:
+                pass
+
             # Composer heartbeat (PM runs are significant events)
             try:
                 from services.composer import maybe_trigger_heartbeat
@@ -1880,6 +1894,14 @@ async def execute_agent_generation(
             )
         except Exception:
             pass  # Non-fatal — never block execution
+
+        # ADR-120 Phase 3: Record work units for delivered agent runs
+        if final_status == "delivered":
+            try:
+                from services.platform_limits import record_work_units
+                record_work_units(svc_client, user_id, "agent_run", 1, agent_id=str(agent_id))
+            except Exception:
+                pass  # Non-fatal
 
         # ADR-114: Event-driven Composer heartbeat on delivered runs
         if final_status == "delivered":

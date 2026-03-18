@@ -1,6 +1,6 @@
 # ADR-120: Project Execution & Work Budget
 
-> **Status**: Phases 1-2 Implemented, Phases 3-5 Proposed
+> **Status**: Phases 1-3 Implemented, Phases 4-5 Proposed
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
@@ -223,12 +223,15 @@ The PM manages all active intentions, scheduling and budgeting across them.
 - PM actions: `assemble` triggers pipeline, `advance_contributor` reuses P1 primitive, `escalate` writes note
 - PM's `agent_runs` records carry `pm_decision` metadata for audit trail
 
-### Phase 3: Work Budget Governor
-- `work_units` tracking (table or activity_log extension)
-- Budget checking in scheduler, PM heartbeat, and RuntimeDispatch
-- Tier allocation (Free: 60, Pro: 1000)
-- Graceful degradation (PM reduces frequency → pauses → escalates)
-- Budget status in system heartbeat data
+### Phase 3: Work Budget Governor (Implemented)
+- `work_units` table (migration 117) + `get_monthly_work_units()` RPC — mirrors render_usage pattern
+- `check_work_budget()` / `record_work_units()` in platform_limits.py
+- Scheduler: budget check before agent dispatch (skips when exhausted)
+- Agent execution: records 1 unit per agent run, 1 per PM heartbeat, 2 per assembly
+- RuntimeDispatch: budget check before render + records 1 unit per render
+- Tier allocation: Free 60/month, Pro 1000/month (in PlatformLimits dataclass)
+- Composer heartbeat: work_budget status in heartbeat data
+- Graceful degradation deferred to Phase 4 (PM pausing, escalation)
 
 ### Phase 4: Intent Decomposition & Project Intentions
 - PM work plan generation (`work-plan.md`)

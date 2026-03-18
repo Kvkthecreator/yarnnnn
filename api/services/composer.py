@@ -105,6 +105,16 @@ def _get_last_assessed_state(client: Any, user_id: str) -> dict | None:
         return None  # Fail-open: allow LLM fire if query fails
 
 
+def _get_work_budget_status(client: Any, user_id: str) -> dict:
+    """ADR-120 Phase 3: Get work budget status for heartbeat data."""
+    try:
+        from services.platform_limits import check_work_budget
+        budget_ok, used, limit = check_work_budget(client, user_id)
+        return {"used": used, "limit": limit, "exhausted": not budget_ok}
+    except Exception:
+        return {"used": 0, "limit": -1, "exhausted": False}
+
+
 # =============================================================================
 # Heartbeat Data Query (Zero LLM — cheap DB checks)
 # =============================================================================
@@ -530,6 +540,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
         "agent_graph": agent_graph,  # ADR-116 Phase 5
         "projects": projects_health,  # ADR-120 Phase 1
+        "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
     }
 
 

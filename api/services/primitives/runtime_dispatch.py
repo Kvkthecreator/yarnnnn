@@ -98,6 +98,16 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
             "message": f"Monthly render limit reached ({renders_used}/{render_limit}). Upgrade for more renders.",
         }
 
+    # ADR-120 Phase 3: Check work budget before dispatching
+    from services.platform_limits import check_work_budget
+    budget_ok, wu_used, wu_limit = check_work_budget(auth.client, auth.user_id)
+    if not budget_ok:
+        return {
+            "success": False,
+            "error": "work_budget_exceeded",
+            "message": f"Monthly work budget reached ({wu_used}/{wu_limit}). Upgrade for more capacity.",
+        }
+
     # Call output gateway with auth + user_id
     headers = {}
     if RENDER_SERVICE_SECRET:
@@ -165,6 +175,10 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     # ADR-118 D.2: Record render usage for tier limit tracking
     from services.platform_limits import record_render_usage
     record_render_usage(auth.client, auth.user_id, skill_type, output_format, size_bytes)
+
+    # ADR-120 Phase 3: Record work units for render
+    from services.platform_limits import record_work_units
+    record_work_units(auth.client, auth.user_id, "render", 1, metadata={"skill_type": skill_type, "output_format": output_format})
 
     # ADR-118 D.3: Accumulate rendered file metadata for save_output() manifest
     rendered_file_info = {

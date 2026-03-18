@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.11] - Work budget governor (ADR-120 Phase 3)
+
+### Added
+- `supabase/migrations/117_work_budget.sql`: `work_units` table + `get_monthly_work_units()` RPC. Tracks per-action cost: agent_run (1), assembly (2), render (1), pm_heartbeat (1).
+- `api/services/platform_limits.py`: `monthly_work_units` field on `PlatformLimits` (Free: 60, Pro: 1000). `check_work_budget()`, `record_work_units()`, `get_monthly_work_units()` functions. Added to `get_usage_summary()`.
+- `api/jobs/unified_scheduler.py`: Budget check before agent dispatch — skips agents when user's budget is exhausted.
+- `api/services/agent_execution.py`: Records work units after delivered agent runs, PM runs, and assemblies.
+- `api/services/primitives/runtime_dispatch.py`: Budget check before render + records render work units.
+- `api/services/composer.py`: `work_budget` status in heartbeat data for Composer awareness.
+
+### Expected behavior
+- Agents are skipped by scheduler when monthly work units exhausted. Renders are rejected. PM assembly is bounded.
+- Free tier: 60 units/month (~2 agents daily). Pro tier: 1000 units/month (~10 agents daily + projects).
+- Work budget is additive to render limits — a render costs both 1 render limit AND 1 work unit.
+
+---
+
 ## [2026.03.18.10] - Assembly execution — PM decision interpreter + composition (ADR-120 Phase 2)
 
 ### Added

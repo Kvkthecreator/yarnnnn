@@ -563,6 +563,19 @@ async def run_unified_scheduler():
                 }).eq("id", agent["id"]).execute()
                 continue
 
+            # ADR-120 Phase 3: Work budget check before dispatch
+            agent_user_id = agent.get("user_id")
+            if agent_user_id:
+                try:
+                    from services.platform_limits import check_work_budget
+                    budget_ok, wu_used, wu_limit = check_work_budget(supabase, agent_user_id)
+                    if not budget_ok:
+                        logger.info(f"[AGENT] Work budget exhausted for user {agent_user_id}: {wu_used}/{wu_limit}, skipping '{agent['title']}'")
+                        agent_skipped += 1
+                        continue
+                except Exception as budget_err:
+                    logger.warning(f"[AGENT] Work budget check failed (proceeding): {budget_err}")
+
             if await process_agent(supabase, agent):
                 agent_success += 1
         except Exception as e:

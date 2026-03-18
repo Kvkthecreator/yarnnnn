@@ -39,6 +39,7 @@ class PlatformLimits:
     monthly_messages: int     # -1 for unlimited (ADR-100: replaces daily_token_budget)
     active_agents: int  # -1 for unlimited
     monthly_renders: int      # -1 for unlimited (ADR-118 D.2: output gateway render limit)
+    monthly_work_units: int   # -1 for unlimited (ADR-120 P3: work budget governor)
 
 
 # Tier definitions (ADR-100: 2-tier model, 2026-03-09)
@@ -53,6 +54,7 @@ TIER_LIMITS = {
         monthly_messages=50,
         active_agents=2,
         monthly_renders=10,      # ADR-118 D.2: 10 renders/month free
+        monthly_work_units=60,   # ADR-120 P3: ~2 agents daily, no projects
     ),
     "pro": PlatformLimits(
         slack_channels=-1,       # Unlimited
@@ -64,6 +66,7 @@ TIER_LIMITS = {
         monthly_messages=-1,     # Unlimited
         active_agents=10,
         monthly_renders=100,     # ADR-118 D.2: 100 renders/month pro
+        monthly_work_units=1000, # ADR-120 P3: ~10 agents daily + 2-3 active projects
     ),
 }
 
@@ -273,6 +276,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "monthly_messages": limits.monthly_messages,
             "active_agents": limits.active_agents,
             "monthly_renders": limits.monthly_renders,
+            "monthly_work_units": limits.monthly_work_units,
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
@@ -283,6 +287,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "monthly_messages_used": monthly_messages_used,
             "active_agents": get_active_agent_count(client, user_id),
             "monthly_renders_used": get_monthly_render_count(client, user_id),
+            "monthly_work_units_used": get_monthly_work_units(client, user_id),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
     }
@@ -464,6 +469,67 @@ def record_render_usage(client, user_id: str, skill_type: str, output_format: st
         }).execute()
     except Exception as e:
         logger.warning(f"[RENDER_LIMITS] Failed to record render usage: {e}")
+
+
+# =============================================================================
+# Work Budget (ADR-120 Phase 3)
+# =============================================================================
+
+
+def get_monthly_work_units(client, user_id: str) -> int:
+    """Get total work units consumed this month via SQL function."""
+    try:
+        result = client.rpc(
+            "get_monthly_work_units",
+            {"p_user_id": user_id}
+        ).execute()
+        return result.data if isinstance(result.data, int) else 0
+    except Exception:
+        return 0
+
+
+def check_work_budget(client, user_id: str) -> tuple[bool, int, int]:
+    """
+    Check if user is within monthly work budget (ADR-120 Phase 3).
+
+    Returns:
+        Tuple of (allowed: bool, units_used: int, units_limit: int)
+    """
+    limits = get_limits_for_user(client, user_id)
+
+    if limits.monthly_work_units == -1:
+        return True, 0, -1
+
+    units_used = get_monthly_work_units(client, user_id)
+
+    if units_used >= limits.monthly_work_units:
+        return False, units_used, limits.monthly_work_units
+
+    return True, units_used, limits.monthly_work_units
+
+
+def record_work_units(
+    client,
+    user_id: str,
+    action_type: str,
+    units: int = 1,
+    agent_id: str = None,
+    metadata: dict = None,
+) -> None:
+    """Record work units consumed (ADR-120 Phase 3)."""
+    try:
+        row = {
+            "user_id": user_id,
+            "action_type": action_type,
+            "units_consumed": units,
+        }
+        if agent_id:
+            row["agent_id"] = agent_id
+        if metadata:
+            row["metadata"] = metadata
+        client.table("work_units").insert(row).execute()
+    except Exception as e:
+        logger.warning(f"[WORK_BUDGET] Failed to record work units: {e}")
 
 
 # =============================================================================
