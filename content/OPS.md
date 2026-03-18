@@ -118,7 +118,7 @@ Related spoke links. No hard CTA.
 **Execution method:** Claude in Chrome (visual browser automation). For each platform:
 - **LinkedIn**: Navigate to yarnnn company page → "+ Create" → "Start a post" → type content directly into composer → click Post. Note: LinkedIn's Quill editor sometimes requires JS injection (`editor.innerHTML = ...`) if direct typing fails.
 - **X/Twitter**: Navigate to `x.com/compose/post` → type tweet → verify character count (circle must be blue, not red) → click Post. For threads, use the "+" button to add tweets.
-- **X Articles**: Navigate to `x.com/compose/article` → type/paste content → publish. Include "Originally published at yarnnn.com/blog/[slug]" at bottom.
+- **X Articles**: Click "Articles" in X sidebar → "Write" button → type title → click "Start writing" body area → type content in chunks (long pastes cause detach). Include "Originally published at yarnnn.com/blog/[slug]" at bottom. Save as draft; Kevin publishes.
 - **Medium**: Navigate to `medium.com/new-story` → type title → press Enter → paste body via ClipboardEvent JS injection into ProseMirror editor → saves as draft automatically.
 
 **Timing:** Blog commit first (push to deploy). LinkedIn + X tweet same session. X Article 3-7 days later. Medium within 1 week. Reddit when natural opportunity arises.
