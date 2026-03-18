@@ -227,7 +227,7 @@ Agents are presented as **employees with jobs**, not technical configurations. T
 | User sees (job title) | Internal (Scope × Role) | Why this framing works |
 |---|---|---|
 | **Your Slack Agent** | platform + digest | Platform IS the job for simple agents |
-| **Your Email Agent** | platform + digest | Same — platform name carries all context |
+| **Your Gmail Agent** | platform + digest | Same — platform name carries all context |
 | **Your Notion Agent** | platform + digest | Same pattern |
 | **Your Meeting Prep** | cross_platform + prepare | The deliverable IS the job |
 | **Your Weekly Brief** | cross_platform + synthesize | The recurring output IS the job |
@@ -259,21 +259,32 @@ An agent's authorized output skills (pptx, pdf, xlsx, chart) are its **toolbox**
 
 This is the video editor analogy: a video editor's job is editing video, but they might also produce thumbnails, transcripts, or social clips. The job title stays the same; the output types vary based on what's needed.
 
-### Projects: collaborative deliverables
+### Projects: prominent but optional
 
-Projects (ADR-119) appear to users as **collaborative outputs**, not as technical cross-agent coordination. "Your Q2 Review" is a project where the Slack agent, the analyst, and the research agent each contribute. The user sees the assembled deliverable (a deck, a report). The contributing agents and their individual contributions are visible but secondary — the project IS the unit the user cares about.
+Projects (ADR-119) are a first-class concept — prominent in the dashboard once introduced, and the natural container for composed multi-agent value. But they are NOT mandatory. Standalone agents are valid and are the bootstrap entry point.
+
+The product surfaces **both** projects and standalone agents:
+- **Projects** appear at the top of the dashboard as the higher-value unit. "Your Monday Brief" with 3 contributing agents producing an assembled deck.
+- **Standalone agents** appear below as individual workers. "Your Slack Agent" producing a weekly recap.
+
+An agent can be standalone AND contribute to projects simultaneously. Its workspace is its own; projects reference its outputs. Standalone agents that aren't part of any project are a visual nudge: "these could be more powerful in a project."
+
+Projects are introduced post-onboarding — either by Composer suggestion ("Your Slack and Gmail agents could combine into a Monday Brief") or user request via chat. Bootstrap creates standalone agents for the simplest possible entry point.
+
+For full product design: see [Projects Product Direction](../design/PROJECTS-PRODUCT-DIRECTION.md).
 
 ### Progression: how identity evolves
 
 | Stage | What happens | User sees |
 |---|---|---|
-| **Bootstrap** | User connects Slack → system creates digest agent | "Your Slack Agent" appears |
+| **Bootstrap** | User connects Slack → system creates digest agent | "Your Slack Agent" appears on dashboard |
 | **First value** | Agent runs, produces text recap | Email: "Here's your Slack recap" |
 | **Skill graduation** | Composer authorizes PDF skill based on maturity | Email now includes a PDF attachment |
-| **Job agent** | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears |
-| **Project** | Composer detects composition opportunity → creates project | "Your Q2 Review" appears, assembling outputs from multiple agents |
+| **Job agent** | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears as standalone agent |
+| **Project** | User asks or Composer suggests combining agents → project created | "Your Monday Brief" project appears above agents on dashboard |
+| **Composition** | Project assembles outputs from contributing agents | Assembled deck/report delivered, standalone agents contribute silently |
 
-At every stage, the user sees a worker with a job title that produces deliverables. The technical complexity (scope inference, role selection, skill authorization, project assembly) is invisible.
+At every stage, the user sees workers with job titles and projects with deliverables. The technical complexity (scope inference, role selection, skill authorization, project assembly) is invisible.
 
 ---
 
