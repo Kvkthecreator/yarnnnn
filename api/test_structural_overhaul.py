@@ -182,7 +182,7 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
         "user_id": TEST_USER_ID,
         "title": f"{TEST_PREFIX}Version Test",
         "scope": "cross_platform",
-        "skill": "synthesize",
+        "role": "synthesize",
         "status": "active",
         "created_at": now,
         "updated_at": now,
@@ -300,7 +300,7 @@ async def phase_2_working_memory_version(auth: MockAuth) -> PhaseResult:
     no_ver_del = {
         "id": str(uuid4()),
         "title": "No versions",
-        "skill": "custom",
+        "role": "custom",
         "scope": "knowledge",
     }
     scope_empty = await _extract_agent_scope(no_ver_del, auth.client)
@@ -333,7 +333,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         {"key": "preference:brevity", "value": "Keep reports under 500 words"},
     ]
     prompt = _build_headless_system_prompt(
-        skill="synthesize",
+        role="synthesize",
         user_context=user_ctx,
     )
     assert_in(r, "User context section present", "## User Context", prompt)
@@ -361,7 +361,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
         },
     }
     prompt = _build_headless_system_prompt(
-        skill="synthesize",
+        role="synthesize",
         agent=agent,
         user_context=user_ctx,
     )
@@ -382,7 +382,7 @@ async def phase_3_headless_prompt(auth: MockAuth) -> PhaseResult:
 
     # 3d: Empty agent_memory should not crash
     prompt_no_mem = _build_headless_system_prompt(
-        skill="synthesize",
+        role="synthesize",
         agent={"agent_memory": {}},
     )
     assert_not_in(r, "No memory section when empty", "## Agent Memory", prompt_no_mem)
@@ -415,7 +415,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
         "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Seeded Instructions",
-            "skill": "digest",
+            "role": "digest",
         },
     })
     assert_true(r, "Write success", result.get("success", False),
@@ -435,7 +435,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
         "ref": "agent:new",
         "content": {
             "title": f"{TEST_PREFIX}Explicit Instructions",
-            "skill": "synthesize",
+            "role": "synthesize",
             "agent_instructions": "My custom instructions here",
         },
     })

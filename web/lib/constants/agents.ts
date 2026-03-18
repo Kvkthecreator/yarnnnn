@@ -1,7 +1,7 @@
-import type { Skill } from '@/types';
+import type { Role } from '@/types';
 
-/** ADR-109: Skill labels, shared across list/detail/settings/dashboard */
-export const SKILL_LABELS: Record<Skill, string> = {
+/** ADR-109: Role labels, shared across list/detail/settings/dashboard */
+export const ROLE_LABELS: Record<Role, string> = {
   digest: 'Recap',
   prepare: 'Auto Meeting Prep',
   synthesize: 'Work Summary',

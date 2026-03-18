@@ -30,17 +30,59 @@ This module replaces:
 - execute_stage_step() - validation/staging step
 
 Preserves from agent_pipeline.py:
-- Skill-specific prompts (SKILL_PROMPTS, build_skill_prompt)
+- Role-specific prompts (ROLE_PROMPTS, build_role_prompt)
 - Output validation (validate_output)
 """
 
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
+import httpx
+
 logger = logging.getLogger(__name__)
+
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+
+# Skills that authorize RuntimeDispatch (agents with these roles get SKILL.md injection)
+RUNTIME_DISPATCH_ROLES = {"synthesize", "research", "monitor", "custom", "orchestrate"}
+
+# Map skill types to render gateway skill folder names
+SKILL_TYPE_TO_FOLDER = {
+    "document": "pdf",
+    "presentation": "pptx",
+    "spreadsheet": "xlsx",
+    "chart": "chart",
+}
+
+
+async def _fetch_skill_docs() -> Optional[str]:
+    """Fetch SKILL.md content from the output gateway for all available skills.
+
+    Called during headless system prompt assembly (ADR-118 D.1).
+    Returns concatenated SKILL.md content, or None on failure.
+    Graceful degradation — missing docs don't block agent execution.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Fetch all skill docs concurrently
+            skill_sections = []
+            for skill_type, folder in SKILL_TYPE_TO_FOLDER.items():
+                try:
+                    resp = await client.get(f"{RENDER_SERVICE_URL}/skills/{folder}/SKILL.md")
+                    if resp.status_code == 200:
+                        skill_sections.append(resp.text)
+                except Exception:
+                    continue  # Skip individual skill failures
+
+            if skill_sections:
+                return "\n\n---\n\n".join(skill_sections)
+    except Exception as e:
+        logger.warning(f"[GENERATE] Failed to fetch skill docs from output gateway: {e}")
+    return None
 
 # Model constants
 SONNET_MODEL = "claude-sonnet-4-20250514"
@@ -191,28 +233,30 @@ def _strip_tool_narration(draft: str) -> str:
 
 
 def _build_headless_system_prompt(
-    skill: str,
+    role: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
     agent: Optional[dict] = None,
     user_context: Optional[list] = None,
     workspace_preferences: Optional[str] = None,
+    skill_docs: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081/087/101/109/117).
+    Build system prompt for headless mode generation (ADR-080/081/087/101/109/117/118).
 
     Args:
-        skill: The agent skill (digest, prepare, synthesize, etc.)
+        role: The agent role (digest, prepare, synthesize, etc.)
         trigger_context: Optional trigger info with signal reasoning
         research_directive: Optional research instruction for research-scope agents
         agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
         workspace_preferences: Optional workspace memory/preferences.md content (ADR-117)
+        skill_docs: Optional SKILL.md content for authorized output skills (ADR-118 D.1)
 
     Returns:
         Complete system prompt string
     """
-    prompt = f"""You are generating a {skill} agent.
+    prompt = f"""You are generating a {role} agent.
 
 ## Output Rules
 - Follow the format and instructions in the user message exactly.
@@ -286,6 +330,22 @@ The user has set these behavioral directives for this agent:
 {workspace_preferences}
 
 Follow these preferences closely — they reflect what the user has consistently edited in past outputs."""
+
+    # ADR-118 D.1: Inject SKILL.md content for authorized output skills.
+    # Agents read skill docs to learn how to construct high-quality specs
+    # for RuntimeDispatch (same model as Claude Code reading SKILL.md).
+    if skill_docs:
+        prompt += f"""
+
+## Output Skill Documentation
+You have access to RuntimeDispatch for producing binary artifacts.
+Construct input specs according to these skill instructions:
+
+{skill_docs}
+
+When producing output that would benefit from a rendered artifact (PDF, PPTX, XLSX, chart),
+use RuntimeDispatch with the spec format described above. Always produce a text version
+alongside any binary — the text is the feedback surface for user edits."""
 
     # ADR-081: Research directive overrides default tool guidance
     if research_directive:
@@ -383,12 +443,12 @@ async def generate_draft_inline(
         create_headless_executor,
     )
     from services.agent_pipeline import (
-        build_skill_prompt,
+        build_role_prompt,
         validate_output,
     )
 
     agent_id = agent.get("id")
-    skill = agent.get("skill", "custom")
+    role = agent.get("skill", "custom")
     scope = agent.get("scope", "cross_platform")
     type_config = agent.get("type_config", {})
     recipient_context = agent.get("recipient_context", {})
@@ -397,12 +457,12 @@ async def generate_draft_inline(
     recipient_str = ""
     if recipient_context:
         name = recipient_context.get("name", "")
-        role = recipient_context.get("role", "")
+        recipient_role = recipient_context.get("role", "")
         priorities = recipient_context.get("priorities", [])
-        if name or role:
+        if name or recipient_role:
             recipient_str = f"RECIPIENT: {name}"
-            if role:
-                recipient_str += f" ({role})"
+            if recipient_role:
+                recipient_str += f" ({recipient_role})"
             if priorities:
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
@@ -433,9 +493,9 @@ async def generate_draft_inline(
         },
     }
 
-    # Build skill-specific prompt (user message)
-    prompt = build_skill_prompt(
-        skill=skill,
+    # Build role-specific prompt (user message)
+    prompt = build_role_prompt(
+        role=role,
         config=type_config,
         agent=workspace_agent,
         gathered_context=gathered_context,
@@ -466,17 +526,26 @@ async def generate_draft_inline(
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
+    # ADR-118 D.1: Fetch SKILL.md content for agents with RuntimeDispatch access
+    skill_docs = None
+    if role in RUNTIME_DISPATCH_ROLES:
+        try:
+            skill_docs = await _fetch_skill_docs()
+        except Exception as e:
+            logger.warning(f"[GENERATE] Skill docs fetch failed (non-fatal): {e}")
+
     # ADR-109: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
-        skill, trigger_context, research_directive, workspace_agent, user_context,
+        role, trigger_context, research_directive, workspace_agent, user_context,
         workspace_preferences=ws_preferences,
+        skill_docs=skill_docs,
     )
 
     # ADR-109: Tool round limit based on scope
     max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(scope, 3)
 
     # Prepare (meeting prep) needs more rounds for per-attendee research + WebSearch
-    if skill == "prepare":
+    if role == "prepare":
         max_tool_rounds = max(max_tool_rounds, 5)
 
     # ADR-080: Mode-gated tools and executor
@@ -595,7 +664,7 @@ async def generate_draft_inline(
             raise ValueError("Agent produced only tool-use narration, no actual content")
 
         # Validate output (non-blocking for soft issues, blocking for critical)
-        validation = validate_output(skill, draft, type_config)
+        validation = validate_output(role, draft, type_config)
         if not validation.get("valid"):
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
 
@@ -667,7 +736,7 @@ def _extract_run_observation(
     draft: str,
     sources_used: list[str],
     items_fetched: int,
-    skill: str,
+    role: str,
 ) -> str:
     """
     Extract a lightweight observation from a completed run — ADR-117 Phase 2.
@@ -675,7 +744,7 @@ def _extract_run_observation(
     Rule-based, no LLM call. Captures:
     - Topics covered (from markdown headers)
     - Source coverage (which platforms contributed, data volume)
-    - Skill-specific signals
+    - Role-specific signals
     """
     parts = []
 
@@ -700,13 +769,13 @@ def _extract_run_observation(
     elif word_count > 2000:
         parts.append(f"Dense output ({word_count} words)")
 
-    # Skill-specific signals
-    if skill == "digest" and items_fetched < 5:
+    # Role-specific signals
+    if role == "digest" and items_fetched < 5:
         parts.append("Low activity period — few items to digest")
-    elif skill == "synthesize" and len(sources_used) < 2:
+    elif role == "synthesize" and len(sources_used) < 2:
         parts.append("Cross-platform synthesis with limited platform coverage")
 
-    return "; ".join(parts) if parts else f"{skill} run completed"
+    return "; ".join(parts) if parts else f"{role} run completed"
 
 
 async def _generate_agent_card(client, user_id: str, agent: dict, version_number: int):
@@ -831,14 +900,14 @@ async def execute_agent_generation(
     )
 
     agent_id = agent.get("id")
-    skill = agent.get("skill", "custom")
+    role = agent.get("skill", "custom")
     scope = agent.get("scope", "cross_platform")
     title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
 
     logger.info(
         f"[EXEC] Starting: {title} ({agent_id}), "
-        f"trigger={trigger_type}, scope={scope}, skill={skill}"
+        f"trigger={trigger_type}, scope={scope}, role={role}"
     )
 
     version = None
@@ -1008,7 +1077,7 @@ async def execute_agent_generation(
                 from services.workspace import KnowledgeBase
                 from services.supabase import get_service_client as _get_svc3
                 kb = KnowledgeBase(_get_svc3(), user_id)
-                knowledge_path = KnowledgeBase.get_knowledge_path(skill, title)
+                knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
                 await kb.write(
                     path=knowledge_path,
                     content=draft,
@@ -1016,12 +1085,12 @@ async def execute_agent_generation(
                     metadata={
                         "agent_id": str(agent_id),
                         "run_id": str(version_id),
-                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(skill, "analyses"),
-                        "skill": skill,
+                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(role, "analyses"),
+                        "skill": role,
                         "scope": scope,
                         "version_number": next_version,
                     },
-                    tags=[skill, agent.get("mode", "recurring")],
+                    tags=[role, agent.get("mode", "recurring")],
                 )
                 logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
             except Exception as e:
@@ -1034,7 +1103,7 @@ async def execute_agent_generation(
                 from services.workspace import AgentWorkspace, get_agent_slug
                 observation = _extract_run_observation(
                     draft, gathered_result.sources_used,
-                    gathered_result.items_fetched, skill,
+                    gathered_result.items_fetched, role,
                 )
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 await ws.record_observation(observation, source="self")
@@ -1070,7 +1139,7 @@ async def execute_agent_generation(
                 metadata={
                     "agent_id": str(agent_id),
                     "version_number": next_version,
-                    "skill": skill,  # ADR-109: For pattern detection
+                    "skill": role,  # ADR-109: For pattern detection
                     "scope": scope,
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
@@ -1087,7 +1156,7 @@ async def execute_agent_generation(
             try:
                 from services.composer import maybe_trigger_heartbeat
                 await maybe_trigger_heartbeat(client, user_id, "agent_run_delivered", {
-                    "agent_id": str(agent_id), "skill": skill,
+                    "agent_id": str(agent_id), "skill": role,
                 })
             except Exception as e:
                 logger.warning(f"[EXEC] Event heartbeat trigger failed: {e}")

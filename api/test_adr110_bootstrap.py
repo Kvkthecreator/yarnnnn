@@ -165,8 +165,8 @@ async def phase2_bootstrap(supabase, ids: dict) -> PhaseResult:
     assert_eq(r, "Slack title", BOOTSTRAP_TEMPLATES["slack"]["title"], "Slack Recap")
     assert_eq(r, "Gmail title", BOOTSTRAP_TEMPLATES["gmail"]["title"], "Gmail Digest")
     assert_eq(r, "Notion title", BOOTSTRAP_TEMPLATES["notion"]["title"], "Notion Summary")
-    assert_eq(r, "All templates use digest skill",
-              all(t["skill"] == "digest" for t in BOOTSTRAP_TEMPLATES.values()), True)
+    assert_eq(r, "All templates use digest role",
+              all(t["role"] == "digest" for t in BOOTSTRAP_TEMPLATES.values()), True)
 
     # Run bootstrap for Slack
     agent_id = await maybe_bootstrap_agent(supabase, TEST_USER_ID, "slack")
@@ -182,7 +182,7 @@ async def phase2_bootstrap(supabase, ids: dict) -> PhaseResult:
 
         assert_true(r, "Agent exists in DB", agent is not None)
         assert_eq(r, "Agent title", agent.get("title"), "Slack Recap")
-        assert_eq(r, "Agent skill", agent.get("skill"), "digest")
+        assert_eq(r, "Agent role", agent.get("role"), "digest")
         assert_eq(r, "Agent scope", agent.get("scope"), "platform")
         assert_eq(r, "Agent origin", agent.get("origin"), "system_bootstrap")
         assert_eq(r, "Agent status", agent.get("status"), "active")
@@ -221,7 +221,7 @@ async def phase3_idempotency(supabase, ids: dict) -> PhaseResult:
         .select("id")
         .eq("user_id", TEST_USER_ID)
         .like("title", f"%Slack Recap%")
-        .eq("skill", "digest")
+        .eq("role", "digest")
         .execute()
     )
     # Filter to only our test agents
@@ -274,7 +274,7 @@ async def phase5_tier_limit(supabase, ids: dict) -> PhaseResult:
         r.ok("Gmail bootstrap completed (under limit)")
 
         # Verify it was created correctly
-        result = supabase.table("agents").select("title, skill, origin").eq("id", gmail_agent_id).single().execute()
+        result = supabase.table("agents").select("title, role, origin").eq("id", gmail_agent_id).single().execute()
         if result.data:
             assert_eq(r, "Gmail agent title", result.data.get("title"), "Gmail Digest")
             assert_eq(r, "Gmail agent origin", result.data.get("origin"), "system_bootstrap")
@@ -307,7 +307,7 @@ async def phase6_create_agent_chat(supabase, ids: dict) -> PhaseResult:
 
     result = await handle_create_agent(auth, {
         "title": f"{TEST_PREFIX}Chat Agent",
-        "skill": "synthesize",
+        "role": "synthesize",
         "frequency": "weekly",
         "recipient_name": "Test User",
     })
@@ -321,7 +321,7 @@ async def phase6_create_agent_chat(supabase, ids: dict) -> PhaseResult:
 
         agent = result.get("agent", {})
         assert_eq(r, "Title matches", agent.get("title"), f"{TEST_PREFIX}Chat Agent")
-        assert_eq(r, "Skill is synthesize", agent.get("skill"), "synthesize")
+        assert_eq(r, "Role is synthesize", agent.get("role"), "synthesize")
         assert_eq(r, "Scope auto-inferred to cross_platform",
                   agent.get("scope"), "cross_platform")
         assert_eq(r, "Origin is user_configured", agent.get("origin"), "user_configured")
@@ -358,7 +358,7 @@ async def phase7_write_rejection(supabase, ids: dict) -> PhaseResult:
 
     result = await handle_write(auth, {
         "ref": "agent:new",
-        "content": {"title": "Should Fail", "skill": "digest"},
+        "content": {"title": "Should Fail", "role": "digest"},
     })
 
     assert_eq(r, "Write returns success=False", result.get("success"), False)
@@ -449,20 +449,20 @@ async def phase9_agent_creation_validation(supabase, ids: dict) -> PhaseResult:
     assert_true(r, "research maps to research scope",
                 SKILL_TO_SCOPE.get("research") == "research")
 
-    # Test invalid skill defaults to custom
+    # Test invalid role defaults to custom
     result = await create_agent_record(
         client=supabase,
         user_id=TEST_USER_ID,
-        title=f"{TEST_PREFIX}Invalid Skill",
-        skill="nonexistent_skill",
+        title=f"{TEST_PREFIX}Invalid Role",
+        role="nonexistent_role",
         origin="user_configured",
     )
-    assert_true(r, "Invalid skill still creates agent", result.get("success") is True,
+    assert_true(r, "Invalid role still creates agent", result.get("success") is True,
                 result.get("message", ""))
     if result.get("success"):
         agent = result.get("agent", {})
-        assert_eq(r, "Invalid skill defaults to custom", agent.get("skill"), "custom")
-        assert_eq(r, "Custom skill scope is knowledge", agent.get("scope"), "knowledge")
+        assert_eq(r, "Invalid role defaults to custom", agent.get("role"), "custom")
+        assert_eq(r, "Custom role scope is knowledge", agent.get("scope"), "knowledge")
         ids["agent_ids"].append(result["agent_id"])
 
     # Test missing title fails
@@ -470,7 +470,7 @@ async def phase9_agent_creation_validation(supabase, ids: dict) -> PhaseResult:
         client=supabase,
         user_id=TEST_USER_ID,
         title="",
-        skill="digest",
+        role="digest",
     )
     assert_eq(r, "Empty title returns failure", result_no_title.get("success"), False)
     assert_eq(r, "Error is missing_title", result_no_title.get("error"), "missing_title")
@@ -504,7 +504,7 @@ async def phase10_tp_prompt(supabase, ids: dict) -> PhaseResult:
                 'memory:new' in TOOLS_SECTION,
                 "Write should still document memory creation")
 
-    # CreateAgent should list skills
+    # CreateAgent should list roles
     assert_true(r, "Skills listed in prompt",
                 "digest" in TOOLS_SECTION and "synthesize" in TOOLS_SECTION,
                 "Skills not listed")

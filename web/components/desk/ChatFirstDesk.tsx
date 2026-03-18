@@ -84,7 +84,7 @@ function AgentSourceIcons({ agent, className = 'w-4 h-4' }: { agent: Agent; clas
 
   if (providers.length === 0) {
     // Research/knowledge agents — use skill-derived icon
-    if (agent.skill === 'research') return <Globe className={className} />;
+    if (agent.role === 'research') return <Globe className={className} />;
     return <Brain className={className} />;
   }
 

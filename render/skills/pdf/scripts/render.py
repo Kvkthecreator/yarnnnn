@@ -1,11 +1,11 @@
-"""Document handler — markdown → PDF/DOCX via pandoc."""
+"""PDF/DOCX skill — markdown → PDF/DOCX via pandoc."""
 
 import subprocess
 import tempfile
 from pathlib import Path
 
 
-async def render_document(input_data: dict, output_format: str) -> tuple[bytes, str]:
+async def render_pdf(input_data: dict, output_format: str) -> tuple[bytes, str]:
     """
     Render markdown to PDF or DOCX.
 

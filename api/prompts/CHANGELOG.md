@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.1] - Skills alignment + SKILL.md injection (ADR-118 Phase D.1)
+
+### Changed
+- `render/`: Restructured `handlers/` → `skills/{name}/scripts/render.py` + `SKILL.md` per skill. Deleted `handlers/` directory entirely.
+- `render/main.py`: `HANDLERS` → `SKILLS` dict. Added `GET /skills/{name}/SKILL.md` and `GET /skills` endpoints for serving skill documentation. Updated all terminology (handler → skill).
+- `api/services/primitives/runtime_dispatch.py`: Updated tool definition — "handler" → "skill" throughout. Tool description references SKILL.md injection. Workspace write made FATAL (Resolved Decision #3) — failed workspace row creation now fails the entire RuntimeDispatch call instead of silently swallowing.
+- `api/services/agent_execution.py`: Added `_fetch_skill_docs()` — fetches SKILL.md content from output gateway via HTTP. Added `skill_docs` parameter to `_build_headless_system_prompt()`. Injected "Output Skill Documentation" section into system prompt for agents with RuntimeDispatch-authorized roles (synthesize, research, monitor, custom, orchestrate).
+
+### Expected behavior
+- **Agents read SKILL.md to learn spec construction.** When a synthesize/research/monitor/custom/orchestrate agent runs headlessly, the system prompt now includes the full SKILL.md documentation for all 4 output skills (pdf, pptx, xlsx, chart). This teaches agents how to construct high-quality RuntimeDispatch input specs.
+- **Fatal workspace writes.** If the workspace_files row fails after a render, the agent gets an error (with the storage URL for reference) instead of silent success. No more orphaned binaries.
+- **Graceful degradation.** If the render gateway is unreachable, skill docs are skipped — agent execution continues without them. Digest/prepare agents (not in RUNTIME_DISPATCH_ROLES) never fetch skill docs.
+
+---
+
 ## [2026.03.17.15] - Composer capability awareness + AGENT.md hints (ADR-118 Phase C)
 
 ### Changed

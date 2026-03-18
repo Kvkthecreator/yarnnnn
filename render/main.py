@@ -1,35 +1,60 @@
 """
-yarnnn-render — Lightweight render service for agent artifact production (ADR-118).
+yarnnn-render — Output gateway for agent artifact production (ADR-118).
 
-Single POST /render endpoint. Handlers convert structured input to binary files.
+Single POST /render endpoint. Skills convert structured input to binary files.
 Uploads results to Supabase Storage and returns the URL.
+GET /skills/{name}/SKILL.md serves skill instructions for agent context injection.
 """
 
 import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from handlers import HANDLERS
+from skills.pdf.scripts.render import render_pdf
+from skills.pptx.scripts.render import render_pptx
+from skills.xlsx.scripts.render import render_xlsx
+from skills.chart.scripts.render import render_chart
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="yarnnn-render", version="1.0.0")
+app = FastAPI(title="yarnnn-render", version="2.0.0")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 STORAGE_BUCKET = "agent-outputs"
 
+# Skill registry — maps skill type to render function (ADR-118)
+SKILLS = {
+    "document": render_pdf,
+    "presentation": render_pptx,
+    "spreadsheet": render_xlsx,
+    "chart": render_chart,
+}
+
+# Skill folder root for serving SKILL.md files
+SKILLS_DIR = Path(__file__).parent / "skills"
+
+# Map skill types to skill folder names
+SKILL_TYPE_TO_FOLDER = {
+    "document": "pdf",
+    "presentation": "pptx",
+    "spreadsheet": "xlsx",
+    "chart": "chart",
+}
+
 
 class RenderRequest(BaseModel):
     type: str  # document, presentation, spreadsheet, chart
-    input: dict  # handler-specific spec
+    input: dict  # skill-specific spec
     output_format: str  # pdf, docx, pptx, xlsx, png, svg
     template_id: Optional[str] = None
     filename: Optional[str] = None  # optional custom filename
@@ -68,26 +93,48 @@ async def _upload_to_storage(file_bytes: bytes, storage_path: str, content_type:
 async def health():
     return {
         "status": "ok",
-        "handlers": list(HANDLERS.keys()),
+        "skills": list(SKILLS.keys()),
         "storage": bool(SUPABASE_URL and SUPABASE_SERVICE_KEY),
     }
 
 
+@app.get("/skills/{name}/SKILL.md", response_class=PlainTextResponse)
+async def get_skill_md(name: str):
+    """Serve SKILL.md content for agent context injection (ADR-118 D.1).
+
+    The execution pipeline fetches this to inject skill instructions into
+    the agent's context, so agents learn how to construct high-quality specs.
+    """
+    skill_path = SKILLS_DIR / name / "SKILL.md"
+    if not skill_path.exists():
+        raise HTTPException(status_code=404, detail=f"Skill not found: {name}")
+    return skill_path.read_text(encoding="utf-8")
+
+
+@app.get("/skills", response_model=list[str])
+async def list_skills():
+    """List available skill folder names."""
+    return sorted(
+        d.name for d in SKILLS_DIR.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+    )
+
+
 @app.post("/render", response_model=RenderResponse)
 async def render(req: RenderRequest):
-    handler = HANDLERS.get(req.type)
-    if not handler:
+    skill_fn = SKILLS.get(req.type)
+    if not skill_fn:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown handler type: {req.type}. Available: {list(HANDLERS.keys())}",
+            detail=f"Unknown skill type: {req.type}. Available: {list(SKILLS.keys())}",
         )
 
     try:
-        file_bytes, content_type = await handler(req.input, req.output_format)
+        file_bytes, content_type = await skill_fn(req.input, req.output_format)
     except ValueError as e:
         return RenderResponse(success=False, error=str(e))
     except Exception as e:
-        logger.error(f"[RENDER] Handler {req.type} failed: {e}")
+        logger.error(f"[RENDER] Skill {req.type} failed: {e}")
         return RenderResponse(success=False, error=f"Render failed: {str(e)}")
 
     # Upload to Supabase Storage

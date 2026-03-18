@@ -1,11 +1,11 @@
-"""Spreadsheet handler — table spec → XLSX via openpyxl."""
+"""XLSX skill — table spec → XLSX via openpyxl."""
 
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
-async def render_spreadsheet(input_data: dict, output_format: str) -> tuple[bytes, str]:
+async def render_xlsx(input_data: dict, output_format: str) -> tuple[bytes, str]:
     """
     Render a table spec to XLSX.
 
@@ -20,6 +20,7 @@ async def render_spreadsheet(input_data: dict, output_format: str) -> tuple[byte
             ...
         ]
     }
+    OR flat format: {"title": str, "headers": [...], "rows": [...]}
     output_format: "xlsx"
     Returns: (file_bytes, content_type)
     """

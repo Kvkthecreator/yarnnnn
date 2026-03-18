@@ -1255,7 +1255,7 @@ export const api = {
           title: string;
           status: string;
           origin: string;
-          skill: string;
+          role: string;
           scope: string;
           sources: Array<{ provider?: string; resource_id?: string }>;
           last_run_at: string | null;

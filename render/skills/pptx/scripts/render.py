@@ -1,20 +1,19 @@
-"""Presentation handler — slide spec → PPTX via python-pptx."""
+"""PPTX skill — slide spec → PPTX via python-pptx."""
 
 import io
 from pptx import Presentation
 from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
 
 
-async def render_presentation(input_data: dict, output_format: str) -> tuple[bytes, str]:
+async def render_pptx(input_data: dict, output_format: str) -> tuple[bytes, str]:
     """
     Render a slide spec to PPTX.
 
     input_data: {
         "title": str,
+        "subtitle": str (optional),
         "slides": [
-            {"title": str, "content": str, "layout": "title"|"content"|"two_column" (optional)},
+            {"title": str, "content": str, "layout": "content" (optional)},
             ...
         ]
     }

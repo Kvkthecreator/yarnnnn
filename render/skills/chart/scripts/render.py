@@ -1,4 +1,4 @@
-"""Chart handler — data + spec → PNG/SVG via matplotlib."""
+"""Chart skill — data spec → PNG/SVG via matplotlib."""
 
 import io
 import matplotlib

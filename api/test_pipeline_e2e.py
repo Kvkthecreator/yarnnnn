@@ -93,7 +93,7 @@ MAYA = SyntheticUser(
     agent_config={
         "title": "Client Project Brief",
         "scope": "platform",
-        "skill": "prepare",
+        "role": "prepare",
         "schedule": {"frequency": "weekly", "day": "monday", "time": "09:00", "timezone": "America/Los_Angeles"},
         "sources": [{"type": "integration_import", "provider": "google", "source": "gmail"}],
         "recipient_context": {"name": "Self", "channel": "review"},
@@ -150,7 +150,7 @@ JAMES = SyntheticUser(
     agent_config={
         "title": "Weekly Founder Brief",
         "scope": "cross_platform",
-        "skill": "digest",
+        "role": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "17:00", "timezone": "America/New_York"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#product"},
@@ -207,7 +207,7 @@ SARAH = SyntheticUser(
     agent_config={
         "title": "Engineering Weekly Digest",
         "scope": "platform",
-        "skill": "digest",
+        "role": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "16:00", "timezone": "America/Chicago"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#engineering"},
@@ -395,7 +395,7 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
                 "user_id": user_id,
                 "title": test_title,
                 "scope": persona.agent_config["scope"],
-                "skill": persona.agent_config["skill"],
+                "role": persona.agent_config["role"],
                 "status": "active",
                 "schedule": persona.agent_config["schedule"],
                 "sources": persona.agent_config["sources"],

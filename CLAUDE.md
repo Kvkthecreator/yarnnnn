@@ -47,7 +47,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-104**: Agent Instructions as Unified Targeting - `agent_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
 - **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
 - **ADR-106**: Agent Workspace Architecture - virtual filesystem over Postgres (`workspace_files` table); agents interact via path-based operations; archetype-driven strategies (reporter/analyst/researcher/operator); reasoning agents drive own context gathering from workspace instead of receiving platform dumps; replaces `agent_memory` JSONB; storage-agnostic abstraction layer preserves optionality for cloud storage
-- **ADR-109**: Agent Framework — Scope × Skill × Trigger taxonomy replacing the 7-type system (ADR-093). Scope (what it knows: platform/cross_platform/knowledge/research/autonomous) determines context strategy. Skill (what it does: digest/prepare/monitor/research/synthesize/orchestrate/act) determines prompt + primitives. Trigger (when it acts) = preserved ADR-092 modes. `agent_type` column → `scope` + `skill` columns. Templates are user-facing convenience layer. Canonical reference: `docs/architecture/agent-framework.md`. (Docs complete, code migration pending.)
+- **ADR-109**: Agent Framework — Scope × Role × Trigger taxonomy replacing the 7-type system (ADR-093). Scope (what it knows: platform/cross_platform/knowledge/research/autonomous) determines context strategy. Role (what it does: digest/prepare/monitor/research/synthesize/orchestrate/act) determines prompt + primitives. Trigger (when it acts) = preserved ADR-092 modes. `agent_type` column → `scope` + `role` columns (was `skill`, renamed by ADR-118 Resolved Decision #4 to eliminate naming overload with output gateway skills). Templates are user-facing convenience layer. Canonical reference: `docs/architecture/agent-framework.md`. (Docs complete, code migration pending — includes `skill` → `role` column rename.)
 - **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Gmail→Digest, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Becomes Bootstrap bounded context within Composer (ADR-111). (Implemented.)
 - **ADR-111**: Agent Composer — TP's compositional capability (not a separate service). Three bounded contexts: **Bootstrap** (deterministic fast-path), **Heartbeat** (periodic TP self-assessment of agent workforce), **Composer** (assessment + creation/adjustment/dissolution). Unifies Write/CreateAgent into single `CreateAgent` primitive. Autonomy-first: bias toward action, feedback as correction. Proactive/coordinator modes reframed as TP supervisory capabilities. Platform content as onramp (dependency decreases over time). Lifecycle progression: per-agent maturity signals (run count, approval rate, edit distance trend), auto-pause underperformers, auto-create synthesis from mature digests, cross-agent pattern detection. (Implemented — all 5 phases.)
 - **ADR-112**: Sync Efficiency & Concurrency Control — three layers: (1) atomic sync lock on `platform_connections` replacing `SCHEDULE_WINDOW_MINUTES` timing hack, (2) platform-level heartbeat fast-path (Gmail historyId, Calendar syncToken, Slack latest, Notion search) to skip source iteration when nothing changed, (3) per-source skip hints (deferred). Coordinates all three sync paths (scheduled, manual, TP RefreshPlatformContent). (Implemented.)
@@ -56,6 +56,10 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-116**: Agent Identity & Inter-Agent Knowledge Infrastructure — makes agents discoverable and composable. Five phases: (1) knowledge metadata search (QueryKnowledge filters by agent_id/skill/scope), (2) agent discovery primitive (DiscoverAgents), (3) cross-agent workspace reading (ReadAgentContext — read-only), (4) agent card auto-generation + MCP exposure (get_agent_card, search_knowledge, discover_agents tools), (5) consumption tracking + Composer agent dependency graph (orphaned producers, missing producers, stale dependencies). Agent-native identity thesis: workspace IS identity, agents are first-class participants not human proxies. (Implemented.)
 
 - **ADR-117**: Agent Feedback Substrate & Developmental Model — unifies three disconnected feedback rails (user edits, Composer lifecycle, agent self-observation) into workspace as single substrate. Three phases: (1) feedback distillation to `memory/preferences.md` + extend workspace context to all agents (not just analyst), (2) agent self-reflection (post-generation observations), (3) intentions architecture (multi-skill within one agent identity, earned through feedback-gated capability progression). Formalizes FOUNDATIONS.md Axiom 3. (Proposed — Phase 1 ready.)
+
+- **ADR-118**: Skills as Capability Layer — "Claude Code online" model. Two-filesystem architecture: capability filesystem (skills on output gateway Docker service, `render/skills/{name}/SKILL.md` + scripts, platform-wide) and content filesystem (workspace_files + S3, user-scoped, accumulating). Adopts Claude Code naming conventions directly: skills (not handlers/capabilities), SKILL.md (not capability guides), skill folders (same structure as Claude Code). Two skill types: local (tools in Docker image, fixed cost) and delegated (external API/MCP, per-call cost). Skills are explicit/curated, earned via feedback-gated progression (Axiom 3). Phase A (delivery-by-default), Phase B (output gateway + first skills), Phase C (Composer + frontend awareness) implemented. Phase D (skills alignment + unified output + two-filesystem formalization) proposed. Full analysis: `docs/analysis/skills-as-capability-layer-2026-03-17.md`.
+
+- **ADR-119**: Workspace Filesystem Architecture — evolves `workspace_files` from flat key-value store to proper folder-based filesystem. Folders are boundaries, folders are context. Key conventions: output folders (`/agents/{slug}/outputs/{date}/`) replace bundle tables — co-located files + `manifest.json` = atomic output. Project folders (`/projects/{slug}/`) with scoped contribution subfolders = cross-agent collaboration. `/working/` = ephemeral scratch. Two schema additions: `version` + `lifecycle` columns on `workspace_files`. Manifest files carry metadata (sources, delivery status, file roles) instead of relational tables. Thesis: folders are boundaries and boundaries are all you need for coordination — same principle as Cowork's folder selection applied to persistent agent workspaces. Makes ADR-118 Phase D structurally sound. Extends ADR-106, interacts with ADR-116 (cross-agent reading), ADR-117 (feedback via manifests). (Proposed.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -89,7 +93,7 @@ Before completing work:
 
 ### 5. Render Service Parity
 
-YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: render service added). When changing environment variables, secrets, or architectural patterns, check ALL services:
+YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: output gateway added). When changing environment variables, secrets, or architectural patterns, check ALL services:
 
 | Service | Type | Render ID |
 |---------|------|-----------|
@@ -99,7 +103,7 @@ YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: 
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
 | yarnnn-render | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
 
-All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Render service is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib).
+All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Output gateway (yarnnn-render) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
 
 **Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
 - `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
@@ -114,7 +118,7 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 
 **MCP Auth model** (ADR-075): OAuth 2.1 for Claude.ai/ChatGPT (auto-approve, tokens stored in `mcp_oauth_*` tables). Static bearer token fallback for Claude Desktop/Code. See `api/mcp_server/oauth_provider.py`.
 
-**Render service env vars** (independent Docker service — ADR-118):
+**Output gateway env vars** (yarnnn-render — independent Docker service, ADR-118):
 - `SUPABASE_URL` — For storage uploads
 - `SUPABASE_SERVICE_KEY` — For storage uploads (service key, same as Schedulers)
 
@@ -132,7 +136,7 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 | Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
 | Platform sync logic | Platform Sync cron (runs `platform_worker.py`) |
 | MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
-| Render service / artifact rendering | yarnnn-render (independent Docker service, ADR-118) |
+| Output gateway / artifact rendering | yarnnn-render (independent Docker service, ADR-118) |
 
 **Note**: All platforms (Slack, Notion, Gmail, Calendar) use Direct API clients — no gateway service needed (ADR-076).
 
@@ -211,12 +215,13 @@ You MUST:
 - `platform_content` — unified content layer with retention (ADR-072); includes `platform="yarnnn"` for agent outputs (ADR-102)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
-- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103). Key columns: `scope` + `skill` (ADR-109, replacing `agent_type`), `mode` (trigger)
-- `agent_runs` — execution history per agent (was `deliverable_versions`, renamed ADR-103)
-- `agent_type` — column on `agents` table, **DEPRECATED** by ADR-109 — being replaced by `scope` + `skill`
+- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103). Key columns: `scope` + `role` (ADR-109, replacing `agent_type`; was `skill`, renamed by ADR-118 to eliminate naming overload), `mode` (trigger)
+- `agent_runs` — execution audit trail per agent (was `deliverable_versions`, renamed ADR-103). ADR-118 Phase D.3: transitioning to pure audit (delivery reads move to workspace_files)
+- `agent_type` — column on `agents` table, **DEPRECATED** by ADR-109 — being replaced by `scope` + `role`
 - `agent_instructions` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `AGENT.md`
 - `agent_memory` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `memory/*.md`
-- `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search; `content_url` column for rendered binary files (ADR-118)
+- `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search; `content_url` column for rendered binary files (ADR-118). ADR-118 Phase D: becomes the single output substrate for all agent outputs (text + binary), replacing agent_runs as the delivery source. ADR-119: adds `version` + `lifecycle` columns; folder conventions (output folders with `manifest.json`, project folders, ephemeral `/working/`) replace relational grouping tables
+- `workspace_file_versions` — NOT a table; version history uses `/history/` subfolder convention (ADR-119 Resolved Decision #3). On overwrite of high-value files (thesis.md, memory/*.md, AGENT.md), previous version copied to `/agents/{slug}/history/{filename}-v{N}.md`. Implemented in Phase 3.
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
@@ -301,7 +306,8 @@ You MUST:
 | Tier Limits | `api/services/platform_limits.py` |
 | Agent Scheduler | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075, ADR-116 Phase 4: 9 tools) |
-| Render Service | `render/` (ADR-118: pandoc, python-pptx, openpyxl, matplotlib) |
+| Output Gateway (yarnnn-render) | `render/` (ADR-118: skill library = capability filesystem) |
+| Output Gateway Skills | `render/skills/` (pptx, pdf, xlsx, chart + future; each folder has SKILL.md + scripts/) |
 | RuntimeDispatch Primitive | `api/services/primitives/runtime_dispatch.py` (ADR-118) |
 | Frontend API Client | `web/lib/api/client.ts` |
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |

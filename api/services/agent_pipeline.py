@@ -1,14 +1,15 @@
 """
 Agent Pipeline Utilities
 
-ADR-109: Skill-keyed prompt templates and validation.
+ADR-109: Role-keyed prompt templates and validation.
+         Scope × Role × Trigger framework (skill renamed to role for agent behavioral axis).
 ADR-073: Live API fetch functions removed — execution strategies
          read from platform_content (unified fetch architecture).
 
 Contains:
-- SKILL_PROMPTS: Per-skill prompt templates for LLM synthesis
-- build_skill_prompt(): Assembles prompt from agent config
-- validate_output(): Per-skill output validation
+- ROLE_PROMPTS: Per-role prompt templates for LLM synthesis
+- build_role_prompt(): Assembles prompt from agent config
+- validate_output(): Per-role output validation
 - (ADR-117: get_past_versions_context removed — feedback in workspace preferences.md)
 """
 
@@ -63,7 +64,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 
 # Default instructions seeded when an agent is created without explicit instructions.
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
-# ADR-109: Keyed by skill name
+# ADR-109: Keyed by role name
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
     "prepare": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
@@ -74,10 +75,10 @@ DEFAULT_INSTRUCTIONS = {
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
-# ADR-109: Skill prompts. Versions tracked in api/prompts/CHANGELOG.md
+# ADR-109: Role prompts. Versions tracked in api/prompts/CHANGELOG.md
 # synthesize: v4 (2026.03.06) — two-part format + cross-platform connections
 # digest: v2 (2026.03.06) — platform-wide recap with highlights + by-source breakdown
-SKILL_PROMPTS = {
+ROLE_PROMPTS = {
 
     "digest": """You are producing a platform recap titled "{title}".
 
@@ -398,7 +399,7 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
-}  # end SKILL_PROMPTS
+}  # end ROLE_PROMPTS
 
 
 
@@ -424,16 +425,16 @@ def _infer_source_platform(sources: list) -> str:
     return "default"
 
 
-def build_skill_prompt(
-    skill: str,
+def build_role_prompt(
+    role: str,
     config: dict,
     agent: dict,
     gathered_context: str,
     recipient_text: str,
 ) -> str:
-    """Build the skill-specific synthesis prompt (ADR-109)."""
+    """Build the role-specific synthesis prompt (ADR-109)."""
 
-    template = SKILL_PROMPTS.get(skill, SKILL_PROMPTS["custom"])
+    template = ROLE_PROMPTS.get(role, ROLE_PROMPTS["custom"])
 
     # Common fields present in all templates
     # ADR-104: Inject agent_instructions into user message (dual injection —
@@ -450,7 +451,7 @@ def build_skill_prompt(
         "user_instructions": user_instructions,
     }
 
-    if skill == "digest":
+    if role == "digest":
         source_platform = _infer_source_platform(agent.get("sources", []))
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
@@ -464,7 +465,7 @@ def build_skill_prompt(
             "platform_signals": platform_signals,
         })
 
-    elif skill == "prepare":
+    elif role == "prepare":
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
@@ -482,7 +483,7 @@ def build_skill_prompt(
             "date_range": date_range,
         })
 
-    elif skill == "synthesize":
+    elif role == "synthesize":
         fields.update({
             "subject": config.get("subject", agent.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
@@ -494,14 +495,14 @@ def build_skill_prompt(
             ),
         })
 
-    elif skill == "monitor":
+    elif role == "monitor":
         signals = config.get("signals", [])
         fields.update({
             "domain": config.get("domain", agent.get("title", "domain")),
             "signals": "\n".join(f"- {s}" for s in signals) if signals else "- Notable developments and emerging patterns",
         })
 
-    elif skill == "research":
+    elif role == "research":
         from datetime import datetime
         import pytz
         tz_name = agent.get("schedule", {}).get("timezone", "UTC")
@@ -514,7 +515,7 @@ def build_skill_prompt(
             "today_date": today_str,
         })
 
-    elif skill == "orchestrate":
+    elif role == "orchestrate":
         dispatch_rules = config.get("dispatch_rules", [])
         fields.update({
             "domain": config.get("domain", agent.get("title", "domain")),
@@ -531,9 +532,9 @@ def build_skill_prompt(
     try:
         return template.format(**fields)
     except KeyError as e:
-        logger.warning(f"Missing field in prompt template for skill={skill}: {e}")
+        logger.warning(f"Missing field in prompt template for role={role}: {e}")
         # Fall back to custom template
-        return SKILL_PROMPTS["custom"].format(**{
+        return ROLE_PROMPTS["custom"].format(**{
             "title": agent.get("title", "Agent"),
             "description": config.get("description", ""),
             "structure_notes": "",
@@ -544,7 +545,7 @@ def build_skill_prompt(
 
 
 # =============================================================================
-# ADR-109: Validation Functions (per skill)
+# ADR-109: Validation Functions (per role)
 # =============================================================================
 
 def _validate_minimum_content(content: str, min_words: int = 50) -> list[str]:
@@ -555,9 +556,9 @@ def _validate_minimum_content(content: str, min_words: int = 50) -> list[str]:
     return []
 
 
-def validate_output(skill: str, content: str, config: dict) -> dict:
+def validate_output(role: str, content: str, config: dict) -> dict:
     """
-    Validate generated content based on skill (ADR-109).
+    Validate generated content based on role (ADR-109).
 
     Returns:
         {
@@ -571,7 +572,7 @@ def validate_output(skill: str, content: str, config: dict) -> dict:
 
     issues = _validate_minimum_content(content)
 
-    if skill == "synthesize":
+    if role == "synthesize":
         detail_level = config.get("detail_level", "standard")
         min_words_map = {"brief": 150, "standard": 300, "detailed": 600}
         word_count = len(content.split())
@@ -579,7 +580,7 @@ def validate_output(skill: str, content: str, config: dict) -> dict:
         if word_count < min_w * 0.7:
             issues.append(f"Too short for {detail_level}: {word_count} words (expected {min_w}+)")
 
-    elif skill == "research":
+    elif role == "research":
         word_count = len(content.split())
         if word_count < 200:
             issues.append(f"Too short for proactive insights: {word_count} words (expected 200+)")
@@ -589,7 +590,7 @@ def validate_output(skill: str, content: str, config: dict) -> dict:
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
 
-    elif skill == "digest":
+    elif role == "digest":
         char_count = len(content)
         if char_count > 3000:
             issues.append(f"Digest may be too long: {char_count} chars")

@@ -32,7 +32,7 @@ import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import { formatDistanceToNow } from 'date-fns';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { SKILL_LABELS } from '@/lib/constants/agents';
+import { ROLE_LABELS } from '@/lib/constants/agents';
 import { cn } from '@/lib/utils';
 import type { Agent, AgentStatus } from '@/types';
 
@@ -199,7 +199,7 @@ function getAgentPlatformIcon(agent: Agent): React.ReactNode {
 
   const keys = Object.keys(providers);
   if (keys.length === 0) {
-    if (agent.skill === 'research') return <Globe className="w-5 h-5" />;
+    if (agent.role === 'research') return <Globe className="w-5 h-5" />;
     return <Brain className="w-5 h-5" />;
   }
   if (keys.length === 1) {
@@ -235,7 +235,7 @@ function AgentCard({
   agent: Agent;
   onClick: () => void;
 }) {
-  const typeLabel = SKILL_LABELS[agent.skill] || agent.skill;
+  const typeLabel = ROLE_LABELS[agent.role] || agent.role;
   const statusLine = getModeStatusLine(agent);
   const destination = formatDestination(agent);
   const latestStatus = agent.latest_version_status;

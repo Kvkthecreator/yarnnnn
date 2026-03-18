@@ -1,9 +1,12 @@
 """
-RuntimeDispatch Primitive — ADR-118 Phase B
+RuntimeDispatch Primitive — ADR-118
 
-Allows headless agents to dispatch rendering during generation.
+Allows headless agents to dispatch skill execution on the output gateway.
 Calls yarnnn-render service, uploads result to Supabase Storage,
 writes workspace_files row with content_url.
+
+Workspace write is FATAL — if the workspace row fails, the entire call fails.
+No orphaned binaries (ADR-118 Resolved Decision #3).
 """
 
 from __future__ import annotations
@@ -21,13 +24,18 @@ RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render
 
 RUNTIME_DISPATCH_TOOL = {
     "name": "RuntimeDispatch",
-    "description": """Render structured output as a downloadable file (PDF, PPTX, XLSX, chart image).
+    "description": """Invoke an output gateway skill to produce a downloadable file (PDF, PPTX, XLSX, chart image).
 
-Use this when the user's agent should produce a binary artifact alongside or instead of text.
+Use this when the agent should produce a binary artifact alongside text output.
 The rendered file is uploaded to storage and delivered as an email attachment or download link.
 
-type: document|presentation|spreadsheet|chart
-output_format: pdf|docx|pptx|xlsx|png|svg
+Available skills:
+- document: Markdown → PDF or DOCX (via pandoc)
+- presentation: Slide spec → PPTX (via python-pptx)
+- spreadsheet: Table spec → XLSX (via openpyxl)
+- chart: Data spec → PNG or SVG (via matplotlib)
+
+Construct the input spec according to the skill's SKILL.md instructions (injected into your context when authorized).
 
 Examples:
 - RuntimeDispatch(type="document", input={"markdown": "# Report\\n...", "title": "Q1 Report"}, output_format="pdf")
@@ -40,11 +48,11 @@ Examples:
             "type": {
                 "type": "string",
                 "enum": ["document", "presentation", "spreadsheet", "chart"],
-                "description": "Handler type",
+                "description": "Skill type to invoke on the output gateway",
             },
             "input": {
                 "type": "object",
-                "description": "Handler-specific input spec (see examples in description)",
+                "description": "Skill-specific input spec (see SKILL.md instructions in your context)",
             },
             "output_format": {
                 "type": "string",
@@ -64,26 +72,26 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     """
     Handle RuntimeDispatch primitive.
 
-    1. Calls yarnnn-render service via HTTP
-    2. On success, writes workspace_files row with content_url
+    1. Calls yarnnn-render output gateway via HTTP
+    2. On success, writes workspace_files row with content_url (FATAL on failure)
     3. Returns URL to agent for inclusion in output
     """
-    render_type = input.get("type", "")
-    render_input = input.get("input", {})
+    skill_type = input.get("type", "")
+    skill_input = input.get("input", {})
     output_format = input.get("output_format", "")
     filename = input.get("filename", "")
 
-    if not render_type or not output_format:
+    if not skill_type or not output_format:
         return {"success": False, "error": "missing_params", "message": "type and output_format are required"}
 
-    # Call render service
+    # Call output gateway
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{RENDER_SERVICE_URL}/render",
                 json={
-                    "type": render_type,
-                    "input": render_input,
+                    "type": skill_type,
+                    "input": skill_input,
                     "output_format": output_format,
                     "filename": filename or None,
                 },
@@ -91,9 +99,9 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
             resp.raise_for_status()
             result = resp.json()
     except httpx.TimeoutException:
-        return {"success": False, "error": "render_timeout", "message": "Render service timed out (60s)"}
+        return {"success": False, "error": "render_timeout", "message": "Output gateway timed out (60s)"}
     except Exception as e:
-        logger.error(f"[RUNTIME_DISPATCH] Render service call failed: {e}")
+        logger.error(f"[RUNTIME_DISPATCH] Output gateway call failed: {e}")
         return {"success": False, "error": "render_failed", "message": str(e)}
 
     if not result.get("success"):
@@ -103,36 +111,42 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     content_type = result.get("content_type", "")
     size_bytes = result.get("size_bytes", 0)
 
-    # Write workspace_files row with content_url
-    try:
-        agent_slug = getattr(auth, "agent_slug", None) or "unknown"
-        title = render_input.get("title", render_type)
-        safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
-        ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
+    # Write workspace_files row with content_url — FATAL on failure (ADR-118 Resolved Decision #3)
+    agent_slug = getattr(auth, "agent_slug", None) or "unknown"
+    title = skill_input.get("title", skill_type)
+    safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
+    ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
 
+    try:
         auth.client.table("workspace_files").upsert(
             {
                 "user_id": auth.user_id,
                 "path": ws_path,
-                "content": f"Rendered {render_type}: {title}",
+                "content": f"Rendered {skill_type}: {title}",
                 "content_type": content_type,
                 "content_url": output_url,
                 "metadata": {
-                    "render_type": render_type,
+                    "skill_type": skill_type,
                     "output_format": output_format,
                     "size_bytes": size_bytes,
                 },
-                "tags": ["rendered", render_type, output_format],
+                "tags": ["rendered", skill_type, output_format],
             },
             on_conflict="user_id,path",
         ).execute()
     except Exception as e:
-        logger.warning(f"[RUNTIME_DISPATCH] Workspace write failed (non-fatal): {e}")
+        logger.error(f"[RUNTIME_DISPATCH] Workspace write FAILED (fatal): {e}")
+        return {
+            "success": False,
+            "error": "workspace_write_failed",
+            "message": f"Rendered file uploaded to storage but workspace metadata write failed: {e}. "
+                       f"Output URL (for manual reference): {output_url}",
+        }
 
     return {
         "success": True,
         "output_url": output_url,
         "content_type": content_type,
         "size_bytes": size_bytes,
-        "message": f"Rendered {render_type} as {output_format} ({size_bytes} bytes). URL: {output_url}",
+        "message": f"Rendered {skill_type} as {output_format} ({size_bytes} bytes). URL: {output_url}",
     }

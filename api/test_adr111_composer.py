@@ -242,7 +242,7 @@ def phase2_should_composer_act() -> PhaseResult:
             "signals": [],
             "mature_agents": [
                 {"agent_id": "a1", "title": "Slack Recap", "scope": "platform",
-                 "skill": "digest", "total_runs": 15, "approval_rate": 0.9, "maturity": "mature"},
+                 "role": "digest", "total_runs": 15, "approval_rate": 0.9, "maturity": "mature"},
             ],
             "underperformers": [],
         },
@@ -261,9 +261,9 @@ def phase2_should_composer_act() -> PhaseResult:
         "agents": {"active": 4, "skills_present": ["digest"]},
         "maturity": {
             "signals": [
-                {"skill": "digest", "total_runs": 5},
-                {"skill": "digest", "total_runs": 4},
-                {"skill": "digest", "total_runs": 6},
+                {"role": "digest", "total_runs": 5},
+                {"role": "digest", "total_runs": 4},
+                {"role": "digest", "total_runs": 6},
             ],
             "mature_agents": [],
             "underperformers": [],
@@ -302,7 +302,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
         client=supabase,
         user_id=TEST_USER_ID,
         title=f"{TEST_PREFIX}Underperformer",
-        skill="digest",
+        role="digest",
         origin="composer",
         frequency="daily",
     )
@@ -327,7 +327,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
             "underperformers": [{
                 "agent_id": agent_id,
                 "title": f"{TEST_PREFIX}Underperformer",
-                "skill": "digest",
+                "role": "digest",
                 "scope": "platform",
                 "origin": "composer",
                 "total_runs": 10,
@@ -365,7 +365,7 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
             "underperformers": [],
             "mature_agents": [{
                 "agent_id": "x", "title": "Slack Recap", "scope": "platform",
-                "skill": "digest", "total_runs": 15,
+                "role": "digest", "total_runs": 15,
             }],
         },
     }
@@ -549,7 +549,7 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
         client=supabase,
         user_id=TEST_USER_ID,
         title=f"{TEST_PREFIX}UserCreated",
-        skill="digest",
+        role="digest",
         origin="user_configured",
         frequency="daily",
     )
@@ -566,7 +566,7 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
         client=supabase,
         user_id=TEST_USER_ID,
         title=f"{TEST_PREFIX}ComposerCreated",
-        skill="digest",
+        role="digest",
         origin="composer",
         frequency="daily",
     )
@@ -591,7 +591,7 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
                 {
                     "agent_id": user_agent_id,
                     "title": f"{TEST_PREFIX}UserCreated",
-                    "skill": "digest",
+                    "role": "digest",
                     "origin": "user_configured",
                     "total_runs": 10,
                     "approval_rate": 0.2,
@@ -600,7 +600,7 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
                 {
                     "agent_id": composer_agent_id,
                     "title": f"{TEST_PREFIX}ComposerCreated",
-                    "skill": "digest",
+                    "role": "digest",
                     "origin": "composer",
                     "total_runs": 10,
                     "approval_rate": 0.2,

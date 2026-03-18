@@ -36,8 +36,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { SKILL_LABELS } from '@/lib/constants/agents';
-import type { Skill } from '@/types';
+import { ROLE_LABELS } from '@/lib/constants/agents';
+import type { Role } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
@@ -644,9 +644,9 @@ function KnowledgeSection({
                       <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         {KNOWLEDGE_CLASS_LABELS[contentClass]}
                       </span>
-                      {typeof metadata.skill === 'string' && (
+                      {typeof metadata.role === 'string' && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {SKILL_LABELS[metadata.skill as Skill] || metadata.skill}
+                          {ROLE_LABELS[metadata.role as Role] || metadata.role}
                         </span>
                       )}
                     </div>

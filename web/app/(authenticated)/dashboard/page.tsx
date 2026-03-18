@@ -36,10 +36,10 @@ import {
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { SKILL_LABELS } from '@/lib/constants/agents';
+import { ROLE_LABELS } from '@/lib/constants/agents';
 import { formatDistanceToNow, format, isToday, isTomorrow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Skill } from '@/types';
+import type { Role } from '@/types';
 
 // =============================================================================
 // Types
@@ -84,7 +84,7 @@ function getAgentSourceIcon(agent: AgentHealth): React.ReactNode {
     }
   }
   if (providers.length === 0) {
-    return agent.skill === 'research'
+    return agent.role === 'research'
       ? <Globe className="w-4 h-4 text-muted-foreground" />
       : <Brain className="w-4 h-4 text-muted-foreground" />;
   }
@@ -457,7 +457,7 @@ function AttentionBanner({ item, onClick }: { item: AttentionItem; onClick: () =
 
 function AgentHealthCard({ agent, onClick }: { agent: AgentHealth; onClick: () => void }) {
   const isPaused = agent.status === 'paused';
-  const skillLabel = SKILL_LABELS[agent.skill as Skill] ?? agent.skill;
+  const skillLabel = ROLE_LABELS[agent.role as Role] ?? agent.role;
 
   return (
     <button

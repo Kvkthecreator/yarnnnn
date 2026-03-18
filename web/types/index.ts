@@ -237,7 +237,7 @@ export type Scope =
   | "research"        // Knowledge + WebSearch
   | "autonomous";     // Full primitive set, agent-driven
 
-export type Skill =
+export type Role =
   | "digest"      // Compress, summarize — platform recap
   | "prepare"     // Anticipate, assemble — meeting prep
   | "monitor"     // Track, diff, alert — domain watching
@@ -248,7 +248,7 @@ export type Skill =
   | "custom";     // User-defined
 
 // =============================================================================
-// ADR-109: Skill Configurations
+// ADR-109: Role Configurations
 // =============================================================================
 
 export interface DigestConfig {
@@ -285,7 +285,7 @@ export interface CustomConfig {
   structure_notes?: string;
 }
 
-export type SkillConfig =
+export type RoleConfig =
   | DigestConfig
   | PrepareConfig
   | SynthesizeConfig
@@ -400,10 +400,10 @@ export interface AgentSession {
 export interface Agent {
   id: string;
   title: string;
-  // ADR-109: Scope × Skill × Trigger
+  // ADR-109: Scope × Role × Trigger
   scope: Scope;
-  skill: Skill;
-  type_config?: SkillConfig;
+  role: Role;
+  type_config?: RoleConfig;
   project_id?: string;
   project_name?: string;  // For UI display
   recipient_context?: RecipientContext;
@@ -435,9 +435,9 @@ export interface Agent {
 
 export interface AgentCreate {
   title: string;
-  // ADR-109: Scope × Skill × Trigger
-  skill?: Skill;
-  type_config?: SkillConfig;
+  // ADR-109: Scope × Role × Trigger
+  role?: Role;
+  type_config?: RoleConfig;
   // ADR-031: Platform-native variants
   project_id?: string;
   recipient_context?: RecipientContext;
@@ -452,9 +452,9 @@ export interface AgentCreate {
 
 export interface AgentUpdate {
   title?: string;
-  // ADR-109: Scope × Skill × Trigger
-  skill?: Skill;
-  type_config?: SkillConfig;
+  // ADR-109: Scope × Role × Trigger
+  role?: Role;
+  type_config?: RoleConfig;
   // ADR-031: Platform-native variants
   recipient_context?: RecipientContext;
   schedule?: ScheduleConfig;
@@ -667,7 +667,7 @@ export interface PlatformSyncStatus {
 export interface ScheduledAgent {
   id: string;
   title: string;
-  skill: string;
+  role: string;
   next_run_at: string;
   destination_platform?: string | null;
 }

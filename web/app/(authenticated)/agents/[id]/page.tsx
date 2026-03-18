@@ -30,7 +30,7 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { SKILL_LABELS } from '@/lib/constants/agents';
+import { ROLE_LABELS } from '@/lib/constants/agents';
 import { AgentSettingsPanel } from '@/components/agents/AgentSettingsPanel';
 import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
 import { RunsPanel } from '@/components/agents/AgentRunDisplay';
@@ -61,7 +61,7 @@ function getAgentPlatformIcon(agent: Agent): React.ReactNode {
   }
   const keys = Object.keys(providers);
   if (keys.length === 0) {
-    if (agent.skill === 'research') return <Globe className="w-4 h-4" />;
+    if (agent.role === 'research') return <Globe className="w-4 h-4" />;
     return <Brain className="w-4 h-4" />;
   }
   if (keys.length === 1) return getPlatformIcon(keys[0], 'w-4 h-4');
@@ -85,7 +85,7 @@ function getScheduleSummary(agent: Agent): string | null {
     const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
     timeStr = `${h12}:${minute.toString().padStart(2, '0')}${ampm}`;
   } catch { /* keep original */ }
-  const skillLabel = SKILL_LABELS[agent.skill] || agent.skill;
+  const skillLabel = ROLE_LABELS[agent.role] || agent.role;
   switch (s.frequency) {
     case 'daily': return `${skillLabel} · Daily ${timeStr}`;
     case 'weekly': {

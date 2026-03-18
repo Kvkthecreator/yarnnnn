@@ -44,7 +44,7 @@ import {
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
-import { SKILL_LABELS } from '@/lib/constants/agents';
+import { ROLE_LABELS } from '@/lib/constants/agents';
 import type { Agent, ScheduleConfig, Document as DocType } from '@/types';
 
 // Format schedule to human readable string
@@ -399,7 +399,7 @@ function AgentCard({
   onClick: () => void;
 }) {
   const typeLabel =
-    SKILL_LABELS[agent.skill] || agent.skill;
+    ROLE_LABELS[agent.role] || agent.role;
 
   // Quality indicator
   const QualityIndicator = () => {
