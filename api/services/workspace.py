@@ -557,6 +557,28 @@ class AgentWorkspace:
             if note:
                 parts.append(f"## Working Note: {filename}\n{note}")
 
+        # ADR-119 Phase 2: Inject project context for contributing agents.
+        # If memory/projects.json exists, load each project's intent + preferences.
+        projects_json = await self.read("memory/projects.json")
+        if projects_json:
+            import json as _json
+            try:
+                projects_list = _json.loads(projects_json)
+                for proj in projects_list:
+                    slug = proj.get("project_slug", "")
+                    if not slug:
+                        continue
+                    pw = ProjectWorkspace(self._db, self._user_id, slug)
+                    project_ctx = await pw.load_context()
+                    if project_ctx:
+                        expected = proj.get("expected_contribution", "")
+                        header = f"## Contributing To: {proj.get('title', slug)}"
+                        if expected:
+                            header += f"\n**Your expected contribution:** {expected}"
+                        parts.append(f"{header}\n{project_ctx}")
+            except _json.JSONDecodeError:
+                pass
+
         return "\n\n---\n\n".join(parts) if parts else ""
 
     async def record_observation(self, note: str, source: str = "review") -> bool:
@@ -1383,3 +1405,465 @@ def get_agent_slug(agent: dict) -> str:
         return slug[:50]  # Cap length
 
     return str(agent_id)[:36]
+
+
+def get_project_slug(title: str) -> str:
+    """
+    Derive a filesystem-safe slug for a project from its title.
+    Same logic as get_agent_slug but takes a title string directly.
+    """
+    if title:
+        slug = title.lower().strip()
+        slug = "".join(c if c.isalnum() or c == "-" else "-" for c in slug)
+        slug = "-".join(part for part in slug.split("-") if part)
+        return slug[:50]
+    return "unnamed-project"
+
+
+class ProjectWorkspace:
+    """
+    Workspace scoped to a project: /projects/{slug}/
+
+    Cross-agent collaboration space (ADR-119 Phase 2).
+    Follows the recursive pattern from ADR-119 Section 4:
+    PROJECT.md (identity), /memory/ (state), /contributions/ (per-agent),
+    /assembly/ (composed outputs), /working/ (scratch).
+    """
+
+    def __init__(self, db_client, user_id: str, project_slug: str):
+        self._db = db_client
+        self._user_id = user_id
+        self._slug = project_slug
+        self._base = f"/projects/{project_slug}"
+
+    def _full_path(self, relative: str) -> str:
+        """Convert relative path to absolute workspace path."""
+        if relative.startswith("/"):
+            relative = relative.lstrip("/")
+        return f"{self._base}/{relative}"
+
+    @staticmethod
+    def _infer_lifecycle(path: str) -> str:
+        """ADR-119: Infer lifecycle from path convention."""
+        if "/working/" in path:
+            return "ephemeral"
+        return "active"
+
+    # =========================================================================
+    # Core I/O — mirrors AgentWorkspace
+    # =========================================================================
+
+    async def read(self, relative_path: str) -> Optional[str]:
+        """Read a file's content. Returns None if not found."""
+        path = self._full_path(relative_path)
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if rows:
+                return rows[0]["content"]
+            return None
+        except Exception as e:
+            logger.warning(f"[PROJECT] Read failed: {path}: {e}")
+            return None
+
+    async def write(self, relative_path: str, content: str, summary: str = None,
+                    tags: list[str] = None, lifecycle: str = None,
+                    content_type: str = None, content_url: str = None,
+                    metadata: dict = None) -> bool:
+        """Write a file (upsert). Returns True on success."""
+        path = self._full_path(relative_path)
+        try:
+            data = {
+                "user_id": self._user_id,
+                "path": path,
+                "content": content,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "lifecycle": lifecycle or self._infer_lifecycle(path),
+            }
+            if summary is not None:
+                data["summary"] = summary
+            if tags is not None:
+                data["tags"] = tags
+            if content_type is not None:
+                data["content_type"] = content_type
+            if content_url is not None:
+                data["content_url"] = content_url
+            if metadata is not None:
+                data["metadata"] = metadata
+
+            self._db.table("workspace_files").upsert(
+                data,
+                on_conflict="user_id,path",
+            ).execute()
+            return True
+        except Exception as e:
+            logger.error(f"[PROJECT] Write failed: {path}: {e}")
+            return False
+
+    async def list(self, relative_path: str = "", recursive: bool = False,
+                   include_lifecycle: list[str] = None) -> list[str]:
+        """List files under a path. Returns relative paths."""
+        prefix = self._full_path(relative_path)
+        if not prefix.endswith("/"):
+            prefix += "/"
+        try:
+            q = (
+                self._db.table("workspace_files")
+                .select("path")
+                .eq("user_id", self._user_id)
+                .like("path", f"{prefix}%")
+            )
+            if include_lifecycle:
+                q = q.in_("lifecycle", include_lifecycle)
+            else:
+                q = q.in_("lifecycle", ["active", "delivered"])
+            result = q.order("path").execute()
+            paths = [r["path"] for r in (result.data or [])]
+
+            if not recursive:
+                direct = set()
+                for p in paths:
+                    remainder = p[len(prefix):]
+                    if "/" in remainder:
+                        direct.add(remainder.split("/")[0] + "/")
+                    else:
+                        direct.add(remainder)
+                return sorted(direct)
+
+            return [p[len(prefix):] for p in paths]
+        except Exception as e:
+            logger.warning(f"[PROJECT] List failed: {prefix}: {e}")
+            return []
+
+    async def search(self, query: str, path_prefix: str = None, limit: int = 10) -> list[SearchResult]:
+        """Full-text search within this project's workspace."""
+        full_prefix = self._full_path(path_prefix) if path_prefix else self._base
+        try:
+            result = self._db.rpc("search_workspace", {
+                "p_user_id": self._user_id,
+                "p_query": query,
+                "p_path_prefix": full_prefix,
+                "p_limit": limit,
+            }).execute()
+
+            return [
+                SearchResult(
+                    path=r["path"],
+                    summary=r.get("summary"),
+                    content=r["content"][:500],
+                    rank=r.get("rank", 0),
+                    updated_at=r.get("updated_at"),
+                )
+                for r in (result.data or [])
+            ]
+        except Exception as e:
+            logger.warning(f"[PROJECT] Search failed: {query}: {e}")
+            return []
+
+    async def exists(self, relative_path: str) -> bool:
+        """Check if a file exists."""
+        path = self._full_path(relative_path)
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("id")
+                .eq("user_id", self._user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            return bool(result.data)
+        except Exception:
+            return False
+
+    async def delete(self, relative_path: str) -> bool:
+        """Delete a file."""
+        path = self._full_path(relative_path)
+        try:
+            self._db.table("workspace_files").delete().eq(
+                "user_id", self._user_id
+            ).eq("path", path).execute()
+            return True
+        except Exception as e:
+            logger.warning(f"[PROJECT] Delete failed: {path}: {e}")
+            return False
+
+    # =========================================================================
+    # PROJECT.md — identity and coordination contract
+    # =========================================================================
+
+    async def read_project(self) -> Optional[dict]:
+        """Parse PROJECT.md into structured dict.
+
+        Returns:
+            {title, intent: {deliverable, audience, format, purpose},
+             contributors: [{agent_slug, expected_contribution}],
+             assembly_spec, delivery: {channel, target}, status}
+            or None if PROJECT.md doesn't exist.
+        """
+        content = await self.read("PROJECT.md")
+        if not content:
+            return None
+
+        result = {
+            "title": "",
+            "intent": {},
+            "contributors": [],
+            "assembly_spec": "",
+            "delivery": {},
+            "status": "active",
+        }
+
+        current_section = None
+        buffer_lines = []
+
+        for line in content.split("\n"):
+            stripped = line.strip()
+
+            # Title: first H1
+            if stripped.startswith("# ") and not result["title"]:
+                result["title"] = stripped[2:].strip()
+                continue
+
+            # Section headers
+            if stripped.startswith("## "):
+                # Flush previous section
+                if current_section == "assembly_spec":
+                    result["assembly_spec"] = "\n".join(buffer_lines).strip()
+                current_section = stripped[3:].strip().lower().replace(" ", "_")
+                buffer_lines = []
+                continue
+
+            # Parse section content
+            if current_section == "intent":
+                if stripped.startswith("- **") and "**:" in stripped:
+                    key_end = stripped.index("**:", 4)
+                    key = stripped[4:key_end].lower()
+                    value = stripped[key_end + 3:].strip()
+                    result["intent"][key] = value
+
+            elif current_section == "contributors":
+                if stripped.startswith("- ") and ":" in stripped:
+                    parts = stripped[2:].split(":", 1)
+                    result["contributors"].append({
+                        "agent_slug": parts[0].strip(),
+                        "expected_contribution": parts[1].strip(),
+                    })
+
+            elif current_section == "assembly_spec":
+                buffer_lines.append(line)
+
+            elif current_section == "delivery":
+                if stripped.startswith("- **") and "**:" in stripped:
+                    key_end = stripped.index("**:", 4)
+                    key = stripped[4:key_end].lower()
+                    value = stripped[key_end + 3:].strip()
+                    result["delivery"][key] = value
+
+            elif current_section == "status":
+                if stripped:
+                    result["status"] = stripped
+
+        # Flush final section
+        if current_section == "assembly_spec":
+            result["assembly_spec"] = "\n".join(buffer_lines).strip()
+
+        return result
+
+    async def write_project(
+        self,
+        title: str,
+        intent: dict,
+        contributors: list[dict],
+        assembly_spec: str = "",
+        delivery: dict = None,
+    ) -> bool:
+        """Write PROJECT.md from structured data.
+
+        Args:
+            title: Project title
+            intent: {deliverable, audience, format, purpose}
+            contributors: [{agent_slug, expected_contribution}]
+            assembly_spec: How contributions combine
+            delivery: {channel, target}
+        """
+        lines = [f"# {title}", "", "## Intent"]
+        for key in ["deliverable", "audience", "format", "purpose"]:
+            if key in intent:
+                label = key.capitalize()
+                lines.append(f"- **{label}**: {intent[key]}")
+
+        lines.extend(["", "## Contributors"])
+        for c in contributors:
+            lines.append(f"- {c['agent_slug']}: {c.get('expected_contribution', '')}")
+
+        if assembly_spec:
+            lines.extend(["", "## Assembly Spec", assembly_spec])
+
+        if delivery:
+            lines.extend(["", "## Delivery"])
+            for key in ["channel", "target"]:
+                if key in delivery:
+                    label = key.capitalize()
+                    lines.append(f"- **{label}**: {delivery[key]}")
+
+        return await self.write(
+            "PROJECT.md",
+            "\n".join(lines),
+            summary=f"Project identity: {title}",
+            tags=["project", "identity"],
+        )
+
+    # =========================================================================
+    # Contributions — per-agent scoped writes
+    # =========================================================================
+
+    async def contribute(self, agent_slug: str, filename: str, content: str,
+                         summary: str = None, content_type: str = None,
+                         content_url: str = None) -> bool:
+        """Write a contribution from a specific agent.
+
+        Writes to /projects/{slug}/contributions/{agent_slug}/{filename}.
+        Each agent can only write to its own contributions subfolder.
+        """
+        return await self.write(
+            f"contributions/{agent_slug}/{filename}",
+            content,
+            summary=summary or f"Contribution from {agent_slug}",
+            tags=["contribution", agent_slug],
+            content_type=content_type,
+            content_url=content_url,
+        )
+
+    async def list_contributors(self) -> list[str]:
+        """List agent slugs that have contributed (subfolders under contributions/)."""
+        items = await self.list("contributions/")
+        # Items are like "agent-slug/" — strip trailing slash
+        return [item.rstrip("/") for item in items if item.endswith("/")]
+
+    async def list_contributions(self, agent_slug: str) -> list[str]:
+        """List files contributed by a specific agent."""
+        return await self.list(f"contributions/{agent_slug}/", recursive=True)
+
+    # =========================================================================
+    # Assembly — composed outputs (like agent's save_output)
+    # =========================================================================
+
+    async def assemble(
+        self,
+        content: str,
+        rendered_files: list[dict] = None,
+        version: int = 1,
+        sources: list[str] = None,
+    ) -> Optional[str]:
+        """Write an assembled output to a dated assembly folder with manifest.
+
+        Mirrors AgentWorkspace.save_output() but for project-level composed outputs.
+
+        Args:
+            content: The assembled text output (markdown)
+            rendered_files: Optional rendered binaries [{path, content_type, content_url, size_bytes, role}]
+            version: Assembly version number
+            sources: Contribution paths consumed during assembly
+
+        Returns:
+            The assembly folder path (e.g., "assembly/2026-03-18T0900/"), or None on failure.
+        """
+        import json as _json
+
+        now = datetime.now(timezone.utc)
+        date_folder = now.strftime("%Y-%m-%dT%H00")
+        folder_path = f"assembly/{date_folder}"
+
+        # 1. Write the assembled text output
+        text_success = await self.write(
+            f"{folder_path}/output.md",
+            content,
+            summary=f"Assembly v{version} output",
+            tags=["assembly", f"v{version}"],
+            lifecycle="active",
+        )
+        if not text_success:
+            return None
+
+        # 2. Build manifest
+        files = [
+            {"path": "output.md", "type": "text/markdown", "role": "primary"},
+        ]
+
+        if rendered_files:
+            for rf in rendered_files:
+                files.append({
+                    "path": rf.get("path", ""),
+                    "type": rf.get("content_type", ""),
+                    "role": rf.get("role", "rendered"),
+                    "content_url": rf.get("content_url", ""),
+                    "size_bytes": rf.get("size_bytes", 0),
+                })
+
+        manifest = {
+            "project_slug": self._slug,
+            "version": version,
+            "created_at": now.isoformat(),
+            "status": "active",
+            "files": files,
+            "sources": sources or [],
+            "feedback": {},
+        }
+
+        # 3. Write manifest.json
+        await self.write(
+            f"{folder_path}/manifest.json",
+            _json.dumps(manifest, indent=2),
+            summary=f"Assembly v{version} manifest",
+            tags=["manifest", f"v{version}"],
+            content_type="application/json",
+            lifecycle="active",
+            metadata={
+                "project_slug": self._slug,
+                "version": version,
+            },
+        )
+
+        logger.info(f"[PROJECT] ADR-119 P2: Assembled output at {self._base}/{folder_path}/ ({len(files)} files)")
+        return folder_path
+
+    async def list_assemblies(self) -> list[str]:
+        """List assembly date-folders under assembly/."""
+        items = await self.list("assembly/")
+        return [item.rstrip("/") for item in items if item.endswith("/")]
+
+    # =========================================================================
+    # Context loading — for project-aware agents
+    # =========================================================================
+
+    async def load_context(self) -> str:
+        """Load project context for injection into contributing agents.
+
+        Returns a formatted string of PROJECT.md intent + memory/*.
+        """
+        parts = []
+
+        # PROJECT.md — coordination contract
+        project_md = await self.read("PROJECT.md")
+        if project_md:
+            parts.append(f"## Project: {self._slug}\n{project_md}")
+
+        # Load project memory files
+        memory_files = await self.list("memory/")
+        for filename in memory_files:
+            if filename.endswith("/"):
+                continue
+            content = await self.read(f"memory/{filename}")
+            if content:
+                label = filename.replace(".md", "").replace("-", " ").title()
+                parts.append(f"## Project Memory: {label}\n{content}")
+
+        return "\n\n---\n\n".join(parts) if parts else ""

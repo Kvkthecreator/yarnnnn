@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.5] - Project folders (ADR-119 Phase 2)
+
+### Changed
+- `api/services/workspace.py`: Added `ProjectWorkspace` class scoped to `/projects/{slug}/` — core I/O (read/write/list/search/exists/delete), `read_project()` parses PROJECT.md into structured dict, `write_project()` serializes from structured data, `contribute()` writes to `/contributions/{agent_slug}/`, `assemble()` creates dated assembly folders with manifest.json, `list_contributors()`, `list_assemblies()`, `load_context()` concatenates PROJECT.md + memory/*. Added `get_project_slug()` helper. Extended `AgentWorkspace.load_context()` to inject project context from `memory/projects.json`.
+- `api/services/primitives/project.py`: New file. `CreateProject` primitive — slugifies title, resolves contributor agents, writes PROJECT.md, seeds contributor workspaces with `memory/projects.json` pointer. `ReadProject` primitive — reads parsed PROJECT.md + contributions + assemblies.
+- `api/services/primitives/registry.py`: Registered CreateProject + ReadProject in PRIMITIVES, HANDLERS, PRIMITIVE_MODES (both chat + headless).
+- `api/routes/projects.py`: New file. REST CRUD: GET /api/projects (list), GET /api/projects/{slug} (detail), POST /api/projects (create), PATCH /api/projects/{slug} (update), DELETE /api/projects/{slug} (archive).
+- `api/main.py`: Included projects router at `/api/projects`.
+
+### Expected behavior
+- **Projects are collaboration spaces.** Creating a project writes PROJECT.md (coordination contract) + seeds contributing agent workspaces with project membership pointers. Contributing agents receive project intent in their generation context.
+- **Recursive pattern.** Project folders mirror agent folder structure: PROJECT.md (identity), /memory/ (state), /contributions/ (per-agent), /assembly/ (composed outputs), /working/ (scratch).
+- **Context injection.** When an agent's `load_context()` runs, it checks `memory/projects.json` and injects each project's intent + preferences into the agent's generation context.
+
+---
+
 ## [2026.03.18.4] - Unified output substrate (ADR-118 Phase D.3)
 
 ### Changed

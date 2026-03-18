@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phase 1 Implemented, Phase 2-4 Proposed
+> **Status**: Phase 1-2 Implemented, Phase 3-4 Proposed
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)
@@ -296,11 +296,17 @@ This is simpler, more intuitive, and more extensible than relational tables for 
 - ✅ Tool descriptions updated: ReadWorkspace, WriteWorkspace, ListWorkspace, SearchWorkspace
 
 ### Phase 2: Project Folders + Cross-Agent Writing (After Phase 1)
-- Establish `/projects/` path convention
-- Implement `ReadProject` primitive
-- Write permission scoping for project contribution folders
-- Composer heuristics for project creation
-- `PROJECT.md` convention with status tracking
+- `ProjectWorkspace` class (analogous to AgentWorkspace, scoped to `/projects/{slug}/`)
+- `PROJECT.md` schema: intent (deliverable, audience, format, purpose), contributors (agent roster + expected contributions), assembly spec (how parts combine, skill requirements), delivery config
+- `CreateProject` primitive with requirements propagation: parse intent → identify skill needs → check/create contributing agents → verify skill authorizations → write PROJECT.md + folder structure
+- `ReadProject` primitive: returns PROJECT.md parsed + contributor listing + latest assembly manifest
+- Extend `ReadAgentContext` to handle `/projects/` paths (contributing agents read project intent + memory)
+- Write permission scoping: agents write only to `/projects/{slug}/contributions/{own-slug}/`
+- Context injection: during `load_context()`, inject PROJECT.md intent + project preferences.md for contributing agents
+- Composer project creation heuristics (heartbeat: detect cross-agent consumption patterns → propose project)
+- Composer assembly logic (read contributions, invoke gateway skills per assembly spec, write to `/assembly/{date}/`)
+- API routes: `/api/projects` CRUD + `/api/projects/{slug}/contributors` management
+- Full design: `docs/design/PROJECTS-PRODUCT-DIRECTION.md`
 
 ### Phase 3: Version History for Evolving Files (After Phase 2)
 - Version history via `/history/` subfolder for evolving files (thesis.md, memory/*.md, AGENT.md)

@@ -38,6 +38,10 @@ from .workspace import (
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
+from .project import (
+    CREATE_PROJECT_TOOL, handle_create_project,
+    READ_PROJECT_TOOL, handle_read_project,
+)
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -210,6 +214,9 @@ PRIMITIVES = [
     SAVE_MEMORY_TOOL,
     # Runtime dispatch — headless only (ADR-118)
     RUNTIME_DISPATCH_TOOL,
+    # Project primitives — chat + headless (ADR-119 Phase 2)
+    CREATE_PROJECT_TOOL,
+    READ_PROJECT_TOOL,
 ]
 
 
@@ -239,6 +246,8 @@ HANDLERS: dict[str, Callable] = {
     "ReadAgentContext": handle_read_agent_context,
     "SaveMemory": handle_save_memory,
     "RuntimeDispatch": handle_runtime_dispatch,
+    "CreateProject": handle_create_project,
+    "ReadProject": handle_read_project,
 }
 
 
@@ -332,6 +341,9 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "SaveMemory":             ["chat"],
     # Runtime dispatch — headless only (ADR-118)
     "RuntimeDispatch":        ["headless"],
+    # Project primitives — chat + headless (ADR-119 Phase 2)
+    "CreateProject":          ["chat", "headless"],
+    "ReadProject":            ["chat", "headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.

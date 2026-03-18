@@ -1,0 +1,266 @@
+"""
+Project Primitives — ADR-119 Phase 2
+
+  CreateProject  — creates a project folder with PROJECT.md + seeds contributor workspaces
+  ReadProject    — reads project identity, contributors, assemblies
+
+Projects are cross-agent collaboration spaces. Each project lives at
+/projects/{slug}/ with a coordination contract (PROJECT.md) that defines
+what the assembled output looks like and which agents contribute.
+"""
+
+from __future__ import annotations
+
+import json as _json
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# CreateProject (chat + headless, ADR-119 Phase 2)
+# =============================================================================
+
+CREATE_PROJECT_TOOL = {
+    "name": "CreateProject",
+    "description": """Create a new cross-agent collaboration project.
+
+A project combines contributions from multiple agents into an assembled
+output none could produce alone (e.g., a Q2 review deck with data + narrative).
+
+Required: title
+Optional: intent (object), contributors (array), assembly_spec, delivery (object)
+
+intent: {deliverable, audience, format, purpose}
+contributors: [{agent_id, expected_contribution}]
+delivery: {channel, target}
+
+Example:
+  CreateProject(
+    title="Q2 Business Review",
+    intent={deliverable: "Executive presentation", audience: "Leadership", format: "pptx"},
+    contributors=[{agent_id: "uuid-1", expected_contribution: "Revenue data + charts"}]
+  )""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "Project title"
+            },
+            "intent": {
+                "type": "object",
+                "description": "Project intent: {deliverable, audience, format, purpose}",
+                "properties": {
+                    "deliverable": {"type": "string"},
+                    "audience": {"type": "string"},
+                    "format": {"type": "string"},
+                    "purpose": {"type": "string"},
+                },
+            },
+            "contributors": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "agent_id": {"type": "string"},
+                        "expected_contribution": {"type": "string"},
+                    },
+                    "required": ["agent_id"],
+                },
+                "description": "Agents that contribute to this project",
+            },
+            "assembly_spec": {
+                "type": "string",
+                "description": "How contributions combine into the final output",
+            },
+            "delivery": {
+                "type": "object",
+                "description": "Delivery config: {channel, target}",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "target": {"type": "string"},
+                },
+            },
+        },
+        "required": ["title"],
+    },
+}
+
+
+async def handle_create_project(auth: Any, input: dict) -> dict:
+    """
+    Handle CreateProject primitive.
+
+    1. Slugify title → project_slug
+    2. Look up contributor agents → resolve slugs
+    3. Write PROJECT.md via ProjectWorkspace
+    4. Seed contributor agent workspaces with memory/projects.json pointer
+    5. Return {success, project_slug}
+    """
+    from services.workspace import ProjectWorkspace, AgentWorkspace, get_project_slug, get_agent_slug
+
+    title = input.get("title", "").strip()
+    if not title:
+        return {"success": False, "error": "missing_title", "message": "title is required"}
+
+    intent = input.get("intent", {})
+    contributors_input = input.get("contributors", [])
+    assembly_spec = input.get("assembly_spec", "")
+    delivery = input.get("delivery", {})
+
+    project_slug = get_project_slug(title)
+
+    # Resolve contributor agents → get their slugs
+    contributors = []
+    for c in contributors_input:
+        agent_id = c.get("agent_id", "").strip()
+        expected = c.get("expected_contribution", "")
+        if not agent_id:
+            continue
+
+        try:
+            result = (
+                auth.client.table("agents")
+                .select("id, title")
+                .eq("id", agent_id)
+                .eq("user_id", auth.user_id)
+                .maybe_single()
+                .execute()
+            )
+            if result and result.data:
+                agent_slug = get_agent_slug(result.data)
+                contributors.append({
+                    "agent_slug": agent_slug,
+                    "agent_id": agent_id,
+                    "expected_contribution": expected,
+                })
+            else:
+                logger.warning(f"[PROJECT] Contributor agent not found: {agent_id}")
+        except Exception as e:
+            logger.warning(f"[PROJECT] Failed to look up contributor {agent_id}: {e}")
+
+    # Create ProjectWorkspace and write PROJECT.md
+    pw = ProjectWorkspace(auth.client, auth.user_id, project_slug)
+
+    success = await pw.write_project(
+        title=title,
+        intent=intent,
+        contributors=contributors,
+        assembly_spec=assembly_spec,
+        delivery=delivery,
+    )
+
+    if not success:
+        return {"success": False, "error": "write_failed", "message": "Failed to write PROJECT.md"}
+
+    # Seed each contributor's workspace with a project pointer
+    for c in contributors:
+        try:
+            agent_ws = AgentWorkspace(auth.client, auth.user_id, c["agent_slug"])
+
+            # Read existing projects.json or create new
+            existing = await agent_ws.read("memory/projects.json")
+            if existing:
+                try:
+                    projects_list = _json.loads(existing)
+                except _json.JSONDecodeError:
+                    projects_list = []
+            else:
+                projects_list = []
+
+            # Add this project if not already present
+            if not any(p.get("project_slug") == project_slug for p in projects_list):
+                projects_list.append({
+                    "project_slug": project_slug,
+                    "title": title,
+                    "expected_contribution": c["expected_contribution"],
+                })
+
+            await agent_ws.write(
+                "memory/projects.json",
+                _json.dumps(projects_list, indent=2),
+                summary=f"Project memberships ({len(projects_list)} projects)",
+                content_type="application/json",
+            )
+        except Exception as e:
+            logger.warning(f"[PROJECT] Failed to seed contributor workspace {c['agent_slug']}: {e}")
+
+    logger.info(f"[PROJECT] ADR-119 P2: Created project '{title}' ({project_slug}) with {len(contributors)} contributors")
+
+    return {
+        "success": True,
+        "project_slug": project_slug,
+        "title": title,
+        "contributors": [{"agent_slug": c["agent_slug"], "agent_id": c["agent_id"]} for c in contributors],
+        "message": f"Project '{title}' created at /projects/{project_slug}/",
+    }
+
+
+# =============================================================================
+# ReadProject (chat + headless, ADR-119 Phase 2)
+# =============================================================================
+
+READ_PROJECT_TOOL = {
+    "name": "ReadProject",
+    "description": """Read a project's identity, contributors, and assembly history.
+
+Returns the parsed PROJECT.md, list of contributing agents with their files,
+and any assembled outputs.
+
+Required: project_slug""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_slug": {
+                "type": "string",
+                "description": "Project slug (e.g., 'q2-business-review')",
+            },
+        },
+        "required": ["project_slug"],
+    },
+}
+
+
+async def handle_read_project(auth: Any, input: dict) -> dict:
+    """
+    Handle ReadProject primitive.
+
+    Reads PROJECT.md → parsed dict, lists contributors + their files,
+    lists assemblies.
+    """
+    from services.workspace import ProjectWorkspace
+
+    project_slug = input.get("project_slug", "").strip()
+    if not project_slug:
+        return {"success": False, "error": "missing_slug", "message": "project_slug is required"}
+
+    pw = ProjectWorkspace(auth.client, auth.user_id, project_slug)
+
+    # Parse PROJECT.md
+    project = await pw.read_project()
+    if not project:
+        return {
+            "success": False,
+            "error": "not_found",
+            "message": f"Project not found: /projects/{project_slug}/PROJECT.md",
+        }
+
+    # List contributors and their files
+    contributor_slugs = await pw.list_contributors()
+    contributions = {}
+    for slug in contributor_slugs:
+        files = await pw.list_contributions(slug)
+        contributions[slug] = files
+
+    # List assemblies
+    assemblies = await pw.list_assemblies()
+
+    return {
+        "success": True,
+        "project_slug": project_slug,
+        "project": project,
+        "contributions": contributions,
+        "assemblies": assemblies,
+    }
