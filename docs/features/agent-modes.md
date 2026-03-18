@@ -1,12 +1,12 @@
 # Agent Modes
 
 **Status:** Canonical
-**Date:** 2026-03-04 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework)
+**Date:** 2026-03-04 (updated 2026-03-17 for ADR-109/ADR-118: Scope × Role × Trigger framework)
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — implementation contracts
-- [Agent Framework: Scope × Skill × Trigger](../architecture/agent-framework.md) — canonical taxonomy (ADR-109)
+- [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — canonical taxonomy (ADR-109, axis renamed per ADR-118)
 
-This document is the user-facing and product framing for agent modes (internally: **triggers** in the Scope × Skill × Trigger framework). For implementation contracts, see ADR-092. For how triggers relate to scope and skill, see the [Agent Framework](../architecture/agent-framework.md).
+This document is the user-facing and product framing for agent modes (internally: **triggers** in the Scope × Role × Trigger framework). For implementation contracts, see ADR-092. For how triggers relate to scope and role, see the [Agent Framework](../architecture/agent-framework.md).
 
 ---
 

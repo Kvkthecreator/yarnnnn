@@ -1,9 +1,23 @@
 # Skills as the Capability Layer: From Text Substrate to General-Purpose Agent Execution
 
-> **Status**: ADR-118 formalized. All three phases (A+B+C) implemented.
+> **Status**: ADR-118 formalized (Phase A+B+C implemented, Phase D proposed). This analysis is the reasoning journal; ADR-118 is the canonical decision record.
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Context**: Observation that Claude Code's skill pattern (Remotion for video, pptx/xlsx/docx for documents) proves that structured instructions + filesystem = indefinitely expandable agent capabilities. What does this mean for yarnnn?
+
+### Terminology Reconciliation (v6)
+
+This document was written iteratively across multiple discourse rounds. Some terminology evolved during the conversation and was superseded by ADR-118's canonical framing:
+
+| This document says | ADR-118 canonical term | Notes |
+|---|---|---|
+| "runtime adapter" / "adapter" | **handler** | Both local and delegated execution paths are "handlers" |
+| "render service" | **output gateway** | The execution environment, not just a file converter |
+| "runtime registry" | **handler registry** (`HANDLERS` dict) | The capability library |
+| "Phase 0/1/2/3/4" | **Phase A/B/C/D** | ADR-118 phases are canonical; this doc's phases reflect reasoning journey |
+| "RuntimeAdapter class" (pseudocode) | Handler function + `HANDLERS` dict | Implementation is simpler than the analysis predicted |
+
+Where this document and ADR-118 conflict, **ADR-118 governs**.
 
 ---
 
@@ -784,3 +798,4 @@ Skills are the indefinitely expandable capability layer. The pattern already wor
 | 2026-03-17 | v3 — First-principles derivation from FOUNDATIONS.md axioms. Each axiom constrains the implementation space: runtime as agent capability (Ax1), output re-enters perception substrate (Ax2), runtime access earned through progression (Ax3), feedback loop depth over runtime breadth (Ax4), zero-config via Composer (Ax6). Revised phasing: templates precede runtime adapters. Upgraded interim decision to high confidence. Removed standalone competitor comparison, folded strategic insight into macro positioning. |
 | 2026-03-17 | v4 — Decision validation: stress-tested all five axiom-derived constraints against strongest counter-arguments. Added cost & operational model (runtime <10% marginal cost). Added scalability assessment (no new bottlenecks). Added future-proofing assessment (adapter interface accommodates all foreseeable models). Added Terminology & Capability Model section: resolved SKILL.md vs AGENT.md question (capabilities absorbed by runtime registry, explicit/curated set, SKILL.md doesn't port), glossary alignment. Key refinement: templates are ungated (bootstrap agents use from day one), only generative runtime dispatch is earned. Decision confidence: high. |
 | 2026-03-17 | v5 — Infrastructure model revised: hybrid render service replaces pure third-party API orchestration. One self-hosted Render service (`yarnnn-render`) for lightweight capabilities (pandoc, python-pptx, matplotlib, pillow, openpyxl — 80%+ of knowledge-worker outputs), third-party API delegation for heavy compute (video, AI images — Phase 3+). Full re-assessment against code maintenance (one Dockerfile < N API integrations), scalability (stateless, embarrassingly parallel, handles 15-20 capability types), cost projections (fixed $7-14/mo local + variable delegated, <3% of Claude API at all scales, saves $4.6K/yr vs CloudConvert at 10K agents), stability (no external dependencies for core path, blast radius contained for delegated). Branch 1 resolved. Capability classification table added (local vs. delegated with routing heuristic). Phasing updated: Phase 2 deploys render service, Phase 3 expands local handlers + adds first delegated adapter. |
+| 2026-03-17 | v6 — "Claude Code online" reframe. Render service → output gateway (execution environment, not file converter). Handlers = capability library (equivalent of SKILL.md). Virtual filesystem = workspace_files + S3 + `/assets/` layer (creative assets, templates, brand kits). Two handler types: local (tools in Docker) and delegated (external API/MCP). Output gateway is yarnnn's "internet computer" — fat Docker image with tools installed, indefinitely expandable via handler files. Added terminology reconciliation table at top: where this analysis doc and ADR-118 conflict, ADR-118 governs. Phase D proposed: gateway completion (image, diagram, video handlers) + virtual filesystem `/assets/` layer. ADR-118 updated as canonical decision record. CLAUDE.md updated with output gateway terminology and ADR-118 entry. |

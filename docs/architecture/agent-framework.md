@@ -1,7 +1,7 @@
-# Agent Framework: Scope × Skill × Trigger
+# Agent Framework: Scope × Role × Trigger
 
 **Status:** Canonical
-**Date:** 2026-03-12
+**Date:** 2026-03-12 (updated 2026-03-17: `skill` axis renamed to `role` per ADR-118 Resolved Decision #4 — eliminates naming overload with output gateway skills)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
@@ -22,15 +22,17 @@
 Every agent answers two irreducible questions:
 
 1. **What does the agent know?** → **Scope** — determines context strategy
-2. **What does the agent do?** → **Skill** — determines prompt, primitives, output shape
+2. **What does the agent do?** → **Role** — determines prompt, primitives, output shape
 
 A third operational question governs lifecycle:
 
 3. **When does the agent act?** → **Trigger** — determines scheduler behavior
 
-An agent's **identity** is defined by Scope × Skill. Its **lifecycle** is governed by Trigger. These are orthogonal: any Scope can combine with any Skill, and any Scope × Skill combination can run on any Trigger.
+An agent's **identity** is defined by Scope × Role. Its **lifecycle** is governed by Trigger. These are orthogonal: any Scope can combine with any Role, and any Scope × Role combination can run on any Trigger.
 
-This framework is designed to survive any future agentic protocol. A2A Agent Cards, MCP resources, Claude Agent SDK, OpenAI Assistants — all express Scope (what the agent accesses), Skill (what it can do), and Trigger (when it runs). The specific values within each axis expand; the axes themselves are stable.
+This framework is designed to survive any future agentic protocol. A2A Agent Cards, MCP resources, Claude Agent SDK, OpenAI Assistants — all express Scope (what the agent accesses), Role (what it does), and Trigger (when it runs). The specific values within each axis expand; the axes themselves are stable.
+
+> **Naming note (ADR-118):** This axis was previously called "Skill." Renamed to "Role" to eliminate overload with output gateway skills (pptx, pdf, xlsx, etc.). "Role" = what an agent does (behavioral). "Skill" = what an agent can produce (output capability). See [ADR-118: Skills as Capability Layer](../adr/ADR-118-skills-as-capability-layer.md).
 
 ---
 
@@ -57,11 +59,11 @@ Scope determines the agent's **context strategy** — how intelligence is gather
 Users configure **sources** (connect Slack, select channels) and **instructions** (describe focus). Scope is derived:
 
 ```
-0 platform sources + research skill        → research
-0 platform sources + any other skill       → knowledge
+0 platform sources + research role         → research
+0 platform sources + any other role        → knowledge
 1 platform                                 → platform
 2+ platforms                               → cross_platform
-coordinator/orchestrate skill              → autonomous
+coordinator/orchestrate role               → autonomous
 ```
 
 The user never thinks "platform scope" — they think "my Slack channels." Scope is a system-internal execution strategy classification.
@@ -78,11 +80,11 @@ This creates an observable dependency: platform agents → `/knowledge/` → kno
 
 ---
 
-## Axis 2: Skill — What the agent does
+## Axis 2: Role — What the agent does
 
-Skill determines the agent's **prompt template**, **available primitives**, **output shape**, and **quality evaluation**.
+Role determines the agent's **prompt template**, **available primitives**, **output shape**, and **quality evaluation**.
 
-| Skill | Verb | Output | Character |
+| Role | Verb | Output | Character |
 |-------|------|--------|-----------|
 | **digest** | Compress, summarize | Document (recap, summary) | Lossy reduction, recency-weighted |
 | **prepare** | Anticipate, assemble | Document (brief, prep) | Event-driven, anticipatory, time-sensitive |
@@ -92,18 +94,18 @@ Skill determines the agent's **prompt template**, **available primitives**, **ou
 | **orchestrate** | Coordinate, dispatch | Agent actions (create/trigger agents) | Meta-level, reads agent outputs, manages fleet |
 | **act** | Execute, respond, post | Platform action (reply, send, update, post) | Agentic, requires permissions, approval-gated (future) |
 
-### One agent, one skill
+### One agent, one role
 
-Multi-skill requests decompose into multiple agents sharing the same source configuration. This is architecturally correct because:
+Multi-role requests decompose into multiple agents sharing the same source configuration. This is architecturally correct because:
 
 - Digest and Reply have different triggers, context budgets, quality evaluation, and failure modes
 - Combining them forces conflicting optimization targets
 - UX solution: templates can create **agent bundles** — one user action, multiple correctly-scoped agents
 
-### Primitive gating by skill
+### Primitive gating by role
 
 ```python
-SKILL_PRIMITIVES = {
+ROLE_PRIMITIVES = {
     "digest":       ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge"],
     "prepare":      ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "WebSearch"],
     "monitor":      ["Search", "Read", "RefreshPlatformContent", "QueryKnowledge", "ReadWorkspace", "WriteWorkspace"],
@@ -117,12 +119,12 @@ SKILL_PRIMITIVES = {
 
 ### Action capability is policy, not dimension
 
-Capability level (read-only → monitored → autonomous) is NOT a separate axis. It is a **graduated permission model** (ActionPolicy) applied to the skill's primitive set:
+Capability level (read-only → monitored → autonomous) is NOT a separate axis. It is a **graduated permission model** (ActionPolicy) applied to the role's primitive set:
 
 ```python
 class ActionPolicy:
     """Per-agent permission model for write primitives.
-    Derivative of Skill — not a taxonomic dimension."""
+    Derivative of Role — not a taxonomic dimension."""
 
     approval_mode: Literal["staged", "auto"]  # default: staged
     rate_limit: Optional[int]                  # max actions per hour
@@ -150,7 +152,7 @@ Trigger is important but operational — it governs scheduling, not identity. An
 
 ---
 
-## The Scope × Skill Matrix
+## The Scope × Role Matrix
 
 Not all combinations are natural, but the matrix is open — invalid combinations degrade gracefully rather than failing.
 
@@ -175,9 +177,9 @@ Act             ✓ Reply     ✓ Cross-     ─           ─           ✓ Aut
 
 ## Templates — User-Facing Convenience Layer
 
-Templates are pre-configured Scope × Skill × Trigger combinations with sensible defaults. Users pick a template to start; the system sets the dimensions. Advanced users can override.
+Templates are pre-configured Scope × Role × Trigger combinations with sensible defaults. Users pick a template to start; the system sets the dimensions. Advanced users can override.
 
-| Template Label | Scope | Skill | Default Trigger | Description |
+| Template Label | Scope | Role | Default Trigger | Description |
 |---------------|-------|-------|----------------|-------------|
 | **Slack Recap** | platform | digest | recurring | Channel activity summary |
 | **Gmail Digest** | platform | digest | recurring | Email digest by label |
@@ -278,11 +280,11 @@ The moat is accumulation. Aggressive pruning destroys the moat. Ranking-based de
 
 | Standard | YARNNN Mapping |
 |----------|---------------|
-| **A2A Agent Cards** | Skill → skills list. Scope → context/capabilities. Auto-generate Agent Cards from Scope + Skill. |
-| **MCP Resources** | Each `/agents/{slug}/` workspace is a natural MCP resource scope. Skill primitives map to MCP tools. |
-| **Claude Agent SDK** | Agent identity (instructions + memory + workspace) maps to SDK agent config. Skill → tool sets. |
-| **OpenAI Assistants** | Scope → file_search/code_interpreter selection. Skill → instructions template. |
-| **LangGraph / CrewAI** | Scope × Skill × Trigger is a superset of role + goal + backstory. |
+| **A2A Agent Cards** | Role → skills list. Scope → context/capabilities. Auto-generate Agent Cards from Scope + Role. |
+| **MCP Resources** | Each `/agents/{slug}/` workspace is a natural MCP resource scope. Role primitives map to MCP tools. |
+| **Claude Agent SDK** | Agent identity (instructions + memory + workspace) maps to SDK agent config. Role → tool sets. |
+| **OpenAI Assistants** | Scope → file_search/code_interpreter selection. Role → instructions template. |
+| **LangGraph / CrewAI** | Scope × Role × Trigger is a superset of role + goal + backstory. |
 
 ### External invocation (MCP-first)
 
@@ -309,7 +311,7 @@ Each axis expands independently:
 - New primitives: `FetchAPI`, `QueryGraphQL`
 - Skill and Trigger unchanged
 
-**New Skill:** `"report"` — agent produces formatted, structured reports
+**New Role:** `"report"` — agent produces formatted, structured reports
 - New prompt template and output validation
 - Scope and Trigger unchanged
 
@@ -323,9 +325,9 @@ This is the test of the taxonomy: each expansion touches one axis. The others re
 
 ## Migration from Current Type System
 
-### Backfill map (agent_type → Scope × Skill)
+### Backfill map (agent_type → Scope × Role)
 
-| Current `agent_type` | Scope (inferred) | Skill | Default Trigger |
+| Current `agent_type` | Scope (inferred) | Role | Default Trigger |
 |---------------------|-------------------|-------|----------------|
 | `digest` | platform (from sources) | digest | recurring |
 | `brief` | cross_platform | prepare | recurring |
@@ -340,20 +342,20 @@ This is the test of the taxonomy: each expansion touches one axis. The others re
 ```sql
 -- Phase 1: Add new fields alongside existing
 ALTER TABLE agents ADD COLUMN scope TEXT;
-ALTER TABLE agents ADD COLUMN skill TEXT;
+ALTER TABLE agents ADD COLUMN role TEXT;  -- was: skill, renamed per ADR-118 RD#4
 -- agent_type remains for backwards compatibility during migration
 -- mode is renamed conceptually to trigger (column name may stay for migration simplicity)
 
 -- Phase 2: Backfill from agent_type
-UPDATE agents SET scope = 'platform', skill = 'digest' WHERE agent_type = 'digest';
-UPDATE agents SET scope = 'cross_platform', skill = 'prepare' WHERE agent_type = 'brief';
-UPDATE agents SET scope = 'cross_platform', skill = 'synthesize' WHERE agent_type = 'status';
-UPDATE agents SET scope = 'knowledge', skill = 'monitor' WHERE agent_type = 'watch';
-UPDATE agents SET scope = 'research', skill = 'research' WHERE agent_type = 'deep_research';
-UPDATE agents SET scope = 'autonomous', skill = 'orchestrate' WHERE agent_type = 'coordinator';
-UPDATE agents SET scope = 'research', skill = 'research' WHERE agent_type = 'custom';
+UPDATE agents SET scope = 'platform', role = 'digest' WHERE agent_type = 'digest';
+UPDATE agents SET scope = 'cross_platform', role = 'prepare' WHERE agent_type = 'brief';
+UPDATE agents SET scope = 'cross_platform', role = 'synthesize' WHERE agent_type = 'status';
+UPDATE agents SET scope = 'knowledge', role = 'monitor' WHERE agent_type = 'watch';
+UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'deep_research';
+UPDATE agents SET scope = 'autonomous', role = 'orchestrate' WHERE agent_type = 'coordinator';
+UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'custom';
 
--- Phase 3: Execution pipeline reads scope + skill instead of agent_type
+-- Phase 3: Execution pipeline reads scope + role instead of agent_type
 -- Phase 4: Drop agent_type column
 ```
 
@@ -367,7 +369,7 @@ UPDATE agents SET scope = 'research', skill = 'research' WHERE agent_type = 'cus
 | Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
-| Type prompts (→ skill prompts) | `api/services/agent_pipeline.py` |
+| Type prompts (→ role prompts) | `api/services/agent_pipeline.py` |
 | Agent execution pipeline | `api/services/agent_execution.py` |
 | Agent workspace | `api/services/workspace.py` |
 | Frontend constants | `web/lib/constants/agents.ts` |

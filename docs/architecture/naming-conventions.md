@@ -60,6 +60,12 @@ These names appear in code, API documentation, and architecture docs. They shoul
 
 **Why "Primitives" not "Tools":** YARNNN's primitives are a curated, mode-gated set — not an extensible plugin system. "Tools" implies users can add their own (MCP model). "Primitives" implies a foundational set that the system provides. This is an intentional product choice: YARNNN's value comes from how the agent uses its built-in capabilities with accumulated context, not from tool extensibility.
 
+**"Role" vs "Skill" (ADR-118):** Two axes that must not be confused:
+- **Role** = what an agent does (digest, monitor, synthesize, etc.). Column on `agents` table (was `skill`, renamed per ADR-118 RD#4). This is the behavioral axis from ADR-109.
+- **Skill** = what an agent can produce (pptx, pdf, xlsx, chart, etc.). Output gateway skills following Claude Code SKILL.md conventions (ADR-118). This is the output capability axis.
+
+"Role" is YARNNN-specific. "Skill" follows Claude Code ecosystem conventions deliberately — skill folders, SKILL.md files, and scripts match the Claude Code format for ecosystem participation.
+
 ### Tier 3 — Concepts in architecture docs only
 
 These appear only in ADRs and architecture documentation. They help contributors understand the system but don't surface to users.
@@ -112,6 +118,7 @@ Existing names that don't follow these conventions. Each has a migration plan.
 | `surface_context` (frontend → backend) | `chat_context` or rename to match `agent_id` routing | Frontend API call + backend handler | ADR-087 Phase 1 (when we wire `agent_id`) |
 | `agents.agent_instructions` (column) | `AGENT.md` workspace file | Workspace file becomes source of truth; column kept for read fallback | ADR-106 Phase 2 |
 | `agents.agent_memory` (JSONB column) | `memory/*.md` workspace files | Topic-scoped workspace files replace opaque JSONB | ADR-106 Phase 2 |
+| `agents.skill` (column) | `agents.role` | Eliminates naming overload with output gateway skills (ADR-118 RD#4) | ADR-118 Phase D.1 |
 
 ---
 

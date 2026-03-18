@@ -1,6 +1,8 @@
-# ADR-109: Agent Framework — Scope × Skill × Trigger
+# ADR-109: Agent Framework — Scope × Role × Trigger
 
-**Status:** Implemented
+> **Naming update (2026-03-17):** The second axis was renamed from "Skill" to "Role" per [ADR-118 Resolved Decision #4](ADR-118-skills-as-capability-layer.md) to eliminate naming overload with output gateway skills (pptx, pdf, xlsx, etc.). "Role" = what an agent does (behavioral). "Skill" = what an agent can produce (output capability). The `agents.skill` column will be renamed to `agents.role` as part of ADR-118 Phase D.1 migration. References to "skill" in this ADR refer to the behavioral axis (now called "role").
+
+**Status:** Implemented (pending `skill` → `role` column rename)
 **Date:** 2026-03-12
 **Authors:** Kevin Kim, Claude (analysis + discourse)
 **Supersedes:**

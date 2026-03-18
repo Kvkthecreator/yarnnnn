@@ -1,10 +1,10 @@
-# Agent Skills — Feature Reference
+# Agent Roles — Feature Reference
 
 **Status:** Living document
-**Date:** 2026-03-12
-**Related:** [Agent Framework: Scope × Skill × Trigger](../architecture/agent-framework.md), [ADR-109: Agent Framework Migration](../adr/ADR-109-agent-framework.md) (pending), [Quality Testing Framework](../development/agent-quality-testing.md)
+**Date:** 2026-03-12 (updated 2026-03-17: "skill" axis renamed to "role" per ADR-118 RD#4)
+**Related:** [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md), [ADR-109: Agent Framework](../adr/ADR-109-agent-framework.md), [Quality Testing Framework](../development/agent-quality-testing.md)
 
-Each agent is defined by two orthogonal axes: **Scope** (what it knows) and **Skill** (what it does). This document captures validated output formats, execution details, and design decisions per skill. Skills are added here as they go through quality validation (see testing framework).
+Each agent is defined by two orthogonal axes: **Scope** (what it knows) and **Role** (what it does). This document captures validated output formats, execution details, and design decisions per role. Note: "Skill" now refers to output gateway capabilities (pptx, pdf, etc.) per ADR-118. "Role" is the behavioral axis.
 
 **Targeting (ADR-104):** All user intent for "what this agent should focus on" flows through `agent_instructions`. Instructions are dual-injected: into the headless system prompt (behavioral constraints) and into the skill prompt user message (priority lens for the gathered context). There are no per-source filters or structured scope fields — instructions are the unified targeting layer. ADR-105 migrates instruction editing to the chat surface (directives via chat, configuration in drawer).
 
