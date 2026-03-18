@@ -699,7 +699,12 @@ async def generate_draft_inline(
             "output_tokens": total_output_tokens,
         }
         logger.info(f"[GENERATE] Token usage: {total_input_tokens} in / {total_output_tokens} out")
-        return draft, usage
+
+        # ADR-118 D.3: Collect rendered files accumulated by RuntimeDispatch during generation
+        pending_renders = getattr(executor, "auth", None)
+        pending_renders = getattr(pending_renders, "pending_renders", []) if pending_renders else []
+
+        return draft, usage, pending_renders
 
     except Exception as e:
         logger.error(f"[GENERATE] LLM call failed: {e}")
@@ -726,6 +731,67 @@ async def update_version_for_delivery(
     if metadata:
         update["metadata"] = metadata
     client.table("agent_runs").update(update).eq("id", version_id).execute()
+
+
+# =============================================================================
+# ADR-118 D.3: Delivery helpers for workspace-based delivery path
+# =============================================================================
+
+
+def _log_export_standalone(client, version_id: str, user_id: str, destination: dict, result) -> None:
+    """Log export to export_log table (standalone — not via DeliveryService)."""
+    try:
+        from integrations.core.types import ExportStatus
+        client.table("export_log").insert({
+            "agent_run_id": version_id,
+            "user_id": user_id,
+            "provider": destination.get("platform", "unknown"),
+            "destination": destination,
+            "status": result.status.value,
+            "external_id": result.external_id,
+            "external_url": result.external_url,
+            "error_message": result.error_message,
+            "completed_at": datetime.now(timezone.utc).isoformat() if result.status == ExportStatus.SUCCESS else None,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[EXEC] Failed to log export: {e}")
+
+
+async def _notify_delivery(client, user_id: str, agent: dict, destination: dict, result) -> None:
+    """Send delivery success notification (ADR-040)."""
+    try:
+        from services.notifications import notify_agent_delivered
+        platform = destination.get("platform", "unknown")
+        target = destination.get("target")
+        dest_str = platform
+        if target:
+            dest_str += f" ({target})"
+        await notify_agent_delivered(
+            db_client=client,
+            user_id=user_id,
+            agent_id=str(agent.get("id", "")),
+            agent_title=agent.get("title", "Agent"),
+            destination=dest_str,
+            external_url=result.external_url,
+            delivery_platform=platform,
+        )
+    except Exception as e:
+        logger.warning(f"[EXEC] Delivery notification failed: {e}")
+
+
+async def _notify_delivery_failed(client, user_id: str, agent: dict, error: str) -> None:
+    """Send delivery failure notification (ADR-040)."""
+    try:
+        from services.notifications import notify_agent_failed
+        await notify_agent_failed(
+            db_client=client,
+            user_id=user_id,
+            agent_id=str(agent.get("id", "")),
+            agent_title=agent.get("title", "Agent"),
+            error=error,
+        )
+    except Exception as e:
+        logger.warning(f"[EXEC] Failure notification failed: {e}")
 
 
 # =============================================================================
@@ -949,7 +1015,7 @@ async def execute_agent_generation(
 
         # 4. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
         research_directive = context_summary.get("research_directive")
-        draft, usage = await generate_draft_inline(
+        draft, usage, pending_renders = await generate_draft_inline(
             client, user_id, agent, gathered_context,
             trigger_context, research_directive,
         )
@@ -1005,8 +1071,7 @@ async def execute_agent_generation(
             "last_run_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", agent_id).execute()
 
-        # 7. ADR-066: Always attempt delivery (no governance check)
-        # Email-first: normalize/fallback to user's email if destination incomplete
+        # 7. ADR-066: Normalize destination (email-first fallback)
         # get_user_email requires service role (auth.admin API)
         from services.supabase import get_service_client as _get_svc
         user_email = get_user_email(_get_svc(), user_id)
@@ -1023,13 +1088,109 @@ async def execute_agent_generation(
             except Exception:
                 pass  # Non-fatal
 
+        # 8. ADR-118 D.3: Save output folder BEFORE delivery (with rendered files from RuntimeDispatch)
+        # Output folder is the single delivery source. Fatal if this fails.
+        from services.workspace import AgentWorkspace, get_agent_slug, KnowledgeBase
+        from services.supabase import get_service_client as _get_svc3
+        slug = get_agent_slug(agent)
+        svc_client = _get_svc3()
+        ws = AgentWorkspace(svc_client, user_id, slug)
+        output_folder = None
+
+        try:
+            output_folder = await ws.save_output(
+                content=draft,
+                run_id=str(version_id),
+                agent_id=str(agent_id),
+                version_number=next_version,
+                role=role,
+                rendered_files=pending_renders if pending_renders else None,
+            )
+            if output_folder:
+                logger.info(
+                    f"[EXEC] ADR-118 D.3: Saved output folder at /agents/{slug}/{output_folder}/ "
+                    f"({len(pending_renders)} rendered files)"
+                )
+            else:
+                logger.error(f"[EXEC] ADR-118 D.3: save_output returned None — fatal")
+        except Exception as e:
+            logger.error(f"[EXEC] ADR-118 D.3: Output folder write FAILED (fatal): {e}")
+            output_folder = None
+
+        # 9. ADR-107: Write agent output to /knowledge/ filesystem (non-fatal)
+        try:
+            kb = KnowledgeBase(svc_client, user_id)
+            knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
+            await kb.write(
+                path=knowledge_path,
+                content=draft,
+                summary=f"{title} v{next_version}",
+                metadata={
+                    "agent_id": str(agent_id),
+                    "run_id": str(version_id),
+                    "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(role, "analyses"),
+                    "role": role,
+                    "scope": scope,
+                    "version_number": next_version,
+                },
+                tags=[role, agent.get("mode", "recurring")],
+            )
+            logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
+        except Exception as e:
+            logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
+
+        # 10. ADR-118 D.3: Deliver from output folder (unified output substrate)
         final_status = "delivered"
         delivery_result = None
         delivery_error = None
 
-        if destination:
-            logger.info(f"[EXEC] ADR-066 delivery-first: delivering version={version_id}")
-
+        if destination and output_folder:
+            logger.info(f"[EXEC] ADR-118 D.3: Delivering from output folder={output_folder}")
+            try:
+                from services.delivery import deliver_from_output_folder
+                delivery_result = await deliver_from_output_folder(
+                    client=svc_client,
+                    user_id=user_id,
+                    agent=agent,
+                    output_folder=output_folder,
+                    agent_slug=slug,
+                    version_id=str(version_id),
+                    version_number=next_version,
+                )
+                if delivery_result.status.value == "success":
+                    final_status = "delivered"
+                    now = datetime.now(timezone.utc).isoformat()
+                    client.table("agent_runs").update({
+                        "status": "delivered",
+                        "delivered_at": now,
+                        "delivery_status": "delivered",
+                    }).eq("id", version_id).execute()
+                    # Log export + notify (parity with DeliveryService)
+                    _log_export_standalone(svc_client, version_id, user_id, destination, delivery_result)
+                    await _notify_delivery(svc_client, user_id, agent, destination, delivery_result)
+                else:
+                    final_status = "failed"
+                    delivery_error = delivery_result.error_message
+                    client.table("agent_runs").update({
+                        "status": "failed",
+                        "delivery_status": "failed",
+                        "delivery_error": delivery_error,
+                    }).eq("id", version_id).execute()
+                    await _notify_delivery_failed(svc_client, user_id, agent, delivery_error or "Unknown error")
+                logger.info(f"[EXEC] Delivery: {delivery_result.status.value}")
+            except Exception as e:
+                logger.error(f"[EXEC] Delivery failed: {e}")
+                final_status = "failed"
+                delivery_error = str(e)
+                client.table("agent_runs").update({
+                    "status": "failed",
+                    "delivery_status": "failed",
+                    "delivery_error": delivery_error,
+                }).eq("id", version_id).execute()
+                await _notify_delivery_failed(svc_client, user_id, agent, delivery_error)
+        elif destination and not output_folder:
+            # ADR-118 D.3 fallback: output folder failed, deliver from agent_runs (legacy path)
+            logger.warning(f"[EXEC] ADR-118 D.3: Output folder unavailable, falling back to agent_runs delivery")
             try:
                 from services.delivery import get_delivery_service
                 delivery_service = get_delivery_service(client)
@@ -1039,7 +1200,6 @@ async def execute_agent_generation(
                 )
                 if delivery_result.status.value == "success":
                     final_status = "delivered"
-                    # Update version status to delivered
                     now = datetime.now(timezone.utc).isoformat()
                     client.table("agent_runs").update({
                         "status": "delivered",
@@ -1052,9 +1212,9 @@ async def execute_agent_generation(
                         "status": "failed",
                         "delivery_error": delivery_error,
                     }).eq("id", version_id).execute()
-                logger.info(f"[EXEC] Delivery: {delivery_result.status.value}")
+                logger.info(f"[EXEC] Fallback delivery: {delivery_result.status.value}")
             except Exception as e:
-                logger.error(f"[EXEC] Delivery failed: {e}")
+                logger.error(f"[EXEC] Fallback delivery failed: {e}")
                 final_status = "failed"
                 delivery_error = str(e)
                 client.table("agent_runs").update({
@@ -1070,62 +1230,13 @@ async def execute_agent_generation(
             }).eq("id", version_id).execute()
             logger.info(f"[EXEC] No destination - content ready (version={version_id})")
 
-        # ADR-107: Write agent output to /knowledge/ filesystem
-        # Closes the accumulation loop — agent outputs become searchable knowledge
-        if final_status == "delivered" and draft:
-            try:
-                from services.workspace import KnowledgeBase
-                from services.supabase import get_service_client as _get_svc3
-                kb = KnowledgeBase(_get_svc3(), user_id)
-                knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
-                await kb.write(
-                    path=knowledge_path,
-                    content=draft,
-                    summary=f"{title} v{next_version}",
-                    metadata={
-                        "agent_id": str(agent_id),
-                        "run_id": str(version_id),
-                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(role, "analyses"),
-                        "role": role,
-                        "scope": scope,
-                        "version_number": next_version,
-                    },
-                    tags=[role, agent.get("mode", "recurring")],
-                )
-                logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
-            except Exception as e:
-                logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
-                # Non-fatal — don't block delivery
-
-        # ADR-119 Phase 1: Write output to dated output folder with manifest
-        if final_status == "delivered" and draft:
-            try:
-                from services.workspace import AgentWorkspace, get_agent_slug
-                from services.supabase import get_service_client as _get_svc4
-                slug = get_agent_slug(agent)
-                ws = AgentWorkspace(_get_svc4(), user_id, slug)
-                output_folder = await ws.save_output(
-                    content=draft,
-                    run_id=str(version_id),
-                    agent_id=str(agent_id),
-                    version_number=next_version,
-                    role=role,
-                )
-                if output_folder:
-                    logger.info(f"[EXEC] ADR-119: Saved output folder at /agents/{slug}/{output_folder}/")
-            except Exception as e:
-                logger.warning(f"[EXEC] ADR-119: Failed to save output folder: {e}")
-                # Non-fatal — don't block delivery
-
         # ADR-117 Phase 2: Post-generation self-reflection for all skills
         if final_status == "delivered" and draft:
             try:
-                from services.workspace import AgentWorkspace, get_agent_slug
                 observation = _extract_run_observation(
                     draft, gathered_result.sources_used,
                     gathered_result.items_fetched, role,
                 )
-                ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 await ws.record_observation(observation, source="self")
                 logger.info(f"[EXEC] ADR-117: Recorded self-observation for {title}")
             except Exception as e:

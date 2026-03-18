@@ -272,14 +272,18 @@ Yarnnn replicates the Claude Code capabilities model in the cloud:
 - ✅ Hard rejection in RuntimeDispatch via `check_render_limit()` before dispatch
 - ✅ Env var `RENDER_SERVICE_SECRET` set on API + Unified Scheduler + Render services
 
-### Phase D.3: Unified Output Substrate (Proposed — depends on ADR-119 Phase 1)
-- Migrate all agent outputs to workspace_files output folders (ADR-119): text + binary in same folder
-- **Dual output**: every agent run produces text version (feedback surface) + rendered binary (delivery artifact) in the output folder
-- Move email delivery into the output gateway as an `email` skill
-- Output gateway reads from workspace_files only (not agent_runs) for delivery
-- agent_runs becomes pure audit trail — no delivery reads from it
-- Rendered outputs flow through email delivery (the current disconnect is eliminated)
-- Add new delivery skills (Slack, Notion) to gateway only
+### Phase D.3: Unified Output Substrate (Implemented)
+- ✅ Agent outputs written to workspace_files output folders BEFORE delivery (output folder is the single delivery source)
+- ✅ **Dual output**: RuntimeDispatch renders accumulate as `pending_renders` during headless generation, passed to `save_output()` → manifest.json `files[]` includes text + binary
+- ✅ Email delivery reads from output folder manifest (text from `output.md`, rendered attachments from `manifest.files[]`) instead of agent_runs
+- ✅ `deliver_from_output_folder()` — workspace-based delivery with manifest-sourced attachments
+- ✅ agent_runs retains content (dual-write for backward compat) but delivery reads from output folder
+- ✅ Non-email destinations (Slack, Notion) fall through to existing exporters with text from output folder
+- ✅ Fallback: if output folder write fails, legacy agent_runs delivery path activates
+- ✅ Manifest updated with delivery status after send
+- ✅ Notifications (ADR-040) and export logging via standalone helpers
+- ⏳ Move email skill to output gateway (deferred — Resend stays on API)
+- ⏳ Add Slack/Notion delivery skills to gateway (deferred to D.4+)
 
 ### Phase D.4: Expand Skill Library (Proposed — after D.2 + D.3)
 - Image skill (pillow + cairosvg) — local

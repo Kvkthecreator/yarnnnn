@@ -628,3 +628,282 @@ def get_delivery_service(client) -> DeliveryService:
         DeliveryService instance
     """
     return DeliveryService(client)
+
+
+# =============================================================================
+# ADR-118 D.3: Workspace-based delivery (reads from output folder, not agent_runs)
+# =============================================================================
+
+
+async def deliver_from_output_folder(
+    client,
+    user_id: str,
+    agent: dict,
+    output_folder: str,
+    agent_slug: str,
+    version_id: str,
+    version_number: int,
+) -> ExportResult:
+    """
+    Deliver agent output by reading from workspace output folder instead of agent_runs.
+
+    ADR-118 D.3: Output folders are the single delivery source. This function:
+    1. Reads output.md + manifest.json from the output folder
+    2. Dispatches to the appropriate exporter (email via Resend, others via existing exporters)
+    3. Updates the manifest with delivery status
+
+    For email destinations, rendered binary attachments from the manifest are included
+    as download links in the email body — same behavior as the old ResendExporter but
+    sourced from the manifest instead of a broad workspace_files query.
+
+    Args:
+        client: Supabase service client
+        user_id: User UUID
+        agent: Full agent dict (needs destination, title, role, mode)
+        output_folder: Relative output folder path (e.g., "outputs/2026-03-18T0900")
+        agent_slug: Agent slug for workspace scoping
+        version_id: agent_run UUID (for audit trail updates)
+        version_number: Run version number
+
+    Returns:
+        ExportResult with delivery status
+    """
+    import json
+
+    from services.workspace import AgentWorkspace
+
+    ws = AgentWorkspace(client, user_id, agent_slug)
+
+    # 1. Read text content from output folder
+    text_content = await ws.read(f"{output_folder}/output.md")
+    if not text_content:
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message=f"Output content not found at {output_folder}/output.md",
+        )
+
+    # 2. Read manifest
+    manifest_raw = await ws.read(f"{output_folder}/manifest.json")
+    manifest = {}
+    if manifest_raw:
+        try:
+            manifest = json.loads(manifest_raw)
+        except json.JSONDecodeError:
+            logger.warning(f"[DELIVERY] Invalid manifest JSON at {output_folder}")
+
+    # 3. Get destination
+    destination = agent.get("destination")
+    if not destination:
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message="No destination configured",
+        )
+
+    platform = destination.get("platform")
+    if not platform:
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message="No platform specified in destination",
+        )
+
+    title = agent.get("title", "YARNNN Agent")
+    role = agent.get("role")
+
+    # 4. For email: build HTML with rendered attachments from manifest, then send via Resend
+    if platform == "email":
+        result = await _deliver_email_from_manifest(
+            destination=destination,
+            text_content=text_content,
+            manifest=manifest,
+            title=title,
+            version_number=version_number,
+            role=role,
+            agent_id=str(agent.get("id", "")),
+            mode=agent.get("mode"),
+        )
+    else:
+        # Non-email platforms: fall back to existing exporter registry
+        # (reads text_content directly, not from agent_runs)
+        registry = get_exporter_registry()
+        exporter = registry.get(platform)
+        if not exporter:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=f"No exporter for platform: {platform}",
+            )
+
+        token_manager = get_token_manager()
+        context = await _get_exporter_context_standalone(client, user_id, platform, token_manager)
+        if exporter.requires_auth and not context:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=f"No {platform} integration connected",
+            )
+
+        result = await exporter.deliver(
+            destination=destination,
+            content=text_content,
+            title=title,
+            metadata={
+                "agent_id": str(agent.get("id", "")),
+                "version_id": version_id,
+                "version_number": version_number,
+                "role": role,
+                "mode": agent.get("mode"),
+            },
+            context=context,
+        )
+
+    # 5. Update manifest with delivery status
+    if result.status == ExportStatus.SUCCESS:
+        try:
+            delivery_status = {
+                "channel": platform,
+                "status": "delivered",
+                "sent_at": datetime.now(timezone.utc).isoformat(),
+                "external_id": result.external_id,
+                "external_url": result.external_url,
+            }
+            await ws.update_manifest_delivery(output_folder, delivery_status)
+        except Exception as e:
+            logger.warning(f"[DELIVERY] Manifest delivery update failed (non-fatal): {e}")
+
+    return result
+
+
+async def _deliver_email_from_manifest(
+    destination: dict,
+    text_content: str,
+    manifest: dict,
+    title: str,
+    version_number: int,
+    role: Optional[str],
+    agent_id: str,
+    mode: Optional[str],
+) -> ExportResult:
+    """ADR-118 D.3: Email delivery sourced from output folder manifest.
+
+    Generates HTML from text content, includes rendered binary download links
+    from the manifest's files array, and sends via Resend.
+    """
+    from jobs.email import send_email
+    from services.platform_output import generate_gmail_html
+
+    target = destination.get("target")
+    if not target:
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message="No recipient email specified",
+        )
+
+    options = destination.get("options", {})
+    timestamp_str = datetime.now(timezone.utc).strftime("%b %-d %H:%M UTC")
+    if version_number:
+        default_subject = f"{title} v{version_number} — {timestamp_str}"
+    else:
+        default_subject = f"{title} — {timestamp_str}"
+    subject = options.get("subject", default_subject)
+
+    # Generate HTML from markdown content
+    try:
+        html_body = generate_gmail_html(
+            content=text_content,
+            variant="default",
+            metadata={
+                "title": title,
+                "recipient": target,
+                "agent_id": agent_id,
+                "version_number": version_number,
+                "mode": mode,
+                "date": options.get("date", ""),
+                "email_count": options.get("email_count", ""),
+                "is_draft": False,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[DELIVERY] HTML generation failed, using plain: {e}")
+        html_body = f"<html><body><pre style='white-space:pre-wrap;font-family:sans-serif;'>{text_content}</pre></body></html>"
+
+    # ADR-118 D.3: Include rendered binary attachments from manifest
+    files = manifest.get("files", [])
+    rendered_files = [f for f in files if f.get("content_url")]
+    if rendered_files:
+        links = []
+        for f in rendered_files:
+            fname = f.get("path", "file")
+            url = f["content_url"]
+            size = f.get("size_bytes", 0)
+            size_str = f" ({size // 1024}KB)" if size > 0 else ""
+            links.append(
+                f'<li><a href="{url}" style="color:#6366f1;text-decoration:underline;">'
+                f'{fname}</a>{size_str}</li>'
+            )
+        attachment_html = (
+            '<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">'
+            '<p style="margin:0 0 8px 0;font-weight:600;font-size:14px;">Attachments</p>'
+            f'<ul style="margin:0;padding-left:20px;">{"".join(links)}</ul>'
+            '</div>'
+        )
+        html_body = html_body.replace("</body>", f"{attachment_html}</body>")
+
+    try:
+        result = await send_email(
+            to=target,
+            subject=subject,
+            html=html_body,
+            text=text_content,
+        )
+        if result.success:
+            logger.info(f"[DELIVERY] ADR-118 D.3: Email delivered to {target}, message_id={result.message_id}")
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=result.message_id,
+                metadata={"format": "html", "recipient": target, "channel": "resend"},
+            )
+        else:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=result.error or "Resend delivery failed",
+            )
+    except Exception as e:
+        logger.error(f"[DELIVERY] ADR-118 D.3: Email delivery failed: {e}")
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message=str(e),
+        )
+
+
+async def _get_exporter_context_standalone(
+    client, user_id: str, platform: str, token_manager
+) -> Optional[ExporterContext]:
+    """Get auth context for an exporter (standalone version for workspace-based delivery)."""
+    if platform in ("download", "email"):
+        return ExporterContext(user_id=user_id, access_token="", metadata={})
+
+    lookup_candidates = [platform]
+    if platform == "gmail":
+        lookup_candidates.append("google")
+
+    try:
+        for candidate in lookup_candidates:
+            try:
+                result = client.table("platform_connections").select(
+                    "credentials_encrypted, refresh_token_encrypted, metadata, status"
+                ).eq("user_id", user_id).eq("platform", candidate).single().execute()
+                if result.data and result.data["status"] == "active":
+                    access_token = token_manager.decrypt(result.data["credentials_encrypted"])
+                    refresh_token = None
+                    if result.data.get("refresh_token_encrypted"):
+                        refresh_token = token_manager.decrypt(result.data["refresh_token_encrypted"])
+                    return ExporterContext(
+                        user_id=user_id,
+                        access_token=access_token,
+                        refresh_token=refresh_token,
+                        metadata=result.data.get("metadata", {}) or {},
+                    )
+            except Exception:
+                continue
+        return None
+    except Exception as e:
+        logger.error(f"[DELIVERY] Failed to get context for {platform}: {e}")
+        return None

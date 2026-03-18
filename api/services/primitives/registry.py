@@ -382,6 +382,13 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
             self.agent_sources = agent_sources  # ADR-092: source scoping
             self.coordinator_agent_id = coordinator_agent_id  # ADR-092: attribution
             self.agent = agent  # ADR-106: workspace primitives need agent context
+            self.pending_renders: list[dict] = []  # ADR-118 D.3: accumulate rendered files for save_output()
+            # ADR-118 D.3: agent_slug for RuntimeDispatch workspace paths
+            if agent:
+                from services.workspace import get_agent_slug
+                self.agent_slug = get_agent_slug(agent)
+            else:
+                self.agent_slug = None
 
     auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
 
@@ -417,4 +424,6 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
                 "message": f"Tool execution failed: {e}",
             }
 
+    # ADR-118 D.3: Expose auth context so callers can read pending_renders
+    executor.auth = auth  # type: ignore[attr-defined]
     return executor

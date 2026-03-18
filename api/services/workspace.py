@@ -668,6 +668,45 @@ class AgentWorkspace:
         logger.info(f"[WORKSPACE] ADR-119: Saved output to {self._base}/{folder_path}/ ({len(files)} files)")
         return folder_path
 
+    async def update_manifest_delivery(
+        self,
+        output_folder: str,
+        delivery_status: dict,
+    ) -> bool:
+        """ADR-118 D.3: Update manifest.json with delivery status after send.
+
+        Args:
+            output_folder: The output folder path (e.g., "outputs/2026-03-18T0900")
+            delivery_status: Delivery result dict, e.g.:
+                {"channel": "email", "sent_at": "...", "message_id": "...", "status": "delivered"}
+
+        Returns:
+            True on success.
+        """
+        import json as _json
+
+        manifest_content = await self.read(f"{output_folder}/manifest.json")
+        if not manifest_content:
+            logger.warning(f"[WORKSPACE] ADR-118 D.3: Manifest not found at {output_folder}/manifest.json")
+            return False
+
+        try:
+            manifest = _json.loads(manifest_content)
+        except _json.JSONDecodeError:
+            logger.warning(f"[WORKSPACE] ADR-118 D.3: Invalid manifest JSON at {output_folder}")
+            return False
+
+        manifest["delivery"] = delivery_status
+        manifest["status"] = "delivered" if delivery_status.get("status") == "delivered" else manifest.get("status", "active")
+
+        return await self.write(
+            f"{output_folder}/manifest.json",
+            _json.dumps(manifest, indent=2),
+            summary=f"Run manifest (delivered)",
+            content_type="application/json",
+            lifecycle="delivered",
+        )
+
 
 class KnowledgeBase:
     """

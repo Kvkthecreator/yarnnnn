@@ -167,6 +167,18 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     from services.platform_limits import record_render_usage
     record_render_usage(auth.client, auth.user_id, skill_type, output_format, size_bytes)
 
+    # ADR-118 D.3: Accumulate rendered file metadata for save_output() manifest
+    rendered_file_info = {
+        "path": f"{safe_title}.{output_format}",
+        "content_type": content_type,
+        "content_url": output_url,
+        "size_bytes": size_bytes,
+        "skill_type": skill_type,
+        "role": "rendered",
+    }
+    if hasattr(auth, "pending_renders"):
+        auth.pending_renders.append(rendered_file_info)
+
     return {
         "success": True,
         "output_url": output_url,

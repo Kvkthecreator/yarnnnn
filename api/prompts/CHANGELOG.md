@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.4] - Unified output substrate (ADR-118 Phase D.3)
+
+### Changed
+- `api/services/agent_execution.py`: Restructured execution pipeline — `save_output()` now runs BEFORE delivery with `pending_renders` from RuntimeDispatch. New delivery path via `deliver_from_output_folder()` for all destinations. Fallback to legacy `deliver_version()` if output folder write fails. Added `_log_export_standalone()`, `_notify_delivery()`, `_notify_delivery_failed()` helpers. `generate_draft_inline()` now returns `(draft, usage, pending_renders)` tuple.
+- `api/services/delivery.py`: Added `deliver_from_output_folder()` — reads `output.md` + `manifest.json` from workspace output folder instead of agent_runs. Email delivery builds attachment links from manifest `files[]` array. Non-email platforms use existing exporters with text from output folder. Added `_deliver_email_from_manifest()` and `_get_exporter_context_standalone()` helpers.
+- `api/services/workspace.py`: Added `AgentWorkspace.update_manifest_delivery()` — updates manifest.json with delivery channel, status, external_id after successful send.
+- `api/services/primitives/registry.py`: `HeadlessAuth` gains `pending_renders: list[dict]` accumulator and `agent_slug` property. Executor function exposes `.auth` attribute for callers to read pending_renders after generation.
+- `api/services/primitives/runtime_dispatch.py`: After successful render + workspace write, appends rendered file metadata to `auth.pending_renders` for inclusion in output folder manifest.
+
+### Expected behavior
+- **Output folder is delivery source.** All agent deliveries now read content from the output folder (text from `output.md`, binary attachments from `manifest.files[]`) instead of from `agent_runs.final_content`.
+- **Rendered files in manifest.** When agents use RuntimeDispatch during generation, produced files accumulate in `pending_renders` and appear in the output folder's `manifest.json` with `content_url` links. Email delivery includes these as download links.
+- **Dual-write maintained.** `agent_runs` still receives `draft_content`/`final_content` for backward compatibility (frontend reads). Output folder is the authoritative delivery source.
+- **Fallback safety.** If `save_output()` fails, the pipeline falls back to the legacy `deliver_version()` path that reads from `agent_runs`. No delivery is silently dropped.
+- **Manifest delivery tracking.** After successful delivery, `manifest.json` is updated with `delivery.channel`, `delivery.status`, `delivery.sent_at`, `delivery.external_id`.
+
+---
+
 ## [2026.03.18.3] - Output folders + lifecycle (ADR-119 Phase 1)
 
 ### Changed
