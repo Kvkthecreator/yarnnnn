@@ -1097,6 +1097,26 @@ async def execute_agent_generation(
                 logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
                 # Non-fatal — don't block delivery
 
+        # ADR-119 Phase 1: Write output to dated output folder with manifest
+        if final_status == "delivered" and draft:
+            try:
+                from services.workspace import AgentWorkspace, get_agent_slug
+                from services.supabase import get_service_client as _get_svc4
+                slug = get_agent_slug(agent)
+                ws = AgentWorkspace(_get_svc4(), user_id, slug)
+                output_folder = await ws.save_output(
+                    content=draft,
+                    run_id=str(version_id),
+                    agent_id=str(agent_id),
+                    version_number=next_version,
+                    role=role,
+                )
+                if output_folder:
+                    logger.info(f"[EXEC] ADR-119: Saved output folder at /agents/{slug}/{output_folder}/")
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-119: Failed to save output folder: {e}")
+                # Non-fatal — don't block delivery
+
         # ADR-117 Phase 2: Post-generation self-reflection for all skills
         if final_status == "delivered" and draft:
             try:

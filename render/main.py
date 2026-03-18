@@ -4,16 +4,24 @@ yarnnn-render — Output gateway for agent artifact production (ADR-118).
 Single POST /render endpoint. Skills convert structured input to binary files.
 Uploads results to Supabase Storage and returns the URL.
 GET /skills/{name}/SKILL.md serves skill instructions for agent context injection.
+
+ADR-118 D.2 hardening:
+- Service-to-service auth via shared secret (X-Render-Secret header)
+- Request size limits (5MB max payload)
+- User-scoped storage paths ({user_id}/{date}/{filename}.{ext})
+- In-memory rate limiting (60 requests/minute per caller)
 """
 
 import logging
 import os
+import time
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -26,11 +34,22 @@ from skills.chart.scripts.render import render_chart
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="yarnnn-render", version="2.0.0")
+app = FastAPI(title="yarnnn-render", version="2.1.0")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 STORAGE_BUCKET = "agent-outputs"
+
+# ADR-118 D.2: Service-to-service auth
+RENDER_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
+
+# ADR-118 D.2: Rate limiting (in-memory sliding window)
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX = 60  # requests per window
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+# ADR-118 D.2: Max request payload size (5MB)
+MAX_REQUEST_SIZE = 5 * 1024 * 1024
 
 # Skill registry — maps skill type to render function (ADR-118)
 SKILLS = {
@@ -52,12 +71,35 @@ SKILL_TYPE_TO_FOLDER = {
 }
 
 
+def _check_rate_limit(caller_id: str) -> bool:
+    """ADR-118 D.2: Sliding window rate limiter. Returns True if allowed."""
+    now = time.monotonic()
+    window_start = now - RATE_LIMIT_WINDOW
+    timestamps = _rate_limit_store[caller_id]
+    # Prune expired entries
+    _rate_limit_store[caller_id] = [t for t in timestamps if t > window_start]
+    if len(_rate_limit_store[caller_id]) >= RATE_LIMIT_MAX:
+        return False
+    _rate_limit_store[caller_id].append(now)
+    return True
+
+
+def _validate_render_secret(request: Request) -> None:
+    """ADR-118 D.2: Validate service-to-service auth on POST /render."""
+    if not RENDER_SECRET:
+        return  # Secret not configured — allow (dev mode)
+    provided = request.headers.get("X-Render-Secret", "")
+    if provided != RENDER_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Render-Secret")
+
+
 class RenderRequest(BaseModel):
     type: str  # document, presentation, spreadsheet, chart
     input: dict  # skill-specific spec
     output_format: str  # pdf, docx, pptx, xlsx, png, svg
     template_id: Optional[str] = None
     filename: Optional[str] = None  # optional custom filename
+    user_id: Optional[str] = None  # ADR-118 D.2: user scoping for storage paths
 
 
 class RenderResponse(BaseModel):
@@ -121,7 +163,20 @@ async def list_skills():
 
 
 @app.post("/render", response_model=RenderResponse)
-async def render(req: RenderRequest):
+async def render(req: RenderRequest, request: Request):
+    # ADR-118 D.2: Service-to-service auth
+    _validate_render_secret(request)
+
+    # ADR-118 D.2: Rate limiting
+    caller_id = req.user_id or request.client.host if request.client else "unknown"
+    if not _check_rate_limit(caller_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded (60 req/min)")
+
+    # ADR-118 D.2: Request size limit (check content-length header)
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE:
+        raise HTTPException(status_code=413, detail=f"Request too large (max {MAX_REQUEST_SIZE // 1024 // 1024}MB)")
+
     skill_fn = SKILLS.get(req.type)
     if not skill_fn:
         raise HTTPException(
@@ -148,7 +203,9 @@ async def render(req: RenderRequest):
         date_prefix = datetime.now(timezone.utc).strftime("%Y/%m/%d")
         ext = req.output_format
         filename = req.filename or f"{req.type}-{uuid.uuid4().hex[:8]}"
-        storage_path = f"{date_prefix}/{filename}.{ext}"
+        # ADR-118 D.2: User-scoped storage paths
+        user_prefix = req.user_id or "anonymous"
+        storage_path = f"{user_prefix}/{date_prefix}/{filename}.{ext}"
 
         output_url = await _upload_to_storage(file_bytes, storage_path, content_type)
 

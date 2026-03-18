@@ -8,7 +8,7 @@ workspace, the shared knowledge base, and other agents.
 - WriteWorkspace: write to agent's workspace (thesis, observations, working notes)
 - SearchWorkspace: full-text search within agent's workspace
 - QueryKnowledge: search /knowledge/ filesystem with metadata filters + platform_content fallback
-- DiscoverAgents: find other agents by skill/scope/status (ADR-116 Phase 2)
+- DiscoverAgents: find other agents by role/scope/status (ADR-116 Phase 2)
 """
 
 import json
@@ -33,8 +33,9 @@ Your workspace contains your accumulated knowledge:
 - memory/observations.md — observations from past review passes
 - memory/preferences.md — learned preferences from user edits
 - memory/{topic}.md — topic-scoped memory files
-- working/{topic}.md — your intermediate research notes
-- runs/v{N}.md — your past outputs
+- working/{topic}.md — your intermediate research notes (ephemeral)
+- outputs/{date}/output.md — your past outputs (one folder per run)
+- outputs/{date}/manifest.json — metadata about each run
 
 Use this to review your prior work before generating new output.""",
     "input_schema": {
@@ -56,11 +57,12 @@ WRITE_WORKSPACE_TOOL = {
 
 Use this to persist insights that should survive across runs:
 - Update thesis.md with refined domain understanding
-- Save working/{topic}.md with research notes
+- Save working/{topic}.md with research notes (ephemeral — auto-cleaned after 24h)
 - Append observations to memory/observations.md
 - Save topic-scoped memory to memory/{topic}.md
 
-Your workspace persists between runs. What you write now, you can read in future executions.""",
+Files in working/ are ephemeral scratch — they're auto-cleaned after 24h.
+Everything else persists between runs. What you write now, you can read in future executions.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -87,7 +89,8 @@ SEARCH_WORKSPACE_TOOL = {
     "name": "SearchWorkspace",
     "description": """Search your workspace for relevant content.
 
-Searches across all your files: thesis, memory, working notes, past runs.
+Searches across all your files: thesis, memory, outputs.
+Ephemeral scratch files (working/) are excluded from search by default.
 Use this to find specific information from your accumulated knowledge.""",
     "input_schema": {
         "type": "object",
@@ -117,14 +120,14 @@ The knowledge base contains:
 Use this to find evidence relevant to your domain. Search by topic, person, keyword.
 Much more targeted than receiving a full platform dump — query for what you need.
 
-You can filter by the agent that produced the knowledge, by skill type, or by content class.
+You can filter by the agent that produced the knowledge, by role type, or by content class.
 Use DiscoverAgents first to find agent IDs if you want to query a specific agent's outputs.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query (topic, person, keyword). Optional if filtering by agent_id or skill."
+                "description": "Search query (topic, person, keyword). Optional if filtering by agent_id or role."
             },
             "content_class": {
                 "type": "string",
@@ -155,8 +158,9 @@ LIST_WORKSPACE_TOOL = {
     "name": "ListWorkspace",
     "description": """List files in your workspace.
 
-See what's in your workspace: thesis, memory, working notes, past runs.
-Call with no arguments to see top-level files, or pass a path to list a subdirectory.""",
+See what's in your workspace: thesis, memory, working notes, outputs.
+Call with no arguments to see top-level files, or pass a path to list a subdirectory.
+Ephemeral (working/) and archived files are hidden by default.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -294,7 +298,7 @@ async def handle_search_workspace(auth: Any, input: dict) -> dict:
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     """Handle QueryKnowledge primitive — searches /knowledge/ with optional metadata filters.
 
-    ADR-116 Phase 1: When agent_id or skill filters are provided, uses metadata-aware
+    ADR-116 Phase 1: When agent_id or role filters are provided, uses metadata-aware
     search (search_knowledge_by_metadata RPC). Otherwise falls back to existing
     full-text search. Always falls back to platform_content if /knowledge/ is empty.
     """
@@ -314,7 +318,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             query=query,
             content_class=content_class,
             agent_id=agent_id,
-            skill=role,
+            role=role,
             limit=limit,
         )
     else:
@@ -445,7 +449,7 @@ before querying their outputs with QueryKnowledge.
 
 Each result includes:
 - Agent ID (use with QueryKnowledge's agent_id filter)
-- Title, skill, scope
+- Title, role, scope
 - Thesis summary (what the agent understands about its domain)
 - Sources it monitors
 - Maturity signals (run count, approval rate)""",

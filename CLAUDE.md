@@ -121,9 +121,11 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 **Output gateway env vars** (yarnnn-render — independent Docker service, ADR-118):
 - `SUPABASE_URL` — For storage uploads
 - `SUPABASE_SERVICE_KEY` — For storage uploads (service key, same as Schedulers)
+- `RENDER_SERVICE_SECRET` — Shared secret for service-to-service auth (ADR-118 D.2, must match API + Scheduler)
 
-**RuntimeDispatch env var** (must be on API + Unified Scheduler):
+**RuntimeDispatch env vars** (must be on API + Unified Scheduler):
 - `RENDER_SERVICE_URL` — URL of yarnnn-render service (defaults to `https://yarnnn-render.onrender.com`)
+- `RENDER_SERVICE_SECRET` — Shared secret for authenticating to POST /render (ADR-118 D.2, must match Render service)
 
 **Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
 
@@ -223,6 +225,7 @@ You MUST:
 - `workspace_files` — virtual filesystem for agent workspaces (ADR-106); path-based access, full-text + vector search; `content_url` column for rendered binary files (ADR-118). ADR-118 Phase D: becomes the single output substrate for all agent outputs (text + binary), replacing agent_runs as the delivery source. ADR-119: adds `version` + `lifecycle` columns; folder conventions (output folders with `manifest.json`, project folders, ephemeral `/working/`) replace relational grouping tables
 - `workspace_file_versions` — NOT a table; version history uses `/history/` subfolder convention (ADR-119 Resolved Decision #3). On overwrite of high-value files (thesis.md, memory/*.md, AGENT.md), previous version copied to `/agents/{slug}/history/{filename}-v{N}.md`. Implemented in Phase 3.
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
+- `render_usage` — per-user render call tracking (ADR-118 D.2); `get_monthly_render_count()` RPC for tier limit enforcement
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
 - `api/services/extraction.py` — replaced by `memory.py`

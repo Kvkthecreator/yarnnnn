@@ -38,6 +38,7 @@ class PlatformLimits:
     sync_frequency: SyncFrequency
     monthly_messages: int     # -1 for unlimited (ADR-100: replaces daily_token_budget)
     active_agents: int  # -1 for unlimited
+    monthly_renders: int      # -1 for unlimited (ADR-118 D.2: output gateway render limit)
 
 
 # Tier definitions (ADR-100: 2-tier model, 2026-03-09)
@@ -51,6 +52,7 @@ TIER_LIMITS = {
         sync_frequency="1x_daily",
         monthly_messages=50,
         active_agents=2,
+        monthly_renders=10,      # ADR-118 D.2: 10 renders/month free
     ),
     "pro": PlatformLimits(
         slack_channels=-1,       # Unlimited
@@ -61,6 +63,7 @@ TIER_LIMITS = {
         sync_frequency="hourly",
         monthly_messages=-1,     # Unlimited
         active_agents=10,
+        monthly_renders=100,     # ADR-118 D.2: 100 renders/month pro
     ),
 }
 
@@ -269,6 +272,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "sync_frequency": limits.sync_frequency,
             "monthly_messages": limits.monthly_messages,
             "active_agents": limits.active_agents,
+            "monthly_renders": limits.monthly_renders,
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
@@ -278,6 +282,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "platforms_connected": get_platform_count(client, user_id),
             "monthly_messages_used": monthly_messages_used,
             "active_agents": get_active_agent_count(client, user_id),
+            "monthly_renders_used": get_monthly_render_count(client, user_id),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
     }
@@ -409,6 +414,56 @@ def check_monthly_message_limit(client, user_id: str) -> tuple[bool, int, int]:
         return False, messages_used, limits.monthly_messages
 
     return True, messages_used, limits.monthly_messages
+
+
+# =============================================================================
+# Render Limits (ADR-118 D.2)
+# =============================================================================
+
+
+def get_monthly_render_count(client, user_id: str) -> int:
+    """Get total renders this month via SQL function."""
+    try:
+        result = client.rpc(
+            "get_monthly_render_count",
+            {"p_user_id": user_id}
+        ).execute()
+        return result.data if isinstance(result.data, int) else 0
+    except Exception:
+        return 0
+
+
+def check_render_limit(client, user_id: str) -> tuple[bool, int, int]:
+    """
+    Check if user is within monthly render limit (ADR-118 D.2).
+
+    Returns:
+        Tuple of (allowed: bool, renders_used: int, render_limit: int)
+    """
+    limits = get_limits_for_user(client, user_id)
+
+    if limits.monthly_renders == -1:
+        return True, 0, -1
+
+    renders_used = get_monthly_render_count(client, user_id)
+
+    if renders_used >= limits.monthly_renders:
+        return False, renders_used, limits.monthly_renders
+
+    return True, renders_used, limits.monthly_renders
+
+
+def record_render_usage(client, user_id: str, skill_type: str, output_format: str, size_bytes: int = 0) -> None:
+    """Record a render usage event (ADR-118 D.2)."""
+    try:
+        client.table("render_usage").insert({
+            "user_id": user_id,
+            "skill_type": skill_type,
+            "output_format": output_format,
+            "size_bytes": size_bytes,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[RENDER_LIMITS] Failed to record render usage: {e}")
 
 
 # =============================================================================

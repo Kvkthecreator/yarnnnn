@@ -121,11 +121,11 @@ or make updates.
 
 ## Creating Agents
 
-**CreateAgent(title, skill, ...)** - Create a new agent
+**CreateAgent(title, role, ...)** - Create a new agent
 ```
 CreateAgent(
   title: "Weekly Status",
-  skill: "synthesize",
+  role: "synthesize",
   frequency: "weekly",
   recipient_name: "Sarah"
 )

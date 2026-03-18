@@ -261,15 +261,16 @@ Yarnnn replicates the Claude Code capabilities model in the cloud:
 - Update all documentation references (handler → skill, capability → skill)
 - ADR-109 `skill` → `role` column rename (see Resolved Decision #4)
 
-### Phase D.2: Render Service Hardening (Proposed — prerequisite for expansion)
-- Add service-to-service auth (shared secret env var, validated on every request to POST /render)
-- Add request size limits on render endpoint
-- Add user_id to storage paths (`{user_id}/{date}/{filename}.{ext}`) for scoping and cleanup
-- Add rate limiting on render endpoint
-- **Make workspace write fatal** — if workspace_files row creation fails after render, the entire RuntimeDispatch call fails. No orphaned binaries.
-- Add render call counting per user per month
-- Implement tier-based render limits (free = N renders/month, pro = higher/unlimited)
-- Hard rejection in RuntimeDispatch when limit exceeded
+### Phase D.2: Render Service Hardening (Implemented)
+- ✅ Service-to-service auth via `RENDER_SERVICE_SECRET` env var + `X-Render-Secret` header on POST /render
+- ✅ Request size limits: 5MB max payload (Content-Length check)
+- ✅ User-scoped storage paths: `{user_id}/{date}/{filename}.{ext}`
+- ✅ In-memory rate limiting: 60 requests/minute sliding window per caller
+- ✅ Workspace write fatal (done in D.1, Resolved Decision #3)
+- ✅ Render call counting via `render_usage` table (migration 115) + `get_monthly_render_count()` RPC
+- ✅ Tier-based render limits: free=10/month, pro=100/month (`monthly_renders` in PlatformLimits)
+- ✅ Hard rejection in RuntimeDispatch via `check_render_limit()` before dispatch
+- ✅ Env var `RENDER_SERVICE_SECRET` set on API + Unified Scheduler + Render services
 
 ### Phase D.3: Unified Output Substrate (Proposed — depends on ADR-119 Phase 1)
 - Migrate all agent outputs to workspace_files output folders (ADR-119): text + binary in same folder

@@ -7,6 +7,8 @@ writes workspace_files row with content_url.
 
 Workspace write is FATAL — if the workspace row fails, the entire call fails.
 No orphaned binaries (ADR-118 Resolved Decision #3).
+
+ADR-118 D.2: Sends shared secret + user_id, checks render limits before dispatch.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
 RUNTIME_DISPATCH_TOOL = {
@@ -72,9 +75,11 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     """
     Handle RuntimeDispatch primitive.
 
-    1. Calls yarnnn-render output gateway via HTTP
-    2. On success, writes workspace_files row with content_url (FATAL on failure)
-    3. Returns URL to agent for inclusion in output
+    1. Checks render limit (ADR-118 D.2 — hard reject if exceeded)
+    2. Calls yarnnn-render output gateway via HTTP (with auth + user_id)
+    3. On success, writes workspace_files row with content_url (FATAL on failure)
+    4. Records render usage
+    5. Returns URL to agent for inclusion in output
     """
     skill_type = input.get("type", "")
     skill_input = input.get("input", {})
@@ -84,7 +89,20 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     if not skill_type or not output_format:
         return {"success": False, "error": "missing_params", "message": "type and output_format are required"}
 
-    # Call output gateway
+    # ADR-118 D.2: Check render limit before dispatching
+    from services.platform_limits import check_render_limit
+    allowed, renders_used, render_limit = check_render_limit(auth.client, auth.user_id)
+    if not allowed:
+        return {
+            "success": False,
+            "error": "render_limit_exceeded",
+            "message": f"Monthly render limit reached ({renders_used}/{render_limit}). Upgrade for more renders.",
+        }
+
+    # Call output gateway with auth + user_id
+    headers = {}
+    if RENDER_SERVICE_SECRET:
+        headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
@@ -94,7 +112,9 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
                     "input": skill_input,
                     "output_format": output_format,
                     "filename": filename or None,
+                    "user_id": auth.user_id,
                 },
+                headers=headers,
             )
             resp.raise_for_status()
             result = resp.json()
@@ -142,6 +162,10 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
             "message": f"Rendered file uploaded to storage but workspace metadata write failed: {e}. "
                        f"Output URL (for manual reference): {output_url}",
         }
+
+    # ADR-118 D.2: Record render usage for tier limit tracking
+    from services.platform_limits import record_render_usage
+    record_render_usage(auth.client, auth.user_id, skill_type, output_format, size_bytes)
 
     return {
         "success": True,

@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.18.3] - Output folders + lifecycle (ADR-119 Phase 1)
+
+### Changed
+- `api/services/workspace.py`: `AgentWorkspace.write()` now accepts `lifecycle`, `content_type`, `content_url`, `metadata` parameters. Auto-infers `lifecycle='ephemeral'` for `/working/` paths. `list()` excludes ephemeral/archived by default. New `save_output()` method creates dated output folders (`/outputs/{date}/`) with `output.md` + `manifest.json`. Dead `save_run()` replaced.
+- `api/services/agent_execution.py`: After successful generation, calls `save_output()` to write the run's text output + manifest to the agent's output folder (alongside existing knowledge write).
+- `api/services/primitives/workspace.py`: Updated tool descriptions for ReadWorkspace, WriteWorkspace, ListWorkspace, SearchWorkspace — references output folders, ephemeral working notes, lifecycle filtering.
+- `api/jobs/unified_scheduler.py`: Added hourly ephemeral file cleanup (deletes `lifecycle='ephemeral'` files older than 24h).
+
+### Expected behavior
+- **Output folders.** Each agent run now writes to `/agents/{slug}/outputs/{date}/` with `output.md` (text) and `manifest.json` (metadata, file listing, sources, delivery status). This establishes the folder-as-bundle pattern for ADR-118 D.3.
+- **Ephemeral scratch.** Files written to `/working/` are automatically marked `lifecycle='ephemeral'` and cleaned up after 24h. Agents can still read/write them during a run.
+- **Lifecycle filtering.** `ListWorkspace` and default queries now exclude ephemeral and archived files, reducing noise for agents exploring their workspace.
+- **Backwards-compatible.** Existing workspace files default to `lifecycle='active'`, `version=1`. No migration of existing data needed.
+
+---
+
+## [2026.03.18.2] - Render service hardening (ADR-118 Phase D.2)
+
+### Changed
+- `render/main.py`: v2.0.0 → v2.1.0. Added `X-Render-Secret` shared secret validation on POST /render, 5MB request size limit, in-memory rate limiter (60 req/min per caller), `user_id` field in RenderRequest for user-scoped storage paths (`{user_id}/{date}/{filename}.{ext}`).
+- `api/services/primitives/runtime_dispatch.py`: Sends `X-Render-Secret` header + `user_id` on every render call. Checks `check_render_limit()` before dispatch — hard reject if monthly limit exceeded. Records usage via `record_render_usage()` after successful render.
+- `api/services/platform_limits.py`: Added `monthly_renders` to PlatformLimits (free=10, pro=100). Added `check_render_limit()`, `get_monthly_render_count()`, `record_render_usage()`. Usage summary includes render counts.
+- `supabase/migrations/115_render_usage_tracking.sql`: `render_usage` table + `get_monthly_render_count()` RPC.
+
+### Expected behavior
+- **Auth enforced.** POST /render rejects requests without valid `X-Render-Secret` header (401). GET /skills/* and /health remain unauthenticated (read-only).
+- **Rate limiting.** 60 requests/minute per caller (user_id or IP). Returns 429 when exceeded.
+- **Size limits.** Requests >5MB rejected with 413.
+- **User-scoped storage.** Files uploaded to `{user_id}/{date}/{filename}.{ext}` — no cross-user file collision, enables per-user cleanup.
+- **Render limits.** Free tier: 10 renders/month. Pro: 100/month. Hard rejection in RuntimeDispatch before calling the gateway. Agent receives clear error message.
+- **Usage tracking.** Every successful render recorded in `render_usage` table for audit and limit enforcement.
+
+---
+
 ## [2026.03.18.1] - Skills alignment + SKILL.md injection (ADR-118 Phase D.1)
 
 ### Changed

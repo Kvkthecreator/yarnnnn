@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Proposed
+> **Status**: Phase 1 Implemented, Phase 2-4 Proposed
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)
@@ -286,13 +286,14 @@ This is simpler, more intuitive, and more extensible than relational tables for 
 
 ## Implementation Phases
 
-### Phase 1: Output Folders + Lifecycle (Immediate)
-- Add `version`, `lifecycle` columns to `workspace_files`
-- Implement `WriteOutput` primitive (creates dated output folder + manifest)
-- Modify execution pipeline to use `WriteOutput` instead of scattered writes
-- Mark `/working/*` files as ephemeral by default
-- Add cleanup job for ephemeral files (24h TTL)
-- Lifecycle filter on `ListWorkspace` and `SearchWorkspace`
+### Phase 1: Output Folders + Lifecycle (Implemented)
+- ✅ Add `version`, `lifecycle` columns to `workspace_files` (migration 116)
+- ✅ `AgentWorkspace.save_output()` — creates dated output folder (`/outputs/{date}/`) with `output.md` + `manifest.json`
+- ✅ Execution pipeline calls `save_output()` after successful agent generation (alongside existing knowledge write)
+- ✅ `write()` auto-infers `lifecycle='ephemeral'` for `/working/` paths
+- ✅ Cleanup job in unified scheduler: deletes ephemeral files >24h old (hourly)
+- ✅ `list()` excludes ephemeral/archived by default (lifecycle filter)
+- ✅ Tool descriptions updated: ReadWorkspace, WriteWorkspace, ListWorkspace, SearchWorkspace
 
 ### Phase 2: Project Folders + Cross-Agent Writing (After Phase 1)
 - Establish `/projects/` path convention

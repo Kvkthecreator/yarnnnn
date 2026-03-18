@@ -49,7 +49,7 @@ class SearchResult:
     content: str
     rank: float = 0.0
     updated_at: Optional[datetime] = None
-    metadata: Optional[dict] = None  # ADR-116: knowledge provenance (agent_id, skill, scope)
+    metadata: Optional[dict] = None  # ADR-116: knowledge provenance (agent_id, role, scope)
 
 
 class AgentWorkspace:
@@ -112,8 +112,22 @@ class AgentWorkspace:
             logger.warning(f"[WORKSPACE] Read file failed: {path}: {e}")
             return None
 
-    async def write(self, relative_path: str, content: str, summary: str = None, tags: list[str] = None) -> bool:
-        """Write a file (upsert). Returns True on success."""
+    @staticmethod
+    def _infer_lifecycle(path: str) -> str:
+        """ADR-119: Infer lifecycle from path convention."""
+        if "/working/" in path:
+            return "ephemeral"
+        return "active"
+
+    async def write(self, relative_path: str, content: str, summary: str = None,
+                    tags: list[str] = None, lifecycle: str = None,
+                    content_type: str = None, content_url: str = None,
+                    metadata: dict = None) -> bool:
+        """Write a file (upsert). Returns True on success.
+
+        ADR-119: lifecycle auto-inferred from path (/working/ → ephemeral).
+        Can be overridden via lifecycle parameter.
+        """
         path = self._full_path(relative_path)
         try:
             data = {
@@ -121,11 +135,18 @@ class AgentWorkspace:
                 "path": path,
                 "content": content,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
+                "lifecycle": lifecycle or self._infer_lifecycle(path),
             }
             if summary is not None:
                 data["summary"] = summary
             if tags is not None:
                 data["tags"] = tags
+            if content_type is not None:
+                data["content_type"] = content_type
+            if content_url is not None:
+                data["content_url"] = content_url
+            if metadata is not None:
+                data["metadata"] = metadata
 
             self._db.table("workspace_files").upsert(
                 data,
@@ -143,20 +164,29 @@ class AgentWorkspace:
             return await self.write(relative_path, content)
         return await self.write(relative_path, existing + "\n" + content)
 
-    async def list(self, relative_path: str = "", recursive: bool = False) -> list[str]:
-        """List files under a path. Returns relative paths."""
+    async def list(self, relative_path: str = "", recursive: bool = False,
+                   include_lifecycle: list[str] = None) -> list[str]:
+        """List files under a path. Returns relative paths.
+
+        ADR-119: By default excludes ephemeral and archived files.
+        Pass include_lifecycle to override (e.g., ['ephemeral'] to list scratch files).
+        """
         prefix = self._full_path(relative_path)
         if not prefix.endswith("/"):
             prefix += "/"
         try:
-            result = (
+            q = (
                 self._db.table("workspace_files")
                 .select("path")
                 .eq("user_id", self._user_id)
                 .like("path", f"{prefix}%")
-                .order("path")
-                .execute()
             )
+            # ADR-119: Lifecycle filter — default excludes ephemeral/archived
+            if include_lifecycle:
+                q = q.in_("lifecycle", include_lifecycle)
+            else:
+                q = q.in_("lifecycle", ["active", "delivered"])
+            result = q.order("path").execute()
             paths = [r["path"] for r in (result.data or [])]
 
             if not recursive:
@@ -543,14 +573,100 @@ class AgentWorkspace:
             summary="Agent's current domain understanding",
         )
 
-    async def save_run(self, run_number: int, content: str, metadata: dict = None) -> bool:
-        """Save an agent run output."""
-        return await self.write(
-            f"runs/v{run_number}.md",
+    async def save_output(
+        self,
+        content: str,
+        run_id: str,
+        agent_id: str,
+        version_number: int,
+        role: str = None,
+        rendered_files: list[dict] = None,
+        sources: list[str] = None,
+    ) -> Optional[str]:
+        """ADR-119 Phase 1: Save agent output to a dated output folder with manifest.
+
+        Creates /agents/{slug}/outputs/{date}/ folder with:
+        - output.md — the text output (feedback surface)
+        - manifest.json — metadata about the run (files, sources, delivery status)
+        - Any rendered binary file references (from RuntimeDispatch)
+
+        Args:
+            content: The text output (markdown)
+            run_id: The agent_run UUID
+            agent_id: The agent UUID
+            version_number: The run version number
+            role: Agent role (digest, synthesize, etc.)
+            rendered_files: Optional list of rendered file dicts from RuntimeDispatch
+                [{path, content_type, content_url, size_bytes, role}]
+            sources: Optional list of source paths consumed during this run
+
+        Returns:
+            The output folder path (e.g., "outputs/2026-03-18T0900/"), or None on failure.
+        """
+        import json as _json
+
+        now = datetime.now(timezone.utc)
+        # ADR-119 Resolved Decision #2: truncated to hour
+        date_folder = now.strftime("%Y-%m-%dT%H00")
+        folder_path = f"outputs/{date_folder}"
+
+        # 1. Write the text output
+        text_success = await self.write(
+            f"{folder_path}/output.md",
             content,
-            summary=f"Run v{run_number} output",
-            tags=["run", f"v{run_number}"],
+            summary=f"Run v{version_number} output",
+            tags=["output", f"v{version_number}", role or ""],
+            lifecycle="active",
         )
+        if not text_success:
+            return None
+
+        # 2. Build manifest
+        files = [
+            {"path": "output.md", "type": "text/markdown", "role": "primary"},
+        ]
+
+        # Add rendered files (from RuntimeDispatch)
+        if rendered_files:
+            for rf in rendered_files:
+                files.append({
+                    "path": rf.get("path", ""),
+                    "type": rf.get("content_type", ""),
+                    "role": rf.get("role", "rendered"),
+                    "content_url": rf.get("content_url", ""),
+                    "size_bytes": rf.get("size_bytes", 0),
+                })
+
+        manifest = {
+            "run_id": run_id,
+            "agent_id": agent_id,
+            "version": version_number,
+            "role": role,
+            "created_at": now.isoformat(),
+            "status": "active",
+            "files": files,
+            "sources": sources or [],
+            "feedback": {},
+        }
+
+        # 3. Write manifest.json
+        await self.write(
+            f"{folder_path}/manifest.json",
+            _json.dumps(manifest, indent=2),
+            summary=f"Run v{version_number} manifest",
+            tags=["manifest", f"v{version_number}"],
+            content_type="application/json",
+            lifecycle="active",
+            metadata={
+                "agent_id": agent_id,
+                "run_id": run_id,
+                "version_number": version_number,
+                "role": role,
+            },
+        )
+
+        logger.info(f"[WORKSPACE] ADR-119: Saved output to {self._base}/{folder_path}/ ({len(files)} files)")
+        return folder_path
 
 
 class KnowledgeBase:
@@ -568,7 +684,7 @@ class KnowledgeBase:
     Read by agents via QueryKnowledge primitive.
     """
 
-    # ADR-109: skill → content class directory
+    # ADR-109: role → content class directory
     CONTENT_CLASS_MAP = {
         "digest": "digests",
         "synthesize": "analyses",
@@ -585,16 +701,16 @@ class KnowledgeBase:
         self._base = "/knowledge"
 
     @classmethod
-    def get_knowledge_path(cls, skill: str, title: str, date_str: str = None) -> str:
+    def get_knowledge_path(cls, role: str, title: str, date_str: str = None) -> str:
         """
         Generate the /knowledge/ path for an agent output.
 
         Args:
-            skill: The agent's skill (digest, synthesize, prepare, etc.)
+            role: The agent's role (digest, synthesize, prepare, etc.)
             title: Agent title — will be slugified (e.g., "Slack Engineering Recap")
             date_str: Date string YYYY-MM-DD (defaults to today)
         """
-        content_class = cls.CONTENT_CLASS_MAP.get(skill, "analyses")
+        content_class = cls.CONTENT_CLASS_MAP.get(role, "analyses")
         if date_str is None:
             date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -630,7 +746,7 @@ class KnowledgeBase:
             path: Full path under /knowledge/ (use get_knowledge_path() to generate)
             content: The agent output content (markdown)
             summary: Brief description for discovery
-            metadata: {agent_id, run_id, content_class, skill, version_number}
+            metadata: {agent_id, run_id, content_class, role, version_number}
             tags: Searchable topic tags
         """
         if not path.startswith("/knowledge/"):
@@ -796,7 +912,7 @@ class KnowledgeBase:
         query: str = None,
         content_class: str = None,
         agent_id: str = None,
-        skill: str = None,
+        role: str = None,
         limit: int = 10,
     ) -> list[SearchResult]:
         """ADR-116 Phase 1: Search knowledge base with metadata filters.
@@ -809,7 +925,7 @@ class KnowledgeBase:
                 "p_user_id": self._user_id,
                 "p_content_class": content_class,
                 "p_agent_id": agent_id,
-                "p_skill": skill,
+                "p_role": role,
                 "p_query": query,
                 "p_limit": limit,
             }).execute()

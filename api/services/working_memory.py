@@ -59,7 +59,7 @@ async def build_working_memory(
         user_id: The authenticated user's ID
         client: Supabase client instance
         agent: Optional agent dict for scoped context (ADR-087).
-                     Expected keys: id, title, scope, skill, user_id.
+                     Expected keys: id, title, scope, role, user_id.
                      agent_instructions/agent_memory used only for lazy workspace migration.
 
     Returns:

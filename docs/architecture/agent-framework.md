@@ -214,6 +214,69 @@ A single template can create multiple agents sharing the same source configurati
 
 ---
 
+## User-Facing Agent Identity
+
+The Scope × Role × Trigger taxonomy is internal. Users never see "platform-scoped digest-role recurring-trigger agent." They see **workers with job titles** that produce **deliverables they care about**.
+
+### The framing principle
+
+Agents are presented as **employees with jobs**, not technical configurations. The job title is the primary identity. The user thinks: "my Slack agent handles my Slack," "my Meeting Prep gets me ready for calls," "my Market Researcher investigates competitors." The taxonomy drives execution behind the scenes; the job title drives the user's mental model.
+
+### How job titles map to the taxonomy
+
+| User sees (job title) | Internal (Scope × Role) | Why this framing works |
+|---|---|---|
+| **Your Slack Agent** | platform + digest | Platform IS the job for simple agents |
+| **Your Email Agent** | platform + digest | Same — platform name carries all context |
+| **Your Notion Agent** | platform + digest | Same pattern |
+| **Your Meeting Prep** | cross_platform + prepare | The deliverable IS the job |
+| **Your Weekly Brief** | cross_platform + synthesize | The recurring output IS the job |
+| **Your Channel Watch** | platform + monitor | The domain being watched IS the job |
+| **Your Competitor Watch** | knowledge + monitor | Same — domain-named |
+| **Your Market Researcher** | research + research | The investigation IS the job |
+| **Your Deep Dive: [topic]** | research + research (goal) | Topic-scoped job |
+| **Your Chief of Staff** | autonomous + synthesize | The cross-cutting judgment IS the job |
+
+### Platform agents: 1:1 platform to agent
+
+For platform-scoped agents, the platform IS the identity. "Your Slack Agent" is immediately understood. Users don't need to know it's a digest agent — it handles their Slack. Bootstrap (ADR-110) creates these automatically: connect Slack → get "Your Slack Agent."
+
+As a platform agent matures and gains output skills (ADR-118), it might graduate from text-only to producing a PDF weekly recap or a chart of activity trends. The identity stays "Your Slack Agent" — the deliverable gets richer, but the job hasn't changed.
+
+### Cross-cutting agents: job-framed, not scope-framed
+
+For agents that read from multiple platforms or accumulated knowledge, the identity is the **job they do** or the **deliverable they produce**, not the technical scope:
+
+- "Your Weekly Brief" (not "Your Cross-Platform Synthesize Agent")
+- "Your Competitor Watch" (not "Your Knowledge-Scope Monitor Agent")
+- "Your Market Researcher" (not "Your Research-Scope Research Agent")
+
+The user describes a need ("I need a weekly brief for my Monday meetings"), Composer creates an agent with the right scope, role, and trigger, and the agent's title reflects the job — not the configuration.
+
+### Output skills don't change the identity
+
+An agent's authorized output skills (pptx, pdf, xlsx, chart) are its **toolbox**, not its identity. A research agent that produces a PDF report and one that produces a PDF + spreadsheet + presentation are both "Your Market Researcher." The tools are assigned per-agent in AGENT.md by Composer based on what the job requires. Users see the deliverables; they don't configure the toolbox.
+
+This is the video editor analogy: a video editor's job is editing video, but they might also produce thumbnails, transcripts, or social clips. The job title stays the same; the output types vary based on what's needed.
+
+### Projects: collaborative deliverables
+
+Projects (ADR-119) appear to users as **collaborative outputs**, not as technical cross-agent coordination. "Your Q2 Review" is a project where the Slack agent, the analyst, and the research agent each contribute. The user sees the assembled deliverable (a deck, a report). The contributing agents and their individual contributions are visible but secondary — the project IS the unit the user cares about.
+
+### Progression: how identity evolves
+
+| Stage | What happens | User sees |
+|---|---|---|
+| **Bootstrap** | User connects Slack → system creates digest agent | "Your Slack Agent" appears |
+| **First value** | Agent runs, produces text recap | Email: "Here's your Slack recap" |
+| **Skill graduation** | Composer authorizes PDF skill based on maturity | Email now includes a PDF attachment |
+| **Job agent** | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears |
+| **Project** | Composer detects composition opportunity → creates project | "Your Q2 Review" appears, assembling outputs from multiple agents |
+
+At every stage, the user sees a worker with a job title that produces deliverables. The technical complexity (scope inference, role selection, skill authorization, project assembly) is invisible.
+
+---
+
 ## Execution Strategies by Scope
 
 ```python

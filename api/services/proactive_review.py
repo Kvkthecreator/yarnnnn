@@ -66,7 +66,7 @@ Your job is NOT to generate an agent. Your job is to assess whether conditions i
 warrant generating one right now.
 
 ## Your Domain Instructions
-{instructions if instructions else "No specific instructions set. Use your judgment based on agent skill and available context."}
+{instructions if instructions else "No specific instructions set. Use your judgment based on agent role and available context."}
 
 ## How to Decide
 

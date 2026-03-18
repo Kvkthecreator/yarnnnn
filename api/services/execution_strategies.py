@@ -439,7 +439,7 @@ def get_execution_strategy(agent: dict) -> ExecutionStrategy:
     - autonomous → AnalystStrategy (full workspace-driven investigation)
 
     Args:
-        agent: Agent dict with scope and skill columns
+        agent: Agent dict with scope and role columns
 
     Returns:
         Appropriate ExecutionStrategy instance

@@ -142,7 +142,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
 
     connected_platforms = [p["platform"] for p in platforms]
 
-    # 2. Existing agents — skill, scope, mode, origin, status, last_run_at, feedback
+    # 2. Existing agents — role, scope, mode, origin, status, last_run_at, feedback
     agents = []
     try:
         result = (
@@ -874,7 +874,7 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
     """Build the user message for Composer LLM assessment."""
     agents_summary = []
     for a in assessment["agents"]["active_list"]:
-        agents_summary.append(f"- {a['title']} (role={a['skill']}, scope={a['scope']})")
+        agents_summary.append(f"- {a['title']} (role={a['role']}, scope={a['scope']})")
 
     # ADR-114 Phase 3: Knowledge corpus summary
     knowledge = assessment.get("knowledge", {})

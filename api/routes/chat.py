@@ -854,7 +854,7 @@ async def global_chat(
     if agent_id:
         try:
             d_result = auth.client.table("agents").select(
-                "id, user_id, title, scope, skill, agent_instructions, agent_memory"
+                "id, user_id, title, scope, role, agent_instructions, agent_memory"
             ).eq("id", agent_id).eq("user_id", auth.user_id).single().execute()
             if d_result.data:
                 scoped_agent = d_result.data

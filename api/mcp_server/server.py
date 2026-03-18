@@ -382,19 +382,19 @@ async def search_knowledge(
     query: Optional[str] = None,
     content_class: Optional[str] = None,
     agent_id: Optional[str] = None,
-    skill: Optional[str] = None,
+    role: Optional[str] = None,
     limit: int = 10,
 ) -> dict:
     """Search YARNNN's accumulated agent-produced knowledge.
 
     Searches digests, analyses, briefs, research, and insights produced by
-    YARNNN's agent fleet. Filter by producing agent, skill type, or content class.
+    YARNNN's agent fleet. Filter by producing agent, role type, or content class.
 
     Args:
         query: Optional text search (topic, person, keyword)
         content_class: Optional filter: digests, analyses, briefs, research, insights
         agent_id: Optional filter by producing agent UUID
-        skill: Optional filter by skill type: digest, prepare, monitor, research, synthesize
+        role: Optional filter by role type: digest, prepare, monitor, research, synthesize
         limit: Max results (default 10, max 30)
     """
     auth = ctx.request_context.lifespan_context["auth"]
@@ -403,13 +403,13 @@ async def search_knowledge(
     kb = KnowledgeBase(auth.client, auth.user_id)
     limit = min(limit, 30)
 
-    has_metadata_filters = agent_id or skill
+    has_metadata_filters = agent_id or role
     if has_metadata_filters or not query:
         results = await kb.search_by_metadata(
             query=query,
             content_class=content_class,
             agent_id=agent_id,
-            skill=skill,
+            role=role,
             limit=limit,
         )
     else:
@@ -435,7 +435,7 @@ async def search_knowledge(
 @mcp.tool()
 async def discover_agents(
     ctx: Context,
-    skill: Optional[str] = None,
+    role: Optional[str] = None,
     scope: Optional[str] = None,
     status: Optional[str] = None,
 ) -> dict:
@@ -445,7 +445,7 @@ async def discover_agents(
     what agents exist, what domains they cover, and what knowledge they produce.
 
     Args:
-        skill: Optional filter: digest, prepare, monitor, research, synthesize, orchestrate
+        role: Optional filter: digest, prepare, monitor, research, synthesize, orchestrate
         scope: Optional filter: platform, cross_platform, knowledge, research, autonomous
         status: Optional filter: active (default), paused
     """
@@ -458,8 +458,8 @@ async def discover_agents(
         .eq("user_id", auth.user_id)
         .eq("status", status or "active")
     )
-    if skill:
-        query = query.eq("role", skill)
+    if role:
+        query = query.eq("role", role)
     if scope:
         query = query.eq("scope", scope)
 

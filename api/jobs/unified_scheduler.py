@@ -605,6 +605,23 @@ async def run_unified_scheduler():
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-119: Cleanup Ephemeral Workspace Files (hourly)
+    # Files in /working/ with lifecycle='ephemeral' older than 24h get deleted.
+    # -------------------------------------------------------------------------
+    if now.minute < 5:  # Same cadence as content cleanup
+        try:
+            ephemeral_cleaned = supabase.table("workspace_files").delete().eq(
+                "lifecycle", "ephemeral"
+            ).lt(
+                "updated_at", (now - timedelta(hours=24)).isoformat()
+            ).execute()
+            cleaned_count = len(ephemeral_cleaned.data or [])
+            if cleaned_count > 0:
+                logger.info(f"[WORKSPACE] ADR-119: Cleaned {cleaned_count} ephemeral files")
+        except Exception as e:
+            logger.warning(f"[WORKSPACE] Ephemeral cleanup failed (non-fatal): {e}")
+
+    # -------------------------------------------------------------------------
     # ADR-040: Event trigger cooldowns are database-backed (event_trigger_log).
     # No in-memory cleanup needed.
 

@@ -44,7 +44,7 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 # Required fields per entity type
 REQUIRED_FIELDS = {
-    "agent": ["title"],  # scope + skill defaulted in _process_agent()
+    "agent": ["title"],  # scope + role defaulted in _process_agent()
     "memory": ["content"],
     "document": ["name"],
     "domain": ["name"],
@@ -110,7 +110,7 @@ async def handle_write(auth: Any, input: dict) -> dict:
         return {
             "success": False,
             "error": "use_create_agent",
-            "message": "Use CreateAgent to create agents. Write handles memories and documents only. Example: CreateAgent(title=\"Weekly Status\", skill=\"synthesize\", frequency=\"weekly\")",
+            "message": "Use CreateAgent to create agents. Write handles memories and documents only. Example: CreateAgent(title=\"Weekly Status\", role=\"synthesize\", frequency=\"weekly\")",
         }
 
     # Get table
