@@ -880,3 +880,13 @@ export interface ProjectMembership {
   title: string;
   expected_contribution?: string;
 }
+
+/** ADR-124 Phase 4: Workspace file entry for project file browser */
+export interface ProjectWorkspaceFile {
+  path: string;
+  relative_path: string;
+  summary?: string;
+  content_type?: string;
+  updated_at?: string;
+  lifecycle?: string;
+}

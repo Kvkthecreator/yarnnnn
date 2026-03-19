@@ -44,6 +44,8 @@ import type {
   OutputManifest,
   ProjectOutputDetail,
   ContributionFile,
+  // ADR-124 Phase 4: Workspace file browser
+  ProjectWorkspaceFile,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -592,6 +594,17 @@ export const api = {
     getContributions: (slug: string, agentSlug: string) =>
       request<{ agent_slug: string; files: ContributionFile[] }>(
         `/api/projects/${slug}/contributions/${agentSlug}`
+      ),
+
+    // ADR-124 Phase 4: Workspace file browser
+    getFiles: (slug: string) =>
+      request<{ files: ProjectWorkspaceFile[]; total: number }>(
+        `/api/projects/${slug}/files`
+      ),
+
+    getFileContent: (slug: string, filePath: string) =>
+      request<{ path: string; content: string }>(
+        `/api/projects/${slug}/files/${filePath}`
       ),
   },
 

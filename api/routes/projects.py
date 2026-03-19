@@ -427,6 +427,52 @@ async def get_project_output(slug: str, folder: str, user: UserClient):
     }
 
 
+@router.get("/{slug}/files")
+async def get_project_files(slug: str, user: UserClient):
+    """ADR-124 Phase 4: List all workspace files under /projects/{slug}/ for the Context tab."""
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+
+    try:
+        # Query all files under this project path with metadata
+        result = (
+            user.client.table("workspace_files")
+            .select("path, summary, content_type, updated_at, lifecycle")
+            .eq("user_id", user.user_id)
+            .like("path", f"/projects/{slug}/%")
+            .neq("lifecycle", "archived")
+            .order("path")
+            .limit(200)
+            .execute()
+        )
+        files = result.data or []
+
+        # Strip project prefix for relative paths
+        prefix = f"/projects/{slug}/"
+        for f in files:
+            f["relative_path"] = f["path"][len(prefix):] if f["path"].startswith(prefix) else f["path"]
+
+        return {"files": files, "total": len(files)}
+    except Exception as e:
+        return {"files": [], "total": 0, "error": str(e)}
+
+
+@router.get("/{slug}/files/{file_path:path}")
+async def get_project_file_content(slug: str, file_path: str, user: UserClient):
+    """ADR-124 Phase 4: Read a specific file's content from the project workspace."""
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+    content = await pw.read(file_path)
+
+    if content is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return {"path": file_path, "content": content}
+
+
 @router.get("/{slug}/contributions/{agent_slug}")
 async def get_project_contributions(slug: str, agent_slug: str, user: UserClient):
     """Contribution files with content for a specific contributor agent."""

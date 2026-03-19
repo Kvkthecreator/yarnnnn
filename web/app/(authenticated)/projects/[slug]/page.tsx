@@ -35,6 +35,9 @@ import {
   X,
   Brain,
   ClipboardCheck,
+  FolderOpen,
+  Folder,
+  File,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -49,6 +52,7 @@ import type {
   OutputManifest,
   ContributionFile,
   PMIntelligence,
+  ProjectWorkspaceFile,
 } from '@/types';
 import type { TPMessage } from '@/types/desk';
 
@@ -480,6 +484,233 @@ function MeetingRoomTab({
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// ADR-124 Phase 4: Context Tab — Workspace File Browser
+// =============================================================================
+
+/** Build a tree structure from flat file paths */
+interface TreeNode {
+  name: string;
+  path: string;
+  isFolder: boolean;
+  children: TreeNode[];
+  file?: ProjectWorkspaceFile;
+}
+
+function buildFileTree(files: ProjectWorkspaceFile[]): TreeNode[] {
+  const root: TreeNode[] = [];
+
+  for (const f of files) {
+    const parts = f.relative_path.split('/').filter(Boolean);
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+      let existing = current.find(n => n.name === part);
+
+      if (!existing) {
+        existing = {
+          name: part,
+          path: parts.slice(0, i + 1).join('/'),
+          isFolder: !isLast,
+          children: [],
+          file: isLast ? f : undefined,
+        };
+        current.push(existing);
+      }
+
+      if (!isLast) {
+        existing.isFolder = true;
+        current = existing.children;
+      }
+    }
+  }
+
+  // Sort: folders first, then alphabetical
+  const sortNodes = (nodes: TreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    nodes.forEach(n => sortNodes(n.children));
+  };
+  sortNodes(root);
+
+  return root;
+}
+
+function FileTreeNode({
+  node,
+  depth,
+  selectedPath,
+  onSelect,
+}: {
+  node: TreeNode;
+  depth: number;
+  selectedPath: string | null;
+  onSelect: (path: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(depth < 2);
+
+  if (node.isFolder) {
+    return (
+      <div>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center gap-1.5 py-1 px-2 text-left text-sm hover:bg-muted/50 rounded transition-colors"
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        >
+          {expanded ? (
+            <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+          )}
+          {expanded ? (
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          ) : (
+            <Folder className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          )}
+          <span className="font-medium truncate">{node.name}</span>
+        </button>
+        {expanded && node.children.map((child) => (
+          <FileTreeNode
+            key={child.path}
+            node={child}
+            depth={depth + 1}
+            selectedPath={selectedPath}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onSelect(node.file?.relative_path || node.path)}
+      className={cn(
+        'w-full flex items-center gap-1.5 py-1 px-2 text-left text-sm rounded transition-colors',
+        selectedPath === (node.file?.relative_path || node.path)
+          ? 'bg-primary/10 text-primary'
+          : 'hover:bg-muted/50'
+      )}
+      style={{ paddingLeft: `${depth * 16 + 8}px` }}
+    >
+      <File className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <span className="truncate">{node.name}</span>
+      {node.file?.updated_at && (
+        <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
+          {formatDistanceToNow(new Date(node.file.updated_at), { addSuffix: true })}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ContextTab({ slug }: { slug: string }) {
+  const [files, setFiles] = useState<ProjectWorkspaceFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+
+  useEffect(() => {
+    api.projects.getFiles(slug).then((res) => {
+      setFiles(res.files);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [slug]);
+
+  const handleSelect = async (path: string) => {
+    if (selectedPath === path) {
+      setSelectedPath(null);
+      setFileContent(null);
+      return;
+    }
+    setSelectedPath(path);
+    setContentLoading(true);
+    try {
+      const res = await api.projects.getFileContent(slug, path);
+      setFileContent(res.content);
+    } catch {
+      setFileContent('Failed to load file content.');
+    } finally {
+      setContentLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <FolderOpen className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground">No workspace files yet — files will appear here as agents contribute.</p>
+      </div>
+    );
+  }
+
+  const tree = buildFileTree(files);
+
+  return (
+    <div className="flex h-full">
+      {/* File tree sidebar */}
+      <div className={cn(
+        'border-r border-border overflow-y-auto py-2',
+        selectedPath ? 'w-64 shrink-0' : 'w-full max-w-md mx-auto'
+      )}>
+        <div className="px-3 pb-2 mb-1 border-b border-border">
+          <p className="text-xs text-muted-foreground">
+            {files.length} file{files.length !== 1 ? 's' : ''} in /projects/{slug}/
+          </p>
+        </div>
+        {tree.map((node) => (
+          <FileTreeNode
+            key={node.path}
+            node={node}
+            depth={0}
+            selectedPath={selectedPath}
+            onSelect={handleSelect}
+          />
+        ))}
+      </div>
+
+      {/* File content preview */}
+      {selectedPath && (
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center gap-2">
+            <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs font-mono text-muted-foreground truncate">{selectedPath}</span>
+            <button
+              onClick={() => { setSelectedPath(null); setFileContent(null); }}
+              className="ml-auto text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {contentLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : fileContent ? (
+            <div className="p-4">
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mt-3 prose-headings:mb-1">
+                <ReactMarkdown>{fileContent}</ReactMarkdown>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -945,7 +1176,7 @@ function PMIntelligencePanel({
 // Main Component
 // =============================================================================
 
-type TabId = 'meeting-room' | 'outputs' | 'contributors';
+type TabId = 'meeting-room' | 'context' | 'outputs' | 'contributors';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1019,6 +1250,7 @@ export default function ProjectDetailPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
     { id: 'outputs', label: `Outputs${assemblies.length > 0 ? ` (${assemblies.length})` : ''}`, icon: <Package className="w-4 h-4" /> },
     { id: 'contributors', label: `Contributors${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
   ];
@@ -1079,6 +1311,9 @@ export default function ProjectDetailPage() {
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'meeting-room' && (
           <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={contributors} />
+        )}
+        {activeTab === 'context' && (
+          <ContextTab slug={slug} />
         )}
         {activeTab === 'outputs' && (
           <div className="h-full overflow-y-auto">
