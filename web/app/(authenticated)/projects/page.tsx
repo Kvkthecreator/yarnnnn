@@ -12,13 +12,29 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
-  FolderKanban,
+  Briefcase,
   MessageSquare,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
+import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { ProjectSummary } from '@/types';
+
+const TYPE_LABELS: Record<string, string> = {
+  slack_digest: 'Slack Recap',
+  gmail_digest: 'Gmail Digest',
+  notion_digest: 'Notion Summary',
+  cross_platform_synthesis: 'Cross-Platform Insights',
+  custom: 'Custom Project',
+};
+
+function getProjectIcon(typeKey: string | null): React.ReactNode {
+  if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-5 h-5');
+  if (typeKey === 'gmail_digest') return getPlatformIcon('gmail', 'w-5 h-5');
+  if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-5 h-5');
+  return <Briefcase className="w-5 h-5 text-muted-foreground" />;
+}
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -62,7 +78,7 @@ export default function ProjectsPage() {
           </div>
         ) : projects.length === 0 ? (
           <div className="text-center py-12">
-            <FolderKanban className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+            <Briefcase className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground mb-4">No projects yet</p>
             <button
               onClick={() => router.push(ORCHESTRATOR_ROUTE)}
@@ -80,23 +96,32 @@ export default function ProjectsPage() {
                 onClick={() => router.push(`/projects/${project.project_slug}`)}
                 className="w-full p-4 hover:bg-muted/50 transition-colors text-left"
               >
-                <div className="flex items-start gap-3">
-                  <FolderKanban className="w-5 h-5 mt-0.5 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0">
+                    {getProjectIcon(project.type_key)}
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium">
-                      {project.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                    </h3>
-                    {project.summary && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {project.summary}
-                      </p>
-                    )}
-                    {project.updated_at && (
-                      <p className="text-xs text-muted-foreground mt-1.5">
-                        Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold truncate">
+                        {project.title || project.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </span>
+                      {project.type_key && TYPE_LABELS[project.type_key] && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                          {TYPE_LABELS[project.type_key]}
+                        </span>
+                      )}
+                    </div>
+                    {project.purpose && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {project.purpose}
                       </p>
                     )}
                   </div>
+                  {project.updated_at && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                    </span>
+                  )}
                 </div>
               </button>
             ))}

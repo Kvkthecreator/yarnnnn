@@ -4,17 +4,18 @@
  * ADR-037: Chat-First Surface Architecture
  *
  * Navigation model (simplified 2026-03-19):
- * Primary:   Dashboard | Orchestrator | Agents | Projects | Sources
- * Secondary: Activity | Settings (absorbs Memory + System)
+ * Primary:   Dashboard | Orchestrator | Projects
+ * Secondary: Context | Activity | Settings
  *
- * The primary nav reflects daily workflow surfaces.
- * Secondary items are audit/config pages accessed less frequently.
+ * Agents hidden from nav (ADR-122: all agents belong to projects).
+ * Agent pages still accessible via direct URL and project cross-links.
+ * Context = platform connections + uploaded files (was "Sources").
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, MessageSquare, LayoutDashboard, FolderKanban } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, MessageSquare, LayoutDashboard } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -98,21 +99,24 @@ interface RouteItem {
   path: string;
 }
 
-// Primary: Dashboard (home) + Orchestrator + Agents + Projects + Sources
+// Primary: Dashboard (home) + Orchestrator + Projects
 const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: MessageSquare, path: ORCHESTRATOR_ROUTE };
-const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Briefcase, path: '/agents' };
-const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: FolderKanban, path: PROJECTS_ROUTE };
-const SOURCES_ROUTE: RouteItem = { id: 'context', label: 'Sources', icon: Layers, path: '/context' };
+const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: Briefcase, path: PROJECTS_ROUTE };
 
-// Secondary: Activity + Settings (Settings absorbs Memory + System)
+// Secondary: Context + Activity + Settings
+// Context = platform connections + uploaded files (was "Sources")
+// Agents hidden from nav — accessible via project cross-links and direct URL
 const SECONDARY_PAGES: RouteItem[] = [
+  { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
+// Agents route kept for pathname matching (still accessible, just not in nav)
+const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Agents', icon: Briefcase, path: '/agents' };
 
 // All primary routes for pathname matching
-const PRIMARY_ROUTES = [ORCHESTRATOR_NAV, AGENTS_ROUTE, PROJECTS_ROUTE_NAV, SOURCES_ROUTE];
+const PRIMARY_ROUTES = [ORCHESTRATOR_NAV, PROJECTS_ROUTE_NAV];
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
@@ -125,6 +129,10 @@ function getRouteFromPathname(pathname: string): RouteItem | null {
     if (pathname === route.path || pathname.startsWith(route.path + '/')) {
       return route;
     }
+  }
+  // Agents: hidden from nav but still accessible via direct URL / cross-links
+  if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
+    return AGENTS_ROUTE;
   }
   // Legacy routes still accessible but not in nav (memory, system)
   if (pathname.startsWith('/memory')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
@@ -267,7 +275,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary workspace: Dashboard + Orchestrator + Agents */}
+                {/* Primary: Dashboard + Orchestrator + Projects */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -302,20 +310,6 @@ function AuthenticatedLayoutInner({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(AGENTS_ROUTE.path);
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    currentRoute?.id === AGENTS_ROUTE.id && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  {AGENTS_ROUTE.label}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
                     router.push(PROJECTS_ROUTE_NAV.path);
                     setDropdownOpen(false);
                   }}
@@ -324,22 +318,8 @@ function AuthenticatedLayoutInner({
                     currentRoute?.id === PROJECTS_ROUTE_NAV.id && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <FolderKanban className="w-4 h-4" />
+                  <Briefcase className="w-4 h-4" />
                   {PROJECTS_ROUTE_NAV.label}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(SOURCES_ROUTE.path);
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    currentRoute?.id === SOURCES_ROUTE.id && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Layers className="w-4 h-4" />
-                  {SOURCES_ROUTE.label}
                 </button>
 
                 {/* Divider — secondary pages below */}

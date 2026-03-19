@@ -16,7 +16,7 @@ import {
   XCircle,
   Pause,
   ArrowRight,
-  FolderKanban,
+  Briefcase,
   Globe,
   Brain,
   ChevronRight,
@@ -78,7 +78,7 @@ function getProjectIcon(project: DashboardProject): React.ReactNode {
   if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-5 h-5');
   if (typeKey === 'gmail_digest') return getPlatformIcon('gmail', 'w-5 h-5');
   if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-5 h-5');
-  return <FolderKanban className="w-5 h-5 text-muted-foreground" />;
+  return <Briefcase className="w-5 h-5 text-muted-foreground" />;
 }
 
 // =============================================================================
