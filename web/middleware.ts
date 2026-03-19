@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Removed pre-v5 routes should return a real gone response, not bounce through auth.
-  const gonePrefixes = ["/baskets", "/blocks", "/projects", "/docs/integrations"];
+  const gonePrefixes = ["/baskets", "/blocks", "/docs/integrations"];
   if (gonePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return new NextResponse("Gone", {
       status: 410,
