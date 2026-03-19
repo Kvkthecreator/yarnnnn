@@ -131,16 +131,17 @@ The PM prompt v2.0, assembly composition prompt, and contributor brief injection
 - Work plan evolution: `focus_areas` per contributor persisted in `memory/work_plan.md`
 - Cross-cycle learning: quality assessment → work plan → briefs → contributor output → re-assessment (all mechanical pieces now connected)
 
-### Phase 3: Investigation & Expansion
+### Phase 3: Investigation & Expansion (Deferred)
 - `request_investigation` action — PM writes investigation request, TP/Composer creates or assigns research agent
-- PM work plan evolution — PM updates work plan based on quality assessments
-- Cross-cycle learning — PM's observations about what makes good contributions feed back into briefs
+- **Deferred because**: No PM→Composer request path exists. PM can escalate (which Composer sees via heartbeat), but cannot directly request agent creation. Requires new Composer trigger type (`pm_investigation_request`). Will implement when escalation path proves inadequate in production.
+- Cross-cycle learning — PM's observations about what makes good contributions feed back into briefs (partially addressed by Phase 2: quality_assessment.md → work_plan.md → briefs → contributor output)
 
-### Phase 4: PM Developmental Trajectory
+### Phase 4: PM Developmental Trajectory (Deferred)
 - Nascent PM: follows ADR-120 logistics (assemble when fresh)
 - Associate PM: starts assessing quality, writes first briefs
 - Senior PM: full intelligence director — steers, investigates, refines assembly format
 - PM seniority derived from assembly feedback (user edits on assembled output)
+- **Deferred because**: Feedback substrate (ADR-117) only tracks agent-level edits, not assembly-level. PM's assembled output goes through agent_runs dual-write as a PM run, so user edits on assemblies land on PM's preference profile — not attributed to contributing agents. Requires feedback attribution for assembled outputs before PM seniority can be meaningfully derived.
 
 ## Relationship to FOUNDATIONS.md
 
