@@ -9,6 +9,8 @@ Endpoints:
 - GET /projects/{slug}/activity — project activity timeline
 - GET /projects/{slug}/outputs — list assemblies with parsed manifests (P4b)
 - GET /projects/{slug}/outputs/{folder} — single assembly detail with content (P4b)
+- GET /projects/{slug}/files — list workspace files under /projects/{slug}/ (ADR-124 P4)
+- GET /projects/{slug}/files/{path} — read specific file content (ADR-124 P4)
 - GET /projects/{slug}/contributions/{agent_slug} — contribution files with content (P4b)
 - POST /projects — create project
 - PATCH /projects/{slug} — update PROJECT.md fields
@@ -467,7 +469,6 @@ async def get_project_file_content(slug: str, file_path: str, user: UserClient):
     content = await pw.read(file_path)
 
     if content is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
 
     return {"path": file_path, "content": content}

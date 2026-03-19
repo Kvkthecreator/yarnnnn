@@ -41,7 +41,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
