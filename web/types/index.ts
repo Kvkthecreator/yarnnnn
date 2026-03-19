@@ -832,3 +832,38 @@ export interface ProjectActivityItem {
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
+
+// ADR-119 Phase 4b: Output + Contribution types
+export interface OutputManifest {
+  folder: string;
+  version: number;
+  created_at: string;
+  status: string;
+  files: Array<{
+    path: string;
+    type: string;
+    role: string;
+    content_url?: string;
+    size_bytes?: number;
+  }>;
+  sources: string[];
+  delivery?: Record<string, unknown>;
+}
+
+export interface ProjectOutputDetail {
+  folder: string;
+  content: string;
+  manifest: OutputManifest | null;
+}
+
+export interface ContributionFile {
+  path: string;
+  content: string;
+  updated_at?: string;
+}
+
+export interface ProjectMembership {
+  project_slug: string;
+  title: string;
+  expected_contribution?: string;
+}

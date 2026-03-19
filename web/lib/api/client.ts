@@ -40,6 +40,10 @@ import type {
   ProjectSummary,
   ProjectDetail,
   ProjectActivityItem,
+  // ADR-119 Phase 4b: Outputs + Contributions
+  OutputManifest,
+  ProjectOutputDetail,
+  ContributionFile,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -526,6 +530,14 @@ export const api = {
         `/api/agents/${agentId}/sessions${params}`
       );
     },
+
+    // ADR-119 P4b: Output folder history
+    getOutputs: (agentId: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<{ outputs: OutputManifest[]; total: number }>(
+        `/api/agents/${agentId}/outputs${params}`
+      );
+    },
   },
 
   // ADR-119 Phase 4: Projects
@@ -548,6 +560,22 @@ export const api = {
         `/api/projects/${slug}/activity${params}`
       );
     },
+
+    // ADR-119 P4b: Output + contribution endpoints
+    getOutputs: (slug: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<{ outputs: OutputManifest[]; total: number }>(
+        `/api/projects/${slug}/outputs${params}`
+      );
+    },
+
+    getOutput: (slug: string, folder: string) =>
+      request<ProjectOutputDetail>(`/api/projects/${slug}/outputs/${folder}`),
+
+    getContributions: (slug: string, agentSlug: string) =>
+      request<{ agent_slug: string; files: ContributionFile[] }>(
+        `/api/projects/${slug}/contributions/${agentSlug}`
+      ),
   },
 
   // Account management

@@ -7,13 +7,17 @@ Endpoints:
 - GET /projects — list all projects
 - GET /projects/{slug} — project detail (parsed PROJECT.md + contributors + assemblies)
 - GET /projects/{slug}/activity — project activity timeline
+- GET /projects/{slug}/outputs — list assemblies with parsed manifests (P4b)
+- GET /projects/{slug}/outputs/{folder} — single assembly detail with content (P4b)
+- GET /projects/{slug}/contributions/{agent_slug} — contribution files with content (P4b)
 - POST /projects — create project
 - PATCH /projects/{slug} — update PROJECT.md fields
 - DELETE /projects/{slug} — archive project
 """
 
+import json as _json
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -124,7 +128,6 @@ async def get_project(slug: str, user: UserClient):
 async def create_project(body: CreateProjectRequest, user: UserClient):
     """Create a new project."""
     from services.workspace import ProjectWorkspace, AgentWorkspace, get_project_slug, get_agent_slug
-    import json as _json
 
     project_slug = get_project_slug(body.title)
 
@@ -321,3 +324,101 @@ async def get_project_activity(slug: str, user: UserClient, limit: int = 20):
     except Exception as e:
         logger.error(f"[PROJECTS] Activity query failed for {slug}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch project activity")
+
+
+# =============================================================================
+# ADR-119 Phase 4b: Output + Contribution endpoints
+# =============================================================================
+
+@router.get("/{slug}/outputs")
+async def list_project_outputs(slug: str, user: UserClient, limit: int = Query(default=20, le=50)):
+    """List assemblies with parsed manifests — output history for the project."""
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+    folders = await pw.list_assemblies()
+
+    outputs = []
+    for full_folder in reversed(folders[-limit:]):
+        manifest_raw = await pw.read(f"{full_folder}/manifest.json")
+        if not manifest_raw:
+            continue
+        try:
+            manifest = _json.loads(manifest_raw)
+        except _json.JSONDecodeError:
+            continue
+
+        # Strip "assembly/" prefix for the folder identifier (matches detail URL param)
+        folder_id = full_folder.removeprefix("assembly/")
+        outputs.append({
+            "folder": folder_id,
+            "version": manifest.get("version", 0),
+            "created_at": manifest.get("created_at"),
+            "status": manifest.get("status", "active"),
+            "files": manifest.get("files", []),
+            "sources": manifest.get("sources", []),
+            "delivery": manifest.get("delivery"),
+        })
+
+    return {"outputs": outputs, "total": len(outputs)}
+
+
+@router.get("/{slug}/outputs/{folder}")
+async def get_project_output(slug: str, folder: str, user: UserClient):
+    """Single assembly detail — output.md content + full manifest."""
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+
+    content = await pw.read(f"assembly/{folder}/output.md")
+    manifest_raw = await pw.read(f"assembly/{folder}/manifest.json")
+
+    if not content and not manifest_raw:
+        raise HTTPException(status_code=404, detail=f"Assembly not found: {folder}")
+
+    manifest = None
+    if manifest_raw:
+        try:
+            manifest = _json.loads(manifest_raw)
+        except _json.JSONDecodeError:
+            pass
+
+    return {
+        "folder": folder,
+        "content": content or "",
+        "manifest": manifest,
+    }
+
+
+@router.get("/{slug}/contributions/{agent_slug}")
+async def get_project_contributions(slug: str, agent_slug: str, user: UserClient):
+    """Contribution files with content for a specific contributor agent."""
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+    file_names = await pw.list_contributions(agent_slug)
+
+    files = []
+    for fname in file_names:
+        file_content = await pw.read(f"contributions/{agent_slug}/{fname}")
+        # Get metadata from workspace_files
+        try:
+            result = (
+                user.client.table("workspace_files")
+                .select("updated_at")
+                .eq("user_id", user.user_id)
+                .eq("path", f"/projects/{slug}/contributions/{agent_slug}/{fname}")
+                .maybe_single()
+                .execute()
+            )
+            updated_at = result.data.get("updated_at") if result and result.data else None
+        except Exception:
+            updated_at = None
+
+        files.append({
+            "path": fname,
+            "content": file_content or "",
+            "updated_at": updated_at,
+        })
+
+    return {"agent_slug": agent_slug, "files": files}

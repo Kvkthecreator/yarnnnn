@@ -10,6 +10,7 @@ Endpoints:
 - PATCH /agents/:id - Update agent settings
 - DELETE /agents/:id - Archive an agent
 - POST /agents/:id/run - Trigger an ad-hoc run
+- GET /agents/:id/outputs - Output folder history (ADR-119 P4b)
 - GET /agents/:id/versions - List versions
 - GET /agents/:id/versions/:version_id - Get version detail
 - PATCH /agents/:id/versions/:version_id - Update version (approve, reject, save edits)
@@ -718,6 +719,19 @@ async def get_agent(
     from services.workspace import get_agent_intelligence, get_agent_slug
     intelligence = await get_agent_intelligence(auth.client, auth.user_id, agent)
 
+    # ADR-119 P4b: Read project memberships from agent workspace
+    project_memberships = []
+    try:
+        import json as _json
+        slug = get_agent_slug(agent)
+        from services.workspace import AgentWorkspace
+        _aw = AgentWorkspace(auth.client, auth.user_id, slug)
+        _projects_raw = await _aw.read("memory/projects.json")
+        if _projects_raw:
+            project_memberships = _json.loads(_projects_raw)
+    except Exception:
+        pass  # Non-fatal
+
     # ADR-118: Query rendered outputs for this agent
     rendered_outputs = []
     try:
@@ -805,6 +819,7 @@ async def get_agent(
         ],
         "feedback_summary": feedback_summary,
         "rendered_outputs": rendered_outputs,
+        "project_memberships": project_memberships,
     }
 
 
@@ -1376,6 +1391,69 @@ async def update_run(
         delivery_external_url=v.get("delivery_external_url"),
         delivered_at=v.get("delivered_at"),
     )
+
+
+# =============================================================================
+# ADR-119 Phase 4b: Agent Output History
+# =============================================================================
+
+
+@router.get("/{agent_id}/outputs")
+async def list_agent_outputs(
+    agent_id: UUID,
+    auth: UserClient,
+    limit: int = 20,
+) -> dict:
+    """
+    List output folders for an agent with parsed manifests.
+
+    ADR-119 P4b: Chronological output history for the agent detail Outputs tab.
+    Each output folder contains output.md + manifest.json.
+    """
+    import json as _json
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    # Verify ownership and get slug
+    agent_result = (
+        auth.client.table("agents")
+        .select("id, title")
+        .eq("id", str(agent_id))
+        .eq("user_id", auth.user_id)
+        .maybe_single()
+        .execute()
+    )
+    if not agent_result or not agent_result.data:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    slug = get_agent_slug(agent_result.data)
+    ws = AgentWorkspace(auth.client, auth.user_id, slug)
+
+    # List output date-folders
+    items = await ws.list("outputs/")
+    folders = sorted([item.rstrip("/") for item in items if item.endswith("/")])
+
+    outputs = []
+    for full_folder in reversed(folders[-limit:]):
+        manifest_raw = await ws.read(f"{full_folder}/manifest.json")
+        if not manifest_raw:
+            continue
+        try:
+            manifest = _json.loads(manifest_raw)
+        except _json.JSONDecodeError:
+            continue
+
+        folder_id = full_folder.removeprefix("outputs/")
+        outputs.append({
+            "folder": folder_id,
+            "version": manifest.get("version", 0),
+            "created_at": manifest.get("created_at"),
+            "status": manifest.get("status", "active"),
+            "files": manifest.get("files", []),
+            "sources": manifest.get("sources", []),
+            "delivery": manifest.get("delivery"),
+        })
+
+    return {"outputs": outputs, "total": len(outputs)}
 
 
 # =============================================================================
