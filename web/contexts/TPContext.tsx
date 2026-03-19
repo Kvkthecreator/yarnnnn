@@ -138,8 +138,8 @@ interface TPContextValue {
   respondToClarification: (answer: string) => void;
   closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
-  /** ADR-087 Phase 3: Load history scoped to an agent (or global if undefined) */
-  loadScopedHistory: (agentId?: string) => Promise<void>;
+  /** ADR-087 Phase 3 / ADR-119 P4b: Load history scoped to agent or project */
+  loadScopedHistory: (agentId?: string, projectSlug?: string) => Promise<void>;
 }
 
 const TPContext = createContext<TPContextValue | null>(null);
@@ -210,14 +210,14 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   // Track which scope was last loaded to avoid redundant fetches
   const lastLoadedScopeRef = useRef<string | undefined>(undefined);
 
-  const loadScopedHistory = useCallback(async (agentId?: string) => {
+  const loadScopedHistory = useCallback(async (agentId?: string, projectSlug?: string) => {
     // Skip if already loaded for this scope
-    const scopeKey = agentId ?? '__global__';
+    const scopeKey = projectSlug ? `project:${projectSlug}` : (agentId ?? '__global__');
     if (lastLoadedScopeRef.current === scopeKey) return;
     lastLoadedScopeRef.current = scopeKey;
 
     try {
-      const result = await api.chat.globalHistory(1, agentId);
+      const result = await api.chat.globalHistory(1, agentId, projectSlug);
 
       if (result.sessions && result.sessions.length > 0) {
         const session = result.sessions[0];

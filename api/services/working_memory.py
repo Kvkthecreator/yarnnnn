@@ -51,6 +51,7 @@ async def build_working_memory(
     user_id: str,
     client: Any,
     agent: Optional[dict] = None,
+    project_slug: Optional[str] = None,  # ADR-119 P4b
 ) -> dict:
     """
     Build the working memory object for TP system prompt injection.
@@ -61,10 +62,11 @@ async def build_working_memory(
         agent: Optional agent dict for scoped context (ADR-087).
                      Expected keys: id, title, scope, role, user_id.
                      agent_instructions/agent_memory used only for lazy workspace migration.
+        project_slug: Optional project slug for project-scoped context (ADR-119 P4b).
 
     Returns:
         Dict structured for JSON serialization into the prompt.
-        Designed to stay under ~2,000 tokens (+ ~500 for agent scope).
+        Designed to stay under ~2,000 tokens (+ ~500 for agent/project scope).
     """
     # Parallelize independent DB queries via thread pool.
     # Each thread gets its own Supabase client to avoid httpx connection pool
@@ -96,6 +98,12 @@ async def build_working_memory(
     # ADR-087: Inject agent-scoped context if session is scoped
     if agent:
         working_memory["scoped_agent"] = await _extract_agent_scope(agent, client)
+
+    # ADR-119 P4b: Inject project-scoped context if session is project-scoped
+    if project_slug:
+        working_memory["scoped_project"] = await _extract_project_scope(
+            project_slug, client, user_id
+        )
 
     return working_memory
 
@@ -233,6 +241,47 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
                     scope["latest_version"]["strategy"] = meta["strategy"]
         except Exception as e:
             logger.warning(f"[WORKING_MEMORY] Failed to fetch latest version: {e}")
+
+    return scope
+
+
+async def _extract_project_scope(project_slug: str, client: Any, user_id: str) -> dict:
+    """
+    ADR-119 P4b: Extract project-scoped context for working memory injection.
+
+    Returns structured dict with project title, intent, contributor status,
+    recent activity, and work plan snippet.
+    """
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(client, user_id, project_slug)
+    project = await pw.read_project()
+    if not project:
+        return {"slug": project_slug, "error": "not_found"}
+
+    scope: dict[str, Any] = {
+        "slug": project_slug,
+        "title": project.get("title", ""),
+        "intent": project.get("intent", {}),
+        "contributors": project.get("contributors", []),
+        "status": project.get("status", "active"),
+    }
+
+    # Recent assemblies (last 3 date-folder names)
+    try:
+        assemblies = await pw.list_assemblies()
+        if assemblies:
+            scope["recent_assemblies"] = assemblies[-3:]
+    except Exception:
+        pass
+
+    # Work plan snippet (if PM has written one)
+    try:
+        work_plan = await pw.read("memory/work_plan.md")
+        if work_plan:
+            scope["work_plan"] = work_plan[:500]
+    except Exception:
+        pass
 
     return scope
 
@@ -636,6 +685,34 @@ def format_for_prompt(working_memory: dict) -> str:
             preview = latest_version.get("content_preview", "")
             if preview:
                 lines.append(f"```\n{preview}\n```")
+
+    # ADR-119 P4b: Scoped project context
+    scoped_project = working_memory.get("scoped_project")
+    if scoped_project and not scoped_project.get("error"):
+        title = scoped_project.get("title", "Untitled")
+        lines.append(f"\n### Current project: {title}")
+
+        intent = scoped_project.get("intent", {})
+        if intent.get("purpose"):
+            lines.append(f"**Purpose:** {intent['purpose']}")
+        if intent.get("deliverable"):
+            lines.append(f"**Deliverable:** {intent['deliverable']}")
+
+        contributors = scoped_project.get("contributors", [])
+        if contributors:
+            lines.append(f"\n**Contributors:** {len(contributors)}")
+            for c in contributors[:5]:
+                slug = c.get("agent_slug", "?")
+                contrib = c.get("expected_contribution", "")
+                lines.append(f"- {slug}{f': {contrib}' if contrib else ''}")
+
+        assemblies = scoped_project.get("recent_assemblies", [])
+        if assemblies:
+            lines.append(f"\n**Recent assemblies:** {', '.join(assemblies)}")
+
+        work_plan = scoped_project.get("work_plan")
+        if work_plan:
+            lines.append(f"\n**Work plan:**\n{work_plan}")
 
     # System Summary (ADR-072) — structured operational state
     system_summary = working_memory.get("system_summary", {})

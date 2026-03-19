@@ -52,6 +52,7 @@ class SurfaceContext(BaseModel):
     """Surface context for TP - what the user is currently viewing."""
     type: str  # e.g., "agent-review", "work-output", "idle"
     agentId: Optional[str] = None
+    projectSlug: Optional[str] = None  # ADR-119 P4b: project-scoped chat
     versionId: Optional[str] = None
     workId: Optional[str] = None
     outputId: Optional[str] = None
@@ -176,6 +177,49 @@ async def get_or_create_session(
                 "previous_session_id": previous_session_id,
             }
         return None
+
+
+async def get_or_create_project_session(
+    client,
+    user_id: str,
+    project_slug: str,
+    session_type: str = "thinking_partner",
+) -> dict:
+    """
+    ADR-119 P4b: Get or create a project-scoped chat session.
+
+    Project sessions persist for the life of the project (no 4h inactivity
+    rotation). Uses project_slug TEXT column instead of legacy project_id UUID.
+    """
+    try:
+        # Find active project session
+        existing = (
+            client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("project_slug", project_slug)
+            .eq("session_type", session_type)
+            .eq("status", "active")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return {**existing.data[0], "is_new": False}
+    except Exception as e:
+        logger.debug(f"[SESSION] Project session lookup failed: {e}")
+
+    # Create new session
+    data = {
+        "user_id": user_id,
+        "project_slug": project_slug,
+        "session_type": session_type,
+        "status": "active",
+    }
+    result = client.table("chat_sessions").insert(data).execute()
+    if result.data:
+        return {**result.data[0], "is_new": True}
+    return None
 
 
 async def append_message(
@@ -743,6 +787,23 @@ Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """
 
+        elif surface_type == "project-detail" and surface.projectSlug:
+            # ADR-119 P4b: User is viewing a project page
+            from services.workspace import ProjectWorkspace
+            pw = ProjectWorkspace(client, user_id, surface.projectSlug)
+            project = await pw.read_project()
+            if project:
+                title = project.get("title", surface.projectSlug)
+                contributors = project.get("contributors", [])
+                intent = project.get("intent", {})
+                status = project.get("status", "active")
+                parts = [f'## Currently Viewing: Project "{title}"']
+                if intent.get("purpose"):
+                    parts.append(f"Purpose: {intent['purpose']}")
+                parts.append(f"Status: {status}")
+                parts.append(f"Contributors: {len(contributors)} agents")
+                return "\n".join(parts)
+
         elif surface_type == "context-browser":
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
@@ -782,13 +843,25 @@ async def global_chat(
     if request.surface_context and request.surface_context.agentId:
         request_agent_id = request.surface_context.agentId
 
-    # Get or create session (daily scope, scoped by agent_id if present)
-    session = await get_or_create_session(
-        auth.client,
-        auth.user_id,
-        scope="daily",
-        agent_id=request_agent_id,
-    )
+    # ADR-119 P4b: Extract project_slug from surface_context for project-scoped chat
+    request_project_slug = None
+    if request.surface_context and request.surface_context.projectSlug:
+        request_project_slug = request.surface_context.projectSlug
+
+    # Get or create session — project sessions use project_slug, agent/global use agent_id
+    if request_project_slug:
+        session = await get_or_create_project_session(
+            auth.client,
+            auth.user_id,
+            project_slug=request_project_slug,
+        )
+    else:
+        session = await get_or_create_session(
+            auth.client,
+            auth.user_id,
+            scope="daily",
+            agent_id=request_agent_id,
+        )
     session_id = session["id"]
 
     # Generate summary for previous session if this is a new session
@@ -934,6 +1007,7 @@ async def global_chat(
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
+                    "scoped_project_slug": request_project_slug,  # ADR-119 P4b
                 },
             ):
                 if event.type == "text":
@@ -1064,26 +1138,29 @@ async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
     agent_id: Optional[str] = Query(default=None),
+    project_slug: Optional[str] = Query(default=None),  # ADR-119 P4b
 ):
     """
-    Get chat history scoped by agent (or global if no agent_id).
+    Get chat history scoped by agent, project, or global.
     Returns the most recent session(s) with messages.
 
-    ADR-087 Phase 3: agent_id param isolates agent-scoped sessions
-    from global TP sessions.
+    ADR-087 Phase 3: agent_id param isolates agent-scoped sessions.
+    ADR-119 P4b: project_slug param isolates project-scoped sessions.
     """
-    # Fetch recent sessions, scoped by agent_id
+    # Fetch recent sessions, scoped by agent_id or project_slug
     q = (
         auth.client.table("chat_sessions")
         .select("*")
         .eq("user_id", auth.user_id)
-        .is_("project_id", "null")
         .eq("session_type", "thinking_partner")
     )
-    if agent_id:
-        q = q.eq("agent_id", agent_id)
+    if project_slug:
+        # ADR-119 P4b: project-scoped session lookup
+        q = q.eq("project_slug", project_slug)
+    elif agent_id:
+        q = q.eq("agent_id", agent_id).is_("project_slug", "null")
     else:
-        q = q.is_("agent_id", "null")
+        q = q.is_("agent_id", "null").is_("project_slug", "null")
     sessions_result = q.order("created_at", desc=True).limit(limit).execute()
 
     sessions = []

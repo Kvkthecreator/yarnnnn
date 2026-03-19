@@ -14,6 +14,8 @@ export type DeskSurface =
   | { type: 'agent-review'; agentId: string; runId: string }
   | { type: 'agent-detail'; agentId: string }
   | { type: 'agent-list'; status?: 'active' | 'paused' | 'archived' }
+  // Projects (ADR-119 P4b)
+  | { type: 'project-detail'; projectSlug: string }
   // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
   | { type: 'context-browser'; scope: 'user' | 'agent'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
@@ -181,6 +183,11 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
         status: data.status as 'active' | 'paused' | 'archived' | undefined,
       };
 
+    // Projects (ADR-119 P4b)
+    case 'project':
+    case 'project-detail':
+      return { type: 'project-detail', projectSlug: data.projectSlug as string };
+
     // Context (ADR-034)
     case 'context':
     case 'memory':
@@ -238,6 +245,9 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
     case 'agent-list':
       if (surface.status) params.set('status', surface.status);
       break;
+    case 'project-detail':
+      params.set('projectSlug', surface.projectSlug);
+      break;
     case 'context-browser':
       params.set('scope', surface.scope);
       if (surface.scopeId) params.set('scopeId', surface.scopeId);
@@ -276,6 +286,11 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     }
     case 'agent-list':
       return { type: 'agent-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
+    case 'project-detail': {
+      const pSlug = params.get('projectSlug');
+      if (pSlug) return { type: 'project-detail', projectSlug: pSlug };
+      break;
+    }
     case 'context-browser':
       return {
         type: 'context-browser',

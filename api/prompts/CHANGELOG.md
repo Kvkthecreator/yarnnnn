@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.2] - Project-scoped working memory injection (ADR-119 P4b)
+
+### Changed
+- `api/services/working_memory.py`: `build_working_memory()` accepts optional `project_slug` parameter. When provided, calls `_extract_project_scope()` which reads PROJECT.md (title, intent, contributors, status), recent assemblies, and work plan snippet from workspace.
+- `api/services/working_memory.py`: `format_for_prompt()` renders "### Current project: {title}" section with purpose, deliverable, contributors, recent assemblies, and work plan.
+- `api/agents/thinking_partner.py`: Passes `scoped_project_slug` from chat parameters to `build_working_memory()`.
+- `api/routes/chat.py`: Extracts `projectSlug` from `SurfaceContext`, creates project-scoped sessions via `get_or_create_project_session()` (persists for project lifetime, no 4h rotation), adds `project-detail` handler in `load_surface_content()`.
+- Expected behavior: When user chats from a project page, TP receives project context (title, intent, contributors, assemblies, work plan) in its system prompt. Separate sessions per project, persisting for project lifetime.
+
+---
+
 ## [2026.03.19.1] - Composer v2.1: promote_duty action + seniority rename (ADR-117 Phase 3)
 
 ### Changed

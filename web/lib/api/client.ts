@@ -338,9 +338,10 @@ export const api = {
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     // Get global chat history
-    globalHistory: (limit: number = 1, agentId?: string) => {
+    globalHistory: (limit: number = 1, agentId?: string, projectSlug?: string) => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (agentId) params.set('agent_id', agentId);
+      if (projectSlug) params.set('project_slug', projectSlug);
       return request<{
         sessions: Array<{
           id: string;

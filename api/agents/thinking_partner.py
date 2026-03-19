@@ -340,13 +340,16 @@ class ThinkingPartnerAgent(BaseAgent):
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
         scoped_agent = params.get("scoped_agent")  # ADR-087: Agent-scoped context
+        scoped_project_slug = params.get("scoped_project_slug")  # ADR-119 P4b
 
         # ADR-058: Build working memory (replaces most memory searches)
         # ADR-087: Pass scoped_agent for per-agent instructions + memory injection
+        # ADR-119 P4b: Pass project_slug for project-scoped context injection
         injected_context = None
         try:
             injected_context = await build_working_memory(
-                auth.user_id, auth.client, agent=scoped_agent
+                auth.user_id, auth.client, agent=scoped_agent,
+                project_slug=scoped_project_slug,
             )
         except Exception:
             # Working memory is best-effort; fall back to legacy path
