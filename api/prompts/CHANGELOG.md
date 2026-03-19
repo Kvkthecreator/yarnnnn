@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.6] - ADR-121 Phase 2: Contribution bridge + assembly gating + work plan focus areas
+
+### Changed
+- `api/services/agent_execution.py`: New `_write_contribution_to_projects()` — after agent delivery, writes output to `/projects/{slug}/contributions/{agent_slug}/output.md` for every project the agent belongs to. **This closes the critical gap**: PM can now read actual contribution content because it exists in the project workspace.
+- `api/services/agent_execution.py`: Assembly gating log — PM assembly now logs whether a quality assessment exists before proceeding. Informational, not blocking (PM prompt v3.0 already guides assess-before-assemble behavior).
+- `api/services/agent_execution.py`: `update_work_plan` handler now includes `focus_areas` per contributor in work plan markdown. PM v3.0 prompt outputs focus areas in its work plan JSON.
+
+### Expected behavior
+- After any non-PM agent delivers, its output is automatically written to all projects it belongs to. PM's next run will see actual content (not empty contributions).
+- PM can now meaningfully assess quality because `/projects/{slug}/contributions/{agent_slug}/output.md` contains real content.
+- Work plans show per-contributor focus areas, enabling directed follow-up.
+- No behavior changes for agents that aren't in projects.
+
+---
+
 ## [2026.03.19.5] - ADR-121 Phase 1: PM prompt v3.0 (Intelligence Director) + Assembly prompt v2.0
 
 ### Changed

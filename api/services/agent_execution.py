@@ -216,6 +216,44 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     }
 
 
+async def _write_contribution_to_projects(client, user_id: str, agent_slug: str, content: str):
+    """
+    ADR-121: Write agent output to all projects this agent contributes to.
+
+    Reads memory/projects.json to find project memberships, then writes
+    content to /projects/{slug}/contributions/{agent_slug}/output.md.
+    This is the bridge between agent output and PM quality assessment.
+    """
+    from services.workspace import AgentWorkspace, ProjectWorkspace
+
+    ws = AgentWorkspace(client, user_id, agent_slug)
+    projects_json = await ws.read("memory/projects.json")
+    if not projects_json:
+        return
+
+    import json as _json
+    try:
+        projects = _json.loads(projects_json)
+    except _json.JSONDecodeError:
+        return
+
+    for project_entry in projects:
+        project_slug = project_entry.get("project_slug")
+        if not project_slug:
+            continue
+        try:
+            pw = ProjectWorkspace(client, user_id, project_slug)
+            await pw.contribute(
+                agent_slug=agent_slug,
+                filename="output.md",
+                content=content,
+                summary=f"Latest output from {agent_slug}",
+            )
+            logger.info(f"[CONTRIB] Wrote {agent_slug} output to project {project_slug}")
+        except Exception as e:
+            logger.warning(f"[CONTRIB] Failed to write {agent_slug} to {project_slug}: {e}")
+
+
 async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, agent_slug: str):
     """
     ADR-120: After a contributor produces output, check if it belongs to any project.
@@ -403,6 +441,19 @@ async def _handle_pm_decision(
             quality_notes = decision.get("quality_notes", "")
             if quality_notes:
                 type_config["quality_notes"] = quality_notes
+
+            # ADR-121 P2: Log if assembling without recent quality assessment
+            try:
+                from services.workspace import ProjectWorkspace as _PW
+                _pw = _PW(client, user_id, project_slug)
+                qa = await _pw.read("memory/quality_assessment.md")
+                if not qa:
+                    logger.info(f"[PM] Assembling {project_slug} without prior quality assessment")
+                else:
+                    logger.info(f"[PM] Assembling {project_slug} with quality assessment on file")
+            except Exception:
+                pass
+
             result = await _execute_pm_assemble(client, user_id, agent, project_slug, type_config)
             # ADR-117 Phase 3: Project activity event
             if result.get("success"):
@@ -619,7 +670,11 @@ async def _handle_pm_decision(
                 for c in work_plan_data["contributors"]:
                     cadence = c.get("expected_cadence", "as needed")
                     skills = ", ".join(c.get("skills", []))
-                    wp_lines.append(f"- {c.get('slug', '?')}: cadence={cadence}, skills={skills}")
+                    focus = ", ".join(c.get("focus_areas", []))
+                    line = f"- {c.get('slug', '?')}: cadence={cadence}, skills={skills}"
+                    if focus:
+                        line += f", focus=[{focus}]"
+                    wp_lines.append(line)
             if work_plan_data.get("skill_sequence"):
                 wp_lines.append(f"\n## Skill Sequence\n{' → '.join(work_plan_data['skill_sequence'])}")
             if work_plan_data.get("notes"):
@@ -2307,6 +2362,15 @@ async def execute_agent_generation(
                 })
             except Exception as e:
                 logger.warning(f"[EXEC] Event heartbeat trigger failed: {e}")
+
+        # ADR-121: Write contributor output to project workspace BEFORE triggering PM.
+        # This closes the critical gap where PM couldn't assess contribution quality
+        # because contributions never existed in /projects/{slug}/contributions/{agent_slug}/.
+        if final_status == "delivered" and role != "pm":
+            try:
+                await _write_contribution_to_projects(svc_client, user_id, slug, draft)
+            except Exception as e:
+                logger.warning(f"[EXEC] Project contribution write failed: {e}")
 
         # ADR-120: Project heartbeat — if this agent contributes to projects,
         # advance the PM's schedule so it runs on next scheduler cycle

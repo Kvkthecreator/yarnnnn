@@ -125,10 +125,11 @@ The PM prompt v2.0, assembly composition prompt, and contributor brief injection
 - Assembly composition prompt v2.0 — intent-driven structure, quality notes, gap acknowledgment
 - CHANGELOG entry [2026.03.19.5] for PM prompt v3.0 + assembly prompt v2.0
 
-### Phase 2: Assembly Gating & Cross-Cycle Learning (Proposed)
-- Assembly gating: PM can reject assembly if contributions are inadequate (assess_quality → steer → re-assess loop)
-- PM work plan evolution — PM updates work plan based on quality assessments
-- Cross-cycle learning — PM's observations about what makes good contributions feed back into briefs
+### Phase 2: Contribution Bridge + Assembly Gating + Work Plan Evolution (Implemented 2026-03-19)
+- **Critical gap closed**: `_write_contribution_to_projects()` — agent output auto-written to `/projects/{slug}/contributions/{agent_slug}/output.md` after delivery. PM can now read actual content.
+- Assembly gating: informational log when PM assembles without prior quality assessment (prompt-level guidance handles the loop)
+- Work plan evolution: `focus_areas` per contributor persisted in `memory/work_plan.md`
+- Cross-cycle learning: quality assessment → work plan → briefs → contributor output → re-assessment (all mechanical pieces now connected)
 
 ### Phase 3: Investigation & Expansion
 - `request_investigation` action — PM writes investigation request, TP/Composer creates or assigns research agent
