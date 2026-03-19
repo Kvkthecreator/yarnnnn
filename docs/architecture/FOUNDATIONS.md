@@ -313,7 +313,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-112 (Sync Efficiency) | Implements Axiom 2 L0 — perception reliability | Aligned |
 | ADR-118 (Skills as Capability Layer) | Implements Axiom 1 capability axis — skill library as agent toolbox | Aligned |
 | ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, project folders, manifests | Aligned |
-| ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Proposed |
+| ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Implemented |
+| ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
 
 ---
 
@@ -340,6 +341,8 @@ These require further design work before implementation:
 9. ~~**Work budget model** — How are work units counted, allocated, and enforced? Per-project budgets vs. global user budget?~~ → **Addressed by ADR-120.** Pricing model (credits vs. subscription) deferred to post-validation.
 
 10. **Filesystem hardening** — What frontend surfaces need read-only constraints? How do user edits on output flow through feedback distillation without bypassing agent-mediated writes? (Partially addressed by Derived Principle 3.)
+
+11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project intent?~~ → **Addressed by ADR-121.** PM evolves from logistics coordinator to intelligence director with quality assessment, contribution briefs, and investigation requests.
 
 ---
 

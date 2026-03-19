@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.4] - ADR-121: PM prompt versioning policy + intelligence director proposal
+
+### Changed
+- `docs/adr/ADR-121-pm-intelligence-director.md`: New ADR proposing PM evolution from logistics coordinator to intelligence director. Establishes PM prompt versioning as independent artifact (v1.0 → v2.0), mechanics vs. intelligence separation, new actions (`steer_contributor`, `request_investigation`, `assess_quality`), contribution briefs mechanism.
+- `docs/architecture/FOUNDATIONS.md`: Added ADR-121 to alignment table. ADR-120 status updated to Implemented. Added open question #11 (PM qualitative intelligence) as addressed by ADR-121.
+- `CLAUDE.md`: Added ADR-121 reference to ADR catalog.
+
+### Expected behavior
+- No runtime changes — this is a documentation/architecture proposal. PM prompt v2.0 implementation will follow in ADR-121 Phase 1.
+- Establishes the principle that PM prompt changes are versioned independently from code changes, tracked in this CHANGELOG with their own version numbers.
+
+---
+
 ## [2026.03.19.3] - TP prompt: CreateProject documentation + PM type_config fix
 
 ### Changed
