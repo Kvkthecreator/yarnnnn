@@ -38,6 +38,7 @@ import {
   FolderOpen,
   Folder,
   File,
+  Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -1173,10 +1174,120 @@ function PMIntelligencePanel({
 }
 
 // =============================================================================
+// ADR-124 Phase 5: Settings Tab — consolidated project configuration
+// =============================================================================
+
+function SettingsTab({
+  slug,
+  project,
+  objective,
+  onUpdateObjective,
+  onArchive,
+  archiving,
+}: {
+  slug: string;
+  project: ProjectDetail['project'];
+  objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
+  onUpdateObjective: (obj: { deliverable?: string; audience?: string; format?: string; purpose?: string }) => void;
+  onArchive: () => void;
+  archiving: boolean;
+}) {
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
+      {/* Objective */}
+      <section>
+        <h3 className="text-sm font-semibold mb-2">Objective</h3>
+        <EditableObjective
+          slug={slug}
+          objective={objective}
+          onUpdate={onUpdateObjective}
+        />
+      </section>
+
+      {/* Contributors */}
+      <section>
+        <h3 className="text-sm font-semibold mb-2">Contributors</h3>
+        {project.contributors && project.contributors.length > 0 ? (
+          <div className="space-y-2">
+            {project.contributors.map((c) => (
+              <div key={c.agent_slug} className="flex items-center gap-2 text-sm">
+                <span className={cn(
+                  'w-2 h-2 rounded-full shrink-0',
+                  c.role === 'pm' ? 'bg-purple-500' : 'bg-blue-500'
+                )} />
+                <span className="font-medium">
+                  {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
+                </span>
+                {c.role && <span className="text-xs text-muted-foreground">{c.role}</span>}
+                {c.expected_contribution && (
+                  <span className="text-xs text-muted-foreground ml-auto">{c.expected_contribution}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No contributors assigned.</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          Contributors are managed by the PM agent via the meeting room. Ask PM to add or reassign contributors.
+        </p>
+      </section>
+
+      {/* Assembly Spec */}
+      <section>
+        <h3 className="text-sm font-semibold mb-2">Assembly Configuration</h3>
+        {project.assembly_spec ? (
+          <div className="text-sm bg-muted/30 rounded-lg p-3 border border-border">
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
+              <ReactMarkdown>{project.assembly_spec}</ReactMarkdown>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No assembly configuration set. The PM will define how outputs are combined.</p>
+        )}
+      </section>
+
+      {/* Delivery */}
+      <section>
+        <h3 className="text-sm font-semibold mb-2">Delivery</h3>
+        {project.delivery && Object.keys(project.delivery).length > 0 ? (
+          <div className="text-sm space-y-1">
+            {Object.entries(project.delivery).map(([key, value]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-muted-foreground">{key}:</span>
+                <span>{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No delivery preferences configured.</p>
+        )}
+      </section>
+
+      {/* Danger Zone */}
+      <section className="border-t border-border pt-6">
+        <h3 className="text-sm font-semibold text-destructive mb-2">Danger Zone</h3>
+        <button
+          onClick={onArchive}
+          disabled={archiving}
+          className="flex items-center gap-1.5 text-sm text-destructive hover:text-destructive/80 transition-colors border border-destructive/30 rounded-lg px-3 py-2 hover:bg-destructive/5"
+        >
+          {archiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
+          Archive this project
+        </button>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          Archiving hides the project from the active list. Files are preserved.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+// =============================================================================
 // Main Component
 // =============================================================================
 
-type TabId = 'meeting-room' | 'context' | 'outputs' | 'contributors';
+type TabId = 'meeting-room' | 'context' | 'outputs' | 'contributors' | 'settings';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1253,6 +1364,7 @@ export default function ProjectDetailPage() {
     { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
     { id: 'outputs', label: `Outputs${assemblies.length > 0 ? ` (${assemblies.length})` : ''}`, icon: <Package className="w-4 h-4" /> },
     { id: 'contributors', label: `Contributors${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
@@ -1267,24 +1379,15 @@ export default function ProjectDetailPage() {
           Projects
         </Link>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{title}</h1>
-            <EditableObjective
-              slug={slug}
-              objective={objective}
-              onUpdate={(obj) => setObjective(obj)}
-            />
-          </div>
-          <button
-            onClick={handleArchive}
-            disabled={archiving}
-            className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 shrink-0"
-            title="Archive project"
-          >
-            {archiving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
-            Archive
-          </button>
+        <div>
+          <h1 className="text-xl font-bold">{title}</h1>
+          {objective?.deliverable && (
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {objective.deliverable}
+              {objective.audience && ` for ${objective.audience}`}
+              {objective.format && ` — ${objective.format}`}
+            </p>
+          )}
         </div>
 
         {/* Tabs */}
@@ -1332,6 +1435,18 @@ export default function ProjectDetailPage() {
                 pmIntelligence={pm_intelligence}
               />
             </div>
+          </div>
+        )}
+        {activeTab === 'settings' && (
+          <div className="h-full overflow-y-auto">
+            <SettingsTab
+              slug={slug}
+              project={meta}
+              objective={objective}
+              onUpdateObjective={(obj) => setObjective(obj)}
+              onArchive={handleArchive}
+              archiving={archiving}
+            />
           </div>
         )}
       </div>
