@@ -1,10 +1,13 @@
 """
 Dashboard routes — ADR-122 Phase 5: Project-first dashboard.
 
-Minimal, clean payload: projects with nested agents, standalone agents,
+Minimal, clean payload: projects with nested agents (excluding PMs),
 connected platforms, attention items. No computed stats, no maturity
 recomputation, no composer feed — those return when underlying data
 handling is refactored.
+
+All agents belong to projects (ADR-122). Standalone agents removed
+from dashboard — accessible at /agents directly.
 
 Mounted at /api/dashboard
 """
@@ -35,6 +38,20 @@ def _extract_title(content: str) -> str:
         if line.startswith("# "):
             return line[2:].strip()
     return ""
+
+
+def _extract_purpose(content: str) -> str | None:
+    """Extract Purpose from PROJECT.md Objective section."""
+    in_objective = False
+    for line in (content or "").split("\n"):
+        if line.strip().startswith("## Objective"):
+            in_objective = True
+            continue
+        if in_objective and line.strip().startswith("## "):
+            break
+        if in_objective and "**Purpose**:" in line:
+            return line.split("**Purpose**:", 1)[1].strip()
+    return None
 
 
 @router.get("/summary")
@@ -104,13 +121,14 @@ async def get_dashboard_summary(client: UserClient):
             parts = path.split("/")
             if len(parts) >= 3:
                 slug = parts[2]
+                content = row.get("content", "")
                 projects_map[slug] = {
                     "project_slug": slug,
-                    "title": _extract_title(row.get("content", "")),
-                    "type_key": _extract_type_key(row.get("content", "")),
-                    "summary": row.get("summary", ""),
+                    "title": _extract_title(content),
+                    "type_key": _extract_type_key(content),
+                    "purpose": _extract_purpose(content),
                     "updated_at": row.get("updated_at"),
-                    "agents": [],  # populated below
+                    "agents": [],  # populated below (excludes PM agents)
                 }
 
     # Parse agent→project memberships
@@ -138,26 +156,20 @@ async def get_dashboard_summary(client: UserClient):
         slug = get_agent_slug(agent)
         slug_to_id[slug] = agent["id"]
 
-    # Assign agents to projects
-    assigned_agent_ids: set[str] = set()
+    # Assign agents to projects (PM agents excluded — they're infrastructure)
     for agent_slug, project_slugs in agent_project_map.items():
         agent_id = slug_to_id.get(agent_slug)
         if not agent_id or agent_id not in agents_by_id:
             continue
         agent = agents_by_id[agent_id]
+        if agent.get("role") == "pm":
+            continue
         for ps in project_slugs:
             if ps in projects_map:
                 projects_map[ps]["agents"].append(_format_agent(agent))
-                assigned_agent_ids.add(agent_id)
 
     # Projects sorted by updated_at desc
     projects = sorted(projects_map.values(), key=lambda p: p.get("updated_at") or "", reverse=True)
-
-    # Standalone agents — not assigned to any project
-    standalone_agents = [
-        _format_agent(a) for a in agents_raw
-        if a["id"] not in assigned_agent_ids and a.get("role") != "pm"
-    ]
 
     # ── 4. Attention items ──────────────────────────────────────────────
     attention = []
@@ -211,7 +223,6 @@ async def get_dashboard_summary(client: UserClient):
 
     return {
         "projects": projects,
-        "standalone_agents": standalone_agents,
         "connected_platforms": connected_platforms,
         "attention": attention,
     }

@@ -1264,7 +1264,7 @@ export const api = {
       }>("/api/system/sync-timestamps"),
   },
 
-  // Dashboard — ADR-122 Phase 5: project-first
+  // Dashboard — ADR-122 Phase 5: project-first (no standalone agents)
   dashboard: {
     getSummary: () =>
       request<{
@@ -1272,7 +1272,7 @@ export const api = {
           project_slug: string;
           title: string;
           type_key: string | null;
-          summary: string;
+          purpose: string | null;
           updated_at: string | null;
           agents: Array<{
             id: string;
@@ -1285,17 +1285,6 @@ export const api = {
             last_run_at: string | null;
             next_run_at: string | null;
           }>;
-        }>;
-        standalone_agents: Array<{
-          id: string;
-          title: string;
-          status: string;
-          origin: string;
-          role: string;
-          scope: string;
-          sources: Array<{ provider?: string; resource_id?: string }>;
-          last_run_at: string | null;
-          next_run_at: string | null;
         }>;
         connected_platforms: string[];
         attention: Array<{

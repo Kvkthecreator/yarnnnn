@@ -3,9 +3,9 @@
 /**
  * Dashboard — ADR-122 Phase 5: Project-first
  *
- * Minimal shell: projects with nested agents, standalone agents,
- * connected platforms, attention banners. Stats/heartbeat/progression
- * stripped — return when data handling is refactored.
+ * All agents belong to projects. PM agents hidden (infrastructure).
+ * Projects with nested contributor agents, connected platforms,
+ * attention banners.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,11 +13,9 @@ import { useRouter } from 'next/navigation';
 import {
   Loader2,
   MessageSquare,
-  AlertTriangle,
   XCircle,
   Pause,
   ArrowRight,
-  Plus,
   FolderKanban,
   Globe,
   Brain,
@@ -37,7 +35,7 @@ import type { Role } from '@/types';
 
 type DashboardData = Awaited<ReturnType<typeof api.dashboard.getSummary>>;
 type DashboardProject = DashboardData['projects'][number];
-type DashboardAgent = DashboardData['standalone_agents'][number];
+type DashboardAgent = DashboardProject['agents'][number];
 type AttentionItem = DashboardData['attention'][number];
 
 // =============================================================================
@@ -142,9 +140,9 @@ export default function DashboardPage() {
     );
   }
 
-  const { projects, standalone_agents, connected_platforms, attention } = data;
+  const { projects, connected_platforms, attention } = data;
   const hasNoPlatforms = connected_platforms.length === 0;
-  const hasNoWork = projects.length === 0 && standalone_agents.length === 0;
+  const hasNoWork = projects.length === 0;
 
   // ── Empty state: no platforms connected ──────────────────────────────
   if (hasNoPlatforms && hasNoWork) {
@@ -320,23 +318,6 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Standalone agents — not in any project */}
-        {standalone_agents.length > 0 && (
-          <section>
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-              Standalone Agents
-            </h2>
-            <div className="grid gap-2">
-              {standalone_agents.map((agent) => (
-                <AgentRow
-                  key={agent.id}
-                  agent={agent}
-                  onClick={() => router.push(`/agents/${agent.id}`)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </div>
   );
@@ -395,8 +376,8 @@ function ProjectCard({
               </span>
             )}
           </div>
-          {project.summary && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">{project.summary}</p>
+          {project.purpose && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{project.purpose}</p>
           )}
         </div>
         {project.updated_at && (
@@ -443,36 +424,3 @@ function ProjectCard({
   );
 }
 
-function AgentRow({ agent, onClick }: { agent: DashboardAgent; onClick: () => void }) {
-  const isPaused = agent.status === 'paused';
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 text-left transition-colors',
-        isPaused && 'opacity-60',
-      )}
-    >
-      <div className="shrink-0">
-        {getAgentIcon(agent)}
-      </div>
-      <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium truncate block">{agent.title}</span>
-        <span className="text-xs text-muted-foreground">
-          {ROLE_LABELS[agent.role as Role] ?? agent.role}
-        </span>
-      </div>
-      {isPaused && (
-        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-          Paused
-        </span>
-      )}
-      {agent.last_run_at && (
-        <span className="text-xs text-muted-foreground shrink-0">
-          {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
-        </span>
-      )}
-    </button>
-  );
-}
