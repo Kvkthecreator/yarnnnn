@@ -46,7 +46,7 @@ from .project_execution import (
     CHECK_CONTRIBUTOR_FRESHNESS_TOOL, handle_check_contributor_freshness,
     READ_PROJECT_STATUS_TOOL, handle_read_project_status,
     REQUEST_CONTRIBUTOR_ADVANCE_TOOL, handle_request_contributor_advance,
-    UPDATE_PROJECT_INTENT_TOOL, handle_update_project_intent,
+    UPDATE_WORK_PLAN_TOOL, handle_update_work_plan,
 )
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
@@ -227,7 +227,7 @@ PRIMITIVES = [
     CHECK_CONTRIBUTOR_FRESHNESS_TOOL,
     READ_PROJECT_STATUS_TOOL,
     REQUEST_CONTRIBUTOR_ADVANCE_TOOL,
-    UPDATE_PROJECT_INTENT_TOOL,
+    UPDATE_WORK_PLAN_TOOL,
 ]
 
 
@@ -262,7 +262,7 @@ HANDLERS: dict[str, Callable] = {
     "CheckContributorFreshness": handle_check_contributor_freshness,
     "ReadProjectStatus": handle_read_project_status,
     "RequestContributorAdvance": handle_request_contributor_advance,
-    "UpdateProjectIntent": handle_update_project_intent,
+    "UpdateWorkPlan": handle_update_work_plan,
 }
 
 
@@ -363,7 +363,7 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "CheckContributorFreshness":  ["headless"],
     "ReadProjectStatus":          ["headless"],
     "RequestContributorAdvance":  ["headless"],
-    "UpdateProjectIntent":        ["headless"],
+    "UpdateWorkPlan":              ["headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.

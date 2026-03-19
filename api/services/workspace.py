@@ -1762,9 +1762,10 @@ class ProjectWorkspace:
         """Parse PROJECT.md into structured dict.
 
         Returns:
-            {title, intent: {deliverable, audience, format, purpose},
+            {title, objective: {deliverable, audience, format, purpose},
              contributors: [{agent_slug, expected_contribution}],
-             assembly_spec, delivery: {channel, target}, status}
+             assembly_spec, delivery: {channel, target}, status,
+             legacy_intentions: [...] (if migrating from pre-ADR-123)}
             or None if PROJECT.md doesn't exist.
         """
         content = await self.read("PROJECT.md")
@@ -1774,11 +1775,10 @@ class ProjectWorkspace:
         result = {
             "title": "",
             "type_key": None,
-            "intent": {},
+            "objective": {},
             "contributors": [],
             "assembly_spec": "",
             "delivery": {},
-            "intentions": [],
             "status": "active",
         }
 
@@ -1808,12 +1808,13 @@ class ProjectWorkspace:
                 continue
 
             # Parse section content
-            if current_section == "intent":
+            # ADR-123: Accept both "objective" and legacy "intent" section headers
+            if current_section in ("objective", "intent"):
                 if stripped.startswith("- **") and "**:" in stripped:
                     key_end = stripped.index("**:", 4)
                     key = stripped[4:key_end].lower()
                     value = stripped[key_end + 3:].strip()
-                    result["intent"][key] = value
+                    result["objective"][key] = value
 
             elif current_section == "contributors":
                 if stripped.startswith("- ") and ":" in stripped:
@@ -1834,16 +1835,19 @@ class ProjectWorkspace:
                     result["delivery"][key] = value
 
             elif current_section == "intentions":
+                # ADR-123: Parse legacy intentions for migration to PM work_plan
+                if "legacy_intentions" not in result:
+                    result["legacy_intentions"] = []
                 # Top-level intention line: "- recurring: description"
                 if stripped.startswith("- ") and ":" in stripped and not stripped.startswith("- format:") and not stripped.startswith("- delivery:") and not stripped.startswith("- budget:") and not stripped.startswith("- deadline:"):
                     parts = stripped[2:].split(":", 1)
-                    result["intentions"].append({
+                    result["legacy_intentions"].append({
                         "type": parts[0].strip(),
                         "description": parts[1].strip(),
                     })
                 # Sub-fields: "  - format: pptx", "  - delivery: email → target", etc.
-                elif stripped.startswith("- ") and ":" in stripped and result["intentions"]:
-                    current_intention = result["intentions"][-1]
+                elif stripped.startswith("- ") and ":" in stripped and result.get("legacy_intentions"):
+                    current_intention = result["legacy_intentions"][-1]
                     key_val = stripped[2:].split(":", 1)
                     key = key_val[0].strip()
                     value = key_val[1].strip() if len(key_val) > 1 else ""
@@ -1868,46 +1872,38 @@ class ProjectWorkspace:
         if current_section == "assembly_spec":
             result["assembly_spec"] = "\n".join(buffer_lines).strip()
 
-        # ADR-120 P4: Backward-compat — derive single intention from intent+delivery if no intentions section
-        if not result["intentions"] and result["intent"]:
-            derived = {"type": "recurring", "description": result["intent"].get("purpose", result["intent"].get("deliverable", ""))}
-            if result["intent"].get("format"):
-                derived["format"] = result["intent"]["format"]
-            if result["delivery"]:
-                derived["delivery"] = result["delivery"]
-            result["intentions"] = [derived]
-
         return result
 
     async def write_project(
         self,
         title: str,
-        intent: dict,
+        objective: dict,
         contributors: list[dict],
         assembly_spec: str = "",
         delivery: dict = None,
-        intentions: list[dict] = None,
         type_key: str = None,
     ) -> bool:
-        """Write PROJECT.md from structured data.
+        """Write PROJECT.md from structured data (ADR-123: charter format).
+
+        PROJECT.md is the project charter — owned by User/Composer/TP.
+        Operational planning lives in PM's memory/work_plan.md, not here.
 
         Args:
             title: Project title
-            intent: {deliverable, audience, format, purpose}
+            objective: {deliverable, audience, format, purpose} — mutable north star
             contributors: [{agent_slug, expected_contribution}]
             assembly_spec: How contributions combine
             delivery: {channel, target}
-            intentions: [{type, description, format?, delivery?: {channel, target}, budget?, deadline?}]
             type_key: ADR-122 project type registry key (immutable after creation)
         """
         lines = [f"# {title}"]
         if type_key:
             lines.extend(["", f"**Type**: {type_key}"])
-        lines.extend(["", "## Intent"])
+        lines.extend(["", "## Objective"])
         for key in ["deliverable", "audience", "format", "purpose"]:
-            if key in intent:
+            if key in objective:
                 label = key.capitalize()
-                lines.append(f"- **{label}**: {intent[key]}")
+                lines.append(f"- **{label}**: {objective[key]}")
 
         lines.extend(["", "## Contributors"])
         for c in contributors:
@@ -1923,31 +1919,11 @@ class ProjectWorkspace:
                     label = key.capitalize()
                     lines.append(f"- **{label}**: {delivery[key]}")
 
-        # ADR-120 P4: Multi-intention support
-        if intentions:
-            lines.extend(["", "## Intentions"])
-            for intention in intentions:
-                itype = intention.get("type", "recurring")
-                desc = intention.get("description", "")
-                lines.append(f"- {itype}: {desc}")
-                if intention.get("format"):
-                    lines.append(f"  - format: {intention['format']}")
-                if intention.get("delivery"):
-                    d = intention["delivery"]
-                    if isinstance(d, dict):
-                        lines.append(f"  - delivery: {d.get('channel', '')} → {d.get('target', '')}")
-                    else:
-                        lines.append(f"  - delivery: {d}")
-                if intention.get("budget"):
-                    lines.append(f"  - budget: {intention['budget']}")
-                if intention.get("deadline"):
-                    lines.append(f"  - deadline: {intention['deadline']}")
-
         return await self.write(
             "PROJECT.md",
             "\n".join(lines),
-            summary=f"Project identity: {title}",
-            tags=["project", "identity"],
+            summary=f"Project charter: {title}",
+            tags=["project", "charter"],
         )
 
     # =========================================================================

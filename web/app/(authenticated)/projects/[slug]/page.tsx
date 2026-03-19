@@ -662,7 +662,7 @@ export default function ProjectDetailPage() {
 
   const { project: meta, contributions, assemblies } = project;
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const intent = meta.intent;
+  const objective = meta.objective;
   const contributors = meta.contributors || [];
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -686,27 +686,27 @@ export default function ProjectDetailPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold">{title}</h1>
-            {intent && (
+            {objective && (
               <div className="flex flex-wrap gap-2 mt-1.5">
-                {intent.deliverable && (
+                {objective.deliverable && (
                   <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    {intent.deliverable}
+                    {objective.deliverable}
                   </span>
                 )}
-                {intent.audience && (
+                {objective.audience && (
                   <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    For {intent.audience}
+                    For {objective.audience}
                   </span>
                 )}
-                {intent.format && (
+                {objective.format && (
                   <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    {intent.format}
+                    {objective.format}
                   </span>
                 )}
               </div>
             )}
-            {intent?.purpose && (
-              <p className="text-sm text-muted-foreground mt-1.5">{intent.purpose}</p>
+            {objective?.purpose && (
+              <p className="text-sm text-muted-foreground mt-1.5">{objective.purpose}</p>
             )}
           </div>
           <button

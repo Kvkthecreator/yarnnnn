@@ -115,7 +115,7 @@ An agent's duties expand with seniority and can be multiple. A senior Slack agen
 
 Duties are pre-configured per role portfolio (ADR-117 Phase 3). A duty can be earned through feedback-gated seniority progression — Composer promotes along deterministic tracks. Each duty carries its own trigger type and uses the duty's role for execution (prompt, primitives, output skills).
 
-Note: "Intentions" at the project level (ADR-120) are distinct — they represent project objectives, not agent responsibilities.
+Note: "Objectives" at the project level (ADR-123) are distinct — they represent the project's north star (what, for whom, why, in what form), not agent responsibilities.
 
 **Capabilities** — what actions the agent can take.
 
@@ -147,16 +147,16 @@ The current taxonomy treats trigger as a static agent property (recurring, goal,
 
 A senior agent holds multiple duties with different triggers simultaneously. The agent's "mode" is the composite of its active duties, not a single static setting.
 
-### Intentions at Project Scope
+### Objectives at Project Scope (ADR-123)
 
-Projects have intentions too, and they exhibit the same paradox: **an intention is flat data from the user, but its ramifications can be wide-reaching.** Compare:
+Projects have objectives — their north star — and they exhibit a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
 
-- "I want an Excel and PPT on my company's Q2 report" — bounded intent, 2-3 agents, known skills, predictable work
-- "I want the most comprehensive analysis possible on market trends" — unbounded intent, potentially infinite agents/files/runs
+- "I want an Excel and PPT on my company's Q2 report" — bounded objective, 2-3 agents, known skills, predictable work
+- "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially infinite agents/files/runs
 
-The PM agent's core cognitive task is **translating intent into executable, bounded work** — decomposing a user's project intention into: which agents contribute, which skills produce output, what cadence, what assembly format, and how much budget to allocate. The work budget (ADR-120) is what prevents unbounded intent from consuming infinite resources.
+The PM agent's core cognitive task is **translating the objective into executable, bounded work** — decomposing a user's project objective into an operational work plan: which agents contribute, which skills produce output, what cadence, what assembly format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
 
-Project intentions also carry delivery and format preferences: the user wants email delivery, or a PPTX deck, or both CSV and PDF. These preferences are data in PROJECT.md — they shape the PM's assembly decisions and skill selection, analogous to how an agent's `destination` shapes its delivery path.
+Objectives include delivery and format preferences: the user wants email delivery, or a PPTX deck, or both CSV and PDF. These preferences are data in PROJECT.md's `## Objective` section — they shape the PM's assembly decisions and skill selection. The PM's operational execution plan lives separately in `memory/work_plan.md` (ADR-123: charter vs. operations separation).
 
 ---
 

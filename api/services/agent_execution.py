@@ -113,13 +113,13 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
             "work_plan": "No work plan.",
         }
 
-    # Format project context
-    intent = project.get("intent", {})
+    # Format project context (ADR-123: objective replaces intent)
+    objective = project.get("objective", {})
     project_lines = [
         f"**Title:** {project.get('title', project_slug)}",
-        f"**Deliverable:** {intent.get('deliverable', 'Not specified')}",
-        f"**Audience:** {intent.get('audience', 'Not specified')}",
-        f"**Format:** {intent.get('format', 'Not specified')}",
+        f"**Deliverable:** {objective.get('deliverable', 'Not specified')}",
+        f"**Audience:** {objective.get('audience', 'Not specified')}",
+        f"**Format:** {objective.get('format', 'Not specified')}",
         f"**Contributors:** {len(project.get('contributors', []))}",
     ]
     if project.get("assembly_spec"):
@@ -178,22 +178,30 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     if quality_assessment:
         work_plan = (work_plan or "") + f"\n\n---\n\n## Prior Quality Assessment\n{quality_assessment}"
 
-    # ADR-120 P4: Format intentions for PM prompt
-    intentions_lines = []
-    for i in project.get("intentions", []):
-        itype = i.get("type", "recurring")
-        desc = i.get("description", "")
-        intentions_lines.append(f"- {itype}: {desc}")
-        if i.get("format"):
-            intentions_lines.append(f"  format: {i['format']}")
-        if i.get("delivery"):
-            d = i["delivery"]
-            if isinstance(d, dict):
-                intentions_lines.append(f"  delivery: {d.get('channel', '')} → {d.get('target', '')}")
-            else:
-                intentions_lines.append(f"  delivery: {d}")
-        if i.get("budget"):
-            intentions_lines.append(f"  budget: {i['budget']}")
+    # ADR-123: Migrate legacy intentions to work_plan if present
+    # If PROJECT.md still has ## Intentions (pre-ADR-123), seed them into work_plan
+    legacy_intentions = project.get("legacy_intentions", [])
+    if legacy_intentions and not work_plan:
+        lines = ["## Execution Plan (migrated from legacy intentions)"]
+        for i in legacy_intentions:
+            itype = i.get("type", "recurring")
+            desc = i.get("description", "")
+            parts = [f"- {itype}: {desc}"]
+            if i.get("format"):
+                parts.append(f"  format: {i['format']}")
+            if i.get("delivery"):
+                d = i["delivery"]
+                if isinstance(d, dict):
+                    parts.append(f"  delivery: {d.get('channel', '')} → {d.get('target', '')}")
+            if i.get("budget"):
+                parts.append(f"  budget: {i['budget']}")
+            lines.extend(parts)
+        migrated_plan = "\n".join(lines)
+        # Write migrated plan to PM's memory
+        await pw.write(f"memory/work_plan.md", migrated_plan,
+                        summary="Migrated legacy intentions to work plan",
+                        tags=["work_plan", "migration"])
+        work_plan = migrated_plan
 
     # ADR-120 P4: Work budget status for graceful degradation
     budget_status = "Unknown"
@@ -213,7 +221,6 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     return {
         "project_context": "\n".join(project_lines),
         "contributor_status": "\n".join(contributor_lines) if contributor_lines else "No contributors listed.",
-        "intentions": "\n".join(intentions_lines) if intentions_lines else "No explicit intentions set.",
         "work_plan": work_plan or "No work plan set. Your first action should be update_work_plan.",
         "budget_status": budget_status,
     }
@@ -914,14 +921,14 @@ async def _compose_assembly(
         contrib_sections.append(section)
     contributions_text = "\n---\n".join(contrib_sections)
 
-    # Build intent description
-    intent = project.get("intent", {})
-    intent_str = ", ".join(f"{k}: {v}" for k, v in intent.items() if v) or "Not specified"
+    # Build objective description (ADR-123: renamed from intent)
+    objective = project.get("objective", {})
+    objective_str = ", ".join(f"{k}: {v}" for k, v in objective.items() if v) or "Not specified"
 
     # Format composition prompt (ADR-121: v2.0 with quality_notes)
     prompt = ASSEMBLY_COMPOSITION_PROMPT.format(
         title=project.get("title", "Untitled Project"),
-        intent=intent_str,
+        objective=objective_str,
         assembly_spec=project.get("assembly_spec", "Combine contributions into a cohesive deliverable."),
         quality_notes=project.get("quality_notes", "No quality assessment available — compose with best judgment."),
         contributions=contributions_text,

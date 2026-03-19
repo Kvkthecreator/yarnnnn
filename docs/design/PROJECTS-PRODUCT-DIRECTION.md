@@ -127,17 +127,17 @@ New route: `/projects/[slug]`
 
 ### How project detail differs from agent detail
 
-An agent detail page shows one worker's state: its instructions, memory, and outputs. A project detail page shows a **coordination layer**: intent that flows downstream to contributors, an assembly spec that defines how parts combine, and assembled outputs that are greater than the sum of contributions. The data relationships are fundamentally different.
+An agent detail page shows one worker's state: its instructions, memory, and outputs. A project detail page shows a **coordination layer**: objective that flows downstream to contributors, an assembly spec that defines how parts combine, and assembled outputs that are greater than the sum of contributions. The data relationships are fundamentally different.
 
 | Aspect | Agent Detail | Project Detail |
 |---|---|---|
-| **Identity doc** | AGENT.md — behavioral instructions for one worker | PROJECT.md — intent, contributors, assembly spec, output requirements |
+| **Identity doc** | AGENT.md — behavioral instructions for one worker | PROJECT.md — objective, contributors, assembly spec, output requirements |
 | **Core data** | One agent's runs and outputs | Multiple agents' contributions + assembled outputs |
-| **Instructions** | "How to do your job" (behavioral) | "What this project produces, for whom, in what format" (intent) |
+| **Instructions** | "How to do your job" (behavioral) | "What this project produces, for whom, in what format" (objective) |
 | **Feedback target** | User edits → this agent's preferences.md | User edits assembly → project preferences.md (+ can trace to specific contributor) |
 | **Memory** | Agent's own observations + learned preferences | Project-level: what the assembly needs, cross-contribution patterns |
 | **Settings** | Schedule, sources, delivery, skill authorizations | Delivery, contributor management, archive/dissolve |
-| **Chat context** | 1:1 with this agent about its work | With Composer about this project (contributors, assembly, intent changes) |
+| **Chat context** | 1:1 with this agent about its work | With Composer about this project (contributors, assembly, objective changes) |
 
 ### PROJECT.md schema
 
@@ -146,7 +146,7 @@ PROJECT.md is the project's identity document. It carries more than AGENT.md bec
 ```markdown
 # {Project Title}
 
-## Intent
+## Objective
 What this project produces, who it's for, why it exists.
 - **Deliverable**: Weekly executive brief
 - **Audience**: Leadership team
@@ -174,7 +174,7 @@ How contributions combine into the final deliverable:
 
 **Note on agent types used in examples**: All contributors reference agents that actually exist from bootstrap or Composer. Bootstrap creates platform-named agents per ADR-110: "Your Slack Agent" (Slack → digest), "Your Gmail Agent" (Gmail → digest), "Your Notion Agent" (Notion → digest). Composer creates cross-cutting agents: "Your Work Summary" (synthesize), "Your Market Researcher" (research). There is no "Gmail Agent" — Gmail is the platform, email is a delivery channel. The agent is named after the platform it reads from, not the output method.
 
-**Intent** is the key differentiator. It answers "what and why" at the project level, which is upstream of any individual agent's instructions. When Composer assembles, it reads the intent to understand what the assembled output should accomplish. When contributing agents read PROJECT.md (via ReadAgentContext), the intent shapes their contributions — the Slack digest agent knows it's contributing to an executive brief, not a developer standup.
+**Objective** is the key differentiator. It answers "what and why" at the project level, which is upstream of any individual agent's instructions. When Composer assembles, it reads the objective to understand what the assembled output should accomplish. When contributing agents read PROJECT.md (via ReadAgentContext), the objective shapes their contributions — the Slack digest agent knows it's contributing to an executive brief, not a developer standup.
 
 **Assembly spec** defines output requirements. If the spec says "PPTX deck with charts," Composer knows it needs `pptx` and `chart` skills during assembly. If a contributing agent doesn't have chart data, the assembly degrades gracefully (text section instead of chart) rather than failing.
 
@@ -188,14 +188,14 @@ Same workspace layout pattern (chat + panel), different panel tabs:
 │                                                             │
 │  ┌─────────────────────────┐ ┌────────────────────────────┐│
 │  │                         │ │  Assembly │ Contributors │  ││
-│  │                         │ │  Intent │ Memory │ Settings ││
+│  │                         │ │  Objective │ Memory │ Settings ││
 │  │                         │ ├────────────────────────────┤│
 │  │      CHAT AREA          │ │                            ││
 │  │                         │ │  ASSEMBLY (selected)       ││
 │  │  Talk to Composer about │ │                            ││
 │  │  this project:          │ │  Latest: 2026-03-17T0900   ││
 │  │  - Review assembly      │ │  ┌────────────────────┐   ││
-│  │  - Change intent        │ │  │ 📄 Monday Brief.pdf│   ││
+│  │  - Change objective        │ │  │ 📄 Monday Brief.pdf│   ││
 │  │  - Add/remove agents    │ │  │ 📊 Revenue trend   │   ││
 │  │  - Give feedback        │ │  │ 📝 output.md       │   ││
 │  │                         │ │  └────────────────────┘   ││
@@ -222,12 +222,12 @@ Same workspace layout pattern (chat + panel), different panel tabs:
 - Skill authorization status (does the agent have skills the project needs?)
 - Health: is the contributor actively producing? Is its output being included in assemblies?
 
-**Intent** — PROJECT.md content, editable. This is NOT "instructions" in the agent sense. It's the project's purpose and coordination contract:
+**Objective** — PROJECT.md content, editable. This is NOT "instructions" in the agent sense. It's the project's purpose and coordination contract:
 - What the project produces (deliverable description)
 - Who it's for (audience)
 - What format (output requirements → implies skill needs)
 - How contributions combine (assembly spec)
-- Editing intent may cascade: changing format from "PDF report" to "PPTX deck" changes skill requirements
+- Editing objective may cascade: changing format from "PDF report" to "PPTX deck" changes skill requirements
 
 **Memory** — project-level accumulated state:
 - `preferences.md` — distilled from user feedback on assembled outputs ("leadership prefers bullet points over paragraphs," "include the chart on page 1")
@@ -289,12 +289,12 @@ User talks to Composer: "Create a Slack digest for my engineering channels." Com
 
 ### Project creation (new — CreateProject)
 
-Project creation is more complex than agent creation because of **intent parsing and requirements propagation**.
+Project creation is more complex than agent creation because of **objective parsing and requirements propagation**.
 
 **User-initiated flow:**
 
 1. User says: "Create a project for my Monday executive brief — combine Slack and Gmail into a PDF deck"
-2. Composer parses intent:
+2. Composer parses objective:
    - Deliverable: executive brief
    - Audience: implied executive/leadership
    - Format: PDF deck → requires `pptx` and/or `pdf` skills
@@ -309,7 +309,7 @@ Project creation is more complex than agent creation because of **intent parsing
    - Project needs charts → output gateway has `chart` skill ✓
    - Contributing agents need skill authorization? → Composer updates AGENT.md if needed
 5. Composer creates project:
-   - Writes `/projects/{slug}/PROJECT.md` with intent, contributors, assembly spec
+   - Writes `/projects/{slug}/PROJECT.md` with objective, contributors, assembly spec
    - Creates `/projects/{slug}/memory/`, `/projects/{slug}/contributions/`, `/projects/{slug}/assembly/`
    - Notifies contributing agents (project context injected on next run)
 6. Project appears on dashboard. First assembly happens when contributing agents next produce outputs.
@@ -318,17 +318,17 @@ Project creation is more complex than agent creation because of **intent parsing
 
 1. Heartbeat detects: Slack agent's output consistently appears as source in synthesis agent's manifest
 2. Composer proposes: "Your Slack Agent and Gmail Agent could combine into a Monday Brief"
-3. User approves → Composer executes CreateProject with inferred intent
-4. Or user modifies: "Yes, but make it a PDF deck, not just text" → Composer adjusts intent and skill requirements
+3. User approves → Composer executes CreateProject with inferred objective
+4. Or user modifies: "Yes, but make it a PDF deck, not just text" → Composer adjusts objective and skill requirements
 
 ### Updating a project (EditProject)
 
-Changing intent cascades downstream:
+Changing objective cascades downstream:
 
 - "Change format from PDF to PPTX deck" → assembly spec updates → skill requirements change → Composer verifies contributing agents have appropriate data for deck format
 - "Add my research agent to this project" → PROJECT.md contributors list updates → research agent gets project context on next run → next assembly includes research contribution
 - "Remove the email section" → contributor removed from PROJECT.md → agent continues standalone but no longer contributes
-- "Change audience to the engineering team" → intent updates → preferences shift (technical detail level increases) → distills into project preferences.md over time
+- "Change audience to the engineering team" → objective updates → preferences shift (technical detail level increases) → distills into project preferences.md over time
 
 ### Archiving a project
 

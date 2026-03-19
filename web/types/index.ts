@@ -812,7 +812,7 @@ export interface ProjectDetail {
   project_slug: string;
   project: {
     title: string;
-    intent?: {
+    objective?: {
       deliverable?: string;
       audience?: string;
       format?: string;

@@ -378,12 +378,12 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
-    # pm: v3.0 (2026.03.19) — Intelligence Director (ADR-121 Phase 1)
-    # Evolves from logistics coordinator (v2) to intelligence director.
-    # Mechanics (action routing) versioned in git. Intelligence (this prompt) versioned in CHANGELOG.md.
+    # pm: v4.0 (2026.03.19) — Intelligence Director (ADR-121 + ADR-123)
+    # v3.0: Intelligence Director with assess/steer/assemble (ADR-121)
+    # v4.0: intent→objective rename, intentions field removed (ADR-123 — operational planning in work_plan only)
     "pm": """You are the Intelligence Director for project "{title}".
 
-YOUR ROLE: Assess contribution quality against project intent, steer contributors toward underexplored areas, and decide when the project is ready for assembly.
+YOUR ROLE: Assess contribution quality against the project objective, steer contributors toward underexplored areas, and decide when the project is ready for assembly.
 
 You are NOT a logistics coordinator that simply checks freshness. You are a domain expert in what this project needs — you reason about quality, coverage, and gaps.
 
@@ -392,9 +392,6 @@ PROJECT CONTEXT:
 
 CONTRIBUTOR STATUS & CONTENT:
 {contributor_status}
-
-INTENTIONS:
-{intentions}
 
 WORK PLAN:
 {work_plan}
@@ -408,13 +405,13 @@ INSTRUCTIONS:
 You run periodically (daily by default, or triggered when a contributor produces new output).
 Assess the project state — consider contribution quality, not just freshness — and decide ONE action:
 
-1. **assess_quality** — Evaluate all contributions against the project intent. Score each for coverage (does it address what the intent requires?), depth (is it substantive enough for the audience?), and differentiation (does it bring unique value vs. other contributors?). Use this BEFORE deciding to assemble.
+1. **assess_quality** — Evaluate all contributions against the project objective. Score each for coverage (does it address what the objective requires?), depth (is it substantive enough for the audience?), and differentiation (does it bring unique value vs. other contributors?). Use this BEFORE deciding to assemble.
 2. **steer_contributor** — A contributor's output is thin, off-topic, or overlapping with others. Write a specific directive (brief) telling them what to focus on, what questions to answer, or what's missing. Then advance them to run again.
-3. **assemble** — Contributions are qualitatively sufficient to serve the intent. Trigger assembly.
+3. **assemble** — Contributions are qualitatively sufficient to serve the objective. Trigger assembly.
 4. **advance_contributor** — A contributor is stale or blocking but their last output was adequate — just needs refresh. No steering needed.
 5. **wait** — Not enough contributions are ready yet. No action needed.
 6. **escalate** — Something is wrong (repeated failures, missing contributors, budget exhausted, unclear spec, or contributions are fundamentally inadequate and steering won't help). Flag for TP.
-7. **update_work_plan** — No work plan exists yet, or project intent/intentions changed. Decompose intent into operational plan.
+7. **update_work_plan** — No work plan exists yet, or the project objective changed. Decompose the objective into an operational execution plan with contributor cadences, focus areas, assembly schedule, and budget allocation.
 
 CRITICAL: Your ENTIRE response must be a single valid JSON object. No markdown, no headers, no prose, no fences — ONLY JSON.
 
@@ -457,17 +454,18 @@ Decision Rules:
 }  # end ROLE_PROMPTS
 
 
-# ADR-121: Assembly composition prompt (v2.0 — intent-aware)
+# ADR-121/123: Assembly composition prompt (v3.0 — objective-aware)
 # Used by _compose_assembly() when PM triggers "assemble" action.
 # Separate from PM's decision prompt — PM decides WHEN; this decides WHAT.
 # v1 (ADR-120 P2): basic concatenation-avoidant synthesis.
 # v2.0 (ADR-121 P1): intent-driven structure, quality awareness, gap acknowledgment.
-ASSEMBLY_COMPOSITION_PROMPT = """Compose the following contributions into a single cohesive deliverable that directly serves the project intent.
+# v3.0 (ADR-123): intent→objective rename, same behavior.
+ASSEMBLY_COMPOSITION_PROMPT = """Compose the following contributions into a single cohesive deliverable that directly serves the project objective.
 
 ## Project: {title}
 
-## Intent
-{intent}
+## Objective
+{objective}
 
 ## Assembly Instructions
 {assembly_spec}
@@ -481,12 +479,12 @@ ASSEMBLY_COMPOSITION_PROMPT = """Compose the following contributions into a sing
 
 ---
 
-**Your task:** Synthesize these contributions into a unified document structured around the project intent — not around who contributed what.
+**Your task:** Synthesize these contributions into a unified document structured around the project objective — not around who contributed what.
 
-**Intent-first structure:**
-- Organize by the audience's questions and needs (from the intent), not by contributor.
+**Objective-first structure:**
+- Organize by the audience's questions and needs (from the objective), not by contributor.
 - Each section should answer a specific question the audience would ask.
-- If the intent specifies a deliverable type (e.g., "weekly intelligence briefing"), match the expected structure.
+- If the objective specifies a deliverable type (e.g., "weekly intelligence briefing"), match the expected structure.
 
 **Quality awareness:**
 - If a topic is thin or underexplored, acknowledge it briefly rather than padding with repetition.
@@ -494,7 +492,7 @@ ASSEMBLY_COMPOSITION_PROMPT = """Compose the following contributions into a sing
 - If the PM's quality notes flag gaps, note them as "areas for deeper investigation" rather than omitting.
 
 **Output requirements:**
-- If the intent specifies a rendered format (pptx, pdf, xlsx), use RuntimeDispatch to produce it.
+- If the objective specifies a rendered format (pptx, pdf, xlsx), use RuntimeDispatch to produce it.
 - The markdown text version is always the primary output — it is the feedback surface for user edits.
 - Keep the tone professional and consistent throughout.
 - Attribute key findings to source data where relevant (not to contributor agent names)."""
@@ -613,11 +611,11 @@ def build_role_prompt(
 
     elif role == "pm":
         # PM context injected by _load_pm_project_context() via type_config merge
+        # ADR-123: intentions field removed — operational planning in work_plan only
         fields.update({
             "project_context": config.get("project_context", "No project context available."),
             "contributor_status": config.get("contributor_status", "No contributor status available."),
             "work_plan": config.get("work_plan", "No work plan set."),
-            "intentions": config.get("intentions", "No explicit intentions set."),
             "budget_status": config.get("budget_status", "Unknown"),
         })
 

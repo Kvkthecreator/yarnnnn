@@ -32,7 +32,7 @@ router = APIRouter()
 # Pydantic models
 # =============================================================================
 
-class ProjectIntent(BaseModel):
+class ProjectObjective(BaseModel):
     deliverable: Optional[str] = None
     audience: Optional[str] = None
     format: Optional[str] = None
@@ -46,7 +46,7 @@ class ProjectContributor(BaseModel):
 
 class CreateProjectRequest(BaseModel):
     title: str
-    intent: Optional[ProjectIntent] = None
+    objective: Optional[ProjectObjective] = None
     contributors: list[ProjectContributor] = Field(default_factory=list)
     assembly_spec: str = ""
     delivery: Optional[dict] = None
@@ -54,7 +54,7 @@ class CreateProjectRequest(BaseModel):
 
 class UpdateProjectRequest(BaseModel):
     title: Optional[str] = None
-    intent: Optional[ProjectIntent] = None
+    objective: Optional[ProjectObjective] = None
     contributors: Optional[list[ProjectContributor]] = None
     assembly_spec: Optional[str] = None
     delivery: Optional[dict] = None
@@ -160,10 +160,10 @@ async def create_project(body: CreateProjectRequest, user: UserClient):
             logger.warning(f"[PROJECTS] Contributor lookup failed: {c.agent_id}: {e}")
 
     # Write PROJECT.md
-    intent = body.intent.model_dump(exclude_none=True) if body.intent else {}
+    objective = body.objective.model_dump(exclude_none=True) if body.objective else {}
     success = await pw.write_project(
         title=body.title,
-        intent=intent,
+        objective=objective,
         contributors=contributors,
         assembly_spec=body.assembly_spec,
         delivery=body.delivery or {},
@@ -221,9 +221,9 @@ async def update_project(slug: str, body: UpdateProjectRequest, user: UserClient
 
     # Merge updates
     title = body.title or existing["title"]
-    intent = existing.get("intent", {})
-    if body.intent:
-        intent.update(body.intent.model_dump(exclude_none=True))
+    objective = existing.get("objective", {})
+    if body.objective:
+        objective.update(body.objective.model_dump(exclude_none=True))
 
     contributors = existing.get("contributors", [])
     if body.contributors is not None:
@@ -254,7 +254,7 @@ async def update_project(slug: str, body: UpdateProjectRequest, user: UserClient
 
     success = await pw.write_project(
         title=title,
-        intent=intent,
+        objective=objective,
         contributors=contributors,
         assembly_spec=assembly_spec,
         delivery=delivery,

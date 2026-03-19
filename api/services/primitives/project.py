@@ -30,16 +30,16 @@ A project combines contributions from multiple agents into an assembled
 output none could produce alone (e.g., a Q2 review deck with data + narrative).
 
 Required: title
-Optional: intent (object), contributors (array), assembly_spec, delivery (object)
+Optional: objective (object), contributors (array), assembly_spec, delivery (object)
 
-intent: {deliverable, audience, format, purpose}
+objective: {deliverable, audience, format, purpose} — the project's north star
 contributors: [{agent_id, expected_contribution}]
 delivery: {channel, target}
 
 Example:
   CreateProject(
     title="Q2 Business Review",
-    intent={deliverable: "Executive presentation", audience: "Leadership", format: "pptx"},
+    objective={deliverable: "Executive presentation", audience: "Leadership", format: "pptx"},
     contributors=[{agent_id: "uuid-1", expected_contribution: "Revenue data + charts"}]
   )""",
     "input_schema": {
@@ -49,9 +49,9 @@ Example:
                 "type": "string",
                 "description": "Project title"
             },
-            "intent": {
+            "objective": {
                 "type": "object",
-                "description": "Project intent: {deliverable, audience, format, purpose}",
+                "description": "Project objective (north star): {deliverable, audience, format, purpose}",
                 "properties": {
                     "deliverable": {"type": "string"},
                     "audience": {"type": "string"},
@@ -105,7 +105,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     if not title:
         return {"success": False, "error": "missing_title", "message": "title is required"}
 
-    intent = input.get("intent", {})
+    objective = input.get("objective", input.get("intent", {}))  # ADR-123: accept both during transition
     contributors_input = input.get("contributors", [])
     assembly_spec = input.get("assembly_spec", "")
     delivery = input.get("delivery", {})
@@ -182,7 +182,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
 
     success = await pw.write_project(
         title=title,
-        intent=intent,
+        objective=objective,
         contributors=contributors,
         assembly_spec=assembly_spec,
         delivery=delivery,

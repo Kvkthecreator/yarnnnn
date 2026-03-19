@@ -930,7 +930,7 @@ To create an agent:
 
 To create a project (combines 2+ agents' outputs into an assembled deliverable):
 ```json
-{"action": "create_project", "title": "Q2 Business Review", "intent": {"deliverable": "Executive presentation", "audience": "Leadership", "format": "pptx", "purpose": "Quarterly review"}, "contributors": ["agent-slug-1", "agent-slug-2"], "assembly_spec": "Combine analyst data with writer narrative into slide deck", "delivery": {"channel": "email", "target": "user@example.com"}, "reason": "These agents produce complementary outputs ideal for assembly"}
+{"action": "create_project", "title": "Q2 Business Review", "objective": {"deliverable": "Executive presentation", "audience": "Leadership", "format": "pptx", "purpose": "Quarterly review"}, "contributors": ["agent-slug-1", "agent-slug-2"], "assembly_spec": "Combine analyst data with writer narrative into slide deck", "delivery": {"channel": "email", "target": "user@example.com"}, "reason": "These agents produce complementary outputs ideal for assembly"}
 ```
 
 To promote an agent's duties (expand responsibilities for a senior agent):
@@ -1256,7 +1256,7 @@ async def _execute_create_project(
         logger.warning("[COMPOSER] create_project but no title provided")
         return []
 
-    intent = decision.get("intent", {})
+    objective = decision.get("objective", decision.get("intent", {}))  # ADR-123: accept both during transition
     contributor_slugs = decision.get("contributors", [])
     assembly_spec = decision.get("assembly_spec", "")
     delivery = decision.get("delivery", {})
@@ -1291,7 +1291,7 @@ async def _execute_create_project(
         _ComposerAuth(client, user_id),
         {
             "title": title,
-            "intent": intent,
+            "objective": objective,
             "contributors": contributors,
             "assembly_spec": assembly_spec,
             "delivery": delivery,

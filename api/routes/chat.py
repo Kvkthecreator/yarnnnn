@@ -795,11 +795,11 @@ Schedule: {d.get('schedule', {})}
             if project:
                 title = project.get("title", surface.projectSlug)
                 contributors = project.get("contributors", [])
-                intent = project.get("intent", {})
+                objective = project.get("objective", {})
                 status = project.get("status", "active")
                 parts = [f'## Currently Viewing: Project "{title}"']
-                if intent.get("purpose"):
-                    parts.append(f"Purpose: {intent['purpose']}")
+                if objective.get("purpose"):
+                    parts.append(f"Purpose: {objective['purpose']}")
                 parts.append(f"Status: {status}")
                 parts.append(f"Contributors: {len(contributors)} agents")
                 return "\n".join(parts)

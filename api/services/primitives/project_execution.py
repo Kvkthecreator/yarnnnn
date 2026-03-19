@@ -306,20 +306,21 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
 
 
 # =============================================================================
-# UpdateProjectIntent (headless only, ADR-120 Phase 4)
+# UpdateWorkPlan (headless only, ADR-123 — renamed from UpdateProjectIntent)
 # =============================================================================
 
-UPDATE_PROJECT_INTENT_TOOL = {
-    "name": "UpdateProjectIntent",
-    "description": """Refine a project's assembly spec, delivery config, or intentions.
+UPDATE_WORK_PLAN_TOOL = {
+    "name": "UpdateWorkPlan",
+    "description": """Update a project's operational plan: assembly spec, delivery config, or work plan.
 
-Used by PM agents to update operational project settings. Does NOT change
-title or contributors (those are TP/Composer's domain).
+Used by PM agents to update operational settings. Does NOT change
+objective, title, or contributors (those are User/TP/Composer's domain).
 
-Provide only the fields you want to update — unspecified fields are preserved.
+assembly_spec and delivery update PROJECT.md (charter).
+work_plan updates the PM's memory/work_plan.md (operational planning).
 
 Required: project_slug
-Optional: assembly_spec, delivery, intentions""",
+Optional: assembly_spec, delivery, work_plan""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -339,20 +340,9 @@ Optional: assembly_spec, delivery, intentions""",
                     "target": {"type": "string"},
                 },
             },
-            "intentions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": {"type": "string", "description": "recurring, goal, or reactive"},
-                        "description": {"type": "string"},
-                        "format": {"type": "string"},
-                        "delivery": {"type": "object"},
-                        "budget": {"type": "string"},
-                        "deadline": {"type": "string"},
-                    },
-                },
-                "description": "Updated intentions list",
+            "work_plan": {
+                "type": "string",
+                "description": "Updated work plan markdown (execution schedule, focus areas, budget allocation)",
             },
         },
         "required": ["project_slug"],
@@ -360,10 +350,12 @@ Optional: assembly_spec, delivery, intentions""",
 }
 
 
-async def handle_update_project_intent(auth: Any, input: dict) -> dict:
+async def handle_update_work_plan(auth: Any, input: dict) -> dict:
     """
-    Update project's operational config (assembly_spec, delivery, intentions).
-    Preserves title, intent summary, and contributors — those are Composer's domain.
+    ADR-123: Update project's operational config.
+    assembly_spec + delivery → PROJECT.md (charter, shared).
+    work_plan → PM memory/work_plan.md (PM-owned operational planning).
+    Preserves objective, title, and contributors — those are User/Composer's domain.
     """
     from services.workspace import ProjectWorkspace
 
@@ -382,33 +374,42 @@ async def handle_update_project_intent(auth: Any, input: dict) -> dict:
             "message": f"Project not found: /projects/{project_slug}/",
         }
 
-    # Merge provided fields (only update what's supplied)
-    updated_assembly_spec = input.get("assembly_spec", project.get("assembly_spec", ""))
-    updated_delivery = input.get("delivery", project.get("delivery", {}))
-    updated_intentions = input.get("intentions", project.get("intentions", []))
-
-    # Write back with merged fields
-    success = await pw.write_project(
-        title=project.get("title", project_slug),
-        intent=project.get("intent", {}),
-        contributors=project.get("contributors", []),
-        assembly_spec=updated_assembly_spec,
-        delivery=updated_delivery,
-        intentions=updated_intentions,
-    )
-
-    if not success:
-        return {"success": False, "error": "write_failed", "message": "Failed to update PROJECT.md"}
-
     updated_fields = []
-    if "assembly_spec" in input:
-        updated_fields.append("assembly_spec")
-    if "delivery" in input:
-        updated_fields.append("delivery")
-    if "intentions" in input:
-        updated_fields.append(f"intentions ({len(updated_intentions)} items)")
 
-    logger.info(f"[PM] Updated project intent for {project_slug}: {', '.join(updated_fields)}")
+    # Update charter fields (assembly_spec, delivery) in PROJECT.md
+    if "assembly_spec" in input or "delivery" in input:
+        updated_assembly_spec = input.get("assembly_spec", project.get("assembly_spec", ""))
+        updated_delivery = input.get("delivery", project.get("delivery", {}))
+
+        success = await pw.write_project(
+            title=project.get("title", project_slug),
+            objective=project.get("objective", {}),
+            contributors=project.get("contributors", []),
+            assembly_spec=updated_assembly_spec,
+            delivery=updated_delivery,
+        )
+        if not success:
+            return {"success": False, "error": "write_failed", "message": "Failed to update PROJECT.md"}
+
+        if "assembly_spec" in input:
+            updated_fields.append("assembly_spec")
+        if "delivery" in input:
+            updated_fields.append("delivery")
+
+    # Update work plan in PM's memory (ADR-123: operational planning in PM memory, not PROJECT.md)
+    if "work_plan" in input:
+        wp_success = await pw.write(
+            "memory/work_plan.md",
+            input["work_plan"],
+            summary="PM work plan update",
+            tags=["work_plan", "pm"],
+        )
+        if wp_success:
+            updated_fields.append("work_plan")
+        else:
+            return {"success": False, "error": "write_failed", "message": "Failed to update work plan"}
+
+    logger.info(f"[PM] Updated work plan for {project_slug}: {', '.join(updated_fields)}")
 
     return {
         "success": True,

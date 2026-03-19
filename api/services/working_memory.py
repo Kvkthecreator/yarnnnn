@@ -262,7 +262,7 @@ async def _extract_project_scope(project_slug: str, client: Any, user_id: str) -
     scope: dict[str, Any] = {
         "slug": project_slug,
         "title": project.get("title", ""),
-        "intent": project.get("intent", {}),
+        "objective": project.get("objective", {}),
         "contributors": project.get("contributors", []),
         "status": project.get("status", "active"),
     }
@@ -692,11 +692,11 @@ def format_for_prompt(working_memory: dict) -> str:
         title = scoped_project.get("title", "Untitled")
         lines.append(f"\n### Current project: {title}")
 
-        intent = scoped_project.get("intent", {})
-        if intent.get("purpose"):
-            lines.append(f"**Purpose:** {intent['purpose']}")
-        if intent.get("deliverable"):
-            lines.append(f"**Deliverable:** {intent['deliverable']}")
+        objective = scoped_project.get("objective", {})
+        if objective.get("purpose"):
+            lines.append(f"**Purpose:** {objective['purpose']}")
+        if objective.get("deliverable"):
+            lines.append(f"**Deliverable:** {objective['deliverable']}")
 
         contributors = scoped_project.get("contributors", [])
         if contributors:

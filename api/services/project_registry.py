@@ -33,7 +33,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "slack",
         "description": "Daily recap of Slack activity across connected channels.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Slack recap",
             "audience": "You",
             "format": "email",
@@ -59,7 +59,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "google",
         "description": "Daily digest of Gmail activity across connected labels.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Gmail digest",
             "audience": "You",
             "format": "email",
@@ -85,7 +85,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "notion",
         "description": "Daily summary of Notion activity across connected pages.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Notion summary",
             "audience": "You",
             "format": "email",
@@ -113,7 +113,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "synthesis",
         "platform": None,
         "description": "Weekly synthesis across multiple platforms — patterns, themes, action items.",
-        "intent": {
+        "objective": {
             "deliverable": "Weekly cross-platform insights report",
             "audience": "You",
             "format": "pdf",
@@ -139,7 +139,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "custom",
         "platform": None,
         "description": "User-defined project with custom agents and delivery.",
-        "intent": None,
+        "objective": None,
         "agents": [],
         "pm": True,
         "assembly_spec": None,
@@ -228,7 +228,7 @@ async def scaffold_project(
     type_key: str,
     *,
     title_override: Optional[str] = None,
-    intent_override: Optional[dict] = None,
+    objective_override: Optional[dict] = None,
     agents_override: Optional[list[dict]] = None,
     contributors: Optional[list[dict]] = None,
     assembly_spec_override: Optional[str] = None,
@@ -273,7 +273,7 @@ async def scaffold_project(
 
     # ── Resolve project metadata ──
     title = title_override or ptype["display_name"]
-    intent = intent_override or ptype.get("intent") or {}
+    objective = objective_override or ptype.get("objective") or {}
     assembly_spec = assembly_spec_override or ptype.get("assembly_spec") or ""
     delivery = delivery_override or {}
 
@@ -361,7 +361,7 @@ async def scaffold_project(
     pw = ProjectWorkspace(client, user_id, project_slug)
     success = await pw.write_project(
         title=title,
-        intent=intent,
+        objective=objective,
         contributors=contributor_records,
         assembly_spec=assembly_spec,
         delivery=delivery,

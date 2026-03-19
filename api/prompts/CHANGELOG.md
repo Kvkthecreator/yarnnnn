@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.10] - ADR-123: Project Objective & Ownership Model — Phase 1-2
+
+### Changed
+- `api/services/workspace.py`: `read_project()` returns `objective` (was `intent`), accepts both `## Objective` and `## Intent` headers for migration. `write_project()` param renamed `intent` → `objective`, writes `## Objective` section. `## Intentions` section parsed as `legacy_intentions` for migration, no longer written. Backward-compat derivation deleted.
+- `api/services/agent_pipeline.py`: PM prompt v4.0 — `{intentions}` field removed (operational planning in work_plan only), all `intent` refs → `objective`. Assembly composition prompt v3.0 — `{intent}` → `{objective}`.
+- `api/services/agent_execution.py`: `_load_pm_project_context()` returns `objective` field (was `intent`), no longer returns `intentions` field. Legacy intentions auto-migrated to `memory/work_plan.md` on first PM run. Assembly composition uses `objective` field.
+- `api/services/primitives/project_execution.py`: `UpdateProjectIntent` → `UpdateWorkPlan`. Writes assembly_spec/delivery to PROJECT.md, work_plan to PM's `memory/work_plan.md`. Singular operational substrate.
+- `api/services/primitives/project.py`: CreateProject tool schema `intent` → `objective`. Handler accepts both for transition.
+- `api/services/primitives/registry.py`: `UpdateProjectIntent` → `UpdateWorkPlan` in PRIMITIVES, HANDLERS, PRIMITIVE_MODES.
+- `api/services/project_registry.py`: All 5 registry entries `intent` → `objective`. `scaffold_project()` param `intent_override` → `objective_override`.
+- `api/services/composer.py`: Composer prompt example uses `objective`. `_execute_create_project()` reads `objective` (accepts `intent` fallback).
+- `api/services/working_memory.py`: Project scope uses `objective` (was `intent`).
+- `api/routes/projects.py`: `ProjectIntent` → `ProjectObjective`. Create/update handlers use `objective`.
+- `api/routes/chat.py`: Project surface context uses `objective`.
+- `web/types/index.ts`: `ProjectDetail.project.intent` → `.objective`.
+- `web/app/(authenticated)/projects/[slug]/page.tsx`: Renders `objective` fields.
+
+### Expected behavior
+- PROJECT.md is the charter (objective, contributors, assembly_spec, delivery) — owned by User/Composer/TP.
+- PM memory/ is the operational plan (work_plan, quality_assessment) — owned by PM.
+- PM no longer receives `{intentions}` template field — reads work_plan from memory.
+- Legacy PROJECT.md files with `## Intent` and `## Intentions` auto-migrate on read/PM run.
+- `UpdateWorkPlan` primitive writes operational planning to PM's `memory/work_plan.md`, not PROJECT.md.
+
+---
+
 ## [2026.03.19.9] - ADR-121: Steer path validated end-to-end
 
 ### Validated
