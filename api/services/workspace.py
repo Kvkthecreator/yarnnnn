@@ -753,7 +753,7 @@ class AgentWorkspace:
     async def list_duties(self) -> list[str]:
         """List all duty files in /duties/."""
         files = await self.list("duties/")
-        return [f["path"].split("/")[-1].replace(".md", "") for f in files if f["path"].endswith(".md")]
+        return [f.replace(".md", "") for f in files if f.endswith(".md")]
 
     async def save_output(
         self,

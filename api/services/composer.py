@@ -1360,7 +1360,7 @@ async def _execute_promote_duty(
     """
     from services.agent_framework import ROLE_PORTFOLIOS, get_promotion_duty
     from services.workspace import AgentWorkspace
-    from services.agent_creation import get_agent_slug
+    from services.workspace import get_agent_slug
     from services.activity_log import write_activity
 
     agent_id = decision.get("agent_id")
