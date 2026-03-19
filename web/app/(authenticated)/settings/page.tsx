@@ -11,7 +11,6 @@ import {
   User,
   CreditCard,
   BarChart3,
-  MessageSquare,
   FileText,
   RefreshCw,
   LogOut,
@@ -19,6 +18,7 @@ import {
   Mail,
   Link2,
   Shield,
+  FolderKanban,
   Package,
   Database,
 } from "lucide-react";
@@ -31,21 +31,12 @@ import { MemorySection } from "@/components/settings/MemorySection";
 import { SystemSection } from "@/components/settings/SystemSection";
 
 interface DangerZoneStats {
-  // Tier 1: Individual data types
-  chat_sessions: number;
-  memories: number;
-  documents: number;
-  // Content subtotals
+  workspace_files: number;
   agents: number;
-  agent_runs: number;
-  // Platform content (ADR-072)
-  platform_content: number;
-  // Integrations
+  projects: number;
+  chat_sessions: number;
   platform_connections: number;
-  integration_import_jobs: number;
-  export_logs: number;
-  // Hierarchy
-  workspaces: number;
+  platform_content: number;
 }
 
 interface NotificationPreferences {
@@ -55,15 +46,8 @@ interface NotificationPreferences {
 
 type SettingsTab = "billing" | "usage" | "memory" | "system" | "notifications" | "account";
 type DangerAction =
-  // Tier 1: Selective purge
-  | "chat"
-  | "memories"
-  | "documents"
-  // Tier 2: Category reset
-  | "content"
-  | "context"
+  | "workspace"
   | "integrations"
-  // Tier 3: Full actions
   | "reset"
   | "deactivate"
   | null;
@@ -239,49 +223,24 @@ export default function SettingsPage() {
     try {
       let result;
       switch (dangerAction) {
-        // Tier 1: Selective purge
-        case "chat":
-          result = await api.account.clearChatHistory();
+        case "workspace":
+          result = await api.account.clearWorkspace();
           setPurgeSuccess(result.message);
-          // Clear TP chat state so stale messages don't persist
-          clearMessages();
-          break;
-        case "memories":
-          result = await api.account.clearMemories();
-          setPurgeSuccess(result.message);
-          break;
-        case "documents":
-          result = await api.account.clearDocuments();
-          setPurgeSuccess(result.message);
-          break;
-        // Tier 2: Category reset
-        case "content":
-          result = await api.account.clearContent();
-          setPurgeSuccess(result.message);
-          break;
-        case "context":
-          result = await api.account.clearContext();
-          setPurgeSuccess(result.message);
-          // Clear TP chat state (context includes chat sessions)
           clearMessages();
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
           setPurgeSuccess(result.message);
           break;
-        // Tier 3: Full actions
         case "reset":
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
-          // Clear TP chat state before redirect
           clearMessages();
-          // Redirect to dashboard after reset
           setTimeout(() => router.push(HOME_ROUTE), 2000);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();
           setPurgeSuccess(result.message);
-          // Sign out and redirect
           const supabase = createClient();
           await supabase.auth.signOut();
           router.push("/");
@@ -695,202 +654,80 @@ export default function SettingsPage() {
               {/* Data Summary Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="p-4 border border-border rounded-lg text-center">
-                  <MessageSquare className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.chat_sessions}</div>
-                  <div className="text-xs text-muted-foreground">Chats</div>
+                  <FolderKanban className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.projects}</div>
+                  <div className="text-xs text-muted-foreground">Projects</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
-                  <Brain className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.memories}</div>
-                  <div className="text-xs text-muted-foreground">Memories</div>
-                </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <FileText className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.documents}</div>
-                  <div className="text-xs text-muted-foreground">Docs</div>
-                </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <Package className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <Database className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-2xl font-bold">{dangerStats.agents}</div>
                   <div className="text-xs text-muted-foreground">Agents</div>
                 </div>
-              </div>
-
-              {/* Tier 1: Selective Purge */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
-                  Selective Purge
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Remove individual data types while keeping everything else.
-                </p>
-                <div className="space-y-3">
-                  {/* Clear Conversations */}
-                  <div className="p-4 border border-border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4" />
-                          Clear Conversations
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete all {dangerStats.chat_sessions} chat sessions
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => initiateDangerAction("chat")}
-                        disabled={dangerStats.chat_sessions === 0}
-                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Clear Memories */}
-                  <div className="p-4 border border-border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <Brain className="w-4 h-4" />
-                          Clear Memories
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete all {dangerStats.memories} memories
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => initiateDangerAction("memories")}
-                        disabled={dangerStats.memories === 0}
-                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Clear Documents */}
-                  <div className="p-4 border border-border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          Clear Documents
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete all {dangerStats.documents} documents
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => initiateDangerAction("documents")}
-                        disabled={dangerStats.documents === 0}
-                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <FileText className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.workspace_files}</div>
+                  <div className="text-xs text-muted-foreground">Workspace files</div>
+                </div>
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <Link2 className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.platform_connections}</div>
+                  <div className="text-xs text-muted-foreground">Platforms</div>
                 </div>
               </div>
 
-              {/* Tier 2: Category Reset */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-destructive/80 mb-3 uppercase tracking-wide flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  Category Reset
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Reset entire categories of data at once.
-                </p>
-                <div className="space-y-3">
-                  {/* Clear All Content */}
-                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <Package className="w-4 h-4" />
-                          Clear All Content
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.agents} agents and {dangerStats.agent_runs} runs
-                        </div>
+              {/* Purge Actions */}
+              <div className="space-y-3 mb-6">
+                {/* Clear Workspace */}
+                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        Clear Workspace
                       </div>
-                      <button
-                        onClick={() => initiateDangerAction("content")}
-                        disabled={dangerStats.agents === 0}
-                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear All
-                      </button>
+                      <div className="text-sm text-muted-foreground">
+                        Delete {dangerStats.agents} agents, {dangerStats.projects} projects, {dangerStats.workspace_files} workspace files, and all activity
+                      </div>
                     </div>
+                    <button
+                      onClick={() => initiateDangerAction("workspace")}
+                      disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0}
+                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Clear
+                    </button>
                   </div>
+                </div>
 
-                  {/* Clear All Context */}
-                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <Database className="w-4 h-4" />
-                          Clear All Context
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.memories} memories + {dangerStats.documents} docs + {dangerStats.platform_content} synced items + {dangerStats.chat_sessions} chats
-                        </div>
+                {/* Disconnect Platforms */}
+                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <Link2 className="w-4 h-4" />
+                        Disconnect Platforms
                       </div>
-                      <button
-                        onClick={() => initiateDangerAction("context")}
-                        disabled={
-                          dangerStats.memories === 0 &&
-                          dangerStats.documents === 0 &&
-                          dangerStats.chat_sessions === 0 &&
-                          dangerStats.platform_content === 0
-                        }
-                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Clear Integrations */}
-                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <Link2 className="w-4 h-4" />
-                          Clear Integrations
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Disconnect {dangerStats.platform_connections} integrations, clear {dangerStats.integration_import_jobs} import jobs, {dangerStats.export_logs} export logs, and {dangerStats.platform_content} synced items
-                        </div>
+                      <div className="text-sm text-muted-foreground">
+                        Disconnect {dangerStats.platform_connections} platforms and clear {dangerStats.platform_content} synced items
                       </div>
-                      <button
-                        onClick={() => initiateDangerAction("integrations")}
-                        disabled={
-                          dangerStats.platform_connections === 0 &&
-                          dangerStats.integration_import_jobs === 0 &&
-                          dangerStats.export_logs === 0 &&
-                          dangerStats.platform_content === 0
-                        }
-                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Disconnect
-                      </button>
                     </div>
+                    <button
+                      onClick={() => initiateDangerAction("integrations")}
+                      disabled={dangerStats.platform_connections === 0 && dangerStats.platform_content === 0}
+                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Disconnect
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Tier 3: Full Actions */}
+              {/* Danger Zone */}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-destructive mb-3 uppercase tracking-wide flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  Full Actions
+                  Danger Zone
                 </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Irreversible actions that affect your entire account.
-                </p>
                 <div className="space-y-3">
                   {/* Full Data Reset */}
                   <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
@@ -964,79 +801,43 @@ export default function SettingsPage() {
             </div>
 
             <div className="text-muted-foreground mb-6">
-              {/* Tier 1: Individual purges */}
-              {dangerAction === "memories" && (
-                <p>
-                  Are you sure you want to delete all <strong>{dangerStats?.memories}</strong> memories?
-                  yarnnn will need to relearn your preferences.
-                </p>
-              )}
-              {dangerAction === "chat" && (
-                <p>
-                  Are you sure you want to delete all <strong>{dangerStats?.chat_sessions}</strong> chat
-                  sessions? Your conversation history will be permanently erased.
-                </p>
-              )}
-              {dangerAction === "documents" && (
-                <p>
-                  Are you sure you want to delete all <strong>{dangerStats?.documents}</strong> documents?
-                  All uploaded documents and their extracted content will be removed.
-                </p>
-              )}
-              {/* Tier 2: Category resets */}
-              {dangerAction === "content" && (
+              {dangerAction === "workspace" && (
                 <>
                   <p className="mb-2">
-                    Are you sure you want to <strong>clear all content</strong>? This will delete:
+                    Are you sure you want to <strong>clear your workspace</strong>? This will delete:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.agents} agents and {dangerStats?.agent_runs} runs</li>
+                    <li>{dangerStats?.agents} agents and all their runs</li>
+                    <li>{dangerStats?.projects} projects and all outputs</li>
+                    <li>{dangerStats?.workspace_files} workspace files (memory, knowledge, outputs)</li>
+                    <li>All activity history and work budget records</li>
                   </ul>
-                  <p className="mt-2 text-sm">You will return to the onboarding flow.</p>
-                </>
-              )}
-              {dangerAction === "context" && (
-                <>
-                  <p className="mb-2">
-                    Are you sure you want to <strong>clear all context</strong>? This will delete:
-                  </p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.memories} memories</li>
-                    <li>{dangerStats?.documents} documents</li>
-                    <li>{dangerStats?.platform_content} synced platform items</li>
-                    <li>{dangerStats?.chat_sessions} chat sessions</li>
-                  </ul>
-                  <p className="mt-2 text-sm">yarnnn will lose all knowledge about you and need to start from scratch.</p>
+                  <p className="mt-2 text-sm">Platform connections will remain intact.</p>
                 </>
               )}
               {dangerAction === "integrations" && (
                 <>
                   <p className="mb-2">
-                    Are you sure you want to <strong>clear all integrations</strong>? This will:
+                    Are you sure you want to <strong>disconnect all platforms</strong>? This will:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Disconnect {dangerStats?.platform_connections} connected services</li>
+                    <li>Disconnect {dangerStats?.platform_connections} connected platforms</li>
                     <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
-                    <li>Clear {dangerStats?.integration_import_jobs} import jobs</li>
-                    <li>Clear {dangerStats?.export_logs} export logs</li>
-                    <li>Clear {dangerStats?.platform_content} synced items</li>
+                    <li>Clear {dangerStats?.platform_content} synced items and knowledge files</li>
                   </ul>
                 </>
               )}
-
-              {/* Tier 3: Full actions */}
               {dangerAction === "reset" && (
                 <>
                   <p className="mb-2">
                     Are you sure you want to <strong>reset your entire account</strong>? This will delete:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.agents} agents</li>
+                    <li>{dangerStats?.workspace_files} workspace files</li>
+                    <li>{dangerStats?.agents} agents and {dangerStats?.projects} projects</li>
+                    <li>{dangerStats?.platform_connections} platform connections</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
-                    <li>{dangerStats?.memories} memories</li>
-                    <li>{dangerStats?.documents} documents</li>
-                    <li>{dangerStats?.platform_content} synced items</li>
-                    <li>{dangerStats?.platform_connections} integrations</li>
+                    <li>All memories, documents, activity, and sync data</li>
                   </ul>
                   <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>
                 </>

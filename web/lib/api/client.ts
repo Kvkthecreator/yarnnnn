@@ -603,56 +603,20 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    // Data & Privacy operations
-    // Get stats for danger zone (counts of what will be affected)
+    // Data & Privacy — ADR-122 Phase 5: workspace-aware purge
     getDangerZoneStats: () =>
       request<{
-        // Tier 1: Individual data types
-        chat_sessions: number;
-        memories: number;
-        documents: number;
-        // Content subtotals
+        workspace_files: number;
         agents: number;
-        agent_runs: number;
-        // Platform content (ADR-072)
-        platform_content: number;
-        // Integrations
+        projects: number;
+        chat_sessions: number;
         platform_connections: number;
-        integration_import_jobs: number;
-        export_logs: number;
-        // Hierarchy
-        workspaces: number;
+        platform_content: number;
       }>("/api/account/danger-zone/stats"),
 
-    // Tier 1: Selective Purge (individual data types)
-    clearChatHistory: () =>
+    clearWorkspace: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/chat-history",
-        { method: "DELETE" }
-      ),
-
-    clearMemories: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/memories",
-        { method: "DELETE" }
-      ),
-
-    clearDocuments: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/documents",
-        { method: "DELETE" }
-      ),
-
-    // Tier 2: Category Reset (grouped deletions)
-    clearContent: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/content",
-        { method: "DELETE" }
-      ),
-
-    clearContext: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/context",
+        "/api/account/workspace",
         { method: "DELETE" }
       ),
 
@@ -662,7 +626,6 @@ export const api = {
         { method: "DELETE" }
       ),
 
-    // Tier 3: Full Actions (high impact)
     resetAccount: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/reset",
