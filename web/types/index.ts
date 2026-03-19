@@ -559,6 +559,7 @@ export interface AgentDetail {
   versions: AgentRun[];
   feedback_summary?: FeedbackSummary;
   rendered_outputs?: RenderedOutput[];
+  project_memberships?: ProjectMembership[];
 }
 
 export interface VersionUpdate {
