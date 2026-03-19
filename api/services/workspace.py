@@ -700,6 +700,7 @@ class AgentWorkspace:
 
         # ADR-119 Phase 2: Inject project context for contributing agents.
         # If memory/projects.json exists, load each project's intent + preferences.
+        # ADR-121: Also inject PM contribution briefs as steering directives.
         projects_json = await self.read("memory/projects.json")
         if projects_json:
             import json as _json
@@ -716,6 +717,10 @@ class AgentWorkspace:
                         header = f"## Contributing To: {proj.get('title', slug)}"
                         if expected:
                             header += f"\n**Your expected contribution:** {expected}"
+                        # ADR-121: Read PM brief if it exists — steering directive
+                        brief = await pw.read_brief(self._slug) if self._slug else None
+                        if brief:
+                            header += f"\n\n**PM Directive (brief):**\n{brief}"
                         parts.append(f"{header}\n{project_ctx}")
             except _json.JSONDecodeError:
                 pass
@@ -1964,6 +1969,32 @@ class ProjectWorkspace:
     async def list_contributions(self, agent_slug: str) -> list[str]:
         """List files contributed by a specific agent."""
         return await self.list(f"contributions/{agent_slug}/", recursive=True)
+
+    # =========================================================================
+    # Contribution Briefs — PM steering directives (ADR-121)
+    # =========================================================================
+
+    async def write_brief(self, agent_slug: str, brief_content: str) -> bool:
+        """Write a contribution brief for a specific agent.
+
+        Briefs are PM directives that tell a contributor what to focus on,
+        what questions to answer, and what's missing from their last output.
+        Written to /projects/{slug}/contributions/{agent_slug}/brief.md.
+        """
+        return await self.write(
+            f"contributions/{agent_slug}/brief.md",
+            brief_content,
+            summary=f"PM brief for {agent_slug}",
+            tags=["brief", agent_slug, "pm-directive"],
+        )
+
+    async def read_brief(self, agent_slug: str) -> str | None:
+        """Read the current contribution brief for a specific agent.
+
+        Returns None if no brief exists (contributor has no PM steering).
+        """
+        content = await self.read(f"contributions/{agent_slug}/brief.md")
+        return content if content else None
 
     # =========================================================================
     # Assembly — composed outputs (like agent's save_output)

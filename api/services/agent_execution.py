@@ -92,11 +92,11 @@ async def _fetch_skill_docs() -> Optional[str]:
 
 async def _load_pm_project_context(client, user_id: str, project_slug: str) -> dict:
     """
-    ADR-120: Load project context for PM agent's prompt injection.
+    ADR-120 + ADR-121: Load project context for PM agent's prompt injection.
 
     Returns dict with keys matching PM role prompt template fields:
     - project_context: PROJECT.md summary
-    - contributor_status: per-contributor freshness
+    - contributor_status: per-contributor freshness + content excerpts (ADR-121)
     - work_plan: work plan text or placeholder
     """
     from services.workspace import ProjectWorkspace
@@ -135,11 +135,35 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
 
     contributor_lines = []
     for c in freshness.get("contributors", []):
+        slug = c["agent_slug"]
         status = "FRESH" if c["is_fresh"] else "STALE"
         days = f" ({c['days_since']}d ago)" if c["days_since"] is not None else " (never contributed)"
         contributor_lines.append(
-            f"- {c['agent_slug']}: {status}{days} — expected: {c.get('expected_contribution', 'unspecified')}"
+            f"### {slug}: {status}{days} — expected: {c.get('expected_contribution', 'unspecified')}"
         )
+
+        # ADR-121: Load contribution content excerpt so PM can assess quality
+        try:
+            files = await pw.list_contributions(slug)
+            for f in files:
+                if f == "brief.md":
+                    continue  # Skip PM's own briefs
+                content = await pw.read(f"contributions/{slug}/{f}")
+                if content:
+                    excerpt = content[:500]
+                    if len(content) > 500:
+                        excerpt += f"\n... ({len(content)} chars total)"
+                    contributor_lines.append(f"**Latest content ({f}):**\n{excerpt}")
+        except Exception:
+            contributor_lines.append("(Could not load contribution content)")
+
+        # ADR-121: Show existing brief if any
+        try:
+            brief = await pw.read_brief(slug)
+            if brief:
+                contributor_lines.append(f"**Active PM brief:** {brief[:200]}")
+        except Exception:
+            pass
 
     if freshness.get("last_assembly_date"):
         contributor_lines.append(f"\nLast assembly: {freshness['last_assembly_date']}")
@@ -299,8 +323,9 @@ async def _handle_pm_decision(
     """
     Interpret PM agent's JSON decision and act on it.
 
-    PM outputs structured JSON: {"action": "assemble"|"advance_contributor"|"wait"|"escalate", ...}
-    This function parses the decision and routes to the appropriate handler.
+    PM outputs structured JSON with actions (ADR-120 + ADR-121):
+    - assemble, advance_contributor, wait, escalate, update_work_plan (ADR-120)
+    - steer_contributor, assess_quality (ADR-121 — intelligence director)
 
     Returns result dict with pm_action, success, and action-specific details.
     """
@@ -374,6 +399,10 @@ async def _handle_pm_decision(
 
     if action == "assemble":
         try:
+            # ADR-121: Pass PM's quality notes to assembly composition
+            quality_notes = decision.get("quality_notes", "")
+            if quality_notes:
+                type_config["quality_notes"] = quality_notes
             result = await _execute_pm_assemble(client, user_id, agent, project_slug, type_config)
             # ADR-117 Phase 3: Project activity event
             if result.get("success"):
@@ -444,6 +473,127 @@ async def _handle_pm_decision(
         except Exception as e:
             logger.error(f"[PM] Advance contributor failed: {e}")
             return {"pm_action": "advance_contributor", "success": False, "error": str(e)}
+
+    elif action == "steer_contributor":
+        # ADR-121: PM writes a contribution brief then advances the contributor
+        try:
+            from services.workspace import ProjectWorkspace
+
+            brief_content = decision.get("brief", "")
+            if not brief_content:
+                return {"pm_action": "steer_contributor", "success": False,
+                        "error": "No brief content provided in PM decision"}
+
+            pw = ProjectWorkspace(client, user_id, project_slug)
+            await pw.write_brief(target_agent, brief_content)
+            logger.info(f"[PM] Wrote brief for {target_agent} in {project_slug}")
+
+            # After writing brief, advance the contributor so they run with the new directive
+            try:
+                from services.primitives.project_execution import handle_request_contributor_advance
+
+                class _FakeAuth:
+                    def __init__(self, c, uid):
+                        self.client = c
+                        self.user_id = uid
+
+                await handle_request_contributor_advance(
+                    _FakeAuth(client, user_id),
+                    {
+                        "project_slug": project_slug,
+                        "agent_slug": target_agent,
+                        "reason": f"PM steered with brief: {reason[:80]}",
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"[PM] Brief written but advance failed: {e}")
+                # Brief still written — contributor will pick it up on next scheduled run
+
+            # Activity event
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=client, user_id=user_id,
+                    event_type="project_contributor_steered",
+                    summary=f"{project_slug} PM directed {target_agent}: {reason[:60]}",
+                    event_ref=agent.get("id"),
+                    metadata={"project_slug": project_slug,
+                              "target_agent_slug": target_agent,
+                              "reason": reason,
+                              "brief_excerpt": brief_content[:200]},
+                )
+            except Exception:
+                pass  # Non-fatal
+
+            return {
+                "pm_action": "steer_contributor",
+                "success": True,
+                "target_agent": target_agent,
+                "reason": reason,
+                "brief_written": True,
+            }
+        except Exception as e:
+            logger.error(f"[PM] Steer contributor failed: {e}")
+            return {"pm_action": "steer_contributor", "success": False, "error": str(e)}
+
+    elif action == "assess_quality":
+        # ADR-121: PM assessed contribution quality — log assessments, no side effects
+        # The assessment itself is the value — PM will follow up with assemble/steer/wait
+        assessments = decision.get("assessments", [])
+        logger.info(f"[PM] Quality assessment for {project_slug}: {len(assessments)} contributors assessed")
+
+        # Write assessment to project workspace for observability
+        try:
+            from services.workspace import ProjectWorkspace
+            import json as _aq_json
+
+            pw = ProjectWorkspace(client, user_id, project_slug)
+            assessment_lines = [
+                f"# Quality Assessment — {project_slug}",
+                f"\n**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                f"**Reason:** {reason}",
+            ]
+            for a in assessments:
+                slug = a.get("agent_slug", "?")
+                verdict = a.get("verdict", "unknown")
+                assessment_lines.append(f"\n## {slug}")
+                assessment_lines.append(f"- **Coverage:** {a.get('coverage', 'unknown')}")
+                assessment_lines.append(f"- **Depth:** {a.get('depth', 'unknown')}")
+                assessment_lines.append(f"- **Differentiation:** {a.get('differentiation', 'unknown')}")
+                assessment_lines.append(f"- **Verdict:** {verdict}")
+                if a.get("notes"):
+                    assessment_lines.append(f"- **Notes:** {a['notes']}")
+
+            await pw.write(
+                "memory/quality_assessment.md",
+                "\n".join(assessment_lines),
+                summary=f"Quality assessment: {reason[:80]}",
+            )
+        except Exception as e:
+            logger.warning(f"[PM] Failed to write quality assessment: {e}")
+
+        # Activity event
+        try:
+            from services.activity_log import write_activity
+            verdicts = {a.get("agent_slug", "?"): a.get("verdict", "?") for a in assessments}
+            await write_activity(
+                client=client, user_id=user_id,
+                event_type="project_quality_assessed",
+                summary=f"{project_slug} PM assessed quality: {verdicts}",
+                event_ref=agent.get("id"),
+                metadata={"project_slug": project_slug,
+                          "assessments": assessments,
+                          "reason": reason},
+            )
+        except Exception:
+            pass  # Non-fatal
+
+        return {
+            "pm_action": "assess_quality",
+            "success": True,
+            "reason": reason,
+            "assessments": assessments,
+        }
 
     elif action == "update_work_plan":
         # ADR-120 P4: PM decomposes intent into operational work plan
@@ -562,6 +712,8 @@ async def _execute_pm_assemble(
     for slug in contributor_slugs:
         files = await pw.list_contributions(slug)
         for f in files:
+            if f == "brief.md":
+                continue  # ADR-121: Skip PM briefs — they're directives, not content
             content = await pw.read(f"contributions/{slug}/{f}")
             if content:
                 contributions.setdefault(slug, []).append({"file": f, "content": content})
@@ -569,6 +721,14 @@ async def _execute_pm_assemble(
 
     if not contributions:
         return {"success": False, "error": "All contribution files are empty"}
+
+    # ADR-121: Read quality assessment + quality_notes from PM decision
+    quality_assessment = await pw.read("memory/quality_assessment.md")
+    if quality_assessment:
+        project["quality_notes"] = quality_assessment
+    # Also pick up quality_notes from the PM's assemble decision if present
+    if type_config.get("quality_notes"):
+        project["quality_notes"] = type_config["quality_notes"]
 
     # 3. Compose assembly via LLM
     try:
@@ -671,11 +831,12 @@ async def _compose_assembly(
     intent = project.get("intent", {})
     intent_str = ", ".join(f"{k}: {v}" for k, v in intent.items() if v) or "Not specified"
 
-    # Format composition prompt
+    # Format composition prompt (ADR-121: v2.0 with quality_notes)
     prompt = ASSEMBLY_COMPOSITION_PROMPT.format(
         title=project.get("title", "Untitled Project"),
         intent=intent_str,
         assembly_spec=project.get("assembly_spec", "Combine contributions into a cohesive deliverable."),
+        quality_notes=project.get("quality_notes", "No quality assessment available — compose with best judgment."),
         contributions=contributions_text,
     )
 

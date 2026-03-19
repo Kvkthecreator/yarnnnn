@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.5] - ADR-121 Phase 1: PM prompt v3.0 (Intelligence Director) + Assembly prompt v2.0
+
+### Changed
+- `api/services/agent_pipeline.py` ROLE_PROMPTS["pm"]: **v2 → v3.0** — PM reframed as "Intelligence Director" (not logistics coordinator). Two new actions: `assess_quality` (evaluate contributions for coverage/depth/differentiation against intent) and `steer_contributor` (write specific brief + advance agent). Prompt now instructs PM to assess quality before assembling, steer overlapping/thin contributions, and reason about what the project needs. Title in prompt changed from "Project Manager" to "Intelligence Director". Decision rules updated: prefer assess_quality before assemble, steer rather than blindly advance.
+- `api/services/agent_pipeline.py` ASSEMBLY_COMPOSITION_PROMPT: **v1 → v2.0** — Now intent-first (organize by audience questions, not by contributor). Includes `{quality_notes}` field from PM assessment. Gap acknowledgment: thin topics noted as "areas for deeper investigation" rather than padded. Attribution to source data rather than contributor agent names.
+- `api/services/agent_execution.py` `_handle_pm_decision()`: Routes two new actions — `steer_contributor` (writes brief.md via ProjectWorkspace, then advances contributor) and `assess_quality` (writes quality_assessment.md, logs verdicts). Both emit activity events.
+- `api/services/agent_execution.py` `_load_pm_project_context()`: PM now receives contribution content excerpts (first 500 chars per file) alongside freshness status, plus any active PM briefs. Enables quality reasoning.
+- `api/services/agent_execution.py` `_execute_pm_assemble()`: Reads `memory/quality_assessment.md` and injects into composition. Filters out `brief.md` from contributions (directives, not content).
+- `api/services/workspace.py` `ProjectWorkspace`: Added `write_brief()` and `read_brief()` methods for PM steering directives at `/contributions/{slug}/brief.md`.
+- `api/services/workspace.py` `AgentWorkspace.load_context()`: Contributing agents now read PM briefs during context gathering (injected as "PM Directive" alongside project context).
+
+### Expected behavior
+- PM will now assess contribution quality before deciding to assemble, instead of using freshness as the sole gate.
+- PM can steer contributors with specific directives (what to focus on, what's missing, how they fit the assembly).
+- Contributing agents see PM briefs as part of their execution context, shaping their next output.
+- Assembly composition is intent-driven: organized by audience needs, acknowledges gaps, avoids repetition.
+- All existing PM actions (assemble, advance_contributor, wait, escalate, update_work_plan) continue to work unchanged.
+
+### PM Prompt Version History
+| Version | Date | Description |
+|---------|------|-------------|
+| v1.0 | ADR-120 P1 | Logistics: freshness + assemble/wait/escalate |
+| v1.1 | ADR-120 P4 | + intentions, budget awareness, work plan |
+| v1.2 | 2026-03-19 | + CRITICAL JSON enforcement, resilient parsing |
+| **v3.0** | 2026-03-19 | Intelligence Director: quality assessment, steering, contribution content (ADR-121 P1) |
+
+---
+
 ## [2026.03.19.4] - ADR-121: PM prompt versioning policy + intelligence director proposal
 
 ### Changed

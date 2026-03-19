@@ -1,6 +1,6 @@
 # ADR-121: PM as Project Intelligence Director
 
-> **Status**: Proposed
+> **Status**: Phase 1 Implemented
 > **Date**: 2026-03-19
 > **Authors**: KVK, Claude
 > **Extends**: ADR-120 (Project Execution & Work Budget)
@@ -115,18 +115,20 @@ The PM prompt v2.0, assembly composition prompt, and contributor brief injection
 
 ## Implementation Phases
 
-### Phase 1: Structural Foundation
-- PM prompt v2.0 with `assess_quality` and `steer_contributor` actions
-- Contribution brief convention (`/contributions/{slug}/brief.md`)
-- Contributing agent execution reads brief during context gathering
-- `_handle_pm_decision()` routes new actions
-- CHANGELOG entry for PM prompt v2.0
-
-### Phase 2: Quality Assessment
-- PM receives contribution content (not just freshness metadata) in its prompt context
+### Phase 1: Structural Foundation + Quality Assessment (Implemented 2026-03-19)
+- PM prompt v3.0 (Intelligence Director) with `assess_quality` and `steer_contributor` actions
+- Contribution brief convention (`/contributions/{slug}/brief.md`) — `write_brief()` + `read_brief()` on ProjectWorkspace
+- Contributing agent execution reads brief during context gathering (injected as "PM Directive")
+- `_handle_pm_decision()` routes new actions: `steer_contributor` (writes brief + advances agent), `assess_quality` (writes assessment + logs)
+- PM receives contribution content excerpts (500 chars) in prompt context — enables quality reasoning
 - Quality scoring in PM prompt: coverage, depth, differentiation against intent
-- Assembly gating: PM can reject assembly if contributions are inadequate
-- Assembly composition prompt v2 — intent-aware, knows what's thin
+- Assembly composition prompt v2.0 — intent-driven structure, quality notes, gap acknowledgment
+- CHANGELOG entry [2026.03.19.5] for PM prompt v3.0 + assembly prompt v2.0
+
+### Phase 2: Assembly Gating & Cross-Cycle Learning (Proposed)
+- Assembly gating: PM can reject assembly if contributions are inadequate (assess_quality → steer → re-assess loop)
+- PM work plan evolution — PM updates work plan based on quality assessments
+- Cross-cycle learning — PM's observations about what makes good contributions feed back into briefs
 
 ### Phase 3: Investigation & Expansion
 - `request_investigation` action — PM writes investigation request, TP/Composer creates or assigns research agent
