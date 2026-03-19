@@ -572,11 +572,13 @@ def build_role_prompt(
         })
 
     elif role == "pm":
-        # PM context injected by execution strategy (Step 3)
+        # PM context injected by _load_pm_project_context() via type_config merge
         fields.update({
             "project_context": config.get("project_context", "No project context available."),
             "contributor_status": config.get("contributor_status", "No contributor status available."),
             "work_plan": config.get("work_plan", "No work plan set."),
+            "intentions": config.get("intentions", "No explicit intentions set."),
+            "budget_status": config.get("budget_status", "Unknown"),
         })
 
     else:  # custom and any unknown types
