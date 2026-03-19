@@ -2,28 +2,19 @@
 
 /**
  * ADR-037: Chat-First Surface Architecture
- * ADR-063: Four-Layer Model Navigation
  *
- * Navigation model:
- * - Home (/dashboard) = Supervision dashboard (agent health, Composer activity)
- * - Orchestrator (/orchestrator) = TP chat (conversational agent)
- * - Four-layer pages: Memory, Activity, Context, Work (Agents)
- * - Settings is meta (not a layer)
+ * Navigation model (simplified 2026-03-19):
+ * Primary:   Dashboard | Orchestrator | Agents | Projects | Sources
+ * Secondary: Activity | Settings (absorbs Memory + System)
  *
- * Navigation structure:
- * - Dashboard (home) | Orchestrator | Work-Agents | Memory | Context | Activity | Settings
- *
- * Four-Layer Model:
- * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
- * - Activity (/activity): What YARNNN has done (audit trail)
- * - Context (/context): Filesystem view of your context (Platforms, Documents, Knowledge)
- * - Work-Agents (/agents): What YARNNN produces (recurring outputs)
+ * The primary nav reflects daily workflow surfaces.
+ * Secondary items are audit/config pages accessed less frequently.
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap, MessageSquare, LayoutDashboard, FolderKanban } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, MessageSquare, LayoutDashboard, FolderKanban } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -100,11 +91,6 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 // Navigation Types
 // =============================================================================
 
-// Supervision Dashboard + Orchestrator Navigation
-// - Dashboard is home (agent health, Composer activity)
-// - Orchestrator is TP chat (conversational agent)
-// - All other items are routes (actual pages, not surfaces)
-
 interface RouteItem {
   id: string;
   label: string;
@@ -112,41 +98,37 @@ interface RouteItem {
   path: string;
 }
 
-// Primary workspace: Dashboard + Orchestrator + Agents
-// Supporting pages: Memory, Context, Activity, System, Settings
+// Primary: Dashboard (home) + Orchestrator + Agents + Projects + Sources
 const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: MessageSquare, path: ORCHESTRATOR_ROUTE };
 const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Briefcase, path: '/agents' };
 const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: FolderKanban, path: PROJECTS_ROUTE };
+const SOURCES_ROUTE: RouteItem = { id: 'context', label: 'Sources', icon: Layers, path: '/context' };
 
-const ROUTE_PAGES: RouteItem[] = [
-  { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
-  { id: 'context', label: 'Sources', icon: Layers, path: '/context' },
+// Secondary: Activity + Settings (Settings absorbs Memory + System)
+const SECONDARY_PAGES: RouteItem[] = [
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
-  { id: 'system', label: 'System', icon: Zap, path: '/system' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
 
+// All primary routes for pathname matching
+const PRIMARY_ROUTES = [ORCHESTRATOR_NAV, AGENTS_ROUTE, PROJECTS_ROUTE_NAV, SOURCES_ROUTE];
+
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
-  // Check orchestrator route
-  if (pathname === ORCHESTRATOR_NAV.path || pathname.startsWith(ORCHESTRATOR_NAV.path + '/')) {
-    return ORCHESTRATOR_NAV;
-  }
-  // Check agents route (primary workspace)
-  if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
-    return AGENTS_ROUTE;
-  }
-  // Check projects route (primary workspace)
-  if (pathname === PROJECTS_ROUTE_NAV.path || pathname.startsWith(PROJECTS_ROUTE_NAV.path + '/')) {
-    return PROJECTS_ROUTE_NAV;
-  }
-  // Check supporting route pages
-  for (const route of ROUTE_PAGES) {
+  for (const route of PRIMARY_ROUTES) {
     if (pathname === route.path || pathname.startsWith(route.path + '/')) {
       return route;
     }
   }
+  for (const route of SECONDARY_PAGES) {
+    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
+      return route;
+    }
+  }
+  // Legacy routes still accessible but not in nav (memory, system)
+  if (pathname.startsWith('/memory')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
+  if (pathname.startsWith('/system')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
   return null;
 }
 
@@ -345,12 +327,26 @@ function AuthenticatedLayoutInner({
                   <FolderKanban className="w-4 h-4" />
                   {PROJECTS_ROUTE_NAV.label}
                 </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(SOURCES_ROUTE.path);
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    currentRoute?.id === SOURCES_ROUTE.id && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <Layers className="w-4 h-4" />
+                  {SOURCES_ROUTE.label}
+                </button>
 
-                {/* Divider — supporting pages below */}
+                {/* Divider — secondary pages below */}
                 <div className="border-t border-border my-1" />
 
-                {/* Supporting pages */}
-                {ROUTE_PAGES.map((route) => {
+                {/* Secondary pages */}
+                {SECONDARY_PAGES.map((route) => {
                   const Icon = route.icon;
                   const isActive = currentRoute?.id === route.id;
                   return (
