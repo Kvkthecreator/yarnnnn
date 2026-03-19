@@ -132,9 +132,16 @@ Typical: ~20–40 rows/day per active user. No TTL — rows accumulate over time
 
 ---
 
+## Evolution: Meeting Room Inline Events (ADR-124, Proposed)
+
+ADR-124 (Project Meeting Room) proposes surfacing activity events as inline cards within the project chat stream — PM quality assessments, assembly completions, contributor delivery events, and steer actions appear as structured event cards alongside attributed agent messages. First-order events (decisions, assessments) live in the stream; second-order data (full run content, file details) is fetched on demand.
+
+---
+
 ## Related
 
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer design and implementation
+- [ADR-124](../adr/ADR-124-project-meeting-room.md) — Project Meeting Room (activity events as inline chat cards)
 - [Four-Layer Model](../architecture/four-layer-model.md) — Architectural overview
 - [Backend Orchestration](../architecture/backend-orchestration.md) — Full event type registry (Observability section)
 - `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`

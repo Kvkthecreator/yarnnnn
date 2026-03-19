@@ -58,6 +58,8 @@ Users without platform connections can still provide rich context via documents 
 | **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
 
+> **Planned (ADR-124):** A third primitive mode — `agent_chat` — is proposed for agents participating in project meeting room conversations. Domain-scoped primitives (read workspace, search knowledge, write to own workspace) would be available; full TP primitives would not. See [ADR-124](../adr/ADR-124-project-meeting-room.md).
+>
 > **Planned (ADR-111 Phase 1):** Agent creation will be extracted from Write into a dedicated **CreateAgent** primitive available in both chat and headless modes. Write will continue handling memory and document creation. Currently two paths exist: Write's `_process_agent()` (chat) and coordinator.py's `CreateAgent` (headless). Both will be unified via shared `create_agent_record()` in `agent_creation.py`. See [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md) (revised 2026-03-16: Composer reframed as TP capability, not service).
 
 > **Note**: Todo and Respond primitives were removed per ADR-038 (Filesystem-as-Context).

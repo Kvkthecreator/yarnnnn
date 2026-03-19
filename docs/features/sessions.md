@@ -112,6 +112,7 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*
 2. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
 3. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses inactivity-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
+4. **Project-scoped sessions** — ADR-124 (Project Meeting Room) proposes project sessions where multiple agents participate as attributed authors. The meeting room transcript becomes a fourth perception layer (Axiom 2 extension). Session compaction at project scope is flagged as future work. *(Proposed in ADR-124)*
 
 ### Resolved (ADR-067)
 - Session summaries — nightly cron writes `chat_sessions.summary`; "Recent conversations" block populates

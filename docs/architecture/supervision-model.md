@@ -271,6 +271,21 @@ Both are supervision. But they serve different purposes and flow through differe
 
 ---
 
+## Evolution: Project Meeting Room (ADR-124, Proposed)
+
+ADR-124 extends the supervision model further by making agents **visible participants** in a shared project conversation:
+
+- **Agents shift from data objects to conversational participants** — users talk to agents directly via `@agent-slug` mentions, not only through TP proxy
+- **PM becomes the default interlocutor** in project scope — TP recedes to infrastructure (system-level commands, cross-project queries)
+- **Group scope emerges** as a new data layer — the shared conversation transcript, participant state, and cross-participant awareness (distinct from agent-private scope and project-charter scope)
+- **Conversation as perception layer** (Axiom 2 extension) — the meeting room transcript becomes a fourth perception source alongside external (platform_content), internal (workspace_files), and reflexive (user feedback)
+
+This doesn't replace the supervision model — it deepens it. The user still supervises, but now through direct dialogue with the agents doing the work, not only through a mediating TP layer.
+
+See [ADR-124](../adr/ADR-124-project-meeting-room.md) for the full proposal.
+
+---
+
 ## Summary
 
 **The supervision model provides a unified framework:**

@@ -315,6 +315,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, project folders, manifests | Aligned |
 | ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Implemented |
 | ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
+| ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as fourth perception layer — project transcript alongside external/internal/reflexive), Axiom 3 (agents as participants with presence), Axiom 4 (accumulated attention visible in conversation). Three data scopes (agent/group/project). Project surface as group chat. Extends ADR-080 with `agent_chat` mode. | Proposed |
 
 ---
 
