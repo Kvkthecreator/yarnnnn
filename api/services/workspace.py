@@ -1773,6 +1773,7 @@ class ProjectWorkspace:
 
         result = {
             "title": "",
+            "type_key": None,
             "intent": {},
             "contributors": [],
             "assembly_spec": "",
@@ -1790,6 +1791,11 @@ class ProjectWorkspace:
             # Title: first H1
             if stripped.startswith("# ") and not result["title"]:
                 result["title"] = stripped[2:].strip()
+                continue
+
+            # ADR-122: type_key field
+            if stripped.startswith("**Type**:"):
+                result["type_key"] = stripped[9:].strip()
                 continue
 
             # Section headers
@@ -1881,6 +1887,7 @@ class ProjectWorkspace:
         assembly_spec: str = "",
         delivery: dict = None,
         intentions: list[dict] = None,
+        type_key: str = None,
     ) -> bool:
         """Write PROJECT.md from structured data.
 
@@ -1891,8 +1898,12 @@ class ProjectWorkspace:
             assembly_spec: How contributions combine
             delivery: {channel, target}
             intentions: [{type, description, format?, delivery?: {channel, target}, budget?, deadline?}]
+            type_key: ADR-122 project type registry key (immutable after creation)
         """
-        lines = [f"# {title}", "", "## Intent"]
+        lines = [f"# {title}"]
+        if type_key:
+            lines.extend(["", f"**Type**: {type_key}"])
+        lines.extend(["", "## Intent"])
         for key in ["deliverable", "audience", "format", "purpose"]:
             if key in intent:
                 label = key.capitalize()

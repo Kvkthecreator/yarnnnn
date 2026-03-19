@@ -348,13 +348,13 @@ async def _sync_platform_inner(
         except Exception:
             pass  # Non-fatal — never block sync
 
-        # ADR-110: Onboarding Bootstrap — auto-create digest agent on first sync
+        # ADR-122: Onboarding Bootstrap — scaffold platform digest project on first sync
         if sync_success and not has_error:
             try:
-                from services.onboarding_bootstrap import maybe_bootstrap_agent
-                bootstrap_id = await maybe_bootstrap_agent(client, user_id, provider)
-                if bootstrap_id:
-                    logger.info(f"[PLATFORM_WORKER] Bootstrap agent created: {bootstrap_id}")
+                from services.onboarding_bootstrap import maybe_bootstrap_project
+                project_slug = await maybe_bootstrap_project(client, user_id, provider)
+                if project_slug:
+                    logger.info(f"[PLATFORM_WORKER] Bootstrap project created: {project_slug}")
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Bootstrap check failed (non-fatal): {e}")
 

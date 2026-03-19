@@ -175,27 +175,44 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     # 3. Agent roles coverage map
     roles_present = set(a.get("role", "custom") for a in active_agents)
 
-    # 4. Platform coverage — which platforms have digest agents?
-    # Check both sources[].provider AND bootstrap title patterns (bootstrap agents
-    # may have empty sources before first sync populates them — ADR-110/113)
-    _TITLE_TO_PLATFORM = {"Slack Recap": "slack", "Gmail Digest": "google", "Notion Summary": "notion"}
-    platforms_with_digest = set()
-    for agent in active_agents:
-        if agent.get("role") == "digest":
-            # Source-based detection (populated agents)
-            for src in (agent.get("sources") or []):
-                if isinstance(src, dict):
-                    provider = src.get("provider") or src.get("platform")
-                    if provider:
-                        platforms_with_digest.add(provider)
-            # Title-based detection (bootstrap agents with empty sources)
-            title_platform = _TITLE_TO_PLATFORM.get(agent.get("title"))
-            if title_platform:
-                platforms_with_digest.add(title_platform)
+    # 4. Platform coverage — which platforms have project coverage? (ADR-122)
+    # Check workspace_files for projects with platform type_key
+    from services.project_registry import get_platform_project_type
+    platforms_with_project = set()
+    try:
+        project_files = (
+            db.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .like("path", "/projects/%/PROJECT.md")
+            .execute()
+        )
+        for row in (project_files.data or []):
+            content = row.get("content", "")
+            # Parse type_key from PROJECT.md
+            for line in content.split("\n"):
+                if line.strip().startswith("**Type**:"):
+                    tk = line.strip()[9:].strip()
+                    # Map type_key back to platform
+                    from services.project_registry import get_project_type
+                    ptype = get_project_type(tk)
+                    if ptype and ptype.get("platform"):
+                        platforms_with_project.add(ptype["platform"])
+                    break
+    except Exception as e:
+        logger.warning(f"[HEARTBEAT] Project coverage check failed: {e}")
+        # Fallback: also check agent sources for backward compatibility with pre-ADR-122 agents
+        for agent in active_agents:
+            if agent.get("role") == "digest":
+                for src in (agent.get("sources") or []):
+                    if isinstance(src, dict):
+                        provider = src.get("provider") or src.get("platform")
+                        if provider:
+                            platforms_with_project.add(provider)
 
-    platforms_without_digest = [
+    platforms_without_coverage = [
         p for p in connected_platforms
-        if p not in platforms_with_digest and p != "calendar"  # Calendar excluded per ADR-110
+        if p not in platforms_with_project and p != "calendar"
     ]
 
     # 5. Stale agents — active but haven't run in 2x their schedule frequency
@@ -509,8 +526,8 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             ],
         },
         "coverage": {
-            "platforms_with_digest": list(platforms_with_digest),
-            "platforms_without_digest": platforms_without_digest,
+            "platforms_with_coverage": list(platforms_with_project),
+            "platforms_without_coverage": platforms_without_coverage,
         },
         "health": {
             "stale_agents": [
@@ -578,10 +595,10 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     if not assessment["tier"]["can_create"]:
         return False, "HEARTBEAT_OK: at tier agent limit"
 
-    # Coverage gap: platform connected but no digest agent
-    gaps = assessment["coverage"]["platforms_without_digest"]
+    # Coverage gap: platform connected but no project covering it (ADR-122)
+    gaps = assessment["coverage"]["platforms_without_coverage"]
     if gaps:
-        return True, f"coverage_gap: platforms without digest: {gaps}"
+        return True, f"coverage_gap: platforms without project coverage: {gaps}"
 
     # Stale agents worth investigating
     stale = assessment["health"]["stale_agents"]
@@ -759,12 +776,8 @@ COMPOSER_TEMPLATES = {
     },
 }
 
-# Platform-specific digest templates (same as bootstrap, but used by Composer for gap-filling)
-PLATFORM_DIGEST_TITLES = {
-    "slack": "Slack Recap",
-    "gmail": "Gmail Digest",
-    "notion": "Notion Summary",
-}
+# ADR-122: Platform digest gap-filling now uses project_registry.scaffold_project()
+# PLATFORM_DIGEST_TITLES — DELETED (ADR-122). Use get_platform_project_type() instead.
 
 
 async def run_composer_assessment(
@@ -796,18 +809,25 @@ async def run_composer_assessment(
         "observations": [],
     }
 
-    # Fast path: deterministic gap-filling (no LLM needed)
-    gaps = assessment["coverage"]["platforms_without_digest"]
+    # Fast path: deterministic gap-filling via project registry (ADR-122, no LLM needed)
+    gaps = assessment["coverage"]["platforms_without_coverage"]
     if gaps and reason.startswith("coverage_gap"):
+        from services.project_registry import get_platform_project_type, scaffold_project
         for platform in gaps:
-            agent_id = await _create_digest_for_platform(client, user_id, platform, assessment)
-            if agent_id:
-                result["agents_created"].append({
-                    "agent_id": agent_id,
-                    "platform": platform,
-                    "role": "digest",
-                    "reason": "coverage_gap",
-                })
+            type_info = get_platform_project_type(platform)
+            if not type_info:
+                continue
+            type_key, _ = type_info
+            scaffold_result = await scaffold_project(client, user_id, type_key, execute_now=True)
+            if scaffold_result.get("success"):
+                for ca in scaffold_result.get("agents_created", []):
+                    result["agents_created"].append({
+                        "agent_id": ca["agent_id"],
+                        "platform": platform,
+                        "role": ca["role"],
+                        "reason": "coverage_gap",
+                        "project_slug": scaffold_result["project_slug"],
+                    })
         if result["agents_created"]:
             result["action"] = "created"
         return result
@@ -842,59 +862,8 @@ async def run_composer_assessment(
     return result
 
 
-async def _create_digest_for_platform(
-    client: Any,
-    user_id: str,
-    platform: str,
-    assessment: dict,
-) -> Optional[str]:
-    """Create a digest agent for a platform gap. Deterministic, no LLM."""
-    from services.agent_creation import create_agent_record
-
-    title = PLATFORM_DIGEST_TITLES.get(platform)
-    if not title:
-        return None
-
-    # Get sources for this platform from assessment
-    sources = []
-    for p in assessment["platform_details"]:
-        if p.get("platform") == platform:
-            sources = p.get("selected_sources") or []
-            break
-
-    if not sources:
-        logger.info(f"[COMPOSER] No sources for {platform}, skipping digest creation")
-        return None
-
-    # ADR-118: Default email delivery
-    destination = None
-    try:
-        from services.agent_execution import get_user_email
-        user_email = get_user_email(client, user_id)
-        if user_email:
-            destination = {"platform": "email", "target": user_email, "format": "send"}
-    except Exception:
-        pass
-
-    result = await create_agent_record(
-        client=client,
-        user_id=user_id,
-        title=title,
-        role="digest",
-        origin="composer",
-        frequency="daily",
-        sources=sources,
-        destination=destination,
-        execute_now=True,
-    )
-
-    if not result.get("success"):
-        logger.warning(f"[COMPOSER] Digest creation failed for {platform}: {result.get('message')}")
-        return None
-
-    agent_id = result["agent_id"]
-    logger.info(f"[COMPOSER] Created {title} ({agent_id}) for user {user_id}")
-    return agent_id
+    # _create_digest_for_platform — DELETED (ADR-122).
+    # Gap-filling now uses scaffold_project() in run_composer_assessment().
 
 
 async def _llm_composer_assessment(
@@ -1108,8 +1077,8 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
 {chr(10).join(agents_summary) if agents_summary else 'None'}
 
 ## Coverage
-- Platforms with digest: {assessment['coverage']['platforms_with_digest']}
-- Platforms without digest: {assessment['coverage']['platforms_without_digest']}
+- Platforms with project coverage: {assessment['coverage']['platforms_with_coverage']}
+- Platforms without coverage: {assessment['coverage']['platforms_without_coverage']}
 
 ## Knowledge Corpus ({knowledge.get('total_files', 0)} files)
 {knowledge_section}
@@ -1326,6 +1295,7 @@ async def _execute_create_project(
             "contributors": contributors,
             "assembly_spec": assembly_spec,
             "delivery": delivery,
+            "type_key": "custom",  # ADR-122: LLM-driven projects use custom type
         },
     )
 
@@ -1589,7 +1559,7 @@ async def run_lifecycle_assessment(
                 except Exception as e:
                     logger.warning(f"[COMPOSER] Supervisor notes failed for {title}: {e}")
 
-    # Scope expansion: senior platform digest → suggest cross-platform synthesis
+    # Scope expansion: senior platform digest → scaffold cross-platform synthesis project (ADR-122)
     elif reason.startswith("lifecycle_expansion"):
         seniors = assessment.get("maturity", {}).get("senior_agents", [])
         expandable = [
@@ -1598,46 +1568,24 @@ async def run_lifecycle_assessment(
             and m.get("total_runs", 0) >= 10
         ]
         if expandable and assessment["tier"]["can_create"]:
-            # Auto-create a synthesis agent that builds on senior digests
-            from services.agent_creation import create_agent_record
-
-            # Gather all platform sources for cross-platform agent
-            all_sources = []
-            for p in assessment["platform_details"]:
-                all_sources.extend(p.get("selected_sources") or [])
-
-            if all_sources:
-                titles = [e["title"] for e in expandable]
-                # ADR-118: Default email delivery
-                _dest = None
-                try:
-                    from services.agent_execution import get_user_email
-                    _email = get_user_email(client, user_id)
-                    if _email:
-                        _dest = {"platform": "email", "target": _email, "format": "send"}
-                except Exception:
-                    pass
-                create_result = await create_agent_record(
-                    client=client,
-                    user_id=user_id,
-                    title="Weekly Cross-Platform Insights",
-                    role="synthesize",
-                    origin="composer",
-                    frequency="weekly",
-                    sources=all_sources,
-                    description=f"Cross-platform synthesis based on senior agents: {', '.join(titles)}",
-                    destination=_dest,
-                )
-                if create_result.get("success"):
+            from services.project_registry import scaffold_project
+            scaffold_result = await scaffold_project(
+                client, user_id, "cross_platform_synthesis",
+            )
+            if scaffold_result.get("success"):
+                for ca in scaffold_result.get("agents_created", []):
                     result["actions_taken"].append({
                         "action": "created",
-                        "agent_id": create_result["agent_id"],
-                        "title": "Weekly Cross-Platform Insights",
-                        "role": "synthesize",
+                        "agent_id": ca["agent_id"],
+                        "title": ca["title"],
+                        "role": ca["role"],
+                        "project_slug": scaffold_result["project_slug"],
                         "reason": f"Lifecycle expansion: {len(expandable)} senior digest agents warrant synthesis",
                     })
-                    logger.info(f"[COMPOSER] Lifecycle expansion: created synthesis agent "
-                                f"({create_result['agent_id']})")
+                logger.info(f"[COMPOSER] Lifecycle expansion: scaffolded synthesis project "
+                            f"({scaffold_result['project_slug']})")
+            elif scaffold_result.get("reason") == "duplicate":
+                result["observations"].append("Cross-platform synthesis project already exists")
         else:
             result["observations"].append(
                 f"{len(expandable)} senior digest agents detected but can't expand "
@@ -1664,43 +1612,22 @@ async def run_lifecycle_assessment(
                 result["actions_taken"].extend(promo_result)
                 break  # One promotion per heartbeat cycle
 
-    # Cross-agent pattern: multiple digests → synthesis consolidation
+    # Cross-agent pattern: multiple digests → scaffold synthesis project (ADR-122)
     elif reason.startswith("cross_agent_pattern"):
-        # Same action as expansion — create synthesis agent
         if assessment["tier"]["can_create"]:
-            from services.agent_creation import create_agent_record
-
-            all_sources = []
-            for p in assessment["platform_details"]:
-                all_sources.extend(p.get("selected_sources") or [])
-
-            if all_sources:
-                # ADR-118: Default email delivery
-                _dest2 = None
-                try:
-                    from services.agent_execution import get_user_email
-                    _email2 = get_user_email(client, user_id)
-                    if _email2:
-                        _dest2 = {"platform": "email", "target": _email2, "format": "send"}
-                except Exception:
-                    pass
-                create_result = await create_agent_record(
-                    client=client,
-                    user_id=user_id,
-                    title="Weekly Cross-Platform Insights",
-                    role="synthesize",
-                    origin="composer",
-                    frequency="weekly",
-                    sources=all_sources,
-                    destination=_dest2,
-                )
-                if create_result.get("success"):
+            from services.project_registry import scaffold_project
+            scaffold_result = await scaffold_project(
+                client, user_id, "cross_platform_synthesis",
+            )
+            if scaffold_result.get("success"):
+                for ca in scaffold_result.get("agents_created", []):
                     result["actions_taken"].append({
                         "action": "created",
-                        "agent_id": create_result["agent_id"],
-                        "title": "Weekly Cross-Platform Insights",
-                        "role": "synthesize",
-                        "reason": "Cross-agent pattern: consolidating multiple digest agents into synthesis",
+                        "agent_id": ca["agent_id"],
+                        "title": ca["title"],
+                        "role": ca["role"],
+                        "project_slug": scaffold_result["project_slug"],
+                        "reason": "Cross-agent pattern: consolidating multiple digests into synthesis project",
                     })
 
     return result
@@ -1850,7 +1777,7 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
         "assessment_summary": {
             "platforms": len(assessment["connected_platforms"]),
             "active_agents": assessment["agents"]["active"],
-            "coverage_gaps": len(assessment["coverage"]["platforms_without_digest"]),
+            "coverage_gaps": len(assessment["coverage"]["platforms_without_coverage"]),
             "stale_agents": len(assessment["health"]["stale_agents"]),
             "senior_agents": len(assessment.get("maturity", {}).get("senior_agents", [])),
             "underperformers": len(assessment.get("maturity", {}).get("underperformers", [])),

@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.8] - ADR-122: Project Type Registry — unified scaffolding layer
+
+### Changed
+- NEW `api/services/project_registry.py`: Project Type Registry v1.0 — curated dict of project type definitions (slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom). Access functions: `get_project_type()`, `get_platform_project_type()`, `list_project_types()`. Unified `scaffold_project()` replaces all scattered creation paths.
+- `api/services/onboarding_bootstrap.py`: REWRITTEN — `maybe_bootstrap_agent()` → `maybe_bootstrap_project()`. Deleted `BOOTSTRAP_TEMPLATES` dict. Now a thin caller of `scaffold_project()`.
+- `api/services/composer.py`: Deleted `PLATFORM_DIGEST_TITLES` dict and `_create_digest_for_platform()` function. Gap-filling now uses `scaffold_project()`. Lifecycle expansion (senior digest → synthesis) now uses `scaffold_project("cross_platform_synthesis")`. Coverage detection rewritten: checks `type_key` in PROJECT.md instead of agent title heuristics. Assessment keys renamed: `platforms_with_digest` → `platforms_with_coverage`, `platforms_without_digest` → `platforms_without_coverage`.
+- `api/services/workspace.py`: `write_project()` accepts `type_key` param, writes `**Type**: {type_key}` to PROJECT.md. `read_project()` parses `type_key` field.
+- `api/services/primitives/project.py`: `handle_create_project()` accepts and passes `type_key` to `write_project()`.
+- `api/workers/platform_worker.py`: Calls `maybe_bootstrap_project()` instead of `maybe_bootstrap_agent()`.
+
+### Expected behavior
+- All project creation (bootstrap, Composer gap-fill, Composer lifecycle expansion, TP CreateProject, API routes) flows through one path: `scaffold_project()`.
+- Platform types (slack_digest, gmail_digest, notion_digest) enforce 1:1 uniqueness per platform per user via `type_key` in PROJECT.md.
+- Single-agent platform projects have `pm: False` — no PM overhead, agent output IS the deliverable.
+- Multi-agent projects (cross_platform_synthesis, custom) have `pm: True` — PM auto-created.
+- Bootstrap now creates projects (not standalone agents): OAuth → sync → `scaffold_project(type_key)` → project with agent inside.
+
+---
+
 ## [2026.03.19.7] - Fix P0: PM JSON parser brace-balanced extraction (ADR-121)
 
 ### Changed

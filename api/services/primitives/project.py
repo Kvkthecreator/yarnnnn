@@ -109,6 +109,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     contributors_input = input.get("contributors", [])
     assembly_spec = input.get("assembly_spec", "")
     delivery = input.get("delivery", {})
+    type_key = input.get("type_key")  # ADR-122: project type registry key
 
     project_slug = get_project_slug(title)
 
@@ -185,6 +186,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
         contributors=contributors,
         assembly_spec=assembly_spec,
         delivery=delivery,
+        type_key=type_key,
     )
 
     if not success:

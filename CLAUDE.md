@@ -65,6 +65,8 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 
 - **ADR-121**: PM as Project Intelligence Director — evolves PM from logistics coordinator (freshness → assemble) to intelligence director (quality assessment + directive steering + investigation). New actions: `steer_contributor` (write contribution briefs to guide contributors), `request_investigation` (request research on gaps), `assess_quality` (intent-contribution alignment scoring before assembly). Contribution briefs (`/contributions/{slug}/brief.md`) are the steering mechanism — PM writes focus areas, contributors read during context gathering. Mechanics (code, deterministic) and Intelligence (prompts, qualitative) versioned independently. PM prompt versioning: v1.0 (logistics) → v1.1 (intentions) → v1.2 (JSON enforcement) → v2.0 (intelligence director). Four phases: (1) structural foundation + prompt v2.0, (2) quality assessment + assembly gating, (3) investigation + cross-cycle learning, (4) PM developmental trajectory (nascent → senior). Extends ADR-120, implements FOUNDATIONS.md Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward). (Phase 1-2 Implemented — P1: PM prompt v3.0, briefs, quality assessment, steering, contribution content in PM context, assembly prompt v2.0. P2: `_write_contribution_to_projects()` closes critical gap — agent output auto-written to project contributions folder, assembly gating log, work plan focus_areas. Phase 3-4 proposed.)
 
+- **ADR-122**: Project Type Registry — Unified Scaffolding Layer. Single curated registry (`api/services/project_registry.py`) of project type definitions replaces scattered creation paths. All project creation flows (bootstrap, Composer, TP, API) go through `scaffold_project()`. Platform types (slack_digest, gmail_digest, notion_digest) are 1:1 with platform (uniqueness enforced). `type_key` stored in PROJECT.md as immutable identity. Bootstrap rewritten: OAuth → `scaffold_project(type_key)` → project with agent inside (not standalone agent). Composer gap-filling and lifecycle expansion consume same registry. PM gating per-type: `pm: False` for single-agent platform projects, `pm: True` for multi-agent projects. Supersedes ADR-110 bootstrap path. Deletes: `BOOTSTRAP_TEMPLATES`, `PLATFORM_DIGEST_TITLES`, `_create_digest_for_platform()`, standalone agent as default creation path. Five phases: (1) registry + scaffold function, (2) bootstrap migration, (3) Composer migration, (4) existing agent migration, (5) dashboard redesign. (Phases 1-3 Implemented. Phase 4-5 proposed.)
+
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
 ### 1. Documentation Alongside Code
@@ -301,8 +303,9 @@ You MUST:
 | Agent Framework (canonical) | `docs/architecture/agent-framework.md` (ADR-109) |
 | Agent Framework (code) | `api/services/agent_framework.py` (ADR-117 Phase 3: portfolios, seniority, skills) |
 | Agent Creation (shared) | `api/services/agent_creation.py` (ADR-111 Phase 1) |
+| Project Type Registry | `api/services/project_registry.py` (ADR-122: project types, `scaffold_project()`) |
 | TP Composer / Heartbeat | `api/services/composer.py` (ADR-111 Phase 3) |
-| Onboarding Bootstrap | `api/services/onboarding_bootstrap.py` (ADR-110, implemented) |
+| Onboarding Bootstrap | `api/services/onboarding_bootstrap.py` (ADR-110 → ADR-122: `maybe_bootstrap_project()`) |
 | Agent Execution | `api/services/agent_execution.py` |
 | Delivery Service | `api/services/delivery.py` (ADR-118 D.3: `deliver_from_output_folder()`) |
 | Feedback Distillation | `api/services/feedback_distillation.py` (ADR-117: edits → preferences.md) |
