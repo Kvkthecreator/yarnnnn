@@ -5,7 +5,7 @@
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)
 > **Implements**: FOUNDATIONS.md v3 (PM as domain-cognitive agent, work-is-bounded principle)
-> **Related**: ADR-117 (Feedback Substrate — intentions), ADR-116 (Inter-Agent Knowledge), ADR-100 (Monetization)
+> **Related**: ADR-117 (Feedback Substrate), ADR-116 (Inter-Agent Knowledge), ADR-100 (Monetization), ADR-123 (Objective & Ownership Model — renames intent→objective, consolidates intentions→work_plan)
 
 ---
 
@@ -56,7 +56,7 @@ The Composer decides **whether** a project should exist. The PM decides **how** 
 - Create/dissolve projects (calls `CreateProject` primitive, scaffolds PM agent)
 - Create/dissolve agents (existing)
 - Detect project opportunities ("these agents' outputs should combine")
-- Set project intent and initial contributors
+- Set project objective and initial contributors
 - Monitor project health at system level (reads PM status, not re-derives)
 
 **PM takes over** (new):
@@ -92,7 +92,7 @@ The heartbeat pattern recurses — same cheap-first design as the system heartbe
 
 ```
 1. PM heartbeat fires (contributor produced, or PM schedule)
-2. Read PROJECT.md for intent, contributors, assembly spec
+2. Read PROJECT.md for objective, contributors, assembly spec
 3. Check each contributor's latest output date vs. last assembly date
 4. If all required contributors fresh AND budget available:
      → Execute assembly:
@@ -120,7 +120,7 @@ Available to PM agents during their headless execution:
 | `TriggerAssembly` | Execute assembly: compose contributions, render, deliver | headless |
 | `RequestContributorAdvance` | Ask TP to advance a specific agent's next_run_at | headless |
 | `ReadProjectStatus` | Read project health metrics (freshness, budget, assembly history) | chat, headless |
-| `UpdateProjectIntent` | Refine PROJECT.md intent, assembly spec, or delivery preferences | headless |
+| `UpdateWorkPlan` | Refine assembly spec, delivery preferences, and PM's `memory/work_plan.md` (ADR-123) | headless |
 
 Plus existing primitives: `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `RuntimeDispatch`.
 
@@ -159,13 +159,13 @@ Plus existing primitives: `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, 
 
 **Tracking**: New `work_units` table or column on `activity_log` recording units consumed per action, with rollup queries for budget checking.
 
-### 7. Intent Decomposition
+### 7. Objective Decomposition
 
-The PM's core cognitive task: **translate user intent into executable, bounded work.**
+The PM's core cognitive task: **translate the project objective into executable, bounded work.**
 
-User intent arrives as flat data in PROJECT.md:
+The objective arrives as flat data in PROJECT.md:
 ```yaml
-Intent:
+Objective:
   Deliverable: Q2 Business Review
   Audience: Leadership team
   Format: pptx
@@ -185,26 +185,23 @@ PM decomposes this into a work plan:
 
 The work plan lives in the project folder as `work-plan.md` — it's the PM's operational document, analogous to an agent's `thesis.md`. It evolves as the PM learns from feedback.
 
-### 8. Project-Level Intentions
+### 8. PM Work Plan (was: Project-Level Intentions)
 
-Projects have intentions with the same structure as agent intentions (Axiom 3):
+> **ADR-123 update**: Operational execution specs (recurring/goal/reactive) are now consolidated into the PM's `memory/work_plan.md`, not stored in PROJECT.md. PROJECT.md holds the charter (objective, contributors, assembly spec, delivery). The PM owns operational planning.
+
+The PM's work plan contains execution specs:
 
 - **Recurring**: "Produce Q2 review deck every 2 weeks" — periodic assembly
 - **Goal**: "Produce year-end analysis by December 15" — bounded, completes when delivered
 - **Reactive**: "Alert me when revenue drops >10% QoQ" — event-triggered assembly
 
-Each intention carries:
+Each execution spec carries:
 - **Trigger**: schedule, condition, or event
 - **Output format**: which skills to invoke (pptx, pdf, chart, etc.)
-- **Delivery**: channel and target per intention (same project might email the deck weekly but Slack the alert immediately)
-- **Budget allocation**: how many work units this intention can consume per cycle
+- **Delivery**: channel and target (same project might email the deck weekly but Slack the alert immediately)
+- **Budget allocation**: how many work units this spec can consume per cycle
 
-Multiple intentions per project are valid. A "Q2 Review" project might have:
-- Recurring: biweekly deck assembly (pptx → email)
-- Reactive: alert on revenue anomaly (chart → slack)
-- Goal: produce final Q2 board deck by July 1
-
-The PM manages all active intentions, scheduling and budgeting across them.
+The PM manages all active execution specs, scheduling and budgeting across them. The work plan is seeded from the objective + delivery on first PM run, then evolves independently.
 
 ## Implementation Phases
 
@@ -233,18 +230,18 @@ The PM manages all active intentions, scheduling and budgeting across them.
 - Composer heartbeat: work_budget status in heartbeat data
 - Graceful degradation deferred to Phase 4 (PM pausing, escalation)
 
-### Phase 4: Intent Decomposition & Project Intentions (Implemented)
-- PM work plan generation — `update_work_plan` PM action writes `memory/work_plan.md` with decomposed intent (cadence, skills, budget/cycle, contributor roles)
-- Multi-intention support — `## Intentions` section in PROJECT.md with per-intention type (recurring/goal/reactive), format, delivery, budget, deadline; backward-compatible with single-intention projects
-- `UpdateProjectIntent` primitive — headless-only, PM can refine assembly_spec, delivery, intentions (not title/contributors — Composer's domain)
-- PM prompt v2 — intentions + budget_status injected; budget-aware rules (reduce frequency when low, escalate when exhausted)
+### Phase 4: Objective Decomposition & PM Work Plan (Implemented)
+- PM work plan generation — `update_work_plan` PM action writes `memory/work_plan.md` with decomposed objective (cadence, skills, budget/cycle, contributor roles)
+- Execution specs in PM's `memory/work_plan.md` (recurring/goal/reactive) — consolidated from former `## Intentions` in PROJECT.md (ADR-123)
+- `UpdateWorkPlan` primitive (was `UpdateProjectIntent`) — headless-only, PM can refine assembly_spec, delivery, work_plan (not title/contributors/objective — User/Composer/TP's domain)
+- PM prompt v4.0 — budget_status injected; budget-aware rules (reduce frequency when low, escalate when exhausted); reads work_plan from memory
 - Graceful degradation — `_handle_pm_decision()` overrides assemble/advance to escalate when budget exhausted
 
 ### Phase 5: Composer v2.0 (Implemented)
 - `COMPOSER_SYSTEM_PROMPT` v2.0 — project awareness (`create_project` action), full skill library (8 skills: pdf, pptx, xlsx, chart, mermaid, image, data, html), work budget awareness in reasoning
 - `_build_composer_prompt()` extended — Active Projects section (count, PM status, stale PMs), Work Budget section (used/limit/%), Skill Library section
 - `_execute_composer_decisions()` — routes `create_project` action to `handle_create_project()` primitive; resolves contributor slugs → agent_ids from assessment
-- `_execute_create_project()` — new function: extracts intent/contributors/assembly_spec/delivery from Composer decision, calls existing `handle_create_project()` (auto-creates PM agent)
+- `_execute_create_project()` — new function: extracts objective/contributors/assembly_spec/delivery from Composer decision, calls existing `handle_create_project()` (auto-creates PM agent)
 - Composition opportunity detection in `should_composer_act()` — 2+ mature agents with different roles and no existing project triggers LLM path
 - System heartbeat project health signals already in place (P1/P3)
 - Deferred: pricing model migration (credits vs. subscription)
@@ -261,7 +258,7 @@ The PM manages all active intentions, scheduling and budgeting across them.
 
 5. **Assembly is change-driven, not time-driven.** PM assembles when contributions are fresh, not on a fixed cron. The PM's schedule is for health checks; assembly timing is emergent from contributor output patterns.
 
-6. **Agents are the write path.** Users don't directly manipulate project folders. Intent changes go through TP → PM → workspace writes. Feedback on outputs flows through the distillation pipeline. Frontend is read-only on workspace (Derived Principle 3).
+6. **Agents are the write path.** Users don't directly manipulate project folders. Operational changes go through TP → PM → workspace writes. Feedback on outputs flows through the distillation pipeline. Frontend is read-only on workspace except objective editing (ADR-123 — charter-level, not operational).
 
 ## Files (Planned)
 
@@ -283,7 +280,7 @@ The PM manages all active intentions, scheduling and budgeting across them.
 
 - ADR-114 Phase 4 (Composer Prompt v2.0) → absorbed into Phase 5 of this ADR
 - ADR-119 Phase 4 (frontend) → remains separate, downstream of this
-- ADR-117 Phase 3 (intentions) → partially addressed here (project-level intentions), agent-level intentions remain in ADR-117
+- ADR-117 Phase 3 (intentions) → partially addressed here (project-level execution specs in PM work_plan), agent-level intentions remain in ADR-117. ADR-123 consolidated `## Intentions` from PROJECT.md into PM's `memory/work_plan.md`.
 
 ## Relationship to Pricing
 

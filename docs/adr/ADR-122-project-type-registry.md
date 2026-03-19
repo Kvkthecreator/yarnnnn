@@ -13,7 +13,7 @@ YARNNN has two agent creation paths that produce structurally identical agents t
 1. **Bootstrap path** (`onboarding_bootstrap.py`): OAuth connect → `BOOTSTRAP_TEMPLATES` dict → `create_agent_record()` → standalone platform digest agent with `origin="system_bootstrap"`.
 2. **Composer path** (`composer.py`): Heartbeat assessment → LLM decision → `_execute_create_project()` → project with PM + contributor agents via `handle_create_project()`.
 
-The bootstrap path creates agents *before intent exists*. A "Slack Recap" agent exists because Slack was connected, not because the user wants a daily team pulse. This breaks the mental model: every other agent exists to serve a project goal.
+The bootstrap path creates agents *before an objective exists*. A "Slack Recap" agent exists because Slack was connected, not because the user wants a daily team pulse. This breaks the mental model: every other agent exists to serve a project goal.
 
 Meanwhile, `PLATFORM_DIGEST_TITLES` in `composer.py` duplicates `BOOTSTRAP_TEMPLATES` in `onboarding_bootstrap.py`. The Composer's gap-filling logic (`_create_digest_for_platform()`) creates standalone agents — the same structural anomaly as bootstrap.
 
@@ -23,7 +23,7 @@ Meanwhile, `PLATFORM_DIGEST_TITLES` in `composer.py` duplicates `BOOTSTRAP_TEMPL
 
 ### 1. Project Type Registry
 
-A curated, code-side registry of project type definitions. Each type fully specifies: intent, agents to scaffold, PM configuration, delivery defaults, and uniqueness constraints.
+A curated, code-side registry of project type definitions. Each type fully specifies: objective, agents to scaffold, PM configuration, delivery defaults, and uniqueness constraints.
 
 **Location**: `api/services/project_registry.py` — single source of truth.
 
@@ -45,7 +45,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "slack",                    # Uniqueness key: 1 per platform per user
         "description": "Daily recap of Slack activity across connected channels.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Slack recap",
             "audience": "You",
             "format": "email",
@@ -71,7 +71,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "google",
         "description": "Daily digest of Gmail activity across connected labels.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Gmail digest",
             "audience": "You",
             "format": "email",
@@ -97,7 +97,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "platform",
         "platform": "notion",
         "description": "Daily summary of Notion activity across connected pages.",
-        "intent": {
+        "objective": {
             "deliverable": "Daily Notion summary",
             "audience": "You",
             "format": "email",
@@ -125,7 +125,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "synthesis",
         "platform": None,                       # No uniqueness constraint
         "description": "Weekly synthesis across multiple platforms — patterns, themes, action items.",
-        "intent": {
+        "objective": {
             "deliverable": "Weekly cross-platform insights report",
             "audience": "You",
             "format": "pdf",
@@ -151,7 +151,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "category": "custom",
         "platform": None,
         "description": "User-defined project with custom agents and delivery.",
-        "intent": None,                         # User provides
+        "objective": None,                      # User provides
         "agents": [],                           # User/Composer specifies
         "pm": True,                             # Default PM for multi-agent
         "assembly_spec": None,                  # User provides
@@ -317,7 +317,7 @@ PROJECT.md gains a `type_key` field in its identity section:
 **Type**: slack_digest
 **Status**: active
 
-## Intent
+## Objective
 - **Deliverable**: Daily Slack recap
 - **Audience**: You
 - **Format**: email

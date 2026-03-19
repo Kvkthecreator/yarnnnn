@@ -192,7 +192,7 @@ The Composer is not a separate service, agent type, or subsystem. It is **TP exe
 
 1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing agents, projects, user feedback patterns.
 2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when multiple agents' outputs should combine into a project.
-3. **Agent & Project Scaffolding** — "What entity should I create?" Maps recognized needs to agent identities or project structures, then to configurations. For projects: creates a PM agent, identifies or creates contributing agents, writes PROJECT.md with intent and assembly spec. High-confidence needs are auto-scaffolded; medium-confidence are suggested to the user.
+3. **Agent & Project Scaffolding** — "What entity should I create?" Maps recognized needs to agent identities or project structures, then to configurations. For projects: creates a PM agent, identifies or creates contributing agents, writes PROJECT.md with objective and assembly spec. High-confidence needs are auto-scaffolded; medium-confidence are suggested to the user.
 4. **Lifecycle Management** — "Are my entities developing well?" Reviews agent and project health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and projects.
 
 ### Composer vs. Project Manager: Separation of Concerns
@@ -203,7 +203,7 @@ The Composer decides **whether** a project should exist. The PM agent decides **
 |---------|--------------|----------|
 | Create/dissolve projects | Yes | No |
 | Create/dissolve agents | Yes | No (requests TP via escalation) |
-| Set project intent & contributors | Yes | Refines over time |
+| Set project objective & contributors | Yes | Refines over time |
 | Monitor project health (top-level) | Yes (reads PM status) | No — IS the status source |
 | Track contribution freshness | No | Yes |
 | Trigger assembly | No | Yes |
@@ -255,7 +255,7 @@ The product vision is: **sign up, connect, watch it work for you.**
 ```
 1. User requests project (or Composer detects composition opportunity)
 2. TP/Composer creates PM agent + identifies/creates contributors
-3. PM decomposes intent into work plan with budget bounds
+3. PM decomposes objective into work plan with budget bounds
 4. Contributing agents run on their schedules, writing to project contributions/
 5. PM detects contribution freshness → triggers assembly when ready
 6. Assembly produces composed deliverable (PPTX, PDF, etc.) via skills
@@ -288,12 +288,12 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 1. **Two layers, clear separation** — TP handles meta-cognition (composition, supervision, orchestration). Agents handle domain cognition (expertise, execution, accumulation). Neither does the other's job. A coordination-domain agent (PM) is still domain-cognitive — it doesn't become a third layer.
 2. **Workspace is the shared OS** — All persistent state (agent memory, outputs, user knowledge, TP assessments) lives in the workspace filesystem. External platforms flow through `platform_content` with TTLs; internal content persists and compounds.
-3. **Agents are the write path** — All modifications to workspace files, project folders, and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace. User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
+3. **Agents are the write path** — All modifications to workspace files, project folders, and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
 4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
 5. **Agents develop, they don't just execute** — The architecture must support intention evolution, capability progression, and autonomy graduation. Static configuration is the starting point, not the steady state.
 6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
 7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If intentions subsume triggers, there is no parallel trigger system.
-8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or projects exist. This prevents unbounded intent from consuming infinite resources and is the basis for the service model users pay for.
+8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or projects exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
 
 ---
 
@@ -342,7 +342,7 @@ These require further design work before implementation:
 
 10. **Filesystem hardening** — What frontend surfaces need read-only constraints? How do user edits on output flow through feedback distillation without bypassing agent-mediated writes? (Partially addressed by Derived Principle 3.)
 
-11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project intent?~~ → **Addressed by ADR-121.** PM evolves from logistics coordinator to intelligence director with quality assessment, contribution briefs, and investigation requests.
+11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project objective?~~ → **Addressed by ADR-121.** PM evolves from logistics coordinator to intelligence director with quality assessment, contribution briefs, and investigation requests. **ADR-123** clarifies ownership: objective is User/Composer/TP-owned; PM reads it as quality reference but doesn't change it.
 
 ---
 
@@ -353,3 +353,4 @@ These require further design work before implementation:
 | 2026-03-15 | v1 — Initial axioms: one intelligence, recursive perception, accumulated attention, taxonomy as configuration, TP subsumes orchestration, autonomy as direction |
 | 2026-03-15 | v2 — Major revision: two-layer intelligence model (TP meta-cognitive + agent domain-cognitive), agent developmental trajectory (intentions, capabilities, autonomy), recursive perception expanded to include internal/reflexive layers as primary long-term value, proactive/coordinator reframed as TP capabilities, trigger as intention property not agent property |
 | 2026-03-18 | v3 — Project execution evolution: PM as domain-cognitive agent (coordination domain, not third layer), project-level intentions with intent decomposition, Composer/PM separation of concerns, agents-as-write-path principle, work-is-bounded principle, project autonomous flow. Cross-refs ADR-120. |
+| 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, `intentions` consolidated into PM `memory/work_plan.md`. Ownership model: PROJECT.md = charter (User/Composer/TP), PM memory/ = operations (PM). |
