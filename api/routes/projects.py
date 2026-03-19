@@ -123,19 +123,32 @@ async def get_project(slug: str, user: UserClient):
 
     assemblies = await pw.list_assemblies()
 
-    # ADR-124: Enrich contributors with agent role/title for meeting room participant panel
+    # ADR-124: Enrich contributors with agent_id, role, title from agents table.
+    # PROJECT.md only stores agent_slug + expected_contribution — resolve to full agent data.
     enriched_contributors = project.get("contributors", [])
-    for c in enriched_contributors:
-        if c.get("agent_id"):
-            try:
-                agent_row = user.client.table("agents").select(
-                    "title, role"
-                ).eq("id", c["agent_id"]).eq("user_id", user.user_id).maybe_single().execute()
-                if agent_row and agent_row.data:
-                    c["title"] = agent_row.data.get("title")
-                    c["role"] = agent_row.data.get("role")
-            except Exception:
-                pass
+    try:
+        from services.workspace import get_agent_slug as _gas
+        agents_result = user.client.table("agents").select(
+            "id, title, role"
+        ).eq("user_id", user.user_id).execute()
+        # Build slug → agent map for O(1) lookup
+        slug_to_agent = {}
+        id_to_agent = {}
+        for agent in (agents_result.data or []):
+            slug_to_agent[_gas(agent)] = agent
+            id_to_agent[agent["id"]] = agent
+        for c in enriched_contributors:
+            agent = None
+            if c.get("agent_id"):
+                agent = id_to_agent.get(c["agent_id"])
+            elif c.get("agent_slug"):
+                agent = slug_to_agent.get(c["agent_slug"])
+            if agent:
+                c["agent_id"] = agent.get("id")
+                c["title"] = agent.get("title")
+                c["role"] = agent.get("role")
+    except Exception:
+        pass
     project["contributors"] = enriched_contributors
 
     # ADR-123 Phase 3: PM intelligence — quality assessment + briefs

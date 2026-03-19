@@ -162,14 +162,17 @@ function mergeTimeline(activities: ProjectActivityItem[], messages: TPMessage[])
 // ADR-124 Phase 2: Meeting Room — attributed messages + @-mention input
 // =============================================================================
 
-/** Resolve display name for a message author */
+/** Resolve display name for a message author.
+ *  ADR-124: TP is implicit infrastructure in meeting rooms — never label as "Thinking Partner".
+ *  Fallback to "Project Manager" since PM is the default interlocutor.
+ */
 function getAuthorLabel(msg: TPMessage): string {
   if (msg.role === 'user') return 'You';
   if (msg.authorName) return msg.authorName;
   if (msg.authorAgentSlug) {
     return msg.authorAgentSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
-  return 'Thinking Partner';
+  return 'Project Manager';
 }
 
 /** Color accent per author role */
@@ -295,8 +298,8 @@ function MeetingRoomTab({
   return (
     <div className="flex flex-col h-full">
       {/* Scrollable meeting room */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-        <div className="max-w-2xl mx-auto w-full space-y-2">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-2">
+        <div className="max-w-3xl mx-auto w-full space-y-2">
           {timeline.length === 0 && !isLoading && (
             <div className="text-center py-8">
               <MessageSquare className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
@@ -414,8 +417,8 @@ function MeetingRoomTab({
       </div>
 
       {/* Chat input with @-mention support */}
-      <div className="px-4 pb-4 pt-2 shrink-0 border-t border-border" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-        <div className="max-w-2xl mx-auto">
+      <div className="px-4 md:px-6 pb-4 pt-2 shrink-0 border-t border-border" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="max-w-3xl mx-auto">
           {/* Target agent indicator */}
           {targetAgent && (
             <div className="flex items-center gap-1.5 mb-1.5 text-xs">
@@ -1193,7 +1196,7 @@ function SettingsTab({
   archiving: boolean;
 }) {
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8">
       {/* Objective */}
       <section>
         <h3 className="text-sm font-semibold mb-2">Objective</h3>
@@ -1363,50 +1366,52 @@ export default function ProjectDetailPage() {
     { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
     { id: 'outputs', label: `Outputs${assemblies.length > 0 ? ` (${assemblies.length})` : ''}`, icon: <Package className="w-4 h-4" /> },
-    { id: 'contributors', label: `Contributors${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
+    { id: 'contributors', label: `Members${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 px-4 md:px-6 py-4 border-b border-border">
-        <Link
-          href="/projects"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Projects
-        </Link>
+      <div className="shrink-0 border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4">
+          <Link
+            href="/projects"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Projects
+          </Link>
 
-        <div>
-          <h1 className="text-xl font-bold">{title}</h1>
-          {objective?.deliverable && (
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {objective.deliverable}
-              {objective.audience && ` for ${objective.audience}`}
-              {objective.format && ` — ${objective.format}`}
-            </p>
-          )}
-        </div>
+          <div>
+            <h1 className="text-xl font-bold">{title}</h1>
+            {objective?.deliverable && (
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {objective.deliverable}
+                {objective.audience && ` for ${objective.audience}`}
+                {objective.format && ` — ${objective.format}`}
+              </p>
+            )}
+          </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-4 -mb-4 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-                activeTab === tab.id
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+          {/* Tabs */}
+          <div className="flex gap-1 mt-4 -mb-4 overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
+                  activeTab === tab.id
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1420,14 +1425,14 @@ export default function ProjectDetailPage() {
         )}
         {activeTab === 'outputs' && (
           <div className="h-full overflow-y-auto">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-5xl mx-auto px-4 md:px-6">
               <OutputsTab slug={slug} />
             </div>
           </div>
         )}
         {activeTab === 'contributors' && (
           <div className="h-full overflow-y-auto">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-5xl mx-auto px-4 md:px-6">
               <ContributorsTab
                 contributors={contributors}
                 contributions={contributions}
