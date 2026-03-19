@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
 # ADR-117 Phase 3: Centralized in agent_framework.py (single source of truth)
-from api.services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
+from services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
 
 async def _fetch_skill_docs() -> Optional[str]:
     """Fetch SKILL.md content from the output gateway for all available skills.
