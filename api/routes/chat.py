@@ -75,6 +75,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
     images: Optional[list[ImageAttachment]] = None  # Images attached to message (ephemeral)
+    target_agent_id: Optional[str] = None  # ADR-124: route message to specific agent in meeting room
 
 
 # =============================================================================
@@ -963,7 +964,59 @@ async def global_chat(
         if surface_content:
             logger.info(f"[TP] Loaded surface content ({len(surface_content)} chars)")
 
-    agent = ThinkingPartnerAgent()
+    # =================================================================
+    # ADR-124: Agent Chat Routing
+    # =================================================================
+    # In a project session, messages can be routed to a specific agent
+    # (via target_agent_id or @-mention) or default to the PM agent.
+    # Outside project sessions, all messages go to TP as usual.
+    target_agent = None  # The agent dict if routing to ChatAgent
+    use_chat_agent = False
+
+    if request_project_slug and (request.target_agent_id or not request_agent_id):
+        # Project meeting room: route to target agent or PM
+        from services.workspace import ProjectWorkspace, get_agent_slug
+        target_id = request.target_agent_id
+
+        if not target_id:
+            # Default to PM agent for this project
+            try:
+                pw = ProjectWorkspace(auth.client, auth.user_id, request_project_slug)
+                project = await pw.read_project()
+                if project:
+                    for c in project.get("contributors", []):
+                        # Find the PM contributor
+                        pm_result = auth.client.table("agents").select(
+                            "id, user_id, title, scope, role, agent_instructions, agent_memory, sources"
+                        ).eq("id", c.get("agent_id", "")).eq("role", "pm").execute()
+                        if pm_result.data:
+                            target_id = pm_result.data[0]["id"]
+                            break
+            except Exception as e:
+                logger.warning(f"[CHAT] Failed to find PM for project {request_project_slug}: {e}")
+
+        if target_id:
+            try:
+                agent_result = auth.client.table("agents").select(
+                    "id, user_id, title, scope, role, agent_instructions, agent_memory, sources"
+                ).eq("id", target_id).eq("user_id", auth.user_id).single().execute()
+                if agent_result.data:
+                    target_agent = agent_result.data
+                    use_chat_agent = True
+            except Exception as e:
+                logger.warning(f"[CHAT] Failed to fetch target agent {target_id}: {e}")
+
+    if use_chat_agent and target_agent:
+        from agents.chat_agent import ChatAgent, ChatAgentAuth
+        agent = ChatAgent(
+            agent=target_agent,
+            project_slug=request_project_slug,
+        )
+        chat_agent_auth = ChatAgentAuth(auth.client, auth.user_id, target_agent)
+        logger.info(f"[CHAT-AGENT] Routing to {target_agent['title']} ({target_agent['role']}) in project {request_project_slug}")
+    else:
+        agent = ThinkingPartnerAgent()
+        chat_agent_auth = None
 
     async def response_stream():
         full_response = ""
@@ -976,8 +1029,11 @@ async def global_chat(
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
 
         try:
+            # ADR-124: User message metadata with attribution
+            user_message_metadata = {}
+
             # Append user message to session
-            await append_message(auth.client, session_id, "user", request.content)
+            await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
             logger.info(f"[TP-STREAM] Starting stream for message: {request.content[:50]}...")
 
             # Build images list for Claude API format (if any)
@@ -996,11 +1052,26 @@ async def global_chat(
                 ]
                 logger.info(f"[TP] Processing {len(images_for_api)} image attachment(s)")
 
-            async for event in agent.execute_stream_with_tools(
-                task=request.content,
-                context=context,
-                auth=auth,
-                parameters={
+            # ADR-124: Route to ChatAgent or TP based on context
+            if use_chat_agent and chat_agent_auth:
+                # Fetch project title for prompt
+                _project_title = request_project_slug
+                try:
+                    from services.workspace import ProjectWorkspace
+                    _pw = ProjectWorkspace(auth.client, auth.user_id, request_project_slug)
+                    _proj = await _pw.read_project()
+                    if _proj:
+                        _project_title = _proj.get("title", request_project_slug)
+                except Exception:
+                    pass
+
+                stream_params = {
+                    "history": history,
+                    "project_title": _project_title,
+                }
+                stream_auth = chat_agent_auth
+            else:
+                stream_params = {
                     "include_context": request.include_context,
                     "history": history,
                     "is_onboarding": is_onboarding,
@@ -1008,7 +1079,19 @@ async def global_chat(
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
                     "scoped_project_slug": request_project_slug,  # ADR-119 P4b
-                },
+                }
+                stream_auth = auth
+
+            # ADR-124: Send author attribution at stream start for frontend rendering
+            if use_chat_agent and target_agent:
+                from services.workspace import get_agent_slug as _gas2
+                yield f"data: {json.dumps({'stream_start': True, 'author_agent_id': target_agent['id'], 'author_agent_slug': _gas2(target_agent), 'author_role': target_agent.get('role'), 'author_name': target_agent.get('title')})}\n\n"
+
+            async for event in agent.execute_stream_with_tools(
+                task=request.content,
+                context=context,
+                auth=stream_auth,
+                parameters=stream_params,
             ):
                 if event.type == "text":
                     full_response += event.content
@@ -1085,21 +1168,36 @@ async def global_chat(
                 })
 
             # Append assistant response to session with tool history and token usage in metadata
+            # ADR-124: Add author attribution for meeting room messages
+            assistant_metadata = {
+                "model": agent.model,
+                "tools_used": tools_used,
+                "tool_history": assistant_content_for_history,
+                "input_tokens": last_token_usage.get("input_tokens", 0),
+                "output_tokens": last_token_usage.get("output_tokens", 0),
+            }
+            if use_chat_agent and target_agent:
+                from services.workspace import get_agent_slug as _gas
+                assistant_metadata["author_agent_id"] = target_agent["id"]
+                assistant_metadata["author_agent_slug"] = _gas(target_agent)
+                assistant_metadata["author_role"] = target_agent.get("role", "unknown")
+
             await append_message(
                 auth.client,
                 session_id,
                 "assistant",
                 full_response,
-                {
-                    "model": agent.model,
-                    "tools_used": tools_used,
-                    "tool_history": assistant_content_for_history,
-                    "input_tokens": last_token_usage.get("input_tokens", 0),
-                    "output_tokens": last_token_usage.get("output_tokens", 0),
-                }
+                assistant_metadata,
             )
 
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
+            # ADR-124: Include author attribution in done event for frontend rendering
+            done_payload = {'done': True, 'session_id': session_id, 'tools_used': tools_used}
+            if use_chat_agent and target_agent:
+                done_payload['author_agent_id'] = target_agent["id"]
+                done_payload['author_agent_slug'] = assistant_metadata.get("author_agent_slug")
+                done_payload['author_role'] = target_agent.get("role")
+
+            yield f"data: {json.dumps(done_payload)}\n\n"
 
             # Activity log: record chat turn completion (ADR-063)
             # Must use service client — activity_log RLS blocks INSERT from user JWT

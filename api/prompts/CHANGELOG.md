@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.12] - ADR-124 Phase 1: ChatAgent class + agent_chat mode + routing
+
+### Changed
+- `api/agents/chat_agent.py` (NEW): ChatAgent class — enables agents to participate in project meeting room conversations. Two prompt templates: PM Chat Prompt v1.0 (coordinator persona, PM primitives) and Contributor Chat Prompt v1.0 (domain specialist persona, read-heavy). Inherits from BaseAgent, uses `agent_chat` mode tools.
+- `api/services/primitives/registry.py`: Added `"agent_chat"` as third primitive mode. 13 primitives enabled: workspace read/write/search/list, QueryKnowledge, DiscoverAgents, ReadAgentContext, Clarify, ReadProject, and 4 PM execution primitives.
+- `api/routes/chat.py`: ChatRequest gains `target_agent_id` field. Project-scoped sessions route to ChatAgent when target_agent_id is set or defaults to PM. SSE stream emits `stream_start` event with author attribution. Assistant messages stored with `metadata.author_agent_id`, `metadata.author_agent_slug`, `metadata.author_role`. Done event includes author fields.
+
+### Expected behavior
+- In project meeting rooms, plain messages route to PM agent (default interlocutor).
+- `@agent-slug` mentions (frontend sends `target_agent_id`) route to the specific agent.
+- Agent responses stream with author attribution — frontend can render attributed bubbles.
+- Slash commands (`/` prefix) continue routing to TP as before.
+- Outside project sessions, all behavior is unchanged.
+
+---
+
 ## [2026.03.19.11] - ADR-123 Phase 3: Frontend objective editing + PM intelligence surfacing
 
 ### Changed

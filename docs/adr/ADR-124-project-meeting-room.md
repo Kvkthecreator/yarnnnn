@@ -1,6 +1,6 @@
 # ADR-124: Project Meeting Room — Unified Project Surface
 
-**Status**: Proposed
+**Status**: Phase 1 Implemented (ChatAgent class, agent_chat mode, routing, attribution)
 **Date**: 2026-03-19
 **Authors**: KVK, Claude
 **Supersedes**: None (evolves ADR-119 Phase 4b project detail page)
