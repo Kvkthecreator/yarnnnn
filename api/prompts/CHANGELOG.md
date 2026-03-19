@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.7] - Fix P0: PM JSON parser brace-balanced extraction (ADR-121)
+
+### Changed
+- `api/services/agent_execution.py`: Replaced simple regex `[^{}]*` JSON extraction with brace-balanced parser. The old regex couldn't match nested objects (e.g., `assess_quality` with `assessments` array containing inner `{}`), causing PM's intelligent decisions to fall through to the keyword inference fallback. Production PM v5 correctly chose `assess_quality` with detailed assessments, but the parser failed to extract it and defaulted to `assemble`.
+
+### Expected behavior
+- PM decisions with nested JSON structures (assess_quality assessments, update_work_plan with contributors array) are now correctly parsed even when PM writes narrative preamble before the JSON.
+- Keyword fallback is truly last-resort, not the default path for complex decisions.
+
+---
+
 ## [2026.03.19.6] - ADR-121 Phase 2: Contribution bridge + assembly gating + work plan focus areas
 
 ### Changed

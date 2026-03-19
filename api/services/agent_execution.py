@@ -371,20 +371,49 @@ async def _handle_pm_decision(
 
     project_slug = type_config.get("project_slug", "")
 
-    # Parse PM decision — try raw JSON first, then extract from markdown
+    # Parse PM decision — try raw JSON first, then extract from narrative
     decision = None
     try:
         decision = _json.loads(draft.strip())
     except _json.JSONDecodeError:
-        # Try to extract JSON from markdown fences or embedded JSON
-        import re
-        json_match = re.search(r'\{[^{}]*"action"\s*:\s*"[^"]+?"[^{}]*\}', draft, re.DOTALL)
-        if json_match:
-            try:
-                decision = _json.loads(json_match.group())
-                logger.info(f"[PM] Extracted JSON from non-JSON output")
-            except _json.JSONDecodeError:
-                pass
+        # ADR-121: PM v3.0 sometimes writes narrative preamble before JSON.
+        # Extract the outermost JSON object containing "action" by brace-balancing.
+        action_pos = draft.find('"action"')
+        if action_pos >= 0:
+            # Walk backwards to find the opening brace
+            start = draft.rfind('{', 0, action_pos)
+            if start >= 0:
+                # Walk forward balancing braces to find the closing brace
+                depth = 0
+                in_string = False
+                escape = False
+                end = None
+                for i in range(start, len(draft)):
+                    c = draft[i]
+                    if escape:
+                        escape = False
+                        continue
+                    if c == '\\' and in_string:
+                        escape = True
+                        continue
+                    if c == '"' and not escape:
+                        in_string = not in_string
+                        continue
+                    if in_string:
+                        continue
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                if end:
+                    try:
+                        decision = _json.loads(draft[start:end])
+                        logger.info(f"[PM] Extracted JSON from narrative output (brace-balanced)")
+                    except _json.JSONDecodeError:
+                        pass
 
     if decision is None:
         # Last resort: infer action from content keywords
