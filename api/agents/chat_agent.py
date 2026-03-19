@@ -25,7 +25,8 @@ from services.anthropic import (
     StreamEvent,
 )
 from services.primitives.registry import get_tools_for_mode, HANDLERS, PRIMITIVE_MODES
-from services.workspace import AgentWorkspace, get_agent_slug
+from services.workspace import AgentWorkspace, ProjectWorkspace, get_agent_slug
+from services.agent_execution import _load_pm_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,22 @@ logger = logging.getLogger(__name__)
 # Agent Chat Prompts (ADR-124 Phase 3 — versioned)
 # =============================================================================
 
-# PM Chat Prompt v1.0
+# PM Chat Prompt v2.0 — adds live project context injection (ADR-124 Phase 3)
 PM_CHAT_PROMPT = """You are {agent_name}, the Project Manager for "{project_title}".
 
-Your domain is coordinating this project's execution. You have deep knowledge of:
-- The project objective and what the user wants
-- Each contributor's role, recent work, and quality trajectory
-- The work plan, budget status, and assembly schedule
+Your domain is coordinating this project's execution.
+
+## Project Overview
+{project_context}
+
+## Contributor Status
+{contributor_status}
+
+## Work Plan
+{work_plan}
+
+## Budget
+{budget_status}
 
 When the user talks to you:
 - Answer from your PM perspective — you know this project intimately
@@ -54,13 +64,18 @@ You have access to your workspace files, the project's knowledge base, and PM-sp
 {workspace_context}
 """
 
-# Contributor Chat Prompt v1.0
+# Contributor Chat Prompt v2.0 — adds project objective + own contribution context (ADR-124 Phase 3)
 CONTRIBUTOR_CHAT_PROMPT = """You are {agent_name}, a {role} agent contributing to project "{project_title}".
+
+## Project Objective
+{project_objective}
 
 Your domain expertise is {scope_description}. You have accumulated:
 - Your workspace: AGENT.md (identity), thesis.md (domain understanding), memory/ (observations)
 - Your contribution history to this project
 - Knowledge from your connected platforms
+
+{contribution_context}
 
 When the user talks to you:
 - Answer from your domain perspective — what you know about your area
@@ -142,6 +157,7 @@ class ChatAgent(BaseAgent):
         self,
         workspace_context: str,
         project_title: str,
+        project_context: Optional[dict] = None,
     ) -> str:
         """Build the agent's conversational system prompt."""
         role = self.agent.get("role", "digest")
@@ -150,7 +166,7 @@ class ChatAgent(BaseAgent):
 
         # Scope description for contributor prompt
         scope_descriptions = {
-            "platform": f"monitoring and synthesizing content from your connected platform",
+            "platform": "monitoring and synthesizing content from your connected platform",
             "cross_platform": "synthesizing insights across multiple platforms",
             "knowledge": "deep analysis of accumulated knowledge",
             "research": "research and investigation",
@@ -159,17 +175,25 @@ class ChatAgent(BaseAgent):
         scope_description = scope_descriptions.get(scope, f"{scope} operations")
 
         if role == "pm":
+            pc = project_context or {}
             return PM_CHAT_PROMPT.format(
                 agent_name=agent_name,
                 project_title=project_title,
+                project_context=pc.get("project_context", "Not available."),
+                contributor_status=pc.get("contributor_status", "Not available."),
+                work_plan=pc.get("work_plan", "No work plan set."),
+                budget_status=pc.get("budget_status", "Unknown"),
                 workspace_context=workspace_context,
             )
         else:
+            pc = project_context or {}
             return CONTRIBUTOR_CHAT_PROMPT.format(
                 agent_name=agent_name,
                 role=role,
                 project_title=project_title,
+                project_objective=pc.get("project_objective", "Not specified."),
                 scope_description=scope_description,
+                contribution_context=pc.get("contribution_context", ""),
                 workspace_context=workspace_context,
             )
 
@@ -212,9 +236,55 @@ class ChatAgent(BaseAgent):
             auth.client, auth.user_id
         )
 
+        # ADR-124 Phase 3: Load project context based on agent role
+        role = self.agent.get("role", "digest")
+        project_context = None
+
+        if role == "pm":
+            # PM gets full project context — reuse headless loader (singular implementation)
+            try:
+                project_context = await _load_pm_project_context(
+                    auth.client, auth.user_id, self.project_slug
+                )
+            except Exception as e:
+                logger.warning(f"[CHAT-AGENT] Failed to load PM project context: {e}")
+        else:
+            # Contributors get project objective + own contribution context
+            try:
+                pw = ProjectWorkspace(auth.client, auth.user_id, self.project_slug)
+                project_data = await pw.read_project()
+                objective = "Not specified."
+                contribution_context = ""
+
+                if project_data:
+                    obj = project_data.get("objective", {})
+                    objective = obj.get("deliverable", "Not specified.")
+                    if obj.get("audience"):
+                        objective += f"\nAudience: {obj['audience']}"
+                    if obj.get("format"):
+                        objective += f"\nFormat: {obj['format']}"
+
+                    # Find this agent's expected contribution
+                    agent_slug = get_agent_slug(self.agent)
+                    for c in project_data.get("contributors", []):
+                        if c.get("agent_slug") == agent_slug:
+                            if c.get("expected_contribution"):
+                                contribution_context = (
+                                    f"## Your Expected Contribution\n{c['expected_contribution']}"
+                                )
+                            break
+
+                project_context = {
+                    "project_objective": objective,
+                    "contribution_context": contribution_context,
+                }
+            except Exception as e:
+                logger.warning(f"[CHAT-AGENT] Failed to load contributor context: {e}")
+
         system = self._build_system_prompt(
             workspace_context=workspace_context,
             project_title=project_title,
+            project_context=project_context,
         )
 
         # Build messages — filter empty assistant messages

@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.14] - ADR-124 Phase 3: Live project context injection in ChatAgent prompts
+
+### Changed
+- `api/agents/chat_agent.py`: PM Chat Prompt v1.0 → v2.0 — now receives live project context (project overview, contributor freshness, work plan, budget status) via `_load_pm_project_context()` reuse. Contributor Chat Prompt v1.0 → v2.0 — receives project objective + own expected contribution from PROJECT.md.
+- `api/agents/chat_agent.py`: `execute_stream_with_tools` loads role-appropriate project context before building system prompt. PM path calls `_load_pm_project_context()` (singular implementation — same loader as headless). Contributor path reads PROJECT.md via `ProjectWorkspace.read_project()` and extracts objective + contribution brief.
+
+### Expected behavior
+- PM agents in meeting room now answer with awareness of project status, contributor freshness, work plan, and budget — previously had no project context beyond workspace files.
+- Contributor agents now see the project objective and their expected contribution — previously only had generic scope description.
+- Graceful degradation: if context loading fails, prompts fall back to defaults ("Not available", "Not specified").
+
+---
+
 ## [2026.03.19.13] - ADR-124 Phase 2: Meeting Room frontend — attributed messages + @-mention
 
 ### Changed
