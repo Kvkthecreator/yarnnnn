@@ -111,9 +111,9 @@ YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: 
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
 | yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
-| yarnnn-render | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
+| yarnnn-output-gateway | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
 
-All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Output gateway (yarnnn-render) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
+All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Output gateway (yarnnn-output-gateway) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
 
 **Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
 - `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
@@ -128,13 +128,13 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 
 **MCP Auth model** (ADR-075): OAuth 2.1 for Claude.ai/ChatGPT (auto-approve, tokens stored in `mcp_oauth_*` tables). Static bearer token fallback for Claude Desktop/Code. See `api/mcp_server/oauth_provider.py`.
 
-**Output gateway env vars** (yarnnn-render — independent Docker service, ADR-118):
+**Output gateway env vars** (yarnnn-output-gateway — independent Docker service, ADR-118):
 - `SUPABASE_URL` — For storage uploads
 - `SUPABASE_SERVICE_KEY` — For storage uploads (service key, same as Schedulers)
 - `RENDER_SERVICE_SECRET` — Shared secret for service-to-service auth (ADR-118 D.2, must match API + Scheduler)
 
 **RuntimeDispatch env vars** (must be on API + Unified Scheduler):
-- `RENDER_SERVICE_URL` — URL of yarnnn-render service (defaults to `https://yarnnn-render.onrender.com`)
+- `RENDER_SERVICE_URL` — URL of yarnnn-output-gateway service (defaults to `https://yarnnn-output-gateway.onrender.com`)
 - `RENDER_SERVICE_SECRET` — Shared secret for authenticating to POST /render (ADR-118 D.2, must match Render service)
 
 **Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
@@ -148,7 +148,7 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 | Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
 | Platform sync logic | Platform Sync cron (runs `platform_worker.py`) |
 | MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
-| Output gateway / artifact rendering | yarnnn-render (independent Docker service, ADR-118) |
+| Output gateway / artifact rendering | yarnnn-output-gateway (independent Docker service, ADR-118) |
 
 **Note**: All platforms (Slack, Notion, Gmail, Calendar) use Direct API clients — no gateway service needed (ADR-076).
 
@@ -328,7 +328,7 @@ You MUST:
 | Tier Limits | `api/services/platform_limits.py` |
 | Agent Scheduler | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075, ADR-116 Phase 4: 9 tools) |
-| Output Gateway (yarnnn-render) | `render/` (ADR-118: skill library = capability filesystem) |
+| Output Gateway (yarnnn-output-gateway) | `render/` (ADR-118: skill library = capability filesystem) |
 | Output Gateway Skills | `render/skills/` (8 skills: pdf, pptx, xlsx, chart, mermaid, html, data, image; each folder has SKILL.md + scripts/) |
 | RuntimeDispatch Primitive | `api/services/primitives/runtime_dispatch.py` (ADR-118) |
 | Frontend API Client | `web/lib/api/client.ts` |

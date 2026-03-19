@@ -1,5 +1,5 @@
 """
-yarnnn-render — Output gateway for agent artifact production (ADR-118).
+yarnnn-output-gateway — Output gateway for agent artifact production (ADR-118).
 
 Single POST /render endpoint. Skills convert structured input to binary files.
 Uploads results to Supabase Storage and returns the URL.
@@ -31,7 +31,7 @@ import importlib
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="yarnnn-render", version="2.2.0")
+app = FastAPI(title="yarnnn-output-gateway", version="2.2.0")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")

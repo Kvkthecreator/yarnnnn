@@ -2,7 +2,7 @@
 RuntimeDispatch Primitive — ADR-118
 
 Allows headless agents to dispatch skill execution on the output gateway.
-Calls yarnnn-render service, uploads result to Supabase Storage,
+Calls yarnnn-output-gateway service, uploads result to Supabase Storage,
 writes workspace_files row with content_url.
 
 Workspace write is FATAL — if the workspace row fails, the entire call fails.
@@ -21,7 +21,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-output-gateway.onrender.com")
 RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
@@ -75,7 +75,7 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     Handle RuntimeDispatch primitive.
 
     1. Checks render limit (ADR-118 D.2 — hard reject if exceeded)
-    2. Calls yarnnn-render output gateway via HTTP (with auth + user_id)
+    2. Calls yarnnn-output-gateway via HTTP (with auth + user_id)
     3. On success, writes workspace_files row with content_url (FATAL on failure)
     4. Records render usage
     5. Returns URL to agent for inclusion in output

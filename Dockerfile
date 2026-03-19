@@ -1,4 +1,4 @@
-# Root Dockerfile for yarnnn-render service (ADR-118)
+# Root Dockerfile for yarnnn-output-gateway service (ADR-118)
 # Render.com MCP creates Docker services with context=. and path=./Dockerfile
 # This delegates to the render/ subdirectory.
 

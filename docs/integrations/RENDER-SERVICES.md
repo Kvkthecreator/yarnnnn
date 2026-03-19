@@ -11,7 +11,7 @@
 | yarnnn-unified-scheduler | Cron Job | Python 3 | Singapore | `*/5 * * * *` | `crn-d604uqili9vc73ankvag` |
 | yarnnn-platform-sync | Cron Job | Python 3 | Singapore | `*/5 * * * *` | `crn-d6gdvi94tr6s73b6btm0` |
 | yarnnn-mcp-server | Web Service | Python 3 (FastAPI) | Singapore | Always on | `srv-d6f4vg1drdic739nli4g` |
-| yarnnn-render | Web Service | Docker (Python 3.11 + pandoc) | Singapore | Always on | `srv-d6sirjffte5s73f90pfg` |
+| yarnnn-output-gateway | Web Service | Docker (Python 3.11 + pandoc) | Singapore | Always on | `srv-d6sirjffte5s73f90pfg` |
 
 **Removed services** (ADR-083, 2026-02-27):
 - `yarnnn-worker` — RQ background worker (all execution now inline)
@@ -76,7 +76,7 @@
 └───────────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────────────────────────────────────────┐
-│               yarnnn-render (Output Gateway)                      │
+│               yarnnn-output-gateway (Output Gateway)                      │
 │              (Docker, ADR-118 Phase B)                             │
 │                                                                   │
 │  Capability filesystem: render/skills/{name}/SKILL.md + scripts/  │
@@ -116,7 +116,7 @@ All services deploy automatically on push to `main` branch via Render's GitHub i
 |---------|----------|----------|
 | yarnnn-api | `GET /health` | `{"status": "ok"}` |
 | yarnnn-mcp-server | `GET /health` | `{"status": "ok"}` |
-| yarnnn-render | `GET /health` | `{"status": "ok"}` |
+| yarnnn-output-gateway | `GET /health` | `{"status": "ok"}` |
 
 ## Troubleshooting
 
@@ -137,8 +137,8 @@ All services deploy automatically on push to `main` branch via Render's GitHub i
 
 ### Output gateway not rendering
 1. Check `RENDER_SERVICE_URL` is set on API + unified-scheduler
-2. Check yarnnn-render service is running (health check)
-3. Check `SUPABASE_SERVICE_KEY` is set on yarnnn-render for storage uploads
+2. Check yarnnn-output-gateway service is running (health check)
+3. Check `SUPABASE_SERVICE_KEY` is set on yarnnn-output-gateway for storage uploads
 4. Review workspace_files for missing `content_url` (indicates upload failure)
 
 ## Related Documentation

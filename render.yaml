@@ -46,7 +46,7 @@ services:
 
   # Render Service (ADR-118 Phase B) — agent artifact production
   - type: web
-    name: yarnnn-render
+    name: yarnnn-output-gateway
     runtime: docker
     region: singapore
     plan: starter

@@ -45,7 +45,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-output-gateway.onrender.com")
 
 # ADR-117 Phase 3: Centralized in agent_framework.py (single source of truth)
 from services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
