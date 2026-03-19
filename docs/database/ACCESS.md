@@ -97,6 +97,67 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 - Add `?sslmode=require` to connection string
 - Try session pooler (port 5432) instead of transaction pooler (6543)
 
+## API Testing with User JWT
+
+For testing production API endpoints that require user authentication (e.g., `/api/chat`, `/api/agents/{id}/run`), you need a valid user JWT — service keys don't work on `UserClient`-protected routes.
+
+### Generate a JWT via Magic Link OTP
+
+```python
+from supabase import create_client
+
+SERVICE_KEY = "sb_secret_-8NWVKf09Cf56mO3JrjPqw_5FqL423G"
+ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5veGdxY3d5bmt6cWFibGpqeW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1NzgyMzAsImV4cCI6MjA4NTE1NDIzMH0.XnE9rO-7ipQH_9F5Xx0wdSlQK1MM-00y0c3ny6cP6Ic"
+URL = "https://noxgqcwynkzqabljjyon.supabase.co"
+
+# Step 1: Generate magic link (requires service key — admin endpoint)
+admin_client = create_client(URL, SERVICE_KEY)
+link_resp = admin_client.auth.admin.generate_link({
+    "type": "magiclink",
+    "email": "kvkthecreator@gmail.com",
+})
+otp = link_resp.properties.email_otp  # e.g., "47010531"
+
+# Step 2: Verify OTP to get access token (uses anon key)
+anon_client = create_client(URL, ANON_KEY)
+auth_resp = anon_client.auth.verify_otp({
+    "email": "kvkthecreator@gmail.com",
+    "token": otp,
+    "type": "magiclink",
+})
+jwt = auth_resp.session.access_token  # Valid ~1 hour
+```
+
+### Use the JWT
+
+```bash
+# Chat endpoint (SSE streaming)
+curl -N "https://yarnnn-api.onrender.com/api/chat" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello", "include_context": true}'
+
+# Trigger agent run
+curl -X POST "https://yarnnn-api.onrender.com/api/agents/{agent_id}/run" \
+  -H "Authorization: Bearer $JWT"
+```
+
+### Known User IDs
+
+| Email | User ID |
+|---|---|
+| kvkthecreator@gmail.com | `2abf3f96-118b-4987-9d95-40f2d9be9a18` |
+| kvkthecreator@yarnnn.com | `67c5c637-501d-43d1-836a-a15ff32b5901` |
+
+### List All Users (Admin)
+
+```python
+admin_client = create_client(URL, SERVICE_KEY)
+users = admin_client.auth.admin.list_users()
+for u in users:
+    print(f"{u.id} {u.email}")
+```
+
 ---
 
 See [MIGRATIONS.md](MIGRATIONS.md) for applied migration history.

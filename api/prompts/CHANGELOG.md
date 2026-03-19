@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.3] - TP prompt: CreateProject documentation + PM type_config fix
+
+### Changed
+- `api/agents/tp_prompts/tools.py`: Added "Creating Projects (ADR-120)" section documenting CreateProject tool — title, intent (with format field), contributors (UUID/title/slug), assembly_spec, delivery. Explains when to use projects vs. individual agents.
+- `api/services/agent_execution.py`: Fixed NameError in PM decision path — `type_config` was referenced in `execute_agent_generation()` scope but only defined in `generate_draft_inline()`. Changed to `agent.get("type_config", {})` at point of use.
+- `api/services/primitives/project.py`: CreateProject contributor resolution now supports three-tier lookup: UUID → title ilike → slug derivation match. Previously only UUID worked, but Orchestrator passes titles/slugs.
+
+### Expected behavior
+- Orchestrator can now directly call CreateProject when user asks for multi-agent projects, instead of spending tool rounds searching without acting.
+- PM agent runs no longer crash with NameError on all executions.
+- Contributors are resolved regardless of how the LLM references them (UUID, title, or slug).
+
+---
+
 ## [2026.03.19.2] - Project-scoped working memory injection (ADR-119 P4b)
 
 ### Changed

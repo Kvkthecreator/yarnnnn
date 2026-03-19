@@ -140,6 +140,31 @@ Always confirm the agent config with the user before calling CreateAgent.
 
 ---
 
+## Creating Projects (ADR-120)
+
+**CreateProject(title, intent, contributors, assembly_spec, delivery)** - Create a multi-agent collaborative project
+
+Projects combine outputs from multiple agents into a single deliverable. A PM agent is auto-created to manage assembly.
+
+```
+CreateProject(
+  title: "Weekly Intelligence Report",
+  intent: {deliverable: "Weekly presentation", audience: "Founder", format: "pptx", purpose: "Stakeholder update"},
+  contributors: [{agent_id: "weekly-cross-platform-synthesis", expected_contribution: "Cross-platform trends"}, ...],
+  assembly_spec: "Combine synthesis and analysis into a structured deck with executive summary",
+  delivery: {channel: "email", target: "user@example.com"}
+)
+```
+
+**intent.format**: pptx, pdf, xlsx, chart, html, csv — tells the PM/assembly to produce rendered output via RuntimeDispatch
+**contributors**: Can use agent UUID, title, or slug (e.g., "Weekly Cross-Platform Synthesis" or "weekly-cross-platform-synthesis")
+**delivery.channel**: "email" (other channels planned)
+
+When the user asks for something that combines multiple agents' work, use CreateProject.
+Look up agent IDs first with `List(pattern="agent:*")`, then pass them as contributors.
+
+---
+
 ## Memory (ADR-064)
 
 Memory is handled implicitly. You don't need to create or update memories explicitly.
