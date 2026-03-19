@@ -12,7 +12,7 @@
 | # | Fund | Stage | Date Applied | Status | Notes |
 |---|------|-------|-------------|--------|-------|
 | 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
-| 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
+| 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website. Fund II ($25M) announced 2026-03-18 — "5x Fund I, for outsider founders who don't give up." Backed by Mizzou Endowment, founder of Square, AngelList Fund of Funds. Actively deploying — good timing for our app. |
 | 3 | Hustle Fund | Pre-seed | 2026-03-04 | **Rejected** | Typeform; rejected 2026-03-06 (~2 days). Auto-rejection likely — no deck uploaded (was optional), possibly filtered on solo founder or pre-revenue |
 | 4 | Outlander VC | Pre-seed | 2026-03-04 | **Rejected** | Typeform + video interview completed 2026-03-06; rejected 2026-03-10 by Deepika — "not the right fit for our investment thesis at this time." Offered to stay on email updates |
 | 5 | Precursor Ventures | Pre-seed | 2026-03-05 | **Rejected** | Web form; rejected 2026-03-07 (~2 days). Charles Hudson pass — likely volume-based filter at intake stage given fast turnaround |
@@ -74,9 +74,31 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [x] **Sazze Partners (Greg Kim)**: LinkedIn connection request sent 2026-03-13. Note: "안녕하세요! — Korean founder heading to LA/SF (US citizen), Building yarnnn.com, raising Pre-seed, targeting US market. Thought Sazze's Korean founder thesis would be a great fit. Would love to connect!" Awaiting acceptance → then send longer DM
 - [x] **Sazze Partners (Kathy Ku)**: Meeting held 2026-03-17. Kathy requested deck to review with team. **Deck sent — awaiting team review.**
 - [x] **Lorimer Ventures (Zach Magdovitz @magdovitz)**: He followed Kevin on X. Operator-investor, $50K–$300K checks, seed-stage, B2B/SaaS. Built tools at Attentive, Yext, Mailchimp. **DM sent 2026-03-17 — awaiting reply.**
-- [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18 to jk@fortitudevc.com with deck attached (IR Deck v16). Principal, SF Bay Area, Cornell. She explicitly welcomes pitch decks in her LinkedIn bio. Also sent LinkedIn connection request. **Awaiting reply.**
+- [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18. Joan replied 2026-03-19 at 4:21 AM PT — "I'd love to find time to chat!" **Meeting booked: Tuesday 3pm–4pm PT.** Kevin replied with Google Meet link.
 - [ ] **Mischief VC**: Researched 2026-03-17. Jack Altman's fund, SF, $1–5M checks, seed/Series A, AI/software focus. Strong sector fit — finding contact method to pitch
 - [ ] **NVIDIA Inception**: Free startup program (no equity). Benefits: cloud credits ($25K–$100K AWS), hardware pricing, VC networking events, co-marketing badges. Application started 2026-03-17 — **BLOCKED: requires secondary contact (different person with @yarnnn.com email).** Need to recruit an advisor/friend to list. URL: programs.nvidia.com/phoenix/application. No deadline, rolling.
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
 - [ ] **HF0 Fall '26**: Watch for application opening. Apply despite repeat-founder requirement
 - [ ] **YC S26**: Draft saved 2026-03-18. Deadline May 4, 8pm PT. **TODO before submit**: (1) record 1-min founder video, (2) complete founder profile, (3) optional: record 3-min demo video, (4) update traction numbers with user data from sprint. Revisit in late April.
+- [ ] **South Park Commons (SPC) Founder Fellowship — Fall 2026**: $400K for 7% SAFE + $600K guaranteed follow-on = $1M total. $900K+ in credits (Anthropic, OpenAI, Azure, GCP, AWS, Render). SF/NYC/Bangalore. Spring 2026 deadline passed (Feb 1). **Watch for Fall 2026 cohort — best terms of any program researched.** ~$5.7M implied valuation, above our $5M target. Apply: southparkcommons.com/apply
+
+---
+
+## Accelerator Research Reference (sourced 2026-03-18)
+
+Programs researched from curated lists. Filtered for yarnnn fit (AI, B2B, SaaS, pre-seed/seed, solo founder eligible).
+
+| Program | Investment | Equity | Focus | Status for yarnnn |
+|---------|-----------|--------|-------|-------------------|
+| **YC (S26)** | $500K | 7% + uncapped SAFE | Sector-agnostic | Draft saved, deadline May 4 |
+| **South Park Commons** | $400K + $600K follow-on | 7% | Sector-agnostic, exceptional founders | Queued Fall '26 — **best terms** |
+| **Techstars** | $220K | 5% + uncapped SAFE | Multiple programs, AI cohorts | Queued Fall '26 |
+| **HF0** | $500K–$1M | 5% | Repeat founders (hard filter) | Queued Fall '26, may not qualify |
+| **Alchemist** | ~$25K | 5-6% | B2B only | Skipped — dilution too steep |
+| **500 Global** | $150K | Varies | Global network | Not yet researched in depth |
+| **AngelPad** | Varies | Varies | Top-tier US accelerator | Not yet researched in depth |
+| **Pioneer** | Varies | Varies | Remote, solo-founder friendly | Not yet researched in depth |
+| **MassChallenge** | Equity-free | 0% | Equity-free accelerator | Not yet researched — no downside |
+| **Betaworks AI Camp** | Pre-seed | Varies | AI startup camps | Queued Fall '26 |
+| **Antler Global** | ~$470K (India) | 11% | Cofounder matching, build from zero | Skipped — wrong model (already have product) |
+| **NVIDIA Inception** | Free (no equity) | 0% | AI/GPU startups, credits + network | Blocked — needs secondary contact |
