@@ -1301,11 +1301,29 @@ export const api = {
       }>("/api/system/sync-timestamps"),
   },
 
-  // Supervision Dashboard
+  // Dashboard — ADR-122 Phase 5: project-first
   dashboard: {
     getSummary: () =>
       request<{
-        agents: Array<{
+        projects: Array<{
+          project_slug: string;
+          title: string;
+          type_key: string | null;
+          summary: string;
+          updated_at: string | null;
+          agents: Array<{
+            id: string;
+            title: string;
+            status: string;
+            origin: string;
+            role: string;
+            scope: string;
+            sources: Array<{ provider?: string; resource_id?: string }>;
+            last_run_at: string | null;
+            next_run_at: string | null;
+          }>;
+        }>;
+        standalone_agents: Array<{
           id: string;
           title: string;
           status: string;
@@ -1315,56 +1333,14 @@ export const api = {
           sources: Array<{ provider?: string; resource_id?: string }>;
           last_run_at: string | null;
           next_run_at: string | null;
-          schedule: string | null;
-          maturity: 'new' | 'associate' | 'senior';
-          approval_rate: number | null;
-          edit_trend: number | null;
-          total_runs: number;
-        }>;
-        composer_actions: Array<{
-          type: 'created' | 'paused' | 'observation';
-          summary: string;
-          agent_id?: string;
-          agent_title?: string;
-          created_at: string;
-          metadata: Record<string, unknown>;
-        }>;
-        attention: Array<{
-          type: 'auto_paused' | 'failed' | 'declining';
-          message: string;
-          agent_id: string;
-          agent_title: string;
         }>;
         connected_platforms: string[];
-        heartbeat_pulse: {
-          last_run_at: string;
-          outcome: string;
-          lifecycle_actions: string[];
-          agents_assessed: number;
-        } | null;
-        progression: {
-          platforms_connected: number;
-          active_agents: number;
-          total_runs: number;
-          has_associate_agent: boolean;
-          has_senior_agent: boolean;
-          account_age_days: number;
-        } | null;
-        projects: Array<{
-          project_slug: string;
-          summary: string;
-          updated_at: string;
+        attention: Array<{
+          type: 'auto_paused' | 'failed';
+          message: string;
+          agent_id: string;
+          project_slug?: string;
         }>;
-        stats: {
-          total_agents: number;
-          active_agents: number;
-          runs_this_week: number;
-          maturity_distribution: {
-            new: number;
-            associate: number;
-            senior: number;
-          };
-        };
       }>("/api/dashboard/summary"),
   },
 };

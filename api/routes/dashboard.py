@@ -1,19 +1,17 @@
 """
-Dashboard routes — Supervision Dashboard summary endpoint.
+Dashboard routes — ADR-122 Phase 5: Project-first dashboard.
 
-Provides the data for the frontend supervision dashboard:
-- Agent health grid (status, maturity, last run)
-- Recent Composer actions (from activity_log)
-- Attention items (auto-paused agents, failed runs)
-- Summary stats (counts, maturity distribution)
-
-Zero LLM cost — pure DB queries. Reuses maturity logic from
-composer.py heartbeat_data_query().
+Minimal, clean payload: projects with nested agents, standalone agents,
+connected platforms, attention items. No computed stats, no maturity
+recomputation, no composer feed — those return when underlying data
+handling is refactored.
 
 Mounted at /api/dashboard
 """
 
+import json as _json
 import logging
+import re
 
 from fastapi import APIRouter
 from datetime import datetime, timezone, timedelta
@@ -25,24 +23,39 @@ from services.supabase import UserClient
 router = APIRouter()
 
 
+def _extract_type_key(content: str) -> str | None:
+    """Extract type_key from PROJECT.md content without full parse."""
+    match = re.search(r'\*\*Type\*\*:\s*(\S+)', content or "")
+    return match.group(1) if match else None
+
+
+def _extract_title(content: str) -> str:
+    """Extract title (first H1) from PROJECT.md content."""
+    for line in (content or "").split("\n"):
+        if line.startswith("# "):
+            return line[2:].strip()
+    return ""
+
+
 @router.get("/summary")
 async def get_dashboard_summary(client: UserClient):
     """
     GET /api/dashboard/summary
 
-    Returns supervision dashboard payload: agent health, Composer activity,
-    attention items, and summary stats. Single call for the dashboard page.
+    Project-first dashboard payload. Three queries:
+    1. agents (non-archived)
+    2. platform_connections (connected)
+    3. workspace_files (PROJECT.md + memory/projects.json)
     """
-    now = datetime.now(timezone.utc)
     user_id = client.user_id
     db = client.client
 
-    # 1. All non-archived agents with core fields
+    # ── 1. All non-archived agents ──────────────────────────────────────
     agents_raw = []
     try:
         result = (
             db.table("agents")
-            .select("id, title, status, origin, role, scope, sources, created_at, last_run_at, next_run_at, schedule")
+            .select("id, title, status, origin, role, scope, sources, last_run_at, next_run_at, schedule")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -51,7 +64,9 @@ async def get_dashboard_summary(client: UserClient):
     except Exception as e:
         logger.warning(f"[DASHBOARD] Agent query failed: {e}")
 
-    # 2. Connected platforms (for empty state detection)
+    agents_by_id = {a["id"]: a for a in agents_raw}
+
+    # ── 2. Connected platforms ──────────────────────────────────────────
     connected_platforms = []
     try:
         result = (
@@ -65,278 +80,153 @@ async def get_dashboard_summary(client: UserClient):
     except Exception as e:
         logger.warning(f"[DASHBOARD] Platform query failed: {e}")
 
-    # 3. Per-agent maturity signals (same logic as composer.py heartbeat_data_query)
-    active_agents = [a for a in agents_raw if a.get("status") == "active"]
-    agent_health = []
-
-    for agent in agents_raw:
-        aid = agent["id"]
-        maturity = "new"
-        approval_rate = None
-        edit_trend = None
-        total_runs = 0
-
-        if agent.get("status") != "archived":
-            try:
-                runs_result = (
-                    db.table("agent_runs")
-                    .select("status, edit_distance_score")
-                    .eq("agent_id", aid)
-                    .order("created_at", desc=True)
-                    .limit(20)
-                    .execute()
-                )
-                runs = runs_result.data or []
-                total_runs = len(runs)
-
-                if total_runs > 0:
-                    # Weighted approval: explicit approval = 1.0, auto-delivered = 0.5
-                    # Matches composer.py maturity logic — prevents inflation from unreviewed outputs
-                    completed = [r for r in runs if r.get("status") in ("approved", "delivered", "rejected")]
-                    explicitly_approved = len([r for r in runs if r.get("status") == "approved"])
-                    auto_delivered = len([r for r in runs if r.get("status") == "delivered"])
-                    if completed:
-                        weighted = explicitly_approved + (auto_delivered * 0.5)
-                        approval_rate = round(weighted / len(completed), 2)
-                    else:
-                        approval_rate = None
-
-                    # Edit distance trend
-                    distances = [
-                        r["edit_distance_score"] for r in runs
-                        if r.get("edit_distance_score") is not None
-                    ]
-                    if len(distances) >= 3:
-                        recent_avg = sum(distances[:3]) / 3
-                        older_count = min(3, len(distances) - 3)
-                        if older_count > 0:
-                            older_avg = sum(distances[3:3 + older_count]) / older_count
-                            if older_avg > 0:
-                                edit_trend = round((recent_avg - older_avg) / older_avg, 2)
-
-                    # Classify seniority (ADR-117 Phase 3)
-                    from services.agent_framework import classify_seniority
-                    maturity = classify_seniority(total_runs, approval_rate or 0)
-            except Exception as e:
-                logger.warning(f"[DASHBOARD] Maturity query failed for {aid}: {e}")
-
-        agent_health.append({
-            "id": aid,
-            "title": agent["title"],
-            "status": agent.get("status"),
-            "origin": agent.get("origin"),
-            "role": agent.get("role"),
-            "scope": agent.get("scope"),
-            "sources": agent.get("sources", []),
-            "last_run_at": agent.get("last_run_at"),
-            "next_run_at": agent.get("next_run_at"),
-            "schedule": agent.get("schedule"),
-            "maturity": maturity,
-            "approval_rate": approval_rate,
-            "edit_trend": edit_trend,
-            "total_runs": total_runs,
-        })
-
-    # 3. Recent Composer actions (from activity_log, last 7 days)
-    composer_actions = []
+    # ── 3. Workspace files: PROJECT.md + memory/projects.json ───────────
+    # Single query for both project identity and agent→project memberships
+    workspace_rows = []
     try:
-        week_ago = (now - timedelta(days=7)).isoformat()
         result = (
-            db.table("activity_log")
-            .select("id, event_type, summary, metadata, created_at")
+            db.table("workspace_files")
+            .select("path, content, summary, updated_at, lifecycle")
             .eq("user_id", user_id)
-            .in_("event_type", ["composer_heartbeat", "agent_bootstrapped"])
-            .gte("created_at", week_ago)
-            .order("created_at", desc=True)
-            .limit(20)
+            .or_("path.like./projects/%/PROJECT.md,path.like./agents/%/memory/projects.json")
+            .in_("lifecycle", ["active", "delivered"])
             .execute()
         )
-        for row in (result.data or []):
-            metadata = row.get("metadata") or {}
-            # Extract lifecycle actions from heartbeat metadata
-            lifecycle_actions = metadata.get("lifecycle_actions", [])
-            if lifecycle_actions or row["event_type"] == "agent_bootstrapped":
-                composer_actions.append({
-                    "type": _classify_composer_action(row["event_type"], metadata),
-                    "summary": row.get("summary", ""),
-                    "agent_id": metadata.get("agent_id"),
-                    "agent_title": metadata.get("agent_title"),
-                    "created_at": row["created_at"],
-                    "metadata": metadata,
-                })
+        workspace_rows = result.data or []
     except Exception as e:
-        logger.warning(f"[DASHBOARD] Composer activity query failed: {e}")
+        logger.warning(f"[DASHBOARD] Workspace query failed: {e}")
 
-    # 4. Attention items — things that need user review
+    # Parse projects
+    projects_map: dict[str, dict] = {}  # slug → project info
+    for row in workspace_rows:
+        path = row["path"]
+        if path.endswith("/PROJECT.md"):
+            parts = path.split("/")
+            if len(parts) >= 3:
+                slug = parts[2]
+                projects_map[slug] = {
+                    "project_slug": slug,
+                    "title": _extract_title(row.get("content", "")),
+                    "type_key": _extract_type_key(row.get("content", "")),
+                    "summary": row.get("summary", ""),
+                    "updated_at": row.get("updated_at"),
+                    "agents": [],  # populated below
+                }
+
+    # Parse agent→project memberships
+    agent_project_map: dict[str, list[str]] = {}  # agent_slug → [project_slugs]
+    for row in workspace_rows:
+        path = row["path"]
+        if path.endswith("/memory/projects.json"):
+            # Extract agent slug from /agents/{slug}/memory/projects.json
+            parts = path.split("/")
+            if len(parts) >= 4:
+                agent_slug = parts[2]
+                try:
+                    memberships = _json.loads(row.get("content", "[]"))
+                    for m in memberships:
+                        ps = m.get("project_slug", "")
+                        if ps:
+                            agent_project_map.setdefault(agent_slug, []).append(ps)
+                except (_json.JSONDecodeError, TypeError):
+                    pass
+
+    # Build agent slug → agent_id reverse lookup
+    from services.workspace import get_agent_slug
+    slug_to_id: dict[str, str] = {}
+    for agent in agents_raw:
+        slug = get_agent_slug(agent)
+        slug_to_id[slug] = agent["id"]
+
+    # Assign agents to projects
+    assigned_agent_ids: set[str] = set()
+    for agent_slug, project_slugs in agent_project_map.items():
+        agent_id = slug_to_id.get(agent_slug)
+        if not agent_id or agent_id not in agents_by_id:
+            continue
+        agent = agents_by_id[agent_id]
+        for ps in project_slugs:
+            if ps in projects_map:
+                projects_map[ps]["agents"].append(_format_agent(agent))
+                assigned_agent_ids.add(agent_id)
+
+    # Projects sorted by updated_at desc
+    projects = sorted(projects_map.values(), key=lambda p: p.get("updated_at") or "", reverse=True)
+
+    # Standalone agents — not assigned to any project
+    standalone_agents = [
+        _format_agent(a) for a in agents_raw
+        if a["id"] not in assigned_agent_ids and a.get("role") != "pm"
+    ]
+
+    # ── 4. Attention items ──────────────────────────────────────────────
     attention = []
-
-    # Auto-paused agents (paused by lifecycle, not by user)
-    for ah in agent_health:
-        if ah["status"] == "paused" and ah["origin"] in ("composer", "system_bootstrap"):
-            attention.append({
-                "type": "auto_paused",
-                "message": f"'{ah['title']}' was auto-paused — review or archive",
-                "agent_id": ah["id"],
-                "agent_title": ah["title"],
-            })
+    for a in agents_raw:
+        if a.get("status") == "paused" and a.get("origin") in ("composer", "system_bootstrap"):
+            # Find which project this agent belongs to
+            a_slug = get_agent_slug(a)
+            project_slugs = agent_project_map.get(a_slug, [])
+            if project_slugs and project_slugs[0] in projects_map:
+                proj = projects_map[project_slugs[0]]
+                attention.append({
+                    "type": "auto_paused",
+                    "message": f"'{proj['title']}' project: '{a['title']}' was auto-paused",
+                    "agent_id": a["id"],
+                    "project_slug": project_slugs[0],
+                })
+            else:
+                attention.append({
+                    "type": "auto_paused",
+                    "message": f"'{a['title']}' was auto-paused — review or archive",
+                    "agent_id": a["id"],
+                })
 
     # Recent failed runs (last 3 days)
     try:
-        three_days_ago = (now - timedelta(days=3)).isoformat()
-        agent_ids = [a["id"] for a in agents_raw if a.get("status") == "active"]
-        if agent_ids:
+        three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        active_ids = [a["id"] for a in agents_raw if a.get("status") == "active"]
+        if active_ids:
             result = (
                 db.table("agent_runs")
-                .select("agent_id, created_at")
-                .in_("agent_id", agent_ids)
+                .select("agent_id")
+                .in_("agent_id", active_ids)
                 .eq("status", "failed")
                 .gte("created_at", three_days_ago)
                 .order("created_at", desc=True)
                 .limit(5)
                 .execute()
             )
-            failed_agent_ids = set()
+            seen = set()
             for row in (result.data or []):
                 faid = row["agent_id"]
-                if faid not in failed_agent_ids:
-                    failed_agent_ids.add(faid)
-                    agent_match = next((a for a in agent_health if a["id"] == faid), None)
-                    if agent_match:
-                        attention.append({
-                            "type": "failed",
-                            "message": f"'{agent_match['title']}' had a failed run",
-                            "agent_id": faid,
-                            "agent_title": agent_match["title"],
-                        })
+                if faid not in seen and faid in agents_by_id:
+                    seen.add(faid)
+                    attention.append({
+                        "type": "failed",
+                        "message": f"'{agents_by_id[faid]['title']}' had a failed run",
+                        "agent_id": faid,
+                    })
     except Exception as e:
         logger.warning(f"[DASHBOARD] Failed runs query failed: {e}")
 
-    # 5. Summary stats
-    maturity_dist = {"new": 0, "associate": 0, "senior": 0}
-    for ah in agent_health:
-        if ah["status"] == "active":
-            m = ah.get("maturity", "new")
-            maturity_dist[m] = maturity_dist.get(m, 0) + 1
-
-    # Runs this week
-    runs_this_week = 0
-    try:
-        week_ago = (now - timedelta(days=7)).isoformat()
-        agent_ids = [a["id"] for a in agents_raw]
-        if agent_ids:
-            result = (
-                db.table("agent_runs")
-                .select("id", count="exact")
-                .in_("agent_id", agent_ids)
-                .gte("created_at", week_ago)
-                .execute()
-            )
-            runs_this_week = result.count or 0
-    except Exception as e:
-        logger.warning(f"[DASHBOARD] Weekly runs query failed: {e}")
-
-    # 6. Heartbeat pulse — last composer heartbeat for this user
-    heartbeat_pulse = None
-    try:
-        result = (
-            db.table("activity_log")
-            .select("created_at, metadata")
-            .eq("user_id", user_id)
-            .eq("event_type", "composer_heartbeat")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if result.data:
-            hb = result.data[0]
-            hb_meta = hb.get("metadata") or {}
-            heartbeat_pulse = {
-                "last_run_at": hb["created_at"],
-                "outcome": hb_meta.get("assessment_action", "unknown"),
-                "lifecycle_actions": hb_meta.get("lifecycle_actions", []),
-                "agents_assessed": hb_meta.get("agents_assessed", 0),
-            }
-    except Exception as e:
-        logger.warning(f"[DASHBOARD] Heartbeat pulse query failed: {e}")
-
-    # 7. Progression milestones — value chain position for newer users
-    oldest_agent = min(
-        (a.get("created_at") for a in agents_raw if a.get("created_at")),
-        default=None,
-    )
-    account_age_days = 0
-    if oldest_agent:
-        try:
-            created = datetime.fromisoformat(oldest_agent.replace("Z", "+00:00"))
-            account_age_days = (now - created).days
-        except (ValueError, TypeError):
-            pass
-
-    progression = None
-    if len(active_agents) < 5 or account_age_days < 21:
-        total_runs_all = sum(ah["total_runs"] for ah in agent_health)
-        has_senior = any(ah["maturity"] == "senior" for ah in agent_health if ah["status"] == "active")
-        has_associate = any(ah["maturity"] == "associate" for ah in agent_health if ah["status"] == "active")
-        progression = {
-            "platforms_connected": len(connected_platforms),
-            "active_agents": len(active_agents),
-            "total_runs": total_runs_all,
-            "has_associate_agent": has_associate,
-            "has_senior_agent": has_senior,
-            "account_age_days": account_age_days,
-        }
-
-    # 8. Active projects (ADR-119 Phase 4)
-    projects = []
-    try:
-        result = (
-            db.table("workspace_files")
-            .select("path, summary, updated_at")
-            .eq("user_id", user_id)
-            .like("path", "/projects/%/PROJECT.md")
-            .in_("lifecycle", ["active", "delivered"])
-            .order("updated_at", desc=True)
-            .limit(5)
-            .execute()
-        )
-        for row in (result.data or []):
-            parts = row["path"].split("/")
-            if len(parts) >= 3:
-                projects.append({
-                    "project_slug": parts[2],
-                    "summary": row.get("summary", ""),
-                    "updated_at": row.get("updated_at"),
-                })
-    except Exception as e:
-        logger.warning(f"[DASHBOARD] Projects query failed: {e}")
-
     return {
-        "agents": agent_health,
-        "composer_actions": composer_actions,
-        "attention": attention,
-        "connected_platforms": connected_platforms,
-        "heartbeat_pulse": heartbeat_pulse,
-        "progression": progression,
         "projects": projects,
-        "stats": {
-            "total_agents": len(agents_raw),
-            "active_agents": len(active_agents),
-            "runs_this_week": runs_this_week,
-            "maturity_distribution": maturity_dist,
-        },
+        "standalone_agents": standalone_agents,
+        "connected_platforms": connected_platforms,
+        "attention": attention,
     }
 
 
-def _classify_composer_action(event_type: str, metadata: dict) -> str:
-    """Classify a composer event into a dashboard-friendly action type."""
-    if event_type == "agent_bootstrapped":
-        return "created"
-    lifecycle = metadata.get("lifecycle_actions", [])
-    for action in lifecycle:
-        if "pause" in str(action).lower():
-            return "paused"
-        if "creat" in str(action).lower():
-            return "created"
-    if metadata.get("assessment_action") == "observed":
-        return "observation"
-    return "observation"
+def _format_agent(agent: dict) -> dict:
+    """Format an agent row for the dashboard response."""
+    return {
+        "id": agent["id"],
+        "title": agent["title"],
+        "status": agent.get("status"),
+        "origin": agent.get("origin"),
+        "role": agent.get("role"),
+        "scope": agent.get("scope"),
+        "sources": agent.get("sources", []),
+        "last_run_at": agent.get("last_run_at"),
+        "next_run_at": agent.get("next_run_at"),
+    }
