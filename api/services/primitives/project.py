@@ -113,6 +113,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     project_slug = get_project_slug(title)
 
     # Resolve contributor agents → get their slugs
+    # Supports UUID, slug, or title as agent_id (Orchestrator may pass any form)
     contributors = []
     for c in contributors_input:
         agent_id = c.get("agent_id", "").strip()
@@ -121,19 +122,53 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
             continue
 
         try:
-            result = (
-                auth.client.table("agents")
-                .select("id, title")
-                .eq("id", agent_id)
-                .eq("user_id", auth.user_id)
-                .maybe_single()
-                .execute()
-            )
-            if result and result.data:
-                agent_slug = get_agent_slug(result.data)
+            agent_data = None
+
+            # Try UUID lookup first
+            is_uuid = len(agent_id) == 36 and "-" in agent_id
+            if is_uuid:
+                result = (
+                    auth.client.table("agents")
+                    .select("id, title")
+                    .eq("id", agent_id)
+                    .eq("user_id", auth.user_id)
+                    .maybe_single()
+                    .execute()
+                )
+                agent_data = result.data if result else None
+
+            # Fall back to title match (case-insensitive via ilike)
+            if not agent_data:
+                result = (
+                    auth.client.table("agents")
+                    .select("id, title")
+                    .eq("user_id", auth.user_id)
+                    .ilike("title", agent_id.replace("-", " "))
+                    .maybe_single()
+                    .execute()
+                )
+                agent_data = result.data if result else None
+
+            # Fall back to slug derivation match — compare derived slugs
+            if not agent_data:
+                all_agents = (
+                    auth.client.table("agents")
+                    .select("id, title")
+                    .eq("user_id", auth.user_id)
+                    .eq("status", "active")
+                    .execute()
+                )
+                target_slug = agent_id.lower().replace(" ", "-")
+                for a in (all_agents.data or []):
+                    if get_agent_slug(a) == target_slug:
+                        agent_data = a
+                        break
+
+            if agent_data:
+                agent_slug = get_agent_slug(agent_data)
                 contributors.append({
                     "agent_slug": agent_slug,
-                    "agent_id": agent_id,
+                    "agent_id": agent_data["id"],
                     "expected_contribution": expected,
                 })
             else:

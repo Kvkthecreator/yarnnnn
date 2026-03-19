@@ -1789,8 +1789,9 @@ async def execute_agent_generation(
         # ADR-120 Phase 2: PM agents produce JSON decisions, not deliverable content.
         # Intercept here: parse the decision, act on it, skip normal delivery.
         if role == "pm":
+            pm_type_config = agent.get("type_config", {})
             pm_result = await _handle_pm_decision(
-                client, user_id, agent, draft, type_config,
+                client, user_id, agent, draft, pm_type_config,
                 version_id, next_version, usage,
             )
 
