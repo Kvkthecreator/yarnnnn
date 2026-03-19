@@ -108,9 +108,80 @@ The render pipeline (skills → RuntimeDispatch → render service → storage �
 ### agents
 - `agents_role_check` now includes: digest, prepare, synthesize, monitor, research, act, custom, pm
 
+## Phase 2: Project Assembly + PPTX Delivery (ADR-120 full pipeline)
+
+### Additional Bugs Found & Fixed
+
+#### 6. `execute_agent_generation()` — PM `type_config` NameError (SEVERITY: P0)
+- **Symptom**: All PM agent runs fail with `NameError: name 'type_config' is not defined`
+- **Cause**: Line 1793 references `type_config` but it's only defined in `generate_draft_inline()` (different function scope)
+- **Fix**: Changed to `agent.get("type_config", {})` at point of use
+- **Commit**: `28c3692`
+
+#### 7. `build_role_prompt()` — PM template missing `intentions` + `budget_status` (SEVERITY: P1)
+- **Symptom**: PM agent falls back to custom template (no JSON output enforcement), produces narrative markdown
+- **Cause**: PM role prompt template uses `{intentions}` and `{budget_status}` but `build_role_prompt()` only populated 3 of 5 fields
+- **Fix**: Added `intentions` and `budget_status` to `fields.update()` in PM branch
+- **Commit**: `afcc2c2`
+
+#### 8. PM prompt JSON enforcement too weak (SEVERITY: P2)
+- **Symptom**: Even when PM template rendered correctly, LLM sometimes produced markdown instead of JSON
+- **Fix**: Changed "RESPOND WITH VALID JSON" → "CRITICAL: Your ENTIRE response must be a single valid JSON object. No markdown, no headers, no prose"
+- **Also**: Added resilient parsing in `_handle_pm_decision()` — JSON extraction from markdown, keyword inference fallback
+- **Commit**: `2138d0f`
+
+#### 9. CreateProject contributor resolution — UUID-only lookup (SEVERITY: P2)
+- **Symptom**: Orchestrator passes agent titles/slugs as `agent_id` but `CreateProject` only does UUID lookup → 0 contributors
+- **Fix**: Three-tier lookup: UUID → title ilike → slug derivation match
+- **Commit**: `28c3692`
+
+### Project Creation (via Orchestrator)
+
+| Step | Status | Detail |
+|---|---|---|
+| Orchestrator → CreateProject | Pass | Called with `intent.format: "pptx"`, delivery to kvkthecreator@gmail.com |
+| PROJECT.md | Pass | Intent, assembly spec, delivery all correct |
+| PM agent auto-created | Pass | `880f9c6f-396e-4e60-8ce1-13cd771d095d` with `role=pm` |
+| Contributors linked | Manual | Orchestrator passed slugs (not UUIDs) — fix deployed, seeded manually for this test |
+
+### PM Decision Sequence
+
+| Run | Version | Action | Reason |
+|---|---|---|---|
+| `66d60b29` | v3 | `update_work_plan` | No work plan exists yet — correct per PM rules |
+| `1e1de7b4` | v4 | `assemble` | All contributors fresh (0d ago), no assemblies yet |
+
+### Assembly Execution
+
+| Layer | Status | Detail |
+|---|---|---|
+| Contribution gathering | Pass | 2 contributors: cross-platform-synthesis + patterns-gaps |
+| Assembly composition (LLM) | Pass | Cohesive text integrating both sources |
+| RuntimeDispatch → PPTX | Pass | 34.5KB `Weekly-Intelligence-Report.pptx` via `presentation` skill |
+| Supabase Storage upload | Pass | `agent-outputs/` bucket, public URL generated |
+| Manifest | Pass | 2 files (output.md primary + PPTX rendered), 4 sources, delivery status |
+| Email delivery | Pass | Resend `9a6b2778-0c64-46c8-bc65-335ae6d1e564` to kvkthecreator@gmail.com |
+| Work budget tracking | Pass | 5 WU total: 3× pm_heartbeat + 1× assembly + 1× render |
+| Render usage tracking | Pass | 2 entries: chart (earlier) + presentation |
+
+### Key Validation: RuntimeDispatch Gap Closed
+
+The **full render pipeline** is now validated end-to-end in production:
+1. Assembly composition includes SKILL.md and RuntimeDispatch tool
+2. LLM produces `presentation` skill call with structured slide content
+3. yarnnn-render service builds PPTX via python-pptx
+4. File uploaded to Supabase Storage (public URL)
+5. Manifest records rendered file with content_url and size
+6. Email includes download link to PPTX
+7. render_usage and work_units tables updated correctly
+
+**Skills exercised in production**: `chart` (agent-level) + `presentation` (project assembly)
+
 ## Observations for Future Work
 
-1. **RuntimeDispatch validation** — needs a dedicated run with instructions that explicitly request rendered output. Consider adding "include a chart of activity volume" to a synthesize agent's instructions.
+1. ~~**RuntimeDispatch validation**~~ — COMPLETED. Both chart and presentation skills validated.
 2. **Composer `'skill'` KeyError** — seen in scheduler logs (March 18 01:50-02:06). Likely transient LLM hallucination in Composer assessment response — the code consistently uses `role`, not `skill`. Monitor.
 3. **Zero approvals** — all 12 Slack Recap runs are `delivered` but none `approved`. The seniority system counts delivered as positive, but explicit user approval/rejection feedback would strengthen the signal.
 4. **Seniority is runtime-derived** — no `seniority` column on `agents` table. `classify_seniority()` computes it from run history each time. Consider caching if performance matters at scale.
+5. **Orchestrator tool round efficiency** — first CreateProject attempt used 8+ tool rounds searching before acting. TP prompt now has CreateProject documentation (commit `0e38b72`) — retest to confirm improvement.
+6. **PM prompt robustness** — PM occasionally produces narrative instead of JSON. Resilient parsing added but root cause is LLM instruction-following. Monitor after stronger "CRITICAL" prefix.
