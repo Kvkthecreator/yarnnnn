@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.13] - ADR-124 Phase 2: Meeting Room frontend — attributed messages + @-mention
+
+### Changed
+- `web/types/desk.ts`: TPMessage gains `authorAgentId`, `authorAgentSlug`, `authorRole`, `authorName` fields. UPDATE_STREAMING_MESSAGE action extended with author fields.
+- `web/contexts/TPContext.tsx`: `sendMessage` accepts `targetAgentId` in context param, sent as `target_agent_id` in API body. Handles `stream_start` SSE event for author attribution. History reconstruction reads author metadata from stored messages.
+- `web/app/(authenticated)/projects/[slug]/page.tsx`: TimelineTab replaced with MeetingRoomTab — attributed message bubbles (color-coded by role: PM purple, contributor blue, user primary), @-mention picker (type @ to target specific agent), target agent indicator above input. Tab renamed "Timeline" → "Meeting Room".
+- `web/types/index.ts`: ProjectContributor gains `title?` and `role?` fields.
+- `api/routes/projects.py`: GET /projects/{slug} enriches contributors with agent title/role from agents table for meeting room participant panel.
+
+### Expected behavior
+- Project page default tab is now "Meeting Room" instead of "Timeline".
+- Message bubbles show author name (PM, contributor agent names) with role-appropriate color accents.
+- Typing @ in chat input opens a mention picker showing project contributors.
+- Selecting a contributor sets `target_agent_id` on the message — backend routes to that agent's ChatAgent.
+- Without @-mention, messages still default to PM (Phase 1 backend behavior).
+- Historical messages loaded from session show correct author attribution from stored metadata.
+
+---
+
 ## [2026.03.19.12] - ADR-124 Phase 1: ChatAgent class + agent_chat mode + routing
 
 ### Changed

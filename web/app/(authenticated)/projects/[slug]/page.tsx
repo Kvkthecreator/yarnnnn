@@ -45,6 +45,7 @@ import { ToolResultList } from '@/components/tp/ToolResultCard';
 import type {
   ProjectDetail,
   ProjectActivityItem,
+  ProjectContributor,
   OutputManifest,
   ContributionFile,
   PMIntelligence,
@@ -152,14 +153,51 @@ function mergeTimeline(activities: ProjectActivityItem[], messages: TPMessage[])
 // Tab components
 // =============================================================================
 
-function TimelineTab({
+// =============================================================================
+// ADR-124 Phase 2: Meeting Room — attributed messages + @-mention input
+// =============================================================================
+
+/** Resolve display name for a message author */
+function getAuthorLabel(msg: TPMessage): string {
+  if (msg.role === 'user') return 'You';
+  if (msg.authorName) return msg.authorName;
+  if (msg.authorAgentSlug) {
+    return msg.authorAgentSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return 'Thinking Partner';
+}
+
+/** Color accent per author role */
+function getAuthorColor(msg: TPMessage): string {
+  if (msg.role === 'user') return 'text-primary/70';
+  switch (msg.authorRole) {
+    case 'pm': return 'text-purple-600 dark:text-purple-400';
+    case 'digest': return 'text-blue-600 dark:text-blue-400';
+    case 'monitor': return 'text-amber-600 dark:text-amber-400';
+    case 'research': return 'text-green-600 dark:text-green-400';
+    default: return 'text-muted-foreground/70';
+  }
+}
+
+/** Bubble background per author type */
+function getBubbleBg(msg: TPMessage): string {
+  if (msg.role === 'user') return 'bg-primary/10';
+  switch (msg.authorRole) {
+    case 'pm': return 'bg-purple-50 dark:bg-purple-950/30';
+    default: return 'bg-muted';
+  }
+}
+
+function MeetingRoomTab({
   activities,
   slug,
   projectTitle,
+  contributors,
 }: {
   activities: ProjectActivityItem[];
   slug: string;
   projectTitle: string;
+  contributors: ProjectContributor[];
 }) {
   const {
     messages,
@@ -172,6 +210,8 @@ function TimelineTab({
   } = useTP();
 
   const [input, setInput] = useState('');
+  const [targetAgent, setTargetAgent] = useState<ProjectContributor | null>(null);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -202,8 +242,12 @@ function TimelineTab({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    sendMessage(input, { surface });
+    sendMessage(input, {
+      surface,
+      targetAgentId: targetAgent?.agent_id || undefined,
+    });
     setInput('');
+    setTargetAgent(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -211,13 +255,41 @@ function TimelineTab({
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
     }
+    // @ triggers mention picker
+    if (e.key === '@') {
+      setShowMentionPicker(true);
+    }
+  };
+
+  const handleMentionSelect = (contributor: ProjectContributor) => {
+    setTargetAgent(contributor);
+    setShowMentionPicker(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInput(val);
+    // Show mention picker when @ is typed at word boundary
+    if (val.endsWith('@') || val.match(/@\S{0,20}$/)) {
+      setShowMentionPicker(true);
+    } else if (!val.includes('@')) {
+      setShowMentionPicker(false);
+    }
   };
 
   const timeline = mergeTimeline(activities, messages);
 
+  // Filter mention picker results
+  const mentionQuery = (input.match(/@(\S*)$/) || [])[1]?.toLowerCase() || '';
+  const filteredContributors = contributors.filter(c =>
+    c.agent_slug.toLowerCase().includes(mentionQuery) ||
+    (c.title || '').toLowerCase().includes(mentionQuery)
+  );
+
   return (
     <div className="flex flex-col h-full">
-      {/* Scrollable timeline */}
+      {/* Scrollable meeting room */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         <div className="max-w-2xl mx-auto w-full space-y-2">
           {timeline.length === 0 && !isLoading && (
@@ -229,7 +301,7 @@ function TimelineTab({
             </div>
           )}
 
-          {timeline.map((item, i) => {
+          {timeline.map((item) => {
             if (item.kind === 'activity') {
               const a = item.data;
               const config = ACTIVITY_EVENT_CONFIG[a.event_type] || {
@@ -252,23 +324,32 @@ function TimelineTab({
               );
             }
 
-            // Chat message
+            // Chat message — attributed bubble (ADR-124)
             const msg = item.data;
+            const authorLabel = getAuthorLabel(msg);
+            const authorColor = getAuthorColor(msg);
+            const bubbleBg = getBubbleBg(msg);
+
             return (
               <div
                 key={`chat-${msg.id}`}
                 className={cn(
                   'text-sm rounded-2xl px-4 py-3 max-w-[85%]',
+                  bubbleBg,
                   msg.role === 'user'
-                    ? 'bg-primary/10 ml-auto rounded-br-md'
-                    : 'bg-muted rounded-bl-md'
+                    ? 'ml-auto rounded-br-md'
+                    : 'rounded-bl-md'
                 )}
               >
                 <span className={cn(
-                  "text-[10px] font-medium text-muted-foreground/70 tracking-wider block mb-1.5",
-                  msg.role === 'user' ? 'uppercase' : 'font-brand text-[11px]'
+                  "text-[10px] font-medium tracking-wider block mb-1.5",
+                  msg.role === 'user' ? 'uppercase text-primary/70' : 'font-brand text-[11px]',
+                  authorColor,
                 )}>
-                  {msg.role === 'user' ? 'You' : 'Thinking Partner'}
+                  {authorLabel}
+                  {msg.authorRole === 'pm' && msg.role !== 'user' && (
+                    <span className="ml-1 opacity-60">PM</span>
+                  )}
                 </span>
                 {msg.blocks && msg.blocks.length > 0 ? (
                   <MessageBlocks blocks={msg.blocks} />
@@ -327,31 +408,77 @@ function TimelineTab({
         </div>
       </div>
 
-      {/* Chat input */}
+      {/* Chat input with @-mention support */}
       <div className="px-4 pb-4 pt-2 shrink-0 border-t border-border" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
-          <div className="flex items-end gap-2 border border-border bg-background rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              enterKeyHint="send"
-              placeholder={`Chat about ${projectTitle}...`}
-              rows={1}
-              className="flex-1 py-3 pl-4 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="shrink-0 p-3 text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:opacity-50 transition-colors"
-              aria-label="Send"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
+        <div className="max-w-2xl mx-auto">
+          {/* Target agent indicator */}
+          {targetAgent && (
+            <div className="flex items-center gap-1.5 mb-1.5 text-xs">
+              <span className="text-muted-foreground">Talking to</span>
+              <span className="font-medium text-purple-600 dark:text-purple-400">
+                {targetAgent.title || targetAgent.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </span>
+              <button
+                onClick={() => setTargetAgent(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* @-mention picker */}
+          {showMentionPicker && filteredContributors.length > 0 && (
+            <div className="mb-1.5 border border-border rounded-lg bg-background shadow-lg overflow-hidden">
+              {filteredContributors.map((c) => (
+                <button
+                  key={c.agent_slug}
+                  onClick={() => handleMentionSelect(c)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <span className={cn(
+                    'w-2 h-2 rounded-full shrink-0',
+                    c.role === 'pm' ? 'bg-purple-500' : 'bg-blue-500'
+                  )} />
+                  <span className="font-medium">
+                    {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
+                  </span>
+                  {c.role && (
+                    <span className="text-xs text-muted-foreground">{c.role}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div className="flex items-end gap-2 border border-border bg-background rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onBlur={() => setTimeout(() => setShowMentionPicker(false), 150)}
+                disabled={isLoading}
+                enterKeyHint="send"
+                placeholder={targetAgent
+                  ? `Message ${targetAgent.title || targetAgent.agent_slug}...`
+                  : `Chat about ${projectTitle}... (@ to mention an agent)`
+                }
+                rows={1}
+                className="flex-1 py-3 pl-4 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="shrink-0 p-3 text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+                aria-label="Send"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -497,7 +624,7 @@ function ContributorsTab({
   slug,
   pmIntelligence,
 }: {
-  contributors: { agent_slug: string; agent_id?: string; expected_contribution?: string }[];
+  contributors: ProjectContributor[];
   contributions: Record<string, string[]>;
   slug: string;
   pmIntelligence?: PMIntelligence | null;
@@ -557,8 +684,11 @@ function ContributorsTab({
               )}
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium group-hover:text-primary transition-colors">
-                  {c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
+                  {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
                 </span>
+                {c.role && (
+                  <span className="text-[10px] text-muted-foreground ml-1.5">{c.role}</span>
+                )}
                 {c.expected_contribution && (
                   <p className="text-xs text-muted-foreground mt-0.5">{c.expected_contribution}</p>
                 )}
@@ -815,7 +945,7 @@ function PMIntelligencePanel({
 // Main Component
 // =============================================================================
 
-type TabId = 'timeline' | 'outputs' | 'contributors';
+type TabId = 'meeting-room' | 'outputs' | 'contributors';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -826,7 +956,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>('timeline');
+  const [activeTab, setActiveTab] = useState<TabId>('meeting-room');
   const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
 
   const loadProject = useCallback(async () => {
@@ -888,7 +1018,7 @@ export default function ProjectDetailPage() {
   const contributors = meta.contributors || [];
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'timeline', label: 'Timeline', icon: <HeartPulse className="w-4 h-4" /> },
+    { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
     { id: 'outputs', label: `Outputs${assemblies.length > 0 ? ` (${assemblies.length})` : ''}`, icon: <Package className="w-4 h-4" /> },
     { id: 'contributors', label: `Contributors${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
   ];
@@ -947,8 +1077,8 @@ export default function ProjectDetailPage() {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === 'timeline' && (
-          <TimelineTab activities={activities} slug={slug} projectTitle={title} />
+        {activeTab === 'meeting-room' && (
+          <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={contributors} />
         )}
         {activeTab === 'outputs' && (
           <div className="h-full overflow-y-auto">

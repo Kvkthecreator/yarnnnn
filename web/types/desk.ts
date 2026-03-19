@@ -73,6 +73,11 @@ export interface TPMessage {
   /** ADR-042: Structured content blocks for inline display */
   blocks?: MessageBlock[];
   timestamp: Date;
+  /** ADR-124: Author attribution for meeting room messages */
+  authorAgentId?: string;
+  authorAgentSlug?: string;
+  authorRole?: string;
+  authorName?: string;
 }
 
 export interface TPToolResult {
@@ -148,7 +153,8 @@ export type TPAction =
   | { type: 'SET_MESSAGES'; messages: TPMessage[] }
   | { type: 'CLEAR_MESSAGES' }
   // ADR-042: Update streaming message blocks in real-time
-  | { type: 'UPDATE_STREAMING_MESSAGE'; blocks: MessageBlock[]; content?: string }
+  // ADR-124: author fields for meeting room attribution
+  | { type: 'UPDATE_STREAMING_MESSAGE'; blocks: MessageBlock[]; content?: string; authorAgentId?: string; authorAgentSlug?: string; authorRole?: string; authorName?: string }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null }
   // ADR-025: Todo tracking actions

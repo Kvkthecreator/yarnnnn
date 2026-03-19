@@ -808,6 +808,9 @@ export interface ProjectContributor {
   agent_slug: string;
   agent_id?: string;
   expected_contribution?: string;
+  /** ADR-124: Enriched from agents table for meeting room */
+  title?: string;
+  role?: string;
 }
 
 // ADR-123 Phase 3: PM intelligence surfacing

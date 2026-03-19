@@ -48,6 +48,7 @@ function tpReducer(state: TPState, action: TPAction): TPState {
       return { ...state, messages: [] };
 
     // ADR-042: Update streaming message blocks in place
+    // ADR-124: Also propagate author attribution fields
     case 'UPDATE_STREAMING_MESSAGE': {
       const messages = [...state.messages];
       const lastIdx = messages.length - 1;
@@ -56,6 +57,10 @@ function tpReducer(state: TPState, action: TPAction): TPState {
           ...messages[lastIdx],
           blocks: action.blocks,
           content: action.content ?? messages[lastIdx].content,
+          ...(action.authorAgentId && { authorAgentId: action.authorAgentId }),
+          ...(action.authorAgentSlug && { authorAgentSlug: action.authorAgentSlug }),
+          ...(action.authorRole && { authorRole: action.authorRole }),
+          ...(action.authorName && { authorName: action.authorName }),
         };
       }
       return { ...state, messages };
@@ -131,7 +136,7 @@ interface TPContextValue {
   // Actions
   sendMessage: (
     content: string,
-    context?: { surface?: DeskSurface; images?: TPImageAttachment[] }
+    context?: { surface?: DeskSurface; images?: TPImageAttachment[]; targetAgentId?: string }
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
   clearClarification: () => void;
@@ -269,6 +274,10 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               timestamp: new Date(m.created_at),
               toolResults: toolResults?.length ? toolResults : undefined,
               blocks: messageBlocks.length > 0 ? messageBlocks : undefined,
+              // ADR-124: Reconstruct author attribution from stored metadata
+              ...(m.metadata?.author_agent_id && { authorAgentId: m.metadata.author_agent_id }),
+              ...(m.metadata?.author_agent_slug && { authorAgentSlug: m.metadata.author_agent_slug }),
+              ...(m.metadata?.author_role && { authorRole: m.metadata.author_role }),
             };
           });
           dispatch({ type: 'SET_MESSAGES', messages });
@@ -298,7 +307,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const sendMessage = useCallback(
     async (
       content: string,
-      context?: { surface?: DeskSurface; images?: TPImageAttachment[] }
+      context?: { surface?: DeskSurface; images?: TPImageAttachment[]; targetAgentId?: string }
     ): Promise<TPToolResult[] | null> => {
       // Cancel any ongoing request
       if (abortControllerRef.current) {
@@ -335,6 +344,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         // Add surface context for TP to understand what user is looking at
         if (context?.surface) {
           body.surface_context = context.surface;
+        }
+
+        // ADR-124: Add target agent ID for meeting room @-mentions
+        if (context?.targetAgentId) {
+          body.target_agent_id = context.targetAgentId;
         }
 
         // Add images as base64 (Claude API format)
@@ -402,6 +416,8 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         let clarifyWasCalled = false;
         // Track pending tool calls by ID for updating status
         const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
+        // ADR-124: Author attribution from stream_start event
+        let streamAuthor: { agentId?: string; agentSlug?: string; role?: string; name?: string } | null = null;
 
         // Helper to update streaming message
         const updateStreamingMessage = () => {
@@ -424,8 +440,26 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
             try {
               const event = JSON.parse(data);
 
-              // API sends: {content}, {tool_use}, {tool_result}, {done}, {error}
-              if (event.content) {
+              // API sends: {stream_start}, {content}, {tool_use}, {tool_result}, {done}, {error}
+              if (event.stream_start) {
+                // ADR-124: Author attribution from backend — update the pending assistant message
+                streamAuthor = {
+                  agentId: event.author_agent_id,
+                  agentSlug: event.author_agent_slug,
+                  role: event.author_role,
+                  name: event.author_name,
+                };
+                // Update the already-added assistant message with author info
+                dispatch({
+                  type: 'UPDATE_STREAMING_MESSAGE',
+                  blocks: [...blocks],
+                  content: assistantContent,
+                  authorAgentId: event.author_agent_id,
+                  authorAgentSlug: event.author_agent_slug,
+                  authorRole: event.author_role,
+                  authorName: event.author_name,
+                });
+              } else if (event.content) {
                 assistantContent += event.content;
                 // Update or add text block
                 // Key fix: only update the LAST text block if it's the most recent block
@@ -574,10 +608,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         }
 
         // Final update with toolResults for legacy compatibility
+        // ADR-124: Preserve author attribution in final message update
         dispatch({
           type: 'UPDATE_STREAMING_MESSAGE',
           blocks: [...blocks],
           content: finalContent,
+          ...(streamAuthor?.agentId && { authorAgentId: streamAuthor.agentId }),
+          ...(streamAuthor?.agentSlug && { authorAgentSlug: streamAuthor.agentSlug }),
+          ...(streamAuthor?.role && { authorRole: streamAuthor.role }),
+          ...(streamAuthor?.name && { authorName: streamAuthor.name }),
         });
         dispatch({ type: 'SET_LOADING', isLoading: false });
 

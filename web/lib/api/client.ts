@@ -361,6 +361,10 @@ export const api = {
                 content?: string;
               }>;
               tools_used?: string[];
+              // ADR-124: Author attribution for meeting room messages
+              author_agent_id?: string;
+              author_agent_slug?: string;
+              author_role?: string;
             };
           }>;
         }>;

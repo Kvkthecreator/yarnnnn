@@ -121,6 +121,21 @@ async def get_project(slug: str, user: UserClient):
 
     assemblies = await pw.list_assemblies()
 
+    # ADR-124: Enrich contributors with agent role/title for meeting room participant panel
+    enriched_contributors = project.get("contributors", [])
+    for c in enriched_contributors:
+        if c.get("agent_id"):
+            try:
+                agent_row = user.client.table("agents").select(
+                    "title, role"
+                ).eq("id", c["agent_id"]).eq("user_id", user.user_id).maybe_single().execute()
+                if agent_row and agent_row.data:
+                    c["title"] = agent_row.data.get("title")
+                    c["role"] = agent_row.data.get("role")
+            except Exception:
+                pass
+    project["contributors"] = enriched_contributors
+
     # ADR-123 Phase 3: PM intelligence — quality assessment + briefs
     pm_intelligence = {}
     quality_md = await pw.read("memory/quality_assessment.md")
