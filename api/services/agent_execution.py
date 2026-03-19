@@ -869,22 +869,47 @@ _NARRATION_PATTERNS = [
     "let me check",
     "let me search",
     "let me look",
+    "let me read",
+    "let me find",
+    "let me see what",
+    "let me review",
+    "let me examine",
+    "let me query",
+    "let me fetch",
+    "now let me",
     "i'll search",
     "i'll check",
     "i'll look",
+    "i'll read",
+    "i'll review",
     "i will search",
     "i will check",
-    "let me see what",
+    "i will read",
     "checking the",
     "searching for",
     "looking for platform content",
-    "let me find",
+    "now i need to",
+    "first, i'll",
+    "first, let me",
+    "i should read",
+    "i should check",
+    "i need to read",
+    "i need to check",
 ]
+
+
+def _is_narration(text: str) -> bool:
+    """Check if text is tool-use narration rather than substantive content."""
+    text_lower = text.lower().strip()
+    return any(text_lower.startswith(p) or f"\n{p}" in text_lower for p in _NARRATION_PATTERNS)
 
 
 def _strip_tool_narration(draft: str) -> str:
     """
-    Strip tool-use narration from draft if the entire output is just narration.
+    Strip tool-use narration from draft if the output is just narration.
+
+    Catches both short narration (1-3 lines) and longer narration that starts
+    with investigation language but never transitions to real content.
 
     Returns cleaned draft, or empty string if draft was purely narration.
     """
@@ -892,12 +917,24 @@ def _strip_tool_narration(draft: str) -> str:
     if not lines:
         return ""
 
-    # If the entire draft is 1-3 short lines that match narration patterns, reject it
+    draft_lower = draft.lower()
+
+    # Short narration: 1-3 lines under 30 words
     if len(lines) <= 3 and len(draft.split()) < 30:
-        draft_lower = draft.lower()
         if any(pattern in draft_lower for pattern in _NARRATION_PATTERNS):
-            logger.warning(f"[GENERATE] Stripped tool narration from draft: {draft[:100]}")
+            logger.warning(f"[GENERATE] Stripped short tool narration: {draft[:100]}")
             return ""
+
+    # Longer narration: starts with narration pattern AND has no markdown structure
+    # (real content has headers, lists, bold text; narration is plain prose about tool use)
+    has_structure = any(
+        line.startswith("#") or line.startswith("- ") or line.startswith("* ")
+        or line.startswith("**") or line.startswith("| ")
+        for line in lines
+    )
+    if not has_structure and _is_narration(draft):
+        logger.warning(f"[GENERATE] Stripped unstructured tool narration: {draft[:100]}")
+        return ""
 
     return draft
 
@@ -1291,15 +1328,16 @@ async def generate_draft_inline(
                     f"[GENERATE] Headless agent hit max tool rounds ({max_tool_rounds}), "
                     f"tools used: {', '.join(tools_used)}"
                 )
-                # If agent has text alongside tool calls, use it
-                if response.text and response.text.strip():
-                    draft = response.text.strip()
+                # If agent has substantive text (not narration) alongside tool calls, use it
+                candidate = response.text.strip() if response.text else ""
+                if candidate and not _is_narration(candidate):
+                    draft = candidate
                     break
 
                 # Force a final synthesis call with no tools available
                 logger.info("[GENERATE] Forcing final synthesis call (no tools)")
                 messages.append({"role": "assistant", "content": response.text or ""})
-                messages.append({"role": "user", "content": "You have reached the tool limit. Please synthesize all the information gathered so far and produce the final agent now. Do not request any more tools."})
+                messages.append({"role": "user", "content": "You have reached the tool limit. Please synthesize all the information gathered so far and produce the final output now. Do not request any more tools — produce the deliverable in its full format."})
                 final_response = await chat_completion_with_tools(
                     messages=messages,
                     system=system_prompt,
