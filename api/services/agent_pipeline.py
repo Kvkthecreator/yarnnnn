@@ -410,7 +410,9 @@ Your job is to assess the project state and decide ONE action:
 4. **escalate** — Something is wrong (repeated failures, missing contributors, budget exhausted, unclear spec). Flag for TP.
 5. **update_work_plan** — No work plan exists yet, or project intent/intentions changed. Decompose intent into operational plan.
 
-RESPOND WITH VALID JSON (no markdown fences):
+CRITICAL: Your ENTIRE response must be a single valid JSON object. No markdown, no headers, no prose, no fences — ONLY JSON.
+
+Output format:
 {{"action": "assemble"|"advance_contributor"|"wait"|"escalate"|"update_work_plan", "reason": "why this action", "target_agent": "agent_slug (only for advance_contributor)", "details": "optional additional context", "work_plan": {{}} (only for update_work_plan)}}
 
 For update_work_plan, include a work_plan object:

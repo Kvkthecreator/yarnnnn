@@ -308,17 +308,34 @@ async def _handle_pm_decision(
 
     project_slug = type_config.get("project_slug", "")
 
-    # Parse PM decision
+    # Parse PM decision — try raw JSON first, then extract from markdown
+    decision = None
     try:
         decision = _json.loads(draft.strip())
     except _json.JSONDecodeError:
-        # Graceful fallback — PM produced malformed output
-        logger.warning(f"[PM] Failed to parse PM decision as JSON: {draft[:200]}")
-        return {
-            "pm_action": "parse_error",
-            "success": False,
-            "error": "PM output was not valid JSON",
-        }
+        # Try to extract JSON from markdown fences or embedded JSON
+        import re
+        json_match = re.search(r'\{[^{}]*"action"\s*:\s*"[^"]+?"[^{}]*\}', draft, re.DOTALL)
+        if json_match:
+            try:
+                decision = _json.loads(json_match.group())
+                logger.info(f"[PM] Extracted JSON from non-JSON output")
+            except _json.JSONDecodeError:
+                pass
+
+    if decision is None:
+        # Last resort: infer action from content keywords
+        draft_lower = draft.lower()
+        if "ready" in draft_lower and "assembl" in draft_lower:
+            decision = {"action": "assemble", "reason": "PM indicated readiness for assembly (inferred from narrative output)"}
+            logger.info(f"[PM] Inferred 'assemble' from narrative output")
+        else:
+            logger.warning(f"[PM] Failed to parse PM decision as JSON: {draft[:200]}")
+            return {
+                "pm_action": "parse_error",
+                "success": False,
+                "error": "PM output was not valid JSON",
+            }
 
     action = decision.get("action", "unknown")
     reason = decision.get("reason", "")
