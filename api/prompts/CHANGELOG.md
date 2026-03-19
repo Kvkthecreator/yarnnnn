@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.9] - ADR-121: Steer path validated end-to-end
+
+### Validated
+- PM Intelligence Director steer path confirmed in production (PM v6→v9)
+- `assess_quality` → `steer_contributor` → brief.md written → contributor advanced → contributor re-ran with brief injected → output updated via contribution bridge
+- Two bugs found and fixed during validation: brace-balanced JSON parser (2026.03.19.7), quality assessment injection (2026.03.19.8b)
+- ADR-121 updated with production validation section
+
+### Expected behavior
+- PM correctly chooses `steer_contributor` when prior assessment shows `needs_steering` verdict
+- Brief appears in contributing agent's context as "PM Directive (brief)"
+- Contribution bridge writes agent output back to project workspace after delivery
+
+---
+
 ## [2026.03.19.8] - ADR-122: Project Type Registry — unified scaffolding layer
 
 ### Changed

@@ -1,6 +1,6 @@
 # ADR-121: PM as Project Intelligence Director
 
-> **Status**: Phase 1 Implemented
+> **Status**: Phase 1-2 Implemented, Steer Path Validated
 > **Date**: 2026-03-19
 > **Authors**: KVK, Claude
 > **Extends**: ADR-120 (Project Execution & Work Budget)
@@ -164,6 +164,34 @@ And extends it:
 | Execution strategies | Read `/contributions/{slug}/brief.md` during context gathering |
 | `workspace.py` ProjectWorkspace | `write_brief()`, `read_brief()` methods |
 | `api/prompts/CHANGELOG.md` | PM prompt v2.0 entry, assembly prompt v2.0 entry |
+
+## Production Validation (2026-03-19)
+
+### Steer Path — End-to-End Validated
+
+**Test scenario**: Thinned `weekly-cross-platform-synthesis` contribution to 2 sentences ("Some messages were posted in #daily-work about development progress."). Triggered PM runs to validate the full assess→steer→re-run loop.
+
+**Results (PM runs v6–v9)**:
+| Run | Action | Outcome |
+|-----|--------|---------|
+| v6 | `assess_quality` | Correctly scored all contributors. First quality assessment written to `memory/quality_assessment.md`. |
+| v7 | `assess_quality` | Re-assessed after contribution bridge connected. Found `weekly-cross-platform-synthesis` thin (coverage=thin, depth=shallow, verdict=needs_steering). |
+| v8 | `assess_quality` | Stuck — PM couldn't see prior assessment. **Bug**: `quality_assessment.md` not injected into PM prompt. Fixed in commit `6225b1d`. |
+| v9 | `steer_contributor` | PM saw prior assessment → chose `steer_contributor` with specific brief: "provide comprehensive cross-platform synthesis across all connected platforms, identify emerging trends, highlight strategic themes." |
+
+**Steer path mechanics confirmed**:
+1. Brief written to `/projects/weekly-intelligence-report/contributions/weekly-cross-platform-synthesis/brief.md` (536 chars)
+2. Contributor advanced: `next_run_at` set to current time (immediate eligibility)
+3. Contributor v4 ran with 43K input tokens (brief injected via `load_context()`)
+4. Output written back via contribution bridge to `output.md`
+
+**Bugs found and fixed**:
+- **P0**: Brace-balanced JSON parser needed for nested objects (commit `21ab07a`)
+- **P1**: Quality assessment not injected into PM context (commit `6225b1d`)
+
+### Contribution Bridge — Validated
+
+`_write_contribution_to_projects()` correctly reads `memory/projects.json`, writes output to each project's `/contributions/{agent_slug}/output.md`. Confirmed timestamps match between agent_run delivery and workspace_file update.
 
 ## What This Does NOT Change
 
