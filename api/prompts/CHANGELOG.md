@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.11] - ADR-123 Phase 3: Frontend objective editing + PM intelligence surfacing
+
+### Changed
+- `api/routes/projects.py`: GET /projects/{slug} returns `pm_intelligence` (quality_assessment markdown + per-contributor briefs). `PROJECT_EVENT_TYPES` extended with `project_quality_assessed`, `project_contributor_steered`.
+- `web/lib/api/client.ts`: Added `projects.update()` method (PATCH /api/projects/{slug}).
+- `web/types/index.ts`: Added `PMIntelligence` interface. `ProjectDetail` extended with `pm_intelligence` field.
+- `web/app/(authenticated)/projects/[slug]/page.tsx`: Objective section is now editable (inline form, saves via PATCH). PM quality assessment shown at top of Contributors tab. Per-contributor PM briefs shown when contributor expanded. Timeline renders `project_quality_assessed` and `project_contributor_steered` events.
+
+### Expected behavior
+- User can edit project objective directly from project detail page header (hover → pencil icon → inline form → save).
+- Contributors tab shows PM quality assessment summary at top, per-contributor briefs inside expanded sections.
+- Timeline shows PM quality assessment and steer events with structured metadata display.
+
+---
+
 ## [2026.03.19.10] - ADR-123: Project Objective & Ownership Model — Phase 1-2
 
 ### Changed

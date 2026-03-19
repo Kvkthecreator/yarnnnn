@@ -798,7 +798,9 @@ export interface TierLimits {
 
 export interface ProjectSummary {
   project_slug: string;
-  summary: string;
+  title: string;
+  type_key: string | null;
+  purpose: string | null;
   updated_at: string;
 }
 
@@ -806,6 +808,12 @@ export interface ProjectContributor {
   agent_slug: string;
   agent_id?: string;
   expected_contribution?: string;
+}
+
+// ADR-123 Phase 3: PM intelligence surfacing
+export interface PMIntelligence {
+  quality_assessment?: string;  // markdown from memory/quality_assessment.md
+  briefs?: Record<string, string>;  // agent_slug → brief markdown
 }
 
 export interface ProjectDetail {
@@ -824,6 +832,7 @@ export interface ProjectDetail {
   };
   contributions: Record<string, string[]>;
   assemblies: string[];
+  pm_intelligence?: PMIntelligence | null;  // ADR-123 Phase 3
 }
 
 export interface ProjectActivityItem {

@@ -66,12 +66,14 @@ class UpdateProjectRequest(BaseModel):
 
 @router.get("")
 async def list_projects(user: UserClient):
-    """List all projects for the user."""
+    """List all projects for the user — parsed from PROJECT.md content."""
+    from routes.dashboard import _extract_title, _extract_type_key, _extract_purpose
+
     try:
-        # Query workspace_files for /projects/*/PROJECT.md
+        # Query workspace_files for /projects/*/PROJECT.md (include content for parsing)
         result = (
             user.client.table("workspace_files")
-            .select("path, summary, updated_at, metadata")
+            .select("path, content, updated_at")
             .eq("user_id", user.user_id)
             .like("path", "/projects/%/PROJECT.md")
             .in_("lifecycle", ["active", "delivered"])
@@ -86,9 +88,12 @@ async def list_projects(user: UserClient):
             parts = path.split("/")
             if len(parts) >= 3:
                 slug = parts[2]
+                content = row.get("content", "")
                 projects.append({
                     "project_slug": slug,
-                    "summary": row.get("summary", ""),
+                    "title": _extract_title(content),
+                    "type_key": _extract_type_key(content),
+                    "purpose": _extract_purpose(content),
                     "updated_at": row.get("updated_at"),
                 })
 
@@ -116,11 +121,25 @@ async def get_project(slug: str, user: UserClient):
 
     assemblies = await pw.list_assemblies()
 
+    # ADR-123 Phase 3: PM intelligence — quality assessment + briefs
+    pm_intelligence = {}
+    quality_md = await pw.read("memory/quality_assessment.md")
+    if quality_md:
+        pm_intelligence["quality_assessment"] = quality_md
+    briefs = {}
+    for cs in contributor_slugs:
+        brief = await pw.read_brief(cs)
+        if brief:
+            briefs[cs] = brief
+    if briefs:
+        pm_intelligence["briefs"] = briefs
+
     return {
         "project_slug": slug,
         "project": project,
         "contributions": contributions,
         "assemblies": assemblies,
+        "pm_intelligence": pm_intelligence if pm_intelligence else None,
     }
 
 
@@ -301,6 +320,9 @@ PROJECT_EVENT_TYPES = [
     "project_escalated",
     "project_contributor_advanced",
     "duty_promoted",
+    # ADR-123 Phase 3: PM intelligence events
+    "project_quality_assessed",
+    "project_contributor_steered",
 ]
 
 

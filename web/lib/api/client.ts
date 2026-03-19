@@ -549,6 +549,18 @@ export const api = {
     get: (slug: string) =>
       request<ProjectDetail>(`/api/projects/${slug}`),
 
+    update: (slug: string, data: {
+      title?: string;
+      objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
+      contributors?: Array<{ agent_id: string; expected_contribution: string }>;
+      assembly_spec?: string;
+      delivery?: Record<string, unknown>;
+    }) =>
+      request<{ project_slug: string; title: string; updated: boolean }>(
+        `/api/projects/${slug}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      ),
+
     archive: (slug: string) =>
       request<{ project_slug: string; archived: boolean }>(
         `/api/projects/${slug}`,

@@ -30,6 +30,11 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Pencil,
+  Check,
+  X,
+  Brain,
+  ClipboardCheck,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -42,6 +47,7 @@ import type {
   ProjectActivityItem,
   OutputManifest,
   ContributionFile,
+  PMIntelligence,
 } from '@/types';
 import type { TPMessage } from '@/types/desk';
 
@@ -79,6 +85,17 @@ const ACTIVITY_EVENT_CONFIG: Record<string, {
     icon: <TrendingUp className="w-4 h-4" />,
     color: 'text-green-500',
   },
+  // ADR-123 Phase 3: PM intelligence events
+  project_quality_assessed: {
+    label: 'Quality assessed',
+    icon: <ClipboardCheck className="w-4 h-4" />,
+    color: 'text-purple-500',
+  },
+  project_contributor_steered: {
+    label: 'Contributor steered',
+    icon: <Brain className="w-4 h-4" />,
+    color: 'text-amber-500',
+  },
 };
 
 function formatActivitySummary(item: ProjectActivityItem): string {
@@ -99,6 +116,12 @@ function formatActivitySummary(item: ProjectActivityItem): string {
       return `PM asked ${meta.target_agent_slug || 'a contributor'} to run early${meta.reason ? ` — ${meta.reason}` : ''}`;
     case 'duty_promoted':
       return item.summary || 'Agent earned a new duty';
+    case 'project_quality_assessed': {
+      const verdict = meta.verdict || '';
+      return `PM assessed quality${verdict ? ` — ${verdict}` : ''}`;
+    }
+    case 'project_contributor_steered':
+      return `PM steered ${meta.target_agent_slug || 'a contributor'}${meta.guidance ? ` — ${meta.guidance}` : ''}`;
     default:
       return item.summary || item.event_type;
   }
@@ -472,10 +495,12 @@ function ContributorsTab({
   contributors,
   contributions,
   slug,
+  pmIntelligence,
 }: {
   contributors: { agent_slug: string; agent_id?: string; expected_contribution?: string }[];
   contributions: Record<string, string[]>;
   slug: string;
+  pmIntelligence?: PMIntelligence | null;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [files, setFiles] = useState<ContributionFile[]>([]);
@@ -510,6 +535,12 @@ function ContributorsTab({
 
   return (
     <div className="divide-y divide-border">
+      {/* PM quality assessment summary */}
+      {pmIntelligence?.quality_assessment && (
+        <div className="px-4 py-3">
+          <PMIntelligencePanel pmIntelligence={pmIntelligence} />
+        </div>
+      )}
       {contributors.map((c) => {
         const contribPaths = contributions[c.agent_slug] || [];
         const isExpanded = expanded === c.agent_slug;
@@ -551,9 +582,13 @@ function ContributorsTab({
               </div>
             </button>
 
-            {/* Expanded: contribution file contents */}
+            {/* Expanded: PM brief + contribution file contents */}
             {isExpanded && (
               <div className="mt-3 ml-6">
+                {/* Per-contributor PM brief */}
+                {pmIntelligence && pmIntelligence.briefs?.[c.agent_slug] && (
+                  <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={c.agent_slug} />
+                )}
                 {filesLoading ? (
                   <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -588,6 +623,192 @@ function ContributorsTab({
       })}
     </div>
   );
+}
+
+// =============================================================================
+// ADR-123 Phase 3: Editable objective section
+// =============================================================================
+
+function EditableObjective({
+  slug,
+  objective,
+  onUpdate,
+}: {
+  slug: string;
+  objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
+  onUpdate: (obj: { deliverable?: string; audience?: string; format?: string; purpose?: string }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    deliverable: objective?.deliverable || '',
+    audience: objective?.audience || '',
+    format: objective?.format || '',
+    purpose: objective?.purpose || '',
+  });
+
+  const handleEdit = () => {
+    setDraft({
+      deliverable: objective?.deliverable || '',
+      audience: objective?.audience || '',
+      format: objective?.format || '',
+      purpose: objective?.purpose || '',
+    });
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const cleaned = Object.fromEntries(
+        Object.entries(draft).filter(([, v]) => v.trim() !== '')
+      );
+      await api.projects.update(slug, { objective: cleaned });
+      onUpdate(cleaned);
+      setEditing(false);
+    } catch (err) {
+      console.error('Failed to update objective:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-2 mt-1.5">
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            value={draft.deliverable}
+            onChange={(e) => setDraft({ ...draft, deliverable: e.target.value })}
+            placeholder="Deliverable"
+            className="text-xs px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <input
+            value={draft.audience}
+            onChange={(e) => setDraft({ ...draft, audience: e.target.value })}
+            placeholder="Audience"
+            className="text-xs px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <input
+            value={draft.format}
+            onChange={(e) => setDraft({ ...draft, format: e.target.value })}
+            placeholder="Format"
+            className="text-xs px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <input
+          value={draft.purpose}
+          onChange={(e) => setDraft({ ...draft, purpose: e.target.value })}
+          placeholder="Purpose — why this project exists"
+          className="w-full text-sm px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Save
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group/obj">
+      {objective && (
+        <div className="flex flex-wrap gap-2 mt-1.5">
+          {objective.deliverable && (
+            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+              {objective.deliverable}
+            </span>
+          )}
+          {objective.audience && (
+            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+              For {objective.audience}
+            </span>
+          )}
+          {objective.format && (
+            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+              {objective.format}
+            </span>
+          )}
+          <button
+            onClick={handleEdit}
+            className="opacity-0 group-hover/obj:opacity-100 text-muted-foreground hover:text-foreground transition-all"
+            title="Edit objective"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      {objective?.purpose && (
+        <p className="text-sm text-muted-foreground mt-1.5">{objective.purpose}</p>
+      )}
+      {!objective && (
+        <button
+          onClick={handleEdit}
+          className="text-xs text-muted-foreground hover:text-primary transition-colors mt-1.5 flex items-center gap-1"
+        >
+          <Pencil className="w-3 h-3" />
+          Set objective
+        </button>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// ADR-123 Phase 3: PM Intelligence panel for Contributors tab
+// =============================================================================
+
+function PMIntelligencePanel({
+  pmIntelligence,
+  agentSlug,
+}: {
+  pmIntelligence: PMIntelligence;
+  agentSlug?: string;
+}) {
+  // If agentSlug provided, show brief for that contributor
+  if (agentSlug && pmIntelligence.briefs?.[agentSlug]) {
+    return (
+      <div className="border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 bg-amber-50/50 dark:bg-amber-900/10 mt-2">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-400">PM Brief</span>
+        </div>
+        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 text-xs">
+          <ReactMarkdown>{pmIntelligence.briefs[agentSlug]}</ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
+
+  // Top-level quality assessment
+  if (pmIntelligence.quality_assessment) {
+    return (
+      <div className="border border-purple-200 dark:border-purple-800/50 rounded-lg p-3 bg-purple-50/50 dark:bg-purple-900/10">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <ClipboardCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+          <span className="text-xs font-medium text-purple-700 dark:text-purple-400">PM Quality Assessment</span>
+        </div>
+        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 text-xs">
+          <ReactMarkdown>{pmIntelligence.quality_assessment}</ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // =============================================================================
@@ -660,9 +881,9 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const { project: meta, contributions, assemblies } = project;
+  const { project: meta, contributions, assemblies, pm_intelligence } = project;
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const objective = meta.objective;
+  const [objective, setObjective] = useState(meta.objective);
   const contributors = meta.contributors || [];
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -686,28 +907,11 @@ export default function ProjectDetailPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold">{title}</h1>
-            {objective && (
-              <div className="flex flex-wrap gap-2 mt-1.5">
-                {objective.deliverable && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    {objective.deliverable}
-                  </span>
-                )}
-                {objective.audience && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    For {objective.audience}
-                  </span>
-                )}
-                {objective.format && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    {objective.format}
-                  </span>
-                )}
-              </div>
-            )}
-            {objective?.purpose && (
-              <p className="text-sm text-muted-foreground mt-1.5">{objective.purpose}</p>
-            )}
+            <EditableObjective
+              slug={slug}
+              objective={objective}
+              onUpdate={(obj) => setObjective(obj)}
+            />
           </div>
           <button
             onClick={handleArchive}
@@ -759,6 +963,7 @@ export default function ProjectDetailPage() {
                 contributors={contributors}
                 contributions={contributions}
                 slug={slug}
+                pmIntelligence={pm_intelligence}
               />
             </div>
           </div>
