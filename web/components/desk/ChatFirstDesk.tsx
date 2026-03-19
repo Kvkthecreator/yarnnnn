@@ -4,11 +4,12 @@
  * ADR-037: Chat-First Surface Architecture
  * ADR-091: Workspace Layout & Navigation Architecture
  *
- * Global TP workspace — renders WorkspaceLayout with "Agent" identity.
+ * Global TP workspace — renders WorkspaceLayout with "Orchestrator" identity.
  * No agent scope. Chat is the primary interface.
  *
  * Panel tabs:
- * - Agents: compact entry cards linking to /agents/[id]
+ * - Projects: compact entry cards linking to /projects/[slug]
+ * - Sessions: chat session history
  * - Platforms: connected platforms + document uploads (PlatformSyncStatus component)
  */
 
@@ -24,7 +25,6 @@ import {
   Send,
   X,
   ImagePlus,
-  FileText,
   ArrowRight,
   Upload,
   Search,
@@ -49,88 +49,33 @@ import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
 import { SessionsPanel } from '@/components/agents/AgentDrawerPanels';
-import type { Agent, AgentSession } from '@/types';
+import type { Agent, AgentSession, ProjectSummary } from '@/types';
 
 // =============================================================================
-// Helpers: platform icon derivation (AGENT-PRESENTATION-PRINCIPLES.md)
+// Panel: Projects (compact entry cards — ADR-122/124 project-first model)
 // =============================================================================
 
-/** Derive platform providers from agent sources for visual display */
-function getAgentPlatformProviders(agent: Agent): string[] {
-  const providers: Record<string, true> = {};
-  for (const s of agent.sources ?? []) {
-    const p = s.provider as string | undefined;
-    if (p) {
-      // Normalize "google" → "gmail" or "calendar" based on resource_id
-      if (p === 'google') {
-        const rid = s.resource_id;
-        const gmailLabels = ['INBOX', 'SENT', 'IMPORTANT', 'STARRED'];
-        if (rid && (gmailLabels.includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
-          providers['gmail'] = true;
-        } else {
-          providers['calendar'] = true;
-        }
-      } else {
-        providers[p] = true;
-      }
-    }
-  }
-  return Object.keys(providers);
-}
-
-/** Render platform icon(s) for an agent — source-first visual anchor */
-function AgentSourceIcons({ agent, className = 'w-4 h-4' }: { agent: Agent; className?: string }) {
-  const providers = getAgentPlatformProviders(agent);
-
-  if (providers.length === 0) {
-    // Research/knowledge agents — use skill-derived icon
-    if (agent.role === 'research') return <Globe className={className} />;
-    return <Brain className={className} />;
-  }
-
-  if (providers.length === 1) {
-    return <>{getPlatformIcon(providers[0], className)}</>;
-  }
-
-  // Multi-platform: show stacked icons (max 2 visible + overflow)
-  return (
-    <div className="flex items-center -space-x-1">
-      {providers.slice(0, 2).map((p) => (
-        <span key={p} className="inline-block">{getPlatformIcon(p, className)}</span>
-      ))}
-      {providers.length > 2 && (
-        <span className="text-[9px] text-muted-foreground font-medium ml-0.5">+{providers.length - 2}</span>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Panel: Agents (compact entry cards)
-// =============================================================================
-
-function AgentsPanel() {
+function ProjectsPanel() {
   const { isLoading } = useTP();
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedOnceRef = useRef(false);
   const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
-  const loadAgents = useCallback(async (silent = false) => {
+  const loadProjects = useCallback(async (silent = false) => {
     const requestSeq = ++requestSeqRef.current;
 
-    // Show blocking spinner only on first load.
     if (!silent && !hasLoadedOnceRef.current && mountedRef.current) {
       setLoading(true);
     }
 
     try {
-      const data = await api.agents.list();
+      const data = await api.projects.list();
       if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
-      setAgents(data);
+      setProjects(data.projects);
     } catch (err) {
-      console.error('Failed to load agents:', err);
+      console.error('Failed to load projects:', err);
     } finally {
       if (!hasLoadedOnceRef.current && mountedRef.current) {
         hasLoadedOnceRef.current = true;
@@ -139,63 +84,37 @@ function AgentsPanel() {
     }
   }, []);
 
-  // Initial load + unmount guard.
   useEffect(() => {
     mountedRef.current = true;
-    void loadAgents();
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [loadAgents]);
+    void loadProjects();
+    return () => { mountedRef.current = false; };
+  }, [loadProjects]);
 
   // Refresh after each TP turn completes.
   useEffect(() => {
-    if (!isLoading) {
-      void loadAgents(true);
-    }
-  }, [isLoading, loadAgents]);
+    if (!isLoading) { void loadProjects(true); }
+  }, [isLoading, loadProjects]);
 
-  // Poll while TP is actively working so status transitions show up during execution.
+  // Poll while TP is actively working.
   useEffect(() => {
     if (!isLoading) return;
-    const intervalId = window.setInterval(() => {
-      void loadAgents(true);
-    }, 4000);
+    const intervalId = window.setInterval(() => { void loadProjects(true); }, 4000);
     return () => window.clearInterval(intervalId);
-  }, [isLoading, loadAgents]);
+  }, [isLoading, loadProjects]);
 
-  // Refresh when tab regains focus/visibility.
+  // Refresh on focus/visibility.
   useEffect(() => {
-    const onFocus = () => void loadAgents(true);
+    const onFocus = () => void loadProjects(true);
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        void loadAgents(true);
-      }
+      if (document.visibilityState === 'visible') void loadProjects(true);
     };
-
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [loadAgents]);
-
-  const getRunStatusLabel = (agent: Agent): string => {
-    const status = agent.latest_version_status;
-    if (status === 'delivered') return 'Delivered';
-    if (status === 'failed') return 'Failed';
-    if (status === 'generating') return 'Generating...';
-    if (status === 'staged') return 'Ready for review';
-    if (status === 'reviewing') return 'Pending approval';
-    if (status === 'approved') return 'Approved';
-    if (status === 'rejected') return 'Needs revision';
-
-    if (agent.version_count) {
-      return `${agent.version_count} run${agent.version_count !== 1 ? 's' : ''}`;
-    }
-    return 'No runs yet';
-  };
+  }, [loadProjects]);
 
   if (loading) {
     return (
@@ -205,12 +124,12 @@ function AgentsPanel() {
     );
   }
 
-  if (agents.length === 0) {
+  if (projects.length === 0) {
     return (
       <div className="p-4 text-center">
-        <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No agents yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">Ask yarnnn in chat to create one</p>
+        <Layers className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No projects yet</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">Connect a platform or ask yarnnn to set one up</p>
       </div>
     );
   }
@@ -218,28 +137,17 @@ function AgentsPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="divide-y divide-border flex-1 overflow-y-auto">
-        {agents.map((d) => (
+        {projects.map((p) => (
           <Link
-            key={d.id}
-            href={`/agents/${d.id}`}
+            key={p.project_slug}
+            href={`/projects/${p.project_slug}`}
             className="flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors group"
           >
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Source-first: platform icon as primary visual anchor */}
-              <span className="shrink-0 text-muted-foreground relative">
-                <AgentSourceIcons agent={d} className="w-4 h-4" />
-                {/* Status dot */}
-                <span className={cn(
-                  'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
-                  d.status === 'paused' ? 'bg-amber-400' : 'bg-green-500'
-                )} />
-              </span>
-              <div className="min-w-0">
-                <span className="text-sm font-medium truncate block">{d.title}</span>
-                <span className="text-xs text-muted-foreground">
-                  {getRunStatusLabel(d)}
-                </span>
-              </div>
+            <div className="min-w-0">
+              <span className="text-sm font-medium truncate block">{p.title}</span>
+              {p.purpose && (
+                <span className="text-xs text-muted-foreground truncate block">{p.purpose}</span>
+              )}
             </div>
             <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2" />
           </Link>
@@ -276,53 +184,53 @@ function formatTokenCount(tokens: number): string {
 }
 
 // =============================================================================
-// Starter templates — agent creation + TP capabilities
+// Starter templates — project creation + TP capabilities
 // =============================================================================
 
 type TemplateIcon = 'slack' | 'gmail' | 'notion' | 'calendar' | 'cross-platform' | 'globe' | 'search' | 'brain';
 
-/** Agent creation templates — source-first, per AGENT-PRESENTATION-PRINCIPLES.md */
-const AGENT_TEMPLATES = [
+/** Project creation templates — source-first, per ADR-122 project-first model */
+const PROJECT_TEMPLATES = [
   {
     id: 'slack-recap',
     label: 'Slack Recap',
     description: 'Daily or weekly summary of your Slack channels',
-    prompt: 'Set up a recurring Slack recap for me',
+    prompt: 'Set up a Slack recap project for me',
     icon: 'slack' as TemplateIcon,
   },
   {
     id: 'gmail-digest',
     label: 'Gmail Digest',
     description: 'Daily or weekly digest of your Gmail labels',
-    prompt: 'Set up a recurring Gmail digest for me',
+    prompt: 'Set up a Gmail digest project for me',
     icon: 'gmail' as TemplateIcon,
   },
   {
     id: 'notion-summary',
     label: 'Notion Summary',
     description: 'Daily or weekly summary of your Notion pages',
-    prompt: 'Set up a recurring Notion summary for me',
+    prompt: 'Set up a Notion summary project for me',
     icon: 'notion' as TemplateIcon,
   },
   {
     id: 'meeting-prep',
     label: 'Meeting Prep',
     description: 'Reads your calendar and preps you for the day\'s meetings',
-    prompt: 'Set up daily meeting prep from my calendar and Slack',
+    prompt: 'Set up a meeting prep project from my calendar and Slack',
     icon: 'calendar' as TemplateIcon,
   },
   {
     id: 'work-summary',
     label: 'Work Summary',
     description: 'Weekly synthesis across all your connected platforms',
-    prompt: 'Set up a weekly work summary across my platforms',
+    prompt: 'Set up a weekly work summary project across my platforms',
     icon: 'cross-platform' as TemplateIcon,
   },
   {
     id: 'proactive-insights',
     label: 'Proactive Insights',
     description: 'Spots emerging themes and researches them for you',
-    prompt: 'Set up proactive insights that research trends across my platforms',
+    prompt: 'Set up a proactive insights project that researches trends across my platforms',
     icon: 'globe' as TemplateIcon,
   },
 ];
@@ -439,10 +347,10 @@ export function ChatFirstDesk() {
     fileInputRef,
   } = useFileAttachments();
 
-  // Handle ?create param — pre-fill input for agent creation handoff
+  // Handle ?create param — pre-fill input for project creation handoff
   useEffect(() => {
     if (searchParams?.has('create')) {
-      setInput('I want to create a new agent');
+      setInput('I want to set up a new project');
       textareaRef.current?.focus();
       router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
     }
@@ -561,8 +469,8 @@ export function ChatFirstDesk() {
   // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
-      id: 'create-agent',
-      label: 'Create agent',
+      id: 'create-project',
+      label: 'Create project',
       icon: Sparkles,
       verb: 'show',
       onSelect: () => setShowCreateCards((prev) => !prev),
@@ -627,13 +535,13 @@ export function ChatFirstDesk() {
       .join(' ');
   };
 
-  const identityLabel = activeCommand ? formatCommandName(activeCommand) : 'Agent';
+  const identityLabel = activeCommand ? formatCommandName(activeCommand) : 'Orchestrator';
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'agents',
-      label: 'Agents',
-      content: <AgentsPanel />,
+      id: 'projects',
+      label: 'Projects',
+      content: <ProjectsPanel />,
     },
     {
       id: 'sessions',
@@ -747,15 +655,15 @@ export function ChatFirstDesk() {
                   <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                   <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    Create an agent, search your platforms, or just ask anything.
+                    Set up a project, search your platforms, or just ask anything.
                   </p>
                 </div>
                 <div className="max-w-2xl mx-auto space-y-4">
-                  {/* Agent creation cards */}
+                  {/* Project creation cards */}
                   <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Create an agent</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Set up a project</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {AGENT_TEMPLATES.filter((tpl) => {
+                      {PROJECT_TEMPLATES.filter((tpl) => {
                         // ADR-110: Hide template for bootstrapped platform
                         if (!bootstrapProvider) return true;
                         const platformMap: Record<string, string> = {
@@ -906,14 +814,14 @@ export function ChatFirstDesk() {
               isOpen={commandPickerOpen}
             />
 
-            {/* Create agent cards — show verb */}
+            {/* Create project cards — show verb */}
             {showCreateCards && (
               <div
                 ref={createCardsRef}
                 className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">What should your agent do?</p>
+                  <p className="text-xs font-medium text-muted-foreground">What kind of project?</p>
                   <button
                     type="button"
                     onClick={() => setShowCreateCards(false)}
@@ -923,7 +831,7 @@ export function ChatFirstDesk() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {AGENT_TEMPLATES.map((tpl) => (
+                  {PROJECT_TEMPLATES.map((tpl) => (
                     <button
                       key={tpl.id}
                       onClick={() => {

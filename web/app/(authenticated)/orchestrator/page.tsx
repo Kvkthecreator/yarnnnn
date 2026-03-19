@@ -3,11 +3,11 @@
 /**
  * Orchestrator (TP) — Chat-First Surface
  *
- * The user-facing conversational agent with full primitive access.
+ * The user-facing conversational agent (Orchestrator) with full primitive access.
  * Moved from /dashboard as part of the Supervision Dashboard restructure.
  *
  * Handles:
- * - ?create → pre-fills agent creation prompt
+ * - ?create → pre-fills project creation prompt
  * - ?provider=X&status=connected → post-OAuth bootstrap flow (ADR-110)
  */
 
