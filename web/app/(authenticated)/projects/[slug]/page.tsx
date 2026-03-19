@@ -827,6 +827,7 @@ export default function ProjectDetailPage() {
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('timeline');
+  const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
 
   const loadProject = useCallback(async () => {
     try {
@@ -836,6 +837,7 @@ export default function ProjectDetailPage() {
       ]);
       setProject(detail);
       setActivities(activityData.activities);
+      setObjective(detail.project?.objective);
     } catch (err) {
       console.error('Failed to load project:', err);
     } finally {
@@ -883,7 +885,6 @@ export default function ProjectDetailPage() {
 
   const { project: meta, contributions, assemblies, pm_intelligence } = project;
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const [objective, setObjective] = useState(meta.objective);
   const contributors = meta.contributors || [];
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
