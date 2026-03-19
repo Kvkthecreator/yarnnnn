@@ -27,8 +27,8 @@ import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
 import { HOME_ROUTE } from "@/lib/routes";
-
-// ADR-039: MemoryStats removed - stats now shown in Context page
+import { MemorySection } from "@/components/settings/MemorySection";
+import { SystemSection } from "@/components/settings/SystemSection";
 
 interface DangerZoneStats {
   // Tier 1: Individual data types
@@ -53,8 +53,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-// ADR-039: Removed "memory" tab - facts now live in unified Context page
-type SettingsTab = "billing" | "usage" | "notifications" | "account";
+type SettingsTab = "billing" | "usage" | "memory" | "system" | "notifications" | "account";
 type DangerAction =
   // Tier 1: Selective purge
   | "chat"
@@ -74,16 +73,16 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { clearMessages } = useTP();
   const tabParam = searchParams.get("tab");
-  // ADR-039: memory tab removed - redirect to Context page
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
+    tabParam === "memory" ? "memory" :
+    tabParam === "system" ? "system" :
     tabParam === "notifications" ? "notifications" :
     tabParam === "account" ? "account" :
     "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  // ADR-039: Memory stats removed - now in Context page
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
@@ -343,7 +342,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tabs - ADR-039: Memory tab removed, now in Context page */}
+      {/* Tabs */}
       <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
         <button
           onClick={() => setActiveTab("billing")}
@@ -369,6 +368,32 @@ export default function SettingsPage() {
           <span className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             Usage
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("memory")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "memory"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Memory
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("system")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "system"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            System
           </span>
         </button>
         <button
@@ -540,6 +565,20 @@ export default function SettingsPage() {
         </section>
       )}
 
+      {/* Memory Tab */}
+      {activeTab === "memory" && (
+        <section className="mb-8">
+          <MemorySection />
+        </section>
+      )}
+
+      {/* System Tab */}
+      {activeTab === "system" && (
+        <section className="mb-8">
+          <SystemSection />
+        </section>
+      )}
+
       {/* Notifications Tab */}
       {activeTab === "notifications" && (
         <section className="mb-8">
@@ -625,8 +664,6 @@ export default function SettingsPage() {
           )}
         </section>
       )}
-
-      {/* ADR-039: Memory tab removed - user memory now in /memory */}
 
       {/* Account Tab - Data & Privacy */}
       {activeTab === "account" && (
