@@ -172,8 +172,11 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
 
     contributor_lines.append(f"All fresh: {'YES' if freshness.get('all_fresh') else 'NO'}")
 
-    # Read work plan
+    # Read work plan + prior quality assessment (ADR-121: PM needs to see its own prior assessment)
     work_plan = await pw.read("memory/work_plan.md")
+    quality_assessment = await pw.read("memory/quality_assessment.md")
+    if quality_assessment:
+        work_plan = (work_plan or "") + f"\n\n---\n\n## Prior Quality Assessment\n{quality_assessment}"
 
     # ADR-120 P4: Format intentions for PM prompt
     intentions_lines = []
