@@ -736,6 +736,25 @@ class AgentWorkspace:
             summary="Agent's current domain understanding",
         )
 
+    # ----- Duty helpers (ADR-117 Phase 3) -----
+
+    async def read_duty(self, duty_name: str) -> Optional[str]:
+        """Read a duty file from /duties/{duty_name}.md."""
+        return await self.read(f"duties/{duty_name}.md")
+
+    async def write_duty(self, duty_name: str, content: str) -> bool:
+        """Write a duty file to /duties/{duty_name}.md."""
+        return await self.write(
+            f"duties/{duty_name}.md",
+            content,
+            summary=f"Duty configuration: {duty_name}",
+        )
+
+    async def list_duties(self) -> list[str]:
+        """List all duty files in /duties/."""
+        files = await self.list("duties/")
+        return [f["path"].split("/")[-1].replace(".md", "") for f in files if f["path"].endswith(".md")]
+
     async def save_output(
         self,
         content: str,

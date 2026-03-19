@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.19.1] - Composer v2.1: promote_duty action + seniority rename (ADR-117 Phase 3)
+
+### Changed
+- `api/services/composer.py`: `COMPOSER_SYSTEM_PROMPT` v2.0 → v2.1 — added `promote_duty` action (agent_id, new_duty), portfolio validation rules. Seniority rename: nascent→new, developing→associate, mature→senior throughout all prompt text and heuristics.
+- `api/services/composer.py`: `should_composer_act()` — added `duty_promotion` heuristic: senior agents eligible for expanded duties per `ROLE_PORTFOLIOS`. Lifecycle handler routes `duty_promotion` trigger to deterministic `_execute_promote_duty()`.
+- `api/services/composer.py`: Maturity classification now delegates to `classify_seniority()` from `agent_framework.py` instead of inline if/elif.
+- `api/services/composer.py`: Assessment dict key rename: `mature_agents` → `senior_agents`. All references updated.
+- Expected behavior: Composer now autonomously promotes senior agents along pre-configured career tracks. A digest agent with 10+ runs and 80%+ approval gains monitor duty.
+
+---
+
 ## [2026.03.18.13] - Composer v2.0: project awareness + skill library + PM delegation (ADR-120 Phase 5)
 
 ### Changed

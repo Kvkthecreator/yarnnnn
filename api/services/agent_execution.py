@@ -47,8 +47,8 @@ logger = logging.getLogger(__name__)
 
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
-# Skills that authorize RuntimeDispatch (agents with these roles get SKILL.md injection)
-RUNTIME_DISPATCH_ROLES = {"synthesize", "research", "monitor", "custom"}
+# ADR-117 Phase 3: Centralized in agent_framework.py (single source of truth)
+from api.services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
 
 async def _fetch_skill_docs() -> Optional[str]:
     """Fetch SKILL.md content from the output gateway for all available skills.
@@ -327,6 +327,21 @@ async def _handle_pm_decision(
 
     logger.info(f"[PM] Decision for {project_slug}: action={action}, reason={reason}")
 
+    # ADR-117 Phase 3: Write project_heartbeat activity event
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=client, user_id=user_id,
+            event_type="project_heartbeat",
+            summary=f"{project_slug} PM checked on contributors — action: {action}",
+            event_ref=agent.get("id"),
+            metadata={"project_slug": project_slug,
+                      "pm_action": action,
+                      "reason": reason},
+        )
+    except Exception:
+        pass  # Non-fatal
+
     # ADR-120 P4: Graceful degradation — override to escalate if budget exhausted
     if action in ("assemble", "advance_contributor") and action != "escalate":
         try:
@@ -343,6 +358,21 @@ async def _handle_pm_decision(
     if action == "assemble":
         try:
             result = await _execute_pm_assemble(client, user_id, agent, project_slug, type_config)
+            # ADR-117 Phase 3: Project activity event
+            if result.get("success"):
+                try:
+                    from services.activity_log import write_activity
+                    await write_activity(
+                        client=client, user_id=user_id,
+                        event_type="project_assembled",
+                        summary=f"{project_slug} assembled — delivered to team",
+                        event_ref=agent.get("id"),
+                        metadata={"project_slug": project_slug,
+                                  "assembly_folder": result.get("assembly_folder"),
+                                  "delivery_status": result.get("delivery_status")},
+                    )
+                except Exception:
+                    pass  # Non-fatal
             return {
                 "pm_action": "assemble",
                 "success": result.get("success", False),
@@ -372,6 +402,21 @@ async def _handle_pm_decision(
                     "reason": reason or "PM requested advance",
                 },
             )
+            # ADR-117 Phase 3: Project activity event
+            if result.get("success"):
+                try:
+                    from services.activity_log import write_activity
+                    await write_activity(
+                        client=client, user_id=user_id,
+                        event_type="project_contributor_advanced",
+                        summary=f"{project_slug} PM asked {target_agent} to run now",
+                        event_ref=agent.get("id"),
+                        metadata={"project_slug": project_slug,
+                                  "target_agent_slug": target_agent,
+                                  "reason": reason},
+                    )
+                except Exception:
+                    pass  # Non-fatal
             return {
                 "pm_action": "advance_contributor",
                 "success": result.get("success", False),
@@ -443,6 +488,21 @@ async def _handle_pm_decision(
             )
         except Exception as e:
             logger.warning(f"[PM] Failed to write escalation note: {e}")
+
+        # ADR-117 Phase 3: Project activity event
+        try:
+            from services.activity_log import write_activity
+            await write_activity(
+                client=client, user_id=user_id,
+                event_type="project_escalated",
+                summary=f"{project_slug} PM needs help — {reason[:80]}",
+                event_ref=agent.get("id"),
+                metadata={"project_slug": project_slug,
+                          "reason": reason,
+                          "target_agent": target_agent},
+            )
+        except Exception:
+            pass  # Non-fatal
 
         logger.info(f"[PM] Escalating {project_slug}: {reason}")
         return {"pm_action": "escalate", "success": True, "reason": reason, "details": details}
@@ -1032,6 +1092,7 @@ async def generate_draft_inline(
     gathered_context: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
+    effective_role: Optional[str] = None,
 ) -> str:
     """
     Generate draft content via agent in headless mode (ADR-080/081).
@@ -1058,7 +1119,7 @@ async def generate_draft_inline(
     )
 
     agent_id = agent.get("id")
-    role = agent.get("role", "custom")
+    role = effective_role or agent.get("role", "custom")  # ADR-117 Phase 3: duty override
     scope = agent.get("scope", "cross_platform")
     type_config = agent.get("type_config", {})
     recipient_context = agent.get("recipient_context", {})
@@ -1090,6 +1151,13 @@ async def generate_draft_inline(
     ws_observations = await ws.get_observations()
     ws_review_log = await ws.get_review_log()
     ws_goal = await ws.get_goal()
+
+    # ADR-117 Phase 3: Load duty-specific context if running a non-seed duty
+    duty_name = trigger_context.get("duty") if trigger_context else None
+    if duty_name:
+        duty_context = await ws.read_duty(duty_name)
+        if duty_context:
+            ws_instructions = ws_instructions + f"\n\n## Active Duty: {duty_name}\n{duty_context}"
 
     # Build workspace-sourced agent dict for prompt building
     # (replaces reading from agent["agent_instructions"] / agent["agent_memory"])
@@ -1594,9 +1662,19 @@ async def execute_agent_generation(
     title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
 
+    # ADR-117 Phase 3: Resolve duty from trigger_context → effective_role
+    # When running a non-seed duty (e.g., monitor on a digest agent), the duty's
+    # role determines prompt selection and SKILL.md injection.
+    duty_name = trigger_context.get("duty") if trigger_context else None
+    effective_role = role  # default: seed role
+    if duty_name and duty_name != role:
+        # Duty role overrides for prompt + skill injection
+        effective_role = duty_name
+
     logger.info(
         f"[EXEC] Starting: {title} ({agent_id}), "
         f"trigger={trigger_type}, scope={scope}, role={role}"
+        + (f", duty={duty_name}" if duty_name else "")
     )
 
     version = None
@@ -1621,6 +1699,15 @@ async def execute_agent_generation(
         version = await create_version_record(client, agent_id, next_version)
         version_id = version["id"]
 
+        # ADR-117 Phase 3: Tag run with duty name for attribution
+        if duty_name:
+            try:
+                client.table("agent_runs").update(
+                    {"duty_name": duty_name}
+                ).eq("id", version_id).execute()
+            except Exception as e:
+                logger.warning(f"[EXEC] duty_name tag failed (non-fatal): {e}")
+
         # 3. ADR-045: Select and execute strategy for context gathering
         strategy = get_execution_strategy(agent)
         gathered_result = await strategy.gather_context(client, user_id, agent)
@@ -1637,10 +1724,12 @@ async def execute_agent_generation(
         }
 
         # 4. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
+        # ADR-117 Phase 3: effective_role overrides prompt + skill injection for non-seed duties
         research_directive = context_summary.get("research_directive")
         draft, usage, pending_renders = await generate_draft_inline(
             client, user_id, agent, gathered_context,
             trigger_context, research_directive,
+            effective_role=effective_role,
         )
 
         # 5. ADR-066: Prepare version for delivery (no staged status)

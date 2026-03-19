@@ -92,30 +92,30 @@ An agent is not a static configuration that runs the same task forever. An agent
 
 ### The Agent Lifecycle
 
-An agent progresses through phases, driven by accumulated experience and earned trust:
+An agent progresses through seniority levels, driven by accumulated experience and earned trust:
 
 ```
-Creation → Early Tenure → Developing → Mature → [Evolved | Dissolved]
+Creation → New → Associate → Senior → [Evolved | Dissolved]
 ```
 
-At each phase, the agent's relationship to its domain deepens:
+At each level, the agent's relationship to its domain deepens:
 
-- **Creation**: Single skill, single trigger, read-only. Produces drafts for review.
-- **Early Tenure**: Accumulating observations. Learning what the user cares about from edits and feedback.
-- **Developing**: Multiple concurrent intentions emerge. May notice patterns worth investigating beyond its initial skill. Begins to hold a domain thesis.
-- **Mature**: Multi-step execution within its domain. Has earned autonomy for routine actions. Domain thesis is refined through accumulated feedback.
-- **Evolved**: Agent's capabilities have expanded. What started as a digest agent now monitors, researches, and acts within its domain. TP may split a mature agent into specialized sub-patterns, or an agent may absorb adjacent responsibilities.
+- **New**: Single duty, single trigger, read-only. Produces drafts for review. Learning what the user cares about from edits and feedback.
+- **Associate**: Consistent performer with earned trust (≥5 runs, ≥60% approval). Holds a developing domain thesis. Accumulating observations and preferences.
+- **Senior**: Eligible for expanded duties within pre-configured career tracks (≥10 runs, ≥80% approval). What started as a digest agent now monitors, researches, and acts within its domain — each as a separate duty sharing the accumulated workspace context.
+- **Evolved**: Agent's duty portfolio is fully expanded. Domain thesis is refined through extensive accumulated feedback. TP may split a senior agent into specialized sub-patterns, or an agent may absorb adjacent responsibilities.
 
 ### Three Dimensions of Agent Development
 
-**Intentions** — what the agent is currently trying to accomplish.
+**Duties** — what the agent is responsible for.
 
-An agent's intentions are dynamic and can be multiple. A Slack agent might simultaneously:
-- Digest daily activity (recurring intention)
-- Investigate a misalignment pattern it noticed (goal-driven intention)
-- Monitor for escalation signals (reactive intention)
+An agent's duties expand with seniority and can be multiple. A senior Slack agent might simultaneously:
+- Digest daily activity (recurring duty — seed role)
+- Monitor for escalation signals (reactive duty — earned at senior seniority)
 
-Intentions are not the agent's static trigger — they are the agent's evolving understanding of what its domain requires. An intention can emerge from the agent's own observations, from TP's assessment, or from user direction.
+Duties are pre-configured per role portfolio (ADR-117 Phase 3). A duty can be earned through feedback-gated seniority progression — Composer promotes along deterministic tracks. Each duty carries its own trigger type and uses the duty's role for execution (prompt, primitives, output skills).
+
+Note: "Intentions" at the project level (ADR-120) are distinct — they represent project objectives, not agent responsibilities.
 
 **Capabilities** — what actions the agent can take.
 
@@ -137,15 +137,15 @@ Autonomy is graduated and domain-specific:
 
 Autonomy is earned per-capability, not globally. An agent might be autonomous for digests but supervised for write-backs.
 
-### Implication: The Trigger Is a Property of the Intention, Not the Agent
+### Implication: The Trigger Is a Property of the Duty, Not the Agent
 
-The current taxonomy treats trigger as a static agent property (recurring, goal, reactive). Under the developmental model, trigger is a property of each **intention**:
+The current taxonomy treats trigger as a static agent property (recurring, goal, reactive). Under the developmental model, trigger is a property of each **duty**:
 
-- A recurring intention executes on a schedule (daily digest)
-- A goal-driven intention executes until a condition is met (investigate this pattern)
-- A reactive intention executes when an event occurs (escalation detected)
+- A recurring duty executes on a schedule (daily digest)
+- A goal-driven duty executes until a condition is met (investigate this pattern)
+- A reactive duty executes when an event occurs (escalation detected)
 
-A mature agent holds multiple intentions with different triggers simultaneously. The agent's "mode" is the composite of its active intentions, not a single static setting.
+A senior agent holds multiple duties with different triggers simultaneously. The agent's "mode" is the composite of its active duties, not a single static setting.
 
 ### Intentions at Project Scope
 

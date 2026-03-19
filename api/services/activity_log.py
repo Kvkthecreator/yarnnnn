@@ -47,6 +47,12 @@ VALID_EVENT_TYPES = frozenset({
     "session_summary_written",  # Session compaction summaries generated
     "agent_bootstrapped",       # ADR-110: Auto-created agent on platform connection
     "composer_heartbeat",       # ADR-111: TP Composer periodic assessment cycle
+    # ADR-117 Phase 3: Project activity + duty promotion
+    "project_heartbeat",            # PM checked on contributors
+    "project_assembled",            # PM triggered assembly
+    "project_escalated",            # PM escalated to TP
+    "project_contributor_advanced",  # PM advanced contributor schedule
+    "duty_promoted",                # Composer promoted agent duty
 })
 
 

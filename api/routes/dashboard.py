@@ -71,7 +71,7 @@ async def get_dashboard_summary(client: UserClient):
 
     for agent in agents_raw:
         aid = agent["id"]
-        maturity = "nascent"
+        maturity = "new"
         approval_rate = None
         edit_trend = None
         total_runs = 0
@@ -114,14 +114,9 @@ async def get_dashboard_summary(client: UserClient):
                             if older_avg > 0:
                                 edit_trend = round((recent_avg - older_avg) / older_avg, 2)
 
-                    # Classify maturity
-                    rate = approval_rate or 0
-                    if total_runs >= 10 and rate >= 0.8:
-                        maturity = "mature"
-                    elif total_runs >= 5 and rate >= 0.6:
-                        maturity = "developing"
-                    else:
-                        maturity = "nascent"
+                    # Classify seniority (ADR-117 Phase 3)
+                    from services.agent_framework import classify_seniority
+                    maturity = classify_seniority(total_runs, approval_rate or 0)
             except Exception as e:
                 logger.warning(f"[DASHBOARD] Maturity query failed for {aid}: {e}")
 
@@ -217,10 +212,10 @@ async def get_dashboard_summary(client: UserClient):
         logger.warning(f"[DASHBOARD] Failed runs query failed: {e}")
 
     # 5. Summary stats
-    maturity_dist = {"nascent": 0, "developing": 0, "mature": 0}
+    maturity_dist = {"new": 0, "associate": 0, "senior": 0}
     for ah in agent_health:
         if ah["status"] == "active":
-            m = ah.get("maturity", "nascent")
+            m = ah.get("maturity", "new")
             maturity_dist[m] = maturity_dist.get(m, 0) + 1
 
     # Runs this week
@@ -280,14 +275,14 @@ async def get_dashboard_summary(client: UserClient):
     progression = None
     if len(active_agents) < 5 or account_age_days < 21:
         total_runs_all = sum(ah["total_runs"] for ah in agent_health)
-        has_mature = any(ah["maturity"] == "mature" for ah in agent_health if ah["status"] == "active")
-        has_developing = any(ah["maturity"] == "developing" for ah in agent_health if ah["status"] == "active")
+        has_senior = any(ah["maturity"] == "senior" for ah in agent_health if ah["status"] == "active")
+        has_associate = any(ah["maturity"] == "associate" for ah in agent_health if ah["status"] == "active")
         progression = {
             "platforms_connected": len(connected_platforms),
             "active_agents": len(active_agents),
             "total_runs": total_runs_all,
-            "has_developing_agent": has_developing,
-            "has_mature_agent": has_mature,
+            "has_associate_agent": has_associate,
+            "has_senior_agent": has_senior,
             "account_age_days": account_age_days,
         }
 

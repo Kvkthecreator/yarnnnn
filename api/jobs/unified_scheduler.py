@@ -404,11 +404,32 @@ async def should_skip_agent(
         return False, ""
 
 
+def resolve_due_duties(agent: dict) -> list[dict]:
+    """ADR-117 Phase 3: Resolve which duties are due for this agent.
+
+    Returns list of {duty, trigger} dicts to execute. When duties is null
+    (pre-ADR-117 agent), returns a synthetic single duty matching the seed role.
+    """
+    duties = agent.get("duties")
+    role = agent.get("role", "custom")
+
+    if not duties:
+        # Backwards compat: single-duty agent uses seed role
+        return [{"duty": role, "trigger": "recurring"}]
+
+    # Filter to active duties only
+    return [
+        d for d in duties
+        if d.get("status", "active") == "active"
+    ]
+
+
 async def process_agent(supabase_client, agent: dict) -> bool:
     """
     Process a single agent: generate version, send email, update schedule.
 
     ADR-042: Uses simplified execute_agent_generation() instead of 3-step pipeline.
+    ADR-117 Phase 3: Iterates over due duties when agent has multi-duty portfolio.
 
     Returns True if successful.
     """
@@ -421,7 +442,9 @@ async def process_agent(supabase_client, agent: dict) -> bool:
     role = agent.get("role", "custom")
     schedule = agent.get("schedule", {})
 
-    logger.info(f"[AGENT] Processing: {title} ({agent_id})")
+    # ADR-117 Phase 3: Resolve duties to execute
+    duties = resolve_due_duties(agent)
+    logger.info(f"[AGENT] Processing: {title} ({agent_id}), duties={[d['duty'] for d in duties]}")
 
     # ADR-072: Write agent_scheduled event when queued for execution
     try:
@@ -437,81 +460,65 @@ async def process_agent(supabase_client, agent: dict) -> bool:
                 "scheduled_for": datetime.now(timezone.utc).isoformat(),
                 "trigger_reason": "schedule",
                 "role": role,
+                "duties": [d["duty"] for d in duties],
             },
         )
     except Exception as e:
         logger.warning(f"[AGENT] Failed to write scheduled event: {e}")
 
+    all_success = True
+
+    for duty in duties:
+        duty_name = duty["duty"]
+        try:
+            # ADR-088: Route through dispatch — schedule triggers always generate (high)
+            # ADR-117 Phase 3: Pass duty in trigger_context for effective_role resolution
+            result = await dispatch_trigger(
+                client=supabase_client,
+                agent=agent,
+                trigger_type="schedule",
+                trigger_context={"type": "schedule", "duty": duty_name},
+                signal_strength="high",
+            )
+
+            success = result.get("success", False)
+
+            if success:
+                logger.info(f"[AGENT] ✓ Complete: {title} (duty={duty_name})")
+                try:
+                    await write_activity(
+                        client=supabase_client,
+                        user_id=user_id,
+                        event_type="agent_generated",
+                        summary=f"Generated: {title}" + (f" ({duty_name})" if duty_name != role else ""),
+                        event_ref=agent_id,
+                        metadata={
+                            "role": role,
+                            "duty": duty_name,
+                            "run_id": result.get("run_id"),
+                        },
+                    )
+                except Exception as e:
+                    logger.debug(f"[AGENT] Activity log write failed for {title}: {e}")
+            else:
+                logger.warning(f"[AGENT] ✗ Failed: {title} (duty={duty_name}) - {result.get('error')}")
+                all_success = False
+
+        except Exception as e:
+            logger.error(f"[AGENT] ✗ Error processing {title} (duty={duty_name}): {e}")
+            all_success = False
+
+    # Calculate and update next_run_at (once, after all duties processed)
     try:
-        # ADR-088: Route through dispatch — schedule triggers always generate (high)
-        result = await dispatch_trigger(
-            client=supabase_client,
-            agent=agent,
-            trigger_type="schedule",
-            trigger_context={"type": "schedule"},
-            signal_strength="high",
-        )
-
-        success = result.get("success", False)
-
-        # 3. Calculate and update next_run_at
         next_run = calculate_next_run_from_schedule(schedule)
         supabase_client.table("agents").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "next_run_at": next_run.isoformat(),
         }).eq("id", agent_id).execute()
-
-        # Notifications handled by delivery service (delivery.py → notifications.py)
-        # No scheduler-level email — single notification path via ADR-040.
-
-        if success:
-            logger.info(f"[AGENT] ✓ Complete: {title}")
-            try:
-                await write_activity(
-                    client=supabase_client,
-                    user_id=user_id,
-                    event_type="agent_generated",
-                    summary=f"Generated: {title}",
-                    event_ref=agent_id,
-                    metadata={
-                        "role": role,
-                        "run_id": result.get("run_id"),
-                    },
-                )
-            except Exception as e:
-                logger.debug(f"[AGENT] Activity log write failed for {title}: {e}")
-        else:
-            logger.warning(f"[AGENT] ✗ Failed: {title} - {result.get('error')}")
-
-        return success
-
     except Exception as e:
-        logger.error(f"[AGENT] ✗ Error processing {title}: {e}")
+        logger.warning(f"[AGENT] Failed to update next_run_at for {title}: {e}")
 
-        # Still update next_run_at to prevent retry storm
-        try:
-            next_run = calculate_next_run_from_schedule(schedule)
-            supabase_client.table("agents").update({
-                "next_run_at": next_run.isoformat(),
-            }).eq("id", agent_id).execute()
-        except Exception as e:
-            logger.warning(f"[AGENT] Failed to update next_run_at for {title}: {e}")
-
-        # Notify failure via delivery service's single notification path
-        try:
-            from services.notifications import notify_agent_failed
-            from services.supabase import get_service_client
-            await notify_agent_failed(
-                db_client=get_service_client(),
-                user_id=user_id,
-                agent_id=agent_id,
-                agent_title=title,
-                error=str(e),
-            )
-        except Exception as e2:
-            logger.warning(f"[AGENT] Failed to send failure notification for {title}: {e2}")
-
-        return False
+    return all_success
 
 
 # =============================================================================

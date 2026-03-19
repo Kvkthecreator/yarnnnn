@@ -55,13 +55,13 @@ type AttentionItem = DashboardData['attention'][number];
 // =============================================================================
 
 const MATURITY_CONFIG = {
-  mature: { label: 'Mature', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  developing: { label: 'Developing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  nascent: { label: 'Nascent', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
+  senior: { label: 'Senior', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  associate: { label: 'Associate', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  new: { label: 'New', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
 };
 
 function MaturityBadge({ maturity }: { maturity: string }) {
-  const config = MATURITY_CONFIG[maturity as keyof typeof MATURITY_CONFIG] ?? MATURITY_CONFIG.nascent;
+  const config = MATURITY_CONFIG[maturity as keyof typeof MATURITY_CONFIG] ?? MATURITY_CONFIG.new;
   return (
     <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', config.color)}>
       {config.label}
@@ -344,13 +344,13 @@ export default function DashboardPage() {
           <StatCard label="Active Agents" value={stats.active_agents} subtext={`${stats.total_agents} total`} />
           <StatCard label="Runs This Week" value={stats.runs_this_week} />
           <StatCard
-            label="Mature"
-            value={stats.maturity_distribution.mature}
-            subtext={`${stats.maturity_distribution.developing} developing`}
+            label="Senior"
+            value={stats.maturity_distribution.senior}
+            subtext={`${stats.maturity_distribution.associate} associate`}
           />
           <StatCard
-            label="Nascent"
-            value={stats.maturity_distribution.nascent}
+            label="New"
+            value={stats.maturity_distribution.new}
             subtext="need more runs"
           />
         </div>
@@ -566,8 +566,8 @@ function ProgressionBar({ progression }: { progression: Progression }) {
     { label: 'Platform connected', done: progression.platforms_connected > 0 },
     { label: 'First agent running', done: progression.active_agents > 0 },
     { label: '10+ runs completed', done: progression.total_runs >= 10 },
-    { label: 'Agent developing', done: progression.has_developing_agent },
-    { label: 'Agent mature', done: progression.has_mature_agent },
+    { label: 'Agent associate', done: progression.has_associate_agent },
+    { label: 'Agent senior', done: progression.has_senior_agent },
   ];
   const completed = milestones.filter((m) => m.done).length;
 

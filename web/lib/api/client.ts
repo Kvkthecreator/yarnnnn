@@ -1261,7 +1261,7 @@ export const api = {
           last_run_at: string | null;
           next_run_at: string | null;
           schedule: string | null;
-          maturity: 'nascent' | 'developing' | 'mature';
+          maturity: 'new' | 'associate' | 'senior';
           approval_rate: number | null;
           edit_trend: number | null;
           total_runs: number;
@@ -1291,8 +1291,8 @@ export const api = {
           platforms_connected: number;
           active_agents: number;
           total_runs: number;
-          has_developing_agent: boolean;
-          has_mature_agent: boolean;
+          has_associate_agent: boolean;
+          has_senior_agent: boolean;
           account_age_days: number;
         } | null;
         stats: {
@@ -1300,9 +1300,9 @@ export const api = {
           active_agents: number;
           runs_this_week: number;
           maturity_distribution: {
-            nascent: number;
-            developing: number;
-            mature: number;
+            new: number;
+            associate: number;
+            senior: number;
           };
         };
       }>("/api/dashboard/summary"),

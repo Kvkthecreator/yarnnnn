@@ -94,13 +94,18 @@ Role determines the agent's **prompt template**, **available primitives**, **out
 
 > **Removed: `orchestrate`** (2026-03-18). The orchestrate role described coordination that is actually performed by TP (chat) and Composer (cron service) — neither of which is an agent in the database. No orchestrate agent was ever instantiated in code. Agent fleet management is a backend infrastructure concern (Composer, ADR-111), not an agent role. If domain-specific fleet coordination is needed in the future, it can be re-added. See also: the `coordinator` trigger (below) remains valid as a scheduling mode.
 
-### One agent, one role
+### One agent, one seed role — duties expand (ADR-117 Phase 3)
 
-Multi-role requests decompose into multiple agents sharing the same source configuration. This is architecturally correct because:
+An agent's **role** (its seed identity) never changes. A digest agent is always a digest agent. But senior agents earn **duties** — additional responsibilities within pre-configured career tracks (role portfolios).
 
-- Digest and Reply have different triggers, context budgets, quality evaluation, and failure modes
-- Combining them forces conflicting optimization targets
-- UX solution: templates can create **agent bundles** — one user action, multiple correctly-scoped agents
+Multi-role requests at inception still decompose into multiple agents. But a mature digest agent can earn a monitor duty, gaining alert capabilities within the same domain context. This preserves accumulated workspace knowledge instead of fragmenting it across separate agents.
+
+- The **role** determines the agent's core identity, initial primitives, and prompt template
+- **Duties** expand at senior seniority, adding new trigger × role combinations to the agent
+- Each duty run uses the duty's role for prompt selection, SKILL.md injection, and primitive gating
+- **Role portfolios** are pre-configured and deterministic — Composer promotes along known tracks, never invents combinations
+
+See: [Agent Development: Role Portfolios & Duties](#agent-development-role-portfolios--duties) below.
 
 ### Primitive gating by role
 
@@ -275,16 +280,95 @@ For full product design: see [Projects Product Direction](../design/PROJECTS-PRO
 
 ### Progression: how identity evolves
 
-| Stage | What happens | User sees |
-|---|---|---|
-| **Bootstrap** | User connects Slack → system creates digest agent | "Your Slack Agent" appears on dashboard |
-| **First value** | Agent runs, produces text recap | Email: "Here's your Slack recap" |
-| **Skill graduation** | Composer authorizes PDF skill based on maturity | Email now includes a PDF attachment |
-| **Job agent** | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears as standalone agent |
-| **Project** | User asks or Composer suggests combining agents → project created | "Your Monday Brief" project appears above agents on dashboard |
-| **Composition** | Project assembles outputs from contributing agents | Assembled deck/report delivered, standalone agents contribute silently |
+| Stage | Seniority | What happens | User sees |
+|---|---|---|---|
+| **Bootstrap** | New | User connects Slack → system creates digest agent | "Your Slack Agent" appears on dashboard |
+| **First value** | New | Agent runs, produces text recap | Email: "Here's your Slack recap" |
+| **Earning trust** | New → Associate | 5+ runs, 60%+ approval | Agent reliability established |
+| **Skill graduation** | Associate | Composer authorizes PDF skill based on seniority | Email now includes a PDF attachment |
+| **Duty promotion** | Senior | 10+ runs, 80%+ approval → Composer adds monitor duty | Agent now watches for escalations + digests |
+| **Job agent** | New | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears as standalone agent |
+| **Project** | Any | User asks or Composer suggests combining agents → project created | "Your Monday Brief" project appears above agents on dashboard |
+| **Composition** | Any | Project assembles outputs from contributing agents | Assembled deck/report delivered, standalone agents contribute silently |
 
-At every stage, the user sees workers with job titles and projects with deliverables. The technical complexity (scope inference, role selection, skill authorization, project assembly) is invisible.
+At every stage, the user sees workers with job titles and projects with deliverables. The technical complexity (scope inference, role selection, skill authorization, duty promotion, project assembly) is invisible.
+
+---
+
+## Agent Development: Role Portfolios & Duties (ADR-117 Phase 3)
+
+### Seniority Levels
+
+Seniority is **derived** from feedback history, not stored:
+
+| Level | Threshold | Employee analogy |
+|---|---|---|
+| **New** | Default (< 5 runs or < 60% approval) | Just hired, learning the ropes |
+| **Associate** | ≥ 5 runs AND ≥ 60% approval | Promoted, trusted, consistent |
+| **Senior** | ≥ 10 runs AND ≥ 80% approval | Ready for expanded responsibilities |
+
+Classification: `classify_seniority()` in `api/services/agent_framework.py`.
+
+### Role Portfolios
+
+Pre-configured career tracks. Deterministic, versioned, testable. Composer promotes along known tracks — never invents combinations.
+
+| Seed Role | New | Associate | Senior (gains) |
+|---|---|---|---|
+| **digest** | digest (recurring) | digest (recurring) | + **monitor** (reactive) |
+| **monitor** | monitor (recurring) | monitor (recurring) | + **act** (reactive, future) |
+| **synthesize** | synthesize (recurring) | synthesize (recurring) | + **research** (goal) |
+| **research** | research (goal) | research (goal) | + **monitor** (proactive) |
+| **prepare** | prepare (recurring) | prepare (recurring) | (no expansion) |
+| **pm** | pm (proactive) | pm (proactive) | (no expansion) |
+| **custom** | custom (recurring) | custom (recurring) | (no expansion) |
+
+Registry: `ROLE_PORTFOLIOS` in `api/services/agent_framework.py`.
+
+### Duty Mechanics
+
+- **Storage**: `agents.duties` JSONB column + `/agents/{slug}/duties/{duty}.md` workspace files
+- **Execution**: Each duty run resolves `effective_role` from the duty, overriding the seed role for prompt selection, SKILL.md injection, and primitive gating
+- **Scheduling**: `resolve_due_duties()` returns all active duties; scheduler iterates and dispatches each with `trigger_context.duty`
+- **Tagging**: `agent_runs.duty_name` records which duty produced the run
+- **Backwards compat**: `duties=null` → synthetic single duty matching seed role
+
+### Promotion Flow
+
+1. Composer heartbeat detects senior agent with available duty promotion
+2. `_execute_promote_duty()` validates against `ROLE_PORTFOLIOS`
+3. Writes: `agents.duties` JSONB + workspace `duties/{duty}.md` + AGENT.md update
+4. Activity event: `duty_promoted` in `activity_log`
+5. Next scheduler cycle picks up the new duty
+
+### Delivery Model (Approach A — All Direct)
+
+Every agent delivers directly to the user. PM delivers assembly separately. User receives N+1 deliveries (N agent outputs + 1 assembly).
+
+**Why**: Simple, no failure cascade (PM down doesn't block contributor delivery), each agent independently valuable. **Future consideration**: Per-project delivery preferences (suppress individual delivery, only send assembly) — a project-level setting, not an agent-level change.
+
+---
+
+## Output Skills (ADR-118)
+
+Skills are the output gateway's capability library. When a duty fires, its role determines RuntimeDispatch access:
+
+| Duty Role | Output Skills | Example |
+|---|---|---|
+| digest | ❌ text only | Slack Recap email |
+| prepare | ❌ text only | Meeting briefing |
+| monitor | ✅ all 8 skills | Alert with chart |
+| research | ✅ all 8 skills | Report with visualizations |
+| synthesize | ✅ all 8 skills | Cross-platform deck |
+| act | ❌ platform actions (future) | Slack reply |
+| pm | ❌ text only | Assembly coordination |
+| custom | ✅ all 8 skills | User-defined |
+
+**8 available skills**: pdf, pptx, xlsx, chart, mermaid, html, data_export, image
+
+Gate: `SKILL_ENABLED_ROLES` in `api/services/agent_framework.py`. When a duty's role is in this set, the agent gets SKILL.md injection and RuntimeDispatch access for that run.
+
+Key insight: A digest agent's **monitor duty** gets skill access; its **digest duty** does not. Per-run, not per-agent.
 
 ---
 
@@ -440,12 +524,15 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 | Concern | Location |
 |---------|----------|
 | This document | `docs/architecture/agent-framework.md` |
+| Role portfolios & seniority | `api/services/agent_framework.py` (ADR-117 Phase 3) |
 | Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
 | Type prompts (→ role prompts) | `api/services/agent_pipeline.py` |
 | Agent execution pipeline | `api/services/agent_execution.py` |
 | Agent workspace | `api/services/workspace.py` |
+| Composer (duty promotion) | `api/services/composer.py` |
+| Output gateway skills | `render/skills/` (ADR-118) |
 | Frontend constants | `web/lib/constants/agents.ts` |
 
 ---
