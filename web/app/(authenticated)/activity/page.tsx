@@ -221,7 +221,8 @@ type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 
 // Map category filters to the event_type values they include
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
-  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled'],
+  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled', 'agent_bootstrapped', 'duty_promoted'],
+  projects: ['project_heartbeat', 'project_assembled', 'project_escalated', 'project_contributor_advanced'],
   memory: ['memory_written', 'session_summary_written'],
   sync: ['platform_synced', 'content_cleanup'],
   chat: ['chat_session'],
@@ -292,7 +293,7 @@ function getNavigationTarget(
     case 'content_cleanup': {
       const p = (metadata.provider || metadata.platform) as string | undefined;
       if (p) return { href: `/context/${p}`, label: `View ${p} context` };
-      return { href: '/system', label: 'View system' };
+      return { href: '/settings?tab=system', label: 'View system' };
     }
     case 'integration_connected':
     case 'integration_disconnected':
@@ -300,6 +301,18 @@ function getNavigationTarget(
       return null;
     case 'chat_session':
       return { href: HOME_ROUTE, label: 'Open Agent' };
+    case 'project_heartbeat':
+    case 'project_assembled':
+    case 'project_escalated':
+    case 'project_contributor_advanced': {
+      const projectSlug = (metadata.project_slug || item.event_ref) as string | undefined;
+      if (projectSlug) return { href: `/projects/${projectSlug}`, label: 'View project' };
+      return null;
+    }
+    case 'agent_bootstrapped':
+    case 'duty_promoted':
+      if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
+      return null;
     default:
       return null;
   }

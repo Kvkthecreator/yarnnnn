@@ -1138,7 +1138,7 @@ export const api = {
     list: (options?: {
       limit?: number;
       days?: number;
-      eventType?: 'agent_run' | 'agent_approved' | 'agent_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
+      eventType?: string;
     }) => {
       const params = new URLSearchParams();
       if (options?.limit) params.append("limit", options.limit.toString());
@@ -1148,7 +1148,7 @@ export const api = {
       return request<{
         activities: Array<{
           id: string;
-          event_type: 'agent_run' | 'agent_approved' | 'agent_rejected' | 'memory_written' | 'platform_synced' | 'integration_connected' | 'integration_disconnected' | 'chat_session';
+          event_type: string;
           event_ref: string | null;
           summary: string;
           metadata: Record<string, unknown> | null;
