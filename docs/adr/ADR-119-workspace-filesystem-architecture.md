@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phase 1-3 Implemented, Phase 4 Proposed
+> **Status**: Phase 1-3 Implemented, Phase 4a Implemented (dashboard + projects), Phase 4b Proposed (agent output history)
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)
@@ -316,10 +316,19 @@ This is simpler, more intuitive, and more extensible than relational tables for 
 - Migrate `KnowledgeBase._archive_if_exists()` to use history subfolder convention
 - Migrate `AgentWorkspace.save_run()` from `/runs/v{N}.md` to output folders
 
-### Phase 4: Frontend + Composer Integration (After Phase 3)
-- Dashboard: agent output history as folder timeline
-- Dashboard: project view with contributions + assembly
+### Phase 4a: Frontend — Dashboard + Projects (Implemented)
+- Dashboard: projects section showing active projects with summaries
+- Projects navigation: `/projects` list page, `/projects/{slug}` detail page
+- Project detail: contributors, assemblies, personified activity timeline
+- Backend: `GET /projects/{slug}/activity` endpoint for project-scoped activity log
+- API client: TypeScript types + fetch functions for all project endpoints
+
+### Phase 4b: Agent Output History (Proposed)
+- Agent detail: output folder timeline tab (date-grouped, expandable)
 - Download: "Download all" = zip the output folder
+- Deferred until project detail page implications are clear
+
+### Composer Integration (Proposed)
 - Composer heartbeat: filesystem health (stale outputs, orphaned projects, cleanup metrics)
 
 ### Deferred

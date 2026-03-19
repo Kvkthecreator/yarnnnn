@@ -32,6 +32,7 @@ import {
   Clock,
   CheckCircle2,
   Circle,
+  FolderKanban,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
@@ -162,7 +163,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { agents, composer_actions, attention, connected_platforms, heartbeat_pulse, progression, stats } = data;
+  const { agents, composer_actions, attention, connected_platforms, heartbeat_pulse, progression, projects, stats } = data;
   const hasNoPlatforms = connected_platforms.length === 0;
   const hasNoAgents = agents.length === 0;
 
@@ -403,6 +404,40 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+
+        {/* Projects — ADR-119 Phase 4 */}
+        {projects && projects.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <FolderKanban className="w-5 h-5 text-muted-foreground" />
+              Projects
+            </h2>
+            <div className="grid gap-2">
+              {projects.map((p: { project_slug: string; summary: string; updated_at: string }) => (
+                <button
+                  key={p.project_slug}
+                  onClick={() => router.push(`/projects/${p.project_slug}`)}
+                  className="w-full p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors text-left flex items-center gap-3"
+                >
+                  <FolderKanban className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                    </p>
+                    {p.summary && (
+                      <p className="text-xs text-muted-foreground truncate">{p.summary}</p>
+                    )}
+                  </div>
+                  {p.updated_at && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Composer Activity Feed */}
         {composer_actions.length > 0 && (

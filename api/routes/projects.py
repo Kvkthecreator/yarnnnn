@@ -1,11 +1,12 @@
 """
-Project routes — ADR-119 Phase 2
+Project routes — ADR-119 Phase 2 + Phase 4
 
 Cross-agent collaboration projects. CRUD over /api/projects.
 
 Endpoints:
 - GET /projects — list all projects
 - GET /projects/{slug} — project detail (parsed PROJECT.md + contributors + assemblies)
+- GET /projects/{slug}/activity — project activity timeline
 - POST /projects — create project
 - PATCH /projects/{slug} — update PROJECT.md fields
 - DELETE /projects/{slug} — archive project
@@ -288,3 +289,35 @@ async def archive_project(slug: str, user: UserClient):
     except Exception as e:
         logger.error(f"[PROJECTS] Archive failed: {slug}: {e}")
         raise HTTPException(status_code=500, detail="Failed to archive project")
+
+
+# ADR-119 Phase 4: Project activity event types
+PROJECT_EVENT_TYPES = [
+    "project_heartbeat",
+    "project_assembled",
+    "project_escalated",
+    "project_contributor_advanced",
+    "duty_promoted",
+]
+
+
+@router.get("/{slug}/activity")
+async def get_project_activity(slug: str, user: UserClient, limit: int = 20):
+    """Activity timeline for a specific project — personified work log."""
+    try:
+        result = (
+            user.client.table("activity_log")
+            .select("id, event_type, summary, metadata, created_at")
+            .eq("user_id", user.user_id)
+            .in_("event_type", PROJECT_EVENT_TYPES)
+            .filter("metadata->>project_slug", "eq", slug)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+        activities = result.data or []
+        return {"activities": activities, "total": len(activities)}
+    except Exception as e:
+        logger.error(f"[PROJECTS] Activity query failed for {slug}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch project activity")

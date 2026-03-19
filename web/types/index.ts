@@ -790,3 +790,45 @@ export interface TierLimits {
   };
   next_sync?: string | null;
 }
+
+// =============================================================================
+// ADR-119 Phase 4: Projects
+// =============================================================================
+
+export interface ProjectSummary {
+  project_slug: string;
+  summary: string;
+  updated_at: string;
+}
+
+export interface ProjectContributor {
+  agent_slug: string;
+  agent_id?: string;
+  expected_contribution?: string;
+}
+
+export interface ProjectDetail {
+  project_slug: string;
+  project: {
+    title: string;
+    intent?: {
+      deliverable?: string;
+      audience?: string;
+      format?: string;
+      purpose?: string;
+    };
+    contributors?: ProjectContributor[];
+    assembly_spec?: string;
+    delivery?: Record<string, unknown>;
+  };
+  contributions: Record<string, string[]>;
+  assemblies: string[];
+}
+
+export interface ProjectActivityItem {
+  id: string;
+  event_type: string;
+  summary: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}

@@ -36,6 +36,10 @@ import type {
   ContextDomainSummary,
   ContextDomainDetail,
   ActiveDomainResponse,
+  // ADR-119 Phase 4: Projects
+  ProjectSummary,
+  ProjectDetail,
+  ProjectActivityItem,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -520,6 +524,28 @@ export const api = {
       const params = limit ? `?limit=${limit}` : "";
       return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
         `/api/agents/${agentId}/sessions${params}`
+      );
+    },
+  },
+
+  // ADR-119 Phase 4: Projects
+  projects: {
+    list: () =>
+      request<{ projects: ProjectSummary[]; count: number }>("/api/projects"),
+
+    get: (slug: string) =>
+      request<ProjectDetail>(`/api/projects/${slug}`),
+
+    archive: (slug: string) =>
+      request<{ project_slug: string; archived: boolean }>(
+        `/api/projects/${slug}`,
+        { method: "DELETE" }
+      ),
+
+    getActivity: (slug: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<{ activities: ProjectActivityItem[]; total: number }>(
+        `/api/projects/${slug}/activity${params}`
       );
     },
   },
@@ -1295,6 +1321,11 @@ export const api = {
           has_senior_agent: boolean;
           account_age_days: number;
         } | null;
+        projects: Array<{
+          project_slug: string;
+          summary: string;
+          updated_at: string;
+        }>;
         stats: {
           total_agents: number;
           active_agents: number;

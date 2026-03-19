@@ -168,6 +168,37 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-amber-500',
     category: 'agents',
   },
+  // ADR-117/119: Project activity + duty promotion
+  project_heartbeat: {
+    label: 'Project check-in',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-purple-500',
+    category: 'projects',
+  },
+  project_assembled: {
+    label: 'Assembly',
+    icon: <FileOutput className="w-4 h-4" />,
+    color: 'text-green-500',
+    category: 'projects',
+  },
+  project_escalated: {
+    label: 'Needs attention',
+    icon: <Play className="w-4 h-4" />,
+    color: 'text-amber-500',
+    category: 'projects',
+  },
+  project_contributor_advanced: {
+    label: 'Early run',
+    icon: <Clock className="w-4 h-4" />,
+    color: 'text-blue-500',
+    category: 'projects',
+  },
+  duty_promoted: {
+    label: 'Promoted',
+    icon: <ArrowRight className="w-4 h-4" />,
+    color: 'text-green-500',
+    category: 'agents',
+  },
 };
 
 const DEFAULT_EVENT_CONFIG = {
@@ -180,6 +211,7 @@ const DEFAULT_EVENT_CONFIG = {
 // Filter categories shown as chips — user-meaningful groupings
 const FILTER_CATEGORIES = [
   { key: 'agents', label: 'Agents' },
+  { key: 'projects', label: 'Projects' },
   { key: 'memory', label: 'Memory' },
   { key: 'sync', label: 'Sync' },
   { key: 'chat', label: 'Chat' },

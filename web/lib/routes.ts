@@ -11,3 +11,6 @@ export function isHomeRoute(pathname: string): boolean {
 export function isOrchestratorRoute(pathname: string): boolean {
   return pathname === ORCHESTRATOR_ROUTE || pathname.startsWith(`${ORCHESTRATOR_ROUTE}/`);
 }
+
+export const PROJECTS_ROUTE = "/projects";
+export const PROJECTS_LABEL = "Projects";

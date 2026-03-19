@@ -286,6 +286,30 @@ async def get_dashboard_summary(client: UserClient):
             "account_age_days": account_age_days,
         }
 
+    # 8. Active projects (ADR-119 Phase 4)
+    projects = []
+    try:
+        result = (
+            db.table("workspace_files")
+            .select("path, summary, updated_at")
+            .eq("user_id", user_id)
+            .like("path", "/projects/%/PROJECT.md")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("updated_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        for row in (result.data or []):
+            parts = row["path"].split("/")
+            if len(parts) >= 3:
+                projects.append({
+                    "project_slug": parts[2],
+                    "summary": row.get("summary", ""),
+                    "updated_at": row.get("updated_at"),
+                })
+    except Exception as e:
+        logger.warning(f"[DASHBOARD] Projects query failed: {e}")
+
     return {
         "agents": agent_health,
         "composer_actions": composer_actions,
@@ -293,6 +317,7 @@ async def get_dashboard_summary(client: UserClient):
         "connected_platforms": connected_platforms,
         "heartbeat_pulse": heartbeat_pulse,
         "progression": progression,
+        "projects": projects,
         "stats": {
             "total_agents": len(agents_raw),
             "active_agents": len(active_agents),

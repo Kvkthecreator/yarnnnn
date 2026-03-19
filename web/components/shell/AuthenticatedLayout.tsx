@@ -23,14 +23,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap, MessageSquare, LayoutDashboard } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap, MessageSquare, LayoutDashboard, FolderKanban } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_LABEL, HOME_ROUTE, isHomeRoute, ORCHESTRATOR_ROUTE, ORCHESTRATOR_LABEL, isOrchestratorRoute } from '@/lib/routes';
+import { HOME_LABEL, HOME_ROUTE, isHomeRoute, ORCHESTRATOR_ROUTE, ORCHESTRATOR_LABEL, isOrchestratorRoute, PROJECTS_ROUTE, PROJECTS_LABEL } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -116,6 +116,7 @@ interface RouteItem {
 // Supporting pages: Memory, Context, Activity, System, Settings
 const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: MessageSquare, path: ORCHESTRATOR_ROUTE };
 const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Work-Agents', icon: Briefcase, path: '/agents' };
+const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: FolderKanban, path: PROJECTS_ROUTE };
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
@@ -135,6 +136,10 @@ function getRouteFromPathname(pathname: string): RouteItem | null {
   // Check agents route (primary workspace)
   if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
     return AGENTS_ROUTE;
+  }
+  // Check projects route (primary workspace)
+  if (pathname === PROJECTS_ROUTE_NAV.path || pathname.startsWith(PROJECTS_ROUTE_NAV.path + '/')) {
+    return PROJECTS_ROUTE_NAV;
   }
   // Check supporting route pages
   for (const route of ROUTE_PAGES) {
@@ -325,6 +330,20 @@ function AuthenticatedLayoutInner({
                 >
                   <Briefcase className="w-4 h-4" />
                   {AGENTS_ROUTE.label}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(PROJECTS_ROUTE_NAV.path);
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    currentRoute?.id === PROJECTS_ROUTE_NAV.id && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <FolderKanban className="w-4 h-4" />
+                  {PROJECTS_ROUTE_NAV.label}
                 </button>
 
                 {/* Divider — supporting pages below */}
