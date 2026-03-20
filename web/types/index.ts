@@ -412,7 +412,7 @@ export interface Agent {
   created_at: string;
   updated_at: string;
   last_run_at?: string;
-  next_run_at?: string;
+  next_pulse_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
   // ADR-028: Destination-first agents
@@ -423,8 +423,6 @@ export interface Agent {
   agent_instructions?: string;
   agent_memory?: AgentMemory;
   mode?: AgentMode;
-  // ADR-092: Proactive/coordinator review scheduling
-  proactive_next_review_at?: string;
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
@@ -465,7 +463,6 @@ export interface AgentUpdate {
   agent_instructions?: string;
   // ADR-092: Mode taxonomy + scheduling
   mode?: AgentMode;
-  proactive_next_review_at?: string;
   trigger_config?: Record<string, unknown>;
   description?: string;
 }
@@ -668,7 +665,7 @@ export interface ScheduledAgent {
   id: string;
   title: string;
   role: string;
-  next_run_at: string;
+  next_pulse_at: string;
   destination_platform?: string | null;
 }
 

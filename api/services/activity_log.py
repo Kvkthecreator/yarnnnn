@@ -18,6 +18,8 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
   - unified_scheduler.py: 'content_cleanup' after expired content deletion
   - unified_scheduler.py: 'session_summary_written' after session summary generation
+  - agent_pulse.py: 'agent_pulsed' after agent pulse cycle (ADR-126)
+  - agent_pulse.py: 'pm_pulsed' after PM coordination pulse (ADR-126)
 
 Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
@@ -53,6 +55,9 @@ VALID_EVENT_TYPES = frozenset({
     "project_escalated",            # PM escalated to TP
     "project_contributor_advanced",  # PM advanced contributor schedule
     "duty_promoted",                # Composer promoted agent duty
+    # ADR-126: Agent Pulse — autonomous awareness events
+    "agent_pulsed",                 # Agent sense→decide cycle (all tiers)
+    "pm_pulsed",                    # PM coordination pulse (Tier 3)
 })
 
 

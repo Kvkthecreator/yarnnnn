@@ -206,7 +206,7 @@ REQUEST_CONTRIBUTOR_ADVANCE_TOOL = {
 
 Used by PM agents when a specific contributor is stale or blocking assembly.
 Looks up the agent by slug within the project's contributor list, then
-advances their schedule (sets next_run_at to now).
+advances their schedule (sets next_pulse_at to now).
 
 Required: project_slug, agent_slug
 Optional: reason""",
@@ -264,7 +264,7 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
     try:
         result = (
             auth.client.table("agents")
-            .select("id, title, next_run_at")
+            .select("id, title, next_pulse_at")
             .eq("user_id", auth.user_id)
             .eq("status", "active")
             .execute()
@@ -282,10 +282,10 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
                 "message": f"Active agent with slug '{agent_slug}' not found",
             }
 
-        # Advance schedule: set next_run_at to now
+        # Advance schedule: set next_pulse_at to now
         now = datetime.now(timezone.utc).isoformat()
         auth.client.table("agents").update({
-            "next_run_at": now,
+            "next_pulse_at": now,
             "updated_at": now,
         }).eq("id", target_agent["id"]).execute()
 
@@ -295,7 +295,7 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
             "success": True,
             "agent_slug": agent_slug,
             "agent_id": target_agent["id"],
-            "next_run_at": now,
+            "next_pulse_at": now,
             "reason": reason,
             "message": f"Advanced {agent_slug}'s schedule to now. Reason: {reason}",
         }

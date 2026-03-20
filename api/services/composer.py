@@ -32,7 +32,7 @@ from services.agent_framework import classify_seniority
 
 logger = logging.getLogger(__name__)
 
-# Composer uses Haiku for cost-efficiency (same as proactive_review)
+# Composer uses Haiku for cost-efficiency (same as agent_pulse)
 COMPOSER_MODEL = "claude-haiku-4-5-20251001"
 COMPOSER_MAX_TOKENS = 2048
 
@@ -1634,121 +1634,11 @@ async def run_lifecycle_assessment(
 
 
 # =============================================================================
-# Per-Agent Supervisory Review (ADR-111 Phase 4)
-# =============================================================================
-
-async def _get_due_supervisory_agents(client: Any, user_id: str) -> list[dict]:
-    """
-    Query proactive/coordinator agents due for TP supervisory review.
-
-    ADR-111 Phase 4: These are now triggered by Heartbeat (TP's cadence),
-    not directly by the scheduler. The agent provides domain assessment;
-    TP (Heartbeat) decides action.
-    """
-    now = datetime.now(timezone.utc)
-    try:
-        result = (
-            client.table("agents")
-            .select("id, user_id, title, scope, role, type_config, schedule, sources, "
-                    "destination, recipient_context, last_run_at, agent_instructions, "
-                    "agent_memory, mode, trigger_config")
-            .eq("user_id", user_id)
-            .eq("status", "active")
-            .in_("mode", ["proactive", "coordinator"])
-            .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
-            .execute()
-        )
-        return result.data or []
-    except Exception as e:
-        logger.warning(f"[COMPOSER] Supervisory query failed for {user_id}: {e}")
-        return []
-
-
-async def _run_supervisory_review(client: Any, agent: dict) -> dict:
-    """
-    Run TP's per-agent supervisory review for a proactive/coordinator agent.
-
-    ADR-111 Phase 4: The agent provides domain assessment via proactive_review.py.
-    TP (Heartbeat) invokes and logs the result. Mechanical flow is preserved;
-    conceptual ownership is TP's.
-
-    Returns: {"agent_id": str, "action": str, "note": str}
-    """
-    from services.proactive_review import run_proactive_review, apply_review_decision
-    from services.trigger_dispatch import dispatch_trigger
-    from services.activity_log import write_activity
-
-    agent_id = agent["id"]
-    user_id = agent["user_id"]
-    title = agent["title"]
-    mode = agent.get("mode", "proactive")
-
-    logger.info(f"[COMPOSER] Supervisory review: {title} ({agent_id}), mode={mode}")
-
-    try:
-        decision = await run_proactive_review(
-            client=client,
-            user_id=user_id,
-            agent=agent,
-        )
-
-        action = decision.get("action", "observe")
-        note = decision.get("note", "")
-
-        if action == "generate":
-            # Update memory + scheduling BEFORE generation
-            await apply_review_decision(client, agent, decision)
-
-            # Full generation path via dispatch
-            result = await dispatch_trigger(
-                client=client,
-                agent=agent,
-                trigger_type="schedule",
-                trigger_context={"type": "proactive_review", "review_decision": decision},
-                signal_strength="high",
-            )
-
-            try:
-                await write_activity(
-                    client=client,
-                    user_id=user_id,
-                    event_type="agent_scheduled",
-                    summary=f"TP supervisory generation: {title}",
-                    event_ref=agent_id,
-                    metadata={"mode": mode, "review_action": "generate", "trigger": "heartbeat"},
-                )
-            except Exception:
-                pass
-
-            return {"agent_id": agent_id, "action": "generate", "note": note,
-                    "success": result.get("success", False)}
-        else:
-            # observe or sleep — update memory, no generation
-            await apply_review_decision(client, agent, decision)
-
-            try:
-                await write_activity(
-                    client=client,
-                    user_id=user_id,
-                    event_type="memory_written",
-                    summary=f"TP supervisory [{action}]: {title}",
-                    event_ref=agent_id,
-                    metadata={"mode": mode, "review_action": action, "trigger": "heartbeat",
-                              "note": note[:200] if note else ""},
-                )
-            except Exception:
-                pass
-
-            return {"agent_id": agent_id, "action": action, "note": note}
-
-    except Exception as e:
-        logger.error(f"[COMPOSER] Supervisory review failed for {title}: {e}")
-        return {"agent_id": agent_id, "action": "error", "note": str(e)}
-
-
-# =============================================================================
 # Heartbeat Entry Point (called from unified_scheduler.py)
 # =============================================================================
+# NOTE: Per-agent supervisory review (ADR-111 Phase 4) has been absorbed into
+# the Agent Pulse engine (ADR-126). The scheduler now dispatches pulses directly
+# via run_agent_pulse() — Composer no longer owns per-agent review.
 
 async def run_heartbeat(client: Any, user_id: str) -> dict:
     """
@@ -1756,11 +1646,10 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
     1. Cheap data query (workforce assessment)
     2. Should Composer act? (create/adjust agents)
     3. If yes: run Composer assessment
-    4. Per-agent supervisory review (proactive/coordinator agents due for review)
-    5. Log results
 
-    ADR-111 Phase 4: Heartbeat is TP's single autonomous cadence for both
-    workforce composition AND per-agent supervision.
+    ADR-126: Per-agent pulse dispatch moved to the scheduler. Composer's
+    heartbeat focuses purely on workforce composition (coverage gaps,
+    lifecycle, expansion opportunities).
 
     Returns heartbeat result dict for activity logging.
     """
@@ -1786,7 +1675,6 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "total_agent_runs": assessment.get("total_agent_runs", 0),
         },
         "composer_result": None,
-        "supervisory_reviews": [],
     }
 
     # Step 3: Composer assessment (LLM only when warranted)
@@ -1839,16 +1727,8 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
     else:
         logger.info(f"[COMPOSER] Heartbeat for {user_id}: {reason}")
 
-    # Step 4: Per-agent supervisory review (ADR-111 Phase 4)
-    # TP's Heartbeat invokes per-agent reviews for proactive/coordinator agents.
-    # Independent of Composer — always runs when agents are due.
-    due_agents = await _get_due_supervisory_agents(client, user_id)
-    for agent in due_agents:
-        try:
-            review_result = await _run_supervisory_review(client, agent)
-            heartbeat_result["supervisory_reviews"].append(review_result)
-        except Exception as e:
-            logger.warning(f"[COMPOSER] Supervisory review error for {agent.get('title')}: {e}")
+    # NOTE: Per-agent pulse dispatch is now handled by the scheduler (ADR-126).
+    # Composer's heartbeat focuses on workforce composition only.
 
     return heartbeat_result
 
@@ -1940,7 +1820,6 @@ async def maybe_trigger_heartbeat(
         try:
             from services.activity_log import write_activity
             composer_result = hb_result.get("composer_result") or {}
-            supervisory = hb_result.get("supervisory_reviews", [])
             lifecycle_actions = composer_result.get("lifecycle_actions", [])
             created_count = len(composer_result.get("members_created", []))
 
@@ -1957,7 +1836,6 @@ async def maybe_trigger_heartbeat(
                     "reason": hb_result.get("reason", ""),
                     "members_created": created_count,
                     "lifecycle_actions": len(lifecycle_actions),
-                    "supervisory_reviews": len(supervisory),
                     **hb_result.get("assessment_summary", {}),
                 },
             )

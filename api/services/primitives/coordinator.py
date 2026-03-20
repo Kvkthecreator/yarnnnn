@@ -2,7 +2,7 @@
 Coordinator Primitives — ADR-092 Phase 5, updated ADR-111
 
   CreateAgent         — creates an agent (chat + headless, unified)
-  AdvanceAgentSchedule — sets next_run_at=now on an existing agent (headless only)
+  AdvanceAgentSchedule — sets next_pulse_at=now on an existing agent (headless only)
 
 CreateAgent uses shared create_agent_record() from agent_creation.py.
 In headless/coordinator mode: origin=coordinator_created, execute_now=True, dedup via workspace.
@@ -123,7 +123,7 @@ async def handle_create_agent(auth: Any, input: dict) -> dict:
 
     In headless/coordinator mode:
       - origin=coordinator_created
-      - execute_now=True (next_run_at=now)
+      - execute_now=True (next_pulse_at=now)
       - Sources inherited from coordinator if not specified
       - Dedup log appended to coordinator workspace
 
@@ -273,7 +273,7 @@ ADVANCE_AGENT_SCHEDULE_TOOL = {
 Use when you detect that a condition warrants running an existing agent
 immediately, rather than waiting for its next scheduled run.
 
-This sets next_run_at to now — the scheduler will pick it up on the next 5-minute tick.
+This sets next_pulse_at to now — the scheduler will pick it up on the next 5-minute tick.
 The agent's schedule is preserved; this is a one-time advancement.
 
 Requires the agent_id of the target agent. Use Search or List
@@ -299,7 +299,7 @@ async def handle_advance_agent_schedule(auth: Any, input: dict) -> dict:
     """
     Handle AdvanceAgentSchedule primitive.
 
-    Sets next_run_at=now so the scheduler picks it up immediately.
+    Sets next_pulse_at=now so the scheduler picks it up immediately.
     Preserves the agent's existing schedule config.
 
     Returns {success, agent_id, message}
@@ -339,7 +339,7 @@ async def handle_advance_agent_schedule(auth: Any, input: dict) -> dict:
             }
 
         auth.client.table("agents").update({
-            "next_run_at": now.isoformat(),
+            "next_pulse_at": now.isoformat(),
         }).eq("id", agent_id).execute()
 
         logger.info(f"[COORDINATOR] Advanced schedule: {d.get('title')} ({agent_id}), reason={reason}")

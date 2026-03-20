@@ -72,7 +72,7 @@ async def get_dashboard_summary(client: UserClient):
     try:
         result = (
             db.table("agents")
-            .select("id, title, status, origin, role, scope, sources, last_run_at, next_run_at, schedule")
+            .select("id, title, status, origin, role, scope, sources, last_run_at, next_pulse_at, schedule")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -239,5 +239,5 @@ def _format_agent(agent: dict) -> dict:
         "scope": agent.get("scope"),
         "sources": agent.get("sources", []),
         "last_run_at": agent.get("last_run_at"),
-        "next_run_at": agent.get("next_run_at"),
+        "next_pulse_at": agent.get("next_pulse_at"),
     }

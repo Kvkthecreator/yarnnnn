@@ -354,7 +354,7 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
         try:
             pm_result = (
                 client.table("agents")
-                .select("id, last_run_at, next_run_at")
+                .select("id, last_run_at, next_pulse_at")
                 .eq("id", pm_agent_id)
                 .eq("user_id", user_id)
                 .eq("status", "active")
@@ -380,7 +380,7 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
             # Advance PM schedule to now
             now = datetime.now(timezone.utc).isoformat()
             client.table("agents").update({
-                "next_run_at": now,
+                "next_pulse_at": now,
                 "updated_at": now,
             }).eq("id", pm_agent_id).execute()
 
@@ -485,6 +485,23 @@ async def _handle_pm_decision(
     details = decision.get("details", "")
 
     logger.info(f"[PM] Decision for {project_slug}: action={action}, reason={reason}")
+
+    # ADR-126: Log PM coordination pulse as pm_pulsed event
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=client, user_id=user_id,
+            event_type="pm_pulsed",
+            summary=f"PM pulsed: {action} — {reason[:80]}" if reason else f"PM pulsed: {action}",
+            event_ref=agent.get("id"),
+            metadata={"project_slug": project_slug,
+                      "action": action,
+                      "reason": reason,
+                      "tier": 3,
+                      "target_agent": target_agent},
+        )
+    except Exception:
+        pass  # Non-fatal
 
     # ADR-117 Phase 3: Write project_heartbeat activity event
     try:
@@ -1461,12 +1478,14 @@ If the gathered context says "(No context available)" or tools return no results
     if trigger_context:
         trigger_type = trigger_context.get("type", "")
 
-        # Proactive review: forward the review decision note to generation
-        if trigger_type == "proactive_review":
+        # Pulse generate: forward the pulse decision context to generation (ADR-126)
+        if trigger_type in ("pulse_generate", "proactive_review"):
+            # pulse_generate: tier info in trigger_context
+            pulse_tier = trigger_context.get("tier", "")
             review_decision = trigger_context.get("review_decision", {})
             review_note = review_decision.get("note", "")
             if review_note:
-                prompt += f"\n\n## Review Context\nThis agent was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point. The review pass already identified these themes — focus on synthesizing insights from the gathered context above rather than re-investigating."
+                prompt += f"\n\n## Pulse Context\nThis agent was triggered by a pulse (tier {pulse_tier}) that found:\n{review_note}\n\nUse this as your starting point — focus on synthesizing insights from the gathered context above rather than re-investigating."
 
         # Signal processing: forward signal reasoning
         signal_reasoning = trigger_context.get("signal_reasoning", "")

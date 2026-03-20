@@ -163,11 +163,11 @@ export function IdleSurface() {
   const activeAgents = data?.agents.filter((d) => d.status === 'active') || [];
   const pausedAgents = data?.agents.filter((d) => d.status === 'paused') || [];
 
-  // Sort active agents by next_run_at (soonest first)
+  // Sort active agents by next_pulse_at (soonest first)
   const upcomingAgents = [...activeAgents].sort((a, b) => {
-    if (!a.next_run_at) return 1;
-    if (!b.next_run_at) return -1;
-    return new Date(a.next_run_at).getTime() - new Date(b.next_run_at).getTime();
+    if (!a.next_pulse_at) return 1;
+    if (!b.next_pulse_at) return -1;
+    return new Date(a.next_pulse_at).getTime() - new Date(b.next_pulse_at).getTime();
   });
 
   // Find next scheduled agent for status strip
@@ -229,13 +229,13 @@ export function IdleSurface() {
               </div>
             )}
             <span className="text-muted-foreground">·</span>
-            {nextAgent?.next_run_at && (
+            {nextAgent?.next_pulse_at && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Clock className="w-3.5 h-3.5" />
                 <span>
                   Next:{' '}
                   <span className="text-foreground">{nextAgent.title}</span>{' '}
-                  {formatDistanceToNow(new Date(nextAgent.next_run_at), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(nextAgent.next_pulse_at), { addSuffix: true })}
                 </span>
               </div>
             )}
@@ -452,10 +452,10 @@ function AgentCard({
             </div>
           </div>
         </div>
-        {agent.next_run_at && (
+        {agent.next_pulse_at && (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            {formatDistanceToNow(new Date(agent.next_run_at), { addSuffix: true })}
+            {formatDistanceToNow(new Date(agent.next_pulse_at), { addSuffix: true })}
           </span>
         )}
       </div>

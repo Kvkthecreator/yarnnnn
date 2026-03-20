@@ -78,9 +78,9 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
 AGENT_COLUMNS = {
     "id", "user_id", "project_id", "title", "description",
     "recipient_context", "schedule", "sources",
-    "status", "created_at", "updated_at", "last_run_at", "next_run_at",
+    "status", "created_at", "updated_at", "last_run_at", "next_pulse_at",
     "type_config", "destination", "origin", "agent_instructions",
-    "agent_memory", "mode", "proactive_next_review_at", "trigger_type",
+    "agent_memory", "mode", "trigger_type",
     "trigger_config", "last_triggered_at", "scope", "role",
 }
 
@@ -155,13 +155,13 @@ async def create_agent_record(
     sched.setdefault("time", "09:00")
     sched.setdefault("timezone", "UTC")
 
-    # Calculate next_run_at
+    # Calculate next_pulse_at
     now = datetime.now(timezone.utc)
     if execute_now:
-        next_run_at = now.isoformat()
+        next_pulse_at = now.isoformat()
     else:
         next_run = calculate_next_run_from_schedule(sched)
-        next_run_at = next_run.isoformat()
+        next_pulse_at = next_run.isoformat()
 
     # Resolve instructions
     instructions_text = agent_instructions
@@ -182,7 +182,7 @@ async def create_agent_record(
         "status": "active",
         "sources": sources or [],
         "schedule": sched,
-        "next_run_at": next_run_at,
+        "next_pulse_at": next_pulse_at,
         "recipient_context": recipient_context or {},
         "type_config": type_config or {},
         "created_at": now.isoformat(),

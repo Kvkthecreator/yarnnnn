@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.9] - ADR-126: Agent Pulse implementation — Phases 1-4
+
+### Changed
+- `api/services/agent_pulse.py` (NEW): Core pulse engine. `run_agent_pulse()` → `PulseDecision`. Three-tier funnel: Tier 1 (deterministic gates, zero LLM), Tier 2 (Haiku self-assessment, associate+ seniority), Tier 3 (PM coordination, reframes existing `_handle_pm_decision`). Absorbs all logic from deleted `proactive_review.py`.
+- `api/services/proactive_review.py` (DELETED): All logic absorbed into `agent_pulse.py` Tier 2.
+- `api/jobs/unified_scheduler.py`: Rewritten as pulse dispatcher. `get_due_agents()` → `get_due_pulse_agents()`. Main loop calls `run_agent_pulse()`, acts on decision (generate → `process_agent()`, observe/wait/escalate → log only). Deleted: `get_due_proactive_agents()`, `process_proactive_agent()`, `should_skip_agent()`. Summary stats now pulse-aware (gen/obs/wait/esc).
+- `api/services/composer.py`: Deleted `_run_supervisory_review()` and `_get_due_supervisory_agents()` (Phase 4 thinning). Removed Step 4 supervisory loop from `run_heartbeat()`. Composer heartbeat now focuses purely on workforce composition.
+- `api/services/agent_execution.py`: Added `pm_pulsed` event logging in `_handle_pm_decision()` (Tier 3). Updated trigger context handling: `proactive_review` → `pulse_generate`.
+- `api/services/activity_log.py`: Added `agent_pulsed` and `pm_pulsed` to `VALID_EVENT_TYPES`.
+- `api/test_adr092_modes.py`: Phase 3 rewritten to test `_apply_pulse_decision()` with `PulseDecision` objects + workspace verification (not `agent_memory` JSONB). Phase 5 updated for `_parse_pulse_response`.
+- `supabase/migrations/124_agent_pulse.sql` (NEW): `next_run_at` → `next_pulse_at`, drops `proactive_next_review_at`, replaces `get_due_agents` RPC with `get_due_pulse_agents` (queries ALL active agents, no mode filter).
+- ~19 files: `next_run_at` → `next_pulse_at` rename across API, frontend, and tests.
+
+### Expected behavior
+- Every agent gets a pulse on schedule — autonomous sense→decide cycle upstream of execution
+- ~80% of pulses resolve at Tier 1 (zero LLM cost): budget check, content freshness, first-run detection
+- Associate+ agents get Tier 2 (Haiku self-assessment): domain-scoped, reads workspace context
+- PM agents log `pm_pulsed` events (Tier 3) for Composer/dashboard visibility
+- Scheduler dispatches ALL active agents (not mode-filtered) — pulse engine handles mode-specific logic
+- Composer heartbeat is thinner: no per-agent supervisory review, just workforce composition
+
+---
+
+## [2026.03.20.8] - Project-native Orchestrator: 3+1 cards, bootstrap→projects
+
+### Changed
+- `web/components/desk/ChatFirstDesk.tsx`: PROJECT_TEMPLATES slimmed from 6 cards (3 aspirational) to 4 registry-backed cards: Slack Recap, Gmail Recap, Notion Recap, New Project. Meeting Prep / Work Summary / Proactive Insights removed — no registry backing. CAPABILITY_TEMPLATES slimmed from 3 to 2 (removed "Ask anything"). Bootstrap banner now polls projects (not agents) and links to `/projects/{slug}` Meeting Room (not `/agents/{id}`). Bootstrap filter IDs fixed (`gmail-digest` → `gmail-recap`, `notion-summary` → `notion-recap`, `gmail` → `google`). Removed unused imports (Brain, Agent type).
+- `docs/design/USER_FLOW_ONBOARDING_V4.md`: Full rewrite to v6 — project-native onboarding. Documents 3+1 card model, bootstrap→project flow, Meeting Room as post-creation surface, project-level onboarding philosophy (context + objective in one PM conversation).
+
+### Expected behavior
+- Orchestrator empty state shows only what the system can deliver deterministically: 3 platform project cards + 1 custom project card
+- Bootstrap banner says "View project →" and links to Meeting Room, not agent page
+- "New Project" card routes to TP chat for custom project creation, which then points user to Meeting Room
+- Plus menu "Create project" shows the same 4 cards
+- No aspirational cards that send freeform prompts without registry backing
+
+---
+
 ## [2026.03.20.7] - ADR-126: Agent Pulse — Composer prompt evolution path
 
 ### Planned (implementation phases)

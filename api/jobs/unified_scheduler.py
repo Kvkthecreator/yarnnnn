@@ -1,13 +1,16 @@
 """
-YARNNN v5 - Unified Scheduler
+YARNNN v5 - Unified Scheduler (Pulse Dispatcher — ADR-126)
 
-Consolidates all scheduled job processing:
-- Recurring agents (ADR-018)
-- Proactive/coordinator agents (ADR-092)
-- TP Composer Heartbeat (ADR-111 Phase 3)
+Gives each agent its turn to pulse (sense→decide), then acts on the decision.
+The scheduler dispatches pulses — agents decide whether to generate.
+
+Consolidates:
+- Agent pulse dispatch (ADR-126) — all modes, all agents
+- TP Composer Heartbeat (ADR-111 Phase 3, being thinned by ADR-126)
 - Import jobs
 - Nightly conversation analysis + memory extraction
 - Platform content cleanup (ADR-072)
+- Workspace ephemeral cleanup (ADR-119)
 
 Run every 5 minutes via Render cron:
   schedule: "*/5 * * * *"
@@ -35,18 +38,19 @@ logger = logging.getLogger(__name__)
 # Shared Utilities
 # =============================================================================
 
-def calculate_next_run_from_schedule(schedule: dict, from_time: Optional[datetime] = None) -> datetime:
+def calculate_next_pulse_from_schedule(schedule: dict, from_time: Optional[datetime] = None) -> datetime:
     """
-    Calculate next run time from a schedule config.
+    Calculate next pulse time from a schedule config (ADR-126).
 
     Supports both cron expressions and frequency-based schedules.
+    The schedule defines the default pulse rhythm — how often the agent senses.
 
     Args:
         schedule: Schedule dict with frequency, day, time, timezone, cron
         from_time: Base time (defaults to now)
 
     Returns:
-        Next run time as UTC datetime
+        Next pulse time as UTC datetime
     """
     import pytz
 
@@ -133,6 +137,10 @@ def calculate_next_run_from_schedule(schedule: dict, from_time: Optional[datetim
     return next_run.astimezone(timezone.utc)
 
 
+# Backwards-compat alias — callers being migrated to new name
+calculate_next_run_from_schedule = calculate_next_pulse_from_schedule
+
+
 def format_schedule_description(schedule: dict) -> str:
     """Format schedule as human-readable string."""
     frequency = schedule.get("frequency", "weekly")
@@ -213,39 +221,12 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 # Agent Processing (ADR-018)
 # =============================================================================
 
-async def get_due_agents(supabase_client) -> list[dict]:
+async def get_due_pulse_agents(supabase_client) -> list[dict]:
     """
-    Query agents due for generation.
+    ADR-126: Query ALL active agents due for pulse.
 
-    Returns active agents where next_run_at <= now.
-    Includes last_run_at for freshness check (ADR-031).
-    """
-    now = datetime.now(timezone.utc)
-
-    # ADR-092: Exclude reactive and proactive/coordinator agents — they have
-    # their own trigger paths (event_triggers.py and proactive_next_review_at).
-    result = (
-        supabase_client.table("agents")
-        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
-        .eq("status", "active")
-        .in_("mode", ["recurring", "goal"])
-        .lte("next_run_at", now.isoformat())
-        .execute()
-    )
-
-    return result.data or []
-
-
-async def get_due_proactive_agents(supabase_client) -> list[dict]:
-    """
-    ADR-092 Phase 4: Query proactive and coordinator agents due for review.
-
-    NOTE (ADR-111 Phase 4): No longer called from run_unified_scheduler().
-    Supervisory review is now triggered by Heartbeat via composer._get_due_supervisory_agents().
-    Kept for backward compatibility with tests.
-
-    Returns active proactive/coordinator agents where
-    proactive_next_review_at <= now (or is NULL — never reviewed before).
+    Returns active agents where next_pulse_at <= now, regardless of mode.
+    Every agent gets a pulse — the pulse decides whether to generate.
     """
     now = datetime.now(timezone.utc)
 
@@ -253,155 +234,11 @@ async def get_due_proactive_agents(supabase_client) -> list[dict]:
         supabase_client.table("agents")
         .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
         .eq("status", "active")
-        .in_("mode", ["proactive", "coordinator"])
-        .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
+        .lte("next_pulse_at", now.isoformat())
         .execute()
     )
 
     return result.data or []
-
-
-async def process_proactive_agent(supabase_client, agent: dict) -> bool:
-    """
-    ADR-092 Phase 4: Process a single proactive/coordinator agent.
-
-    NOTE (ADR-111 Phase 4): No longer called from run_unified_scheduler().
-    Supervisory review is now handled by composer._run_supervisory_review().
-    Kept for backward compatibility with tests.
-
-    Runs a lightweight Haiku review pass. On "generate", proceeds to full generation.
-    On "observe" or "sleep", updates memory and proactive_next_review_at only.
-
-    Returns True if the review pass completed without error (regardless of action taken).
-    """
-    from services.proactive_review import run_proactive_review, apply_review_decision
-    from services.activity_log import write_activity
-
-    agent_id = agent["id"]
-    user_id = agent["user_id"]
-    title = agent["title"]
-    mode = agent.get("mode", "proactive")
-
-    logger.info(f"[PROACTIVE] Reviewing: {title} ({agent_id}), mode={mode}")
-
-    try:
-        decision = await run_proactive_review(
-            client=supabase_client,
-            user_id=user_id,
-            agent=agent,
-        )
-
-        action = decision.get("action", "observe")
-
-        if action == "generate":
-            # Update memory + proactive_next_review_at BEFORE generation
-            # so scheduler doesn't re-pick this agent while generation runs
-            await apply_review_decision(supabase_client, agent, decision)
-
-            # Full generation path — reuse existing dispatch
-            from services.trigger_dispatch import dispatch_trigger
-            result = await dispatch_trigger(
-                client=supabase_client,
-                agent=agent,
-                trigger_type="schedule",
-                trigger_context={"type": "proactive_review", "review_decision": decision},
-                signal_strength="high",
-            )
-
-            try:
-                await write_activity(
-                    client=supabase_client,
-                    user_id=user_id,
-                    event_type="agent_scheduled",
-                    summary=f"Proactive generation: {title}",
-                    event_ref=agent_id,
-                    metadata={"mode": mode, "review_action": "generate"},
-                )
-            except Exception:
-                pass  # Non-fatal
-
-            return result.get("success", False)
-
-        else:
-            # observe or sleep — update memory, no generation
-            await apply_review_decision(supabase_client, agent, decision)
-            note = decision.get("note", "")
-
-            try:
-                await write_activity(
-                    client=supabase_client,
-                    user_id=user_id,
-                    event_type="memory_written",
-                    summary=f"Proactive review [{action}]: {title}",
-                    event_ref=agent_id,
-                    metadata={"mode": mode, "review_action": action, "note": note[:200] if note else ""},
-                )
-            except Exception:
-                pass  # Non-fatal
-
-            logger.info(f"[PROACTIVE] {action}: {title} — {note[:100] if note else ''}")
-            return True
-
-    except Exception as e:
-        logger.error(f"[PROACTIVE] Review failed for {title}: {e}")
-        return False
-
-
-async def should_skip_agent(
-    supabase_client,
-    agent: dict,
-) -> tuple[bool, str]:
-    """
-    Check if an agent should be skipped due to no new context.
-
-    ADR-031 Phase 3: Skip generation if no fresh ephemeral context since last run.
-
-    Args:
-        supabase_client: Supabase client
-        agent: Agent dict with sources and last_run_at
-
-    Returns:
-        Tuple of (should_skip, reason)
-    """
-    from services.platform_content import has_fresh_content_since
-
-    sources = agent.get("sources", [])
-    if not sources:
-        # No sources configured - can't skip based on freshness
-        return False, ""
-
-    # Get last_run_at - if never run, don't skip
-    last_run_at = agent.get("last_run_at")
-    if not last_run_at:
-        return False, ""
-
-    # Parse last_run_at
-    try:
-        if isinstance(last_run_at, str):
-            if last_run_at.endswith("Z"):
-                last_run_at = last_run_at[:-1] + "+00:00"
-            last_run_at = datetime.fromisoformat(last_run_at)
-    except (ValueError, TypeError):
-        return False, ""
-
-    # Check for fresh platform content (ADR-072)
-    try:
-        has_fresh, count = await has_fresh_content_since(
-            db_client=supabase_client,
-            user_id=agent["user_id"],
-            agent_sources=sources,
-            since=last_run_at,
-        )
-
-        if not has_fresh:
-            return True, "No new content since last run"
-
-        return False, ""
-
-    except Exception as e:
-        # On error, don't skip - better to run than miss updates
-        logger.warning(f"[AGENT] Freshness check failed: {e}")
-        return False, ""
 
 
 def resolve_due_duties(agent: dict) -> list[dict]:
@@ -448,7 +285,7 @@ async def process_agent(supabase_client, agent: dict) -> bool:
 
     # ADR-072: Write agent_scheduled event when queued for execution
     try:
-        next_run = calculate_next_run_from_schedule(schedule)
+        next_run = calculate_next_pulse_from_schedule(schedule)
         await write_activity(
             client=supabase_client,
             user_id=user_id,
@@ -508,15 +345,15 @@ async def process_agent(supabase_client, agent: dict) -> bool:
             logger.error(f"[AGENT] ✗ Error processing {title} (duty={duty_name}): {e}")
             all_success = False
 
-    # Calculate and update next_run_at (once, after all duties processed)
+    # Calculate and update next_pulse_at (once, after all duties processed)
     try:
-        next_run = calculate_next_run_from_schedule(schedule)
+        next_run = calculate_next_pulse_from_schedule(schedule)
         supabase_client.table("agents").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
-            "next_run_at": next_run.isoformat(),
+            "next_pulse_at": next_run.isoformat(),
         }).eq("id", agent_id).execute()
     except Exception as e:
-        logger.warning(f"[AGENT] Failed to update next_run_at for {title}: {e}")
+        logger.warning(f"[AGENT] Failed to update next_pulse_at for {title}: {e}")
 
     return all_success
 
@@ -527,10 +364,10 @@ async def process_agent(supabase_client, agent: dict) -> bool:
 
 async def run_unified_scheduler():
     """
-    Main scheduler entry point.
+    Main scheduler entry point — pulse dispatcher (ADR-126).
 
-    Processes agents, proactive/coordinator reviews, imports, and memory extraction.
-    Called by Render cron every 5 minutes.
+    Dispatches agent pulses, processes imports, runs Composer heartbeat,
+    and handles nightly memory extraction. Called by Render cron every 5 minutes.
     """
     from supabase import create_client
 
@@ -548,52 +385,44 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # Process Agents (ADR-018)
+    # ADR-126: Pulse Dispatch — give each agent its turn to sense and decide
     # -------------------------------------------------------------------------
-    agents = await get_due_agents(supabase)
-    logger.info(f"[AGENT] Found {len(agents)} due for generation")
+    from services.agent_pulse import run_agent_pulse, calculate_next_pulse_at
 
+    all_due_agents = await get_due_pulse_agents(supabase)
+    logger.info(f"[PULSE] Found {len(all_due_agents)} agents due for pulse")
+
+    pulse_generated = 0
+    pulse_observed = 0
+    pulse_waited = 0
+    pulse_escalated = 0
     agent_success = 0
-    agent_skipped = 0
-    for agent in agents:
+
+    for agent in all_due_agents:
         try:
-            # ADR-031 Phase 3: Skip if no new context since last run
-            should_skip, skip_reason = await should_skip_agent(supabase, agent)
-            if should_skip:
-                logger.info(f"[AGENT] Skipping '{agent['title']}': {skip_reason}")
-                agent_skipped += 1
-                # Still update next_run_at to prevent re-checking every 5 minutes
-                schedule = agent.get("schedule", {})
-                next_run = calculate_next_run_from_schedule(schedule)
-                supabase.table("agents").update({
-                    "next_run_at": next_run.isoformat(),
-                }).eq("id", agent["id"]).execute()
-                continue
+            # Agent decides via pulse (Tier 1 deterministic → Tier 2 self-assessment)
+            decision = await run_agent_pulse(supabase, agent)
 
-            # ADR-120 Phase 3: Work budget check before dispatch
-            agent_user_id = agent.get("user_id")
-            if agent_user_id:
-                try:
-                    from services.platform_limits import check_work_budget
-                    budget_ok, wu_used, wu_limit = check_work_budget(supabase, agent_user_id)
-                    if not budget_ok:
-                        logger.info(f"[AGENT] Work budget exhausted for user {agent_user_id}: {wu_used}/{wu_limit}, skipping '{agent['title']}'")
-                        agent_skipped += 1
-                        continue
-                except Exception as budget_err:
-                    logger.warning(f"[AGENT] Work budget check failed (proceeding): {budget_err}")
+            if decision.action == "generate":
+                pulse_generated += 1
+                # Existing execution pipeline — unchanged
+                if await process_agent(supabase, agent):
+                    agent_success += 1
+            elif decision.action == "observe":
+                pulse_observed += 1
+            elif decision.action == "wait":
+                pulse_waited += 1
+            elif decision.action == "escalate":
+                pulse_escalated += 1
 
-            if await process_agent(supabase, agent):
-                agent_success += 1
+            # Update next_pulse_at for next cycle
+            next_pulse = calculate_next_pulse_at(agent, decision)
+            supabase.table("agents").update({
+                "next_pulse_at": next_pulse.isoformat(),
+            }).eq("id", agent["id"]).execute()
+
         except Exception as e:
-            logger.error(f"[AGENT] Unexpected error: {e}")
-
-    # -------------------------------------------------------------------------
-    # ADR-092 → ADR-111 Phase 4: Proactive / Coordinator Review
-    # Absorbed into Heartbeat. TP's supervisory review runs per-user inside
-    # run_heartbeat() → _run_supervisory_review(). proactive_reviewed counter
-    # is populated by the Heartbeat section above.
-    # -------------------------------------------------------------------------
+            logger.error(f"[PULSE] Unexpected error for {agent.get('title', '?')}: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-072: Cleanup Expired Platform Content (hourly)
@@ -680,7 +509,6 @@ async def run_unified_scheduler():
     composer_users = 0
     composer_created = 0
     composer_lifecycle = 0  # ADR-111 Phase 5: lifecycle actions (pause, expand)
-    proactive_reviewed = 0  # ADR-111 Phase 4: populated by supervisory reviews in Heartbeat
     try:
         from services.composer import run_heartbeat
         from services.platform_limits import get_user_tier
@@ -716,10 +544,6 @@ async def run_unified_scheduler():
                 created_count = len(composer_result.get("members_created", []))
                 composer_created += created_count
 
-                # ADR-111 Phase 4: Count supervisory reviews from Heartbeat
-                supervisory = hb_result.get("supervisory_reviews", [])
-                proactive_reviewed += len(supervisory)
-
                 # ADR-111 Phase 5: Count lifecycle actions from Heartbeat
                 lifecycle_actions = composer_result.get("lifecycle_actions", [])
                 composer_lifecycle += len(lifecycle_actions)
@@ -738,7 +562,6 @@ async def run_unified_scheduler():
                             "reason": hb_result.get("reason", ""),
                             "members_created": created_count,
                             "lifecycle_actions": len(lifecycle_actions),
-                            "supervisory_reviews": len(supervisory),
                             **hb_result.get("assessment_summary", {}),
                         },
                     )
@@ -875,18 +698,18 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
-    agent_summary = f"{agent_success}/{len(agents)}"
-    if agent_skipped > 0:
-        agent_summary += f" ({agent_skipped} skipped)"
+    total_pulsed = len(all_due_agents)
+    pulse_summary = f"pulse={total_pulsed} (gen={pulse_generated} obs={pulse_observed} wait={pulse_waited}"
+    if pulse_escalated > 0:
+        pulse_summary += f" esc={pulse_escalated}"
+    pulse_summary += f") runs={agent_success}"
 
     summary_parts = [
-        f"agents={agent_summary}",
+        pulse_summary,
         f"imports={import_success}/{import_count}",
     ]
     if memory_extracted > 0:
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
-    if proactive_reviewed > 0:
-        summary_parts.append(f"proactive={proactive_reviewed} reviewed")
     if composer_users > 0:
         composer_summary = f"composer={composer_users} users"
         if composer_created > 0:
@@ -905,20 +728,19 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        total_checked = len(agents) + import_count
-        total_triggered = agent_success + import_success
-
-        heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
+        heartbeat_summary = f"Pulse dispatch: {total_pulsed} pulsed, {agent_success} generated"
 
         # Write per-user heartbeat for all users with active connections
         # so the system page can show scheduler status per user
         heartbeat_metadata = {
-            "agents_checked": len(agents),
-            "agents_triggered": agent_success,
-            "agents_skipped": agent_skipped,
+            "agents_pulsed": total_pulsed,
+            "pulse_generated": pulse_generated,
+            "pulse_observed": pulse_observed,
+            "pulse_waited": pulse_waited,
+            "pulse_escalated": pulse_escalated,
+            "agents_generated": agent_success,
             "imports_checked": import_count,
             "imports_triggered": import_success,
-            "proactive_reviewed": proactive_reviewed,
             "composer_users": composer_users,
             "composer_created": composer_created,
             "composer_lifecycle": composer_lifecycle,

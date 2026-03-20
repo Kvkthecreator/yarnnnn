@@ -3,10 +3,10 @@ ADR-092 Mode Test Suite — Agent Intelligence & Mode Taxonomy
 
 Tests the three new scheduler paths introduced in ADR-092 Phases 2–5:
   - Reactive mode: observation accumulation + threshold-triggered generation
-  - Proactive mode: apply_review_decision() memory writes
+  - Proactive mode: _apply_pulse_decision() workspace writes (ADR-126)
   - Coordinator mode: CreateAgent + AdvanceAgentSchedule primitives
 
-Also tests _parse_review_response() edge cases (pure unit, no DB) and
+Also tests _parse_pulse_response() edge cases (pure unit, no DB) and
 verifies scheduler query filters correctly separate recurring/goal from
 proactive/coordinator paths.
 
@@ -147,13 +147,13 @@ async def phase1_setup(supabase) -> dict:
             "sources": [],
             "schedule": {"frequency": "daily"},
             "agent_memory": {"review_log": [], "observations": []},
-            "proactive_next_review_at": (now - timedelta(hours=1)).isoformat(),
+            "next_pulse_at": (now - timedelta(hours=1)).isoformat(),
         }).execute()
     )
     ids["proactive"] = proactive.data[0]["id"]
     logger.info(f"  Created proactive agent: {ids['proactive']}")
 
-    # Coordinator agent (next_review overdue by 1h)
+    # Coordinator agent (next_pulse overdue by 1h)
     coordinator = (
         supabase.table("agents").insert({
             "user_id": TEST_USER_ID,
@@ -167,7 +167,7 @@ async def phase1_setup(supabase) -> dict:
             "sources": [],
             "schedule": {"frequency": "daily"},
             "agent_memory": {"review_log": [], "created_agents": []},
-            "proactive_next_review_at": (now - timedelta(hours=1)).isoformat(),
+            "next_pulse_at": (now - timedelta(hours=1)).isoformat(),
         }).execute()
     )
     ids["coordinator"] = coordinator.data[0]["id"]
@@ -273,73 +273,79 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
 
 
 # =============================================================================
-# Phase 3: Proactive review — apply_review_decision
+# Phase 3: Pulse decision — _apply_pulse_decision (ADR-126)
 # =============================================================================
 
 async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
-    """Test apply_review_decision() for observe, sleep, and generate actions."""
-    result = PhaseResult("Phase 3: Proactive review decision")
-    logger.info("\n[Phase 3] Proactive review — apply_review_decision")
+    """Test _apply_pulse_decision() for observe, wait, and generate actions.
 
-    from services.proactive_review import apply_review_decision
+    ADR-126: Pulse decisions write to workspace (workspace_files) not agent_memory JSONB.
+    The review log lives at memory/review-log.md, observations at memory/observations.md,
+    and last_generated_at at memory/state.md.
+    """
+    result = PhaseResult("Phase 3: Pulse decision (ADR-126)")
+    logger.info("\n[Phase 3] Pulse decision — _apply_pulse_decision")
+
+    from services.agent_pulse import _apply_pulse_decision, PulseDecision, calculate_next_pulse_at
+    from services.workspace import AgentWorkspace, get_agent_slug
 
     proactive_id = ids["proactive"]
     now = datetime.now(timezone.utc)
 
-    def fetch_memory():
-        return (
-            supabase.table("agents")
-            .select("agent_memory, proactive_next_review_at")
-            .eq("id", proactive_id)
-            .single()
-            .execute()
-            .data
-        )
-
     d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
+    slug = get_agent_slug(d)
+    user_id = d["user_id"]
+
+    async def fetch_workspace():
+        ws = AgentWorkspace(supabase, user_id, slug)
+        review_log = await ws.get_review_log()
+        last_gen = await ws.get_state("last_generated_at")
+        return {"review_log": review_log, "last_generated_at": last_gen}
 
     # --- observe action ---
-    apply_review_decision(supabase, d, {"action": "observe", "note": "Test observation note"})
-    s1 = fetch_memory()
-    review_log = (s1.get("agent_memory") or {}).get("review_log", [])
+    observe_decision = PulseDecision(
+        action="observe", reason="Test observation note", tier=1,
+        observations=["Test observation note"],
+    )
+    await _apply_pulse_decision(supabase, d, observe_decision)
+    ws1 = await fetch_workspace()
+    review_log = ws1["review_log"]
     assert_eq(result, "observe: review_log has 1 entry", len(review_log), 1)
     assert_eq(result, "observe: log action=observe", review_log[0].get("action"), "observe")
-    assert_eq(result, "observe: log note set", review_log[0].get("note"), "Test observation note")
-    next_review1 = s1.get("proactive_next_review_at")
-    assert_true(result, "observe: proactive_next_review_at set", next_review1 is not None)
-    nr1_dt = parse_dt(next_review1)
-    hours_ahead = (nr1_dt - now).total_seconds() / 3600
-    assert_true(result, "observe: next_review ~24h ahead", 20 <= hours_ahead <= 28,
+    # Verify next_pulse_at via calculate_next_pulse_at
+    next1 = calculate_next_pulse_at(d, observe_decision)
+    hours_ahead = (next1 - now).total_seconds() / 3600
+    assert_true(result, "observe: next_pulse ~24h ahead", 20 <= hours_ahead <= 28,
                 f"hours_ahead={hours_ahead:.1f}")
 
-    # --- sleep action with explicit until ---
+    # --- wait action with explicit until ---
     until_dt = (now + timedelta(hours=48)).replace(microsecond=0)
     until_str = until_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
-    apply_review_decision(supabase, d, {"action": "sleep", "until": until_str, "note": "Quiet domain"})
-    s2 = fetch_memory()
-    review_log2 = (s2.get("agent_memory") or {}).get("review_log", [])
-    assert_eq(result, "sleep: review_log has 2 entries", len(review_log2), 2)
-    assert_eq(result, "sleep: latest action=sleep", review_log2[-1].get("action"), "sleep")
-    next_review2 = s2.get("proactive_next_review_at")
-    nr2_dt = parse_dt(next_review2)
-    hours_ahead2 = (nr2_dt - now).total_seconds() / 3600
-    assert_true(result, "sleep: next_review ~48h ahead", 44 <= hours_ahead2 <= 52,
+    wait_decision = PulseDecision(
+        action="wait", reason="Quiet domain", tier=1,
+        metadata={"until": until_str},
+    )
+    await _apply_pulse_decision(supabase, d, wait_decision)
+    ws2 = await fetch_workspace()
+    review_log2 = ws2["review_log"]
+    assert_eq(result, "wait: review_log has 2 entries", len(review_log2), 2)
+    assert_eq(result, "wait: latest action=wait", review_log2[-1].get("action"), "wait")
+    next2 = calculate_next_pulse_at(d, wait_decision)
+    hours_ahead2 = (next2 - now).total_seconds() / 3600
+    assert_true(result, "wait: next_pulse ~48h ahead", 44 <= hours_ahead2 <= 52,
                 f"hours_ahead={hours_ahead2:.1f}")
 
     # --- generate action ---
-    d = supabase.table("agents").select("*").eq("id", proactive_id).single().execute().data
-    apply_review_decision(supabase, d, {"action": "generate"})
-    s3 = fetch_memory()
-    review_log3 = (s3.get("agent_memory") or {}).get("review_log", [])
+    gen_decision = PulseDecision(action="generate", reason="Fresh content available", tier=1)
+    await _apply_pulse_decision(supabase, d, gen_decision)
+    ws3 = await fetch_workspace()
+    review_log3 = ws3["review_log"]
     assert_eq(result, "generate: review_log has 3 entries", len(review_log3), 3)
     assert_eq(result, "generate: latest action=generate", review_log3[-1].get("action"), "generate")
-    last_gen = (s3.get("agent_memory") or {}).get("last_generated_at")
-    assert_true(result, "generate: last_generated_at set", last_gen is not None)
-    next_review3 = s3.get("proactive_next_review_at")
-    nr3_dt = parse_dt(next_review3)
-    hours_ahead3 = (nr3_dt - now).total_seconds() / 3600
-    assert_true(result, "generate: next_review ~24h ahead", 20 <= hours_ahead3 <= 28,
+    assert_true(result, "generate: last_generated_at set", ws3["last_generated_at"] is not None)
+    next3 = calculate_next_pulse_at(d, gen_decision)
+    hours_ahead3 = (next3 - now).total_seconds() / 3600
+    assert_true(result, "generate: next_pulse ~24h ahead", 20 <= hours_ahead3 <= 28,
                 f"hours_ahead={hours_ahead3:.1f}")
 
     return result
@@ -391,11 +397,11 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     assert_eq(result, "child origin=coordinator_created", child.get("origin"), "coordinator_created")
     assert_eq(result, "child trigger_type=manual", child.get("trigger_type"), "manual")
     assert_eq(result, "child status=active", child.get("status"), "active")
-    assert_true(result, "child next_run_at is set", child.get("next_run_at") is not None)
+    assert_true(result, "child next_pulse_at is set", child.get("next_pulse_at") is not None)
     now = datetime.now(timezone.utc)
-    next_run = parse_dt(child["next_run_at"])
+    next_run = parse_dt(child["next_pulse_at"])
     secs_ago = (now - next_run).total_seconds()
-    assert_true(result, "child next_run_at is recent (within 60s)", -5 <= secs_ago <= 60,
+    assert_true(result, "child next_pulse_at is recent (within 60s)", -5 <= secs_ago <= 60,
                 f"secs_ago={secs_ago:.1f}")
 
     # Verify created_agents dedup log on coordinator
@@ -417,12 +423,12 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     })
     assert_eq(result, "AdvanceAgentSchedule success=True", r_adv.get("success"), True)
 
-    # Verify next_run_at updated to within 5s of now
-    child_adv = supabase.table("agents").select("next_run_at").eq("id", child_id).single().execute().data
-    adv_run = parse_dt(child_adv["next_run_at"])
+    # Verify next_pulse_at updated to within 5s of now
+    child_adv = supabase.table("agents").select("next_pulse_at").eq("id", child_id).single().execute().data
+    adv_run = parse_dt(child_adv["next_pulse_at"])
     now2 = datetime.now(timezone.utc)
     secs = abs((now2 - adv_run).total_seconds())
-    assert_true(result, "advanced next_run_at within 5s of now", secs <= 5, f"secs={secs:.1f}")
+    assert_true(result, "advanced next_pulse_at within 5s of now", secs <= 5, f"secs={secs:.1f}")
 
     # --- AdvanceAgentSchedule: non-existent agent ---
     r_notfound = await handle_advance_agent_schedule(auth, {
@@ -460,15 +466,15 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
 
 
 # =============================================================================
-# Phase 5: _parse_review_response — pure unit tests
+# Phase 5: _parse_pulse_response — pure unit tests (ADR-126)
 # =============================================================================
 
 async def phase5_parse_response() -> PhaseResult:
-    """Test _parse_review_response() edge cases. No DB calls."""
-    result = PhaseResult("Phase 5: _parse_review_response")
-    logger.info("\n[Phase 5] _parse_review_response edge cases")
+    """Test _parse_pulse_response() edge cases. No DB calls."""
+    result = PhaseResult("Phase 5: _parse_pulse_response")
+    logger.info("\n[Phase 5] _parse_pulse_response edge cases")
 
-    from services.proactive_review import _parse_review_response
+    from services.agent_pulse import _parse_pulse_response as _parse_review_response
 
     # Valid generate
     r = _parse_review_response('{"action": "generate"}')
@@ -531,7 +537,7 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
         .eq("user_id", TEST_USER_ID)
         .in_("mode", ["recurring", "goal"])
         .in_("status", ["active"])
-        .lte("next_run_at", now)
+        .lte("next_pulse_at", now)
         .execute()
     )
     due_ids = {r["id"] for r in (due_recurring.data or [])}
@@ -544,21 +550,21 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
                 f"coordinator_id found in recurring query")
 
     # --- get_due_proactive_agents() query: mode IN ('proactive', 'coordinator') ---
-    # with proactive_next_review_at <= now
+    # with next_pulse_at <= now
     due_proactive = (
         supabase.table("agents")
         .select("id, mode")
         .eq("user_id", TEST_USER_ID)
         .in_("mode", ["proactive", "coordinator"])
         .in_("status", ["active"])
-        .lte("proactive_next_review_at", now)
+        .lte("next_pulse_at", now)
         .execute()
     )
     due_proactive_ids = {r["id"] for r in (due_proactive.data or [])}
 
-    # Proactive's proactive_next_review_at was set to now-1h in setup,
+    # Proactive's next_pulse_at was set to now-1h in setup,
     # but Phase 3 updated it to now+24h — so it should NOT be in results now.
-    # Coordinator's proactive_next_review_at was set to now-1h in setup
+    # Coordinator's next_pulse_at was set to now-1h in setup
     # and was not changed in Phase 4, so it SHOULD still be in results.
     assert_true(result, "coordinator IS in proactive query (review overdue)", coordinator_id in due_proactive_ids,
                 f"coordinator_id not found in proactive query")

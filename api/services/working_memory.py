@@ -362,7 +362,7 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
         total_count = count_result.count or 0
 
         result = client.table("agents").select(
-            "id, title, status, schedule, recipient_context, next_run_at, updated_at"
+            "id, title, status, schedule, recipient_context, next_pulse_at, updated_at"
         ).eq("user_id", user_id).eq("status", "active").order(
             "updated_at", desc=True
         ).limit(MAX_AGENTS).execute()
@@ -377,7 +377,7 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
                     "title": d.get("title", "Untitled"),
                     "frequency": schedule.get("frequency", "unknown"),
                     "recipient": recipient.get("name", "unspecified"),
-                    "next_run": d.get("next_run_at"),
+                    "next_run": d.get("next_pulse_at"),
                 })
 
         if total_count > MAX_AGENTS:

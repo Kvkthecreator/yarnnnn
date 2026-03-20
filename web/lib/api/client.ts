@@ -1312,7 +1312,7 @@ export const api = {
             scope: string;
             sources: Array<{ provider?: string; resource_id?: string }>;
             last_run_at: string | null;
-            next_run_at: string | null;
+            next_pulse_at: string | null;
           }>;
         }>;
         connected_platforms: string[];

@@ -400,7 +400,7 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
                 "schedule": persona.agent_config["schedule"],
                 "sources": persona.agent_config["sources"],
                 "recipient_context": persona.agent_config["recipient_context"],
-                "next_run_at": (now.replace(year=now.year + 1)).isoformat(),  # Far future — prevent scheduler pickup during test
+                "next_pulse_at": (now.replace(year=now.year + 1)).isoformat(),  # Far future — prevent scheduler pickup during test
                 "created_at": now.isoformat(),
                 "updated_at": now.isoformat(),
             }

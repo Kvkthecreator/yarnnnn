@@ -192,9 +192,9 @@ async def phase2_bootstrap(supabase, ids: dict) -> PhaseResult:
         schedule = agent.get("schedule", {})
         assert_eq(r, "Schedule frequency", schedule.get("frequency"), "daily")
 
-        # Check next_run_at is set (execute_now=True means it should be ≈ now)
-        next_run = agent.get("next_run_at")
-        assert_true(r, "next_run_at is set", next_run is not None)
+        # Check next_pulse_at is set (execute_now=True means it should be ≈ now)
+        next_run = agent.get("next_pulse_at")
+        assert_true(r, "next_pulse_at is set", next_run is not None)
 
     return r
 

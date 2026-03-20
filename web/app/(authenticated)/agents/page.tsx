@@ -127,9 +127,9 @@ function getModeStatusLine(d: Agent): string {
     }
     case 'proactive':
     case 'coordinator': {
-      if (d.proactive_next_review_at) {
+      if (d.next_pulse_at) {
         try {
-          return `Next review ${formatDistanceToNow(new Date(d.proactive_next_review_at), { addSuffix: true })}`;
+          return `Next review ${formatDistanceToNow(new Date(d.next_pulse_at), { addSuffix: true })}`;
         } catch {
           // fall through
         }

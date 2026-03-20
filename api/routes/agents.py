@@ -298,7 +298,6 @@ class AgentUpdate(BaseModel):
     destination: Optional[dict] = None
     agent_instructions: Optional[str] = None
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
-    proactive_next_review_at: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -322,7 +321,7 @@ class AgentResponse(BaseModel):
     created_at: str
     updated_at: str
     last_run_at: Optional[str] = None
-    next_run_at: Optional[str] = None
+    next_pulse_at: Optional[str] = None
     last_triggered_at: Optional[str] = None  # ADR-031: Last event trigger
     version_count: int = 0
     latest_version_status: Optional[str] = None
@@ -341,8 +340,6 @@ class AgentResponse(BaseModel):
     agent_memory: Optional[dict] = None
     # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
-    # ADR-092: Proactive/coordinator review scheduling
-    proactive_next_review_at: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -523,7 +520,7 @@ async def create_agent(
         status=agent["status"],
         created_at=agent["created_at"],
         updated_at=agent["updated_at"],
-        next_run_at=agent.get("next_run_at"),
+        next_pulse_at=agent.get("next_pulse_at"),
         destination=agent.get("destination"),
         origin=agent.get("origin", "user_configured"),
         agent_instructions=intelligence.get("agent_instructions"),
@@ -656,7 +653,7 @@ async def list_agents(
             created_at=d["created_at"],
             updated_at=d["updated_at"],
             last_run_at=d.get("last_run_at"),
-            next_run_at=d.get("next_run_at"),
+            next_pulse_at=d.get("next_pulse_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
             # ADR-028: Destination-first agents
@@ -777,7 +774,7 @@ async def get_agent(
             created_at=agent["created_at"],
             updated_at=agent["updated_at"],
             last_run_at=agent.get("last_run_at"),
-            next_run_at=agent.get("next_run_at"),
+            next_pulse_at=agent.get("next_pulse_at"),
             version_count=len(versions),
             # ADR-028: Destination-first agents
             destination=agent.get("destination"),
@@ -864,7 +861,7 @@ async def update_agent(
         update_data["recipient_context"] = request.recipient_context.model_dump()
     if request.schedule is not None:
         update_data["schedule"] = request.schedule.model_dump()
-        update_data["next_run_at"] = calculate_next_run(request.schedule)
+        update_data["next_pulse_at"] = calculate_next_run(request.schedule)
     if request.sources is not None:
         update_data["sources"] = [s.model_dump() for s in request.sources]
         # ADR-109: Re-infer scope when sources change
@@ -879,8 +876,6 @@ async def update_agent(
     # ADR-106: agent_instructions written to workspace only (not DB column)
     if request.mode is not None:
         update_data["mode"] = request.mode
-    if request.proactive_next_review_at is not None:
-        update_data["proactive_next_review_at"] = request.proactive_next_review_at
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description
@@ -920,7 +915,7 @@ async def update_agent(
         created_at=d["created_at"],
         updated_at=d["updated_at"],
         last_run_at=d.get("last_run_at"),
-        next_run_at=d.get("next_run_at"),
+        next_pulse_at=d.get("next_pulse_at"),
         # ADR-028: Destination-first agents
         destination=d.get("destination"),
         # ADR-068: Agent origin
