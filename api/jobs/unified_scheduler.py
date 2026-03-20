@@ -450,19 +450,34 @@ async def run_unified_scheduler():
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-119: Cleanup Ephemeral Workspace Files (hourly)
-    # Files in /working/ with lifecycle='ephemeral' older than 24h get deleted.
+    # ADR-119/127: Cleanup Ephemeral Workspace Files (hourly)
+    # Two-tier TTL: /working/ scratch = 24h, /user_shared/ staging = 30 days.
     # -------------------------------------------------------------------------
     if now.minute < 5:  # Same cadence as content cleanup
         try:
-            ephemeral_cleaned = supabase.table("workspace_files").delete().eq(
+            # Tier 1: /working/ scratch files — 24h TTL
+            working_cleaned = supabase.table("workspace_files").delete().eq(
                 "lifecycle", "ephemeral"
+            ).like(
+                "path", "%/working/%"
             ).lt(
                 "updated_at", (now - timedelta(hours=24)).isoformat()
             ).execute()
-            cleaned_count = len(ephemeral_cleaned.data or [])
-            if cleaned_count > 0:
-                logger.info(f"[WORKSPACE] ADR-119: Cleaned {cleaned_count} ephemeral files")
+            working_count = len(working_cleaned.data or [])
+
+            # Tier 2: /user_shared/ staging files — 30 day TTL (ADR-127)
+            shared_cleaned = supabase.table("workspace_files").delete().eq(
+                "lifecycle", "ephemeral"
+            ).like(
+                "path", "%/user_shared/%"
+            ).lt(
+                "updated_at", (now - timedelta(days=30)).isoformat()
+            ).execute()
+            shared_count = len(shared_cleaned.data or [])
+
+            total_cleaned = working_count + shared_count
+            if total_cleaned > 0:
+                logger.info(f"[WORKSPACE] ADR-119/127: Cleaned {working_count} working + {shared_count} user_shared ephemeral files")
         except Exception as e:
             logger.warning(f"[WORKSPACE] Ephemeral cleanup failed (non-fatal): {e}")
 

@@ -114,8 +114,10 @@ class AgentWorkspace:
 
     @staticmethod
     def _infer_lifecycle(path: str) -> str:
-        """ADR-119: Infer lifecycle from path convention."""
+        """ADR-119/127: Infer lifecycle from path convention."""
         if "/working/" in path:
+            return "ephemeral"
+        if "/user_shared/" in path:
             return "ephemeral"
         return "active"
 
@@ -1603,8 +1605,10 @@ class ProjectWorkspace:
 
     @staticmethod
     def _infer_lifecycle(path: str) -> str:
-        """ADR-119: Infer lifecycle from path convention."""
+        """ADR-119/127: Infer lifecycle from path convention."""
         if "/working/" in path:
+            return "ephemeral"
+        if "/user_shared/" in path:
             return "ephemeral"
         return "active"
 
