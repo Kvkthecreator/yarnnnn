@@ -8,7 +8,7 @@ Registry is curated, code-side, deploy-time. Follows the pattern of
 PLATFORM_REGISTRY, ROLE_PORTFOLIOS, ROLE_PROMPTS.
 
 Changelog: api/prompts/CHANGELOG.md
-Version: v1.0 (2026-03-19)
+Version: v1.1 (2026-03-20)
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         },
         "agents": [
             {
-                "title_template": "Slack Recap",
+                "title_template": "Slack Agent",
                 "role": "digest",
                 "scope": "platform",
                 "frequency": "daily",
@@ -51,23 +51,23 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "pm": False,
         "assembly_spec": None,
         "delivery_default": {"platform": "email"},
-        "version": "2026-03-19",
+        "version": "2026-03-20",
     },
 
     "gmail_digest": {
-        "display_name": "Gmail Digest",
+        "display_name": "Gmail Recap",
         "category": "platform",
         "platform": "google",
-        "description": "Daily digest of Gmail activity across connected labels.",
+        "description": "Daily recap of Gmail activity across connected labels.",
         "objective": {
-            "deliverable": "Daily Gmail digest",
+            "deliverable": "Daily Gmail recap",
             "audience": "You",
             "format": "email",
             "purpose": "Inbox triage — highlights and action items surfaced daily",
         },
         "agents": [
             {
-                "title_template": "Gmail Digest",
+                "title_template": "Gmail Agent",
                 "role": "digest",
                 "scope": "platform",
                 "frequency": "daily",
@@ -77,23 +77,23 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "pm": False,
         "assembly_spec": None,
         "delivery_default": {"platform": "email"},
-        "version": "2026-03-19",
+        "version": "2026-03-20",
     },
 
     "notion_digest": {
-        "display_name": "Notion Summary",
+        "display_name": "Notion Recap",
         "category": "platform",
         "platform": "notion",
-        "description": "Daily summary of Notion activity across connected pages.",
+        "description": "Daily recap of Notion activity across connected pages.",
         "objective": {
-            "deliverable": "Daily Notion summary",
+            "deliverable": "Daily Notion recap",
             "audience": "You",
             "format": "email",
             "purpose": "Track workspace changes without visiting every page",
         },
         "agents": [
             {
-                "title_template": "Notion Summary",
+                "title_template": "Notion Agent",
                 "role": "digest",
                 "scope": "platform",
                 "frequency": "daily",
@@ -103,7 +103,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "pm": False,
         "assembly_spec": None,
         "delivery_default": {"platform": "email"},
-        "version": "2026-03-19",
+        "version": "2026-03-20",
     },
 
     # ── Multi-agent project types ──
@@ -131,7 +131,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "pm": True,
         "assembly_spec": "Synthesize themes across all contributor outputs into a cohesive report.",
         "delivery_default": {"platform": "email"},
-        "version": "2026-03-19",
+        "version": "2026-03-20",
     },
 
     "custom": {
@@ -144,7 +144,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "pm": True,
         "assembly_spec": None,
         "delivery_default": {"platform": "email"},
-        "version": "2026-03-19",
+        "version": "2026-03-20",
     },
 }
 

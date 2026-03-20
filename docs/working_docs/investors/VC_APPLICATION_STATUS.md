@@ -80,6 +80,7 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
 - [ ] **HF0 Fall '26**: Watch for application opening. Apply despite repeat-founder requirement
 - [ ] **YC S26**: Draft saved 2026-03-18. Deadline May 4, 8pm PT. **TODO before submit**: (1) record 1-min founder video, (2) complete founder profile, (3) optional: record 3-min demo video, (4) update traction numbers with user data from sprint. Revisit in late April.
+- [ ] **a16z Speedrun SR007**: All answers drafted 2026-03-19, saved to `A16Z_SPEEDRUN_DRAFT.md`. $500K for 10% + $500K follow-on + $5M credits. <1% acceptance. No save/draft — one-shot submission. **WAIT for traction data before submitting (target: late April).** Early apps open now, formal window April 2026. TODO: (1) get Sam Kim's email for referral, (2) upload deck, (3) update traction numbers, (4) trim description to 100 words.
 - [ ] **South Park Commons (SPC) Founder Fellowship — Fall 2026**: $400K for 7% SAFE + $600K guaranteed follow-on = $1M total. $900K+ in credits (Anthropic, OpenAI, Azure, GCP, AWS, Render). SF/NYC/Bangalore. Spring 2026 deadline passed (Feb 1). **Watch for Fall 2026 cohort — best terms of any program researched.** ~$5.7M implied valuation, above our $5M target. Apply: southparkcommons.com/apply
 
 ---
@@ -102,3 +103,5 @@ Programs researched from curated lists. Filtered for yarnnn fit (AI, B2B, SaaS, 
 | **Betaworks AI Camp** | Pre-seed | Varies | AI startup camps | Queued Fall '26 |
 | **Antler Global** | ~$470K (India) | 11% | Cofounder matching, build from zero | Skipped — wrong model (already have product) |
 | **NVIDIA Inception** | Free (no equity) | 0% | AI/GPU startups, credits + network | Blocked — needs secondary contact |
+| **a16z Speedrun SR007** | $500K + $500K follow-on | 10% | Horizontal (AI focus) | Draft saved, waiting for traction (late April). Answers in `A16Z_SPEEDRUN_DRAFT.md` |
+| **3x Capital** | Varies | Varies | Web3/crypto/DeFi | Skipped — no thesis fit (B2B SaaS, not crypto) |

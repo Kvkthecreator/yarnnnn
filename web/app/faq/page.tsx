@@ -82,7 +82,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Do I have to create agents manually?",
         answer:
-          "No. When you connect a platform, yarnnn automatically creates a matching agent — like a Slack Recap or Gmail Digest. You can also create agents through conversation with the Orchestrator.",
+          "No. When you connect a platform, yarnnn automatically creates a matching project and agent. You can also create projects through conversation with the Orchestrator.",
       },
       {
         question: "How do agents improve over time?",
@@ -132,7 +132,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is the best first agent?",
         answer:
-          "Most users start with a Slack Recap or Gmail Digest — these give fast value and create clean feedback signal for future improvements.",
+          "Most users start with a Slack or Gmail Recap — these give fast value and create clean feedback signal for future improvements.",
       },
     ],
   },

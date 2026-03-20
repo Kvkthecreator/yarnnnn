@@ -93,6 +93,7 @@ async def build_working_memory(
         "platforms": platforms,
         "recent_sessions": sessions,
         "system_summary": system_summary,
+        "system_reference": _build_system_reference(platforms),
     }
 
     # ADR-087: Inject agent-scoped context if session is scoped
@@ -284,6 +285,66 @@ async def _extract_project_scope(project_slug: str, client: Any, user_id: str) -
         pass
 
     return scope
+
+
+def _build_system_reference(platforms: list) -> dict:
+    """
+    Build TP's system reference — programmatic self-awareness of YARNNN capabilities.
+
+    Analogous to Claude Code reading CLAUDE.md at session start. This gives TP
+    recursive awareness of what project types exist, what agent roles are available,
+    and what the connected platforms can do. Maintained by code, not by hand.
+
+    Generated from:
+      - project_registry.py (PROJECT_TYPE_REGISTRY)
+      - agent_framework.py (ROLE_PORTFOLIOS, SKILL_ENABLED_ROLES)
+      - Connected platforms (from working memory query)
+    """
+    from services.project_registry import PROJECT_TYPE_REGISTRY
+    from services.agent_framework import ROLE_PORTFOLIOS, SKILL_ENABLED_ROLES
+
+    # --- Project types ---
+    project_types = []
+    for key, ptype in PROJECT_TYPE_REGISTRY.items():
+        entry: dict[str, Any] = {
+            "key": key,
+            "name": ptype["display_name"],
+            "category": ptype["category"],
+        }
+        if ptype.get("platform"):
+            entry["platform"] = ptype["platform"]
+        if ptype.get("description"):
+            entry["description"] = ptype["description"]
+        entry["pm"] = ptype.get("pm", False)
+        entry["agents_count"] = len(ptype.get("agents", []))
+        project_types.append(entry)
+
+    # --- Agent roles ---
+    roles = []
+    for role_name, tracks in ROLE_PORTFOLIOS.items():
+        duties_at_senior = [d["duty"] for d in tracks.get("senior", [])]
+        roles.append({
+            "role": role_name,
+            "duties": duties_at_senior,
+            "has_output_skills": role_name in SKILL_ENABLED_ROLES,
+        })
+
+    # --- Connected platform names (derived from already-fetched platforms) ---
+    connected = [p.get("platform") for p in platforms if p.get("status") in ("active", "connected")]
+
+    # --- Platform → project type mapping ---
+    platform_project_map = {}
+    for key, ptype in PROJECT_TYPE_REGISTRY.items():
+        plat = ptype.get("platform")
+        if plat:
+            platform_project_map[plat] = key
+
+    return {
+        "project_types": project_types,
+        "agent_roles": roles,
+        "connected_platforms": connected,
+        "platform_project_map": platform_project_map,
+    }
 
 
 def _get_active_agents_sync(user_id: str, client: Any) -> list:
@@ -713,6 +774,41 @@ def format_for_prompt(working_memory: dict) -> str:
         work_plan = scoped_project.get("work_plan")
         if work_plan:
             lines.append(f"\n**Work plan:**\n{work_plan}")
+
+    # System Reference — TP's self-awareness of YARNNN capabilities
+    system_ref = working_memory.get("system_reference", {})
+    if system_ref:
+        lines.append("\n### System reference")
+
+        # Project types
+        project_types = system_ref.get("project_types", [])
+        if project_types:
+            lines.append("\n**Project types** (use these with CreateProject — don't improvise):")
+            for pt in project_types:
+                pm_tag = " [has PM]" if pt.get("pm") else ""
+                plat_tag = f" (platform: {pt['platform']})" if pt.get("platform") else ""
+                lines.append(f"- `{pt['key']}`: {pt['name']}{plat_tag}{pm_tag} — {pt.get('description', '')}")
+
+        # Platform → project type mapping
+        ppm = system_ref.get("platform_project_map", {})
+        connected = system_ref.get("connected_platforms", [])
+        if ppm and connected:
+            lines.append("\n**Connected platform → project type:**")
+            for plat in connected:
+                ptype_key = ppm.get(plat)
+                if ptype_key:
+                    lines.append(f"- {plat} → `{ptype_key}`")
+                else:
+                    lines.append(f"- {plat} → no platform-specific type (use `custom`)")
+
+        # Agent roles
+        agent_roles = system_ref.get("agent_roles", [])
+        if agent_roles:
+            lines.append("\n**Agent roles:**")
+            for r in agent_roles:
+                skills_tag = " [output skills]" if r.get("has_output_skills") else ""
+                duties = ", ".join(r["duties"]) if r.get("duties") else r["role"]
+                lines.append(f"- `{r['role']}`: duties at senior = {duties}{skills_tag}")
 
     # System Summary (ADR-072) — structured operational state
     system_summary = working_memory.get("system_summary", {})

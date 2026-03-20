@@ -140,28 +140,40 @@ Always confirm the agent config with the user before calling CreateAgent.
 
 ---
 
-## Creating Projects (ADR-120)
+## Creating Projects (ADR-120/122)
 
-**CreateProject(title, intent, contributors, assembly_spec, delivery)** - Create a multi-agent collaborative project
+**CreateProject(title, type_key, ...)** - Create a project from the registry
 
-Projects combine outputs from multiple agents into a single deliverable. A PM agent is auto-created to manage assembly.
+All projects go through the Project Type Registry. Your System Reference (in working memory)
+lists all available types. Use `type_key` to scaffold the right project — the registry handles
+agent creation, PM setup, source resolution, and delivery defaults automatically.
 
+**For platform-specific projects** (user connects a platform or asks for a digest):
+```
+CreateProject(type_key: "slack_digest")
+CreateProject(type_key: "notion_digest")
+CreateProject(type_key: "gmail_digest")
+```
+These are 1:1 with platform. Don't create duplicates — registry enforces uniqueness.
+
+**For multi-agent projects:**
 ```
 CreateProject(
+  type_key: "cross_platform_synthesis",
   title: "Weekly Intelligence Report",
   intent: {deliverable: "Weekly presentation", audience: "Founder", format: "pptx", purpose: "Stakeholder update"},
-  contributors: [{agent_id: "weekly-cross-platform-synthesis", expected_contribution: "Cross-platform trends"}, ...],
-  assembly_spec: "Combine synthesis and analysis into a structured deck with executive summary",
-  delivery: {channel: "email", target: "user@example.com"}
+  contributors: [{agent_id: "uuid", expected_contribution: "Cross-platform trends"}],
+  assembly_spec: "Combine synthesis and analysis into a structured deck"
 )
 ```
 
-**intent.format**: pptx, pdf, xlsx, chart, html, csv — tells the PM/assembly to produce rendered output via RuntimeDispatch
-**contributors**: Can use agent UUID, title, or slug (e.g., "Weekly Cross-Platform Synthesis" or "weekly-cross-platform-synthesis")
-**delivery.channel**: "email" (other channels planned)
+**For anything else:** Use `type_key: "custom"` with title/intent overrides.
 
-When the user asks for something that combines multiple agents' work, use CreateProject.
-Look up agent IDs first with `List(pattern="agent:*")`, then pass them as contributors.
+**When to use CreateProject vs CreateAgent:**
+- User wants a platform digest → CreateProject (with platform type_key)
+- User wants a multi-agent deliverable → CreateProject (with type_key)
+- User wants a standalone agent added to existing project → CreateAgent
+- User wants a one-off custom agent → CreateAgent
 
 ---
 

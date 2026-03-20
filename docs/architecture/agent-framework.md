@@ -188,8 +188,8 @@ Templates are pre-configured Scope × Role × Trigger combinations with sensible
 | Template Label | Scope | Role | Default Trigger | Description |
 |---------------|-------|-------|----------------|-------------|
 | **Slack Recap** | platform | digest | recurring | Channel activity summary |
-| **Gmail Digest** | platform | digest | recurring | Email digest by label |
-| **Notion Summary** | platform | digest | recurring | Page and database activity summary |
+| **Gmail Recap** | platform | digest | recurring | Email recap by label |
+| **Notion Recap** | platform | digest | recurring | Page and database activity recap |
 | **Meeting Prep** | cross_platform | prepare | recurring | Calendar-driven briefing |
 | **Work Summary** | cross_platform | synthesize | recurring | Cross-platform status update |
 | **Channel Watch** | platform | monitor | proactive | Track changes in specific channels |
@@ -202,11 +202,11 @@ Templates are pre-configured Scope × Role × Trigger combinations with sensible
 
 When a platform is connected and first sync completes, the bootstrap service auto-creates the matching digest template:
 
-| Platform Connected | Template Created | Notes |
-|-------------------|-----------------|-------|
-| Slack | Slack Recap | All synced channels |
-| Gmail | Gmail Digest | All synced labels |
-| Notion | Notion Summary | All synced pages |
+| Platform Connected | Project Created | Agent Created | Notes |
+|-------------------|----------------|---------------|-------|
+| Slack | Slack Recap | Slack Agent | All synced channels |
+| Gmail | Gmail Recap | Gmail Agent | All synced labels |
+| Notion | Notion Recap | Notion Agent | All synced pages |
 | Calendar | *(none)* | Meeting Prep requires cross-platform context — deferred to Composer (ADR-111) |
 
 See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md) for trigger points and idempotency rules. The Composer (ADR-111) extends bootstrap to medium-confidence templates (cross-platform, knowledge-scope, research-scope) via substrate assessment.

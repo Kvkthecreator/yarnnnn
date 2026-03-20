@@ -44,8 +44,8 @@ type AttentionItem = DashboardData['attention'][number];
 
 const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack Recap',
-  gmail_digest: 'Gmail Digest',
-  notion_digest: 'Notion Summary',
+  gmail_digest: 'Gmail Recap',
+  notion_digest: 'Notion Recap',
   cross_platform_synthesis: 'Cross-Platform Insights',
   custom: 'Custom Project',
 };

@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.1] - TP System Reference — meta-awareness of YARNNN capabilities
+
+### Changed
+- `api/services/working_memory.py`: Added `_build_system_reference()` — programmatically generates a "System reference" section from `PROJECT_TYPE_REGISTRY`, `ROLE_PORTFOLIOS`, `SKILL_ENABLED_ROLES`, and connected platforms. Injected into working memory and rendered in `format_for_prompt()`.
+- `api/agents/tp_prompts/behaviors.py`: Replaced static type table with reference to System Reference in working memory. Added explicit guidance: platform projects are 1:1 (don't offer multiple options), check platform→project type mapping.
+- `api/agents/tp_prompts/tools.py`: Rewrote CreateProject section to reference Project Type Registry. Clarified when to use CreateProject vs CreateAgent. Added `type_key` as primary parameter.
+
+### Expected behavior
+- TP now knows exactly which project types exist and which platform maps to which type — stops improvising redundant options (e.g., offering 3 Notion choices when only `notion_digest` exists).
+- As new project types are added to the registry, TP automatically sees them without prompt editing.
+- Connected platform→project type mapping is dynamic — TP adapts to each user's connected platforms.
+- Agent roles and duty portfolios visible to TP for accurate creation guidance.
+
+---
+
 ## [2026.03.19.14] - ADR-124 Phase 3: Live project context injection in ChatAgent prompts
 
 ### Changed

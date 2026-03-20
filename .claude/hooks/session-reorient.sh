@@ -1,13 +1,22 @@
 #!/bin/bash
-# Session start hook: inject recent commit history and orientation reminders
+# Session start hook: inject recent commits + canonical doc map for orientation
 
 echo "SESSION ORIENTATION (auto-injected via hook):"
 echo ""
 echo "Recent commits:"
 git -C "$CLAUDE_PROJECT_DIR" log --oneline -10 2>/dev/null || echo "(git log unavailable)"
 echo ""
+echo "Canonical project documents (READ on demand, not upfront):"
+echo "- docs/architecture/FOUNDATIONS.md — project philosophy, axioms, north star"
+echo "- docs/NARRATIVE.md — product narrative and positioning"
+echo "- docs/ESSENCE.md — core identity and design principles"
+echo "- docs/README.md — project overview"
+echo "- api/prompts/CHANGELOG.md — prompt version history"
+echo "- docs/adr/ — architectural decisions (search before proposing changes)"
+echo "- CLAUDE.md — development guidelines (already loaded)"
+echo ""
 echo "Before responding to the first message:"
-echo "1. Review the commits above to understand recent work direction"
-echo "2. CLAUDE.md and auto-memory are already loaded — consult them for project philosophy and architecture"
-echo "3. If the user references specific files or features, read them before responding"
-echo "4. Check for any in-progress work (unstaged changes, open TODOs) that may need continuity"
+echo "1. Review commits above for recent work direction"
+echo "2. If the user's request touches architecture/philosophy, read the relevant doc FIRST"
+echo "3. If referencing specific features or files, read them before responding"
+echo "4. Check for in-progress work (unstaged changes, open TODOs) for continuity"

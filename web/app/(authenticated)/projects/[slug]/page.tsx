@@ -454,7 +454,7 @@ function MeetingRoomTab({
                     {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
                   </span>
                   {c.role && (
-                    <span className="text-xs text-muted-foreground">{c.role}</span>
+                    <span className="text-xs text-muted-foreground">{roleDisplayName(c.role)}</span>
                   )}
                 </button>
               ))}
@@ -864,6 +864,45 @@ function memberName(m: ProjectMember): string {
   return m.title || m.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
 }
 
+/** Role → user-facing display name */
+function roleDisplayName(role?: string): string {
+  switch (role) {
+    case 'pm': return 'Project Manager';
+    case 'digest': return 'Recap';
+    case 'monitor': return 'Monitor';
+    case 'research': return 'Researcher';
+    case 'synthesize': return 'Synthesizer';
+    case 'prepare': return 'Prep';
+    case 'act': return 'Operator';
+    case 'custom': return 'Custom';
+    default: return role || '';
+  }
+}
+
+/** Scope → user-facing display name */
+function scopeDisplayName(scope?: string): string {
+  switch (scope) {
+    case 'platform': return 'Single platform';
+    case 'cross_platform': return 'Cross-platform';
+    case 'knowledge': return 'Knowledge';
+    case 'research': return 'Research';
+    case 'autonomous': return 'Autonomous';
+    default: return scope?.replace(/_/g, ' ') || '';
+  }
+}
+
+/** Mode → user-facing display name */
+function modeDisplayName(mode?: string): string {
+  switch (mode) {
+    case 'recurring': return 'Scheduled';
+    case 'goal': return 'Goal-driven';
+    case 'reactive': return 'On event';
+    case 'proactive': return 'Self-initiated';
+    case 'coordinator': return 'Coordinator';
+    default: return mode?.replace(/_/g, ' ') || '';
+  }
+}
+
 /** Role badge color */
 function roleBadgeColor(role?: string): string {
   switch (role) {
@@ -948,7 +987,7 @@ function AgentProfileCard({
             <div className="flex items-center gap-2 mt-1">
               {member.role && (
                 <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(member.role))}>
-                  {member.role}
+                  {roleDisplayName(member.role)}
                 </span>
               )}
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -972,13 +1011,13 @@ function AgentProfileCard({
             {member.scope && (
               <div>
                 <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Scope</p>
-                <p className="text-sm">{member.scope}</p>
+                <p className="text-sm">{scopeDisplayName(member.scope)}</p>
               </div>
             )}
             {member.mode && (
               <div>
                 <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Trigger</p>
-                <p className="text-sm">{member.mode}</p>
+                <p className="text-sm">{modeDisplayName(member.mode)}</p>
               </div>
             )}
             {member.schedule && (member.schedule as Record<string, string>).frequency && (
@@ -1144,7 +1183,7 @@ function MembersTab({
                     <span className="text-sm font-medium truncate">{name}</span>
                     {m.role && (
                       <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
-                        {m.role}
+                        {roleDisplayName(m.role)}
                       </span>
                     )}
                   </div>
@@ -1415,7 +1454,7 @@ function SettingsTab({
                 <span className="font-medium">{memberName(m)}</span>
                 {m.role && (
                   <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(m.role))}>
-                    {m.role}
+                    {roleDisplayName(m.role)}
                   </span>
                 )}
                 {m.expected_contribution && (

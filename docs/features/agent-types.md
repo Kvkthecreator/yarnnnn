@@ -17,8 +17,8 @@ Users don't think in terms of Scope × Skill — they pick a **template** that m
 | Template Label | Skill | Default Scope | Default Trigger | Description |
 |---------------|-------|---------------|----------------|-------------|
 | **Slack Recap** | digest | platform | recurring | Channel activity summary |
-| **Gmail Digest** | digest | platform | recurring | Email digest by label |
-| **Notion Summary** | digest | platform | recurring | Page and database activity summary |
+| **Gmail Recap** | digest | platform | recurring | Email recap by label |
+| **Notion Recap** | digest | platform | recurring | Page and database activity recap |
 | **Meeting Prep** | prepare | cross_platform | recurring | Calendar-driven briefing |
 | **Work Summary** | synthesize | cross_platform | recurring | Cross-platform status update |
 | **Channel Watch** | monitor | platform | proactive | Track changes in specific channels |
@@ -36,7 +36,7 @@ Scope is **auto-inferred** from the user's configured sources — never set dire
 |------|--------------|-------------------|--------|
 | **Chat (TP)** | User via conversation | All templates | Active — TP uses Write primitive (planned: CreateAgent, ADR-111) |
 | **UI form** | User via `/agents/new` | All templates | Active |
-| **Bootstrap** | System, post-connection | Platform digests only (Slack Recap, Gmail Digest, Notion Summary) | Planned (ADR-110) |
+| **Bootstrap** | System, post-connection | Platform recaps (Slack, Gmail, Notion) via `scaffold_project()` | Implemented (ADR-110 → ADR-122) |
 | **Composer** | System, substrate-assessed | Full taxonomy (cross-platform, knowledge, research) | Planned (ADR-111) |
 | **Coordinator** | Coordinator agent | Any (via CreateAgent primitive) | Active (ADR-092) |
 
@@ -79,7 +79,7 @@ Catches the user up on activity within their configured sources. Platform-wide �
 
 | Scope | Template | Behavior |
 |-------|----------|----------|
-| **platform** | Slack Recap, Gmail Digest, Notion Summary | Single-platform synthesis. One recap per platform per user (enforced at creation). Title set dynamically: "Slack Recap", "Gmail Recap", "Notion Summary". |
+| **platform** | Slack Recap, Gmail Recap, Notion Recap | Single-platform recap. One project per platform per user (enforced at creation). Project = "[Platform] Recap", Agent = "[Platform] Agent". |
 | **cross_platform** | — | Multi-platform synthesis. All connected sources summarized. |
 
 ### Validated output details

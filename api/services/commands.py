@@ -82,12 +82,12 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
 1. Check for duplicates: `List(pattern="agent:*")` — if a recap already exists for the requested platform, offer to edit it instead
 2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Gmail", "Notion", "Calendar"])`
 3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
-4. Confirm: "I'll create a [frequency] [Platform] Recap. Ready?"
-5. On confirmation: `CreateAgent(title="[Platform] Recap", role="digest", frequency=..., sources=[all synced sources for platform])`
+4. Confirm: "I'll create a [frequency] [Platform] Recap project. Ready?"
+5. On confirmation: `CreateAgent(title="[Platform] Agent", role="digest", frequency=..., sources=[all synced sources for platform])`
 6. Offer first draft
 
 **Important:**
-- Title format: "[Platform] Recap" (e.g., "Slack Recap", "Gmail Recap")
+- Agent title format: "[Platform] Agent" (e.g., "Slack Agent", "Gmail Agent") — the agent is the worker, the project is the deliverable
 - Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/labels/pages
 - One recap per platform per user — check duplicates before creating
 - Defaults: frequency=daily, role=digest

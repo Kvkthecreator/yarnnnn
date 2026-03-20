@@ -199,17 +199,17 @@ const PROJECT_TEMPLATES = [
     icon: 'slack' as TemplateIcon,
   },
   {
-    id: 'gmail-digest',
-    label: 'Gmail Digest',
-    description: 'Daily or weekly digest of your Gmail labels',
-    prompt: 'Set up a Gmail digest project for me',
+    id: 'gmail-recap',
+    label: 'Gmail Recap',
+    description: 'Daily or weekly recap of your Gmail labels',
+    prompt: 'Set up a Gmail recap project for me',
     icon: 'gmail' as TemplateIcon,
   },
   {
-    id: 'notion-summary',
-    label: 'Notion Summary',
-    description: 'Daily or weekly summary of your Notion pages',
-    prompt: 'Set up a Notion summary project for me',
+    id: 'notion-recap',
+    label: 'Notion Recap',
+    description: 'Daily or weekly recap of your Notion pages',
+    prompt: 'Set up a Notion recap project for me',
     icon: 'notion' as TemplateIcon,
   },
   {
@@ -369,9 +369,9 @@ export function ChatFirstDesk() {
 
       // Poll for bootstrap agent to appear (created by sync completion)
       const BOOTSTRAP_TITLES: Record<string, string> = {
-        slack: 'Slack Recap',
-        gmail: 'Gmail Digest',
-        notion: 'Notion Summary',
+        slack: 'Slack Agent',
+        gmail: 'Gmail Agent',
+        notion: 'Notion Agent',
       };
       const expectedTitle = BOOTSTRAP_TITLES[provider];
       if (!expectedTitle) return;
