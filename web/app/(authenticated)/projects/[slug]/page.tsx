@@ -97,6 +97,17 @@ const ACTIVITY_EVENT_CONFIG: Record<string, {
     icon: <TrendingUp className="w-4 h-4" />,
     color: 'text-green-500',
   },
+  // ADR-126: Agent Pulse events
+  agent_pulsed: {
+    label: 'Pulse',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-cyan-500',
+  },
+  pm_pulsed: {
+    label: 'PM Pulse',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-purple-500',
+  },
   // ADR-123 Phase 3: PM intelligence events
   project_quality_assessed: {
     label: 'Quality assessed',
@@ -134,6 +145,14 @@ function formatActivitySummary(item: ProjectActivityItem): string {
     }
     case 'project_contributor_steered':
       return `PM steered ${meta.target_agent_slug || 'a contributor'}${meta.guidance ? ` — ${meta.guidance}` : ''}`;
+    case 'agent_pulsed': {
+      const action = meta.action || 'sensed';
+      return `Agent pulsed — ${action}${meta.reason ? `: ${meta.reason}` : ''}`;
+    }
+    case 'pm_pulsed': {
+      const pmAction = meta.action || 'sensed';
+      return `PM pulsed — ${pmAction}${meta.reason ? `: ${meta.reason}` : ''}`;
+    }
     default:
       return item.summary || item.event_type;
   }

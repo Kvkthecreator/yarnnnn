@@ -16,8 +16,10 @@ Key concepts:
 Canonical reference: docs/architecture/agent-framework.md
 """
 
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Union
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +52,7 @@ SKILL_ENABLED_ROLES = frozenset({"synthesize", "research", "monitor", "custom"})
 # "schedule" means: use the agent's configured schedule as pulse cadence.
 # This is the conservative default — the agent senses as often as it delivers.
 
-ROLE_PULSE_CADENCE: dict[str, timedelta | str] = {
+ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
     "monitor":    timedelta(minutes=15),   # Watchdog — always alert
     "pm":         timedelta(minutes=30),   # Coordinator — responsive to contributor output
     "digest":     timedelta(hours=12),     # Summarizer — senses twice per delivery cycle
@@ -64,7 +66,7 @@ ROLE_PULSE_CADENCE: dict[str, timedelta | str] = {
 _DEFAULT_PULSE_CADENCE = "schedule"
 
 
-def get_pulse_cadence(role: str) -> timedelta | str:
+def get_pulse_cadence(role: str) -> Union[timedelta, str]:
     """Return the pulse cadence for a role.
 
     Returns a timedelta for fixed-interval roles, or "schedule" for

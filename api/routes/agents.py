@@ -1541,36 +1541,12 @@ def validate_role_config(role: str, config: dict) -> dict:
 
 def calculate_next_run(schedule: ScheduleConfig) -> str:
     """
-    Calculate the next run timestamp based on schedule configuration.
+    Calculate the next pulse timestamp based on schedule configuration.
 
-    For now, returns a simple calculation. Will be enhanced with proper
-    cron parsing and timezone handling.
+    Delegates to the unified scheduler's calculate_next_pulse_from_schedule()
+    to ensure consistency across all creation and update paths (ADR-126).
     """
-    from datetime import timedelta
-    import pytz
+    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
 
-    now = datetime.now(timezone.utc)
-    tz = pytz.timezone(schedule.timezone) if schedule.timezone else pytz.UTC
-
-    # Simple frequency-based calculation
-    if schedule.frequency == "daily":
-        next_run = now + timedelta(days=1)
-    elif schedule.frequency == "weekly":
-        next_run = now + timedelta(weeks=1)
-    elif schedule.frequency == "biweekly":
-        next_run = now + timedelta(weeks=2)
-    elif schedule.frequency == "monthly":
-        next_run = now + timedelta(days=30)
-    else:
-        # Custom - default to weekly
-        next_run = now + timedelta(weeks=1)
-
-    # If time is specified, set it
-    if schedule.time:
-        try:
-            hour, minute = map(int, schedule.time.split(":"))
-            next_run = next_run.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        except (ValueError, AttributeError):
-            pass
-
-    return next_run.isoformat()
+    sched_dict = schedule.model_dump()
+    return calculate_next_pulse_from_schedule(sched_dict).isoformat()

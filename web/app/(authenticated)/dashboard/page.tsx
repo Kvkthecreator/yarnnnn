@@ -411,11 +411,15 @@ function ProjectCard({
                   Paused
                 </span>
               )}
-              {agent.last_run_at && (
+              {agent.next_pulse_at ? (
+                <span className="text-xs text-muted-foreground shrink-0" title="Next pulse">
+                  {formatDistanceToNow(new Date(agent.next_pulse_at), { addSuffix: true })}
+                </span>
+              ) : agent.last_run_at ? (
                 <span className="text-xs text-muted-foreground shrink-0">
                   {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
                 </span>
-              )}
+              ) : null}
             </button>
           ))}
         </div>

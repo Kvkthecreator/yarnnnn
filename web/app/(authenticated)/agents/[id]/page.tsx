@@ -27,8 +27,10 @@ import {
   Globe,
   Brain,
   FolderKanban,
+  HeartPulse,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { ROLE_LABELS } from '@/lib/constants/agents';
@@ -283,11 +285,30 @@ export default function AgentWorkspacePage() {
 
   const scheduleSummary = getScheduleSummary(agent);
 
+  const nextPulseStr = agent.next_pulse_at
+    ? (() => {
+        try {
+          return formatDistanceToNow(new Date(agent.next_pulse_at), { addSuffix: true });
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
   const inlineMeta = (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
       {scheduleSummary && (
         <>
           <span>{scheduleSummary}</span>
+          <span className="select-none">·</span>
+        </>
+      )}
+      {nextPulseStr && (
+        <>
+          <span className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400" title="Next pulse">
+            <HeartPulse className="w-3 h-3" />
+            {nextPulseStr}
+          </span>
           <span className="select-none">·</span>
         </>
       )}

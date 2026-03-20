@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Activity,
   Brain,
+  HeartPulse,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -133,6 +134,11 @@ const BACKGROUND_JOB_GROUPS = [
     label: 'Platform Sync',
     icon: <RefreshCw className="w-4 h-4 text-green-500" />,
     types: ['Platform Sync'],
+  },
+  {
+    label: 'Agent Pulse',
+    icon: <HeartPulse className="w-4 h-4 text-cyan-500" />,
+    types: ['Agent Pulse'],
   },
   {
     label: 'Memory & Analysis',

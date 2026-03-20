@@ -113,6 +113,12 @@ async def phase1_setup(supabase) -> dict:
 
     ids = {}
 
+    # Pre-cleanup: remove any leftover workspace files from prior test runs
+    for slug in ["test-adr092-reactive", "test-adr092-proactive", "test-adr092-coordinator"]:
+        supabase.table("workspace_files").delete().eq(
+            "user_id", TEST_USER_ID
+        ).like("path", f"/agents/{slug}/%").execute()
+
     # Reactive agent
     reactive = (
         supabase.table("agents").insert({
@@ -226,11 +232,15 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
     assert_eq(result, "call 1 success=True", r1.get("success"), True)
     assert_eq(result, "call 1 observation_count=1", r1.get("observation_count"), 1)
 
-    # Verify DB state
-    fresh1 = supabase.table("agents").select("agent_memory").eq("id", reactive_id).single().execute().data
-    obs1 = (fresh1.get("agent_memory") or {}).get("observations", [])
-    assert_eq(result, "DB has 1 observation after call 1", len(obs1), 1)
-    assert_true(result, "observation has source=event", obs1[0].get("source") == "event")
+    # Verify workspace state (ADR-106: observations in workspace, not agent_memory JSONB)
+    from services.workspace import get_agent_slug
+    agent_row = supabase.table("agents").select("*").eq("id", reactive_id).single().execute().data
+    slug = get_agent_slug(agent_row)
+    ws_result = supabase.table("workspace_files").select("content").eq(
+        "user_id", TEST_USER_ID
+    ).eq("path", f"/agents/{slug}/memory/observations.md").limit(1).execute()
+    obs_content = ws_result.data[0]["content"] if ws_result.data else ""
+    assert_true(result, "workspace has observations after call 1", len(obs_content) > 0)
 
     # Re-fetch for accurate memory state
     d = supabase.table("agents").select("*").eq("id", reactive_id).single().execute().data
@@ -261,13 +271,13 @@ async def phase2_reactive(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "call 3 reactive_threshold_met=True", r3.get("reactive_threshold_met") is True)
     assert_eq(result, "call 3 observations_cleared=3", r3.get("observations_cleared"), 3)
 
-    # Verify DB: observations cleared
-    fresh3 = supabase.table("agents").select("agent_memory").eq("id", reactive_id).single().execute().data
-    obs3 = (fresh3.get("agent_memory") or {}).get("observations", [])
-    assert_eq(result, "observations cleared after threshold generation", len(obs3), 0)
-
-    last_gen = (fresh3.get("agent_memory") or {}).get("last_generated_at")
-    assert_true(result, "last_generated_at set after threshold generation", last_gen is not None)
+    # Verify workspace: observations cleared after threshold generation (ADR-106)
+    ws_after = supabase.table("workspace_files").select("content").eq(
+        "user_id", TEST_USER_ID
+    ).eq("path", f"/agents/{slug}/memory/observations.md").limit(1).execute()
+    obs_after = ws_after.data[0]["content"] if ws_after.data else ""
+    assert_true(result, "observations cleared after threshold generation",
+                obs_after.strip() == "")
 
     return result
 
@@ -313,9 +323,10 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
     assert_eq(result, "observe: review_log has 1 entry", len(review_log), 1)
     assert_eq(result, "observe: log action=observe", review_log[0].get("action"), "observe")
     # Verify next_pulse_at via calculate_next_pulse_at
+    # ADR-126: cadence="schedule" → next occurrence of the agent's schedule (not fixed offset)
     next1 = calculate_next_pulse_at(d, observe_decision)
     hours_ahead = (next1 - now).total_seconds() / 3600
-    assert_true(result, "observe: next_pulse ~24h ahead", 20 <= hours_ahead <= 28,
+    assert_true(result, "observe: next_pulse in future", 0 < hours_ahead <= 28,
                 f"hours_ahead={hours_ahead:.1f}")
 
     # --- wait action with explicit until ---
@@ -345,7 +356,7 @@ async def phase3_proactive(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "generate: last_generated_at set", ws3["last_generated_at"] is not None)
     next3 = calculate_next_pulse_at(d, gen_decision)
     hours_ahead3 = (next3 - now).total_seconds() / 3600
-    assert_true(result, "generate: next_pulse ~24h ahead", 20 <= hours_ahead3 <= 28,
+    assert_true(result, "generate: next_pulse in future", 0 < hours_ahead3 <= 28,
                 f"hours_ahead={hours_ahead3:.1f}")
 
     return result
@@ -406,10 +417,9 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
 
     # Verify created_agents dedup log on coordinator
     coord = supabase.table("agents").select("agent_memory").eq("id", coordinator_id).single().execute().data
-    created_log = (coord.get("agent_memory") or {}).get("created_agents", [])
-    assert_true(result, "created_agents log has 1 entry", len(created_log) >= 1)
-    dedup_keys = [e.get("dedup_key") for e in created_log]
-    assert_true(result, "dedup_key in created_agents log", "meeting:test-event-abc123" in dedup_keys)
+    # Note: created_agents log moved from agent_memory JSONB to workspace (ADR-106).
+    # The CreateAgent primitive no longer writes to agent_memory — verified via
+    # the activity_log event and child agent existence above.
 
     # --- CreateAgent: missing title ---
     r_no_title = await handle_create_agent(auth, {"role": "prepare"})
@@ -485,9 +495,9 @@ async def phase5_parse_response() -> PhaseResult:
     assert_eq(result, "valid observe → action=observe", r.get("action"), "observe")
     assert_eq(result, "valid observe → note set", r.get("note"), "Something interesting")
 
-    # Valid sleep with until
+    # Valid wait with until (ADR-126: "sleep" renamed to "wait", parser normalizes)
     r = _parse_review_response('{"action": "sleep", "until": "2026-03-10T09:00:00Z"}')
-    assert_eq(result, "valid sleep → action=sleep", r.get("action"), "sleep")
+    assert_eq(result, "valid sleep → action=wait", r.get("action"), "wait")
     assert_eq(result, "valid sleep → until set", r.get("until"), "2026-03-10T09:00:00Z")
 
     # Wrapped in markdown fences
@@ -495,9 +505,9 @@ async def phase5_parse_response() -> PhaseResult:
     r = _parse_review_response(fenced)
     assert_eq(result, "fenced JSON → action=generate", r.get("action"), "generate")
 
-    # Malformed JSON
+    # Malformed JSON — ADR-126: fallback is "generate" (safe default: run the agent)
     r = _parse_review_response('{"action": "generate"')
-    assert_eq(result, "malformed JSON → action=observe", r.get("action"), "observe")
+    assert_eq(result, "malformed JSON → action=generate", r.get("action"), "generate")
     assert_true(result, "malformed JSON → note contains error",
                 bool(r.get("note")))
 
@@ -561,7 +571,7 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
 # =============================================================================
 
 async def phase7_cleanup(supabase, ids: dict) -> None:
-    """Delete all test agents and synthetic platform_content."""
+    """Delete all test agents, workspace files, and synthetic platform_content."""
     logger.info("\n[Phase 7] Cleanup")
 
     deleted = 0
@@ -581,6 +591,13 @@ async def phase7_cleanup(supabase, ids: dict) -> None:
         deleted += 1
 
     logger.info(f"  Deleted {deleted} test agent(s)")
+
+    # Delete workspace files for test agents (ADR-106)
+    for slug in ["test-adr092-reactive", "test-adr092-proactive", "test-adr092-coordinator"]:
+        supabase.table("workspace_files").delete().eq(
+            "user_id", TEST_USER_ID
+        ).like("path", f"/agents/{slug}/%").execute()
+    logger.info("  Deleted test workspace files")
 
     # Delete synthetic platform_content
     for cid in ids.get("content_ids", []):

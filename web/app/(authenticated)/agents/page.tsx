@@ -116,28 +116,33 @@ function groupAgentsBySource(agents: Agent[]): { key: string; label: string; age
 // =============================================================================
 
 function getModeStatusLine(d: Agent): string {
+  // ADR-126: All agents pulse — show next pulse timing when available
+  const pulseStr = d.next_pulse_at
+    ? (() => {
+        try {
+          return `Next pulse ${formatDistanceToNow(new Date(d.next_pulse_at), { addSuffix: true })}`;
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
   switch (d.mode) {
     case 'goal': {
       const goalStatus = d.agent_memory?.goal?.status;
-      return goalStatus ? `Goal: ${goalStatus}` : 'Goal mode';
+      return pulseStr || (goalStatus ? `Goal: ${goalStatus}` : 'Goal mode');
     }
     case 'reactive': {
       const count = d.agent_memory?.observations?.length || 0;
-      return count > 0 ? `${count} observation${count === 1 ? '' : 's'}` : 'Watching';
+      return pulseStr || (count > 0 ? `${count} observation${count === 1 ? '' : 's'}` : 'Watching');
     }
     case 'proactive':
     case 'coordinator': {
-      if (d.next_pulse_at) {
-        try {
-          return `Next review ${formatDistanceToNow(new Date(d.next_pulse_at), { addSuffix: true })}`;
-        } catch {
-          // fall through
-        }
-      }
-      return d.mode === 'coordinator' ? 'Coordinator' : 'Proactive';
+      return pulseStr || (d.mode === 'coordinator' ? 'Coordinator' : 'Proactive');
     }
     default: {
-      // recurring — show schedule
+      // recurring — show schedule, but prefer pulse timing if available
+      if (pulseStr) return pulseStr;
       const s = d.schedule;
       if (!s?.frequency) return 'No schedule';
       const time = s.time || '09:00';

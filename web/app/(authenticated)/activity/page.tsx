@@ -168,6 +168,19 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-amber-500',
     category: 'agents',
   },
+  // ADR-126: Agent Pulse — autonomous sense→decide events
+  agent_pulsed: {
+    label: 'Pulse',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-cyan-500',
+    category: 'agents',
+  },
+  pm_pulsed: {
+    label: 'PM Pulse',
+    icon: <HeartPulse className="w-4 h-4" />,
+    color: 'text-purple-500',
+    category: 'projects',
+  },
   // ADR-117/119: Project activity + duty promotion
   project_heartbeat: {
     label: 'Project check-in',
@@ -221,8 +234,8 @@ type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 
 // Map category filters to the event_type values they include
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
-  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled', 'agent_bootstrapped', 'duty_promoted'],
-  projects: ['project_heartbeat', 'project_assembled', 'project_escalated', 'project_contributor_advanced'],
+  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled', 'agent_bootstrapped', 'duty_promoted', 'agent_pulsed'],
+  projects: ['project_heartbeat', 'project_assembled', 'project_escalated', 'project_contributor_advanced', 'pm_pulsed'],
   memory: ['memory_written', 'session_summary_written'],
   sync: ['platform_synced', 'content_cleanup'],
   chat: ['chat_session'],
@@ -311,8 +324,15 @@ function getNavigationTarget(
     }
     case 'agent_bootstrapped':
     case 'duty_promoted':
+    case 'agent_pulsed':
       if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
       return null;
+    case 'pm_pulsed': {
+      const pmProjectSlug = (metadata.project_slug || item.event_ref) as string | undefined;
+      if (pmProjectSlug) return { href: `/projects/${pmProjectSlug}`, label: 'View project' };
+      if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
+      return null;
+    }
     default:
       return null;
   }
@@ -522,6 +542,25 @@ export default function ActivityPage() {
       case 'integration_connected':
       case 'integration_disconnected':
         return metadata.provider ? <DetailRow label="Platform" value={String(metadata.provider)} /> : null;
+
+      case 'agent_pulsed':
+        return (
+          <>
+            {metadata.action && <DetailRow label="Decision" value={String(metadata.action)} />}
+            {metadata.tier && <DetailRow label="Tier" value={`Tier ${metadata.tier}`} />}
+            {metadata.role && <DetailRow label="Role" value={String(metadata.role)} />}
+            {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
+          </>
+        );
+
+      case 'pm_pulsed':
+        return (
+          <>
+            {metadata.action && <DetailRow label="Decision" value={String(metadata.action)} />}
+            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
+            {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
+          </>
+        );
 
       default: {
         const entries = Object.entries(metadata);
