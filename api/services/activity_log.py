@@ -54,6 +54,9 @@ VALID_EVENT_TYPES = frozenset({
     "project_assembled",            # PM triggered assembly
     "project_escalated",            # PM escalated to TP
     "project_contributor_advanced",  # PM advanced contributor schedule
+    "project_contributor_steered",   # PM wrote contribution brief (ADR-121)
+    "project_quality_assessed",      # PM assessed contribution quality (ADR-121)
+    "project_file_triaged",          # PM triaged user_shared/ file (ADR-127)
     "duty_promoted",                # Composer promoted agent duty
     # ADR-126: Agent Pulse — autonomous awareness events
     "agent_pulsed",                 # Agent sense→decide cycle (all tiers)

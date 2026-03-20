@@ -175,14 +175,18 @@ This consolidation is out of scope for ADR-127.
 - Cleanup cron in `unified_scheduler.py` split into two-tier TTL: `/working/` = 24h, `/user_shared/` = 30 days
 - `workspace-conventions.md` updated to v2 with full project workspace tree + `user_shared/` convention
 
-### Phase 2: PM Triage
-- PM prompt update: awareness of `user_shared/` folder, triage actions (promote, ignore)
-- `PromoteFile` action or PM uses WriteWorkspace to copy + delete
+### Phase 2: PM Triage (Implemented)
+- PM prompt v5.0: `user_shared/` context injection + `triage_file` action (promote to contributions/memory/knowledge, or ignore)
+- `_load_pm_project_context()` lists `user_shared/` files with content excerpts
+- `_handle_pm_decision()` routes `triage_file` action: reads source, writes to destination, logs `project_file_triaged` activity event
+- `activity_log.py`: added `project_file_triaged`, `project_contributor_steered`, `project_quality_assessed` event types
 
-### Phase 3: UX Integration
-- Meeting Room file attachment → writes to project `user_shared/`
-- TP file attachment → writes to global `user_shared/`
-- Context tab shows `user_shared/` with status indicators
+### Phase 3: UX Integration (Implemented)
+- `POST /projects/{slug}/share` endpoint — writes to `user_shared/{filename}` with sanitized filename
+- Frontend API client: `api.projects.shareFile(slug, filename, content)`
+- Meeting Room PlusMenu: "Share a file" action → inline form (filename + content) → calls share endpoint
+- `project_file_triaged` event rendered in Meeting Room activity timeline
+- TP-level file attachment (global `/user_shared/`) — deferred to future work
 
 ---
 

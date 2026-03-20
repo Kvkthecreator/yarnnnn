@@ -378,12 +378,13 @@ INSTRUCTIONS:
 
 Write the agent now:""",
 
-    # pm: v4.0 (2026.03.19) — Intelligence Director (ADR-121 + ADR-123)
+    # pm: v5.0 (2026.03.20) — Intelligence Director + user_shared triage (ADR-121/123/127)
     # v3.0: Intelligence Director with assess/steer/assemble (ADR-121)
-    # v4.0: intent→objective rename, intentions field removed (ADR-123 — operational planning in work_plan only)
+    # v4.0: intent→objective rename, intentions field removed (ADR-123)
+    # v5.0: user_shared/ file awareness + triage_file action (ADR-127)
     "pm": """You are the Intelligence Director for project "{title}".
 
-YOUR ROLE: Assess contribution quality against the project objective, steer contributors toward underexplored areas, and decide when the project is ready for assembly.
+YOUR ROLE: Assess contribution quality against the project objective, steer contributors toward underexplored areas, triage user-shared files, and decide when the project is ready for assembly.
 
 You are NOT a logistics coordinator that simply checks freshness. You are a domain expert in what this project needs — you reason about quality, coverage, and gaps.
 
@@ -399,6 +400,8 @@ WORK PLAN:
 BUDGET STATUS:
 {budget_status}
 
+{user_shared_files}
+
 {user_instructions}
 
 INSTRUCTIONS:
@@ -412,6 +415,7 @@ Assess the project state — consider contribution quality, not just freshness �
 5. **wait** — Not enough contributions are ready yet. No action needed.
 6. **escalate** — Something is wrong (repeated failures, missing contributors, budget exhausted, unclear spec, or contributions are fundamentally inadequate and steering won't help). Flag for TP.
 7. **update_work_plan** — No work plan exists yet, or the project objective changed. Decompose the objective into an operational execution plan with contributor cadences, focus areas, assembly schedule, and budget allocation.
+8. **triage_file** — A user shared a file in user_shared/. Decide where it belongs: promote to a contributor's folder (contributions/), project memory, or knowledge base. Or ignore if it's not relevant.
 
 CRITICAL: Your ENTIRE response must be a single valid JSON object. No markdown, no headers, no prose, no fences — ONLY JSON.
 
@@ -438,8 +442,13 @@ For escalate:
 For update_work_plan:
 {{"action": "update_work_plan", "reason": "why updating", "work_plan": {{"contributors": [{{"slug": "agent-slug", "expected_cadence": "weekly", "focus_areas": ["topic1", "topic2"], "skills": ["spreadsheet"]}}], "assembly_cadence": "biweekly", "budget_per_cycle": 8, "skill_sequence": ["spreadsheet", "presentation"], "notes": "operational notes"}}}}
 
+For triage_file:
+{{"action": "triage_file", "reason": "what this file is and why it belongs here", "source_file": "user_shared/filename.md", "destination": "contributions/agent-slug/filename.md", "action_type": "promote"}}
+Use destination paths like: contributions/{{agent-slug}}/{{filename}} (contributor reference), memory/{{filename}} (project memory), or "ignore" as action_type to skip.
+
 Decision Rules:
 - If no work plan exists, your first action MUST be update_work_plan.
+- If user_shared/ files are present, triage them before other actions — user contributions deserve prompt attention.
 - If contributions exist but you haven't assessed quality yet this cycle, prefer assess_quality before assemble.
 - If a contribution is thin or off-topic, steer_contributor with a specific brief — don't just advance and hope.
 - If contributions overlap significantly (same data, same angle), steer one contributor toward a different aspect.
@@ -612,11 +621,15 @@ def build_role_prompt(
     elif role == "pm":
         # PM context injected by _load_pm_project_context() via type_config merge
         # ADR-123: intentions field removed — operational planning in work_plan only
+        # ADR-127: user_shared/ files injected for triage awareness
+        user_shared = config.get("user_shared_files", "")
+        user_shared_section = f"USER-SHARED FILES (triage needed):\n{user_shared}" if user_shared else ""
         fields.update({
             "project_context": config.get("project_context", "No project context available."),
             "contributor_status": config.get("contributor_status", "No contributor status available."),
             "work_plan": config.get("work_plan", "No work plan set."),
             "budget_status": config.get("budget_status", "Unknown"),
+            "user_shared_files": user_shared_section,
         })
 
     else:  # custom and any unknown types

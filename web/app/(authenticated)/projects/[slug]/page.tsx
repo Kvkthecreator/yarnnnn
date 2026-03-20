@@ -119,6 +119,12 @@ const ACTIVITY_EVENT_CONFIG: Record<string, {
     icon: <Brain className="w-4 h-4" />,
     color: 'text-amber-500',
   },
+  // ADR-127: File triage events
+  project_file_triaged: {
+    label: 'File triaged',
+    icon: <FileText className="w-4 h-4" />,
+    color: 'text-blue-500',
+  },
 };
 
 function formatActivitySummary(item: ProjectActivityItem): string {
@@ -245,6 +251,10 @@ function MeetingRoomTab({
   const [input, setInput] = useState('');
   const [targetAgent, setTargetAgent] = useState<ProjectMember | null>(null);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [showShareForm, setShowShareForm] = useState(false);
+  const [shareFilename, setShareFilename] = useState('');
+  const [shareContent, setShareContent] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -272,6 +282,23 @@ function MeetingRoomTab({
 
   const surface = { type: 'project-detail' as const, projectSlug: slug };
 
+  const handleShareFile = async () => {
+    if (!shareFilename.trim() || !shareContent.trim()) return;
+    setShareLoading(true);
+    try {
+      await api.projects.shareFile(slug, shareFilename.trim(), shareContent);
+      setShowShareForm(false);
+      setShareFilename('');
+      setShareContent('');
+      // Notify in chat that file was shared
+      sendMessage(`I shared a file: ${shareFilename.trim()}`, { surface });
+    } catch {
+      // Silently fail — user will see the form still open
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   const plusMenuActions: PlusMenuAction[] = [
     {
       id: 'mention-agent',
@@ -282,6 +309,15 @@ function MeetingRoomTab({
         setInput((prev) => prev + '@');
         setShowMentionPicker(true);
         textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'share-file',
+      label: 'Share a file',
+      icon: FileText,
+      verb: 'prompt',
+      onSelect: () => {
+        setShowShareForm(true);
       },
     },
     {
@@ -513,6 +549,55 @@ function MeetingRoomTab({
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {showShareForm && (
+            <div className="mb-3 p-4 border border-border rounded-xl bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Share a file</span>
+                <button
+                  type="button"
+                  onClick={() => { setShowShareForm(false); setShareFilename(''); setShareContent(''); }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={shareFilename}
+                onChange={(e) => setShareFilename(e.target.value)}
+                placeholder="Filename (e.g., meeting-notes.md)"
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <textarea
+                value={shareContent}
+                onChange={(e) => setShareContent(e.target.value)}
+                placeholder="Paste or type file content..."
+                rows={5}
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowShareForm(false); setShareFilename(''); setShareContent(''); }}
+                  className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareFile}
+                  disabled={shareLoading || !shareFilename.trim() || !shareContent.trim()}
+                  className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {shareLoading ? 'Sharing...' : 'Share'}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                File will be staged in user_shared/ for PM to triage. Expires after 30 days if not promoted.
+              </p>
             </div>
           )}
 

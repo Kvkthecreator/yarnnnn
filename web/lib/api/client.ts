@@ -606,6 +606,13 @@ export const api = {
       request<{ path: string; content: string }>(
         `/api/projects/${slug}/files/${filePath}`
       ),
+
+    // ADR-127: Share file to project user_shared/ staging area
+    shareFile: (slug: string, filename: string, content: string) =>
+      request<{ success: boolean; path: string; filename: string; message: string }>(
+        `/api/projects/${slug}/share`,
+        { method: "POST", body: JSON.stringify({ filename, content }) }
+      ),
   },
 
   // Account management

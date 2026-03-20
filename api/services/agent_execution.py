@@ -203,6 +203,17 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
                         tags=["work_plan", "migration"])
         work_plan = migrated_plan
 
+    # ADR-127: List user_shared/ files so PM can triage
+    user_shared_lines = []
+    try:
+        shared_files = await pw.list("user_shared/")
+        for sf in (shared_files or []):
+            content = await pw.read(f"user_shared/{sf}")
+            excerpt = (content[:300] + f"\n... ({len(content)} chars)") if content and len(content) > 300 else (content or "(empty)")
+            user_shared_lines.append(f"- **{sf}**: {excerpt}")
+    except Exception:
+        pass  # No user_shared/ files or folder doesn't exist
+
     # ADR-120 P4: Work budget status for graceful degradation
     budget_status = "Unknown"
     try:
@@ -223,6 +234,7 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
         "contributor_status": "\n".join(contributor_lines) if contributor_lines else "No contributors listed.",
         "work_plan": work_plan or "No work plan set. Your first action should be update_work_plan.",
         "budget_status": budget_status,
+        "user_shared_files": "\n".join(user_shared_lines) if user_shared_lines else "",
     }
 
 
@@ -787,6 +799,69 @@ async def _handle_pm_decision(
         except Exception as e:
             logger.error(f"[PM] Failed to write work plan: {e}")
             return {"pm_action": "update_work_plan", "success": False, "error": str(e)}
+
+    elif action == "triage_file":
+        # ADR-127: PM triages a user-shared file — promote to destination or ignore
+        try:
+            from services.workspace import ProjectWorkspace
+
+            source_file = decision.get("source_file", "")
+            destination = decision.get("destination", "")
+            action_type = decision.get("action_type", "promote")
+
+            if not source_file:
+                return {"pm_action": "triage_file", "success": False, "error": "No source_file specified"}
+
+            pw = ProjectWorkspace(client, user_id, project_slug)
+
+            if action_type == "ignore":
+                logger.info(f"[PM] Ignoring user_shared file {source_file} in {project_slug}: {reason}")
+                return {"pm_action": "triage_file", "success": True, "action_type": "ignore",
+                        "source_file": source_file, "reason": reason}
+
+            if not destination:
+                return {"pm_action": "triage_file", "success": False, "error": "No destination for promote"}
+
+            # Read source content
+            content = await pw.read(source_file)
+            if not content:
+                return {"pm_action": "triage_file", "success": False,
+                        "error": f"Source file not found: {source_file}"}
+
+            # Write to destination (contributions/, memory/, etc.)
+            await pw.write(destination, content,
+                           summary=f"Promoted from {source_file}: {reason[:80]}")
+
+            logger.info(f"[PM] Triaged {source_file} → {destination} in {project_slug}")
+
+            # Activity event
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=client, user_id=user_id,
+                    event_type="project_file_triaged",
+                    summary=f"{project_slug} PM triaged {source_file} → {destination}",
+                    event_ref=agent.get("id"),
+                    metadata={"project_slug": project_slug,
+                              "source_file": source_file,
+                              "destination": destination,
+                              "action_type": action_type,
+                              "reason": reason},
+                )
+            except Exception:
+                pass  # Non-fatal
+
+            return {
+                "pm_action": "triage_file",
+                "success": True,
+                "action_type": action_type,
+                "source_file": source_file,
+                "destination": destination,
+                "reason": reason,
+            }
+        except Exception as e:
+            logger.error(f"[PM] Triage file failed: {e}")
+            return {"pm_action": "triage_file", "success": False, "error": str(e)}
 
     elif action == "wait":
         logger.info(f"[PM] Waiting on {project_slug}: {reason}")

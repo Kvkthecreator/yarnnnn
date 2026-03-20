@@ -1,5 +1,5 @@
 """
-Project routes — ADR-119 Phase 2 + Phase 4
+Project routes — ADR-119 Phase 2 + Phase 4 + ADR-127
 
 Cross-agent collaboration projects. CRUD over /api/projects.
 
@@ -13,6 +13,7 @@ Endpoints:
 - GET /projects/{slug}/files/{path} — read specific file content (ADR-124 P4)
 - GET /projects/{slug}/contributions/{agent_slug} — contribution files with content (P4b)
 - POST /projects — create project
+- POST /projects/{slug}/share — share a file to project user_shared/ (ADR-127)
 - PATCH /projects/{slug} — update PROJECT.md fields
 - DELETE /projects/{slug} — archive project
 """
@@ -504,3 +505,60 @@ async def get_project_contributions(slug: str, agent_slug: str, user: UserClient
         })
 
     return {"agent_slug": agent_slug, "files": files}
+
+
+# =============================================================================
+# SHARE FILE — ADR-127: User-Shared File Staging
+# =============================================================================
+
+class ShareFileRequest(BaseModel):
+    filename: str = Field(..., description="Name for the shared file (e.g., 'brief.md')")
+    content: str = Field(..., description="Text content of the file")
+
+
+@router.post("/projects/{slug}/share")
+async def share_file_to_project(
+    slug: str,
+    body: ShareFileRequest,
+    user: UserClient = None,
+):
+    """
+    ADR-127: Share a file to a project's user_shared/ staging area.
+
+    Files land in /projects/{slug}/user_shared/{filename} with ephemeral lifecycle (30-day TTL).
+    PM triages: promotes to contributions/memory/knowledge, or lets expire.
+    """
+    from services.workspace import ProjectWorkspace
+
+    filename = body.filename.strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename is required")
+    content = body.content
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="content is required")
+
+    # Sanitize filename — lowercase kebab, no path traversal
+    import re
+    safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '-', filename).strip('-')
+    if not safe_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+
+    # Verify project exists
+    project = await pw.read_project()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: {slug}")
+
+    # Write to user_shared/ (lifecycle auto-inferred as ephemeral by _infer_lifecycle)
+    path = f"user_shared/{safe_filename}"
+    await pw.write(path, content, summary=f"User shared: {safe_filename}")
+
+    logger.info(f"[SHARE] User shared file {safe_filename} to project {slug}")
+
+    return {
+        "success": True,
+        "path": f"/projects/{slug}/{path}",
+        "filename": safe_filename,
+        "message": f"File shared to project. PM will triage on next cycle.",
+    }

@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.11] - ADR-127: User-shared file staging — PM prompt v5.0 + triage_file action
+
+### Changed
+- `api/services/agent_pipeline.py`: PM prompt v4.0 → v5.0. Added `{user_shared_files}` context field. Added `triage_file` action (8th action) with promote/ignore semantics. Decision rule: "If user_shared/ files are present, triage them before other actions — user contributions deserve prompt attention."
+- `api/services/agent_pipeline.py`: `build_role_prompt()` PM branch: formats `user_shared_files` context with "USER-SHARED FILES (triage needed)" header, empty string when no files.
+- `api/services/agent_execution.py`: `_load_pm_project_context()` now lists `user_shared/` files with 300-char content excerpts. Returns `user_shared_files` field.
+- `api/services/agent_execution.py`: `_handle_pm_decision()` routes `triage_file` action — reads source from `user_shared/`, writes to destination (contributions/memory/knowledge), logs `project_file_triaged` activity event.
+- `api/services/activity_log.py`: Added `project_file_triaged`, `project_contributor_steered`, `project_quality_assessed` to `VALID_EVENT_TYPES` (latter two were used but missing from registry).
+- `api/routes/projects.py`: New `POST /projects/{slug}/share` endpoint — writes sanitized filename to `user_shared/` with ephemeral lifecycle.
+
+### Expected behavior
+- PM sees user-shared files in context and triages them before other actions
+- Files shared by users land in `user_shared/` with 30-day TTL
+- PM can promote files to contributions/memory/knowledge or ignore them
+- `project_file_triaged` events appear in Meeting Room timeline
+
+---
+
 ## [2026.03.20.10] - ADR-126 Phase 5: Role-based pulse cadence + Composer pulse integration
 
 ### Changed
