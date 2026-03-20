@@ -759,18 +759,18 @@ async def run_unified_scheduler():
     if now.hour == 0 and now.minute < 5:  # Only in first 5 minutes of midnight UTC
         try:
             from services.memory import process_conversation
-            from services.session_continuity import generate_session_summary
+            from services.session_continuity import generate_session_summary, generate_project_session_summary
 
-            # Get sessions from yesterday
+            # Get sessions from yesterday (both global TP and project sessions — ADR-125)
             yesterday = (now - timedelta(days=1)).date().isoformat()
             today = now.date().isoformat()
 
             sessions_result = (
                 supabase.table("chat_sessions")
-                .select("id, user_id, created_at")
+                .select("id, user_id, created_at, session_type, project_slug")
                 .gte("created_at", yesterday)
                 .lt("created_at", today)
-                .eq("session_type", "thinking_partner")
+                .in_("session_type", ["thinking_partner", "project"])
                 .execute()
             )
             sessions = sessions_result.data or []
@@ -783,9 +783,10 @@ async def run_unified_scheduler():
                     session_date = session.get("created_at", yesterday)[:10]
 
                     # Get messages for this session
+                    # ADR-125: Include metadata for author attribution in project sessions
                     messages_result = (
                         supabase.table("session_messages")
-                        .select("role, content")
+                        .select("role, content, metadata")
                         .eq("session_id", session_id)
                         .order("sequence_number")
                         .execute()
@@ -794,25 +795,38 @@ async def run_unified_scheduler():
                     user_msg_count = len([m for m in messages if m.get("role") == "user"])
 
                     if user_msg_count >= 3:
-                        # Memory extraction (ADR-064)
-                        extracted = await process_conversation(
-                            client=supabase,
-                            user_id=user_id,
-                            messages=messages,
-                            session_id=session_id,
-                        )
-                        if extracted > 0:
-                            memory_extracted += extracted
-                            memory_users += 1
-                            logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
+                        # Memory extraction (ADR-064) — global TP sessions only
+                        # Project sessions have multi-agent context; memory extraction
+                        # is user-scoped and doesn't apply to project conversations
+                        session_type = session.get("session_type", "thinking_partner")
+                        if session_type == "thinking_partner":
+                            extracted = await process_conversation(
+                                client=supabase,
+                                user_id=user_id,
+                                messages=messages,
+                                session_id=session_id,
+                            )
+                            if extracted > 0:
+                                memory_extracted += extracted
+                                memory_users += 1
+                                logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
 
-                        # Session summary (ADR-067 Phase 1)
+                        # Session summary (ADR-067 Phase 1 + ADR-125)
                         # Requires ≥ 5 user messages — substantive sessions only
                         if user_msg_count >= 5:
-                            summary = await generate_session_summary(
-                                messages=messages,
-                                session_date=session_date,
-                            )
+                            project_slug = session.get("project_slug")
+                            if session_type == "project" and project_slug:
+                                # ADR-125: Author-aware summary for project sessions
+                                summary = await generate_project_session_summary(
+                                    messages=messages,
+                                    session_date=session_date,
+                                    project_slug=project_slug,
+                                )
+                            else:
+                                summary = await generate_session_summary(
+                                    messages=messages,
+                                    session_date=session_date,
+                                )
                         else:
                             summary = None
                         if summary:

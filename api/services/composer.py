@@ -181,7 +181,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     platforms_with_project = set()
     try:
         project_files = (
-            db.table("workspace_files")
+            client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
             .like("path", "/projects/%/PROJECT.md")
