@@ -1190,7 +1190,8 @@ function MembersTab({
 
         {/* Member count header */}
         <p className="text-xs text-muted-foreground mb-3 px-1">
-          {members.length} member{members.length !== 1 ? 's' : ''}
+          {members.filter(m => m.role !== 'pm').length} member{members.filter(m => m.role !== 'pm').length !== 1 ? 's' : ''}
+          {members.some(m => m.role === 'pm') && ' + PM'}
         </p>
 
         {/* Member list */}
@@ -1532,16 +1533,27 @@ function SettingsTab({
         <h3 className="text-sm font-semibold mb-2">Delivery</h3>
         {project.delivery && Object.keys(project.delivery).length > 0 ? (
           <div className="text-sm space-y-1">
-            {Object.entries(project.delivery).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="text-muted-foreground">{key}:</span>
-                <span>{String(value)}</span>
-              </div>
-            ))}
+            {Object.entries(project.delivery).map(([key, value]) => {
+              const labels: Record<string, string> = {
+                channel: 'Channel',
+                target: 'Recipient',
+                cadence: 'Delivery cadence',
+                format: 'Format',
+              };
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{labels[key] || key}:</span>
+                  <span>{String(value)}</span>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">No delivery preferences configured.</p>
         )}
+        <p className="text-xs text-muted-foreground mt-2">
+          Agents produce outputs. The project delivers to you on the configured cadence.
+        </p>
       </section>
 
       {/* Danger Zone */}

@@ -45,7 +45,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-output-gateway.onrender.com")
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
 # ADR-117 Phase 3: Centralized in agent_framework.py (single source of truth)
 from services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
@@ -816,25 +816,37 @@ async def _execute_pm_assemble(
     if not contributions:
         return {"success": False, "error": "All contribution files are empty"}
 
-    # ADR-121: Read quality assessment + quality_notes from PM decision
-    quality_assessment = await pw.read("memory/quality_assessment.md")
-    if quality_assessment:
-        project["quality_notes"] = quality_assessment
-    # Also pick up quality_notes from the PM's assemble decision if present
-    if type_config.get("quality_notes"):
-        project["quality_notes"] = type_config["quality_notes"]
+    # 2b. Single-contributor passthrough — skip LLM composition for single-agent projects.
+    # When there's only one contributor, the contribution IS the output. No synthesis needed.
+    all_files = [f for slug_files in contributions.values() for f in slug_files]
+    is_passthrough = len(contributions) == 1 and len(all_files) == 1
 
-    # 3. Compose assembly via LLM
-    try:
-        composed_text, comp_usage, pending_renders = await _compose_assembly(
-            svc_client, user_id, project, contributions,
-        )
-    except Exception as e:
-        logger.error(f"[PM] Composition LLM call failed: {e}")
-        return {"success": False, "error": f"Composition failed: {e}"}
+    if is_passthrough:
+        # Passthrough: use contribution content directly, no LLM call
+        sole_file = all_files[0]
+        composed_text = sole_file["content"]
+        pending_renders = None
+        logger.info(f"[PM] Single-contributor passthrough for project {project_slug}")
+    else:
+        # ADR-121: Read quality assessment + quality_notes from PM decision
+        quality_assessment = await pw.read("memory/quality_assessment.md")
+        if quality_assessment:
+            project["quality_notes"] = quality_assessment
+        # Also pick up quality_notes from the PM's assemble decision if present
+        if type_config.get("quality_notes"):
+            project["quality_notes"] = type_config["quality_notes"]
 
-    if not composed_text:
-        return {"success": False, "error": "Composition produced empty output"}
+        # 3. Compose assembly via LLM
+        try:
+            composed_text, comp_usage, pending_renders = await _compose_assembly(
+                svc_client, user_id, project, contributions,
+            )
+        except Exception as e:
+            logger.error(f"[PM] Composition LLM call failed: {e}")
+            return {"success": False, "error": f"Composition failed: {e}"}
+
+        if not composed_text:
+            return {"success": False, "error": "Composition produced empty output"}
 
     # 4. Determine assembly version number
     existing_assemblies = await pw.list_assemblies()
@@ -852,12 +864,13 @@ async def _execute_pm_assemble(
 
     logger.info(f"[PM] ADR-120 P2: Assembly v{version} written to /projects/{project_slug}/{assembly_folder}/")
 
-    # ADR-120 Phase 3: Record assembly work units (2 units per assembly)
-    try:
-        from services.platform_limits import record_work_units as _record_wu_asm
-        _record_wu_asm(svc_client, user_id, "assembly", 2, metadata={"project_slug": project_slug, "version": version})
-    except Exception:
-        pass  # Non-fatal
+    # ADR-120 Phase 3: Record assembly work units (2 for composition, 0 for passthrough)
+    if not is_passthrough:
+        try:
+            from services.platform_limits import record_work_units as _record_wu_asm
+            _record_wu_asm(svc_client, user_id, "assembly", 2, metadata={"project_slug": project_slug, "version": version})
+        except Exception:
+            pass  # Non-fatal
 
     # 6. Deliver if project has delivery config
     delivery_status = None

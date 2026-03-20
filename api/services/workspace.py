@@ -1914,7 +1914,7 @@ class ProjectWorkspace:
 
         if delivery:
             lines.extend(["", "## Delivery"])
-            for key in ["channel", "target"]:
+            for key in ["channel", "target", "cadence"]:
                 if key in delivery:
                     label = key.capitalize()
                     lines.append(f"- **{label}**: {delivery[key]}")

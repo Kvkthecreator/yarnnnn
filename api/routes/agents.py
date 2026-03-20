@@ -557,6 +557,7 @@ async def list_agents(
         auth.client.table("agents")
         .select("*, agent_runs(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
+        .neq("role", "pm")  # PM agents are project infrastructure, not user-facing
         .order("created_at", desc=True)
         .limit(limit)
     )
