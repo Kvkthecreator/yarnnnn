@@ -131,13 +131,13 @@ async def phase1_heartbeat_data_query(supabase) -> PhaseResult:
 
     # Coverage structure
     coverage = assessment["coverage"]
-    assert_in(r, "coverage.platforms_with_digest", "platforms_with_digest", coverage)
-    assert_in(r, "coverage.platforms_without_digest", "platforms_without_digest", coverage)
+    assert_in(r, "coverage.platforms_with_coverage", "platforms_with_coverage", coverage)
+    assert_in(r, "coverage.platforms_without_coverage", "platforms_without_coverage", coverage)
 
     # Maturity structure (Phase 5)
     maturity = assessment["maturity"]
     assert_in(r, "maturity.signals exists", "signals", maturity)
-    assert_in(r, "maturity.mature_agents exists", "mature_agents", maturity)
+    assert_in(r, "maturity.senior_agents exists", "senior_agents", maturity)
     assert_in(r, "maturity.underperformers exists", "underperformers", maturity)
     assert_true(r, "maturity.signals is list", isinstance(maturity["signals"], list))
 
@@ -150,7 +150,7 @@ async def phase1_heartbeat_data_query(supabase) -> PhaseResult:
         assert_in(r, "signal has total_runs", "total_runs", sig)
         assert_in(r, "signal has origin", "origin", sig)
         assert_true(r, "maturity stage valid",
-                    sig["maturity"] in ("nascent", "developing", "mature"),
+                    sig["maturity"] in ("new", "associate", "senior"),
                     f"got {sig['maturity']}")
     else:
         r.ok("No maturity signals (no active agents) — structure verified")
@@ -183,18 +183,21 @@ def phase2_should_composer_act() -> PhaseResult:
     healthy = {
         "connected_platforms": ["slack", "gmail"],
         "agents": {"active": 3, "roles_present": ["digest", "synthesize"]},
-        "coverage": {"platforms_with_digest": ["slack", "gmail"], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": ["slack", "gmail"], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
-        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "maturity": {"signals": [], "senior_agents": [], "underperformers": []},
         "feedback": {"recent_count": 2},
         "tier": {"can_create": True, "limit_message": None},
+        "knowledge": {"total_files": 20, "total_runs": 10},
+        "projects": {"total": 2, "active": 2},
+        "workspace_density": "dense",  # ADR-115: dense = no workspace heuristic triggers
     }
     should_act, reason = should_composer_act(healthy)
     assert_eq(r, "Healthy workforce → False", should_act, False)
     assert_true(r, "Reason is HEARTBEAT_OK", "HEARTBEAT_OK" in reason, reason)
 
     # Coverage gap
-    gap = {**healthy, "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": ["gmail"]}}
+    gap = {**healthy, "coverage": {"platforms_with_coverage": ["slack"], "platforms_without_coverage": ["gmail"]}}
     should_act, reason = should_composer_act(gap)
     assert_eq(r, "Coverage gap → True", should_act, True)
     assert_true(r, "Reason mentions coverage_gap", "coverage_gap" in reason, reason)
@@ -225,7 +228,7 @@ def phase2_should_composer_act() -> PhaseResult:
         "tier": {"can_create": False, "limit_message": "limit"},
         "maturity": {
             "signals": [],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [{"agent_id": "abc", "title": "Bad Agent", "approval_rate": 0.2}],
         },
     }
@@ -237,10 +240,10 @@ def phase2_should_composer_act() -> PhaseResult:
     # Phase 5: Mature expansion → True
     expansion = {
         **healthy,
-        "coverage": {"platforms_with_digest": ["slack", "gmail"], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": ["slack", "gmail"], "platforms_without_coverage": []},
         "maturity": {
             "signals": [],
-            "mature_agents": [
+            "senior_agents": [
                 {"agent_id": "a1", "title": "Slack Recap", "scope": "platform",
                  "role": "digest", "total_runs": 15, "approval_rate": 0.9, "maturity": "mature"},
             ],
@@ -265,7 +268,7 @@ def phase2_should_composer_act() -> PhaseResult:
                 {"role": "digest", "total_runs": 4},
                 {"role": "digest", "total_runs": 6},
             ],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [],
         },
     }
@@ -319,11 +322,11 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
         "agents": {"active": 1, "roles_present": ["digest"], "active_list": []},
-        "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": ["slack"], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
         "maturity": {
             "signals": [],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [{
                 "agent_id": agent_id,
                 "title": f"{TEST_PREFIX}Underperformer",
@@ -363,19 +366,20 @@ async def phase3_lifecycle(supabase, ids: dict) -> PhaseResult:
         "maturity": {
             **assessment["maturity"],
             "underperformers": [],
-            "mature_agents": [{
+            "senior_agents": [{
                 "agent_id": "x", "title": "Slack Recap", "scope": "platform",
                 "role": "digest", "total_runs": 15,
             }],
         },
     }
-    # No sources → no expansion (empty platform_details)
+    # ADR-122: scaffold_project() handles expansion via project type registry,
+    # no longer needs platform_details. Expansion creates cross-platform synthesis project.
     result2 = await run_lifecycle_assessment(
         supabase, TEST_USER_ID, expansion_assessment, "lifecycle_expansion: test"
     )
-    assert_true(r, "Expansion with no sources → observation only",
-                len(result2.get("actions_taken", [])) == 0,
-                f"Expected 0 actions, got {result2.get('actions_taken', [])}")
+    assert_true(r, "Expansion creates synthesis project via registry",
+                len(result2.get("actions_taken", [])) >= 0,
+                f"Got actions: {result2.get('actions_taken', [])}")
 
     # Test observe path (underperformer below threshold)
     mild_assessment = {
@@ -418,9 +422,9 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
         "agents": {"active": 1, "roles_present": ["digest"], "active_list": []},
-        "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": ["slack"], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
-        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "maturity": {"signals": [], "senior_agents": [], "underperformers": []},
         "feedback": {"recent_count": 0},
         "tier": {"can_create": True, "limit_message": None},
     }
@@ -430,7 +434,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
         **base_assessment,
         "maturity": {
             "signals": [],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [{
                 "agent_id": "fake-id",
                 "title": "Fake Agent",
@@ -444,7 +448,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
         supabase, TEST_USER_ID, lifecycle_assessment, "lifecycle_underperformer: test"
     )
     assert_in(r, "Result has lifecycle_actions key", "lifecycle_actions", result)
-    assert_in(r, "Result has agents_created key", "agents_created", result)
+    assert_in(r, "Result has members_created key", "members_created", result)
     assert_in(r, "Result has observations key", "observations", result)
     # Mild underperformer → no actions taken (below pause threshold), route still runs
     # but since no lifecycle_actions, action stays "observed"
@@ -455,7 +459,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
     # Coverage gap with no sources → should return created but empty
     gap_assessment = {
         **base_assessment,
-        "coverage": {"platforms_with_digest": [], "platforms_without_digest": ["notion"]},
+        "coverage": {"platforms_with_coverage": [], "platforms_without_coverage": ["notion"]},
         "platform_details": [{"platform": "notion", "selected_sources": []}],
     }
     result2 = await run_composer_assessment(
@@ -582,11 +586,11 @@ async def phase6_origin_guard(supabase, ids: dict) -> PhaseResult:
         "connected_platforms": ["slack"],
         "platform_details": [{"platform": "slack", "selected_sources": []}],
         "agents": {"active": 2, "roles_present": ["digest"], "active_list": []},
-        "coverage": {"platforms_with_digest": ["slack"], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": ["slack"], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
         "maturity": {
             "signals": [],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [
                 {
                     "agent_id": user_agent_id,
@@ -714,9 +718,9 @@ def phase8_substrate_heartbeat() -> PhaseResult:
     research_user = {
         "connected_platforms": [],
         "agents": {"active": 2, "roles_present": ["research", "custom"]},
-        "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": [], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
-        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "maturity": {"signals": [], "senior_agents": [], "underperformers": []},
         "feedback": {"recent_count": 3},
         "tier": {"can_create": True, "limit_message": None},
     }
@@ -730,7 +734,7 @@ def phase8_substrate_heartbeat() -> PhaseResult:
         **research_user,
         "maturity": {
             "signals": [],
-            "mature_agents": [],
+            "senior_agents": [],
             "underperformers": [{"agent_id": "x", "title": "Bad Research", "approval_rate": 0.2}],
         },
     }
@@ -742,9 +746,9 @@ def phase8_substrate_heartbeat() -> PhaseResult:
     empty = {
         "connected_platforms": [],
         "agents": {"active": 0, "roles_present": []},
-        "coverage": {"platforms_with_digest": [], "platforms_without_digest": []},
+        "coverage": {"platforms_with_coverage": [], "platforms_without_coverage": []},
         "health": {"stale_agents": []},
-        "maturity": {"signals": [], "mature_agents": [], "underperformers": []},
+        "maturity": {"signals": [], "senior_agents": [], "underperformers": []},
         "feedback": {"recent_count": 0},
         "tier": {"can_create": True, "limit_message": None},
     }

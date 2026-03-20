@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Delivery Service - ADR-028, ADR-031 Phase 6, ADR-040, ADR-066
 

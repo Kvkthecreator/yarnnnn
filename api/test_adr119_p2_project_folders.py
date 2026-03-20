@@ -115,7 +115,7 @@ async def run_tests():
     # Write PROJECT.md
     success = await pw.write_project(
         title="Q2 Business Review",
-        intent={
+        objective={
             "deliverable": "Executive presentation",
             "audience": "Leadership team",
             "format": "pptx",
@@ -134,9 +134,9 @@ async def run_tests():
     project = await pw.read_project()
     check("read_project returns dict", project is not None)
     check("title parsed", project["title"] == "Q2 Business Review")
-    check("intent.deliverable parsed", project["intent"].get("deliverable") == "Executive presentation")
-    check("intent.audience parsed", project["intent"].get("audience") == "Leadership team")
-    check("intent.format parsed", project["intent"].get("format") == "pptx")
+    check("objective.deliverable parsed", project["objective"].get("deliverable") == "Executive presentation")
+    check("objective.audience parsed", project["objective"].get("audience") == "Leadership team")
+    check("objective.format parsed", project["objective"].get("format") == "pptx")
     check("contributors count", len(project["contributors"]) == 2)
     check("contributor slug parsed", project["contributors"][0]["agent_slug"] == "mock-analyst")
     check("assembly_spec parsed", "slide deck" in project["assembly_spec"])
@@ -277,7 +277,7 @@ async def run_tests():
     agent_ctx = await agent_ws.load_context()
     check("agent context includes project", "Q2 Business Review" in agent_ctx)
     check("agent context includes expected contribution", "Revenue data + charts" in agent_ctx)
-    check("agent context includes project intent", "Executive presentation" in agent_ctx)
+    check("agent context includes project objective", "Executive presentation" in agent_ctx)
 
     # Cleanup mock agent files
     await agent_ws.delete("AGENT.md")
