@@ -224,8 +224,12 @@ async def resolve_ref(
         if "type" in ref.query and ref.entity_type == "memory":
             # Filter memories by type/tag
             query = query.contains("tags", [ref.query["type"]])
-        if "status" in ref.query and ref.entity_type == "agent":
-            query = query.eq("status", ref.query["status"])
+        if ref.entity_type == "agent":
+            # Default to excluding archived agents unless explicitly requested
+            if "status" in ref.query:
+                query = query.eq("status", ref.query["status"])
+            else:
+                query = query.neq("status", "archived")
 
         result = query.execute()
         return result.data if result.data else []

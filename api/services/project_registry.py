@@ -201,6 +201,7 @@ async def _check_type_uniqueness(
             .select("path, content")
             .eq("user_id", user_id)
             .like("path", "/projects/%/PROJECT.md")
+            .neq("lifecycle", "archived")
             .execute()
         )
         for row in (result.data or []):
