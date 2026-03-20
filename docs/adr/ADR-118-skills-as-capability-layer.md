@@ -1,6 +1,6 @@
 # ADR-118: Skills as Capability Layer
 
-> **Status**: Phase A+B+C+D.4 implemented. Phase D (remaining: D.5 assets layer, unified output) proposed.
+> **Status**: Phases A+B+C+D.1-D.4 Implemented. D.3 unified output (manifest-based delivery from output folders) complete. Phase D.5 (assets layer) deferred — implement when user demand emerges.
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Supersedes**: None

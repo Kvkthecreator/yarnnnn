@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phase 1-3 Implemented, Phase 4a Implemented (dashboard + projects), Phase 4b Proposed (agent output history)
+> **Status**: Phases 1-4 Implemented (Phase 4a: dashboard + projects frontend. Phase 4b: AgentOutputsPanel — agent output history tab.)
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)

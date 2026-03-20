@@ -1,8 +1,8 @@
 # ADR-109: Agent Framework — Scope × Role × Trigger
 
-> **Naming update (2026-03-17):** The second axis was renamed from "Skill" to "Role" per [ADR-118 Resolved Decision #4](ADR-118-skills-as-capability-layer.md) to eliminate naming overload with output gateway skills (pptx, pdf, xlsx, etc.). "Role" = what an agent does (behavioral). "Skill" = what an agent can produce (output capability). The `agents.skill` column will be renamed to `agents.role` as part of ADR-118 Phase D.1 migration. References to "skill" in this ADR refer to the behavioral axis (now called "role").
+> **Naming update (2026-03-17):** The second axis was renamed from "Skill" to "Role" per [ADR-118 Resolved Decision #4](ADR-118-skills-as-capability-layer.md) to eliminate naming overload with output gateway skills (pptx, pdf, xlsx, etc.). "Role" = what an agent does (behavioral). "Skill" = what an agent can produce (output capability). The `agents.skill` column was renamed to `agents.role` in ADR-118 Phase D.1 (migration 114). References to "skill" in this ADR refer to the behavioral axis (now called "role").
 
-**Status:** Implemented (pending `skill` → `role` column rename)
+**Status:** Implemented (`skill` → `role` column rename completed in ADR-118 D.1, migration 114)
 **Date:** 2026-03-12
 **Authors:** Kevin Kim, Claude (analysis + discourse)
 **Supersedes:**
@@ -113,24 +113,19 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 
 ## Implementation Plan
 
-### Phase 1: Schema + Backend (pending)
-- Add `scope` and `role` columns to `agents` table
-- Backfill existing agents
-- Add scope inference function (sources → scope)
-- Update execution strategy selection to use scope
-- Add ROLE_PRIMITIVES gating to primitive registry
-- Update `agent_pipeline.py` — TYPE_PROMPTS → ROLE_PROMPTS
+### Phase 1: Schema + Backend (complete)
+- `scope` and `role` columns on `agents` table (migration 114, `skill` → `role` rename)
+- Scope inference via `infer_scope()`, execution strategy selection uses scope
+- ROLE_PRIMITIVES gating + ROLE_PROMPTS in `agent_pipeline.py`
 
-### Phase 2: Frontend (pending)
-- Template-based creation wizard
-- Scope × Role display on agent cards
-- Update constants: AGENT_TYPE_LABELS → ROLE_LABELS + SCOPE_LABELS
+### Phase 2: Frontend (complete)
+- ROLE_LABELS + SCOPE_LABELS constants in `web/lib/constants/agents.ts`
+- Agent cards show role labels, project type registry drives creation
 
-### Phase 3: Cleanup (pending)
-- Drop `agent_type` column
-- Remove `type_classification` JSONB column
-- Delete old type-specific code paths
-- Clean up deprecated type constants
+### Phase 3: Cleanup (complete)
+- `agent_type` column deprecated (still present for legacy reads, not written)
+- Old type-specific code paths removed
+- Type constants cleaned up
 
 ---
 

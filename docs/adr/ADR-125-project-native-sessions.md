@@ -1,6 +1,6 @@
 # ADR-125: Project-Native Session Architecture
 
-**Status**: Proposed → Implementing
+**Status**: Implemented (Phases 1-5)
 **Date**: 2026-03-20
 **Supersedes**: ADR-087 (agent-scoped sessions), partially ADR-006 (session model)
 **Extends**: ADR-122 (project-first), ADR-124 (meeting room)

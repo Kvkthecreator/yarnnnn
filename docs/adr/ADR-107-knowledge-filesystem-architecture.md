@@ -1,6 +1,6 @@
 # ADR-107: Knowledge Filesystem Architecture
 
-**Status:** Implementing (Phase 1 complete; Phase 2 versioning implemented; Phase 3 UI surfacing started)
+**Status:** Implemented (Phases 1-3: knowledge filesystem, version history, workspace browser in project Context tab)
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**

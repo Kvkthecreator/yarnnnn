@@ -1,6 +1,6 @@
 # ADR-122: Project Type Registry — Unified Scaffolding Layer
 
-**Status**: Phases 1-3 Implemented
+**Status**: Phases 1-3 Implemented. Phase 4 (soft migration — new agents always project-scoped, legacy tolerated). Phase 5 done (project-native dashboard, commit 065c0e5).
 **Date**: 2026-03-19
 **Supersedes**: ADR-110 (Onboarding Bootstrap) — bootstrap becomes a consumer of the registry, not a standalone creation path
 **Extends**: ADR-119 (Workspace Filesystem), ADR-120 (Project Execution & Work Budget), ADR-121 (PM Intelligence Director)

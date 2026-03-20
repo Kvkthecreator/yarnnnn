@@ -1,6 +1,6 @@
 # ADR-126: Agent Pulse — Autonomous Awareness Engine
 
-> **Status**: Implemented (Phases 1-4). Phase 5 (cadence evolution) proposed.
+> **Status**: Implemented (Phases 1-6). Phase 5: role-based cadence in agent_framework.py + Composer pulse integration. Phase 6: frontend surfacing across all surfaces.
 > **Date**: 2026-03-20
 > **Authors**: KVK, Claude
 > **Scope**: Foundational re-architecture of agent execution from top-down scheduling to bottom-up autonomous awareness.

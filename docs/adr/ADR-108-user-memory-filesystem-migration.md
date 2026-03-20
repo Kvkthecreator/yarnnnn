@@ -1,6 +1,6 @@
 # ADR-108: User Memory Filesystem Migration
 
-**Status:** Proposed
+**Status:** Superseded — user_memory replaced by workspace `/memory/` filesystem (ADR-106 Phase 2). Extraction pipeline writes to workspace; nightly cron in memory.py unchanged.
 **Date:** 2026-03-11
 **Supersedes:** ADR-059 (Simplified Context Model — `user_memory` table replaced by `/memory/` filesystem)
 **Related:**

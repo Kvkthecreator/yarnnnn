@@ -1,6 +1,6 @@
 # ADR-113: Auto Source Selection
 
-> **Status**: Accepted
+> **Status**: Implemented (OAuth → auto-discover → smart defaults → sync → bootstrap project)
 > **Date**: 2026-03-16
 > **Supersedes**: Portions of ADR-057 (source selection as prerequisite)
 > **Related**: ADR-079 (Smart Defaults), ADR-110 (Onboarding Bootstrap), ADR-111 (Agent Composer), ADR-112 (Sync Efficiency)

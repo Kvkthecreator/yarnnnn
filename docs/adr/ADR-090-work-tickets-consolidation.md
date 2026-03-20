@@ -1,6 +1,6 @@
 # ADR-090: Work Tickets Consolidation
 
-**Status:** Phases 1–2 Complete. Phase 3 partially complete. Phase 4 (table drops) pending.
+**Status:** Complete (all phases). Tables dropped in migration 098 (2026-03-11).
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis + audit)
 **References:**

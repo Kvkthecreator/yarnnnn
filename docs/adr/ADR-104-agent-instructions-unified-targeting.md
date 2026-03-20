@@ -1,7 +1,7 @@
 # ADR-104: Agent Instructions as Unified Targeting Layer
 
 **Date:** 2026-03-10
-**Status:** Implementing
+**Status:** Implemented (instructions migrated to workspace AGENT.md per ADR-106; dual-injected into system prompt + user message)
 **Related:**
 - [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md) — introduced `agent_instructions`
 - [ADR-093: Type Taxonomy](ADR-093-agent-type-taxonomy.md) — 7 type prompt templates

@@ -1,6 +1,6 @@
 # ADR-115: Composer Workspace Density Model
 
-**Status:** Implementing
+**Status:** Implemented (density heuristics in should_composer_act(); partially superseded by ADR-126 pulse outcomes)
 **Date:** 2026-03-17
 **Builds on:** ADR-111 (Agent Composer), ADR-114 (Substrate-Aware Assessment)
 

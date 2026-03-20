@@ -2,7 +2,7 @@
 
 **Status:** Implemented
 **Date:** 2026-02-26
-**Implemented:** 2026-02-26 (Phases 0-3 code-complete, production monitoring pending)
+**Implemented:** 2026-02-26 (Phases 0-3 complete). Extended by ADR-124 (agent_chat — third mode).
 **Supersedes:** ADR-061 (Two-Path Architecture) — evolves strict path separation into unified agent with modal execution
 **Amends:** ADR-072 (TP Execution Pipeline) — the "TP headless mode" aspiration is now formalized with precise boundaries
 **Related:**
