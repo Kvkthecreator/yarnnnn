@@ -49,7 +49,7 @@ TOOLS_SECTION = """---
 
 **Execute(action, target, params?)** - Trigger YARNNN orchestration operations
 - `Execute(action="agent.generate", target="agent:uuid")` - generate content
-- `Execute(action="agent.approve", target="agent:uuid")` - approve pending version
+- `Execute(action="agent.acknowledge", target="agent:uuid", params={note: "..."})` - lightweight observation
 - `Execute(action="platform.publish", target="agent:uuid", via="platform:slack")` - publish agent
 
 ### Web Operations

@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.4] - Primitive cleanup: remove dead weight, fix bugs
+
+### Removed
+- `api/services/primitives/todo.py`: Todo primitive removed entirely. Conversation stream is the progress indicator (Claude Code pattern).
+- `api/services/primitives/execute.py`: `agent.approve` action + handler removed (ADR-066 removed approval gates; handler had undefined `run_id` bug). `memory.extract` action removed (ADR-064 moved to nightly cron; no handler existed).
+- `api/services/primitives/registry.py`: Respond tool definition + handler deleted (was already excluded from PRIMITIVES).
+- `api/services/primitives/search.py`: Dead `_search_user_memories()` function removed (unreachable). Dead `memory` entry removed from `SEARCH_FIELDS`.
+
+### Changed
+- `api/services/primitives/execute.py`: Tool description updated — removed references to deleted actions, fixed outdated `platform.sync` example.
+
+### Expected behavior
+- TP tool surface reduced from 27 to 25 primitives. Execute actions reduced from 6 to 4. No functional impact — all removed items were dead code.
+
+---
+
+## [2026.03.20.3] - ADR-125: Project-Native Session Architecture
+
+### Changed
+- `api/routes/chat.py`: Two-path session routing (project or global TP). Agent requests resolve to project sessions via `resolve_agent_project()`. `thread_agent_id` on messages for 1:1 agent threads within project sessions. Project session 24h inactivity rotation (was lifetime). Author-aware summarization for project sessions.
+- `api/services/session_continuity.py`: Added `generate_project_session_summary()` — author-aware summaries that attribute decisions to specific agent participants.
+- `api/services/working_memory.py`: `_get_recent_sessions_sync()` now includes `project_slug` on session summaries. Rendering tags project summaries with project name. Fixed `_build_system_reference()` to use `"members"` key (registry rename).
+
+### Expected behavior
+- Agent page chats now resolve to the project session with thread filtering — agent identity enriched by project context.
+- Project sessions rotate after 24h inactivity instead of persisting forever.
+- Global TP sees cross-project session summaries ("2026-03-20: PM steered Slack Agent... (slack-recap)")
+- `chat_sessions.agent_id` deprecated — new code uses project sessions with thread_agent_id.
+
+---
+
 ## [2026.03.20.2] - CreateProject tool: type_key delegates to scaffold_project()
 
 ### Changed

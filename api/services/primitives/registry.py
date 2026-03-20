@@ -20,7 +20,6 @@ from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
 from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
-from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import (
@@ -51,26 +50,6 @@ from .project_execution import (
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
-# Communication primitives (kept from legacy for respond/clarify)
-RESPOND_TOOL = {
-    "name": "Respond",
-    "description": """Send a message to the user.
-
-Use after other primitives to provide context, confirm actions, or continue conversation.
-The message appears inline in chat.""",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "message": {
-                "type": "string",
-                "description": "The message to send"
-            }
-        },
-        "required": ["message"]
-    }
-}
-
-
 CLARIFY_TOOL = {
     "name": "Clarify",
     "description": """Ask the user for input before proceeding.
@@ -93,19 +72,6 @@ Appears as a focused prompt.""",
         "required": ["question"]
     }
 }
-
-
-async def handle_respond(auth: Any, input: dict) -> dict:
-    """Handle Respond primitive."""
-    message = input.get("message", "")
-    return {
-        "success": True,
-        "message": message,
-        "ui_action": {
-            "type": "RESPOND",
-            "data": {"message": message},
-        },
-    }
 
 
 async def handle_clarify(auth: Any, input: dict) -> dict:
@@ -181,9 +147,9 @@ If not connected, suggest connecting in Settings.""",
 
 
 # All primitives exposed to TP
-# Excluded:
-# - Todo: conversation stream IS the progress indicator (Claude Code pattern)
-# - Respond: TP's natural text output serves as the response
+# Removed:
+# - Todo: conversation stream IS the progress indicator (Claude Code pattern) — deleted
+# - Respond: TP's natural text output serves as the response — deleted
 PRIMITIVES = [
     # Data operations
     READ_TOOL,
@@ -240,10 +206,8 @@ HANDLERS: dict[str, Callable] = {
     "List": handle_list,
     "Execute": handle_execute,
     "RefreshPlatformContent": handle_refresh_platform_content,
-    "Todo": handle_todo,
     "WebSearch": handle_web_search,
     "GetSystemState": handle_get_system_state,
-    "Respond": handle_respond,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
     "CreateAgent": handle_create_agent,
@@ -335,8 +299,6 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Edit":             ["chat"],
     "Execute":          ["chat"],
     "RefreshPlatformContent": ["chat", "headless"],  # ADR-085, extended by ADR-092
-    "Todo":             ["chat"],
-    "Respond":          ["chat"],
     "Clarify":          ["chat", "agent_chat"],  # ADR-124: agents can ask clarifying questions
     "list_integrations": ["chat"],
     # Agent creation — chat + headless (ADR-111: unified CreateAgent)

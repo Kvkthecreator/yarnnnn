@@ -88,7 +88,6 @@ SEARCH_FIELDS = {
     "agent": ["title", "description"],
     "version": ["content"],  # Agent version content
     "document": ["filename"],  # documents table uses 'filename' not 'name'
-    "memory": ["content"],  # ADR-038: User-stated facts only
 }
 
 
@@ -147,8 +146,6 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 results = await _search_platform_content(
                     auth, query, platform_filter, limit
                 )
-            elif entity_scope == "memory":
-                results = await _search_user_memories(auth, query, limit)
             elif entity_scope == "document":
                 # Documents need special handling - search chunks for content
                 results = await _search_document_content(auth, query, limit)
@@ -250,50 +247,6 @@ async def _search_platform_content(
         logging.warning(f"[SEARCH] Platform content search failed: {e}")
         return []
 
-
-async def _search_user_memories(
-    auth: Any,
-    query: str,
-    limit: int,
-) -> list[dict]:
-    """
-    ADR-108: Search /memory/notes.md for user knowledge entries.
-    Falls back to workspace full-text search for broader matches.
-    """
-    try:
-        from services.workspace import UserMemory
-        um = UserMemory(auth.client, auth.user_id)
-        notes = await um.get_notes()
-
-        if not notes:
-            return []
-
-        # Simple substring match against query
-        query_lower = query.lower()
-        matches = [
-            n for n in notes
-            if query_lower in n["content"].lower()
-        ][:limit]
-
-        return [
-            {
-                "entity_type": "memory",
-                "ref": f"memory:{n['type']}:{n['content'][:40]}",
-                "data": {
-                    "content": n["content"],
-                    "source": "filesystem",
-                    "entry_type": n["type"],
-                    "importance": 1.0,
-                },
-                "score": 0.5,
-            }
-            for n in matches
-        ]
-
-    except Exception as e:
-        import logging
-        logging.warning(f"[SEARCH] Memory search failed: {e}")
-        return []
 
 
 async def _search_document_content(

@@ -21,12 +21,10 @@ EXECUTE_TOOL = {
     "description": """Perform YARNNN orchestration operations.
 
 Actions:
-- platform.publish: Push approved agent content to platform
+- platform.publish: Push agent content to platform
 - agent.generate: Run content generation pipeline
 - agent.schedule: Update agent schedule
-- agent.approve: Approve pending version
 - agent.acknowledge: Append a lightweight observation to agent memory from conversation context (use when user shares relevant information that should persist, but doesn't warrant full generation)
-- memory.extract: Extract from conversation
 
 NOTE: For direct platform operations (send messages, search pages, etc.),
 use MCP tools directly: mcp__slack__*, mcp__notion__*, etc. (ADR-048)
@@ -36,14 +34,13 @@ NOTE: platform.sync removed — use RefreshPlatformContent(platform="...") inste
 Examples:
 - Execute(action="agent.generate", target="agent:uuid-123")
 - Execute(action="agent.acknowledge", target="agent:uuid-123", params={note: "User confirmed Q4 data is now finalized"})
-- Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")
-- Execute(action="agent.approve", target="agent:uuid")""",
+- Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")""",
     "input_schema": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "description": "Action to perform (e.g., 'platform.sync')"
+                "description": "Action to perform (e.g., 'agent.generate')"
             },
             "target": {
                 "type": "string",
@@ -80,17 +77,9 @@ ACTION_CATALOG = {
         "description": "Update agent schedule",
         "target_types": ["agent"],
     },
-    "agent.approve": {
-        "description": "Approve pending agent version",
-        "target_types": ["agent"],
-    },
     "agent.acknowledge": {
         "description": "Append observation to agent memory (ADR-091: lightweight context update, no generation)",
         "target_types": ["agent"],
-    },
-    "memory.extract": {
-        "description": "Extract memories from conversation",
-        "target_types": ["session"],
     },
 }
 
@@ -231,7 +220,6 @@ def _get_action_handler(action: str):
     handlers = {
         "platform.publish": _handle_platform_publish,
         "agent.generate": _handle_agent_generate,
-        "agent.approve": _handle_agent_approve,
         "agent.acknowledge": _handle_agent_acknowledge,
     }
     return handlers.get(action)
@@ -307,36 +295,6 @@ async def _handle_agent_generate(auth, entity, ref, via, params):
         "message": result.get("message"),
     }
 
-
-async def _handle_agent_approve(auth, entity, ref, via, params):
-    """Approve pending agent version."""
-    agent_id = entity.get("id")
-    version_id = params.get("run_id")
-
-    if not version_id:
-        # Get latest pending version
-        versions = auth.client.table("agent_runs").select("*").eq(
-            "agent_id", agent_id
-        ).eq("status", "pending_approval").order("version_number", desc=True).limit(1).execute()
-
-        if not versions.data:
-            raise ValueError("No pending version to approve")
-
-        version_id = versions.data[0]["id"]
-
-    # Approve
-    from datetime import datetime, timezone
-
-    auth.client.table("agent_runs").update({
-        "status": "approved",
-        "approved_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", version_id).execute()
-
-    return {
-        "status": "approved",
-        "run_id": run_id,
-        "message": "Run approved",
-    }
 
 
 async def _handle_agent_acknowledge(auth, entity, ref, via, params):
