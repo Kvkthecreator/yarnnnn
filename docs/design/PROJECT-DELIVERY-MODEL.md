@@ -69,13 +69,24 @@ These are decoupled. A project might have 3 agents running daily but deliver a w
 
 ---
 
-## Scheduling Model
+## Scheduling Model (ADR-126 Aligned)
+
+Three distinct scheduling concerns, separated by ADR-126:
+
+| Concern | Owner | Where it lives | What it means |
+|---------|-------|---------------|--------------|
+| **Pulse cadence** | Agent (scales with seniority) | `agents.next_pulse_at` | How often the agent senses its domain |
+| **Generation decision** | Agent (via pulse) | Pulse Tier 1/2 | Whether the agent produces output this cycle |
+| **Project delivery cadence** | PM + Project charter | `PROJECT.md ## Delivery` | When the user receives assembled output |
+
+These are decoupled. An agent might pulse every 5 minutes (senior, always sensing), generate twice a week (when domain warrants it), while the project delivers weekly (PM assembles on Friday).
 
 | Concept | Owner | Where it lives |
 |---------|-------|---------------|
-| Agent run schedule | Agent record | `agents.schedule` |
+| Agent pulse rhythm | Agent maturity + mode | `agents.next_pulse_at` (replaces `next_run_at`) |
+| Default pulse rhythm | Derived from `agents.schedule` | Training wheels for new agents |
 | Project delivery cadence | Project charter | `PROJECT.md ## Delivery` |
-| Assembly timing | PM decision | `memory/work_plan.md` |
+| Assembly timing | PM coordination pulse | `memory/work_plan.md` |
 | Delivery execution | PM + delivery service | PM triggers `deliver_from_output_folder()` |
 
 ---

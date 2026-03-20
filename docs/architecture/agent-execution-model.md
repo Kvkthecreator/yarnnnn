@@ -133,57 +133,54 @@ When a primitive is updated or added, it is tagged with modes. Updates improve b
 
 Backend orchestration is NOT agent work. The orchestration pipeline invokes the agent at one step and receives text back.
 
-**Standard generation pipeline** (`recurring`, `goal`, `reactive` on threshold):
+### Pulse-Driven Execution (ADR-126)
+
+> **Note (2026-03-20):** ADR-126 (Agent Pulse) reframes execution from top-down scheduling to bottom-up agent awareness. The scheduler becomes a **pulse dispatcher** — it gives each agent its turn to pulse, and acts on the agent's decision. The agent owns the generate/observe/wait/escalate decision; the scheduler just provides the cadence.
+
+**Pulse → Generation pipeline:**
 ```
-Backend Orchestration
-├── 1. Trigger (scheduler / event / manual)
-├── 2. dispatch_trigger() routing (ADR-088) — signal_strength → high/medium/low
-├── 3. Freshness check + strategy selection + context gathering (ADR-045)
+Pulse Dispatcher (scheduler)
+├── 1. Agent pulse fires (agent_pulse.py)
+│   ├── Tier 1: Deterministic checks (fresh content? budget? recent run?)
+│   ├── Tier 2: Agent self-assessment (Haiku, associate+ seniority)
+│   └── Decision: generate | observe | wait | escalate
+├── 2. If "generate" → dispatch_trigger() routing
+├── 3. Strategy selection + context gathering (ADR-045)
 ├── 4. Version creation
 ├── 5. Agent (mode="headless")           ← agent invocation
 │   ├── Receives: gathered context + type prompt + directives + memory + learned preferences (ADR-101)
 │   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
-│   ├── Cannot use: Write, Edit, Execute, Clarify, CreateAgent, AdvanceAgentSchedule
 │   ├── Max tool rounds: scope-aware (2-6, ADR-081/109)
 │   └── Returns: structured content (text)
 ├── 6. Retention marking (ADR-072)
-├── 7. Source snapshots
-├── 8. Delivery — email, Slack, Notion (ADR-066, no approval gate)
-└── 9. Activity logging
+├── 7. Output to workspace + project contributions
+├── 8. PM pulse triggered (contributor output event)
+└── 9. Activity logging (pulse decision + run)
 ```
 
-**Review pass pipeline** (`proactive`, `coordinator` modes — ADR-092):
-
-> **Note (2026-03-16):** FOUNDATIONS.md v2 reframes the review pass as **TP's supervisory capability**. The agent provides domain assessment; TP (via Heartbeat) decides the action. Current code has the agent returning action decisions directly — this is mechanically preserved but conceptually shifts to TP ownership in ADR-111 Phase 4. See ADR-092 revision notes.
-
+**PM Coordination pulse:**
 ```
-TP Heartbeat / Supervisory Pass
-├── 1. Trigger: Heartbeat cadence or proactive_next_review_at <= NOW()
-├── 2. Agent (mode="headless", review prompt)  ← domain assessment
-│   ├── Receives: agent_instructions + agent_memory + source context
-│   ├── Can use: Search, Read, List, CrossPlatformQuery, RefreshPlatformContent
-│   └── Returns: domain observations + assessment (what's changed, what's notable)
-├── 3. TP/Heartbeat decides action based on agent assessment:
-│   ├── generate → proceeds to standard generation pipeline above
-│   ├── observe → appends note to agent_memory.review_log
-│   ├── create (Composer) → TP creates agent via Composer capability
-│   ├── advance_schedule → sets another agent's next_run_at = now
-│   └── sleep → sets proactive_next_review_at = specified time
-└── 4. Activity logging
+PM Pulse (Tier 3)
+├── 1. PM senses project state (contributor freshness, quality, work plan, budget)
+├── 2. PM decides: assemble | steer | advance_contributor | assess_quality | wait | escalate
+├── 3. If "assemble" → assembly composition + delivery
+├── 4. If "steer" → write contribution brief to contributor
+├── 5. If "advance_contributor" → trigger contributor pulse
+└── 6. Activity logging (PM pulse decision)
 ```
 
-> **Current implementation:** Agent still returns `{action: "generate"|"observe"|...}` and orchestration acts on it directly. The TP decision layer is the Phase 4 target (ADR-111). The mechanical difference is small — agent assessment informs the decision either way — but the ownership distinction matters for the two-layer intelligence model.
+**Key difference from pre-ADR-126:** The agent decides whether to generate — not the scheduler. Freshness checks, budget gates, and self-assessment all live inside the pulse, not in the scheduler's top-down logic.
 
-**Orchestration's responsibilities:**
-- **TP Heartbeat** (ADR-111 revised): Periodic assessment of agent workforce, triggers per-agent supervisory reviews
-- **Per-agent supervisory review** (ADR-092, reframed): Agent provides domain assessment, TP/Heartbeat decides action
-- **Composer** (ADR-111 revised): Creates/adjusts/dissolves agents based on compositional judgment
-- **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested agents
-- **Execution phase**: Execute agents on trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
+**Orchestration's responsibilities (post-ADR-126):**
+- **Pulse dispatch**: Give each agent its turn to pulse on cadence
+- **Composer** (portfolio-only): Read pulse outcomes, make portfolio-level decisions (create/dissolve projects)
+- **Execution phase**: When pulse decides "generate", select strategy, invoke headless mode, write outputs
+- **Delivery**: PM-coordinated, project-level (not per-agent)
 
 **Orchestration explicitly does NOT:**
+- Decide whether agents should generate (that's the agent's pulse)
+- Assess per-agent health or maturity (agents self-report via pulse)
 - Participate in conversation
-- Hold session state
 - Produce content directly (that is the agent's job)
 
 ---
@@ -236,35 +233,21 @@ See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end
 
 ---
 
-## Coordinator Context Forwarding (ADR-092)
+## Agent Autonomy — The Pulse Model (ADR-126)
 
-> **Note:** Signal processing as a separate L3 subsystem is dissolved (ADR-092). The intelligence that previously lived in signal processing now lives in coordinator agents.
+> **Note (2026-03-20):** ADR-126 supersedes the previous "coordinator context forwarding" and "proactive/autonomous agents" sections. Proactive self-assessment is generalized to ALL agents via the pulse. Coordinator mode is dissolved — project coordination belongs to PM agents.
 
-When a coordinator agent decides to create a child agent, the coordinator's review reasoning is forwarded into the child's generation context via `trigger_context`:
+Every agent has a **pulse** — an autonomous sense→decide cycle that is upstream of execution. The pulse is the agent's own intelligence, not TP's supervisory capability.
 
-```python
-# proactive_review.py — forward coordinator reasoning
-trigger_context={
-    "type": "coordinator_created",
-    "coordinator_reasoning": review_result.get("reasoning", ""),
-    "coordinator_id": coordinator_agent.id,
-}
-```
-
-This ensures the child agent understands *why* it was created and what the coordinator determined was worth investigating.
-
----
-
-## Proactive / Autonomous Agents
-
-Proactive autonomy is implemented through **coordinator and proactive modes** (ADR-092) — entirely within backend orchestration. The agent is invoked in headless mode at the content generation step.
-
-| Concept | Belongs in | Rationale |
+| Concept | Belongs to | Mechanism |
 |---|---|---|
-| Domain awareness | Coordinator/proactive review pass (orchestration) | Agent reads sources and decides whether to act |
-| Child agent creation | Coordinator agent (headless mode) | CreateAgent + AdvanceAgentSchedule primitives |
-| Content generation | Agent (headless mode) | Same agent, same primitives, structured output |
-| User promotes child to recurring | `promote-to-recurring` endpoint (orchestration) | `trigger_type` updated; `origin` preserved |
+| Domain awareness | Agent (via pulse) | Agent reads own workspace, fresh content, observations |
+| Generate decision | Agent (via pulse) | Tier 1 (deterministic) or Tier 2 (self-assessment) |
+| Project coordination | PM agent (via pulse Tier 3) | PM reads contributor state, decides assembly/steering/wait |
+| Portfolio decisions | Composer (reads pulse outcomes) | Create/dissolve projects, rebalance workforce |
+| Agent creation | Composer capability (TP) | Composer scaffolds projects + agents — not coordinator agents |
+
+The pulse makes agent intelligence **visible**: every pulse decision (generate, observe, wait, escalate) is a surfaceable event in project meeting rooms, agent timelines, and dashboards.
 
 ---
 

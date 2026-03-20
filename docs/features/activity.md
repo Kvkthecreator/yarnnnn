@@ -53,6 +53,8 @@ Append-only. Written by service role only (no user-facing INSERT).
 | `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete"` |
 | `integration_connected` | `routes/integrations.py` | After OAuth connection | `"Connected: gmail"` |
 | `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min | Observability pulse |
+| `agent_pulsed` | `agent_pulse.py` (ADR-126) | On pulse cadence | Agent sense→decide event with decision + reason |
+| `pm_pulsed` | `agent_pulse.py` (ADR-126) | On PM pulse cadence | PM coordination decision (assemble/steer/wait/etc.) |
 
 **RLS**: Users can SELECT their own rows. No INSERT/UPDATE/DELETE via user-facing clients — service role only.
 
@@ -132,9 +134,18 @@ Typical: ~20–40 rows/day per active user. No TTL — rows accumulate over time
 
 ---
 
+## Evolution: Agent Pulse Events (ADR-126)
+
+ADR-126 (Agent Pulse) introduces `agent_pulsed` and `pm_pulsed` as first-class activity events. Every pulse decision (generate, observe, wait, escalate) is logged with the agent's reasoning. This makes agent intelligence **visible between runs** — not just when output is produced.
+
+Pulse events are the primary data source for:
+- **Project meeting room timelines** (ADR-124): agents shown thinking, not just producing
+- **Dashboard agent health**: pulse outcomes replace Composer's top-down maturity assessment
+- **Composer portfolio decisions**: Composer reads pulse outcomes instead of reimplementing per-agent assessment
+
 ## Evolution: Meeting Room Inline Events (ADR-124, Proposed)
 
-ADR-124 (Project Meeting Room) proposes surfacing activity events as inline cards within the project chat stream — PM quality assessments, assembly completions, contributor delivery events, and steer actions appear as structured event cards alongside attributed agent messages. First-order events (decisions, assessments) live in the stream; second-order data (full run content, file details) is fetched on demand.
+ADR-124 (Project Meeting Room) proposes surfacing activity events as inline cards within the project chat stream — PM quality assessments, assembly completions, contributor delivery events, and steer actions appear as structured event cards alongside attributed agent messages. First-order events (decisions, assessments) live in the stream; second-order data (full run content, file details) is fetched on demand. ADR-126 pulse events are the natural source for these inline cards.
 
 ---
 

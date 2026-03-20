@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.7] - ADR-126: Agent Pulse — Composer prompt evolution path
+
+### Planned (implementation phases)
+- **Phase 1 — `agent_pulse.py`**: New pulse decision engine. Tier 1 (deterministic: fresh content? budget? recent run?) → Tier 2 (Haiku self-assessment for associate+ agents) → decision: generate | observe | wait | escalate. Agent prompt: domain-scoped self-assessment (Haiku, ~200 tokens context). PM prompt: Tier 3 coordination pulse (assemble | steer | advance_contributor | assess_quality | wait | escalate).
+- **Phase 2 — Scheduler becomes pulse dispatcher**: `unified_scheduler.py` dispatches pulses (not executions). `agents.next_run_at` → `agents.next_pulse_at`. On "generate" decision → existing `dispatch_trigger()` pipeline. On other decisions → log activity, update workspace observations.
+- **Phase 3 — Composer thins to portfolio-only**: Composer reads pulse outcomes from `activity_log` instead of reimplementing per-agent assessment. Heartbeat assessment shrinks from ~1000 lines to ~300. Portfolio decisions only: create/dissolve projects, rebalance workforce.
+- **Phase 4 — Proactive/coordinator dissolution**: Proactive self-assessment generalized to all agents via Tier 2 pulse. Coordinator mode dissolved — PM Tier 3 pulse handles project coordination. Existing coordinator agents pulse as proactive.
+- **Phase 5 — Pulse cadence evolution**: New agents pulse on schedule (training wheels). Senior agents pulse every cycle (always sensing). Seniority-based cadence graduation.
+
+### Expected behavior (end state)
+- Every agent has a pulse — autonomous sense→decide cycle upstream of execution
+- Pulse events (`agent_pulsed`, `pm_pulsed`) visible in activity log, project meeting rooms, timelines
+- Composer complexity dramatically reduced — reads bottom-up agent intelligence instead of reimplementing it
+- Schedule becomes delivery cadence (project-level, PM-coordinated), not execution trigger
+- Three distinct concerns: pulse cadence (agent), generation decision (agent pulse), delivery timing (PM + project)
+
+### Prompt versions affected (planned)
+- Agent self-assessment prompt: NEW (Haiku, Tier 2 — ~200 token context, domain-scoped)
+- PM coordination prompt: v5.0 (Tier 3 pulse — senses project state, coordination decisions)
+- Composer prompt: v3.0 (portfolio-only — reads pulse outcomes, thins assessment logic)
+- TP heartbeat assessment: DEPRECATED (replaced by Composer reading pulse outcomes)
+
+---
+
 ## [2026.03.20.6] - PM for all projects + delivery model update
 
 ### Changed

@@ -1,6 +1,7 @@
 # ADR-092: Agent Intelligence & Mode Taxonomy
 
 **Status:** Phase 5 Implemented — Signal Processing Dissolved (Phase 1: schema/types; Phase 2: reactive dispatch; Phase 3: RefreshPlatformContent headless; Phase 4: proactive review pass; Phase 5: coordinator primitives + signal processing removal)
+**Partially superseded by:** [ADR-126: Agent Pulse](ADR-126-agent-pulse.md) — proactive self-assessment (Phase 4) generalized to ALL agents via pulse Tier 2; coordinator mode (Phase 5) dissolved into PM pulse Tier 3. Four modes remain (recurring, goal, reactive, proactive) as starting character — pulse evolves all of them. Mode taxonomy remains valid; mode-specific execution behaviors absorbed into pulse tiers.
 **Date:** 2026-03-04
 **Authors:** Kevin Kim, Claude (analysis)
 **Supersedes:**

@@ -1,6 +1,7 @@
 # ADR-088: Trigger Dispatch
 
 **Status:** Phase 1 Implemented (2026-03-04) — schedule + event call sites. Signal medium path deferred to Phase 2 (requires signal_processing.py changes, combine with ADR-089 un-parking).
+**Partially superseded by:** [ADR-126: Agent Pulse](ADR-126-agent-pulse.md) — pulse decision is now upstream of dispatch; `dispatch_trigger()` invoked only when pulse decides "generate". Dispatch remains the execution routing layer, but the *decision to execute* moves from scheduler to agent pulse.
 
 **Note on ADR-091:** `agent.acknowledge` (ADR-091) is a chat-driven write path — the user supervises via TP, the agent records an observation. This ADR is about the background path: cron + webhook + signal triggers routing through a single decision point. Parallel paths, not substitutes.
 

@@ -1,8 +1,9 @@
 # ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** Implemented (Phases 1-5) — Revised 2026-03-16
+**Status:** Implemented (Phases 1-5) — Revised 2026-03-16. **Phases 3-5 partially superseded by ADR-126** (Composer heartbeat/assessment thins to portfolio-only; per-agent assessment replaced by bottom-up pulse outcomes)
 **Date:** 2026-03-13 (original), 2026-03-16 (revised)
 **Supersedes:** None
+**Partially superseded by:** [ADR-126: Agent Pulse](ADR-126-agent-pulse.md) — Heartbeat assessment (Phase 3) and Composer per-agent lifecycle (Phases 4-5) replaced by Composer reading pulse outcomes from activity_log. Bootstrap (Phase 1) and CreateAgent unification (Phase 2) remain unchanged.
 **Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture), ADR-116 (Agent Identity & Inter-Agent Knowledge — extends Composer with agent dependency graph and supply chain reasoning), ADR-120 (Project Execution & Work Budget — Composer delegates project execution to PM agents, Composer v2.0 prompt in ADR-120 Phase 5)
 **Analysis:** [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../architecture/FOUNDATIONS.md)
 

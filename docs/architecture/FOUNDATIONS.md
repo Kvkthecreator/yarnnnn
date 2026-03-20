@@ -137,6 +137,23 @@ Autonomy is graduated and domain-specific:
 
 Autonomy is earned per-capability, not globally. An agent might be autonomous for digests but supervised for write-backs.
 
+### The Agent Pulse — Mechanism of Autonomy (ADR-126)
+
+An agent is alive when it has a **pulse** — an autonomous sense→decide cycle that runs independent of user interaction. The pulse is upstream of execution: a pulse that decides "generate" produces a run; a pulse that decides "observe" does not — but the pulse still happened, and that's visible intelligence.
+
+Pulse cadence evolves with seniority:
+- **New**: Pulse fires on schedule (training wheels — generates whenever scheduled, unless no fresh content)
+- **Associate**: Pulse fires on schedule, but agent self-assesses before generating (may skip if nothing worth saying)
+- **Senior**: Pulse fires every cycle (always sensing domain — may generate off-schedule when signals warrant it)
+- **PM**: Pulse fires every cycle + on contributor output (coordination pulse — senses project state continuously)
+
+The pulse uses a cheap-first funnel:
+1. **Tier 1 (deterministic, zero LLM)**: Fresh content? Budget available? Recent enough? ~80% of pulses resolve here.
+2. **Tier 2 (Haiku self-assessment)**: Agent reads own workspace, thesis, observations, and decides. Associate+ agents only.
+3. **Tier 3 (PM coordination)**: PM reads contributor freshness, quality, work plan, decides coordination action.
+
+Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in project meeting rooms, agent timelines, and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
+
 ### Implication: The Trigger Is a Property of the Duty, Not the Agent
 
 The current taxonomy treats trigger as a static agent property (recurring, goal, reactive). Under the developmental model, trigger is a property of each **duty**:
@@ -223,13 +240,13 @@ The Composer capability activates when:
 
 ### Relationship to Proactive and Coordinator Modes
 
-Under the previous swarm framing, proactive and coordinator were agent modes — agents that assessed and orchestrated. Under this framing:
+> **Note (2026-03-20):** ADR-126 (Agent Pulse) supersedes the framing below. Proactive self-assessment is no longer a TP supervisory capability invoked top-down — it is generalized into every agent's pulse. All agents sense their domain and decide whether to act. The distinction between "proactive" and "recurring" dissolves: every agent has a pulse, and the pulse's sophistication scales with seniority. Coordinator mode dissolves similarly — project coordination belongs to PM agents via their coordination pulse (Tier 3), not to a special agent mode.
 
-- **Proactive review** (per-agent "should I generate?") is better understood as **TP's supervisory capability** — TP assessing whether a specific agent should produce output right now. The review logic accumulates in the agent's workspace (review logs, observations), but the *decision to review* belongs to TP.
+Under the previous swarm framing, proactive and coordinator were agent modes — agents that assessed and orchestrated. Under ADR-126:
 
-- **Coordinator mode** (creating child agents) is **the Composer capability itself** — TP spawning agents based on assessed need. This is not an agent behavior; it's a TP behavior.
+- **Proactive review** generalizes into the **Agent Pulse** — every agent's autonomous sense→decide cycle. The review logic (workspace reading, domain assessment, generate/observe/wait decision) is the agent's own intelligence, not TP's. TP's role is portfolio-level: reading pulse outcomes to make compositional decisions.
 
-The existing code for proactive review and coordination may be preserved mechanically (the Haiku review pass, the CreateAgent primitive), but conceptually they are TP functions, not agent modes.
+- **Coordinator mode** dissolves into **PM pulse** — project coordination is a PM agent's domain expertise, expressed through its specialized coordination pulse (Tier 3). PM agents are created by Composer, not by coordinator agents.
 
 ---
 
@@ -243,16 +260,21 @@ The product vision is: **sign up, connect, watch it work for you.**
 ```
 1. User connects platform (or requests project, or Composer detects opportunity)
 2. scaffold_project() creates project + member agents + PM agent
-3. First agent run executes immediately (bootstrap) or on schedule
-4. Agent output written to workspace (/agents/{slug}/outputs/) and project contributions
-5. PM detects contribution freshness → coordinates delivery
+3. Agent pulses begin (sense→decide cycle on cadence)
+4. Agent pulse decides "generate" → run produces output to workspace
+5. PM pulse senses contributor freshness → coordinates delivery
 6. For single-agent projects: PM passthrough (contribution = output, deliver immediately)
    For multi-agent projects: PM assembles contributions, delivers composed deliverable
 7. User feedback refines PM's coordination + contributors' outputs
-8. Recursive: next cycle's contributions are better because agents learned, PM learned
+8. Recursive: next cycle's pulses are smarter because agents learned, PM learned
 ```
 
-Steps 1-2 are the Composer/Bootstrap capability. Steps 3-6 are PM execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism.
+Steps 1-2 are the Composer/Bootstrap capability. Steps 3-6 are pulse-driven execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
+
+**Three distinct concerns** (ADR-126):
+- **Pulse cadence**: How often does the agent sense its domain? (scales with seniority)
+- **Generation decision**: Should I produce output? (agent's own pulse decides)
+- **Delivery timing**: When does the user receive it? (project-level, PM-coordinated)
 
 **Key axiom**: Every project gets a PM. No exceptions. PM agents are project infrastructure, excluded from tier agent limits. Agents produce; projects deliver. See [PROJECT-DELIVERY-MODEL.md](../design/PROJECT-DELIVERY-MODEL.md).
 
@@ -347,3 +369,4 @@ These require further design work before implementation:
 | 2026-03-18 | v3 — Project execution evolution: PM as domain-cognitive agent (coordination domain, not third layer), project-level intentions with intent decomposition, Composer/PM separation of concerns, agents-as-write-path principle, work-is-bounded principle, project autonomous flow. Cross-refs ADR-120. |
 | 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, `intentions` consolidated into PM `memory/work_plan.md`. Ownership model: PROJECT.md = charter (User/Composer/TP), PM memory/ = operations (PM). |
 | 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
+| 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |

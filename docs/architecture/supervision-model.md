@@ -248,15 +248,17 @@ The original model frames TP as the user's **interaction surface** — the user 
 
 The user's role shifts from **directing** to **supervising** to (at tenured state) **overseeing**. TP does more autonomously as it accumulates compositional judgment about what works for this user.
 
-### Agents as Developing Entities (not just data objects)
+### Agents as Living Entities with a Pulse (ADR-126)
 
 The original model frames agents as "first-class data entities." FOUNDATIONS Axiom 3 extends this — agents are **developing entities** with:
 
-- **Intentions** that evolve (not just static configuration)
+- **A pulse** — autonomous sense→decide cycle (the mechanism of agency)
 - **Capabilities** earned through feedback (read → analyze → write-back → act)
 - **Autonomy** that graduates per-capability (supervised → semi-autonomous → autonomous)
 
-This doesn't change the supervision model's core insight (user supervises, TP facilitates). It extends it: what the user supervises becomes richer over time, and TP's autonomous capabilities reduce the supervision burden.
+ADR-126 (Agent Pulse) makes agent awareness **visible to the user**. The supervision model gains a new dimension: users don't just see outputs — they see agents thinking. Every pulse decision (generate, observe, wait, escalate) is a visible event in project meeting rooms and timelines.
+
+This deepens the supervision model: what the user supervises becomes a living workforce, not a list of scheduled tasks. TP's autonomous capabilities (Composer) thin to portfolio-level decisions because agents self-report their own state via pulse.
 
 See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis.
 

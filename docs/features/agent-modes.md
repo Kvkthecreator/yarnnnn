@@ -1,12 +1,13 @@
 # Agent Modes
 
-**Status:** Canonical
-**Date:** 2026-03-04 (updated 2026-03-17 for ADR-109/ADR-118: Scope × Role × Trigger framework)
+**Status:** Canonical (updated 2026-03-20 for ADR-126: Agent Pulse)
+**Date:** 2026-03-04 (updated 2026-03-20 for ADR-126)
 **Related:**
-- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — implementation contracts
-- [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — canonical taxonomy (ADR-109, axis renamed per ADR-118)
+- [ADR-126: Agent Pulse](../adr/ADR-126-agent-pulse.md) — autonomous awareness engine (supersedes proactive/coordinator as distinct modes)
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — original implementation contracts (partially superseded by ADR-126)
+- [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — canonical taxonomy (ADR-109)
 
-This document is the user-facing and product framing for agent modes (internally: **triggers** in the Scope × Role × Trigger framework). For implementation contracts, see ADR-092. For how triggers relate to scope and role, see the [Agent Framework](../architecture/agent-framework.md).
+This document is the user-facing and product framing for agent modes. ADR-126 reframes modes: **all agents have a pulse** (autonomous sense→decide cycle). The "proactive" and "coordinator" modes dissolve — their self-assessment capability generalizes to all agents via the pulse. PM agents handle coordination via their specialized Tier 3 pulse.
 
 ---
 
@@ -14,9 +15,11 @@ This document is the user-facing and product framing for agent modes (internally
 
 Every agent has a **mode** — its execution character. Mode determines not just *when* a agent runs, but *how it decides* when to run and what kind of intelligence it applies.
 
-Think of modes as the personality of a specialist agent. A clockwork assistant shows up every Monday without fail. An on-call assistant waits for the right conditions to accumulate. A proactive advisor notices things on your behalf and reaches out when something's worth surfacing. A coordinator keeps watch over a whole domain and dispatches work when needed.
+> **ADR-126 evolution:** All agents now have a **pulse** — an autonomous sense→decide cycle that fires on a cadence. The pulse is upstream of execution: the agent senses its domain, decides whether to act, and only generates when warranted. Mode shapes the pulse's default cadence and behavior, but every agent — including recurring ones — has the capacity to self-assess as it matures.
 
-All modes share the same foundation: each agent has its own `agent_instructions` (how it should behave) and `agent_memory` (what it has learned). This is what makes each agent a specialist rather than a generic template — and what makes it get better over time.
+Think of modes as the starting personality of a specialist agent. A clockwork assistant starts by showing up every Monday without fail — but as it matures, it gains the awareness to skip runs when nothing changed, or to act early when something urgent appears. An on-call assistant waits for the right conditions to accumulate. Every agent develops toward greater awareness over time.
+
+All modes share the same foundation: each agent has its own workspace (AGENT.md, memory, observations) that accumulates domain knowledge. This is what makes each agent a specialist rather than a generic template — and what makes it get better over time.
 
 ---
 
@@ -68,41 +71,36 @@ This means a reactive agent is always aware of what's happening in its domain, b
 
 ### Proactive — Living Specialist
 
+> **ADR-126 note:** The proactive mode's core capability — self-assessment before generation — is generalized to ALL agents via the pulse (Tier 2: agent self-assessment). Associate+ agents in any mode can self-assess. The "proactive" label remains for agents whose primary character is domain monitoring rather than scheduled production.
+
 > "Stay aware. Surface things before you're asked."
 
-A proactive agent doesn't wait for a schedule or an event. It runs on a slow periodic review cadence — configurable, typically daily or slower. On each review cycle, the agent reads its sources and its own accumulated memory, then decides: is there something worth generating? If yes, it produces a version. If not, it records an observation and goes back to sleep. If conditions are unusually quiet, it can schedule itself to check back later.
+A proactive agent's pulse fires frequently (every cycle). On each pulse, the agent reads its domain and its own accumulated memory, then decides: is there something worth generating? If yes, it produces a run. If not, it records an observation and continues sensing.
 
-Most review cycles produce no version. This is by design — the agent stays informed without generating noise.
+Most pulses produce no run. This is by design — the agent stays informed without generating noise.
 
-**Memory role:** A running `review_log` — the agent's own self-authored assessments from each review cycle. Over time, this log captures the agent's evolving understanding of its domain: what's normal, what's significant, what the user has responded to.
+**Memory role:** A running `review_log` — the agent's own self-authored assessments from each pulse cycle. Over time, this log captures the agent's evolving understanding of its domain: what's normal, what's significant, what the user has responded to.
 
 **Best for:** Standing-order intelligence work where you want a specialist keeping watch and surfacing things when they're actually worth surfacing. Not a fixed schedule — timely signal.
 
-*Examples:* "Keep tabs on competitive developments and brief me when something significant happens." "Monitor team communication patterns and surface relationship issues before they become problems." "Watch my calendar context and give me prep when it looks like I need it — not on a fixed schedule."
+*Examples:* "Keep tabs on competitive developments and brief me when something significant happens." "Monitor team communication patterns and surface relationship issues before they become problems."
 
-**Key difference from recurring:** Recurring shows up on time no matter what. Proactive shows up when it judges the moment is right.
+**Key difference from recurring:** Recurring starts with schedule-driven pulses (training wheels). Proactive starts with judgment-driven pulses from day one.
 
 **Key difference from reactive:** Reactive waits for a specific configured event type to arrive. Proactive has standing instructions for a domain and uses its own judgment to decide what counts as signal.
 
 ---
 
-### Coordinator — Meta-Specialist
+### Coordinator — Dissolved into PM (ADR-126)
 
-> "Watch the whole domain. Dispatch the right work at the right time."
-
-A coordinator agent is a proactive specialist with one additional capability: it can create new agents on your behalf and advance the schedule of existing ones when conditions warrant.
-
-A coordinator runs on a slow review cadence. When it finds something in its domain that needs attention, it decides: does an existing agent handle this? If yes, it advances that agent's schedule to run now. If not, it creates a new one-time agent and executes it — then logs what it created so it doesn't do it again for the same event.
-
-This is YARNNN doing work on your behalf that you didn't explicitly configure. You tell the coordinator what domain it's responsible for; it handles the rest.
-
-**Memory role:** A `review_log` (like proactive) plus a `created_agents` deduplication log. The log prevents the coordinator from creating duplicate agents for the same underlying event.
-
-**Best for:** Domains where the right response to a signal is a specific piece of work — not just a summary. Calendar coordination, relationship management, project monitoring.
-
-*Examples:* "Watch my calendar. When I have an upcoming meeting with external attendees I haven't corresponded with recently, create a meeting prep brief." "Watch for Gmail threads with clients that have gone quiet. Draft a follow-up when you see one." "Monitor project Slack channels. When you see signs of a blocker or a stalled decision, create a status brief."
-
-**What makes a coordinator different from signal processing (dissolved):** Signal processing was invisible infrastructure that scanned everything for all users. A coordinator is a agent you configure with specific instructions for a specific domain. You can see its review log. You can edit its instructions. You can pause it. Multiple coordinators are multiple independent specialists — each accountable for its own scope.
+> **ADR-126:** The coordinator mode is dissolved. Its coordination capabilities are now the domain of **PM agents** — project-level coordinators created by Composer. PM agents have a specialized **coordination pulse** (Tier 3) that senses project state, steers contributors, triggers assembly, and manages delivery.
+>
+> What coordinator mode used to do (create child agents, advance schedules) is now split:
+> - **Agent creation** → Composer capability (TP portfolio-level decisions)
+> - **Schedule advancement** → PM pulse (advance_contributor action)
+> - **Domain monitoring** → Proactive mode (any agent can monitor its domain)
+>
+> Existing coordinator agents in the database are functionally equivalent to proactive agents. They retain their mode label but pulse like proactive agents.
 
 ---
 
@@ -114,7 +112,8 @@ This is YARNNN doing work on your behalf that you didn't explicitly configure. Y
 | Output toward a defined objective, then stop | `goal` |
 | Output triggered by accumulated events, not schedule | `reactive` |
 | A specialist that watches its domain and acts when warranted | `proactive` |
-| A specialist that creates and triggers other agents for you | `coordinator` |
+
+> **Note:** All modes gain pulse awareness as agents mature. A recurring agent that reaches associate seniority will self-assess before generating (skipping runs when nothing changed). The mode is the starting character — the pulse evolves it.
 
 ---
 
@@ -139,9 +138,17 @@ The mode shapes how the agent decides *when* to act. The four knowledge layers s
 
 ## The "living agent" experience
 
-Coordinator and proactive agents together enable what feels like a living agent: something that watches your world, notices things, and surfaces work before you ask for it.
+The pulse (ADR-126) is what gives agents life. Every agent — not just proactive ones — has an autonomous sense→decide cycle. The visible effect: you can watch agents thinking, not just producing.
 
-This is not an always-on background process. It's a network of sleeping specialists that wake up at the right time, assess their domain, act if warranted, and go back to sleep. The quality of each specialist's output compounds with every execution — because each one carries forward everything it has learned about its specific job.
+In a project meeting room, the timeline shows:
+```
+09:00  slack-recap pulsed: observe — "No new activity in #engineering"
+14:00  slack-recap pulsed: generate — "47 messages, 3 escalation threads"
+14:03  slack-recap run #8 complete
+14:05  PM pulsed: assemble — "Both contributors fresh"
+```
+
+This is a network of sensing specialists that check their domains, act when warranted, and rest when not. The quality of each specialist's output compounds with every pulse — because each one carries forward everything it has learned about its specific job.
 
 That compounding per specialist — not per conversation, not per session, but per agent — is the core of YARNNN's model.
 
