@@ -295,9 +295,8 @@ function AuthenticatedLayoutInner({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(ORCHESTRATOR_ROUTE);
-                    setSurface({ type: 'idle' });
                     setDropdownOpen(false);
+                    router.push(ORCHESTRATOR_ROUTE);
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
