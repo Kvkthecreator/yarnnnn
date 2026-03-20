@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.2] - CreateProject tool: type_key delegates to scaffold_project()
+
+### Changed
+- `api/services/primitives/project.py`: CreateProject tool definition now includes `type_key` parameter with available types listed. Description updated to explain two modes: platform project (type_key → scaffold_project, creates agents automatically) vs custom project (manual contributors). When type_key matches registry, `handle_create_project()` delegates to `scaffold_project()` instead of manual PROJECT.md creation.
+
+### Expected behavior
+- TP can now create platform projects (slack_digest, notion_digest, gmail_digest) with a single tool call that creates both the project AND its member agent(s). No more orphaned projects without agents.
+- Tool description tells TP not to ask follow-up questions for platform digest projects — just use the type_key.
+
+---
+
 ## [2026.03.20.1] - TP System Reference — meta-awareness of YARNNN capabilities
 
 ### Changed

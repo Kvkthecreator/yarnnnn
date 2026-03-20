@@ -24,19 +24,21 @@ logger = logging.getLogger(__name__)
 
 CREATE_PROJECT_TOOL = {
     "name": "CreateProject",
-    "description": """Create a new cross-agent collaboration project.
+    "description": """Create a new project. Two modes:
 
-A project combines contributions from multiple agents into an assembled
-output none could produce alone (e.g., a Q2 review deck with data + narrative).
+1. **Platform project** (use type_key): Creates the project AND its member agent(s) automatically.
+   Available type_keys: slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom.
+   Platform types (slack_digest, gmail_digest, notion_digest) create a single digest agent — no PM needed.
+   Just pass title and type_key; the registry handles everything else.
 
-Required: title
-Optional: objective (object), contributors (array), assembly_spec, delivery (object)
+2. **Custom project** (no type_key): Assembles existing agents into a collaboration project.
+   Pass title, objective, contributors, assembly_spec, delivery.
 
-objective: {deliverable, audience, format, purpose} — the project's north star
-contributors: [{agent_id, expected_contribution}]
-delivery: {channel, target}
+For platform digest projects, ALWAYS use the type_key — do NOT ask the user follow-up questions.
 
-Example:
+Examples:
+  CreateProject(title="Notion Digest", type_key="notion_digest")
+  CreateProject(title="Slack Recap", type_key="slack_digest")
   CreateProject(
     title="Q2 Business Review",
     objective={deliverable: "Executive presentation", audience: "Leadership", format: "pptx"},
@@ -48,6 +50,10 @@ Example:
             "title": {
                 "type": "string",
                 "description": "Project title"
+            },
+            "type_key": {
+                "type": "string",
+                "description": "Project type from registry: slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom. When set, agents are created automatically.",
             },
             "objective": {
                 "type": "object",
@@ -69,7 +75,7 @@ Example:
                     },
                     "required": ["agent_id"],
                 },
-                "description": "Agents that contribute to this project",
+                "description": "Existing agents that contribute to this project (not needed with type_key)",
             },
             "assembly_spec": {
                 "type": "string",
@@ -93,11 +99,9 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     """
     Handle CreateProject primitive.
 
-    1. Slugify title → project_slug
-    2. Look up contributor agents → resolve slugs
-    3. Write PROJECT.md via ProjectWorkspace
-    4. Seed contributor agent workspaces with memory/projects.json pointer
-    5. Return {success, project_slug}
+    If type_key matches a registry entry, delegates to scaffold_project() which
+    creates the project AND its member agents together (ADR-122).
+    Otherwise falls through to manual project creation (existing contributors).
     """
     from services.workspace import ProjectWorkspace, AgentWorkspace, get_project_slug, get_agent_slug
 
@@ -110,6 +114,22 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     assembly_spec = input.get("assembly_spec", "")
     delivery = input.get("delivery", {})
     type_key = input.get("type_key")  # ADR-122: project type registry key
+
+    # ADR-122: If type_key matches registry, delegate to scaffold_project()
+    # which creates the project AND its member agents together
+    if type_key:
+        from services.project_registry import get_project_type, scaffold_project
+        ptype = get_project_type(type_key)
+        if ptype:
+            return await scaffold_project(
+                client=auth.client,
+                user_id=auth.user_id,
+                type_key=type_key,
+                title_override=title if title != ptype["display_name"] else None,
+                objective_override=objective if objective else None,
+                delivery_override=delivery if delivery else None,
+                execute_now=True,
+            )
 
     project_slug = get_project_slug(title)
 
