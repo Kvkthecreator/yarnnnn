@@ -266,12 +266,16 @@ async def _write_contribution_to_projects(client, user_id: str, agent_slug: str,
 
 async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, agent_slug: str):
     """
-    ADR-120: After a contributor produces output, check if it belongs to any project.
-    If yes, advance the PM agent's schedule to now (debounced by 1 hour).
+    ADR-120/122: After a contributor produces output, check if it belongs to any project.
 
-    This reuses existing scheduler infrastructure — no new dispatch path.
+    Single-contributor projects: inline PM passthrough — skip PM LLM call, deliver
+    immediately via _execute_pm_assemble() (which detects single-contributor and
+    passes content through without composition).
+
+    Multi-contributor projects: advance PM schedule to now (debounced by 1 hour)
+    so PM runs on next scheduler cycle.
     """
-    from services.workspace import AgentWorkspace
+    from services.workspace import AgentWorkspace, ProjectWorkspace
 
     ws = AgentWorkspace(client, user_id, agent_slug)
 
@@ -289,15 +293,14 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
     if not projects:
         return
 
-    from services.workspace import ProjectWorkspace
-
     for project_entry in projects:
         project_slug = project_entry.get("project_slug")
         if not project_slug:
             continue
 
-        # Read PM agent reference
         pw = ProjectWorkspace(client, user_id, project_slug)
+
+        # Read PM agent reference
         pm_json = await pw.read("memory/pm_agent.json")
         if not pm_json:
             continue
@@ -311,7 +314,43 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
         if not pm_agent_id:
             continue
 
-        # Debounce: check if PM ran in the last hour
+        # Check contributor count to decide passthrough vs. full PM run
+        contributor_slugs = await pw.list_contributors()
+        is_single_contributor = len(contributor_slugs) <= 1
+
+        if is_single_contributor:
+            # Single-contributor passthrough: deliver inline, skip PM LLM call
+            try:
+                pm_agent_result = (
+                    client.table("agents")
+                    .select("*")
+                    .eq("id", pm_agent_id)
+                    .eq("user_id", user_id)
+                    .maybe_single()
+                    .execute()
+                )
+                if not pm_agent_result or not pm_agent_result.data:
+                    continue
+
+                result = await _execute_pm_assemble(
+                    client, user_id, pm_agent_result.data,
+                    project_slug,
+                    pm_agent_result.data.get("type_config") or {"project_slug": project_slug},
+                )
+
+                if result.get("success"):
+                    logger.info(
+                        f"[PM_PASSTHROUGH] Inline delivery for {project_slug} "
+                        f"(triggered by {agent_slug}): {result.get('delivery_status', 'no delivery config')}"
+                    )
+                else:
+                    logger.warning(f"[PM_PASSTHROUGH] Failed for {project_slug}: {result.get('error')}")
+
+            except Exception as e:
+                logger.warning(f"[PM_PASSTHROUGH] Inline delivery failed for {project_slug}: {e}")
+            continue
+
+        # Multi-contributor: advance PM schedule (existing behavior)
         try:
             pm_result = (
                 client.table("agents")
@@ -328,6 +367,7 @@ async def _maybe_trigger_project_heartbeat(client, user_id: str, agent: dict, ag
             pm_agent = pm_result.data
             last_run = pm_agent.get("last_run_at")
 
+            # Debounce: check if PM ran in the last hour
             if last_run:
                 last_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
                 hours_since = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600

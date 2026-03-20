@@ -26,10 +26,9 @@ CREATE_PROJECT_TOOL = {
     "name": "CreateProject",
     "description": """Create a new project. Two modes:
 
-1. **Platform project** (use type_key): Creates the project AND its member agent(s) automatically.
+1. **Platform project** (use type_key): Creates the project with member agent(s) + PM automatically.
    Available type_keys: slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom.
-   Platform types (slack_digest, gmail_digest, notion_digest) create a single digest agent — no PM needed.
-   Just pass title and type_key; the registry handles everything else.
+   Every project gets a PM agent for coordination and delivery. Just pass title and type_key.
 
 2. **Custom project** (no type_key): Assembles existing agents into a collaboration project.
    Pass title, objective, contributors, assembly_spec, delivery.

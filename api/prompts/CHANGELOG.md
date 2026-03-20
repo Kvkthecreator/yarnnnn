@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.6] - PM for all projects + delivery model update
+
+### Changed
+- `api/services/primitives/project.py`: CreateProject tool description updated — all projects now create PM agent, removed "no PM needed" for platform types.
+- `api/services/agent_pipeline.py`: PM prompt unchanged but now applies to all project types including single-agent platform digests.
+
+### Expected behavior
+- CreateProject always scaffolds PM agent alongside member agents
+- PM passthrough: single-contributor projects skip LLM composition, deliver content directly
+- No change to PM prompt — PM will see single contributor and handle accordingly
+- TP/Composer should stop saying "no PM needed" for platform projects
+
+---
+
 ## [2026.03.20.5] - Agent chat: PM role gate for coordination primitives
 
 ### Changed
