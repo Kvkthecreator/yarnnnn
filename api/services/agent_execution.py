@@ -1095,6 +1095,53 @@ def get_user_email(client, user_id: str) -> Optional[str]:
     return None
 
 
+async def _resolve_project_delivery(client, user_id: str, agent_id: str) -> Optional[dict]:
+    """Resolve delivery config from agent's project (ADR-122: agents produce, projects deliver)."""
+    try:
+        from services.workspace import AgentWorkspace, get_agent_slug
+        import json as _json
+
+        # Look up agent's project membership via workspace memory/projects.json
+        agent_data = client.table("agents").select("title").eq("id", agent_id).single().execute()
+        if not agent_data.data:
+            return None
+        slug = get_agent_slug(agent_data.data)
+        ws = AgentWorkspace(client, user_id, slug)
+        projects_raw = await ws.read("memory/projects.json")
+        if not projects_raw:
+            return None
+
+        projects = _json.loads(projects_raw)
+        if not projects:
+            return None
+
+        # Read the first project's delivery config from PROJECT.md
+        from services.workspace import ProjectWorkspace
+        project_slug = projects[0].get("project_slug")
+        if not project_slug:
+            return None
+
+        pw = ProjectWorkspace(client, user_id, project_slug)
+        project = await pw.read_project()
+        if not project:
+            return None
+
+        delivery = project.get("delivery", {})
+        if delivery and (delivery.get("channel") or delivery.get("target")):
+            # Translate PROJECT.md "channel" → destination "platform"
+            dest = {}
+            if delivery.get("channel"):
+                dest["platform"] = delivery["channel"]
+            if delivery.get("target"):
+                dest["target"] = delivery["target"]
+            dest["format"] = "send"
+            logger.info(f"[EXEC] ADR-122: Resolved delivery from project '{project_slug}': {dest}")
+            return dest
+    except Exception as e:
+        logger.warning(f"[EXEC] ADR-122: Failed to resolve project delivery: {e}")
+    return None
+
+
 def normalize_destination_for_delivery(
     destination: Optional[dict],
     user_email: Optional[str],
@@ -2226,22 +2273,19 @@ async def execute_agent_generation(
             "last_run_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", agent_id).execute()
 
-        # 7. ADR-066: Normalize destination (email-first fallback)
-        # get_user_email requires service role (auth.admin API)
+        # 7. ADR-122: Resolve destination — agent → project → email fallback
+        # "Agents produce, projects deliver" — project delivery config takes precedence
         from services.supabase import get_service_client as _get_svc
         user_email = get_user_email(_get_svc(), user_id)
         raw_destination = agent.get("destination")
-        destination = normalize_destination_for_delivery(raw_destination, user_email)
+        destination = raw_destination
 
-        # Update agent with normalized destination if it changed
-        if destination and destination != raw_destination:
-            try:
-                client.table("agents").update({
-                    "destination": destination,
-                }).eq("id", agent_id).execute()
-                logger.info(f"[EXEC] Updated agent destination to email-first default")
-            except Exception:
-                pass  # Non-fatal
+        # If agent has no destination, check project delivery config (ADR-122)
+        if not destination:
+            destination = await _resolve_project_delivery(client, user_id, agent_id)
+
+        # Final fallback: email-first (ADR-066)
+        destination = normalize_destination_for_delivery(destination, user_email)
 
         # 8. ADR-118 D.3: Save output folder BEFORE delivery (with rendered files from RuntimeDispatch)
         # Output folder is the single delivery source. Fatal if this fails.
@@ -2311,6 +2355,7 @@ async def execute_agent_generation(
                     agent_slug=slug,
                     version_id=str(version_id),
                     version_number=next_version,
+                    destination=destination,
                 )
                 if delivery_result.status.value == "success":
                     final_status = "delivered"

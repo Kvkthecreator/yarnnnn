@@ -282,15 +282,18 @@ async def scaffold_project(
     delivery = delivery_override or {}
 
     # Resolve delivery default — auto-populate email target
+    # PROJECT.md uses "channel" (not "platform") for the delivery method
     if not delivery and ptype.get("delivery_default"):
         delivery = dict(ptype["delivery_default"])
-        if delivery.get("platform") == "email" and "target" not in delivery:
+        # Normalize: registry uses "platform", PROJECT.md uses "channel"
+        if "platform" in delivery and "channel" not in delivery:
+            delivery["channel"] = delivery.pop("platform")
+        if delivery.get("channel") == "email" and "target" not in delivery:
             try:
                 from services.agent_execution import get_user_email
                 user_email = get_user_email(client, user_id)
                 if user_email:
                     delivery["target"] = user_email
-                    delivery["format"] = "send"
             except Exception:
                 pass
 

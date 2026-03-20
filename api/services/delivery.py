@@ -643,6 +643,7 @@ async def deliver_from_output_folder(
     agent_slug: str,
     version_id: str,
     version_number: int,
+    destination: dict | None = None,
 ) -> ExportResult:
     """
     Deliver agent output by reading from workspace output folder instead of agent_runs.
@@ -691,8 +692,9 @@ async def deliver_from_output_folder(
         except json.JSONDecodeError:
             logger.warning(f"[DELIVERY] Invalid manifest JSON at {output_folder}")
 
-    # 3. Get destination
-    destination = agent.get("destination")
+    # 3. Get destination (prefer explicit param, fall back to agent record)
+    if not destination:
+        destination = agent.get("destination")
     if not destination:
         return ExportResult(
             status=ExportStatus.FAILED,
