@@ -30,7 +30,6 @@ import {
   Search,
   Globe,
   Layers,
-  Brain,
   RefreshCw,
   Bookmark,
 } from 'lucide-react';
@@ -49,7 +48,7 @@ import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
 import { SessionsPanel } from '@/components/agents/AgentDrawerPanels';
-import type { Agent, AgentSession, ProjectSummary } from '@/types';
+import type { AgentSession, ProjectSummary } from '@/types';
 
 // =============================================================================
 // Panel: Projects (compact entry cards — ADR-122/124 project-first model)
@@ -187,55 +186,46 @@ function formatTokenCount(tokens: number): string {
 // Starter templates — project creation + TP capabilities
 // =============================================================================
 
-type TemplateIcon = 'slack' | 'gmail' | 'notion' | 'calendar' | 'cross-platform' | 'globe' | 'search' | 'brain';
+type TemplateIcon = 'slack' | 'gmail' | 'notion' | 'globe' | 'search' | 'plus';
 
-/** Project creation templates — source-first, per ADR-122 project-first model */
+/**
+ * Project creation templates — registry-backed only (ADR-122 project-first model).
+ *
+ * 3 platform cards (1:1 with PROJECT_TYPE_REGISTRY platform types) + 1 blank project card.
+ * Cards without registry backing removed — no aspirational templates.
+ */
 const PROJECT_TEMPLATES = [
   {
     id: 'slack-recap',
     label: 'Slack Recap',
-    description: 'Daily or weekly summary of your Slack channels',
+    description: 'Daily summary of your Slack channels',
     prompt: 'Set up a Slack recap project for me',
     icon: 'slack' as TemplateIcon,
   },
   {
     id: 'gmail-recap',
     label: 'Gmail Recap',
-    description: 'Daily or weekly recap of your Gmail labels',
+    description: 'Daily recap of your Gmail labels',
     prompt: 'Set up a Gmail recap project for me',
     icon: 'gmail' as TemplateIcon,
   },
   {
     id: 'notion-recap',
     label: 'Notion Recap',
-    description: 'Daily or weekly recap of your Notion pages',
+    description: 'Daily recap of your Notion pages',
     prompt: 'Set up a Notion recap project for me',
     icon: 'notion' as TemplateIcon,
   },
   {
-    id: 'meeting-prep',
-    label: 'Meeting Prep',
-    description: 'Reads your calendar and preps you for the day\'s meetings',
-    prompt: 'Set up a meeting prep project from my calendar and Slack',
-    icon: 'calendar' as TemplateIcon,
-  },
-  {
-    id: 'work-summary',
-    label: 'Work Summary',
-    description: 'Weekly synthesis across all your connected platforms',
-    prompt: 'Set up a weekly work summary project across my platforms',
-    icon: 'cross-platform' as TemplateIcon,
-  },
-  {
-    id: 'proactive-insights',
-    label: 'Proactive Insights',
-    description: 'Spots emerging themes and researches them for you',
-    prompt: 'Set up a proactive insights project that researches trends across my platforms',
-    icon: 'globe' as TemplateIcon,
+    id: 'new-project',
+    label: 'New Project',
+    description: 'Start a custom project from scratch',
+    prompt: 'I want to create a new project',
+    icon: 'plus' as TemplateIcon,
   },
 ];
 
-/** Capability templates — surface TP's built-in abilities beyond agent creation */
+/** Capability templates — surface TP's built-in abilities beyond project creation */
 const CAPABILITY_TEMPLATES = [
   {
     id: 'search-platforms',
@@ -251,13 +241,6 @@ const CAPABILITY_TEMPLATES = [
     prompt: 'Search the web for ',
     icon: 'globe' as TemplateIcon,
   },
-  {
-    id: 'ask-anything',
-    label: 'Ask anything',
-    description: 'I can search your platforms, create agents, save preferences, and more',
-    prompt: 'What can you help me with?',
-    icon: 'brain' as TemplateIcon,
-  },
 ];
 
 /** Map template icon keys to React nodes — platform icons + lucide fallbacks */
@@ -269,16 +252,14 @@ function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
       return getPlatformIcon('gmail', 'w-full h-full');
     case 'notion':
       return getPlatformIcon('notion', 'w-full h-full');
-    case 'calendar':
-      return getPlatformIcon('calendar', 'w-full h-full');
-    case 'cross-platform':
-      return <Layers className="w-full h-full" />;
     case 'globe':
       return <Globe className="w-full h-full" />;
     case 'search':
       return <Search className="w-full h-full" />;
+    case 'plus':
+      return <Command className="w-full h-full" />;
     default:
-      return <Brain className="w-full h-full" />;
+      return <Command className="w-full h-full" />;
   }
 }
 
@@ -356,9 +337,10 @@ export function ChatFirstDesk() {
     }
   }, [searchParams, router]);
 
-  // ADR-110: Detect post-OAuth redirect — ?provider=X&status=connected
+  // ADR-110/122: Detect post-OAuth redirect — ?provider=X&status=connected
+  // Bootstrap now creates projects (not standalone agents), so poll projects by type_key.
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [bootstrapAgent, setBootstrapAgent] = useState<Agent | null>(null);
+  const [bootstrapProject, setBootstrapProject] = useState<ProjectSummary | null>(null);
 
   useEffect(() => {
     const provider = searchParams?.get('provider');
@@ -367,25 +349,25 @@ export function ChatFirstDesk() {
       setBootstrapProvider(provider);
       router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
 
-      // Poll for bootstrap agent to appear (created by sync completion)
-      const BOOTSTRAP_TITLES: Record<string, string> = {
-        slack: 'Slack Agent',
-        gmail: 'Gmail Agent',
-        notion: 'Notion Agent',
+      // Map OAuth provider to registry type_key
+      const BOOTSTRAP_TYPE_KEYS: Record<string, string> = {
+        slack: 'slack_digest',
+        google: 'gmail_digest',
+        notion: 'notion_digest',
       };
-      const expectedTitle = BOOTSTRAP_TITLES[provider];
-      if (!expectedTitle) return;
+      const expectedTypeKey = BOOTSTRAP_TYPE_KEYS[provider];
+      if (!expectedTypeKey) return;
 
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
         try {
-          const agents = await api.agents.list();
-          const found = agents.find(
-            (a) => a.title === expectedTitle && a.origin === 'system_bootstrap'
+          const data = await api.projects.list();
+          const found = data.projects.find(
+            (p) => p.type_key === expectedTypeKey
           );
           if (found) {
-            setBootstrapAgent(found);
+            setBootstrapProject(found);
             clearInterval(poll);
           }
         } catch { /* ignore */ }
@@ -605,28 +587,28 @@ export function ChatFirstDesk() {
         {/* Messages — centered with max-width */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
           <div className="max-w-3xl mx-auto w-full space-y-3">
-            {/* ADR-110: Bootstrap banner — shown after OAuth redirect */}
+            {/* ADR-110/122: Bootstrap banner — shown after OAuth redirect */}
             {bootstrapProvider && (
               <div className="max-w-2xl mx-auto mb-4">
                 <div className="flex items-center gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
                   <span className="w-5 h-5 shrink-0 text-primary">
                     {getTemplateIcon(bootstrapProvider as TemplateIcon)}
                   </span>
-                  {bootstrapAgent ? (
+                  {bootstrapProject ? (
                     <div className="flex-1 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium">
-                          {bootstrapAgent.title} is ready!
+                          {bootstrapProject.title} is ready!
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Your first digest will generate on schedule, or you can run it now.
                         </p>
                       </div>
                       <Link
-                        href={`/agents/${bootstrapAgent.id}`}
+                        href={`/projects/${bootstrapProject.project_slug}`}
                         className="text-xs font-medium text-primary hover:underline shrink-0 ml-3"
                       >
-                        View agent →
+                        View project →
                       </Link>
                     </div>
                   ) : (
@@ -635,12 +617,12 @@ export function ChatFirstDesk() {
                         Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Syncing your data and setting up your digest agent...
+                        Syncing your data and setting up your project...
                       </p>
                     </div>
                   )}
                   <button
-                    onClick={() => { setBootstrapProvider(null); setBootstrapAgent(null); }}
+                    onClick={() => { setBootstrapProvider(null); setBootstrapProject(null); }}
                     className="text-muted-foreground hover:text-foreground shrink-0"
                   >
                     <X className="w-4 h-4" />
@@ -662,14 +644,14 @@ export function ChatFirstDesk() {
                   {/* Project creation cards */}
                   <div>
                     <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Set up a project</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {PROJECT_TEMPLATES.filter((tpl) => {
-                        // ADR-110: Hide template for bootstrapped platform
+                        // ADR-110: Hide template for already-bootstrapped platform
                         if (!bootstrapProvider) return true;
                         const platformMap: Record<string, string> = {
                           'slack-recap': 'slack',
-                          'gmail-digest': 'gmail',
-                          'notion-summary': 'notion',
+                          'gmail-recap': 'google',
+                          'notion-recap': 'notion',
                         };
                         return platformMap[tpl.id] !== bootstrapProvider;
                       }).map((tpl) => (

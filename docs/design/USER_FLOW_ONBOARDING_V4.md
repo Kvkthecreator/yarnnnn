@@ -1,25 +1,25 @@
-# User Flow: Two-Path Onboarding (v5)
+# User Flow: Project-Native Onboarding (v6)
 
 > **Status**: Current
-> **Date**: 2026-03-16
-> **Supersedes**: [Onboarding V4](archive/) (2026-03-16), [Onboarding V3](archive/USER_FLOW_ONBOARDING_V2.md) (2026-02-26)
-> **Related**: ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap), ADR-111 (Agent Composer), ADR-113 (Auto Source Selection), [Supervision Dashboard](SUPERVISION-DASHBOARD.md), [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md)
+> **Date**: 2026-03-20
+> **Supersedes**: [Onboarding V5](archive/) (2026-03-16)
+> **Related**: ADR-057 (Streamlined Onboarding), ADR-110 (Onboarding Bootstrap), ADR-113 (Auto Source Selection), ADR-119 (Workspace Filesystem), ADR-122 (Project Type Registry), ADR-124 (Project Meeting Room)
 
 ---
 
-## What Changed Since V4
+## What Changed Since V5
 
-V4 required manual source selection as a prerequisite after platform connection: OAuth → context page → pick sources → sync → bootstrap. This created friction at the moment of highest user intent.
+V5 was agent-centric: bootstrap created standalone agents, Orchestrator cards created agents, the dashboard supervised agents. With ADR-122 (Project Type Registry) and ADR-124 (Project Meeting Room), the model is now **project-native**:
 
-With ADR-113 (Auto Source Selection), the flow is now:
+1. **Projects are the primary unit, not agents.** Bootstrap creates projects (with member agents inside). Orchestrator cards create projects. Users supervise projects.
 
-1. **Sources are auto-selected at connection time.** `compute_smart_defaults()` picks the highest-signal sources (busiest Slack channels, INBOX/SENT for Gmail, recently-edited Notion pages, all calendars) up to tier limits.
+2. **Orchestrator empty state is 3+1 cards.** Three platform project cards (Slack Recap, Gmail Recap, Notion Recap) backed 1:1 by the project type registry, plus one "New Project" card for custom projects. No aspirational cards without registry backing.
 
-2. **Sync starts immediately.** No manual step between connecting and syncing. The OAuth callback discovers landscape, applies defaults, and kicks off the first sync as a background task.
+3. **Bootstrap creates projects, not standalone agents.** OAuth → sync → `scaffold_project(type_key)` creates a project with member agent + PM agent. Bootstrap banner links to the project Meeting Room, not an agent page.
 
-3. **Users land on the dashboard, not a context page.** Post-OAuth redirect goes to `/dashboard` where users see their platform connected and syncing. Source curation is optional refinement, not a gate.
+4. **Meeting Room is the project surface.** After project creation, users interact in `/projects/{slug}` — a group chat where PM and contributor agents are participants (ADR-124). This is where objective refinement and context collection happen.
 
-4. **Context pages are for refinement, not setup.** Users can still add/remove sources at any time from `/context/{platform}`, but this is an escape hatch — not the first-time entry point.
+5. **Orchestrator is thin for project creation.** TP creates the project and routes the user to the Meeting Room. Deep context collection happens project-side, not in TP chat.
 
 ---
 
@@ -27,21 +27,21 @@ With ADR-113 (Auto Source Selection), the flow is now:
 
 | Type | Description | Optimal path |
 |------|-------------|--------------|
-| **Platform-first** | Has Slack/Gmail/Notion/Calendar; wants recurring summaries from existing work data | Connect platforms → auto-created agents → refine |
-| **Topic-first** | Has a research question or monitoring need; doesn't need platform data | Ask Orchestrator → describe intent → agent created via chat |
-| **Explorer** | Curious about AI agents; wants to see what's possible before committing | Browse dashboard → connect one platform → see first result |
+| **Platform-first** | Has Slack/Gmail/Notion/Calendar; wants recurring summaries from existing work data | Connect platforms → auto-created project → Meeting Room |
+| **Topic-first** | Has a research question or monitoring need; doesn't need platform data | Orchestrator → "New Project" card → describe intent → project created → Meeting Room |
+| **Explorer** | Curious about AI agents; wants to see what's possible before committing | Dashboard → connect one platform → see first project result |
 
 ---
 
 ## User Journey
 
 ```
-OPEN  →  CONNECT  →  AUTO-SYNC  →  FIRST AGENT  →  FIRST DELIVERY  →  SUPERVISION
- │          │           │              │                │                │
- ▼          ▼           ▼              ▼                ▼                ▼
-Dashboard  OAuth      Smart defaults  Bootstrap        Output in        Dashboard
-empty      (direct)   + background    (automatic)      inbox/channel    shows health
-state                 sync starts                      or in-app        + activity
+OPEN  →  CONNECT  →  AUTO-SYNC  →  FIRST PROJECT  →  FIRST DELIVERY  →  SUPERVISION
+ │          │           │              │                 │                  │
+ ▼          ▼           ▼              ▼                 ▼                  ▼
+Dashboard  OAuth      Smart defaults  Bootstrap         Output in          Dashboard
+empty      (direct)   + background    scaffolds         inbox/channel      shows project
+state                 sync starts     project + PM      or in-app          health
 ```
 
 ---
@@ -51,7 +51,7 @@ state                 sync starts                      or in-app        + activi
 ### User state
 - Authenticated via Supabase Auth
 - No connected platforms
-- No agents
+- No projects
 
 ### Experience
 
@@ -62,7 +62,7 @@ Dashboard shows a clean welcome with **two paths**:
 │              Welcome to YARNNN                       │
 │                                                      │
 │  Connect your work platforms and YARNNN will create  │
-│  agents that deliver recurring insights.             │
+│  projects that deliver recurring insights.           │
 │                                                      │
 │  ┌─────────────┐  ┌─────────────┐                    │
 │  │ [Slack]      │  │ [Gmail]      │  ← OAuth direct  │
@@ -74,118 +74,120 @@ Dashboard shows a clean welcome with **two paths**:
 │                                                      │
 │  ──────────────── or ────────────────                │
 │                                                      │
-│  [💬] Ask the Orchestrator                           │
-│       Create agents for topics, research, or tasks   │
-│       — no platform needed                           │
+│  [⌘] Ask the Orchestrator                            │
+│      Create projects for topics, research, or tasks  │
+│      — no platform needed                            │
 └──────────────────────────────────────────────────────┘
 ```
 
 ### Design decisions
 
-- **Platform cards trigger OAuth directly** (ADR-113). No intermediate context page. One click starts the entire flow.
-- **Orchestrator is secondary but visible** for topic-first users who don't want to commit platforms yet.
-- **No "skip" button** — both paths are productive. There's no empty "I'll figure it out later" state.
-- **No tier info at this stage** — don't frontload pricing before the user sees value.
+- **Platform cards trigger OAuth directly** (ADR-113). One click starts the entire flow.
+- **Orchestrator is secondary but visible** for topic-first users.
+- Both paths lead to the same destination: a project in the Meeting Room.
 
 ---
 
-## Stage 2a: Platform Path (Connect → Auto-Sync → Bootstrap → Supervise)
+## Stage 2a: Platform Path (Connect → Auto-Sync → Bootstrap Project → Meeting Room)
 
 ### Flow
 
 1. **User clicks platform card** → OAuth redirect → callback auto-discovers landscape + auto-selects sources (ADR-113) → kicks off first sync → redirects to `/dashboard?provider={platform}&status=connected`
-2. **Dashboard shows transitional state**: platform connected, sync in progress, "agents will appear automatically"
-3. **Onboarding Bootstrap** (ADR-110): post-sync, system auto-creates matching digest agent with `origin=system_bootstrap`
-4. **First run** executes immediately → user sees first delivery
-5. **Dashboard transitions to active state** → agent appears in health grid
+2. **Dashboard shows transitional state**: platform connected, sync in progress
+3. **Onboarding Bootstrap** (ADR-110/122): post-sync, `maybe_bootstrap_project()` calls `scaffold_project(type_key)` which creates:
+   - Project folder (`/projects/{slug}/PROJECT.md`)
+   - Member agent (e.g., "Slack Agent", role=digest)
+   - PM agent ("PM: Slack Recap")
+   - First agent run executes immediately
+4. **Bootstrap banner** appears in Orchestrator: "{Project Title} is ready! → View project"
+5. **User clicks through to Meeting Room** at `/projects/{slug}`
 
-### What the user sees after connecting
+### What gets scaffolded (per project type)
 
-Dashboard transitions from empty state to **transitional state**:
-
-```
-┌──────────────────────────────────────────────────────┐
-│              Dashboard                                │
-│                                                      │
-│  Your platforms are syncing. Agents will appear      │
-│  here automatically.                                 │
-│                                                      │
-│      [✓ slack]  [✓ gmail]                            │
-│                                                      │
-│  ┌ Connect more platforms ─────────────────────────┐ │
-│  │  [notion]  [calendar]                           │ │
-│  └─────────────────────────────────────────────────┘ │
-│                                                      │
-│  [+] Customize synced sources                        │
-│      Add or remove specific channels, labels, pages  │
-│                                                      │
-│  [💬] Ask the Orchestrator                           │
-│       Create or configure agents through conversation │
-└──────────────────────────────────────────────────────┘
-```
-
-### Key differences from V4
-
-- **No source selection step.** Sources auto-selected by `compute_smart_defaults()` at OAuth callback time.
-- **User lands on dashboard**, not context page. They see progress, not a form.
-- **"Customize synced sources"** is an optional refinement link, not a prerequisite CTA.
-- **"Connect more platforms"** is surfaced directly in the transitional state.
+| Type Key | Project Title | Member Agent | PM | First Run |
+|----------|--------------|-------------|-----|-----------|
+| `slack_digest` | Slack Recap | Slack Agent (digest/platform) | PM: Slack Recap | Immediate |
+| `gmail_digest` | Gmail Recap | Gmail Agent (digest/platform) | PM: Gmail Recap | Immediate |
+| `notion_digest` | Notion Recap | Notion Agent (digest/platform) | PM: Notion Recap | Immediate |
 
 ### Source curation (optional)
 
-Users who want to change which sources are synced can visit `/context/{platform}` at any time. The context page shows auto-selected sources with checkboxes to add/remove. This is the same UI as before — just no longer the first-time entry point.
-
-### Composer follow-up (ADR-111)
-
-After bootstrap creates the initial agent, the Composer assesses the full substrate on the next heartbeat and may:
-- Suggest additional agents (shown in Composer Activity feed)
-- Auto-create high-confidence agents (with "Auto" badge)
-- Surface these actions on the Dashboard's Composer Activity section
+Users can refine which sources are synced at `/context/{platform}` at any time. This is an escape hatch, not a prerequisite.
 
 ---
 
-## Stage 2b: Orchestrator Path (Chat → Create → Supervise)
+## Stage 2b: Orchestrator Path (Chat → Create Project → Meeting Room)
 
 ### Flow
 
-1. **User clicks "Ask the Orchestrator"** → navigates to `/orchestrator`
-2. **User describes intent** in natural language: "Track AI agent market developments weekly"
-3. **TP infers** skill + scope + trigger from the prompt → creates agent via `CreateAgent` primitive
-4. **Agent appears on Dashboard** → health grid shows the new agent
-5. **First run** executes on schedule (or immediately if user requests)
+1. **User clicks a card** in the Orchestrator empty state → message sent to TP
+2. **For platform cards**: TP calls `CreateProject(type_key="slack_digest")` → deterministic scaffolding, same as bootstrap
+3. **For "New Project" card**: TP calls `CreateProject(title="...", objective={...})` → creates project with PM, user provides contributors/context
+4. **Project appears in sidebar** → user navigates to Meeting Room
+
+### Orchestrator empty state cards
+
+```
+SET UP A PROJECT
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Slack Recap   │ │ Gmail Recap  │ │ Notion Recap │ │ New Project  │
+│ Daily summary │ │ Daily recap  │ │ Daily recap  │ │ Start from   │
+│ of channels   │ │ of labels    │ │ of pages     │ │ scratch      │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+
+OR ASK DIRECTLY
+┌──────────────┐ ┌──────────────┐
+│ Search        │ │ Web research │
+│ platforms     │ │              │
+└──────────────┘ └──────────────┘
+```
+
+**Design principles:**
+- Platform cards are 1:1 with `PROJECT_TYPE_REGISTRY` entries. No aspirational cards without registry backing.
+- "New Project" routes to TP chat which creates the project and points user to the Meeting Room.
+- Capability cards (Search, Web research) are orthogonal to project creation — utility actions.
+- The plus menu "Create project" action shows the same 4 project cards.
 
 ### When to suggest platforms
 
-If a user creates a platform-dependent agent via chat (e.g., "summarize my Slack channels") but has no platforms connected, TP should:
-- Explain that the agent needs Slack access to read channels
-- Offer to connect Slack (link to `/context/slack`)
-- Create the agent in `paused` state pending platform connection
-
-This is a natural conversation — not a modal or blocker.
+If a user creates a platform-dependent project via "New Project" but has no platforms connected, TP should:
+- Explain that the project needs platform access
+- Offer to connect the relevant platform
+- Create the project in a pending state
 
 ---
 
-## Stage 3: Supervision (Returning User)
+## Stage 3: Meeting Room (Post-Creation)
+
+### Project-level onboarding
+
+After project creation, the user lands in the Meeting Room (`/projects/{slug}`). This is where the 60-second magic happens — not in TP chat.
+
+For **platform projects** (bootstrap/template): The project is fully scaffolded. First run is executing or complete. The Meeting Room shows the first output in the timeline.
+
+For **custom projects** (New Project): The Meeting Room is empty. The first-run experience should guide the user to share context and clarify objectives with PM. The conversation IS the onboarding — PM extracts both objective refinement and context from the user's first messages.
+
+### Three-tab architecture (ADR-124)
+
+- **Meeting Room**: Chat with PM + contributor agents, activity timeline
+- **Context**: Workspace file browser
+- **Settings**: Objective, contributors, delivery, schedule
+
+---
+
+## Stage 4: Supervision (Returning User)
 
 ### Dashboard states (progressive)
 
 | State | Condition | Display |
 |-------|-----------|---------|
-| **Empty** | No platforms, no agents | Two-path welcome (platform OAuth cards + Orchestrator) |
-| **Transitional** | Platforms connected, no agents | Connected platforms + syncing message + connect more + customize sources (optional) |
-| **Active** | 1+ agents | Full supervision dashboard (health grid, stats, Composer activity, attention) |
+| **Empty** | No platforms, no projects | Two-path welcome (OAuth cards + Orchestrator) |
+| **Transitional** | Platforms connected, no projects yet | Connected platforms + syncing + connect more |
+| **Active** | 1+ projects | Supervision dashboard (project health, stats, Composer activity) |
 
 ### What the active dashboard shows
 
-See [SUPERVISION-DASHBOARD.md](SUPERVISION-DASHBOARD.md) for full specification:
-- **Agent Health Grid**: maturity badges, edit trend arrows, approval rates, last run time
-- **Summary Stats**: active agents, runs this week, maturity distribution
-- **Composer Activity Feed**: auto-created agents, paused agents, observations
-- **Attention Banners**: auto-paused agents, failed runs
-
-### Origin labeling
-
-All non-user-created agents show a single **"Auto"** badge regardless of internal origin (`system_bootstrap`, `composer`, `coordinator_created`). This keeps the UI clean — users don't need to know the internal mechanism that created an agent.
+See [SUPERVISION-DASHBOARD.md](SUPERVISION-DASHBOARD.md) for full specification.
 
 ---
 
@@ -195,55 +197,60 @@ All non-user-created agents show a single **"Auto"** badge regardless of interna
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| Dashboard page | `web/app/(authenticated)/dashboard/page.tsx` | Empty state + transitional + supervision views |
-| Orchestrator page | `web/app/(authenticated)/orchestrator/page.tsx` | TP chat (moved from /dashboard in v3) |
-| Context pages | `web/app/(authenticated)/context/` | Source refinement (no longer first-time entry point) |
-| `PlatformIcons` | `web/components/ui/PlatformIcons.tsx` | Platform icon rendering |
+| Dashboard | `web/app/(authenticated)/dashboard/page.tsx` | Empty + transitional + supervision |
+| Orchestrator | `web/components/desk/ChatFirstDesk.tsx` | 3+1 project cards + capability cards + bootstrap banner |
+| Meeting Room | `web/app/(authenticated)/projects/[slug]/page.tsx` | Project surface (ADR-124) |
+| Projects list | `web/app/(authenticated)/projects/page.tsx` | All projects |
+| Context pages | `web/app/(authenticated)/context/` | Source refinement (optional) |
 
 ### Backend
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/dashboard/summary` | Dashboard payload: agents, Composer actions, attention, connected platforms, stats |
-| `GET /integrations/{provider}/callback` | OAuth callback: stores tokens + auto-discovers landscape + auto-selects sources + kicks off sync (ADR-113) |
-| `GET /integrations/{provider}/landscape` | Discover resources + recommended flag (also auto-selects if no prior selection) |
-| `PUT /integrations/{provider}/sources` | Save selected sources (for manual refinement) |
-| `POST /integrations/{provider}/sync` | Trigger on-demand sync |
-| Onboarding bootstrap | Auto-creates digest agent post-sync (ADR-110) |
-| Composer heartbeat | Assesses substrate, suggests/creates agents (ADR-111) |
+| Component | Purpose |
+|-----------|---------|
+| `scaffold_project()` | Unified project creation (ADR-122) — all flows use this |
+| `maybe_bootstrap_project()` | Post-sync bootstrap check + scaffold (ADR-110/122) |
+| `CreateProject` primitive | TP/headless project creation → delegates to `scaffold_project()` |
+| `PROJECT_TYPE_REGISTRY` | Curated project type definitions (ADR-122) |
+| Composer heartbeat | Assesses substrate, suggests/creates projects (ADR-111/120) |
 
 ### Data flow
 
 ```
 Dashboard (empty state)
-  ├─ Path A: Platform → OAuth → callback auto-discovers + auto-selects + starts sync
-  │    → /dashboard (transitional) → sync completes → bootstrap → first agent + first run
-  │    → dashboard (active) → Composer heartbeat → additional agents
+  ├─ Path A: Platform → OAuth → callback → auto-sync
+  │    → /dashboard (transitional) → sync completes
+  │    → maybe_bootstrap_project() → scaffold_project(type_key)
+  │    → project + member agent + PM + first run
+  │    → Orchestrator bootstrap banner → "View project →"
+  │    → Meeting Room (/projects/{slug})
   │
-  └─ Path B: Orchestrator → /orchestrator → chat → CreateAgent
-       → agent created → dashboard (active) → first run on schedule
+  └─ Path B: Orchestrator → click card → TP chat
+       → CreateProject(type_key or custom) → scaffold_project()
+       → project appears in sidebar → Meeting Room
 ```
 
 ---
 
-## Differences from V4
+## Differences from V5
 
-| Aspect | V4 | V5 (ADR-113) |
+| Aspect | V5 | V6 (ADR-122/124) |
 |--------|----|----|
-| Post-OAuth redirect | `/context/{platform}` → manual source selection | `/dashboard` → see progress |
-| Source selection | Prerequisite (manual) | Auto (smart defaults), manual = optional refinement |
-| First sync trigger | After user saves source selection | Immediately at OAuth callback |
-| Dashboard platform cards | Navigate to context page | Trigger OAuth directly |
-| Transitional state CTA | "Select sources to sync" | "Customize synced sources" (optional) |
-| Time-to-first-sync | User-dependent (requires manual action) | Seconds after OAuth callback |
+| Primary unit | Agents | Projects (agents are members inside) |
+| Bootstrap creates | Standalone digest agent | Project with member agent + PM |
+| Bootstrap banner links to | `/agents/{id}` | `/projects/{slug}` (Meeting Room) |
+| Orchestrator cards | 6 project templates (3 aspirational) + 3 capability | 3 registry-backed + 1 blank + 2 capability |
+| Post-creation surface | Agent drawer | Meeting Room (group chat with agents) |
+| Context/objective refinement | TP chat | Meeting Room (PM conversation) |
+| Dashboard supervision | Agent health grid | Project health |
+| Composer actions | Creates agents | Creates projects (ADR-120 Phase 5) |
 
 ---
 
 ## References
 
 - [Supervision Dashboard](SUPERVISION-DASHBOARD.md)
-- [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md)
-- [ADR-057: Streamlined Onboarding](../adr/ADR-057-streamlined-onboarding-gated-sync.md)
 - [ADR-110: Onboarding Bootstrap](../adr/ADR-110-onboarding-bootstrap.md)
-- [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md)
 - [ADR-113: Auto Source Selection](../adr/ADR-113-auto-source-selection.md)
+- [ADR-119: Workspace Filesystem](../adr/ADR-119-workspace-filesystem.md)
+- [ADR-122: Project Type Registry](../adr/ADR-122-project-type-registry.md)
+- [ADR-124: Project Meeting Room](../adr/ADR-124-project-meeting-room.md)
