@@ -227,6 +227,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     Deletes:
     - workspace_files (all paths — agents, projects, knowledge, memory)
     - agents table (cascades agent_runs, export prefs, delivery logs)
+    - chat_sessions (cascades session_messages)
     - work_units, render_usage, activity_log
     - agent_proposals, agent_context_log
     """
@@ -245,6 +246,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         deleted["agent_context_log"] = _delete_rows(client, "agent_context_log", user_id, optional=True)
         deleted["work_units"] = _delete_rows(client, "work_units", user_id, optional=True)
         deleted["render_usage"] = _delete_rows(client, "render_usage", user_id, optional=True)
+        deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
         deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
         deleted["user_interaction_patterns"] = _delete_rows(client, "user_interaction_patterns", user_id, optional=True)
         deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
