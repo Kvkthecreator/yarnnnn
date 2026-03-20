@@ -1,13 +1,14 @@
 # Agent Framework: Scope × Role × Trigger
 
 **Status:** Canonical
-**Date:** 2026-03-12 (updated 2026-03-17: `skill` axis renamed to `role` per ADR-118 Resolved Decision #4 — eliminates naming overload with output gateway skills)
+**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies
 - [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem, three storage domains
 - [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — agent discovery, cross-agent reading, agent cards, MCP exposure
+- [ADR-126: Agent Pulse — Autonomous Awareness Engine](../adr/ADR-126-agent-pulse.md) — pulse model, role-based cadence, three-tier funnel
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md)
 - [Analysis: Agent Taxonomy First Principles](../analysis/agent-taxonomy-first-principles-2026-03-12.md) — full discourse and stress-testing
@@ -143,7 +144,7 @@ An act-role agent with `auto_approve: false` operates at "staged" level. Same ag
 
 ## Axis 3: Trigger — When the agent acts
 
-Trigger determines **scheduler behavior** and **execution lifecycle**. Preserved from ADR-092's mode taxonomy — renamed for industry alignment.
+Trigger determines **execution lifecycle**. Preserved from ADR-092's mode taxonomy — renamed for industry alignment.
 
 | Trigger | Character | Execution | Memory Role |
 |---------|-----------|-----------|-------------|
@@ -151,9 +152,9 @@ Trigger determines **scheduler behavior** and **execution lifecycle**. Preserved
 | **goal** | Project | Fixed schedule, stops when objective complete | Goal progress, milestone tracking |
 | **reactive** | On-call | Event-driven, accumulates observations, generates at threshold | Agent-authored event observations |
 | **proactive** | Living specialist | Periodic self-review, generates when conditions warrant | Self-authored domain review log |
-| **coordinator** | Meta-specialist | Periodic review via Composer (ADR-111) | Review log + lifecycle signals |
+| **coordinator** | Meta-specialist | Periodic review, project coordination | Review log + lifecycle signals |
 
-> **Note on `coordinator` trigger**: This trigger mode subjects the agent to Composer's supervisory review cycle. Composer (a backend service, not an agent) manages fleet-level decisions: creating agents, pausing underperformers, proposing projects. The coordinator trigger is how an agent signals that it participates in this supervisory loop — it does NOT mean the agent itself orchestrates other agents.
+> **ADR-126 Note — Pulse generalizes self-assessment**: Prior to ADR-126, only proactive/coordinator agents had self-assessment capability (via `proactive_review.py`). The Agent Pulse engine generalizes sensing to ALL agents. Every agent pulses on a role-based cadence — the trigger mode now governs the *flavor* of decision (recurring agents decide "generate or wait"; proactive agents decide "generate, observe, wait, or escalate") but the sensing mechanism is universal. See [Pulse — How agents sense](#pulse--how-agents-sense-adr-126) below.
 
 Trigger is important but operational — it governs scheduling, not identity. An agent's character is defined by its Scope × Role; its lifecycle is governed by its Trigger.
 
@@ -379,6 +380,64 @@ Key insight: A digest agent's **monitor duty** gets skill access; its **digest d
 
 ---
 
+## Pulse — How agents sense (ADR-126)
+
+Every agent has a **pulse**: an autonomous sense→decide cycle that is upstream of execution. The pulse is the mechanism of agency — it fires on a cadence, senses the agent's domain, and produces a decision.
+
+### Pulse decision taxonomy
+
+| Decision | Meaning | What happens |
+|----------|---------|-------------|
+| **generate** | Conditions warrant output | Dispatched to full generation pipeline |
+| **observe** | Interesting signal, not yet actionable | Observations written to workspace, no generation |
+| **wait** | Nothing to do, or explicitly deferring | Next pulse scheduled, no action |
+| **escalate** | Agent needs Composer attention | Logged for Composer's portfolio heuristics |
+
+### Three-tier funnel (cheap-first)
+
+| Tier | Resolver | Cost | Who |
+|------|----------|------|-----|
+| **Tier 1** | Deterministic gates | Zero LLM | All agents |
+| **Tier 2** | Agent self-assessment (Haiku) | ~200 tokens | Associate+ seniority only |
+| **Tier 3** | PM coordination pulse | ~500 tokens | PM agents only |
+
+Tier 1 resolves ~80% of pulses: first run → generate, budget exhausted → wait, no fresh content → wait, reactive threshold not met → wait. Only when Tier 1 passes do more expensive tiers engage.
+
+### Role-based pulse cadence
+
+The role defines the natural sensing pace — think personification. A monitor is a watchdog (senses frequently). A digest summarizes on rhythm (senses daily). Pulse cadence is independent of delivery schedule: an agent can sense every 15 minutes but deliver daily.
+
+| Role | Default Cadence | Character |
+|------|----------------|-----------|
+| **monitor** | 15 min | Watchdog — always alert |
+| **pm** | 30 min | Coordinator — responsive to contributor output |
+| **digest** | 12 hours | Summarizer — senses twice per delivery cycle |
+| **prepare** | 12 hours | Pre-meeting worker — senses twice daily |
+| **synthesize** | schedule | Pattern-finder — senses on delivery rhythm |
+| **research** | schedule | Investigator — senses on schedule |
+| **custom** | schedule | User-defined — conservative default |
+
+"Schedule" means the agent pulses on its configured delivery frequency (daily, weekly, etc.).
+
+Registry: `ROLE_PULSE_CADENCE` in `api/services/agent_framework.py`.
+Engine: `api/services/agent_pulse.py`.
+
+### Key separations
+
+- **Pulse** = awareness event (always happens on cadence) — `agent_pulsed` activity_log event
+- **Run** = execution event (only on "generate" decision) — `agent_generated` activity_log event
+- **Schedule** = delivery cadence (project-level, PM-coordinated) — in PROJECT.md
+
+### Visibility
+
+Pulse events (`agent_pulsed`, `pm_pulsed`) make agent thinking visible between runs. They appear in:
+- Project meeting room timelines (ADR-124)
+- Agent detail pages (pulse history)
+- Dashboard (pulse-derived health)
+- Composer portfolio heuristics (escalation detection)
+
+---
+
 ## Execution Strategies by Scope
 
 ```python
@@ -531,7 +590,8 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 | Concern | Location |
 |---------|----------|
 | This document | `docs/architecture/agent-framework.md` |
-| Role portfolios & seniority | `api/services/agent_framework.py` (ADR-117 Phase 3) |
+| Role portfolios, seniority & pulse cadence | `api/services/agent_framework.py` (ADR-117 Phase 3, ADR-126 Phase 5) |
+| Pulse engine | `api/services/agent_pulse.py` (ADR-126) |
 | Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Primitive registry | `api/services/primitives/registry.py` |

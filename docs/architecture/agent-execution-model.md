@@ -74,16 +74,16 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 - Generate agent content from gathered context
 - Investigate supplementary context via primitives when the gathered context is insufficient
 - Produce structured, formatted output following type-specific templates
-- For `proactive` and `coordinator` modes (ADR-092): execute a **review pass** — assess domain, return `generate / observe / create_child / advance_schedule / sleep` rather than content
+- Via the **unified pulse** (ADR-126): all agents pulse via `agent_pulse.py`. Tier 1 applies deterministic gates (fresh content, budget, cooldown). Tier 2 (associate+ seniority) runs a Haiku self-assessment. Decisions are `generate | observe | wait | escalate`. Proactive self-assessment is generalized to all agents via Tier 2 — not limited to specific modes.
 
 **Headless mode explicitly does NOT:**
 - Hold session state or conversation history
 - Know about delivery, retention, or version management — that is orchestration
 
-**ADR-092 extension — coordinator/proactive write primitives:**
-Coordinator and proactive modes add two headless-only write primitives, scoped exclusively to orchestration actions:
+**Coordinator/orchestration write primitives (headless only):**
+Two headless-only write primitives, scoped exclusively to orchestration actions:
 - `CreateAgent` — creates a child agent with `origin=coordinator_created`; headless only
-- `AdvanceAgentSchedule` — advances another agent's `next_run_at` to now; headless only
+- `AdvanceAgentSchedule` — advances another agent's `next_pulse_at` to now; headless only
 
 These are not available in chat mode. TP currently creates agents via the Write primitive (`ref="agent:new"`, chat-only). The coordinator's CreateAgent and TP's Write are separate implementations with different defaults and mode gates.
 

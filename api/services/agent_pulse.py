@@ -584,19 +584,23 @@ async def _apply_pulse_decision(client, agent: dict, decision: PulseDecision) ->
 
 def calculate_next_pulse_at(agent: dict, decision: PulseDecision) -> datetime:
     """
-    Compute the next pulse time based on decision, mode, and schedule.
+    Compute the next pulse time based on role cadence and decision.
 
-    - 'wait' with 'until' metadata: use the deferred time
-    - Default: use schedule-derived cadence (same as current next_pulse_at logic)
+    Priority:
+    1. 'wait' with 'until' metadata → deferred time (pulse explicitly chose to wait)
+    2. Role-based cadence from ROLE_PULSE_CADENCE → the natural sensing pace for this role
+    3. Schedule-derived cadence → fallback for roles with cadence="schedule"
+    4. 24h fallback
 
-    Note: Seniority-based cadence evolution (Phase 5) will adjust this further.
-    For now, all agents pulse on their schedule cadence.
+    ADR-126 Phase 5: Pulse cadence is role-based, not seniority-based.
+    A monitor senses every 15 min because it's a watchdog — not because it's senior.
+    A digest senses every 12h because it summarizes on rhythm — regardless of tenure.
     """
-    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
+    from services.agent_framework import get_pulse_cadence
 
     now = datetime.now(timezone.utc)
 
-    # If decision includes a deferred time
+    # 1. Decision-deferred time (pulse explicitly chose to wait until X)
     until = decision.metadata.get("until")
     if until and decision.action == "wait":
         try:
@@ -606,10 +610,18 @@ def calculate_next_pulse_at(agent: dict, decision: PulseDecision) -> datetime:
         except (ValueError, TypeError):
             pass
 
-    # Default: schedule-derived cadence
+    # 2. Role-based cadence
+    role = agent.get("role", "custom")
+    cadence = get_pulse_cadence(role)
+
+    if isinstance(cadence, timedelta):
+        return now + cadence
+
+    # 3. cadence == "schedule" → use the agent's configured schedule
+    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
     schedule = agent.get("schedule", {})
     if schedule:
         return calculate_next_pulse_from_schedule(schedule)
 
-    # Fallback: 24 hours from now
+    # 4. Fallback: 24 hours from now
     return now + timedelta(hours=24)

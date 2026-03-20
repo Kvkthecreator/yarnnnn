@@ -83,7 +83,7 @@ Users without platform connections can still provide rich context via documents 
 |-----------|---------|-------|
 | **CreateAgent** | Create new agent (unified path via `create_agent_record()`) | chat, headless |
 | **CreateProject** | Create project (with `type_key` → `scaffold_project()` for platform types) | chat, headless |
-| **AdvanceAgentSchedule** | Set agent's next_run_at to now | headless |
+| **AdvanceAgentSchedule** | Set agent's next_pulse_at to now | headless |
 
 ### Agent Workspace (ADR-106, ADR-116)
 
@@ -181,7 +181,7 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | `schedule` | JSONB | `{frequency, day, time, timezone}` | ✓ Frequency |
 | `sources` | JSONB[] | Data source configs | — |
 | `destination` | JSONB | `{platform, target}` | — |
-| `next_run_at` | timestamp | Next scheduled run | — |
+| `next_pulse_at` | timestamp | Next scheduled pulse | — |
 | `agent_instructions` | TEXT | Agent behavioral instructions (user-editable) | — |
 | `agent_memory` | JSONB | `{observations: [{date, source, note}], goal: {description, status, milestones}}` | — |
 

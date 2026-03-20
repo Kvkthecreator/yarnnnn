@@ -1,6 +1,6 @@
 # Scheduler Evolution — From Top-Down Scheduler to Pulse Dispatcher
 
-> **Status**: Design plan, pending implementation
+> **Status**: Phases 1-4 Implemented. Phase 5 (cadence evolution) implemented.
 > **Date**: 2026-03-20
 > **Authors**: KVK, Claude
 > **Scope**: Evolution path for `unified_scheduler.py` and `composer.py` under ADR-126

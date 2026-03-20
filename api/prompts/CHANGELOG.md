@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.10] - ADR-126 Phase 5: Role-based pulse cadence + Composer pulse integration
+
+### Changed
+- `api/services/agent_framework.py`: Added `ROLE_PULSE_CADENCE` registry — role-based sensing frequency (monitor=15min, pm=30min, digest=12h, synthesize/research/custom=schedule-derived). Added `get_pulse_cadence()` accessor.
+- `api/services/agent_pulse.py`: `calculate_next_pulse_at()` now uses role cadence from `ROLE_PULSE_CADENCE` instead of always using schedule. Fixed-interval roles (monitor, pm, digest, prepare) pulse independently of delivery schedule.
+- `api/services/composer.py`: `heartbeat_data_query()` replaced N+1 per-agent `agent_runs` queries with (a) single batch query for maturity signals and (b) pulse event read from `activity_log` for agent health. Added `pulse_health` to assessment dict. `should_composer_act()` gained `pulse_escalation` heuristic (reads `agent_pulsed` escalation events), replaced `stale_agents` heuristic (agents now self-report via pulse).
+- `api/services/agent_creation.py`, `api/services/project_registry.py`: Migrated from `calculate_next_run_from_schedule` to `calculate_next_pulse_from_schedule`.
+- `api/jobs/unified_scheduler.py`: Deleted backwards-compat alias `calculate_next_run_from_schedule`.
+- Architecture docs: 6 docs updated to replace `next_run_at` → `next_pulse_at`, pre-pulse scheduler descriptions → pulse dispatcher model.
+- `docs/architecture/agent-framework.md`: Added full Pulse section (three-tier funnel, role cadence table, decision taxonomy, visibility model). Updated Trigger axis with ADR-126 generalization note.
+
+### Expected behavior
+- Monitor agents pulse every 15 min, PM agents every 30 min — regardless of delivery schedule
+- Digest/prepare agents pulse every 12h (twice per daily delivery cycle)
+- Synthesize/research/custom agents pulse on their configured schedule
+- Composer reads agent pulse events for escalation detection instead of computing staleness top-down
+- Maturity computation is batch (1 query per user) instead of N+1 per agent
+
+---
+
 ## [2026.03.20.9] - ADR-126: Agent Pulse implementation — Phases 1-4
 
 ### Changed

@@ -137,10 +137,6 @@ def calculate_next_pulse_from_schedule(schedule: dict, from_time: Optional[datet
     return next_run.astimezone(timezone.utc)
 
 
-# Backwards-compat alias — callers being migrated to new name
-calculate_next_run_from_schedule = calculate_next_pulse_from_schedule
-
-
 def format_schedule_description(schedule: dict) -> str:
     """Format schedule as human-readable string."""
     frequency = schedule.get("frequency", "weekly")

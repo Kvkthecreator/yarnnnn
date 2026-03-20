@@ -255,91 +255,103 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     except Exception as e:
         logger.warning(f"[COMPOSER] Feedback query failed: {e}")
 
-    # 7. ADR-111 Phase 5: Per-agent maturity signals
-    # Run count, approval rate, edit distance trend, tenure
+    # 7. ADR-126: Agent health from pulse events + lightweight maturity
+    # Instead of N+1 per-agent queries on agent_runs (old approach), we:
+    # (a) Read recent pulse events from activity_log — agents self-report health
+    # (b) Single batch query for run counts + approval rates (maturity still needed
+    #     for duty promotion heuristics in should_composer_act)
     maturity_signals = []
+    pulse_health = {
+        "recent_pulses": [],        # Last 24h of agent_pulsed events
+        "escalations": [],          # Agents that pulsed "escalate"
+        "waiting": [],              # Agents that pulsed "wait"
+        "generating": [],           # Agents that pulsed "generate"
+    }
     try:
-        for agent in active_agents:
-            aid = agent["id"]
-            runs_result = (
+        # (a) Read recent pulse events — single query, all agents
+        day_ago = (now - timedelta(days=1)).isoformat()
+        pulse_result = (
+            client.table("activity_log")
+            .select("event_ref, metadata, created_at, summary")
+            .eq("user_id", user_id)
+            .in_("event_type", ["agent_pulsed", "pm_pulsed"])
+            .gte("created_at", day_ago)
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        )
+        for pe in (pulse_result.data or []):
+            meta = pe.get("metadata") or {}
+            pulse_health["recent_pulses"].append(pe)
+            action = meta.get("action", "")
+            if action == "escalate":
+                pulse_health["escalations"].append(pe)
+            elif action == "wait":
+                pulse_health["waiting"].append(pe)
+            elif action == "generate":
+                pulse_health["generating"].append(pe)
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Pulse event query failed: {e}")
+
+    try:
+        # (b) Lightweight maturity: single batch query for all agent run counts
+        # This replaces the old N+1 per-agent query with one query per user
+        agent_ids = [a["id"] for a in active_agents]
+        if agent_ids:
+            all_runs = (
                 client.table("agent_runs")
-                .select("status, edit_distance_score, approved_at, created_at")
-                .eq("agent_id", aid)
-                .order("created_at", desc=True)
-                .limit(20)
+                .select("agent_id, status")
+                .in_("agent_id", agent_ids)
+                .in_("status", ["approved", "delivered", "rejected"])
                 .execute()
             )
-            runs = runs_result.data or []
-            total_runs = len(runs)
+            # Aggregate per agent
+            from collections import Counter
+            agent_run_counts: dict[str, Counter] = {}
+            for r in (all_runs.data or []):
+                aid = r["agent_id"]
+                if aid not in agent_run_counts:
+                    agent_run_counts[aid] = Counter()
+                agent_run_counts[aid][r["status"]] += 1
 
-            if total_runs == 0:
+            for agent in active_agents:
+                aid = agent["id"]
+                counts = agent_run_counts.get(aid, Counter())
+                total_runs = sum(counts.values())
+
+                if total_runs == 0:
+                    maturity_signals.append({
+                        "agent_id": aid,
+                        "title": agent["title"],
+                        "role": agent.get("role"),
+                        "scope": agent.get("scope"),
+                        "origin": agent.get("origin"),
+                        "total_runs": 0,
+                        "maturity": "new",
+                    })
+                    continue
+
+                # Weighted approval: explicit=1.0, auto-delivered=0.5
+                weighted = counts.get("approved", 0) + (counts.get("delivered", 0) * 0.5)
+                approval_rate = weighted / total_runs if total_runs > 0 else 0.0
+                maturity = classify_seniority(total_runs, approval_rate)
+                is_underperformer = total_runs >= 5 and approval_rate < 0.4
+
                 maturity_signals.append({
                     "agent_id": aid,
                     "title": agent["title"],
                     "role": agent.get("role"),
                     "scope": agent.get("scope"),
                     "origin": agent.get("origin"),
-                    "total_runs": 0,
-                    "maturity": "new",
+                    "duties": agent.get("duties"),
+                    "total_runs": total_runs,
+                    "approval_rate": round(approval_rate, 2),
+                    "maturity": maturity,
+                    "is_underperformer": is_underperformer,
                 })
-                continue
-
-            # Approval rate: weighted signal from explicit approval vs auto-delivery
-            # Explicit approval (user reviewed and approved) = full trust signal
-            # Delivered (auto-delivered, never reviewed) = partial signal (0.5 weight)
-            # This prevents maturity inflation from unreviewed outputs
-            completed = [r for r in runs if r.get("status") in ("approved", "delivered", "rejected")]
-            explicitly_approved = len([r for r in runs if r.get("status") == "approved"])
-            auto_delivered = len([r for r in runs if r.get("status") == "delivered"])
-            rejected = len([r for r in runs if r.get("status") == "rejected"])
-            if completed:
-                weighted_approvals = explicitly_approved + (auto_delivered * 0.5)
-                approval_rate = weighted_approvals / len(completed)
-            else:
-                approval_rate = 0.0
-
-            # Edit distance trend: are edits decreasing? (convergence = agent improving)
-            distances = [
-                r["edit_distance_score"] for r in runs
-                if r.get("edit_distance_score") is not None
-            ]
-            edit_trend = None  # None = insufficient data
-            if len(distances) >= 3:
-                recent_avg = sum(distances[:3]) / 3
-                older_avg = sum(distances[3:min(6, len(distances))]) / max(1, min(3, len(distances) - 3))
-                if older_avg > 0:
-                    # Negative = improving (less editing needed), positive = degrading
-                    edit_trend = (recent_avg - older_avg) / older_avg
-
-            # Tenure: days since agent created
-            tenure_days = 0
-            created_at = agent.get("created_at", "")
-            try:
-                created_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                tenure_days = (now - created_dt).days
-            except (ValueError, TypeError):
-                pass
-
-            # Classify seniority level (ADR-117 Phase 3)
-            maturity = classify_seniority(total_runs, approval_rate)
-
-            # Underperformer detection: 5+ runs with <40% approval
-            is_underperformer = total_runs >= 5 and approval_rate < 0.4
-
-            maturity_signals.append({
-                "agent_id": aid,
-                "title": agent["title"],
-                "role": agent.get("role"),
-                "scope": agent.get("scope"),
-                "origin": agent.get("origin"),
-                "duties": agent.get("duties"),  # ADR-117 Phase 3
-                "total_runs": total_runs,
-                "approval_rate": round(approval_rate, 2),
-                "edit_trend": round(edit_trend, 2) if edit_trend is not None else None,
-                "tenure_days": tenure_days,
-                "maturity": maturity,
-                "is_underperformer": is_underperformer,
-            })
+        else:
+            # No active agents — no maturity to compute
+            pass
     except Exception as e:
         logger.warning(f"[COMPOSER] Maturity signal query failed: {e}")
 
@@ -554,6 +566,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "agent_graph": agent_graph,  # ADR-116 Phase 5
         "projects": projects_health,  # ADR-120 Phase 1
         "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
+        "pulse_health": pulse_health,  # ADR-126: agent self-reported health from pulse events
     }
 
 
@@ -595,16 +608,16 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     if not assessment["tier"]["can_create"]:
         return False, "HEARTBEAT_OK: at tier agent limit"
 
+    # ADR-126: Pulse escalations — agents asking for Composer attention
+    escalations = assessment.get("pulse_health", {}).get("escalations", [])
+    if escalations:
+        agent_refs = list(set(e.get("event_ref", "?") for e in escalations))[:3]
+        return True, f"pulse_escalation: {len(escalations)} agent(s) escalated in last 24h: {agent_refs}"
+
     # Coverage gap: platform connected but no project covering it (ADR-122)
     gaps = assessment["coverage"]["platforms_without_coverage"]
     if gaps:
         return True, f"coverage_gap: platforms without project coverage: {gaps}"
-
-    # Stale agents worth investigating
-    stale = assessment["health"]["stale_agents"]
-    if len(stale) >= 2:
-        titles = [a["title"] for a in stale[:3]]
-        return True, f"stale_agents: {len(stale)} agents haven't run recently: {titles}"
 
     # Multi-platform opportunity: 2+ platforms connected but no cross-platform agent
     if len(assessment["connected_platforms"]) >= 2:

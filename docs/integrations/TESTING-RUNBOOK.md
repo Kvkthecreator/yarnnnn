@@ -120,12 +120,12 @@ Trigger a agent run to test the full pipeline: content generation → Resend ema
 
 ### Setup
 ```bash
-# Set next_run_at to now (and optionally clear last_run_at to bypass freshness check)
+# Set next_pulse_at to now (and optionally clear last_run_at to bypass freshness check)
 psql "$CONN_STRING" -c "
 UPDATE agents
-SET next_run_at = NOW(), last_run_at = NULL
+SET next_pulse_at = NOW(), last_run_at = NULL
 WHERE id = '{DELIVERABLE_ID}'
-RETURNING id, title, next_run_at, destination;
+RETURNING id, title, next_pulse_at, destination;
 "
 ```
 

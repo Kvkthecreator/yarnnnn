@@ -126,7 +126,7 @@ async def create_agent_record(
         {"success": True, "agent_id": str, "agent": dict, "message": str}
         or {"success": False, "error": str, "message": str}
     """
-    from jobs.unified_scheduler import calculate_next_run_from_schedule
+    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
 
     if not title or not title.strip():
         return {"success": False, "error": "missing_title", "message": "title is required"}
@@ -160,8 +160,8 @@ async def create_agent_record(
     if execute_now:
         next_pulse_at = now.isoformat()
     else:
-        next_run = calculate_next_run_from_schedule(sched)
-        next_pulse_at = next_run.isoformat()
+        next_pulse = calculate_next_pulse_from_schedule(sched)
+        next_pulse_at = next_pulse.isoformat()
 
     # Resolve instructions
     instructions_text = agent_instructions

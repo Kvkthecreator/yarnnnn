@@ -1,9 +1,9 @@
 """
-Agent Framework — ADR-117 Phase 3: Role Portfolios, Seniority & Duties
+Agent Framework — ADR-117 Phase 3 + ADR-126 Phase 5
 
 Canonical registry for agent development mechanics. Determines what an agent
-can do (duties), what tools it gets (output skills), and when it earns
-expanded responsibilities (seniority progression).
+can do (duties), what tools it gets (output skills), how often it senses
+(pulse cadence), and when it earns expanded responsibilities (seniority).
 
 Key concepts:
   - Role: seed identity, never changes (digest, monitor, research, etc.)
@@ -11,10 +11,12 @@ Key concepts:
   - Seniority: new → associate → senior (derived from feedback history)
   - Role Portfolio: pre-configured career track per role × seniority
   - Output Skills: RuntimeDispatch access per duty role (ADR-118)
+  - Pulse Cadence: role-based sensing frequency (ADR-126)
 
 Canonical reference: docs/architecture/agent-framework.md
 """
 
+from datetime import timedelta
 from typing import Optional
 
 
@@ -25,6 +27,50 @@ from typing import Optional
 # injection and can invoke the render service. Moved here from
 # agent_execution.py to be the single source of truth.
 SKILL_ENABLED_ROLES = frozenset({"synthesize", "research", "monitor", "custom"})
+
+
+# ---------------------------------------------------------------------------
+# Role Pulse Cadence — how often each role type senses (ADR-126 Phase 5)
+# ---------------------------------------------------------------------------
+# The role defines the natural sensing pace. Think personification:
+#   - monitor = watchdog → senses frequently (every 15 min)
+#   - pm = coordinator → needs responsiveness (every 30 min)
+#   - digest = summarizer → senses on daily rhythm
+#   - synthesize = pattern-finder → senses on its delivery rhythm
+#   - research = investigator → senses on its schedule
+#   - prepare = pre-meeting worker → senses on daily rhythm
+#   - custom = user-defined → defaults to schedule-derived
+#
+# pulse_cadence is the MAXIMUM interval between pulses. The agent's schedule
+# (delivery rhythm) may be slower — that's fine. Pulse is about sensing,
+# not generating. An agent that senses every 15 min but delivers daily
+# will pulse frequently (Tier 1: cheap, zero LLM) and only generate
+# when conditions are right.
+#
+# "schedule" means: use the agent's configured schedule as pulse cadence.
+# This is the conservative default — the agent senses as often as it delivers.
+
+ROLE_PULSE_CADENCE: dict[str, timedelta | str] = {
+    "monitor":    timedelta(minutes=15),   # Watchdog — always alert
+    "pm":         timedelta(minutes=30),   # Coordinator — responsive to contributor output
+    "digest":     timedelta(hours=12),     # Summarizer — senses twice per delivery cycle
+    "synthesize": "schedule",              # Pattern-finder — senses on delivery rhythm
+    "research":   "schedule",              # Investigator — senses on schedule
+    "prepare":    timedelta(hours=12),     # Pre-meeting — senses twice daily
+    "custom":     "schedule",              # User-defined — conservative default
+}
+
+# Fallback if role not in registry
+_DEFAULT_PULSE_CADENCE = "schedule"
+
+
+def get_pulse_cadence(role: str) -> timedelta | str:
+    """Return the pulse cadence for a role.
+
+    Returns a timedelta for fixed-interval roles, or "schedule" for
+    roles that pulse on their delivery rhythm.
+    """
+    return ROLE_PULSE_CADENCE.get(role, _DEFAULT_PULSE_CADENCE)
 
 
 # ---------------------------------------------------------------------------

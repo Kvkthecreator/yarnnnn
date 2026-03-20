@@ -273,13 +273,15 @@ Files deleted: `work_execution.py`, `agents/factory.py`, `agents/agent.py`, `rou
 
 | Phase | Frequency | Gate | Feature |
 |-------|-----------|------|---------|
-| Agents | Every 5 min | `next_run_at <= now` | F3 |
+| Agents | Every 5 min | `next_pulse_at <= now` | F3 |
 | Import Jobs | Every 5 min | Pending jobs exist | F8 |
 | Content Cleanup | Hourly (`minute < 5`) | Always | F6 |
 | Weekly Digests | Hourly (`minute < 5`) | Day + hour + tz match | F7 |
 | Memory Extraction | Daily (`hour == 0, minute < 5`) | Always | F4 |
 | Activity Patterns | Daily (`hour == 0, minute < 5`) | Always | F4 |
 | Heartbeat | Every 5 min | Always | Observability |
+
+> **ADR-126 Note**: The scheduler is now a **pulse dispatcher**. Each agent gets its turn to pulse (`next_pulse_at <= now`), and the agent's pulse decides whether to generate, observe, wait, or escalate. The scheduler acts on the decision — it no longer owns the generate decision itself. See `api/services/agent_pulse.py` and [SCHEDULER-EVOLUTION.md](../design/SCHEDULER-EVOLUTION.md).
 
 ---
 

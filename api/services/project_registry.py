@@ -458,9 +458,9 @@ async def scaffold_project(
                     )
                     # Update next_pulse_at to prevent scheduler double-run
                     try:
-                        from jobs.unified_scheduler import calculate_next_run_from_schedule
+                        from jobs.unified_scheduler import calculate_next_pulse_from_schedule
                         agent_schedule = cm["agent"].get("schedule", {})
-                        next_run = calculate_next_run_from_schedule(agent_schedule)
+                        next_run = calculate_next_pulse_from_schedule(agent_schedule)
                         client.table("agents").update({
                             "next_pulse_at": next_run.isoformat(),
                         }).eq("id", cm["agent_id"]).execute()

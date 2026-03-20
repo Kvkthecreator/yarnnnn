@@ -285,16 +285,17 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
               write_activity()            ──► writes Activity (L2)
 
-                    Coordinator/Proactive agent (ADR-092)
+                    Agent Pulse (ADR-126)
                           │
-              Scheduler: proactive_next_review_at
+              Pulse dispatcher: next_pulse_at <= now
                           │
-              Agent (headless mode) — review pass
-               reads platform_content via primitives
+              All agents pulse via agent_pulse.py
+               Tier 1: deterministic gates (fresh content? budget? cooldown?)
+               Tier 2: self-assessment (Haiku, associate+ seniority)
                           │
-         observe / generate / create_child / advance_schedule
+              Decision: generate | observe | wait | escalate
                           │
-         creates child agents       ──► writes Work (L4)
+         On "generate" ──► dispatch_trigger() ──► writes Work (L4)
                           │
          marks consumed content retained  ──► updates Context (L3)
 ```
