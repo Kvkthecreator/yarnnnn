@@ -519,9 +519,13 @@ async def phase5_parse_response() -> PhaseResult:
 # =============================================================================
 
 async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
-    """Verify scheduler DB queries correctly partition agents by mode."""
-    result = PhaseResult("Phase 6: Scheduler query filters")
-    logger.info("\n[Phase 6] Scheduler query filters")
+    """Verify get_due_pulse_agents RPC returns all active agents due for pulse (ADR-126).
+
+    ADR-126: Scheduler queries ALL active agents with next_pulse_at <= now.
+    No mode filter — the pulse engine handles mode-specific logic.
+    """
+    result = PhaseResult("Phase 6: Pulse query (ADR-126)")
+    logger.info("\n[Phase 6] Pulse query — get_due_pulse_agents")
 
     reactive_id = ids["reactive"]
     proactive_id = ids["proactive"]
@@ -529,47 +533,25 @@ async def phase6_scheduler_queries(supabase, ids: dict) -> PhaseResult:
 
     now = datetime.now(timezone.utc).isoformat()
 
-    # --- get_due_agents() query: mode IN ('recurring', 'goal') ---
-    # Reactive/proactive/coordinator should NOT appear
-    due_recurring = (
+    # --- get_due_pulse_agents: ALL active agents with next_pulse_at <= now ---
+    due_pulse = (
         supabase.table("agents")
         .select("id, mode")
         .eq("user_id", TEST_USER_ID)
-        .in_("mode", ["recurring", "goal"])
         .in_("status", ["active"])
         .lte("next_pulse_at", now)
         .execute()
     )
-    due_ids = {r["id"] for r in (due_recurring.data or [])}
-
-    assert_true(result, "reactive NOT in recurring query", reactive_id not in due_ids,
-                f"reactive_id found in recurring query")
-    assert_true(result, "proactive NOT in recurring query", proactive_id not in due_ids,
-                f"proactive_id found in recurring query")
-    assert_true(result, "coordinator NOT in recurring query", coordinator_id not in due_ids,
-                f"coordinator_id found in recurring query")
-
-    # --- get_due_proactive_agents() query: mode IN ('proactive', 'coordinator') ---
-    # with next_pulse_at <= now
-    due_proactive = (
-        supabase.table("agents")
-        .select("id, mode")
-        .eq("user_id", TEST_USER_ID)
-        .in_("mode", ["proactive", "coordinator"])
-        .in_("status", ["active"])
-        .lte("next_pulse_at", now)
-        .execute()
-    )
-    due_proactive_ids = {r["id"] for r in (due_proactive.data or [])}
+    due_pulse_ids = {r["id"] for r in (due_pulse.data or [])}
 
     # Proactive's next_pulse_at was set to now-1h in setup,
-    # but Phase 3 updated it to now+24h — so it should NOT be in results now.
-    # Coordinator's next_pulse_at was set to now-1h in setup
-    # and was not changed in Phase 4, so it SHOULD still be in results.
-    assert_true(result, "coordinator IS in proactive query (review overdue)", coordinator_id in due_proactive_ids,
-                f"coordinator_id not found in proactive query")
-    assert_true(result, "reactive NOT in proactive query", reactive_id not in due_proactive_ids,
-                f"reactive_id found in proactive query")
+    # but Phase 3 updated workspace (not DB next_pulse_at directly) — so it may still be due.
+    # Coordinator's next_pulse_at was set to now-1h in setup and not changed.
+    assert_true(result, "coordinator IS in pulse query (overdue)", coordinator_id in due_pulse_ids,
+                f"coordinator_id not found in pulse query")
+    # Reactive should NOT be in pulse query — it has no next_pulse_at set
+    assert_true(result, "reactive NOT in pulse query (no schedule)", reactive_id not in due_pulse_ids,
+                f"reactive_id found in pulse query — should have no next_pulse_at")
 
     return result
 

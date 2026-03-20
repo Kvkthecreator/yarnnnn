@@ -1,6 +1,6 @@
 # ADR-126: Agent Pulse — Autonomous Awareness Engine
 
-> **Status**: Proposed
+> **Status**: Implemented (Phases 1-4). Phase 5 (cadence evolution) proposed.
 > **Date**: 2026-03-20
 > **Authors**: KVK, Claude
 > **Scope**: Foundational re-architecture of agent execution from top-down scheduling to bottom-up autonomous awareness.
@@ -199,7 +199,7 @@ This is an agent workforce you can **watch living** — not just a list of outpu
 
 ## Phased Implementation
 
-### Phase 1: Agent Pulse Function
+### Phase 1: Agent Pulse Function ✅ Implemented
 
 Generalize `proactive_review.py` + absorb `should_skip_agent()` into a unified `agent_pulse()`:
 
@@ -222,7 +222,7 @@ async def agent_pulse(client, agent: dict) -> PulseDecision:
 - Delete: `proactive_review.py` (singular implementation — no dual approaches)
 - Pulse decision logged to `activity_log` as `agent_pulsed` event
 
-### Phase 2: Scheduler Inversion
+### Phase 2: Scheduler Inversion ✅ Implemented
 
 Rewrite scheduler's agent processing to call `agent_pulse()`:
 
@@ -235,7 +235,7 @@ Rewrite scheduler's agent processing to call `agent_pulse()`:
 
 Schema change: `agents.next_run_at` → `agents.next_pulse_at` (rename, semantics change)
 
-### Phase 3: PM Pulse Formalization
+### Phase 3: PM Pulse Formalization ✅ Implemented
 
 Reframe PM's JSON decision flow as PM pulse:
 
@@ -244,7 +244,9 @@ Reframe PM's JSON decision flow as PM pulse:
 - PM pulse decision logged as `pm_pulsed` event (distinct from `agent_pulsed`)
 - Delete: `_maybe_trigger_project_heartbeat()` name (rename to `trigger_pm_pulse()`)
 
-### Phase 4: Composer Thinning
+### Phase 4: Composer Thinning ✅ Implemented (partial)
+
+Deleted per-agent supervisory review from Composer (`_run_supervisory_review`, `_get_due_supervisory_agents`, Step 4 loop). Composer heartbeat now focuses on workforce composition only. Full heartbeat_data_query simplification (reading pulse events instead of computing maturity) deferred — current maturity signals still useful for Composer's portfolio heuristics.
 
 Replace Composer Heartbeat's 12-dimension assessment with pulse outcome reading:
 
