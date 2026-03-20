@@ -41,6 +41,9 @@ import {
   Folder,
   File,
   Settings,
+  AtSign,
+  BarChart3,
+  Combine,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -48,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
+import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import type {
   ProjectDetail,
   ProjectActivityItem,
@@ -249,6 +253,38 @@ function MeetingRoomTab({
 
   const surface = { type: 'project-detail' as const, projectSlug: slug };
 
+  const plusMenuActions: PlusMenuAction[] = [
+    {
+      id: 'mention-agent',
+      label: 'Mention an agent',
+      icon: AtSign,
+      verb: 'prompt',
+      onSelect: () => {
+        setInput((prev) => prev + '@');
+        setShowMentionPicker(true);
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'request-status',
+      label: 'Request status',
+      icon: BarChart3,
+      verb: 'prompt',
+      onSelect: () => {
+        sendMessage('/status', { surface });
+      },
+    },
+    {
+      id: 'assemble',
+      label: 'Assemble output',
+      icon: Combine,
+      verb: 'prompt',
+      onSelect: () => {
+        sendMessage('/assemble', { surface });
+      },
+    },
+  ];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -419,8 +455,8 @@ function MeetingRoomTab({
       </div>
 
       {/* Chat input with @-mention support */}
-      <div className="px-4 md:px-6 pb-4 pt-2 shrink-0 border-t border-border" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-        <div className="max-w-3xl mx-auto">
+      <div className="px-4 pb-4 pt-2 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="relative max-w-2xl mx-auto">
           {/* Target agent indicator */}
           {targetAgent && (
             <div className="flex items-center gap-1.5 mb-1.5 text-xs">
@@ -463,6 +499,7 @@ function MeetingRoomTab({
 
           <form onSubmit={handleSubmit}>
             <div className="flex items-end gap-2 border border-border bg-background rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md">
+              <PlusMenu actions={plusMenuActions} disabled={isLoading} />
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -476,7 +513,7 @@ function MeetingRoomTab({
                   : `Chat about ${projectTitle}... (@ to mention an agent)`
                 }
                 rows={1}
-                className="flex-1 py-3 pl-4 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+                className="flex-1 py-3 pr-2 text-base sm:text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
               />
               <button
                 type="submit"
@@ -488,6 +525,11 @@ function MeetingRoomTab({
               </button>
             </div>
           </form>
+
+          <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
+            <span className="hidden sm:inline">Enter to send, Shift+Enter for new line</span>
+            <span className="sm:hidden">Tap send or use keyboard Send</span>
+          </div>
         </div>
       </div>
     </div>
