@@ -2,9 +2,11 @@
 Document routes - File upload and management
 
 ADR-008: Document Pipeline Architecture
+ADR-127: User-shared file staging (TP-level)
 
 Endpoints:
 - POST /documents/upload - Upload and process a document
+- POST /share - Share a file to global user_shared/ (ADR-127)
 - GET /documents - List user's documents
 - GET /documents/{id} - Get document details with stats
 - GET /documents/{id}/download - Get signed download URL
@@ -371,3 +373,81 @@ async def delete_document(auth: UserClient, document_id: str):
     auth.client.table("filesystem_documents").delete().eq("id", document_id).execute()
 
     return {"success": True, "message": "Document deleted"}
+
+
+# =============================================================================
+# SHARE FILE — ADR-127: TP-Level User-Shared File Staging
+# =============================================================================
+
+class ShareFileRequest(BaseModel):
+    filename: str
+    content: str
+
+
+@router.post("/share")
+async def share_file_global(
+    body: ShareFileRequest,
+    auth: UserClient = None,
+):
+    """
+    ADR-127: Share a file to the global user_shared/ staging area.
+
+    Files land in /user_shared/{filename} with ephemeral lifecycle (30-day TTL).
+    TP can reference these files. If user later creates a project, relevant files
+    can be promoted to the project's user_shared/ by TP or PM.
+    """
+    import re
+    from services.workspace import AgentWorkspace
+
+    filename = body.filename.strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename is required")
+    content = body.content
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="content is required")
+
+    # Sanitize filename
+    safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '-', filename).strip('-')
+    if not safe_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Write to /user_shared/{filename} — global, not agent-scoped
+    # Using raw workspace_files write since this isn't scoped to an agent or project
+    path = f"/user_shared/{safe_filename}"
+
+    try:
+        existing = (
+            auth.client.table("workspace_files")
+            .select("id, version")
+            .eq("user_id", auth.user_id)
+            .eq("path", path)
+            .maybe_single()
+            .execute()
+        )
+
+        row = {
+            "user_id": auth.user_id,
+            "path": path,
+            "content": content,
+            "summary": f"User shared: {safe_filename}",
+            "lifecycle": "ephemeral",
+            "version": (existing.data.get("version", 0) + 1) if existing and existing.data else 1,
+        }
+
+        if existing and existing.data:
+            auth.client.table("workspace_files").update(row).eq("id", existing.data["id"]).execute()
+        else:
+            auth.client.table("workspace_files").insert(row).execute()
+
+    except Exception as e:
+        logger.error(f"[SHARE] Failed to write user_shared file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to share file")
+
+    logger.info(f"[SHARE] User shared file {safe_filename} to global user_shared/")
+
+    return {
+        "success": True,
+        "path": path,
+        "filename": safe_filename,
+        "message": "File shared. TP can reference it in conversation.",
+    }

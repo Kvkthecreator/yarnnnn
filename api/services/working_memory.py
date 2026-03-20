@@ -85,6 +85,11 @@ async def build_working_memory(
         asyncio.to_thread(_get_system_summary_sync, user_id, _make_client()),
     )
 
+    # ADR-127: Check for global user_shared/ files
+    user_shared_files = await asyncio.to_thread(
+        _get_user_shared_files_sync, user_id, _make_client()
+    )
+
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
@@ -94,6 +99,7 @@ async def build_working_memory(
         "recent_sessions": sessions,
         "system_summary": system_summary,
         "system_reference": _build_system_reference(platforms),
+        "user_shared_files": user_shared_files,
     }
 
     # ADR-087: Inject agent-scoped context if session is scoped
@@ -489,6 +495,32 @@ def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
     return sessions
 
 
+def _get_user_shared_files_sync(user_id: str, client: Any) -> list[dict]:
+    """ADR-127: List global /user_shared/ files for TP awareness (sync, for thread pool)."""
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, summary, updated_at")
+            .eq("user_id", user_id)
+            .like("path", "/user_shared/%")
+            .eq("lifecycle", "ephemeral")
+            .order("updated_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        files = []
+        for row in (result.data or []):
+            filename = row["path"].split("/")[-1]
+            files.append({
+                "filename": filename,
+                "summary": row.get("summary", ""),
+                "updated_at": row.get("updated_at", ""),
+            })
+        return files
+    except Exception:
+        return []
+
+
 def _get_system_summary_sync(user_id: str, client: Any) -> dict:
     """Build structured system summary (sync, for thread pool). ADR-072."""
     now = datetime.now(timezone.utc)
@@ -788,6 +820,15 @@ def format_for_prompt(working_memory: dict) -> str:
         work_plan = scoped_project.get("work_plan")
         if work_plan:
             lines.append(f"\n**Work plan:**\n{work_plan}")
+
+    # ADR-127: User-shared files (global staging area)
+    user_shared = working_memory.get("user_shared_files", [])
+    if user_shared:
+        lines.append("\n### Your shared files")
+        lines.append("Files you've shared (staged in user_shared/, 30-day expiry):")
+        for f in user_shared:
+            summary = f.get("summary", "")
+            lines.append(f"- {f['filename']}{f' — {summary}' if summary else ''}")
 
     # System Reference — TP's self-awareness of YARNNN capabilities
     system_ref = working_memory.get("system_reference", {})

@@ -1,6 +1,6 @@
 # ADR-127: User-Shared File Staging Area
 
-**Status:** Proposed
+**Status:** All phases implemented. Phase 1 (workspace conventions, lifecycle TTL, cleanup cron). Phase 2 (PM triage). Phase 3 (UX integration — project-level + TP-level file sharing).
 **Date:** 2026-03-20
 **Related:**
 - [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — governing workspace model
@@ -186,7 +186,10 @@ This consolidation is out of scope for ADR-127.
 - Frontend API client: `api.projects.shareFile(slug, filename, content)`
 - Meeting Room PlusMenu: "Share a file" action → inline form (filename + content) → calls share endpoint
 - `project_file_triaged` event rendered in Meeting Room activity timeline
-- TP-level file attachment (global `/user_shared/`) — deferred to future work
+- `POST /share` endpoint (TP-level) — writes to global `/user_shared/{filename}` with ephemeral lifecycle
+- Frontend API client: `api.documents.shareFile(filename, content)`
+- Orchestrator PlusMenu: "Share a file" action → inline form → calls global share endpoint
+- TP working memory: `_get_user_shared_files_sync()` injects global `user_shared/` files into TP context ("Your shared files" section)
 
 ---
 

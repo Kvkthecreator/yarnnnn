@@ -298,6 +298,13 @@ export const api = {
         `/api/documents/${documentId}`,
         { method: "DELETE" }
       ),
+
+    // ADR-127: Share file to global user_shared/ staging area
+    shareFile: (filename: string, content: string) =>
+      request<{ success: boolean; path: string; filename: string; message: string }>(
+        "/api/share",
+        { method: "POST", body: JSON.stringify({ filename, content }) }
+      ),
   },
 
   // Knowledge filesystem (ADR-107 Phase 3)

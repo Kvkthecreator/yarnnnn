@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.12] - ADR-127: TP-level global user_shared/ — working memory awareness + share endpoint
+
+### Changed
+- `api/services/working_memory.py`: Added `_get_user_shared_files_sync()` — queries `workspace_files` for global `/user_shared/%` paths (up to 10 files, ordered by updated_at desc). Integrated into `build_working_memory()` as parallel thread query. Added "Your shared files" section to `format_for_prompt()` with filename, summary, and date.
+- `api/routes/documents.py`: New `POST /share` endpoint — writes to global `/user_shared/{filename}` with `lifecycle='ephemeral'`, sanitized filename, version increment on overwrite. Uses `ShareFileRequest` (filename + content).
+- `web/lib/api/client.ts`: Added `api.documents.shareFile(filename, content)` method calling `POST /api/share`.
+- `web/components/desk/ChatFirstDesk.tsx`: Orchestrator PlusMenu "Share a file" action — inline form (filename + content textarea), calls `api.documents.shareFile()`, sends confirmation chat message on success.
+
+### Expected behavior
+- TP sees global user_shared/ files in working memory context (up to 10 files)
+- Users can share files from Orchestrator chat — files land in global `/user_shared/` with 30-day TTL
+- Shared files visible to TP for reference in conversation
+
+---
+
 ## [2026.03.20.11] - ADR-127: User-shared file staging — PM prompt v5.0 + triage_file action
 
 ### Changed
