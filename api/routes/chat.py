@@ -6,21 +6,24 @@ ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-059/064: Memory via user_memory table and build_working_memory()
 ADR-067: Session compaction and conversational continuity
 ADR-087: Agent-scoped context (agent_id on sessions, scoped working memory)
+ADR-125: Project-native sessions — two scopes (Global TP + Project), thread model
 
-Session Philosophy (ADR-067):
+Session Philosophy (ADR-067, updated ADR-125):
 - In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
-- Cross-session continuity via chat_sessions.summary (inline at session close + nightly cron fallback)
-- Inactivity-based session boundary (4h, not UTC midnight)
+- Cross-session continuity via chat_sessions.summary
+- Global TP: 4h inactivity boundary
+- Project sessions: 24h inactivity boundary (ADR-125)
 - Compaction format: assistant <summary> block prepended to remaining history
 
-ADR-087: Agent Scoping:
-- surface_context.agentId routes the session to a specific agent
-- agent_id set on chat_sessions row at creation time
-- Agent's instructions + memory injected into working memory
+ADR-125: Project-Native Sessions:
+- Two session scopes: Global TP (no project) and Project (via project_slug)
+- No standalone agent sessions — agent requests resolve to project sessions
+- Thread model: thread_agent_id on session_messages filters 1:1 threads
+- Agent pages render their thread from the project session
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
-- GET /chat/history - Get global chat history
+- GET /chat/history - Get chat history (global, project, or thread)
 - GET /chat/sessions - List global TP sessions (lightweight, for dashboard panel)
 - GET /commands - List available slash commands
 """
@@ -41,6 +44,44 @@ from agents.base import ContextBundle
 from agents.thinking_partner import ThinkingPartnerAgent
 
 router = APIRouter()
+
+
+# =============================================================================
+# ADR-125: Agent → Project Resolution
+# =============================================================================
+
+async def resolve_agent_project(client, user_id: str, agent_id: str) -> str | None:
+    """
+    ADR-125: Resolve an agent_id to its project_slug.
+
+    Reads the agent's memory/projects.json workspace file to find the project
+    it belongs to. Returns the first project_slug, or None if not in a project.
+    """
+    try:
+        from services.workspace import get_agent_slug
+        # Fetch agent to get slug
+        agent_result = client.table("agents").select(
+            "id, title"
+        ).eq("id", agent_id).eq("user_id", user_id).single().execute()
+        if not agent_result.data:
+            return None
+        slug = get_agent_slug(agent_result.data)
+
+        # Read projects.json from agent workspace
+        import json as _json
+        projects_file = client.table("workspace_files").select(
+            "content"
+        ).eq("user_id", user_id).eq(
+            "path", f"/agents/{slug}/memory/projects.json"
+        ).single().execute()
+
+        if projects_file.data and projects_file.data.get("content"):
+            projects_list = _json.loads(projects_file.data["content"])
+            if projects_list and isinstance(projects_list, list):
+                return projects_list[0].get("project_slug")
+    except Exception as e:
+        logger.debug(f"[SESSION] Failed to resolve agent {agent_id} to project: {e}")
+    return None
 
 
 class ChatHistoryMessage(BaseModel):
@@ -87,7 +128,7 @@ async def get_or_create_session(
     user_id: str,
     session_type: str = "thinking_partner",
     scope: str = "daily",  # "conversation", "daily"
-    agent_id: str | None = None,  # ADR-087 Phase 3: scope session to agent
+    agent_id: str | None = None,  # DEPRECATED by ADR-125: use project sessions with thread_agent_id
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
@@ -96,8 +137,10 @@ async def get_or_create_session(
     - conversation: Always creates new session
     - daily: Reuses session active within last 4 hours (inactivity boundary)
 
-    ADR-087 Phase 3: When agent_id is provided, sessions are scoped to
-    that agent. Global TP (agent_id=None) gets separate sessions.
+    DEPRECATED (ADR-125): agent_id parameter is a legacy fallback for agents not
+    yet wrapped in projects. New code should use get_or_create_project_session()
+    with thread_agent_id on messages instead. The agent_id column on chat_sessions
+    will be removed once all agents are project-native.
 
     Returns:
         Session dict with 'id', 'is_new' (bool), and optionally
@@ -187,13 +230,18 @@ async def get_or_create_project_session(
     session_type: str = "thinking_partner",
 ) -> dict:
     """
-    ADR-119 P4b: Get or create a project-scoped chat session.
+    ADR-125: Get or create a project-scoped chat session.
 
-    Project sessions persist for the life of the project (no 4h inactivity
-    rotation). Uses project_slug TEXT column instead of legacy project_id UUID.
+    Project sessions rotate on 24h inactivity (ADR-125, replacing lifetime
+    persistence from ADR-119 P4b). Uses project_slug TEXT column.
     """
+    from datetime import timedelta, timezone
+    inactivity_cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=24)
+    ).isoformat()
+
     try:
-        # Find active project session
+        # Find active project session within 24h inactivity window
         existing = (
             client.table("chat_sessions")
             .select("id")
@@ -201,6 +249,7 @@ async def get_or_create_project_session(
             .eq("project_slug", project_slug)
             .eq("session_type", session_type)
             .eq("status", "active")
+            .gte("updated_at", inactivity_cutoff)
             .order("updated_at", desc=True)
             .limit(1)
             .execute()
@@ -209,6 +258,25 @@ async def get_or_create_project_session(
             return {**existing.data[0], "is_new": False}
     except Exception as e:
         logger.debug(f"[SESSION] Project session lookup failed: {e}")
+
+    # ADR-125: Find previous session for summary generation
+    previous_session_id = None
+    try:
+        prev = (
+            client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("project_slug", project_slug)
+            .eq("session_type", session_type)
+            .is_("summary", "null")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if prev.data:
+            previous_session_id = prev.data[0]["id"]
+    except Exception as e:
+        logger.debug(f"[SESSION] Failed to find previous project session: {e}")
 
     # Create new session
     data = {
@@ -219,7 +287,11 @@ async def get_or_create_project_session(
     }
     result = client.table("chat_sessions").insert(data).execute()
     if result.data:
-        return {**result.data[0], "is_new": True}
+        return {
+            **result.data[0],
+            "is_new": True,
+            "previous_session_id": previous_session_id,
+        }
     return None
 
 
@@ -228,9 +300,14 @@ async def append_message(
     session_id: str,
     role: str,
     content: str,
-    metadata: Optional[dict] = None
+    metadata: Optional[dict] = None,
+    thread_agent_id: Optional[str] = None,  # ADR-125: thread within project session
 ) -> dict:
-    """Append a message to a session using the database RPC."""
+    """Append a message to a session using the database RPC.
+
+    ADR-125: thread_agent_id tags the message to a specific agent thread.
+    NULL = group message (meeting room main channel).
+    """
     try:
         result = client.rpc(
             "append_session_message",
@@ -241,7 +318,16 @@ async def append_message(
                 "p_metadata": metadata or {}
             }
         ).execute()
-        return result.data
+        msg = result.data
+        # ADR-125: Update thread_agent_id if set (RPC doesn't support it yet)
+        if thread_agent_id and msg and isinstance(msg, dict) and msg.get("id"):
+            try:
+                client.table("session_messages").update(
+                    {"thread_agent_id": thread_agent_id}
+                ).eq("id", msg["id"]).execute()
+            except Exception:
+                pass
+        return msg
     except Exception:
         # Fallback: direct insert with manual sequence
         seq_result = client.table("session_messages")\
@@ -255,26 +341,38 @@ async def append_message(
         if seq_result.data:
             next_seq = seq_result.data[0]["sequence_number"] + 1
 
-        result = client.table("session_messages").insert({
+        insert_data = {
             "session_id": session_id,
             "role": role,
             "content": content,
             "sequence_number": next_seq,
             "metadata": metadata or {}
-        }).execute()
+        }
+        if thread_agent_id:
+            insert_data["thread_agent_id"] = thread_agent_id
+
+        result = client.table("session_messages").insert(insert_data).execute()
         return result.data[0] if result.data else None
 
 
 async def get_session_messages(
     client,
     session_id: str,
-    limit: int = 50
+    limit: int = 50,
+    thread_agent_id: Optional[str] = None,  # ADR-125: filter to specific thread
 ) -> list[dict]:
-    """Get messages for a session, ordered by sequence."""
-    result = client.table("session_messages")\
+    """Get messages for a session, ordered by sequence.
+
+    ADR-125: When thread_agent_id is provided, returns only messages in that
+    agent's 1:1 thread. When None in a project session, returns group messages.
+    When None in a global session, returns all messages (no thread filtering).
+    """
+    q = client.table("session_messages")\
         .select("*")\
-        .eq("session_id", session_id)\
-        .order("sequence_number")\
+        .eq("session_id", session_id)
+    if thread_agent_id:
+        q = q.eq("thread_agent_id", thread_agent_id)
+    result = q.order("sequence_number")\
         .limit(limit)\
         .execute()
     return result.data or []
@@ -286,11 +384,14 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
     Inline summary at session close eliminates the intraday context gap
     where nightly cron hasn't run yet. Nightly cron remains as fallback.
+
+    ADR-125: Project sessions get author-aware summaries that attribute
+    decisions to specific agent participants.
     """
     try:
         # Check if already summarized
         session = client.table("chat_sessions")\
-            .select("id, summary, created_at")\
+            .select("id, summary, created_at, project_slug")\
             .eq("id", previous_session_id)\
             .single()\
             .execute()
@@ -298,9 +399,11 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
         if not session.data or session.data.get("summary"):
             return  # Already summarized or not found
 
-        # Fetch messages
+        project_slug = session.data.get("project_slug")
+
+        # Fetch messages (include metadata for author attribution in project sessions)
         messages = client.table("session_messages")\
-            .select("role, content")\
+            .select("role, content, metadata")\
             .eq("session_id", previous_session_id)\
             .order("sequence_number")\
             .limit(50)\
@@ -309,9 +412,17 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
         if not messages.data or len([m for m in messages.data if m.get("role") == "user"]) < 3:
             return  # Too short to summarize
 
-        from services.session_continuity import generate_session_summary
         session_date = (session.data.get("created_at") or "")[:10]
-        summary = await generate_session_summary(messages.data, session_date)
+
+        # ADR-125: Use author-aware summary for project sessions
+        if project_slug:
+            from services.session_continuity import generate_project_session_summary
+            summary = await generate_project_session_summary(
+                messages.data, session_date, project_slug
+            )
+        else:
+            from services.session_continuity import generate_session_summary
+            summary = await generate_session_summary(messages.data, session_date)
 
         if summary:
             client.table("chat_sessions")\
@@ -838,30 +949,52 @@ async def global_chat(
     """
     from services.platform_limits import check_monthly_message_limit
 
-    # ADR-087 Phase 3: Extract agent_id from surface_context BEFORE session lookup
-    # so agent-scoped chats get their own sessions, separate from global TP.
+    # ADR-125: Extract routing context from surface_context
     request_agent_id = None
     if request.surface_context and request.surface_context.agentId:
         request_agent_id = request.surface_context.agentId
 
-    # ADR-119 P4b: Extract project_slug from surface_context for project-scoped chat
     request_project_slug = None
     if request.surface_context and request.surface_context.projectSlug:
         request_project_slug = request.surface_context.projectSlug
 
-    # Get or create session — project sessions use project_slug, agent/global use agent_id
-    if request_project_slug:
-        session = await get_or_create_project_session(
-            auth.client,
-            auth.user_id,
-            project_slug=request_project_slug,
-        )
+    # ADR-125: Two-path session routing (project or global TP)
+    # Agent requests resolve to their project session with thread_agent_id on messages.
+    # thread_agent_id tracks which agent thread this message belongs to within the project session.
+    thread_agent_id = None
+
+    if request_project_slug or request_agent_id:
+        # Path 1: Project session (explicit project_slug or agent → resolve to project)
+        if not request_project_slug and request_agent_id:
+            # ADR-125: Agent requests resolve to project
+            request_project_slug = await resolve_agent_project(
+                auth.client, auth.user_id, request_agent_id
+            )
+        if request_project_slug:
+            session = await get_or_create_project_session(
+                auth.client,
+                auth.user_id,
+                project_slug=request_project_slug,
+            )
+            # ADR-125: Set thread_agent_id for 1:1 agent thread messages
+            # (only when coming from agent page, not meeting room group chat)
+            if request_agent_id and not (request.surface_context and request.surface_context.projectSlug):
+                thread_agent_id = request_agent_id
+        else:
+            # Fallback: agent not in any project yet — use legacy agent-scoped session
+            # This gracefully handles agents that haven't been wrapped in projects
+            session = await get_or_create_session(
+                auth.client,
+                auth.user_id,
+                scope="daily",
+                agent_id=request_agent_id,
+            )
     else:
+        # Path 2: Global TP session (no project, no agent)
         session = await get_or_create_session(
             auth.client,
             auth.user_id,
             scope="daily",
-            agent_id=request_agent_id,
         )
     session_id = session["id"]
 
@@ -890,7 +1023,10 @@ async def global_chat(
 
     # Load existing messages and session-level compaction summary
     # ADR-067: In-session compaction at 80% threshold; compaction block prepended if present
-    existing_messages = await get_session_messages(auth.client, session_id)
+    # ADR-125: Filter by thread_agent_id for 1:1 agent threads within project sessions
+    existing_messages = await get_session_messages(
+        auth.client, session_id, thread_agent_id=thread_agent_id
+    )
 
     # Fetch compaction_summary from chat_sessions (may be None for most sessions)
     existing_compaction = None
@@ -1032,8 +1168,8 @@ async def global_chat(
             # ADR-124: User message metadata with attribution
             user_message_metadata = {}
 
-            # Append user message to session
-            await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
+            # Append user message to session (ADR-125: thread_agent_id for 1:1 threads)
+            await append_message(auth.client, session_id, "user", request.content, user_message_metadata, thread_agent_id=thread_agent_id)
             logger.info(f"[TP-STREAM] Starting stream for message: {request.content[:50]}...")
 
             # Build images list for Claude API format (if any)
@@ -1188,6 +1324,7 @@ async def global_chat(
                 "assistant",
                 full_response,
                 assistant_metadata,
+                thread_agent_id=thread_agent_id,
             )
 
             # ADR-124: Include author attribution in done event for frontend rendering
@@ -1237,15 +1374,23 @@ async def get_global_chat_history(
     limit: int = Query(default=1, le=10),
     agent_id: Optional[str] = Query(default=None),
     project_slug: Optional[str] = Query(default=None),  # ADR-119 P4b
+    thread_agent_id: Optional[str] = Query(default=None),  # ADR-125: thread filter
 ):
     """
     Get chat history scoped by agent, project, or global.
     Returns the most recent session(s) with messages.
 
-    ADR-087 Phase 3: agent_id param isolates agent-scoped sessions.
-    ADR-119 P4b: project_slug param isolates project-scoped sessions.
+    ADR-125: Two-path routing. agent_id resolves to project session.
+    thread_agent_id filters messages to a specific agent's 1:1 thread.
     """
-    # Fetch recent sessions, scoped by agent_id or project_slug
+    # ADR-125: Agent requests resolve to project session
+    if agent_id and not project_slug:
+        resolved_slug = await resolve_agent_project(auth.client, auth.user_id, agent_id)
+        if resolved_slug:
+            project_slug = resolved_slug
+            thread_agent_id = thread_agent_id or agent_id
+
+    # Fetch recent sessions
     q = (
         auth.client.table("chat_sessions")
         .select("*")
@@ -1253,9 +1398,9 @@ async def get_global_chat_history(
         .eq("session_type", "thinking_partner")
     )
     if project_slug:
-        # ADR-119 P4b: project-scoped session lookup
         q = q.eq("project_slug", project_slug)
     elif agent_id:
+        # Fallback: legacy agent-scoped sessions for agents not yet in projects
         q = q.eq("agent_id", agent_id).is_("project_slug", "null")
     else:
         q = q.is_("agent_id", "null").is_("project_slug", "null")
@@ -1264,13 +1409,15 @@ async def get_global_chat_history(
     sessions = []
     for session in (sessions_result.data or []):
         # Get messages for each session (include metadata for tool_history)
-        messages_result = (
+        # ADR-125: Filter by thread_agent_id if specified
+        msg_q = (
             auth.client.table("session_messages")
-            .select("id, role, content, sequence_number, created_at, metadata")
+            .select("id, role, content, sequence_number, created_at, metadata, thread_agent_id")
             .eq("session_id", session["id"])
-            .order("sequence_number")
-            .execute()
         )
+        if thread_agent_id:
+            msg_q = msg_q.eq("thread_agent_id", thread_agent_id)
+        messages_result = msg_q.order("sequence_number").execute()
         sessions.append({
             **session,
             "messages": messages_result.data or []

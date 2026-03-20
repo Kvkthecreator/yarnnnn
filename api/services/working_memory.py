@@ -170,6 +170,8 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
         scope["instructions"] = instructions
 
     # Query scoped session summaries via agent_id FK (ADR-087 Phase 2)
+    # DEPRECATED by ADR-125: Will be replaced by thread-aware project session
+    # summaries once all agents are project-native. Legacy fallback for now.
     if agent_id:
         try:
             sessions_result = (
@@ -316,7 +318,7 @@ def _build_system_reference(platforms: list) -> dict:
         if ptype.get("description"):
             entry["description"] = ptype["description"]
         entry["pm"] = ptype.get("pm", False)
-        entry["agents_count"] = len(ptype.get("agents", []))
+        entry["agents_count"] = len(ptype.get("members", ptype.get("agents", [])))
         project_types.append(entry)
 
     # --- Agent roles ---
@@ -450,14 +452,18 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
 
 
 def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
-    """Fetch recent session summaries (sync, for thread pool)."""
+    """Fetch recent session summaries (sync, for thread pool).
+
+    ADR-125: Includes both global TP and project session summaries.
+    Project sessions include project_slug for TP cross-project awareness.
+    """
     sessions = []
 
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=SESSION_LOOKBACK_DAYS)).isoformat()
 
         result = client.table("chat_sessions").select(
-            "id, created_at, summary"
+            "id, created_at, summary, project_slug"
         ).eq("user_id", user_id).not_.is_(
             "summary", "null"
         ).gte("created_at", cutoff).order(
@@ -468,10 +474,14 @@ def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
             for s in result.data:
                 summary = s.get("summary", "")
                 if summary:
-                    sessions.append({
+                    entry = {
                         "date": s.get("created_at", "")[:10],
                         "summary": summary[:300],
-                    })
+                    }
+                    # ADR-125: Tag project session summaries
+                    if s.get("project_slug"):
+                        entry["project"] = s["project_slug"]
+                    sessions.append(entry)
 
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch recent sessions: {e}")
@@ -692,12 +702,16 @@ def format_for_prompt(working_memory: dict) -> str:
             else:
                 lines.append(f"- {p.get('platform')}: {status}")
 
-    # Recent Sessions (HISTORY) — only rendered if summaries exist
+    # Recent Sessions (HISTORY) — ADR-125: includes project session summaries
     sessions = working_memory.get("recent_sessions", [])
     if sessions:
         lines.append(f"\n### Recent conversations")
         for s in sessions:
-            lines.append(f"- {s.get('date')}: {s.get('summary')}")
+            project = s.get("project")
+            if project:
+                lines.append(f"- {s.get('date')}: {s.get('summary')} ({project})")
+            else:
+                lines.append(f"- {s.get('date')}: {s.get('summary')}")
 
     # ADR-087: Scoped agent context — instructions + memory for active agent
     scoped = working_memory.get("scoped_agent")
