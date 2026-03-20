@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * Project Detail Page — ADR-119 Phase 4b
+ * Project Detail Page — ADR-124
  *
- * Tab layout: Timeline | Outputs | Contributors
- * Timeline: interleaved activity events + project-scoped TP chat.
+ * Tab layout: Meeting Room | Members | Context | Outputs | Settings
+ * Meeting Room: interleaved activity events + project-scoped chat with @-mentions.
+ * Members: personified agent participant list with profile cards.
+ * Context: workspace file browser.
  * Outputs: assembly cards with inline markdown preview.
- * Contributors: expandable list with contribution files + agent links.
+ * Settings: objective, assembly config, delivery, archive.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -49,7 +51,7 @@ import { ToolResultList } from '@/components/tp/ToolResultCard';
 import type {
   ProjectDetail,
   ProjectActivityItem,
-  ProjectContributor,
+  ProjectMember,
   OutputManifest,
   ContributionFile,
   PMIntelligence,
@@ -205,7 +207,7 @@ function MeetingRoomTab({
   activities: ProjectActivityItem[];
   slug: string;
   projectTitle: string;
-  contributors: ProjectContributor[];
+  contributors: ProjectMember[];
 }) {
   const {
     messages,
@@ -218,7 +220,7 @@ function MeetingRoomTab({
   } = useTP();
 
   const [input, setInput] = useState('');
-  const [targetAgent, setTargetAgent] = useState<ProjectContributor | null>(null);
+  const [targetAgent, setTargetAgent] = useState<ProjectMember | null>(null);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -269,7 +271,7 @@ function MeetingRoomTab({
     }
   };
 
-  const handleMentionSelect = (contributor: ProjectContributor) => {
+  const handleMentionSelect = (contributor: ProjectMember) => {
     setTargetAgent(contributor);
     setShowMentionPicker(false);
     textareaRef.current?.focus();
@@ -853,140 +855,333 @@ function OutputsTab({ slug }: { slug: string }) {
   );
 }
 
-function ContributorsTab({
-  contributors,
-  contributions,
+// =============================================================================
+// Shared helpers for member display
+// =============================================================================
+
+/** Display name for a member — title or humanized slug */
+function memberName(m: ProjectMember): string {
+  return m.title || m.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
+/** Role badge color */
+function roleBadgeColor(role?: string): string {
+  switch (role) {
+    case 'pm': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+    case 'digest': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+    case 'monitor': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+    case 'research': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
+    case 'synthesize': return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
+    case 'prepare': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
+    default: return 'bg-muted text-muted-foreground';
+  }
+}
+
+/** Avatar color based on role */
+function avatarColor(role?: string): string {
+  switch (role) {
+    case 'pm': return 'bg-purple-500';
+    case 'digest': return 'bg-blue-500';
+    case 'monitor': return 'bg-amber-500';
+    case 'research': return 'bg-green-500';
+    case 'synthesize': return 'bg-teal-500';
+    case 'prepare': return 'bg-indigo-500';
+    default: return 'bg-gray-500';
+  }
+}
+
+/** Status indicator */
+function statusIndicator(status?: string): { color: string; label: string } {
+  switch (status) {
+    case 'active': return { color: 'bg-green-500', label: 'Active' };
+    case 'paused': return { color: 'bg-amber-500', label: 'Paused' };
+    case 'archived': return { color: 'bg-gray-400', label: 'Archived' };
+    default: return { color: 'bg-green-500', label: 'Active' };
+  }
+}
+
+// =============================================================================
+// Agent Profile Card — slide-out panel
+// =============================================================================
+
+function AgentProfileCard({
+  member,
+  contributionCount,
+  slug,
+  pmIntelligence,
+  onClose,
+}: {
+  member: ProjectMember;
+  contributionCount: number;
+  slug: string;
+  pmIntelligence?: PMIntelligence | null;
+  onClose: () => void;
+}) {
+  const [files, setFiles] = useState<ContributionFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+
+  useEffect(() => {
+    api.projects.getContributions(slug, member.agent_slug)
+      .then((res) => setFiles(res.files))
+      .catch(() => setFiles([]))
+      .finally(() => setFilesLoading(false));
+  }, [slug, member.agent_slug]);
+
+  const name = memberName(member);
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const si = statusIndicator(member.status);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
+      <div
+        className="relative w-full max-w-md bg-background border-l border-border h-full overflow-y-auto animate-in slide-in-from-right-5 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border px-5 py-4 flex items-start gap-4">
+          <div className={cn('w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-semibold shrink-0', avatarColor(member.role))}>
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold truncate">{name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              {member.role && (
+                <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(member.role))}>
+                  {member.role}
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className={cn('w-1.5 h-1.5 rounded-full', si.color)} />
+                {si.label}
+              </span>
+            </div>
+            {member.expected_contribution && (
+              <p className="text-xs text-muted-foreground mt-1.5">{member.expected_contribution}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Details */}
+        <div className="px-5 py-4 space-y-5">
+          {/* Info grid */}
+          <div className="grid grid-cols-2 gap-3">
+            {member.scope && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Scope</p>
+                <p className="text-sm">{member.scope}</p>
+              </div>
+            )}
+            {member.mode && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Trigger</p>
+                <p className="text-sm">{member.mode}</p>
+              </div>
+            )}
+            {member.schedule && (member.schedule as Record<string, string>).frequency && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Schedule</p>
+                <p className="text-sm">{(member.schedule as Record<string, string>).frequency}</p>
+              </div>
+            )}
+            {member.origin && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Origin</p>
+                <p className="text-sm">{member.origin.replace(/_/g, ' ')}</p>
+              </div>
+            )}
+            {member.last_run_at && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Last active</p>
+                <p className="text-sm">{formatDistanceToNow(new Date(member.last_run_at), { addSuffix: true })}</p>
+              </div>
+            )}
+            {member.created_at && (
+              <div>
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Joined</p>
+                <p className="text-sm">{format(new Date(member.created_at), 'MMM d, yyyy')}</p>
+              </div>
+            )}
+          </div>
+
+          {/* PM brief for this member */}
+          {pmIntelligence?.briefs?.[member.agent_slug] && (
+            <div>
+              <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={member.agent_slug} />
+            </div>
+          )}
+
+          {/* Contributions */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+              Contributions ({contributionCount})
+            </h3>
+            {filesLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-xs py-3">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Loading...
+              </div>
+            ) : files.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No contribution files yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {files.map((f) => (
+                  <div key={f.path} className="border border-border rounded-lg overflow-hidden">
+                    <div className="px-3 py-1.5 bg-muted/50 text-xs text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="w-3 h-3" />
+                      {f.path.split('/').pop()}
+                      {f.updated_at && (
+                        <span className="ml-auto">{formatDistanceToNow(new Date(f.updated_at), { addSuffix: true })}</span>
+                      )}
+                    </div>
+                    <div className="p-3 max-h-48 overflow-y-auto">
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
+                        <ReactMarkdown>{f.content}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Link to full agent page */}
+          {member.agent_id && (
+            <Link
+              href={`/agents/${member.agent_id}`}
+              className="flex items-center justify-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 border border-primary/30 rounded-lg py-2 px-4 hover:bg-primary/5 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open full agent page
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Members Tab — personified participant list (KakaoTalk-style)
+// =============================================================================
+
+function MembersTab({
+  members,
+  contributionCounts,
   slug,
   pmIntelligence,
 }: {
-  contributors: ProjectContributor[];
-  contributions: Record<string, string[]>;
+  members: ProjectMember[];
+  contributionCounts: Record<string, number>;
   slug: string;
   pmIntelligence?: PMIntelligence | null;
 }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [files, setFiles] = useState<ContributionFile[]>([]);
-  const [filesLoading, setFilesLoading] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<ProjectMember | null>(null);
 
-  const handleExpand = async (agentSlug: string) => {
-    if (expanded === agentSlug) {
-      setExpanded(null);
-      setFiles([]);
-      return;
-    }
-    setExpanded(agentSlug);
-    setFilesLoading(true);
-    try {
-      const res = await api.projects.getContributions(slug, agentSlug);
-      setFiles(res.files);
-    } catch {
-      setFiles([]);
-    } finally {
-      setFilesLoading(false);
-    }
-  };
-
-  if (contributors.length === 0) {
+  if (members.length === 0) {
     return (
       <div className="text-center py-12">
         <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">No contributors assigned yet.</p>
+        <p className="text-sm text-muted-foreground">No members yet.</p>
       </div>
     );
   }
 
+  // Sort: PM first, then by role
+  const sorted = [...members].sort((a, b) => {
+    if (a.role === 'pm' && b.role !== 'pm') return -1;
+    if (b.role === 'pm' && a.role !== 'pm') return 1;
+    return 0;
+  });
+
   return (
-    <div className="divide-y divide-border">
-      {/* PM quality assessment summary */}
-      {pmIntelligence?.quality_assessment && (
-        <div className="px-4 py-3">
-          <PMIntelligencePanel pmIntelligence={pmIntelligence} />
-        </div>
-      )}
-      {contributors.map((c) => {
-        const contribPaths = contributions[c.agent_slug] || [];
-        const isExpanded = expanded === c.agent_slug;
-        return (
-          <div key={c.agent_slug} className="px-4 py-3">
-            <button
-              onClick={() => handleExpand(c.agent_slug)}
-              className="w-full flex items-center gap-2 text-left group"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium group-hover:text-primary transition-colors">
-                  {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
-                </span>
-                {c.role && (
-                  <span className="text-[10px] text-muted-foreground ml-1.5">{c.role}</span>
-                )}
-                {c.expected_contribution && (
-                  <p className="text-xs text-muted-foreground mt-0.5">{c.expected_contribution}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {contribPaths.length > 0 && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+    <>
+      <div className="max-w-2xl mx-auto px-4 md:px-6 py-4">
+        {/* PM quality assessment at top */}
+        {pmIntelligence?.quality_assessment && (
+          <div className="mb-4">
+            <PMIntelligencePanel pmIntelligence={pmIntelligence} />
+          </div>
+        )}
+
+        {/* Member count header */}
+        <p className="text-xs text-muted-foreground mb-3 px-1">
+          {members.length} member{members.length !== 1 ? 's' : ''}
+        </p>
+
+        {/* Member list */}
+        <div className="space-y-1">
+          {sorted.map((m) => {
+            const name = memberName(m);
+            const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            const si = statusIndicator(m.status);
+            const contribCount = contributionCounts[m.agent_slug] || 0;
+
+            return (
+              <button
+                key={m.agent_slug}
+                onClick={() => setSelectedMember(m)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/50 transition-colors text-left group"
+              >
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div className={cn('w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold', avatarColor(m.role))}>
+                    {initials}
+                  </div>
+                  {/* Status dot */}
+                  <span className={cn(
+                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background',
+                    si.color,
+                  )} />
+                </div>
+
+                {/* Name + meta */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{name}</span>
+                    {m.role && (
+                      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
+                        {m.role}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {m.expected_contribution || (m.last_run_at
+                      ? `Active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
+                      : 'No activity yet'
+                    )}
+                  </p>
+                </div>
+
+                {/* Right side: contribution count */}
+                {contribCount > 0 && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                     <FileText className="w-3 h-3" />
-                    {contribPaths.length}
+                    {contribCount}
                   </span>
                 )}
-                {c.agent_id && (
-                  <Link
-                    href={`/agents/${c.agent_id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    View agent
-                  </Link>
-                )}
-              </div>
-            </button>
 
-            {/* Expanded: PM brief + contribution file contents */}
-            {isExpanded && (
-              <div className="mt-3 ml-6">
-                {/* Per-contributor PM brief */}
-                {pmIntelligence && pmIntelligence.briefs?.[c.agent_slug] && (
-                  <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={c.agent_slug} />
-                )}
-                {filesLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Loading contributions...
-                  </div>
-                ) : files.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No contribution files yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {files.map((f) => (
-                      <div key={f.path} className="border border-border rounded-lg overflow-hidden">
-                        <div className="px-3 py-1.5 bg-muted/50 text-xs text-muted-foreground flex items-center gap-1.5">
-                          <FileText className="w-3 h-3" />
-                          {f.path.split('/').pop()}
-                          {f.updated_at && (
-                            <span className="ml-auto">{formatDistanceToNow(new Date(f.updated_at), { addSuffix: true })}</span>
-                          )}
-                        </div>
-                        <div className="p-3 max-h-60 overflow-y-auto">
-                          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
-                            <ReactMarkdown>{f.content}</ReactMarkdown>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Profile card slide-out */}
+      {selectedMember && (
+        <AgentProfileCard
+          member={selectedMember}
+          contributionCount={contributionCounts[selectedMember.agent_slug] || 0}
+          slug={slug}
+          pmIntelligence={pmIntelligence}
+          onClose={() => setSelectedMember(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -1184,6 +1379,7 @@ function SettingsTab({
   slug,
   project,
   objective,
+  members,
   onUpdateObjective,
   onArchive,
   archiving,
@@ -1191,6 +1387,7 @@ function SettingsTab({
   slug: string;
   project: ProjectDetail['project'];
   objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
+  members: ProjectMember[];
   onUpdateObjective: (obj: { deliverable?: string; audience?: string; format?: string; purpose?: string }) => void;
   onArchive: () => void;
   archiving: boolean;
@@ -1207,32 +1404,31 @@ function SettingsTab({
         />
       </section>
 
-      {/* Contributors */}
+      {/* Members */}
       <section>
-        <h3 className="text-sm font-semibold mb-2">Contributors</h3>
-        {project.contributors && project.contributors.length > 0 ? (
+        <h3 className="text-sm font-semibold mb-2">Members</h3>
+        {members.length > 0 ? (
           <div className="space-y-2">
-            {project.contributors.map((c) => (
-              <div key={c.agent_slug} className="flex items-center gap-2 text-sm">
-                <span className={cn(
-                  'w-2 h-2 rounded-full shrink-0',
-                  c.role === 'pm' ? 'bg-purple-500' : 'bg-blue-500'
-                )} />
-                <span className="font-medium">
-                  {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
-                </span>
-                {c.role && <span className="text-xs text-muted-foreground">{c.role}</span>}
-                {c.expected_contribution && (
-                  <span className="text-xs text-muted-foreground ml-auto">{c.expected_contribution}</span>
+            {members.map((m) => (
+              <div key={m.agent_slug} className="flex items-center gap-2 text-sm">
+                <span className={cn('w-2 h-2 rounded-full shrink-0', avatarColor(m.role))} />
+                <span className="font-medium">{memberName(m)}</span>
+                {m.role && (
+                  <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(m.role))}>
+                    {m.role}
+                  </span>
+                )}
+                {m.expected_contribution && (
+                  <span className="text-xs text-muted-foreground ml-auto">{m.expected_contribution}</span>
                 )}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No contributors assigned.</p>
+          <p className="text-sm text-muted-foreground">No members assigned.</p>
         )}
         <p className="text-xs text-muted-foreground mt-2">
-          Contributors are managed by the PM agent via the meeting room. Ask PM to add or reassign contributors.
+          Members are managed via the meeting room. Ask the PM to add or reassign members.
         </p>
       </section>
 
@@ -1290,7 +1486,7 @@ function SettingsTab({
 // Main Component
 // =============================================================================
 
-type TabId = 'meeting-room' | 'context' | 'outputs' | 'contributors' | 'settings';
+type TabId = 'meeting-room' | 'members' | 'context' | 'outputs' | 'settings';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1358,15 +1554,15 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const { project: meta, contributions, assemblies, pm_intelligence } = project;
+  const { project: meta, contribution_counts, assembly_count, pm_intelligence } = project;
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const contributors = meta.contributors || [];
+  const members = meta.contributors || [];
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'members', label: `Members${members.length > 0 ? ` (${members.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
     { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
-    { id: 'outputs', label: `Outputs${assemblies.length > 0 ? ` (${assemblies.length})` : ''}`, icon: <Package className="w-4 h-4" /> },
-    { id: 'contributors', label: `Members${contributors.length > 0 ? ` (${contributors.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
+    { id: 'outputs', label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`, icon: <Package className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
@@ -1418,7 +1614,17 @@ export default function ProjectDetailPage() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'meeting-room' && (
-          <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={contributors} />
+          <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
+        )}
+        {activeTab === 'members' && (
+          <div className="h-full overflow-y-auto">
+            <MembersTab
+              members={members}
+              contributionCounts={contribution_counts}
+              slug={slug}
+              pmIntelligence={pm_intelligence}
+            />
+          </div>
         )}
         {activeTab === 'context' && (
           <ContextTab slug={slug} />
@@ -1430,24 +1636,13 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
-        {activeTab === 'contributors' && (
-          <div className="h-full overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-4 md:px-6">
-              <ContributorsTab
-                contributors={contributors}
-                contributions={contributions}
-                slug={slug}
-                pmIntelligence={pm_intelligence}
-              />
-            </div>
-          </div>
-        )}
         {activeTab === 'settings' && (
           <div className="h-full overflow-y-auto">
             <SettingsTab
               slug={slug}
               project={meta}
               objective={objective}
+              members={members}
               onUpdateObjective={(obj) => setObjective(obj)}
               onArchive={handleArchive}
               archiving={archiving}

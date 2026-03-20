@@ -15,7 +15,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, MessageSquare, LayoutDashboard } from 'lucide-react';
+import { Command, ChevronDown, Settings, Briefcase, Activity, Layers, LayoutDashboard } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -95,12 +95,12 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 interface RouteItem {
   id: string;
   label: string;
-  icon: typeof Sparkles;
+  icon: typeof Command;
   path: string;
 }
 
 // Primary: Dashboard (home) + Orchestrator + Projects
-const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: MessageSquare, path: ORCHESTRATOR_ROUTE };
+const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: Command, path: ORCHESTRATOR_ROUTE };
 const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: Briefcase, path: PROJECTS_ROUTE };
 
 // Secondary: Context + Activity + Settings
@@ -304,7 +304,7 @@ function AuthenticatedLayoutInner({
                     isOrchestratorRoute(pathname) && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <MessageSquare className="w-4 h-4" />
+                  <Command className="w-4 h-4" />
                   {ORCHESTRATOR_LABEL}
                 </button>
                 <button

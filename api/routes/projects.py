@@ -116,20 +116,21 @@ async def get_project(slug: str, user: UserClient):
         raise HTTPException(status_code=404, detail=f"Project not found: {slug}")
 
     contributor_slugs = await pw.list_contributors()
-    contributions = {}
+    contribution_counts = {}
     for cs in contributor_slugs:
         files = await pw.list_contributions(cs)
-        contributions[cs] = files
+        contribution_counts[cs] = len(files)
 
     assemblies = await pw.list_assemblies()
 
-    # ADR-124: Enrich contributors with agent_id, role, title from agents table.
-    # PROJECT.md only stores agent_slug + expected_contribution — resolve to full agent data.
+    # ADR-124: Enrich contributors with full agent data for Members display.
+    # PROJECT.md only stores agent_slug + expected_contribution — resolve to full agent record.
     enriched_contributors = project.get("contributors", [])
     try:
         from services.workspace import get_agent_slug as _gas
         agents_result = user.client.table("agents").select(
-            "id, title, role"
+            "id, title, role, scope, mode, status, origin, schedule, "
+            "last_run_at, created_at, updated_at"
         ).eq("user_id", user.user_id).execute()
         # Build slug → agent map for O(1) lookup
         slug_to_agent = {}
@@ -147,6 +148,13 @@ async def get_project(slug: str, user: UserClient):
                 c["agent_id"] = agent.get("id")
                 c["title"] = agent.get("title")
                 c["role"] = agent.get("role")
+                c["scope"] = agent.get("scope")
+                c["mode"] = agent.get("mode")
+                c["status"] = agent.get("status", "active")
+                c["origin"] = agent.get("origin")
+                c["schedule"] = agent.get("schedule")
+                c["last_run_at"] = agent.get("last_run_at")
+                c["created_at"] = agent.get("created_at")
     except Exception:
         pass
     project["contributors"] = enriched_contributors
@@ -167,26 +175,26 @@ async def get_project(slug: str, user: UserClient):
     return {
         "project_slug": slug,
         "project": project,
-        "contributions": contributions,
-        "assemblies": assemblies,
+        "contribution_counts": contribution_counts,
+        "assembly_count": len(assemblies),
         "pm_intelligence": pm_intelligence if pm_intelligence else None,
     }
 
 
 @router.post("", status_code=201)
 async def create_project(body: CreateProjectRequest, user: UserClient):
-    """Create a new project."""
-    from services.workspace import ProjectWorkspace, AgentWorkspace, get_project_slug, get_agent_slug
+    """Create a new project via scaffold_project() — single path for all creation.
 
-    project_slug = get_project_slug(body.title)
+    Delegates to project_registry.scaffold_project() which handles:
+    - PROJECT.md creation
+    - Contributor workspace seeding
+    - PM agent auto-creation (for multi-agent projects)
+    - Agent creation from type specs
+    """
+    from services.project_registry import scaffold_project
+    from services.workspace import get_agent_slug
 
-    # Check if project already exists
-    pw = ProjectWorkspace(user.client, user.user_id, project_slug)
-    existing = await pw.read_project()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Project already exists: {project_slug}")
-
-    # Resolve contributors
+    # Resolve contributor agent_ids to {agent_slug, agent_id, expected_contribution}
     contributors = []
     for c in body.contributors:
         try:
@@ -208,53 +216,30 @@ async def create_project(body: CreateProjectRequest, user: UserClient):
         except Exception as e:
             logger.warning(f"[PROJECTS] Contributor lookup failed: {c.agent_id}: {e}")
 
-    # Write PROJECT.md
     objective = body.objective.model_dump(exclude_none=True) if body.objective else {}
-    success = await pw.write_project(
-        title=body.title,
-        objective=objective,
+
+    result = await scaffold_project(
+        client=user.client,
+        user_id=user.user_id,
+        type_key="custom",
+        title_override=body.title,
+        objective_override=objective,
         contributors=contributors,
-        assembly_spec=body.assembly_spec,
-        delivery=body.delivery or {},
+        assembly_spec_override=body.assembly_spec or None,
+        delivery_override=body.delivery,
     )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to create project")
 
-    # Seed contributor workspaces
-    for c in contributors:
-        try:
-            agent_ws = AgentWorkspace(user.client, user.user_id, c["agent_slug"])
-            existing_json = await agent_ws.read("memory/projects.json")
-            if existing_json:
-                try:
-                    projects_list = _json.loads(existing_json)
-                except _json.JSONDecodeError:
-                    projects_list = []
-            else:
-                projects_list = []
-
-            if not any(p.get("project_slug") == project_slug for p in projects_list):
-                projects_list.append({
-                    "project_slug": project_slug,
-                    "title": body.title,
-                    "expected_contribution": c["expected_contribution"],
-                })
-
-            await agent_ws.write(
-                "memory/projects.json",
-                _json.dumps(projects_list, indent=2),
-                summary=f"Project memberships ({len(projects_list)} projects)",
-                content_type="application/json",
-            )
-        except Exception as e:
-            logger.warning(f"[PROJECTS] Failed to seed contributor {c['agent_slug']}: {e}")
-
-    logger.info(f"[PROJECTS] Created project '{body.title}' ({project_slug})")
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=409 if result.get("reason") == "already_exists" else 500,
+            detail=result.get("message", "Failed to create project"),
+        )
 
     return {
-        "project_slug": project_slug,
+        "project_slug": result["project_slug"],
         "title": body.title,
-        "contributors": [{"agent_slug": c["agent_slug"], "agent_id": c["agent_id"]} for c in contributors],
+        "members": result.get("agents_created", []),
+        "pm_agent_id": result.get("pm_agent_id"),
     }
 
 

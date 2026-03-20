@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
 import {
-  Sparkles,
+  Command,
   CheckCircle2,
   Circle,
   Loader2,
@@ -471,7 +471,7 @@ export function ChatFirstDesk() {
     {
       id: 'create-project',
       label: 'Create project',
-      icon: Sparkles,
+      icon: Command,
       verb: 'show',
       onSelect: () => setShowCreateCards((prev) => !prev),
     },
@@ -558,7 +558,7 @@ export function ChatFirstDesk() {
   return (
     <WorkspaceLayout
       identity={{
-        icon: <Sparkles className="w-5 h-5" />,
+        icon: <Command className="w-5 h-5" />,
         label: identityLabel,
         badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
       }}
@@ -652,7 +652,7 @@ export function ChatFirstDesk() {
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
                 <div className="text-center mb-8">
-                  <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                  <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                   <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                     Set up a project, search your platforms, or just ask anything.

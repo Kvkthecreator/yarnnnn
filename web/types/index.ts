@@ -804,13 +804,21 @@ export interface ProjectSummary {
   updated_at: string;
 }
 
-export interface ProjectContributor {
+/** ADR-124: Project member — enriched agent data for personified display */
+export interface ProjectMember {
   agent_slug: string;
   agent_id?: string;
   expected_contribution?: string;
-  /** ADR-124: Enriched from agents table for meeting room */
+  // Enriched from agents table
   title?: string;
   role?: string;
+  scope?: string;
+  mode?: string;
+  status?: 'active' | 'paused' | 'archived';
+  origin?: string;
+  schedule?: Record<string, unknown>;
+  last_run_at?: string;
+  created_at?: string;
 }
 
 // ADR-123 Phase 3: PM intelligence surfacing
@@ -829,12 +837,12 @@ export interface ProjectDetail {
       format?: string;
       purpose?: string;
     };
-    contributors?: ProjectContributor[];
+    contributors?: ProjectMember[];
     assembly_spec?: string;
     delivery?: Record<string, unknown>;
   };
-  contributions: Record<string, string[]>;
-  assemblies: string[];
+  contribution_counts: Record<string, number>;
+  assembly_count: number;
   pm_intelligence?: PMIntelligence | null;  // ADR-123 Phase 3
 }
 
