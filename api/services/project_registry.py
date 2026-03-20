@@ -7,8 +7,11 @@ flows (bootstrap, Composer, TP, API routes) go through scaffold_project().
 Registry is curated, code-side, deploy-time. Follows the pattern of
 PLATFORM_REGISTRY, ROLE_PORTFOLIOS, ROLE_PROMPTS.
 
+Design axiom: every project gets a PM. No exceptions. PM is project
+infrastructure, not a user-facing agent — excluded from tier agent limits.
+
 Changelog: api/prompts/CHANGELOG.md
-Version: v1.2 (2026-03-20)
+Version: v1.3 (2026-03-20)
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Project Type Registry v1.2
+# Project Type Registry v1.3
 # =============================================================================
 
 PROJECT_TYPE_REGISTRY: dict[str, dict] = {
@@ -48,8 +51,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
                 "sources_from": "platform",
             },
         ],
-        "pm": False,
-        "assembly_spec": None,
+        "pm": True,
+        "assembly_spec": "Coordinate Slack digest output and deliver to user.",
         "delivery_default": {"platform": "email"},
         "version": "2026-03-20",
     },
@@ -74,8 +77,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
                 "sources_from": "platform",
             },
         ],
-        "pm": False,
-        "assembly_spec": None,
+        "pm": True,
+        "assembly_spec": "Coordinate Gmail digest output and deliver to user.",
         "delivery_default": {"platform": "email"},
         "version": "2026-03-20",
     },
@@ -100,8 +103,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
                 "sources_from": "platform",
             },
         ],
-        "pm": False,
-        "assembly_spec": None,
+        "pm": True,
+        "assembly_spec": "Coordinate Notion digest output and deliver to user.",
         "delivery_default": {"platform": "email"},
         "version": "2026-03-20",
     },
@@ -327,7 +330,7 @@ async def scaffold_project(
             scope=agent_scope,
             frequency=agent_freq,
             sources=agent_sources,
-            destination=delivery if not ptype["pm"] else None,  # Direct delivery for PM-less projects
+            destination=None,  # Agents produce, projects deliver — no direct agent delivery
             agent_instructions=agent_instructions,
             execute_now=execute_now,
         )
@@ -405,7 +408,7 @@ async def scaffold_project(
 
     # ── Create PM agent if type requires it ──
     pm_agent_id = None
-    if ptype["pm"] and len(contributor_records) > 0:
+    if ptype["pm"]:
         try:
             pm_result = await create_agent_record(
                 client, user_id,

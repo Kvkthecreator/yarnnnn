@@ -337,9 +337,11 @@ def validate_sources_update(
 
 def get_active_agent_count(client, user_id: str) -> int:
     """
-    Count active agents for a user.
+    Count active agents for a user, excluding PM agents.
 
     Active = status 'active' (ADR-059: agents use status, not enabled column).
+    PM agents (role='pm') are project infrastructure and excluded from
+    user-facing agent limits — they don't count against the tier cap.
     """
     try:
         result = (
@@ -347,6 +349,7 @@ def get_active_agent_count(client, user_id: str) -> int:
             .select("id", count="exact")
             .eq("user_id", user_id)
             .eq("status", "active")
+            .neq("role", "pm")
             .execute()
         )
 

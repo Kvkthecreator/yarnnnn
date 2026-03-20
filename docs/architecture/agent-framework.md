@@ -202,11 +202,11 @@ Templates are pre-configured Scope × Role × Trigger combinations with sensible
 
 When a platform is connected and first sync completes, the bootstrap service auto-creates the matching digest template:
 
-| Platform Connected | Project Created | Agent Created | Notes |
-|-------------------|----------------|---------------|-------|
-| Slack | Slack Recap | Slack Agent | All synced channels |
-| Gmail | Gmail Recap | Gmail Agent | All synced labels |
-| Notion | Notion Recap | Notion Agent | All synced pages |
+| Platform Connected | Project Created | Members Created | Notes |
+|-------------------|----------------|-----------------|-------|
+| Slack | Slack Recap | Slack Agent + PM | All synced channels |
+| Gmail | Gmail Recap | Gmail Agent + PM | All synced labels |
+| Notion | Notion Recap | Notion Agent + PM | All synced pages |
 | Calendar | *(none)* | Meeting Prep requires cross-platform context — deferred to Composer (ADR-111) |
 
 See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md) for trigger points and idempotency rules. The Composer (ADR-111) extends bootstrap to medium-confidence templates (cross-platform, knowledge-scope, research-scope) via substrate assessment.
@@ -341,11 +341,18 @@ Registry: `ROLE_PORTFOLIOS` in `api/services/agent_framework.py`.
 4. Activity event: `duty_promoted` in `activity_log`
 5. Next scheduler cycle picks up the new duty
 
-### Delivery Model (Approach A — All Direct)
+### Delivery Model — Agents Produce, Projects Deliver
 
-Every agent delivers directly to the user. PM delivers assembly separately. User receives N+1 deliveries (N agent outputs + 1 assembly).
+Agents write output to their workspace. Projects deliver to the user. PM coordinates delivery timing based on project cadence and contribution freshness.
 
-**Why**: Simple, no failure cascade (PM down doesn't block contributor delivery), each agent independently valuable. **Future consideration**: Per-project delivery preferences (suppress individual delivery, only send assembly) — a project-level setting, not an agent-level change.
+- **Single-agent projects**: PM passthrough — one contribution in, one output delivered.
+- **Multi-agent projects**: PM assembles contributions, delivers composed output.
+- **No direct agent delivery**: `destination=None` on all member agents. Delivery configuration lives on PROJECT.md.
+- **PM for all projects**: Every project gets a PM at scaffold time, no exceptions. PM agents are project infrastructure, excluded from tier agent limits.
+
+See [PROJECT-DELIVERY-MODEL.md](../design/PROJECT-DELIVERY-MODEL.md) for full design rationale.
+
+> **Supersedes**: Previous "All Direct" model (N+1 deliveries). Migration path: dual-write during transition, then cut over.
 
 ---
 

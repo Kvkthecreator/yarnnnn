@@ -239,31 +239,22 @@ The product vision is: **sign up, connect, watch it work for you.**
 
 ### The Autonomous Flow
 
-**Standalone agents** (existing):
+**All projects** (platform + multi-agent, unified model):
 ```
-1. User connects platform
-2. Sync fires (L0 — external perception)
-3. TP/Composer assesses substrate (need recognition)
-4. High-confidence agents scaffolded automatically
-5. First agent run executes immediately
-6. User sees output on dashboard within 30-60 seconds
-7. User feedback refines future runs (reflexive perception)
-8. Agents develop over time — deeper expertise, broader capabilities, higher autonomy
-```
-
-**Projects** (multi-agent, ADR-120):
-```
-1. User requests project (or Composer detects composition opportunity)
-2. TP/Composer creates PM agent + identifies/creates contributors
-3. PM decomposes objective into work plan with budget bounds
-4. Contributing agents run on their schedules, writing to project contributions/
-5. PM detects contribution freshness → triggers assembly when ready
-6. Assembly produces composed deliverable (PPTX, PDF, etc.) via skills
-7. Deliverable arrives — user feedback refines PM's coordination + contributors' outputs
+1. User connects platform (or requests project, or Composer detects opportunity)
+2. scaffold_project() creates project + member agents + PM agent
+3. First agent run executes immediately (bootstrap) or on schedule
+4. Agent output written to workspace (/agents/{slug}/outputs/) and project contributions
+5. PM detects contribution freshness → coordinates delivery
+6. For single-agent projects: PM passthrough (contribution = output, deliver immediately)
+   For multi-agent projects: PM assembles contributions, delivers composed deliverable
+7. User feedback refines PM's coordination + contributors' outputs
 8. Recursive: next cycle's contributions are better because agents learned, PM learned
 ```
 
-Steps 1-3 are the Composer capability. Steps 4-6 are PM execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism across the project lifecycle.
+Steps 1-2 are the Composer/Bootstrap capability. Steps 3-6 are PM execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism.
+
+**Key axiom**: Every project gets a PM. No exceptions. PM agents are project infrastructure, excluded from tier agent limits. Agents produce; projects deliver. See [PROJECT-DELIVERY-MODEL.md](../design/PROJECT-DELIVERY-MODEL.md).
 
 For the canonical phase-by-phase breakdown of standalone agent flow — including timeline, separation of concerns, and the compounding mechanism — see [VALUE-CHAIN.md](VALUE-CHAIN.md).
 
@@ -355,3 +346,4 @@ These require further design work before implementation:
 | 2026-03-15 | v2 — Major revision: two-layer intelligence model (TP meta-cognitive + agent domain-cognitive), agent developmental trajectory (intentions, capabilities, autonomy), recursive perception expanded to include internal/reflexive layers as primary long-term value, proactive/coordinator reframed as TP capabilities, trigger as intention property not agent property |
 | 2026-03-18 | v3 — Project execution evolution: PM as domain-cognitive agent (coordination domain, not third layer), project-level intentions with intent decomposition, Composer/PM separation of concerns, agents-as-write-path principle, work-is-bounded principle, project autonomous flow. Cross-refs ADR-120. |
 | 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, `intentions` consolidated into PM `memory/work_plan.md`. Ownership model: PROJECT.md = charter (User/Composer/TP), PM memory/ = operations (PM). |
+| 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
