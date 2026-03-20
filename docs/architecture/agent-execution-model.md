@@ -26,7 +26,7 @@ YARNNN has one agent with two execution modes. The agent powers both interactive
 
 ## One Agent, Two Modes (Three with ADR-124)
 
-> **Note**: ADR-124 (Project Meeting Room, proposed) introduces a third mode — `agent_chat` — where agents participate as attributed authors in project meeting room conversations with domain-scoped primitives. See [ADR-124](../adr/ADR-124-project-meeting-room.md) for the full proposal. The two-mode model below describes the current implementation.
+> **Note**: ADR-124 (Project Meeting Room) added a third mode — `agent_chat` — where agents participate as attributed authors in project meeting room conversations. 13 domain-scoped primitives available; PM-only write primitives (`RequestContributorAdvance`, `UpdateWorkPlan`) are role-gated at runtime. See [ADR-124](../adr/ADR-124-project-meeting-room.md). Implementation: `api/agents/chat_agent.py`.
 
 ### Chat Mode (Thinking Partner)
 

@@ -130,7 +130,9 @@ Key constraints:
 - No `CreateAgent`, `Execute`, `AdvanceAgentSchedule` — those are TP/coordinator-level
 - Yes to `ReadWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ReadAgentContext`
 - Yes to `WriteWorkspace` (own workspace only — for observations, memory updates)
-- PM agents additionally get `CheckContributorFreshness`, `ReadProjectStatus`, `RequestContributorAdvance`, `UpdateWorkPlan`
+- All agents get read-only project primitives: `CheckContributorFreshness`, `ReadProjectStatus` (anyone can check the board)
+- PM agents additionally get write primitives: `RequestContributorAdvance`, `UpdateWorkPlan` (only PM moves the tickets)
+- **Role gating**: `ChatAgent.tool_executor` enforces PM-only write primitives at runtime — registered in `agent_chat` mode for all agents, but write operations are role-gated to `pm` role. This follows the principle: read is open, coordination is PM-only.
 
 #### 1.2 New Primitive Mode: `"agent_chat"`
 
@@ -144,13 +146,16 @@ PRIMITIVE_MODES = {
     "SearchWorkspace":   ["headless", "agent_chat"],
     "QueryKnowledge":    ["headless", "agent_chat"],
     "ReadAgentContext":  ["headless", "agent_chat"],
-    # PM-specific: also available in agent_chat for PM role
+    # Project status — read-only, all agent_chat agents
     "CheckContributorFreshness":  ["headless", "agent_chat"],
     "ReadProjectStatus":          ["headless", "agent_chat"],
+    # PM coordination — registered for agent_chat but role-gated to PM at runtime
     "RequestContributorAdvance":  ["headless", "agent_chat"],
     "UpdateWorkPlan":             ["headless", "agent_chat"],
 }
 ```
+
+**Role gating** (in `ChatAgent.tool_executor`): `RequestContributorAdvance` and `UpdateWorkPlan` return `not_authorized` for non-PM agents. This is a runtime check, not a mode check — keeps the mode registry simple while enforcing the PM coordination boundary.
 
 #### 1.3 Chat Routing Extension
 

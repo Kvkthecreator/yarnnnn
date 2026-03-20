@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.20.5] - Agent chat: PM role gate for coordination primitives
+
+### Changed
+- `api/agents/chat_agent.py`: `tool_executor` now enforces PM-only write primitives at runtime. `RequestContributorAdvance` and `UpdateWorkPlan` return `not_authorized` for non-PM agents. Read primitives (`ReadProjectStatus`, `CheckContributorFreshness`) remain open to all agent_chat agents.
+
+### Expected behavior
+- Contributors can check project status and contributor freshness in meeting rooms (read is open)
+- Only PM agents can advance contributor schedules or update work plans (coordination is PM-only)
+- Matches the principle: anyone can check the board, only PM moves the tickets
+
+---
+
 ## [2026.03.20.4] - Primitive cleanup: remove dead weight, fix bugs
 
 ### Removed

@@ -2,22 +2,28 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-03-04 (ADR-091 — Edit scoped memory writes; Execute agent.acknowledge; work entity removed; agent schema updated with instructions/memory/mode)
-> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory), ADR-087 (Agent Scoped Context), ADR-091 (Workspace Layout)
+> **Updated**: 2026-03-20 (primitive cleanup — dead weight removed, role-gated agent_chat, three-mode architecture)
+> **Related ADRs**: ADR-059, ADR-072, ADR-080 (Unified Agent Modes), ADR-106 (Workspace), ADR-116 (Inter-Agent), ADR-118 (Skills/Output Gateway), ADR-119 (Workspace Filesystem), ADR-120 (Project Execution), ADR-124 (Project Meeting Room)
 > **Implementation**: `api/services/primitives/`
 
 ---
 
 ## Overview
 
-Primitives are the universal operations available to the Thinking Partner (TP) for interacting with YARNNN's infrastructure layer. They replace domain-specific tools with a small set of composable operations.
+Primitives are the universal operations available to YARNNN agents for interacting with infrastructure. They operate across three modes:
+
+- **chat** — TP (Orchestrator) in user-facing conversation
+- **headless** — Background agent execution (scheduled runs, Composer)
+- **agent_chat** — Agents participating in project meeting rooms (ADR-124)
 
 ### Design Principles
 
-1. **Minimal Surface** — 11 primitives cover all use cases
+1. **Minimal Surface** — 25 primitives across three modes (was 27; Todo + Respond removed 2026-03-20)
 2. **Universal Reference Syntax** — Consistent `type:identifier` addressing
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
+5. **Mode-Gated** — Each primitive declares which modes it supports (ADR-080)
+6. **Role-Gated** — Within agent_chat, PM-only write primitives enforced at runtime (ADR-124)
 
 ### Context Architecture (ADR-059, ADR-072)
 
@@ -42,31 +48,77 @@ Users without platform connections can still provide rich context via documents 
 
 ---
 
-## The 11 Primitives
+## The 25 Primitives
 
-| Primitive | Purpose | Input | Output |
-|-----------|---------|-------|--------|
-| **Read** | Get single entity | `ref` | `data` |
-| **Write** | Create new entity | `ref`, `content` | `data`, `ref` |
-| **Edit** | Modify existing entity | `ref`, `changes` | `data`, `changes_applied` |
-| **List** | Find entities by pattern | `pattern` | `items`, `count` |
-| **Search** | Find by content | `query`, `scope` | `results`, `count` |
-| **Execute** | Trigger external operation | `action`, `target` | `result` |
-| **RefreshPlatformContent** | Sync latest platform data | `platform` | `items_synced`, `message` |
-| **WebSearch** | Search the web | `query` | `results`, `count` |
-| **SaveMemory** | Persist user-stated fact to memory | `content`, `entry_type` | `message` |
-| **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
-| **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
+### Core Data Operations (chat + headless)
 
-> **Planned (ADR-124):** A third primitive mode — `agent_chat` — is proposed for agents participating in project meeting room conversations. Domain-scoped primitives (read workspace, search knowledge, write to own workspace) would be available; full TP primitives would not. See [ADR-124](../adr/ADR-124-project-meeting-room.md).
->
-> **Planned (ADR-111 Phase 1):** Agent creation will be extracted from Write into a dedicated **CreateAgent** primitive available in both chat and headless modes. Write will continue handling memory and document creation. Currently two paths exist: Write's `_process_agent()` (chat) and coordinator.py's `CreateAgent` (headless). Both will be unified via shared `create_agent_record()` in `agent_creation.py`. See [ADR-111: Agent Composer](../adr/ADR-111-agent-composer.md) (revised 2026-03-16: Composer reframed as TP capability, not service).
+| Primitive | Purpose | Modes |
+|-----------|---------|-------|
+| **Read** | Get single entity by ref | chat, headless |
+| **Write** | Create new entity | chat |
+| **Edit** | Modify existing entity | chat |
+| **List** | Find entities by pattern | chat, headless |
+| **Search** | Find by content (text search) | chat, headless |
 
-> **Note**: Todo and Respond primitives were removed per ADR-038 (Filesystem-as-Context).
-> Todo will return when multi-step workflows require 30+ second operations.
-> Respond was redundant with model output.
+### External Operations
 
-> **list_integrations** returns `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` + `designated_calendar_id` (Gmail/Calendar). Call this first before any platform tool to get the correct IDs for default landing zones. Tool descriptions are the source of truth for platform tool workflow — not a separate prompt layer.
+| Primitive | Purpose | Modes |
+|-----------|---------|-------|
+| **Execute** | Orchestration actions (generate, publish, acknowledge, schedule) | chat |
+| **RefreshPlatformContent** | Sync latest platform data | chat, headless |
+| **WebSearch** | Search the web (Anthropic native tool) | chat, headless |
+
+### User & System
+
+| Primitive | Purpose | Modes |
+|-----------|---------|-------|
+| **SaveMemory** | Persist user-stated fact to workspace memory | chat |
+| **list_integrations** | Discover connected platforms + metadata | chat |
+| **GetSystemState** | System introspection (sync status, health) | chat, headless |
+| **Clarify** | Ask user for input | chat, agent_chat |
+
+### Agent Lifecycle (ADR-111, ADR-122)
+
+| Primitive | Purpose | Modes |
+|-----------|---------|-------|
+| **CreateAgent** | Create new agent (unified path via `create_agent_record()`) | chat, headless |
+| **CreateProject** | Create project (with `type_key` → `scaffold_project()` for platform types) | chat, headless |
+| **AdvanceAgentSchedule** | Set agent's next_run_at to now | headless |
+
+### Agent Workspace (ADR-106, ADR-116)
+
+| Primitive | Purpose | Modes |
+|-----------|---------|-------|
+| **ReadWorkspace** | Read file from agent's workspace | headless, agent_chat |
+| **WriteWorkspace** | Write file to agent's workspace | headless, agent_chat |
+| **SearchWorkspace** | Full-text search within workspace | headless, agent_chat |
+| **QueryKnowledge** | Search /knowledge/ base with metadata filters | headless, agent_chat |
+| **ListWorkspace** | List workspace files | headless, agent_chat |
+| **DiscoverAgents** | Find agents by role/scope/status | headless, agent_chat |
+| **ReadAgentContext** | Read another agent's workspace (cross-agent) | headless, agent_chat |
+
+### Project Execution (ADR-119, ADR-120, ADR-124)
+
+| Primitive | Purpose | Modes | Role Gate |
+|-----------|---------|-------|-----------|
+| **ReadProject** | Read project charter | chat, headless, agent_chat | — |
+| **CheckContributorFreshness** | Check contributor output freshness | headless, agent_chat | — |
+| **ReadProjectStatus** | Full project state (charter + freshness + work plan) | headless, agent_chat | — |
+| **RequestContributorAdvance** | Advance contributor agent's schedule | headless, agent_chat | **PM only** |
+| **UpdateWorkPlan** | Update PM's work plan | headless, agent_chat | **PM only** |
+
+### Role Gating (ADR-124)
+
+In `agent_chat` mode, **read primitives are open to all agents** — any agent can check project status and contributor freshness. **Write/coordination primitives are PM-only** — `RequestContributorAdvance` and `UpdateWorkPlan` return `not_authorized` for non-PM agents. Principle: anyone can check the board, only PM moves the tickets.
+
+### Removed Primitives
+
+- **Todo** — removed 2026-03-20. Conversation stream is the progress indicator (Claude Code pattern).
+- **Respond** — removed 2026-03-20. TP's natural text output serves as the response.
+- **Execute(agent.approve)** — removed 2026-03-20. ADR-066 removed approval gates; handler also had a bug.
+- **Execute(memory.extract)** — removed 2026-03-20. ADR-064 moved extraction to nightly cron.
+
+> **list_integrations** returns `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` + `designated_calendar_id` (Gmail/Calendar). Call this first before any platform tool to get the correct IDs for default landing zones.
 
 ---
 
@@ -475,19 +527,16 @@ Trigger external operations on entities.
 }
 ```
 
-**Available Actions**:
+**Available Actions** (4 — cleaned up 2026-03-20):
 
 | Action | Target Type | Description | Requires |
 |--------|-------------|-------------|----------|
-| `platform.publish` | `agent` | Publish approved version to platform | `via` |
+| `platform.publish` | `agent` | Publish agent content to platform | `via` |
 | `agent.generate` | `agent` | Run content generation pipeline | — |
 | `agent.schedule` | `agent` | Update agent schedule | — |
-| `agent.approve` | `agent` | Approve pending version | `params.version_id` (optional) |
-| `agent.acknowledge` | `agent` | Append one observation from conversation context to `agent_memory` (lightweight, no generation) | `params.note` |
-| `memory.extract` | `session` | Extract memories from session | — |
-| `signal.process` | `system` | Run signal extraction pipeline | — |
+| `agent.acknowledge` | `agent` | Append one observation from conversation context to workspace (lightweight, no generation) | `params.note` |
 
-> **Note**: `platform.sync`, `platform.send`, and `work.run` removed — use `RefreshPlatformContent` (ADR-085), platform MCP tools, and `agent.generate` respectively. `work` entity removed (ADR-090).
+> **Removed actions**: `agent.approve` (ADR-066 removed approval gates), `memory.extract` (ADR-064 moved to nightly cron), `signal.process` (ADR-092 dissolved signals), `platform.sync` / `platform.send` / `work.run` (replaced by dedicated primitives).
 
 **`agent.acknowledge` vs `Edit(append_observation)`:**
 - `acknowledge` — TP calls this during chat when the user says something worth persisting ("note that Q4 is finalized"). Single call, source="user", immediate.
@@ -634,18 +683,24 @@ Common error codes:
 
 ```
 api/services/primitives/
-├── __init__.py      # Module exports
-├── refs.py          # Reference parser and resolver
-├── registry.py      # Primitive registration + Clarify
-├── read.py          # Read primitive
-├── write.py         # Write primitive
-├── edit.py          # Edit primitive
-├── list.py          # List primitive
-├── search.py        # Search primitive (text-based)
-├── execute.py       # Execute primitive + action handlers
-├── refresh.py       # RefreshPlatformContent primitive (ADR-085)
-├── save_memory.py   # SaveMemory primitive (ADR-108)
-└── clarify.py       # Clarify primitive
+├── __init__.py           # Module exports
+├── refs.py               # Reference parser and resolver
+├── registry.py           # Primitive registration, mode gating, Clarify + list_integrations handlers
+├── read.py               # Read primitive
+├── write.py              # Write primitive
+├── edit.py               # Edit primitive
+├── list.py               # List primitive
+├── search.py             # Search primitive (text-based)
+├── execute.py            # Execute primitive + action handlers (4 actions)
+├── refresh.py            # RefreshPlatformContent (ADR-085)
+├── save_memory.py        # SaveMemory (ADR-108)
+├── web_search.py         # WebSearch (Anthropic native tool)
+├── system_state.py       # GetSystemState
+├── coordinator.py        # CreateAgent + AdvanceAgentSchedule (ADR-111)
+├── workspace.py          # 7 workspace primitives (ADR-106, ADR-116)
+├── runtime_dispatch.py   # RuntimeDispatch — output gateway (ADR-118)
+├── project.py            # CreateProject + ReadProject (ADR-119, ADR-122)
+└── project_execution.py  # 4 PM/project primitives (ADR-120)
 ```
 
 ### Execution Flow
@@ -678,6 +733,16 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Changelog
+
+### 2026-03-20 — Primitive cleanup + three-mode architecture
+
+- **Primitives reduced from 27 to 25**: Removed Todo (dead weight — conversation is progress), Respond (redundant with model output).
+- **Execute actions reduced from 6 to 4**: Removed `agent.approve` (ADR-066 removed approval gates; handler had `run_id` bug), `memory.extract` (ADR-064 moved to nightly cron; no handler existed).
+- **Three-mode architecture documented**: chat (TP), headless (background agents), agent_chat (meeting room agents per ADR-124).
+- **Role gating**: PM-only write primitives (`RequestContributorAdvance`, `UpdateWorkPlan`) enforced at runtime in `ChatAgent.tool_executor`. Read primitives open to all agent_chat agents.
+- **Full primitive inventory updated**: Added all workspace, project, coordinator, and inter-agent primitives that accumulated since 2026-03-04.
+- **File structure updated**: Reflects current 17-file primitive directory.
+- **Dead code removed**: `_search_user_memories()` (unreachable), `SEARCH_FIELDS["memory"]` (unused).
 
 ### 2026-03-04 — ADR-090 + ADR-091 updates
 
@@ -737,24 +802,13 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ---
 
-## Deferred Primitives
-
-### Todo (Deferred from ADR-038)
-
-Progress tracking for multi-step operations.
-
-**Trigger**: When operations take 30+ seconds and require user-visible progress.
-
-**Status**: Deferred until needed. Current operations complete within acceptable timeframes.
-
----
-
 ## See Also
 
-- [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
-- [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
-- [ADR-038: Filesystem-as-Context Architecture](../adr/ADR-038-filesystem-as-context.md)
-- [ADR-042: Agent Execution Simplification](../adr/ADR-042-agent-execution-simplification.md)
-- [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
-- [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
-- [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)
+- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat + headless mode model
+- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace primitives
+- [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — DiscoverAgents, ReadAgentContext
+- [ADR-118: Skills as Capability Layer](../adr/ADR-118-skills-as-capability-layer.md) — RuntimeDispatch
+- [ADR-119: Workspace Filesystem Architecture](../adr/ADR-119-workspace-filesystem-architecture.md) — project primitives
+- [ADR-120: Project Execution & Work Budget](../adr/ADR-120-project-execution-work-budget.md) — PM primitives
+- [ADR-122: Project Type Registry](../adr/ADR-122-project-type-registry.md) — scaffold_project()
+- [ADR-124: Project Meeting Room](../adr/ADR-124-project-meeting-room.md) — agent_chat mode + role gating

@@ -306,6 +306,11 @@ class ChatAgent(BaseAgent):
             messages.pop()
 
         # Create tool executor scoped to this agent
+        # PM-only write primitives: coordination actions that only PM should perform.
+        # Read primitives (ReadProjectStatus, CheckContributorFreshness) stay open
+        # to all agents — anyone can check the board, only PM moves the tickets.
+        PM_ONLY_PRIMITIVES = {"RequestContributorAdvance", "UpdateWorkPlan"}
+
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:
             modes = PRIMITIVE_MODES.get(tool_name, [])
             if "agent_chat" not in modes:
@@ -313,6 +318,13 @@ class ChatAgent(BaseAgent):
                     "success": False,
                     "error": "not_available",
                     "message": f"Tool {tool_name} is not available in agent_chat mode",
+                }
+            # Role gate: PM-only write primitives
+            if tool_name in PM_ONLY_PRIMITIVES and self.agent.get("role") != "pm":
+                return {
+                    "success": False,
+                    "error": "not_authorized",
+                    "message": f"{tool_name} is a PM coordination action — contributors can read project status but only PM can steer.",
                 }
             handler = HANDLERS.get(tool_name)
             if not handler:
