@@ -75,7 +75,7 @@ async def maybe_bootstrap_project(
         return None
 
     project_slug = result["project_slug"]
-    agents = result.get("agents_created", [])
+    agents = result.get("members_created", [])
     logger.info(
         f"[BOOTSTRAP] Scaffolded {type_key} project ({project_slug}) "
         f"with {len(agents)} agent(s) for user {user_id}"

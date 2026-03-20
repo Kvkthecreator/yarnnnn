@@ -8,7 +8,7 @@ Registry is curated, code-side, deploy-time. Follows the pattern of
 PLATFORM_REGISTRY, ROLE_PORTFOLIOS, ROLE_PROMPTS.
 
 Changelog: api/prompts/CHANGELOG.md
-Version: v1.1 (2026-03-20)
+Version: v1.2 (2026-03-20)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Project Type Registry v1.0
+# Project Type Registry v1.2
 # =============================================================================
 
 PROJECT_TYPE_REGISTRY: dict[str, dict] = {
@@ -39,7 +39,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
             "format": "email",
             "purpose": "Stay informed on team activity without reading every message",
         },
-        "agents": [
+        "members": [
             {
                 "title_template": "Slack Agent",
                 "role": "digest",
@@ -65,7 +65,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
             "format": "email",
             "purpose": "Inbox triage — highlights and action items surfaced daily",
         },
-        "agents": [
+        "members": [
             {
                 "title_template": "Gmail Agent",
                 "role": "digest",
@@ -91,7 +91,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
             "format": "email",
             "purpose": "Track workspace changes without visiting every page",
         },
-        "agents": [
+        "members": [
             {
                 "title_template": "Notion Agent",
                 "role": "digest",
@@ -119,7 +119,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
             "format": "pdf",
             "purpose": "See patterns across platforms that individual digests miss",
         },
-        "agents": [
+        "members": [
             {
                 "title_template": "Cross-Platform Synthesizer",
                 "role": "synthesize",
@@ -140,7 +140,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "platform": None,
         "description": "User-defined project with custom agents and delivery.",
         "objective": None,
-        "agents": [],
+        "members": [],
         "pm": True,
         "assembly_spec": None,
         "delivery_default": {"platform": "email"},
@@ -229,7 +229,7 @@ async def scaffold_project(
     *,
     title_override: Optional[str] = None,
     objective_override: Optional[dict] = None,
-    agents_override: Optional[list[dict]] = None,
+    members_override: Optional[list[dict]] = None,
     contributors: Optional[list[dict]] = None,
     assembly_spec_override: Optional[str] = None,
     delivery_override: Optional[dict] = None,
@@ -242,13 +242,13 @@ async def scaffold_project(
     1. Look up type definition
     2. Enforce uniqueness (platform types: 1 per platform per user)
     3. Create project via ProjectWorkspace.write_project()
-    4. Create agents from type.agents[] specs
+    4. Create member agents from type.members[] specs
     5. Optionally create PM agent (type.pm)
-    6. Seed contributor workspaces with project pointers
+    6. Seed member workspaces with project pointers
     7. Optionally execute first agent run (execute_now)
 
     Returns:
-        {success, project_slug, agents_created: [{agent_id, title, role}],
+        {success, project_slug, members_created: [{agent_id, title, role}],
          pm_agent_id, message}
         or {success: False, reason, message}
     """
@@ -292,8 +292,8 @@ async def scaffold_project(
 
     project_slug = get_project_slug(title)
 
-    # ── Resolve sources for agents ──
-    agent_specs = agents_override or ptype.get("agents", [])
+    # ── Resolve sources for member agents ──
+    member_specs = members_override or ptype.get("members", [])
 
     async def _resolve_sources(spec: dict) -> list:
         sources_from = spec.get("sources_from")
@@ -305,11 +305,11 @@ async def scaffold_project(
             return await _get_all_platform_sources(client, user_id)
         return spec.get("sources", [])
 
-    # ── Create agents from specs ──
-    created_agents = []
+    # ── Create member agents from specs ──
+    created_members = []
     contributor_records = []
 
-    for spec in agent_specs:
+    for spec in member_specs:
         agent_title = spec.get("title_template", spec.get("title", f"{title} Agent"))
         agent_role = spec.get("role", "custom")
         agent_scope = spec.get("scope")
@@ -334,7 +334,7 @@ async def scaffold_project(
         if result.get("success"):
             agent = result["agent"]
             agent_slug = get_agent_slug(agent)
-            created_agents.append({
+            created_members.append({
                 "agent_id": result["agent_id"],
                 "title": agent_title,
                 "role": agent_role,
@@ -346,7 +346,7 @@ async def scaffold_project(
                 "expected_contribution": spec.get("expected_contribution", f"{agent_role} output"),
             })
         else:
-            logger.warning(f"[REGISTRY] Agent creation failed for '{agent_title}': {result.get('message')}")
+            logger.warning(f"[REGISTRY] Member creation failed for '{agent_title}': {result.get('message')}")
 
     # Also add any existing contributors passed in
     if contributors:
@@ -371,7 +371,7 @@ async def scaffold_project(
     if not success:
         return {"success": False, "reason": "write_failed", "message": "Failed to write PROJECT.md"}
 
-    # ── Seed contributor workspaces with project pointers ──
+    # ── Seed member workspaces with project pointers ──
     for c in contributor_records:
         if not c.get("agent_slug"):
             continue
@@ -400,7 +400,7 @@ async def scaffold_project(
                 content_type="application/json",
             )
         except Exception as e:
-            logger.warning(f"[REGISTRY] Failed to seed contributor workspace {c['agent_slug']}: {e}")
+            logger.warning(f"[REGISTRY] Failed to seed member workspace {c['agent_slug']}: {e}")
 
     # ── Create PM agent if type requires it ──
     pm_agent_id = None
@@ -433,36 +433,36 @@ async def scaffold_project(
         except Exception as e:
             logger.warning(f"[REGISTRY] PM auto-creation failed: {e}")
 
-    # ── Execute first agent run inline if requested ──
-    if execute_now and created_agents:
-        for ca in created_agents:
+    # ── Execute first member run inline if requested ──
+    if execute_now and created_members:
+        for cm in created_members:
             try:
                 from services.agent_execution import execute_agent_generation
                 exec_result = await execute_agent_generation(
                     client=client,
                     user_id=user_id,
-                    agent=ca["agent"],
+                    agent=cm["agent"],
                     trigger_context={"type": "bootstrap", "project_slug": project_slug},
                 )
                 if exec_result.get("success"):
                     logger.info(
-                        f"[REGISTRY] First run delivered: {ca['title']} "
+                        f"[REGISTRY] First run delivered: {cm['title']} "
                         f"v{exec_result.get('version_number', '?')}"
                     )
                     # Update next_run_at to prevent scheduler double-run
                     try:
                         from jobs.unified_scheduler import calculate_next_run_from_schedule
-                        agent_schedule = ca["agent"].get("schedule", {})
+                        agent_schedule = cm["agent"].get("schedule", {})
                         next_run = calculate_next_run_from_schedule(agent_schedule)
                         client.table("agents").update({
                             "next_run_at": next_run.isoformat(),
-                        }).eq("id", ca["agent_id"]).execute()
+                        }).eq("id", cm["agent_id"]).execute()
                     except Exception:
                         pass
                 else:
-                    logger.warning(f"[REGISTRY] First run failed for {ca['title']}: {exec_result.get('message')}")
+                    logger.warning(f"[REGISTRY] First run failed for {cm['title']}: {exec_result.get('message')}")
             except Exception as e:
-                logger.warning(f"[REGISTRY] Inline execution failed for {ca['title']}, scheduler will retry: {e}")
+                logger.warning(f"[REGISTRY] Inline execution failed for {cm['title']}, scheduler will retry: {e}")
 
     # ── Activity log ──
     try:
@@ -471,13 +471,13 @@ async def scaffold_project(
             client=client,
             user_id=user_id,
             event_type="project_scaffolded",
-            summary=f"Created project '{title}' (type: {type_key}) with {len(created_agents)} agent(s)",
+            summary=f"Created project '{title}' (type: {type_key}) with {len(created_members)} member(s)",
             event_ref=project_slug,
             metadata={
                 "type_key": type_key,
                 "category": ptype["category"],
                 "platform": ptype.get("platform"),
-                "agents_created": [ca["agent_id"] for ca in created_agents],
+                "members_created": [cm["agent_id"] for cm in created_members],
                 "pm_agent_id": pm_agent_id,
             },
         )
@@ -486,7 +486,7 @@ async def scaffold_project(
 
     logger.info(
         f"[REGISTRY] Scaffolded project '{title}' ({project_slug}), "
-        f"type={type_key}, agents={len(created_agents)}, PM={pm_agent_id}"
+        f"type={type_key}, members={len(created_members)}, PM={pm_agent_id}"
     )
 
     return {
@@ -494,9 +494,9 @@ async def scaffold_project(
         "project_slug": project_slug,
         "title": title,
         "type_key": type_key,
-        "agents_created": [
-            {"agent_id": ca["agent_id"], "title": ca["title"], "role": ca["role"]}
-            for ca in created_agents
+        "members_created": [
+            {"agent_id": cm["agent_id"], "title": cm["title"], "role": cm["role"]}
+            for cm in created_members
         ],
         "pm_agent_id": pm_agent_id,
         "message": (

@@ -238,7 +238,7 @@ async def create_project(body: CreateProjectRequest, user: UserClient):
     return {
         "project_slug": result["project_slug"],
         "title": body.title,
-        "members": result.get("agents_created", []),
+        "members": result.get("members_created", []),
         "pm_agent_id": result.get("pm_agent_id"),
     }
 
