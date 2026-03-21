@@ -67,6 +67,8 @@ import type {
   ProjectMember,
   OutputManifest,
   PMIntelligence,
+  PMCognitiveState,
+  CognitiveAssessment,
   ProjectWorkspaceFile,
 } from '@/types';
 import type { TPMessage } from '@/types/desk';
@@ -1160,6 +1162,79 @@ function InlineProfileCard({
         </div>
       )}
 
+      {/* ADR-128 Phase 6: Cognitive state — self-assessment + trajectory */}
+      {member.role !== 'pm' && member.cognitive_state && (
+        <div className="bg-muted/40 rounded-lg px-2.5 py-2 space-y-2">
+          <p className="text-[10px] font-medium text-muted-foreground">Self-assessment (latest)</p>
+          <div className="space-y-1">
+            {member.cognitive_state.mandate && (
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="w-[50px] text-muted-foreground text-right">Mandate</span>
+                <span className={cn('font-medium', LEVEL_CONFIG[member.cognitive_state.mandate.level].text)}>
+                  {member.cognitive_state.mandate.level}
+                </span>
+                {member.cognitive_state.mandate.reason && member.cognitive_state.mandate.level !== 'high' && (
+                  <span className="text-muted-foreground truncate">— {member.cognitive_state.mandate.reason}</span>
+                )}
+              </div>
+            )}
+            {member.cognitive_state.fitness && (
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="w-[50px] text-muted-foreground text-right">Fitness</span>
+                <span className={cn('font-medium', LEVEL_CONFIG[member.cognitive_state.fitness.level].text)}>
+                  {member.cognitive_state.fitness.level}
+                </span>
+                {member.cognitive_state.fitness.reason && member.cognitive_state.fitness.level !== 'high' && (
+                  <span className="text-muted-foreground truncate">— {member.cognitive_state.fitness.reason}</span>
+                )}
+              </div>
+            )}
+            {member.cognitive_state.currency && (
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="w-[50px] text-muted-foreground text-right">Context</span>
+                <span className={cn('font-medium', LEVEL_CONFIG[member.cognitive_state.currency.level].text)}>
+                  {member.cognitive_state.currency.level}
+                </span>
+                {member.cognitive_state.currency.reason && member.cognitive_state.currency.level !== 'high' && (
+                  <span className="text-muted-foreground truncate">— {member.cognitive_state.currency.reason}</span>
+                )}
+              </div>
+            )}
+            {member.cognitive_state.confidence && (
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="w-[50px] text-muted-foreground text-right">Output</span>
+                <span className={cn('font-medium', LEVEL_CONFIG[member.cognitive_state.confidence.level].text)}>
+                  {member.cognitive_state.confidence.level}
+                </span>
+                {member.cognitive_state.confidence.reason && member.cognitive_state.confidence.level !== 'high' && (
+                  <span className="text-muted-foreground truncate">— {member.cognitive_state.confidence.reason}</span>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Confidence trajectory sparkline — last 5 runs */}
+          {member.cognitive_state.confidence_trajectory && member.cognitive_state.confidence_trajectory.length > 1 && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <span className="text-[9px] text-muted-foreground">Trend</span>
+              <div className="flex items-center gap-0.5">
+                {member.cognitive_state.confidence_trajectory.map((level, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'w-2 h-2 rounded-sm',
+                      level === 'high' && 'bg-green-500/70',
+                      level === 'medium' && 'bg-amber-500/60',
+                      level === 'low' && 'bg-red-500/50',
+                    )}
+                  />
+                ))}
+              </div>
+              <span className="text-[9px] text-muted-foreground">({member.cognitive_state.confidence_trajectory.length} runs)</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Current thesis — what the agent currently thinks */}
       {member.thesis_snippet && (
         <div className="bg-muted/40 rounded-lg px-2.5 py-2">
@@ -1483,14 +1558,101 @@ const PULSE_DECISION_CONFIG: Record<PulseDecision, { label: string; color: strin
   escalate: { label: 'Needs attention', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-500' },
 };
 
+// ADR-128 Phase 6: Cognitive assessment bar for contributor cards
+const LEVEL_CONFIG = {
+  high: { width: 'w-[80%]', color: 'bg-green-500/60', text: 'text-green-600 dark:text-green-400' },
+  medium: { width: 'w-[55%]', color: 'bg-amber-500/60', text: 'text-amber-600 dark:text-amber-400' },
+  low: { width: 'w-[30%]', color: 'bg-red-500/50', text: 'text-red-600 dark:text-red-400' },
+};
+
+function CognitiveBar({ label, level, reason }: { label: string; level: 'high' | 'medium' | 'low'; reason?: string }) {
+  const config = LEVEL_CONFIG[level];
+  return (
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="w-[52px] text-muted-foreground shrink-0 text-right">{label}</span>
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={cn('h-full rounded-full transition-all', config.width, config.color)} />
+      </div>
+      <span className={cn('shrink-0', config.text)}>{level}</span>
+      {reason && level !== 'high' && (
+        <span className="text-muted-foreground truncate max-w-[140px]">— {reason}</span>
+      )}
+    </div>
+  );
+}
+
+// ADR-128 Phase 6: PM 5-layer constraint indicator
+const LAYER_LABELS = ['Commitment', 'Structure', 'Context', 'Quality', 'Readiness'] as const;
+const LAYER_KEYS = ['commitment', 'structure', 'context', 'quality', 'readiness'] as const;
+
+function PMLayers({ state }: { state: PMCognitiveState }) {
+  return (
+    <div className="mt-1.5 space-y-1">
+      <div className="flex items-center gap-1 flex-wrap">
+        {LAYER_KEYS.map((key, i) => {
+          const status = state.layers[key];
+          return (
+            <span
+              key={key}
+              className={cn(
+                'text-[9px] font-medium px-1 py-0.5 rounded',
+                status === 'satisfied' && 'text-green-600 dark:text-green-400',
+                status === 'broken' && 'text-red-600 dark:text-red-400 bg-red-500/10',
+                status === 'unknown' && 'text-muted-foreground/40',
+              )}
+            >
+              {status === 'satisfied' ? '✓' : status === 'broken' ? '✗' : '·'} {LAYER_LABELS[i]}
+            </span>
+          );
+        })}
+      </div>
+      {state.constraint_summary && (
+        <p className="text-[10px] text-muted-foreground italic leading-relaxed truncate">
+          {state.constraint_summary}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CognitiveCards({ cognitive }: { cognitive: CognitiveAssessment }) {
+  // If all 4 dimensions are high, show compressed state
+  const allHealthy = (
+    cognitive.mandate?.level === 'high' &&
+    cognitive.fitness?.level === 'high' &&
+    cognitive.currency?.level === 'high' &&
+    cognitive.confidence?.level === 'high'
+  );
+
+  if (allHealthy) {
+    return (
+      <div className="mt-1.5 flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+        <Check className="w-3 h-3" />
+        <span>All dimensions healthy</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      {cognitive.mandate && <CognitiveBar label="Mandate" level={cognitive.mandate.level} reason={cognitive.mandate.reason} />}
+      {cognitive.fitness && <CognitiveBar label="Fitness" level={cognitive.fitness.level} reason={cognitive.fitness.reason} />}
+      {cognitive.currency && <CognitiveBar label="Context" level={cognitive.currency.level} reason={cognitive.currency.reason} />}
+      {cognitive.confidence && <CognitiveBar label="Output" level={cognitive.confidence.level} reason={cognitive.confidence.reason} />}
+    </div>
+  );
+}
+
 function WorkfloorView({
   members,
   activities,
   slug,
+  pmCognitiveState,
 }: {
   members: ProjectMember[];
   activities: ProjectActivityItem[];
   slug: string;
+  pmCognitiveState?: PMCognitiveState | null;
 }) {
   // Derive latest pulse state per agent from activity events
   const agentPulseState = useCallback(() => {
@@ -1538,64 +1700,75 @@ function WorkfloorView({
                 const decisionConfig = pulse
                   ? PULSE_DECISION_CONFIG[pulse.decision] || PULSE_DECISION_CONFIG.wait
                   : null;
+                const isPM = m.role === 'pm';
 
                 return (
                   <div
                     key={m.agent_slug}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background hover:bg-muted/30 transition-colors"
+                    className="p-3 rounded-xl border border-border bg-background hover:bg-muted/30 transition-colors"
                   >
-                    {/* Avatar with pulse ring */}
-                    <div className="relative">
-                      <AgentAvatar
-                        name={name}
-                        role={m.role}
-                        avatarUrl={m.avatar_url}
-                        size="md"
-                        status={m.status}
-                      />
-                      {/* Pulse ring animation for active agents */}
-                      {pulse?.decision === 'generate' && (
-                        <span className="absolute inset-0 rounded-full border-2 border-green-500/40 animate-ping" />
-                      )}
-                    </div>
-
-                    {/* Identity + state */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">{name}</span>
-                        {m.role && (
-                          <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
-                            {roleShortLabel(m.role)}
-                          </span>
+                    <div className="flex items-center gap-3">
+                      {/* Avatar with pulse ring */}
+                      <div className="relative">
+                        <AgentAvatar
+                          name={name}
+                          role={m.role}
+                          avatarUrl={m.avatar_url}
+                          size="md"
+                          status={m.status}
+                        />
+                        {/* Pulse ring animation for active agents */}
+                        {pulse?.decision === 'generate' && (
+                          <span className="absolute inset-0 rounded-full border-2 border-green-500/40 animate-ping" />
                         )}
                       </div>
-                      {/* Pulse state */}
-                      {decisionConfig ? (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', decisionConfig.bgColor)} />
-                          <span className={cn('text-xs', decisionConfig.color)}>
-                            {decisionConfig.label}
-                          </span>
-                          {pulse?.reason && (
-                            <span className="text-[11px] text-muted-foreground truncate">
-                              — {pulse.reason}
+
+                      {/* Identity + pulse state */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{name}</span>
+                          {m.role && (
+                            <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
+                              {roleShortLabel(m.role)}
                             </span>
                           )}
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {m.last_run_at
-                            ? `Last active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
-                            : 'No activity yet'}
-                        </p>
+                        {/* Pulse state */}
+                        {decisionConfig ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', decisionConfig.bgColor)} />
+                            <span className={cn('text-xs', decisionConfig.color)}>
+                              {decisionConfig.label}
+                            </span>
+                            {pulse?.reason && (
+                              <span className="text-[11px] text-muted-foreground truncate">
+                                — {pulse.reason}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {m.last_run_at
+                              ? `Last active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
+                              : 'No activity yet'}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Timestamp */}
+                      {pulse?.timestamp && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {format(new Date(pulse.timestamp), 'h:mm a')}
+                        </span>
                       )}
                     </div>
 
-                    {/* Timestamp */}
-                    {pulse?.timestamp && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {format(new Date(pulse.timestamp), 'h:mm a')}
-                      </span>
+                    {/* ADR-128 Phase 6: Cognitive state — contributor bars or PM layers */}
+                    {isPM && pmCognitiveState && (
+                      <PMLayers state={pmCognitiveState} />
+                    )}
+                    {!isPM && m.cognitive_state && (
+                      <CognitiveCards cognitive={m.cognitive_state} />
                     )}
                   </div>
                 );
@@ -1709,7 +1882,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const { project: meta, contribution_counts, assembly_count, pm_intelligence } = project;
+  const { project: meta, contribution_counts, assembly_count, pm_intelligence, project_cognitive_state } = project;
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const members = meta.contributors || [];
 
@@ -1823,7 +1996,7 @@ export default function ProjectDetailPage() {
       {mainView === 'meeting-room' ? (
         <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
       ) : (
-        <WorkfloorView members={members} activities={activities} slug={slug} />
+        <WorkfloorView members={members} activities={activities} slug={slug} pmCognitiveState={project_cognitive_state} />
       )}
     </WorkspaceLayout>
   );

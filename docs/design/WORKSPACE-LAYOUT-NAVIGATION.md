@@ -174,9 +174,34 @@ Instructions editing still flows through chat (ADR-105). The Instructions tab re
 
 ---
 
+---
+
+## 8. Project Page: WorkfloorView Evolution (ADR-128 Phase 6)
+
+The project page (`/projects/[slug]`) uses `WorkspaceLayout` with a Chat/Workfloor toggle on the main (left) area and Team/Context/Outputs/Settings tabs on the right panel.
+
+### WorkfloorView
+
+The Workfloor shows per-agent cards. Initially showed pulse state only (operational). ADR-128 Phase 6 evolves cards to include **cognitive state**:
+
+- **Contributor cards**: 4-bar assessment (mandate, fitness, context, output) with level indicators + reason annotations for non-high dimensions. Collapses to "All dimensions healthy" when all 4 are high.
+- **PM card**: 5-layer constraint indicator (commitment → structure → context → quality → readiness) with first-broken-layer summary.
+- **Graceful degradation**: Cards without cognitive data show pulse-only layout (pre-ADR-128 agents, awaiting-first-run agents).
+
+### InlineProfileCard (Team panel)
+
+Profile card shows identity + developmental state + **cognitive state section** (between seniority and thesis):
+- Self-assessment: latest 4 dimensions with level + reason
+- Confidence trajectory: 5-square sparkline (last 5 runs)
+
+See [COGNITIVE-DASHBOARD-DESIGN.md](COGNITIVE-DASHBOARD-DESIGN.md) for full design spec.
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-03-04 | v1: Drawer overlay model — InlineVersionCard + overlay drawer |
 | 2026-03-11 | v2: Persistent panel — inline panel (≥lg), versions in panel, InlineVersionCard deleted |
+| 2026-03-21 | v3: WorkfloorView cognitive state evolution — 4-bar contributor cards, 5-layer PM card, InlineProfileCard self-assessment (ADR-128 Phase 6) |

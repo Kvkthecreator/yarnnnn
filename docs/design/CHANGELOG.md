@@ -4,6 +4,28 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-03-21 — ADR-128 Phase 6: Cognitive Dashboard Design
+
+- New active doc: `COGNITIVE-DASHBOARD-DESIGN.md`
+- **Workfloor evolution**: pulse-only agent cards → pulse + cognitive state. Contributor cards show 4-bar assessment (mandate/fitness/context/output) with level indicators. PM card shows 5-layer constraint indicator (commitment → readiness). "All dimensions healthy" compression when everything is fine.
+- **InlineProfileCard enrichment**: Self-assessment section + confidence trajectory sparkline (5-square) added between developmental state and thesis.
+- **Backend**: `get_project()` enrichment loop now parses `self_assessment.md` → `cognitive_state` per contributor, `project_assessment.md` → `project_cognitive_state`.
+- **Types**: `CognitiveAssessment`, `PMCognitiveState` added to `web/types/index.ts`.
+- Updated: `AGENT-PRESENTATION-PRINCIPLES.md` (Principle 8), `WORKSPACE-LAYOUT-NAVIGATION.md` (v3), `PROJECTS-PRODUCT-DIRECTION.md` (settled decision #9).
+- Related: ADR-128 (governing ADR, Phases 0-5 built the data substrate, Phase 6 builds the view)
+
+### Active docs (6 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ACTION-MAPPING.md` | Design principle: directives → chat, configuration → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy (show/execute/prompt/attach) for + menu actions |
+| `WORKSPACE-LAYOUT-NAVIGATION.md` | Canonical layout architecture (WorkspaceLayout, scoped chat, WorkfloorView) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Agent frontend: source-first grouping, card anatomy, creation flow, cognitive state |
+| `PROJECTS-PRODUCT-DIRECTION.md` | Projects as product direction, settled decisions |
+| `COGNITIVE-DASHBOARD-DESIGN.md` | ADR-128 Phase 6: cognitive state surfacing on Workfloor + Team panel |
+
+---
+
 ## 2026-03-13 — ADR-110 & ADR-111: Onboarding Bootstrap + Agent Composer (Proposed)
 
 - **ADR-110**: Deterministic agent auto-creation post-platform-connection. Targets <60s time-to-first-value. Bootstrap service creates matching digest agent on first sync completion (Slack→Recap, Gmail→Digest, Notion→Summary). `origin=system_bootstrap`.

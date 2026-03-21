@@ -803,6 +803,34 @@ export interface ProjectSummary {
   updated_at: string;
 }
 
+/** ADR-128 Phase 6: Contributor cognitive assessment (from self_assessment.md) */
+export interface CognitiveAssessmentDimension {
+  level: 'high' | 'medium' | 'low';
+  reason?: string;
+}
+
+export interface CognitiveAssessment {
+  mandate: CognitiveAssessmentDimension;
+  fitness: CognitiveAssessmentDimension;
+  currency: CognitiveAssessmentDimension;
+  confidence: CognitiveAssessmentDimension;
+  /** Most recent 5 output confidence levels (newest first) */
+  confidence_trajectory?: ('high' | 'medium' | 'low')[];
+}
+
+/** ADR-128 Phase 6: PM cognitive state (from project_assessment.md) */
+export interface PMCognitiveState {
+  layers: {
+    commitment: 'satisfied' | 'broken' | 'unknown';
+    structure: 'satisfied' | 'broken' | 'unknown';
+    context: 'satisfied' | 'broken' | 'unknown';
+    quality: 'satisfied' | 'broken' | 'unknown';
+    readiness: 'satisfied' | 'broken' | 'unknown';
+  };
+  constraint_summary?: string;
+  raw_assessment?: string;
+}
+
 /** ADR-124: Project member — enriched agent data for personified display */
 export interface ProjectMember {
   agent_slug: string;
@@ -825,6 +853,8 @@ export interface ProjectMember {
   seniority?: 'new' | 'associate' | 'senior';
   total_runs?: number;
   approval_rate?: number;
+  // ADR-128 Phase 6: Cognitive state (contributors only)
+  cognitive_state?: CognitiveAssessment | null;
 }
 
 // ADR-123 Phase 3: PM intelligence surfacing
@@ -850,6 +880,7 @@ export interface ProjectDetail {
   contribution_counts: Record<string, number>;
   assembly_count: number;
   pm_intelligence?: PMIntelligence | null;  // ADR-123 Phase 3
+  project_cognitive_state?: PMCognitiveState | null;  // ADR-128 Phase 6
 }
 
 export interface ProjectActivityItem {

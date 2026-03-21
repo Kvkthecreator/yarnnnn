@@ -40,6 +40,8 @@ These were resolved through architectural discourse (2026-03-18) and should not 
 
 8. **PM is a coherence monitor, not just a logistics coordinator.** PM reads contributor self-assessment histories (rolling, 5 recent) and walks prerequisite layers (commitment → structure → context → quality → readiness) every pulse. PM writes `project_assessment.md` as an authoritative snapshot. Contributors read it to understand project constraints. This is the multi-agent coherence protocol (ADR-128).
 
+9. **Cognitive state is surfaced on the Workfloor, not a separate tab.** The Workfloor evolves from pulse-only operational state to include cognitive state (contributor 4-bar assessment, PM 5-layer constraint indicator). A separate "Cognition" tab was rejected — intelligence substrates aren't silos. See [COGNITIVE-DASHBOARD-DESIGN.md](COGNITIVE-DASHBOARD-DESIGN.md) for the Phase 6 design. InlineProfileCard (Team panel) also shows self-assessment + confidence trajectory.
+
 6. **Projects are ongoing, not scheduled.** No cron expression on projects. Composer assembles when contributions have meaningfully changed. Projects trail indefinitely until archived by user, Composer, or dissolution.
 
 7. **TP/Composer is the single conversational surface.** User says "let's talk about the Q2 review" and Composer scopes context to that project. No separate project chat interface.
@@ -234,9 +236,11 @@ Same workspace layout pattern (chat + panel), different panel tabs:
 **Memory** — project-level accumulated state:
 - `preferences.md` — distilled from user feedback on assembled outputs ("leadership prefers bullet points over paragraphs," "include the chart on page 1")
 - `observations.md` — cross-contribution patterns Composer has noticed ("Slack data and email data overlap on client mentions — deduplicate in assembly")
-- `project_assessment.md` — PM's layered evaluation (ADR-128): which prerequisite layer (commitment/structure/context/quality/readiness) is the current constraint. Rewritten every PM pulse.
+- `project_assessment.md` — PM's layered evaluation (ADR-128): which prerequisite layer (commitment/structure/context/quality/readiness) is the current constraint. Rewritten every PM pulse. Surfaced as 5-layer indicator on Workfloor PM card + full text in PM profile card.
 - `decisions.md` — project-level decisions persisted from meeting room conversations (ADR-128). Accumulated, not overwritten.
 - Read-only display. System-written, not user-editable.
+
+Note: Per-contributor `self_assessment.md` is also surfaced — as 4-bar cognitive assessment on Workfloor contributor cards and as self-assessment section + confidence trajectory in InlineProfileCard (Team panel). See ADR-128 Phase 6 / [COGNITIVE-DASHBOARD-DESIGN.md](COGNITIVE-DASHBOARD-DESIGN.md).
 
 **Settings** — project configuration:
 - Delivery destination (email, Slack, Notion)

@@ -280,6 +280,22 @@ As TP improves at intent detection and configuration inference, the structured f
 
 ---
 
+## Principle 8: Cognitive State Is Operational, Not Taxonomic
+
+**Cognitive state (self-assessment, confidence, mandate fitness) belongs alongside operational state (pulse), not in a separate surface.**
+
+ADR-128 establishes that agents self-assess on 4 dimensions: mandate, domain fitness, context currency, output confidence. PM evaluates 5 prerequisite layers. This cognitive data answers "why is the agent doing what it's doing?" — the natural follow-up to "what is the agent doing?" (pulse state).
+
+This means:
+- **Same card, not separate tab**: The Workfloor card shows pulse + cognitive state together. A user seeing "Observing" immediately sees "Context: low — data 24h stale" below it.
+- **Profile card enrichment**: The Team panel profile card shows self-assessment + confidence trajectory between developmental state and thesis.
+- **Compress routine**: When all dimensions are healthy, collapse to a single "All dimensions healthy" line. Don't enumerate when everything is fine.
+- **PM uses its own model**: PM shows 5-layer constraint indicator, not the contributor 4-bar. The cognitive model is role-specific.
+
+See [COGNITIVE-DASHBOARD-DESIGN.md](COGNITIVE-DASHBOARD-DESIGN.md) for the full Phase 6 design.
+
+---
+
 ## Anti-Patterns
 
 | Anti-pattern | Why it fails | Correct approach |
@@ -323,3 +339,4 @@ As TP improves at intent detection and configuration inference, the structured f
 |------|--------|
 | 2026-03-13 | Initial principles — source-first mental model, progressive disclosure, platform icons, source-affinity grouping |
 | 2026-03-16 | Updated priorities: platform icons on dashboard, supervision dashboard, origin badge collapse, two-path onboarding — all implemented |
+| 2026-03-21 | Added Principle 8: Cognitive state is operational, not taxonomic (ADR-128 Phase 6) |

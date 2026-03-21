@@ -1,6 +1,6 @@
 # ADR-128: Multi-Agent Coherence Protocol
 
-> **Status**: Proposed
+> **Status**: Implemented (Phases 0-6)
 > **Date**: 2026-03-21
 > **Authors**: KVK, Claude
 > **Scope**: How intelligence flows between conversation, filesystem, and agent cognition substrates
@@ -140,10 +140,10 @@ Contributors read PM's project_assessment.md via `load_context()`. `workspace.py
 ### Phase 5: Documentation
 This ADR + FOUNDATIONS.md + workspace-conventions.md + agent-framework.md + agent-execution-model.md + CLAUDE.md + CHANGELOG + design docs + feature docs.
 
-### Phase 6: Cognitive Dashboard (Future)
-Situation room view surfacing agent cognitive state. Not scoped here.
+### Phase 6: Cognitive Dashboard
+Workfloor evolves to show cognitive state alongside pulse. Contributor cards: 4-bar assessment (mandate/fitness/context/output). PM card: 5-layer constraint indicator. InlineProfileCard: self-assessment section + confidence trajectory sparkline. Backend: `get_project()` parses cognitive files into structured response. See [COGNITIVE-DASHBOARD-DESIGN.md](../../docs/design/COGNITIVE-DASHBOARD-DESIGN.md).
 
-**Execution order**: Phase 0 + Phase 3 in parallel → Phase 1 → Phase 2 → Phase 4 → Phase 5.
+**Execution order**: Phase 0 + Phase 3 in parallel → Phase 1 → Phase 2 → Phase 4 → Phase 5 → Phase 6.
 
 ---
 
