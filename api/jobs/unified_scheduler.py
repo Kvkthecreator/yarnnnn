@@ -552,7 +552,7 @@ async def run_unified_scheduler():
                 composer_users += 1
 
                 composer_result = hb_result.get("composer_result") or {}
-                created_count = len(composer_result.get("members_created", []))
+                created_count = len(composer_result.get("contributors_created", []))
                 composer_created += created_count
 
                 # ADR-111 Phase 5: Count lifecycle actions from Heartbeat
@@ -571,7 +571,7 @@ async def run_unified_scheduler():
                             "origin": "cron",  # ADR-114: distinguish from event-driven heartbeats
                             "should_act": hb_result.get("should_act", False),
                             "reason": hb_result.get("reason", ""),
-                            "members_created": created_count,
+                            "contributors_created": created_count,
                             "lifecycle_actions": len(lifecycle_actions),
                             **hb_result.get("assessment_summary", {}),
                         },

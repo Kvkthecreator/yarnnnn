@@ -810,14 +810,14 @@ async def run_composer_assessment(
     Returns:
         {
             "action": "created" | "lifecycle" | "observed" | "skipped",
-            "members_created": [...],
+            "contributors_created": [...],
             "lifecycle_actions": [...],
             "observations": [...],
         }
     """
     result = {
         "action": "observed",
-        "members_created": [],
+        "contributors_created": [],
         "lifecycle_actions": [],
         "observations": [],
     }
@@ -833,15 +833,15 @@ async def run_composer_assessment(
             type_key, _ = type_info
             scaffold_result = await scaffold_project(client, user_id, type_key, execute_now=True)
             if scaffold_result.get("success"):
-                for cm in scaffold_result.get("members_created", []):
-                    result["members_created"].append({
+                for cm in scaffold_result.get("contributors_created", []):
+                    result["contributors_created"].append({
                         "agent_id": cm["agent_id"],
                         "platform": platform,
                         "role": cm["role"],
                         "reason": "coverage_gap",
                         "project_slug": scaffold_result["project_slug"],
                     })
-        if result["members_created"]:
+        if result["contributors_created"]:
             result["action"] = "created"
         return result
 
@@ -851,10 +851,10 @@ async def run_composer_assessment(
         result["lifecycle_actions"] = lifecycle_result.get("actions_taken", [])
         result["observations"].extend(lifecycle_result.get("observations", []))
 
-        # Lifecycle actions that create members go into members_created too
+        # Lifecycle actions that create contributors go into contributors_created too
         for action in result["lifecycle_actions"]:
             if action.get("action") == "created":
-                result["members_created"].append(action)
+                result["contributors_created"].append(action)
 
         if result["lifecycle_actions"]:
             result["action"] = "lifecycle"
@@ -863,7 +863,7 @@ async def run_composer_assessment(
     # LLM assessment path for non-obvious cases
     try:
         created = await _llm_composer_assessment(client, user_id, assessment, reason)
-        result["members_created"] = created
+        result["contributors_created"] = created
         if created:
             result["action"] = "created"
         else:
@@ -1586,7 +1586,7 @@ async def run_lifecycle_assessment(
                 client, user_id, "cross_platform_synthesis",
             )
             if scaffold_result.get("success"):
-                for ca in scaffold_result.get("members_created", []):
+                for ca in scaffold_result.get("contributors_created", []):
                     result["actions_taken"].append({
                         "action": "created",
                         "agent_id": ca["agent_id"],
@@ -1633,7 +1633,7 @@ async def run_lifecycle_assessment(
                 client, user_id, "cross_platform_synthesis",
             )
             if scaffold_result.get("success"):
-                for ca in scaffold_result.get("members_created", []):
+                for ca in scaffold_result.get("contributors_created", []):
                     result["actions_taken"].append({
                         "action": "created",
                         "agent_id": ca["agent_id"],
@@ -1697,10 +1697,10 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
         heartbeat_result["composer_result"] = composer_result
 
         # Activity log for created members
-        if composer_result.get("members_created"):
+        if composer_result.get("contributors_created"):
             try:
                 from services.activity_log import write_activity
-                for created in composer_result["members_created"]:
+                for created in composer_result["contributors_created"]:
                     await write_activity(
                         client=client,
                         user_id=user_id,
@@ -1834,7 +1834,7 @@ async def maybe_trigger_heartbeat(
             from services.activity_log import write_activity
             composer_result = hb_result.get("composer_result") or {}
             lifecycle_actions = composer_result.get("lifecycle_actions", [])
-            created_count = len(composer_result.get("members_created", []))
+            created_count = len(composer_result.get("contributors_created", []))
 
             await write_activity(
                 client=client,
@@ -1847,7 +1847,7 @@ async def maybe_trigger_heartbeat(
                     "trigger_metadata": trigger_metadata or {},
                     "should_act": hb_result.get("should_act", False),
                     "reason": hb_result.get("reason", ""),
-                    "members_created": created_count,
+                    "contributors_created": created_count,
                     "lifecycle_actions": len(lifecycle_actions),
                     **hb_result.get("assessment_summary", {}),
                 },

@@ -75,12 +75,15 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
     return "cross_platform"
 
 # Columns allowed in agents table INSERT (prevents Supabase 400)
+# NOTE: agent_instructions and agent_memory EXCLUDED — deprecated by ADR-106.
+# Workspace AGENT.md and memory/*.md are the sole authority for new agents.
+# DB columns kept in schema for lazy migration of pre-workspace agents.
 AGENT_COLUMNS = {
     "id", "user_id", "project_id", "title", "description",
     "recipient_context", "schedule", "sources",
     "status", "created_at", "updated_at", "last_run_at", "next_pulse_at",
-    "type_config", "destination", "origin", "agent_instructions",
-    "agent_memory", "mode", "trigger_type",
+    "type_config", "destination", "origin",
+    "mode", "trigger_type",
     "trigger_config", "last_triggered_at", "scope", "role",
 }
 
@@ -189,8 +192,9 @@ async def create_agent_record(
         "updated_at": now.isoformat(),
     }
 
-    if instructions_text:
-        agent_data["agent_instructions"] = instructions_text
+    # NOTE: agent_instructions DB column is DEPRECATED (ADR-106).
+    # Workspace AGENT.md is the sole authority. DB column kept for lazy migration
+    # of pre-workspace agents via ensure_seeded() but NOT written for new agents.
     if description:
         agent_data["description"] = description
 

@@ -448,7 +448,7 @@ async def phase4_assessment_routing(supabase) -> PhaseResult:
         supabase, TEST_USER_ID, lifecycle_assessment, "lifecycle_underperformer: test"
     )
     assert_in(r, "Result has lifecycle_actions key", "lifecycle_actions", result)
-    assert_in(r, "Result has members_created key", "members_created", result)
+    assert_in(r, "Result has contributors_created key", "contributors_created", result)
     assert_in(r, "Result has observations key", "observations", result)
     # Mild underperformer → no actions taken (below pause threshold), route still runs
     # but since no lifecycle_actions, action stays "observed"

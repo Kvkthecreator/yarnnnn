@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.21.1] - Data surfacing streamline — PM in PROJECT.md, dead DB writes removed, naming unified
+
+### Changed
+- `api/services/project_registry.py`: **PM sequencing fix** — PM agent created BEFORE `write_project()` so PM appears in PROJECT.md contributor list. Previously PM was created after, leaving it invisible in Members tab. Registry key `"members"` → `"contributors"` for consistency with PROJECT.md and API. Response key `members_created` → `contributors_created`. Parameter `members_override` → `contributors_override`. Version: v1.4.
+- `api/services/agent_creation.py`: **Removed dead DB writes** — `agent_instructions` and `agent_memory` columns no longer written for new agents. Workspace AGENT.md and memory/*.md are sole authority (ADR-106). DB columns kept in schema for lazy migration of pre-workspace agents via `ensure_seeded()`. `AGENT_COLUMNS` set updated to exclude deprecated columns.
+- `api/services/composer.py`: `members_created` → `contributors_created` throughout (naming alignment).
+- `api/jobs/unified_scheduler.py`: `members_created` → `contributors_created` in Composer result handling.
+- `api/services/onboarding_bootstrap.py`: `members_created` → `contributors_created`.
+- `api/routes/projects.py`: POST response key `"members"` → `"contributors"`.
+
+### Expected behavior
+- PM agents now appear in project Members tab (visible in PROJECT.md contributors section)
+- New agents no longer write to deprecated `agent_instructions`/`agent_memory` DB columns — workspace files are sole authority
+- Consistent `contributors` terminology across registry, scaffolding, API responses, and workspace
+
+---
+
 ## [2026.03.20.12] - ADR-127: TP-level global user_shared/ — working memory awareness + share endpoint
 
 ### Changed
