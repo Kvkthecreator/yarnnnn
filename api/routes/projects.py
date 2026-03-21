@@ -159,6 +159,52 @@ async def get_project(slug: str, user: UserClient):
                 c["avatar_url"] = agent.get("avatar_url")
     except Exception:
         pass
+
+    # Enrich contributors with workspace identity data (AGENT.md summary, thesis, seniority)
+    try:
+        from services.workspace import AgentWorkspace, get_agent_slug as _gas2
+        for c in enriched_contributors:
+            agent_slug = c.get("agent_slug")
+            agent_id = c.get("agent_id")
+            if not agent_slug:
+                continue
+            try:
+                ws = AgentWorkspace(user.client, user.user_id, agent_slug)
+                # AGENT.md → first non-header paragraph as bio
+                agent_md = await ws.read("AGENT.md")
+                if agent_md:
+                    lines = agent_md.strip().split("\n")
+                    bio_lines = [l.strip() for l in lines if l.strip() and not l.strip().startswith("#") and not l.strip().startswith("---")]
+                    c["bio"] = bio_lines[0][:200] if bio_lines else None
+                # thesis.md → first 150 chars
+                thesis = await ws.read("thesis.md")
+                if thesis:
+                    clean = thesis.strip().split("\n")
+                    thesis_lines = [l.strip() for l in clean if l.strip() and not l.strip().startswith("#")]
+                    c["thesis_snippet"] = thesis_lines[0][:150] if thesis_lines else None
+                # Seniority from run stats
+                if agent_id:
+                    runs_result = user.client.table("agent_runs").select(
+                        "id, status, edit_distance_score"
+                    ).eq("agent_id", agent_id).execute()
+                    runs = runs_result.data or []
+                    total_runs = len(runs)
+                    approved = sum(1 for r in runs if r.get("status") in ("approved", "delivered", "staged"))
+                    approval_rate = (approved / total_runs * 100) if total_runs > 0 else 0
+                    if total_runs >= 10 and approval_rate >= 80:
+                        seniority = "senior"
+                    elif total_runs >= 5 and approval_rate >= 60:
+                        seniority = "associate"
+                    else:
+                        seniority = "new"
+                    c["seniority"] = seniority
+                    c["total_runs"] = total_runs
+                    c["approval_rate"] = round(approval_rate)
+            except Exception:
+                pass  # Non-critical — card still works without identity data
+    except Exception:
+        pass
+
     project["contributors"] = enriched_contributors
 
     # ADR-123 Phase 3: PM intelligence — quality assessment + briefs

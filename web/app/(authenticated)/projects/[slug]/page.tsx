@@ -51,7 +51,6 @@ import {
   roleBadgeColor,
   roleDisplayName,
   roleShortLabel,
-  scopeDisplayName,
   statusIndicator,
   authorColor as getAuthorColorFromRole,
 } from '@/lib/agent-identity';
@@ -65,7 +64,6 @@ import type {
   ProjectActivityItem,
   ProjectMember,
   OutputManifest,
-  ContributionFile,
   PMIntelligence,
   ProjectWorkspaceFile,
 } from '@/types';
@@ -1084,7 +1082,7 @@ function ParticipantsSidebar({
   );
 }
 
-/** Inline profile card for the participants panel — replaces the slide-out overlay */
+/** Inline profile card — identity-first agent display */
 function InlineProfileCard({
   member,
   contributionCount,
@@ -1098,22 +1096,19 @@ function InlineProfileCard({
   pmIntelligence?: PMIntelligence | null;
   onClose: () => void;
 }) {
-  const [files, setFiles] = useState<ContributionFile[]>([]);
-  const [filesLoading, setFilesLoading] = useState(true);
-
-  useEffect(() => {
-    api.projects.getContributions(slug, member.agent_slug)
-      .then((res) => setFiles(res.files))
-      .catch(() => setFiles([]))
-      .finally(() => setFilesLoading(false));
-  }, [slug, member.agent_slug]);
-
   const name = agentDisplayName(member.title, member.agent_slug);
   const si = statusIndicator(member.status);
 
+  // Seniority display
+  const seniorityLabel = member.seniority === 'senior' ? 'Senior'
+    : member.seniority === 'associate' ? 'Associate' : 'New';
+  const seniorityColor = member.seniority === 'senior' ? 'text-green-600 dark:text-green-400'
+    : member.seniority === 'associate' ? 'text-blue-600 dark:text-blue-400'
+    : 'text-muted-foreground';
+
   return (
     <div className="px-3 py-3 space-y-3">
-      {/* Header */}
+      {/* Identity header */}
       <div className="flex items-start gap-2.5">
         <AgentAvatar
           name={name}
@@ -1124,7 +1119,7 @@ function InlineProfileCard({
         />
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold truncate">{name}</h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {member.role && (
               <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(member.role))}>
                 {roleDisplayName(member.role)}
@@ -1141,61 +1136,55 @@ function InlineProfileCard({
         </button>
       </div>
 
-      {member.expected_contribution && (
-        <p className="text-[11px] text-muted-foreground">{member.expected_contribution}</p>
+      {/* Bio — what this agent is (from AGENT.md) */}
+      {member.bio && (
+        <p className="text-[11px] text-foreground/80 leading-relaxed">{member.bio}</p>
       )}
 
-      {/* Info grid */}
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
-        {member.scope && (
-          <div>
-            <span className="text-muted-foreground/70">Scope: </span>
-            <span>{scopeDisplayName(member.scope)}</span>
-          </div>
-        )}
-        {member.last_run_at && (
-          <div>
-            <span className="text-muted-foreground/70">Last active: </span>
-            <span>{formatDistanceToNow(new Date(member.last_run_at), { addSuffix: true })}</span>
-          </div>
-        )}
-      </div>
+      {/* Developmental state — seniority + track record */}
+      {member.total_runs != null && member.total_runs > 0 && (
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className={cn('font-medium', seniorityColor)}>
+            {seniorityLabel}
+          </span>
+          <span className="text-muted-foreground">
+            {member.total_runs} run{member.total_runs !== 1 ? 's' : ''}
+          </span>
+          {member.approval_rate != null && (
+            <span className="text-muted-foreground">
+              {member.approval_rate}% approved
+            </span>
+          )}
+        </div>
+      )}
 
-      {/* PM brief */}
+      {/* Current thesis — what the agent currently thinks */}
+      {member.thesis_snippet && (
+        <div className="bg-muted/40 rounded-lg px-2.5 py-2">
+          <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Current thesis</p>
+          <p className="text-[11px] text-foreground/70 italic leading-relaxed">{member.thesis_snippet}</p>
+        </div>
+      )}
+
+      {/* Last active */}
+      {member.last_run_at && (
+        <p className="text-[10px] text-muted-foreground">
+          Last active {formatDistanceToNow(new Date(member.last_run_at), { addSuffix: true })}
+        </p>
+      )}
+
+      {/* PM brief — what the PM wants from this agent */}
       {pmIntelligence?.briefs?.[member.agent_slug] && (
         <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={member.agent_slug} />
       )}
 
-      {/* Contributions */}
-      <div>
-        <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-          Contributions ({contributionCount})
-        </h4>
-        {filesLoading ? (
-          <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] py-2">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Loading...
-          </div>
-        ) : files.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">No contributions yet.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {files.map((f) => (
-              <div key={f.path} className="border border-border rounded-lg overflow-hidden">
-                <div className="px-2 py-1 bg-muted/50 text-[10px] text-muted-foreground flex items-center gap-1">
-                  <FileText className="w-2.5 h-2.5" />
-                  {f.path.split('/').pop()}
-                </div>
-                <div className="p-2 max-h-32 overflow-y-auto">
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 text-[11px]">
-                    <ReactMarkdown>{f.content}</ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Contributions — compact count, not full file list */}
+      {contributionCount > 0 && (
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <FileText className="w-3 h-3" />
+          <span>{contributionCount} contribution{contributionCount !== 1 ? 's' : ''}</span>
+        </div>
+      )}
 
       {/* Link to full agent page */}
       {member.agent_id && (

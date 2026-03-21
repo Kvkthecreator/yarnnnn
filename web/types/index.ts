@@ -819,6 +819,12 @@ export interface ProjectMember {
   last_run_at?: string;
   created_at?: string;
   avatar_url?: string | null;
+  // Agent identity enrichment (workspace-derived)
+  bio?: string | null;
+  thesis_snippet?: string | null;
+  seniority?: 'new' | 'associate' | 'senior';
+  total_runs?: number;
+  approval_rate?: number;
 }
 
 // ADR-123 Phase 3: PM intelligence surfacing
