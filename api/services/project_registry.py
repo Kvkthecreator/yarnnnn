@@ -421,6 +421,20 @@ async def scaffold_project(
         except Exception:
             pass  # Non-fatal
 
+    # ── ADR-128 Phase 0: Seed project cognitive files ──
+    try:
+        await pw.write(
+            "memory/project_assessment.md",
+            (
+                "# Project Assessment\n"
+                "<!-- Rewritten each PM pulse. -->\n\n"
+                "No assessment yet — PM has not pulsed.\n"
+            ),
+            summary="ADR-128: initial project assessment (awaiting first PM pulse)",
+        )
+    except Exception as e:
+        logger.warning(f"[REGISTRY] Failed to seed project_assessment.md for {project_slug}: {e}")
+
     # ── Seed member workspaces with project pointers ──
     for c in contributor_records:
         if not c.get("agent_slug"):

@@ -231,8 +231,29 @@ async def create_agent_record(
                 if role == "pm":
                     project_slug = (type_config or {}).get("project_slug", "unknown")
                     agent_md += f"\n\n## Project Context\nThis PM agent coordinates project `{project_slug}`. Check contributor freshness, trigger assembly when contributions are ready, manage the work plan. Escalate to TP if stuck."
+                else:
+                    # ADR-128: Contributors participate in coherence protocol
+                    agent_md += "\n\n## Coherence Protocol\nYou participate in a coherence protocol. You produce a self-assessment on each run that persists between executions. You receive PM assessments and contribution briefs via your workspace."
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
+
+                # ADR-128 Phase 0: Seed cognitive files at creation time
+                if role != "pm":
+                    # Contributor: seed self_assessment.md with initial state
+                    initial_date = now.strftime("%Y-%m-%d")
+                    await ws.write(
+                        "memory/self_assessment.md",
+                        (
+                            "# Self-Assessment History\n"
+                            "<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
+                            f"## Initial ({initial_date})\n"
+                            "- **Mandate**: Not yet assessed — awaiting first run\n"
+                            "- **Domain Fitness**: Unknown\n"
+                            "- **Context Currency**: Unknown\n"
+                            "- **Output Confidence**: N/A\n"
+                        ),
+                        summary="ADR-128: initial self-assessment (awaiting first run)",
+                    )
             except Exception as e:
                 logger.warning(f"[AGENT_CREATION] Workspace seed failed for {entity_id}: {e}")
 

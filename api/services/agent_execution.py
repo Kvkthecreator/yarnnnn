@@ -293,6 +293,40 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
         except Exception:
             pass
 
+        # ADR-128 Phase 2: Load contributor self-assessment history
+        try:
+            from services.workspace import AgentWorkspace
+            contributor_ws = AgentWorkspace(client, user_id, slug)
+            self_assessment = await contributor_ws.read("memory/self_assessment.md")
+            if self_assessment and "Not yet assessed" not in self_assessment:
+                # Show most recent entry (up to 300 chars)
+                contributor_lines.append(f"**Self-assessment (latest):**\n{self_assessment[:300]}")
+        except Exception:
+            pass
+
+        # ADR-128 Phase 2: Load latest pulse metadata for this contributor
+        try:
+            pulse_result = (
+                client.table("activity_log")
+                .select("summary, created_at, metadata")
+                .eq("user_id", user_id)
+                .eq("event_type", "agent_pulsed")
+                .like("summary", f"%{slug}%")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if pulse_result.data:
+                pulse = pulse_result.data[0]
+                pulse_meta = pulse.get("metadata", {})
+                contributor_lines.append(
+                    f"**Last pulse:** {pulse.get('created_at', '?')} — "
+                    f"decision: {pulse_meta.get('decision', '?')}, "
+                    f"tier: {pulse_meta.get('tier', '?')}"
+                )
+        except Exception:
+            pass
+
     if freshness.get("last_assembly_date"):
         contributor_lines.append(f"\nLast assembly: {freshness['last_assembly_date']}")
     else:
@@ -1740,6 +1774,161 @@ If the gathered context says "(No context available)" or tools return no results
     return prompt
 
 
+# =============================================================================
+# ADR-128: Contributor Cognitive Model — mandate context + self-assessment
+# =============================================================================
+
+async def _build_mandate_context(ws, agent: dict) -> str:
+    """
+    Build mandate_context string for contributor prompts (ADR-128 Phase 1).
+
+    Reads from workspace:
+    - memory/projects.json (project membership + expected contribution)
+    - memory/self_assessment.md (last entry only — prevent self-referential loops)
+
+    Returns empty string for non-project agents (graceful degradation).
+    """
+    import json as _json
+
+    parts = []
+
+    # 1. Project membership + expected contribution
+    try:
+        projects_raw = await ws.read("memory/projects.json")
+        if projects_raw:
+            projects = _json.loads(projects_raw)
+            if projects:
+                p = projects[0]  # Primary project
+                parts.append(f"PROJECT: {p.get('title', 'Unknown')}")
+                if p.get("expected_contribution"):
+                    parts.append(f"YOUR EXPECTED CONTRIBUTION: {p['expected_contribution']}")
+
+                # Read PM brief if available
+                project_slug = p.get("project_slug")
+                if project_slug:
+                    from services.workspace import ProjectWorkspace, get_agent_slug
+                    pw = ProjectWorkspace(ws.client, ws.user_id, project_slug)
+                    agent_slug = get_agent_slug(agent)
+                    try:
+                        brief = await pw.read_brief(agent_slug)
+                        if brief:
+                            parts.append(f"PM DIRECTIVE (contribution brief):\n{brief[:500]}")
+                    except Exception:
+                        pass
+    except Exception as e:
+        logger.debug(f"[MANDATE] Projects context unavailable: {e}")
+
+    # 2. Last self-assessment (most recent entry only)
+    try:
+        self_assessment = await ws.read("memory/self_assessment.md")
+        if self_assessment:
+            # Extract most recent entry (between first and second ## headers)
+            lines = self_assessment.strip().split("\n")
+            entry_lines = []
+            found_first = False
+            for line in lines:
+                if line.startswith("## ") and not line.startswith("# Self"):
+                    if found_first:
+                        break  # Stop at second entry
+                    found_first = True
+                    entry_lines.append(line)
+                elif found_first:
+                    entry_lines.append(line)
+            if entry_lines:
+                parts.append(f"YOUR LAST SELF-ASSESSMENT:\n" + "\n".join(entry_lines))
+    except Exception:
+        pass
+
+    if not parts:
+        return ""
+
+    return "MANDATE CONTEXT (ADR-128):\n" + "\n\n".join(parts)
+
+
+_ASSESSMENT_BLOCK_RE = re.compile(
+    r"\n---\s*\n*## Contributor Assessment.*",
+    re.DOTALL,
+)
+
+_ASSESSMENT_FIELDS_RE = re.compile(
+    r"\*\*Mandate\*\*:\s*(.+?)(?:\n|$)"
+    r".*?\*\*Domain Fitness\*\*:\s*(.+?)(?:\n|$)"
+    r".*?\*\*Context Currency\*\*:\s*(.+?)(?:\n|$)"
+    r".*?\*\*Output Confidence\*\*:\s*(.+?)(?:\n|$)",
+    re.DOTALL,
+)
+
+
+def _extract_contributor_assessment(draft: str) -> tuple[str, Optional[dict]]:
+    """
+    Extract and strip the ## Contributor Assessment block from draft (ADR-128).
+
+    Returns (clean_draft, assessment_dict_or_None).
+    """
+    match = _ASSESSMENT_BLOCK_RE.search(draft)
+    if not match:
+        # Try without the --- separator (some models omit it)
+        alt_match = re.search(r"\n## Contributor Assessment\b.*", draft, re.DOTALL)
+        if not alt_match:
+            return draft, None
+        match = alt_match
+
+    assessment_text = match.group(0)
+    clean_draft = draft[:match.start()].rstrip()
+
+    # Parse the 4 fields
+    fields_match = _ASSESSMENT_FIELDS_RE.search(assessment_text)
+    if not fields_match:
+        return clean_draft, None
+
+    return clean_draft, {
+        "mandate": fields_match.group(1).strip(),
+        "domain_fitness": fields_match.group(2).strip(),
+        "context_currency": fields_match.group(3).strip(),
+        "output_confidence": fields_match.group(4).strip(),
+    }
+
+
+async def _append_self_assessment(ws, assessment: dict) -> None:
+    """
+    Append a new self-assessment entry to memory/self_assessment.md (ADR-128).
+
+    Rolling history: keeps 5 most recent entries (newest first).
+    """
+    from datetime import datetime, timezone as _tz
+
+    now = datetime.now(_tz.utc)
+    date_str = now.strftime("%Y-%m-%d %H:%M")
+
+    new_entry = (
+        f"## Run ({date_str})\n"
+        f"- **Mandate**: {assessment['mandate']}\n"
+        f"- **Domain Fitness**: {assessment['domain_fitness']}\n"
+        f"- **Context Currency**: {assessment['context_currency']}\n"
+        f"- **Output Confidence**: {assessment['output_confidence']}\n"
+    )
+
+    existing = await ws.read("memory/self_assessment.md") or ""
+
+    # Parse existing entries
+    header = "# Self-Assessment History\n<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
+
+    # Split on ## headers (each entry starts with ##)
+    entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
+    entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
+
+    # Prepend new entry, cap at 5
+    entries = [new_entry.strip()] + entries[:4]
+
+    content = header + "\n\n".join(entries) + "\n"
+
+    await ws.write(
+        "memory/self_assessment.md",
+        content,
+        summary=f"ADR-128: self-assessment after run ({assessment['output_confidence'][:20]})",
+    )
+
+
 # ADR-109: Scope-aware tool round limits
 HEADLESS_TOOL_ROUNDS = {
     "platform":        2,   # Rarely needs tools — context is pre-gathered
@@ -1843,6 +2032,11 @@ async def generate_draft_inline(
             type_config = {**type_config, **pm_config}
         except Exception as e:
             logger.warning(f"[GENERATE] PM context injection failed: {e}")
+
+    # ADR-128 Phase 1: Build mandate_context for contributor agents
+    if role != "pm":
+        mandate_context = await _build_mandate_context(ws, agent)
+        type_config = {**type_config, "mandate_context": mandate_context}
 
     # Build role-specific prompt (user message)
     prompt = build_role_prompt(
@@ -2398,6 +2592,13 @@ async def execute_agent_generation(
             effective_role=effective_role,
         )
 
+        # ADR-128 Phase 1: Extract and strip contributor self-assessment before delivery
+        contributor_assessment = None
+        if role != "pm":
+            draft, contributor_assessment = _extract_contributor_assessment(draft)
+            if contributor_assessment:
+                logger.info(f"[EXEC] ADR-128: Extracted self-assessment (confidence: {contributor_assessment.get('output_confidence', '?')})")
+
         # 5. ADR-066: Prepare version for delivery (no staged status)
         # ADR-101: Store execution metadata (tokens, model) on version
         # ADR-049 evolution: Include context provenance for traceability
@@ -2698,6 +2899,15 @@ async def execute_agent_generation(
             except Exception as e:
                 logger.warning(f"[EXEC] ADR-117: Self-observation failed: {e}")
                 # Non-fatal — don't block delivery
+
+        # ADR-128 Phase 1: Append contributor self-assessment to rolling history
+        if final_status == "delivered" and contributor_assessment and role != "pm":
+            try:
+                await _append_self_assessment(ws, contributor_assessment)
+                logger.info(f"[EXEC] ADR-128: Appended self-assessment for {title}")
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-128: Self-assessment write failed: {e}")
+                # Non-fatal
 
         # ADR-116 Phase 4: Auto-generate agent card after successful run
         if final_status == "delivered":

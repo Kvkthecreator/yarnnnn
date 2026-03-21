@@ -75,12 +75,34 @@ DEFAULT_INSTRUCTIONS = {
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
+# ADR-128: Mandate context preamble injected into all contributor prompts.
+# Provides PM assessment + contribution brief + last self-assessment.
+# Empty string for non-project agents (graceful degradation).
+_MANDATE_CONTEXT_PREAMBLE = """{mandate_context}"""
+
+# ADR-128: Assessment postamble appended to all contributor prompts.
+# Requests structured self-assessment block that gets extracted and stripped before delivery.
+_ASSESSMENT_POSTAMBLE = """
+
+---
+IMPORTANT — SELF-ASSESSMENT (do NOT omit):
+After your main output, include a `## Contributor Assessment` block with these four fields:
+- **Mandate**: What were you asked to contribute? (1 sentence)
+- **Domain Fitness**: Does your scope/context cover the mandate? (high/medium/low + why)
+- **Context Currency**: Was your input fresh and substantial? (high/medium/low + why)
+- **Output Confidence**: How well does this output address the mandate? (high/medium/low + why)
+
+This block will be stripped before delivery — the user will never see it. Be honest."""
+
+
 # ADR-109: Role prompts. Versions tracked in api/prompts/CHANGELOG.md
 # synthesize: v4 (2026.03.06) — two-part format + cross-platform connections
-# digest: v2 (2026.03.06) — platform-wide recap with highlights + by-source breakdown
+# digest: v3 (2026.03.21) — ADR-128 mandate_context + assessment postamble
 ROLE_PROMPTS = {
 
     "digest": """You are producing a platform recap titled "{title}".
+
+{mandate_context}
 
 This is a platform-wide recap — covering ALL activity across the user's {source_platform} workspace, not just one channel, label, or page.
 
@@ -124,10 +146,12 @@ Rules:
 - Keep each subsection concise — key takeaways, not exhaustive logs
 - Bold action items and decisions for scannability
 
-Write the recap now:""",
+Write the recap now:""" + _ASSESSMENT_POSTAMBLE,
 
-    # prepare: v3 (2026.03.06) — auto meeting prep with deep classification + tool use
+    # prepare: v4 (2026.03.21) — ADR-128 mandate_context + assessment postamble
     "prepare": """You are generating auto meeting prep titled "{title}".
+
+{mandate_context}
 
 TODAY'S DATE: {today_date}
 
@@ -206,9 +230,11 @@ Rules:
 - Be specific: names, dates, numbers from actual context — never fabricate
 - Focus on what the user DOESN'T already know, not what they DO
 
-Write the meeting prep now:""",
+Write the meeting prep now:""" + _ASSESSMENT_POSTAMBLE,
 
     "synthesize": """You are producing a work summary titled "{title}".
+
+{mandate_context}
 
 SUBJECT: {subject}
 AUDIENCE: {audience}
@@ -265,9 +291,11 @@ Rules:
 - For Slack, group by channel name
 - Keep each section concise — supporting detail, not exhaustive logs
 
-Write the work summary now:""",
+Write the work summary now:""" + _ASSESSMENT_POSTAMBLE,
 
     "monitor": """You are producing an intelligence watch report titled "{title}".
+
+{mandate_context}
 
 DOMAIN BEING WATCHED: {domain}
 SIGNALS TO TRACK: {signals}
@@ -290,10 +318,12 @@ INSTRUCTIONS:
 - Be concise: lead with the most significant items
 - If there's nothing materially new, say so clearly rather than padding
 
-Write the watch report now:""",
+Write the watch report now:""" + _ASSESSMENT_POSTAMBLE,
 
-    # research: v2 (2026.03.06) — Proactive Insights: signal-driven intelligence
+    # research: v3 (2026.03.21) — ADR-128 mandate_context + assessment postamble
     "research": """You are producing Proactive Insights titled "{title}".
+
+{mandate_context}
 
 TODAY'S DATE: {today_date}
 
@@ -355,9 +385,11 @@ Rules:
 - Never pad with generic insights to fill space
 - "What I'm Watching" section shows progressive learning — tracks what you'll look for next time
 
-Write the proactive insights now:""",
+Write the proactive insights now:""" + _ASSESSMENT_POSTAMBLE,
 
     "custom": """You are producing a custom agent titled "{title}".
+
+{mandate_context}
 
 {description}
 
@@ -376,7 +408,7 @@ INSTRUCTIONS:
 - Write in the appropriate tone for the stated purpose
 - If the description specifies a format (bullets, narrative, tables), use it exactly
 
-Write the agent now:""",
+Write the agent now:""" + _ASSESSMENT_POSTAMBLE,
 
     # pm: v6.0 (2026.03.21) — Layered cognitive model + project_assessment output
     # v3.0: Intelligence Director with assess/steer/assemble (ADR-121)
@@ -590,6 +622,9 @@ def build_role_prompt(
         "recipient_context": recipient_text,
         "title": agent.get("title", "Agent"),
         "user_instructions": user_instructions,
+        # ADR-128: Mandate context (project objective + PM brief + last self-assessment)
+        # Empty string for non-project agents — graceful degradation
+        "mandate_context": config.get("mandate_context", ""),
     }
 
     if role == "digest":

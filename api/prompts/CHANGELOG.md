@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.21.4] - ADR-128: Multi-Agent Coherence Protocol — Phases 0-4 implementation
+
+### Changed
+- `api/services/agent_creation.py`: Phase 0 — seed `memory/self_assessment.md` with "awaiting first run" template at agent creation. Add coherence protocol reference to AGENT.md for non-PM contributors.
+- `api/services/project_registry.py`: Phase 0 — seed `memory/project_assessment.md` with "PM has not pulsed" template in `scaffold_project()` after PM creation.
+- `api/services/agent_pipeline.py`: Phase 1 — added `{mandate_context}` field to all 6 contributor role templates (digest v3, prepare v4, synthesize v5, monitor v2, research v3, custom v2). Added `_ASSESSMENT_POSTAMBLE` requesting `## Contributor Assessment` block with 4 dimensions (mandate, domain fitness, context currency, output confidence). `build_role_prompt()` passes `mandate_context` from config as common field. PM prompt unchanged.
+- `api/services/agent_execution.py`: Phase 1 — `_build_mandate_context()` reads project membership + PM brief + last self-assessment from workspace. `_extract_contributor_assessment()` parses `## Contributor Assessment` block from draft output. `_append_self_assessment()` writes rolling history (5 most recent, newest first) to `memory/self_assessment.md`. Assessment extracted and stripped before delivery. Phase 2 — `_load_pm_project_context()` contributor loop now reads `memory/self_assessment.md` (latest entry, 300 chars) and latest `agent_pulsed` activity log event per contributor.
+- `api/agents/chat_agent.py`: Phase 3 — PM Chat Prompt v3.0 → v4.0: added "Directive Persistence (ADR-128)" section instructing PM to persist project-level decisions to `memory/decisions.md` via WriteWorkspace. Contributor Chat Prompt v2.0 → v3.0: added analogous section for persisting user directives to `memory/directives.md`.
+- `api/services/workspace.py`: Phase 4 — `AgentWorkspace.load_context()` project loop reads PM's `memory/project_assessment.md` (500 chars) and injects as "Project Assessment (from PM)" in contributor context.
+
+### Expected behavior
+- New projects: cognitive files seeded at scaffold time with explicit "not yet assessed" state
+- Contributor runs: mandate_context injected into prompt, self-assessment block produced and stripped before delivery, rolling history (5 entries) written to workspace
+- PM pulses: reads contributor self-assessments + pulse metadata alongside freshness and content — trajectory reasoning enabled
+- Meeting room: agents persist durable directives/decisions to workspace files surviving session rotation
+- Contributors: read PM's project_assessment.md during execution — know which prerequisite layer constrains the project
+- Graceful degradation: non-project agents get empty mandate_context; missing assessment block is non-fatal
+
+---
+
 ## [2026.03.21.3] - ADR-128: Multi-Agent Coherence Protocol — documentation phase
 
 ### Changed

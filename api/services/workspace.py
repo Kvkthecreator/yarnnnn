@@ -723,6 +723,13 @@ class AgentWorkspace:
                         brief = await pw.read_brief(self._slug) if self._slug else None
                         if brief:
                             header += f"\n\n**PM Directive (brief):**\n{brief}"
+                        # ADR-128 Phase 4: Read PM's project assessment
+                        try:
+                            pm_assessment = await pw.read("memory/project_assessment.md")
+                            if pm_assessment and "No assessment yet" not in pm_assessment:
+                                header += f"\n\n**Project Assessment (from PM):**\n{pm_assessment[:500]}"
+                        except Exception:
+                            pass
                         parts.append(f"{header}\n{project_ctx}")
             except _json.JSONDecodeError:
                 pass
