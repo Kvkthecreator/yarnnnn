@@ -1186,16 +1186,6 @@ function InlineProfileCard({
         </div>
       )}
 
-      {/* Link to full agent page */}
-      {member.agent_id && (
-        <Link
-          href={`/agents/${member.agent_id}`}
-          className="flex items-center justify-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 border border-primary/30 rounded-lg py-1.5 px-3 hover:bg-primary/5 transition-colors"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Open full agent page
-        </Link>
-      )}
     </div>
   );
 }
