@@ -125,8 +125,12 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 │
 ├── memory/                         # Project-level state and coordination
 │   ├── pm_agent.json               # PM agent reference (pm_agent_id, pm_title)
+│   ├── project_assessment.md       # PM's layered project evaluation (PM cognitive model v1.0)
+│   │                               # 5-layer: commitment → structure → context → quality → readiness
+│   │                               # Rewritten every PM pulse — evolving cognitive state
 │   ├── work_plan.md                # PM's operational plan (ADR-120 Phase 4)
 │   │                               # Intentions, focus areas, budget status
+│   ├── quality_assessment.md       # PM's contribution quality scoring (ADR-121)
 │   ├── preferences.md              # Project-level preferences/conventions
 │   └── progress.md                 # Progress tracking
 │
@@ -149,6 +153,7 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 - **`contributions/{agent_slug}/brief.md`** is PM's steering mechanism — written by PM, read by contributors during context gathering
 - **`assembly/{date}/`** is the composed output from multiple contributions
 - **`user_shared/`** is the user's staging area — PM triages files into contributions, knowledge, or lets them expire
+- **`memory/project_assessment.md`** is PM's layered evaluation — rewritten every pulse, encodes which prerequisite layer is the current constraint
 - **`memory/work_plan.md`** is PM's operational plan — separate from the charter, PM-owned
 
 ---
@@ -326,6 +331,7 @@ Topic-scoped persistent memory. Mirrors Claude Code's `.claude/memory/` director
 | `observations.md` | Agent (via `record_observation()`) | Timestamped review pass observations |
 | `preferences.md` | Feedback engine (system) | Learned preferences from user edit patterns |
 | `projects.json` | System (scaffold_project) | Project memberships list |
+| `project_assessment.md` | PM agent | Layered evaluation: commitment→structure→context→quality→readiness |
 | `work_plan.md` | PM agent | Operational plan, intentions, focus areas |
 | `{topic}.md` | Agent (via WriteWorkspace) | Agent-determined topic memory |
 
@@ -388,6 +394,7 @@ Ephemeral staging area for user-contributed files (ADR-127).
 | `feedback_distillation.py` | Write preferences | `memory/preferences.md` |
 | `scaffold_project()` | Write PROJECT.md | `/projects/{slug}/PROJECT.md` |
 | PM agent | Write brief | `/projects/{slug}/contributions/{slug}/brief.md` |
+| PM agent | Write project assessment | `/projects/{slug}/memory/project_assessment.md` |
 | PM agent | Write work plan | `/projects/{slug}/memory/work_plan.md` |
 | Assembly pipeline | Write assembled output | `/projects/{slug}/assembly/{date}/` |
 | Cleanup cron | Delete expired ephemeral | `working/`, `user_shared/` (lifecycle=ephemeral, >30d) |

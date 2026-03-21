@@ -3,9 +3,8 @@
 /**
  * Project Detail Page — ADR-124
  *
- * Tab layout: Meeting Room | Members | Context | Outputs | Settings
- * Meeting Room: interleaved activity events + project-scoped chat with @-mentions.
- * Members: personified agent participant list with profile cards.
+ * Tab layout: Meeting Room | Context | Outputs | Settings
+ * Meeting Room: split-view — chat timeline (left) + persistent participant sidebar (right).
  * Context: workspace file browser.
  * Outputs: assembly cards with inline markdown preview.
  * Settings: objective, assembly config, delivery, archive.
@@ -19,7 +18,6 @@ import {
   Loader2,
   ChevronLeft,
   FolderKanban,
-  Users,
   Package,
   FileText,
   HeartPulse,
@@ -1037,18 +1035,6 @@ function scopeDisplayName(scope?: string): string {
   }
 }
 
-/** Mode → user-facing display name */
-function modeDisplayName(mode?: string): string {
-  switch (mode) {
-    case 'recurring': return 'Scheduled';
-    case 'goal': return 'Goal-driven';
-    case 'reactive': return 'On event';
-    case 'proactive': return 'Self-initiated';
-    case 'coordinator': return 'Coordinator';
-    default: return mode?.replace(/_/g, ' ') || '';
-  }
-}
-
 /** Role badge color */
 function roleBadgeColor(role?: string): string {
   switch (role) {
@@ -1089,7 +1075,96 @@ function statusIndicator(status?: string): { color: string; label: string } {
 // Agent Profile Card — slide-out panel
 // =============================================================================
 
-function AgentProfileCard({
+// =============================================================================
+// Participants Sidebar — compact list for Meeting Room panel
+// =============================================================================
+
+function ParticipantsSidebar({
+  members,
+  contributionCounts,
+  slug,
+  pmIntelligence,
+}: {
+  members: ProjectMember[];
+  contributionCounts: Record<string, number>;
+  slug: string;
+  pmIntelligence?: PMIntelligence | null;
+}) {
+  const [selectedMember, setSelectedMember] = useState<ProjectMember | null>(null);
+
+  // Sort: PM first, then by role
+  const sorted = [...members].sort((a, b) => {
+    if (a.role === 'pm' && b.role !== 'pm') return -1;
+    if (b.role === 'pm' && a.role !== 'pm') return 1;
+    return 0;
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Participant list */}
+      <div className={cn(
+        'overflow-y-auto',
+        selectedMember ? 'shrink-0 max-h-[40%]' : 'flex-1',
+      )}>
+        <div className="px-3 py-2">
+          <div className="space-y-0.5">
+            {sorted.map((m) => {
+              const name = memberName(m);
+              const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+              const si = statusIndicator(m.status);
+              const isSelected = selectedMember?.agent_slug === m.agent_slug;
+
+              return (
+                <button
+                  key={m.agent_slug}
+                  onClick={() => setSelectedMember(isSelected ? null : m)}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left',
+                    isSelected ? 'bg-muted' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <div className="relative shrink-0">
+                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold', avatarColor(m.role))}>
+                      {initials}
+                    </div>
+                    <span className={cn(
+                      'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
+                      si.color,
+                    )} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium truncate block">{name}</span>
+                  </div>
+                  {m.role && (
+                    <span className={cn('text-[9px] font-medium px-1 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
+                      {m.role === 'pm' ? 'PM' : roleDisplayName(m.role)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Inline profile card — shown below list when a member is selected */}
+      {selectedMember && (
+        <div className="flex-1 min-h-0 overflow-y-auto border-t border-border">
+          <InlineProfileCard
+            member={selectedMember}
+            contributionCount={contributionCounts[selectedMember.agent_slug] || 0}
+            slug={slug}
+            pmIntelligence={pmIntelligence}
+            onClose={() => setSelectedMember(null)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Inline profile card for the participants panel — replaces the slide-out overlay */
+function InlineProfileCard({
   member,
   contributionCount,
   slug,
@@ -1117,257 +1192,98 @@ function AgentProfileCard({
   const si = statusIndicator(member.status);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
-      <div
-        className="relative w-full max-w-md bg-background border-l border-border h-full overflow-y-auto animate-in slide-in-from-right-5 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border px-5 py-4 flex items-start gap-4">
-          <div className={cn('w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-semibold shrink-0', avatarColor(member.role))}>
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold truncate">{name}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              {member.role && (
-                <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(member.role))}>
-                  {roleDisplayName(member.role)}
-                </span>
-              )}
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span className={cn('w-1.5 h-1.5 rounded-full', si.color)} />
-                {si.label}
+    <div className="px-3 py-3 space-y-3">
+      {/* Header */}
+      <div className="flex items-start gap-2.5">
+        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0', avatarColor(member.role))}>
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold truncate">{name}</h3>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {member.role && (
+              <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(member.role))}>
+                {roleDisplayName(member.role)}
               </span>
-            </div>
-            {member.expected_contribution && (
-              <p className="text-xs text-muted-foreground mt-1.5">{member.expected_contribution}</p>
             )}
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={cn('w-1.5 h-1.5 rounded-full', si.color)} />
+              {si.label}
+            </span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-1">
-            <X className="w-5 h-5" />
-          </button>
         </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
-        {/* Details */}
-        <div className="px-5 py-4 space-y-5">
-          {/* Info grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {member.scope && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Scope</p>
-                <p className="text-sm">{scopeDisplayName(member.scope)}</p>
-              </div>
-            )}
-            {member.mode && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Trigger</p>
-                <p className="text-sm">{modeDisplayName(member.mode)}</p>
-              </div>
-            )}
-            {member.schedule && (member.schedule as Record<string, string>).frequency && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Schedule</p>
-                <p className="text-sm">{(member.schedule as Record<string, string>).frequency}</p>
-              </div>
-            )}
-            {member.origin && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Origin</p>
-                <p className="text-sm">{member.origin.replace(/_/g, ' ')}</p>
-              </div>
-            )}
-            {member.last_run_at && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Last active</p>
-                <p className="text-sm">{formatDistanceToNow(new Date(member.last_run_at), { addSuffix: true })}</p>
-              </div>
-            )}
-            {member.created_at && (
-              <div>
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Joined</p>
-                <p className="text-sm">{format(new Date(member.created_at), 'MMM d, yyyy')}</p>
-              </div>
-            )}
-          </div>
+      {member.expected_contribution && (
+        <p className="text-[11px] text-muted-foreground">{member.expected_contribution}</p>
+      )}
 
-          {/* PM brief for this member */}
-          {pmIntelligence?.briefs?.[member.agent_slug] && (
-            <div>
-              <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={member.agent_slug} />
-            </div>
-          )}
-
-          {/* Contributions */}
+      {/* Info grid */}
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+        {member.scope && (
           <div>
-            <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-              Contributions ({contributionCount})
-            </h3>
-            {filesLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-xs py-3">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Loading...
-              </div>
-            ) : files.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">No contribution files yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {files.map((f) => (
-                  <div key={f.path} className="border border-border rounded-lg overflow-hidden">
-                    <div className="px-3 py-1.5 bg-muted/50 text-xs text-muted-foreground flex items-center gap-1.5">
-                      <FileText className="w-3 h-3" />
-                      {f.path.split('/').pop()}
-                      {f.updated_at && (
-                        <span className="ml-auto">{formatDistanceToNow(new Date(f.updated_at), { addSuffix: true })}</span>
-                      )}
-                    </div>
-                    <div className="p-3 max-h-48 overflow-y-auto">
-                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
-                        <ReactMarkdown>{f.content}</ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Link to full agent page */}
-          {member.agent_id && (
-            <Link
-              href={`/agents/${member.agent_id}`}
-              className="flex items-center justify-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 border border-primary/30 rounded-lg py-2 px-4 hover:bg-primary/5 transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Open full agent page
-            </Link>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// Members Tab — personified participant list (KakaoTalk-style)
-// =============================================================================
-
-function MembersTab({
-  members,
-  contributionCounts,
-  slug,
-  pmIntelligence,
-}: {
-  members: ProjectMember[];
-  contributionCounts: Record<string, number>;
-  slug: string;
-  pmIntelligence?: PMIntelligence | null;
-}) {
-  const [selectedMember, setSelectedMember] = useState<ProjectMember | null>(null);
-
-  if (members.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">No members yet.</p>
-      </div>
-    );
-  }
-
-  // Sort: PM first, then by role
-  const sorted = [...members].sort((a, b) => {
-    if (a.role === 'pm' && b.role !== 'pm') return -1;
-    if (b.role === 'pm' && a.role !== 'pm') return 1;
-    return 0;
-  });
-
-  return (
-    <>
-      <div className="max-w-2xl mx-auto px-4 md:px-6 py-4">
-        {/* PM quality assessment at top */}
-        {pmIntelligence?.quality_assessment && (
-          <div className="mb-4">
-            <PMIntelligencePanel pmIntelligence={pmIntelligence} />
+            <span className="text-muted-foreground/70">Scope: </span>
+            <span>{scopeDisplayName(member.scope)}</span>
           </div>
         )}
-
-        {/* Member count header */}
-        <p className="text-xs text-muted-foreground mb-3 px-1">
-          {members.filter(m => m.role !== 'pm').length} member{members.filter(m => m.role !== 'pm').length !== 1 ? 's' : ''}
-          {members.some(m => m.role === 'pm') && ' + PM'}
-        </p>
-
-        {/* Member list */}
-        <div className="space-y-1">
-          {sorted.map((m) => {
-            const name = memberName(m);
-            const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-            const si = statusIndicator(m.status);
-            const contribCount = contributionCounts[m.agent_slug] || 0;
-
-            return (
-              <button
-                key={m.agent_slug}
-                onClick={() => setSelectedMember(m)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/50 transition-colors text-left group"
-              >
-                {/* Avatar */}
-                <div className="relative shrink-0">
-                  <div className={cn('w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold', avatarColor(m.role))}>
-                    {initials}
-                  </div>
-                  {/* Status dot */}
-                  <span className={cn(
-                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background',
-                    si.color,
-                  )} />
-                </div>
-
-                {/* Name + meta */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{name}</span>
-                    {m.role && (
-                      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
-                        {roleDisplayName(m.role)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {m.expected_contribution || (m.last_run_at
-                      ? `Active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
-                      : 'No activity yet'
-                    )}
-                  </p>
-                </div>
-
-                {/* Right side: contribution count */}
-                {contribCount > 0 && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-                    <FileText className="w-3 h-3" />
-                    {contribCount}
-                  </span>
-                )}
-
-                <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            );
-          })}
-        </div>
+        {member.last_run_at && (
+          <div>
+            <span className="text-muted-foreground/70">Last active: </span>
+            <span>{formatDistanceToNow(new Date(member.last_run_at), { addSuffix: true })}</span>
+          </div>
+        )}
       </div>
 
-      {/* Profile card slide-out */}
-      {selectedMember && (
-        <AgentProfileCard
-          member={selectedMember}
-          contributionCount={contributionCounts[selectedMember.agent_slug] || 0}
-          slug={slug}
-          pmIntelligence={pmIntelligence}
-          onClose={() => setSelectedMember(null)}
-        />
+      {/* PM brief */}
+      {pmIntelligence?.briefs?.[member.agent_slug] && (
+        <PMIntelligencePanel pmIntelligence={pmIntelligence} agentSlug={member.agent_slug} />
       )}
-    </>
+
+      {/* Contributions */}
+      <div>
+        <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+          Contributions ({contributionCount})
+        </h4>
+        {filesLoading ? (
+          <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] py-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading...
+          </div>
+        ) : files.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">No contributions yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {files.map((f) => (
+              <div key={f.path} className="border border-border rounded-lg overflow-hidden">
+                <div className="px-2 py-1 bg-muted/50 text-[10px] text-muted-foreground flex items-center gap-1">
+                  <FileText className="w-2.5 h-2.5" />
+                  {f.path.split('/').pop()}
+                </div>
+                <div className="p-2 max-h-32 overflow-y-auto">
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 text-[11px]">
+                    <ReactMarkdown>{f.content}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Link to full agent page */}
+      {member.agent_id && (
+        <Link
+          href={`/agents/${member.agent_id}`}
+          className="flex items-center justify-center gap-1 text-[11px] font-medium text-primary hover:text-primary/80 border border-primary/30 rounded-lg py-1.5 px-3 hover:bg-primary/5 transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Open full agent page
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -1683,7 +1599,7 @@ function SettingsTab({
 // Main Component
 // =============================================================================
 
-type TabId = 'meeting-room' | 'members' | 'context' | 'outputs' | 'settings';
+type TabId = 'meeting-room' | 'context' | 'outputs' | 'settings';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1757,7 +1673,6 @@ export default function ProjectDetailPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'members', label: `Members${members.length > 0 ? ` (${members.length})` : ''}`, icon: <Users className="w-4 h-4" /> },
     { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
     { id: 'outputs', label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`, icon: <Package className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
@@ -1811,16 +1726,29 @@ export default function ProjectDetailPage() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'meeting-room' && (
-          <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
-        )}
-        {activeTab === 'members' && (
-          <div className="h-full overflow-y-auto">
-            <MembersTab
-              members={members}
-              contributionCounts={contribution_counts}
-              slug={slug}
-              pmIntelligence={pm_intelligence}
-            />
+          <div className="h-full flex overflow-hidden">
+            {/* Chat column */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
+            </div>
+            {/* Participants panel (desktop only) */}
+            {members.length > 0 && (
+              <div className="hidden lg:flex lg:flex-col w-64 xl:w-72 border-l border-border bg-background shrink-0">
+                <div className="px-3 py-2 border-b border-border shrink-0">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Participants ({members.length})
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <ParticipantsSidebar
+                    members={members}
+                    contributionCounts={contribution_counts}
+                    slug={slug}
+                    pmIntelligence={pm_intelligence}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         {activeTab === 'context' && (

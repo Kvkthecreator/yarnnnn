@@ -92,12 +92,17 @@ async def _fetch_skill_docs() -> Optional[str]:
 
 async def _load_pm_project_context(client, user_id: str, project_slug: str) -> dict:
     """
-    ADR-120 + ADR-121: Load project context for PM agent's prompt injection.
+    Load project context for PM agent's prompt injection.
 
-    Returns dict with keys matching PM role prompt template fields:
-    - project_context: PROJECT.md summary
-    - contributor_status: per-contributor freshness + content excerpts (ADR-121)
-    - work_plan: work plan text or placeholder
+    Provides the PM with layered context matching its cognitive model:
+    - Layer 1 (Commitment): PROJECT.md objective completeness
+    - Layer 2 (Structure): team composition vs. objective requirements + type registry
+    - Layer 3 (Context): platform connections, freshness, relevance to objective
+    - Layer 4-5 (Execution): contributor output, work plan, budget
+
+    Returns dict with keys matching PM role prompt template fields.
+
+    ADR-120 + ADR-121 + PM cognitive model v1.0.
     """
     from services.workspace import ProjectWorkspace
     from services.primitives.project_execution import handle_check_contributor_freshness
@@ -109,23 +114,146 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     if not project:
         return {
             "project_context": f"Project '{project_slug}' not found.",
+            "commitment_assessment": "UNKNOWN — project not found.",
+            "structural_assessment": "UNKNOWN — project not found.",
+            "context_assessment": "UNKNOWN — project not found.",
             "contributor_status": "Unknown",
             "work_plan": "No work plan.",
+            "budget_status": "Unknown",
+            "user_shared_files": "",
+            "prior_assessment": "",
         }
 
-    # Format project context (ADR-123: objective replaces intent)
+    # ── Layer 1: Commitment Clarity ──
     objective = project.get("objective", {})
+    obj_fields = {
+        "deliverable": objective.get("deliverable"),
+        "audience": objective.get("audience"),
+        "format": objective.get("format"),
+        "purpose": objective.get("purpose"),
+    }
+    missing_obj = [k for k, v in obj_fields.items() if not v or v == "Not specified"]
+
     project_lines = [
         f"**Title:** {project.get('title', project_slug)}",
-        f"**Deliverable:** {objective.get('deliverable', 'Not specified')}",
-        f"**Audience:** {objective.get('audience', 'Not specified')}",
-        f"**Format:** {objective.get('format', 'Not specified')}",
+        f"**Type:** {project.get('type_key', 'custom')}",
+        f"**Deliverable:** {obj_fields['deliverable'] or 'NOT DEFINED'}",
+        f"**Audience:** {obj_fields['audience'] or 'NOT DEFINED'}",
+        f"**Format:** {obj_fields['format'] or 'NOT DEFINED'}",
+        f"**Purpose:** {obj_fields['purpose'] or 'NOT DEFINED'}",
         f"**Contributors:** {len(project.get('contributors', []))}",
     ]
     if project.get("assembly_spec"):
         project_lines.append(f"**Assembly:** {project['assembly_spec'][:200]}")
 
-    # Check contributor freshness
+    if missing_obj:
+        commitment = f"INCOMPLETE — missing: {', '.join(missing_obj)}. Cannot reason about what this project needs without a clear objective."
+    else:
+        commitment = f"CLEAR — deliverable: {obj_fields['deliverable']}, audience: {obj_fields['audience']}, format: {obj_fields['format']}."
+
+    # ── Layer 2: Structural Capacity ──
+    # What does the type registry expect vs what we have?
+    type_key = project.get("type_key", "custom")
+    structural_lines = []
+    try:
+        from services.project_registry import get_project_type
+        type_def = get_project_type(type_key)
+        if type_def:
+            expected_contributors = type_def.get("contributors", [])
+            actual_contributors = project.get("contributors", [])
+            structural_lines.append(f"Project type '{type_key}' expects {len(expected_contributors)} contributor(s).")
+            structural_lines.append(f"Currently has {len(actual_contributors)} contributor(s).")
+
+            # Check if expected roles/scopes are covered
+            expected_scopes = {c.get("scope") for c in expected_contributors if c.get("scope")}
+            expected_roles = {c.get("role") for c in expected_contributors if c.get("role")}
+
+            # Look up actual agent metadata
+            actual_agents = []
+            for c in actual_contributors:
+                agent_slug = c.get("agent_slug", "")
+                if not agent_slug:
+                    continue
+                try:
+                    agent_row = client.table("agents").select(
+                        "id, title, role, scope, sources, mode"
+                    ).eq("user_id", user_id).eq("slug", agent_slug).limit(1).execute()
+                    if agent_row.data:
+                        actual_agents.append(agent_row.data[0])
+                except Exception:
+                    pass
+
+            actual_scopes = {a.get("scope") for a in actual_agents if a.get("scope")}
+            actual_roles = {a.get("role") for a in actual_agents if a.get("role")}
+
+            missing_scopes = expected_scopes - actual_scopes
+            missing_roles = expected_roles - actual_roles
+
+            if missing_scopes:
+                structural_lines.append(f"MISSING SCOPES: {', '.join(missing_scopes)} — objective requires these coverage areas but no agent provides them.")
+            if missing_roles:
+                structural_lines.append(f"MISSING ROLES: {', '.join(missing_roles)} — expected roles not filled.")
+
+            # Special: cross_platform scope needs multiple platforms
+            if "cross_platform" in expected_scopes or "cross_platform" in actual_scopes:
+                structural_lines.append("CROSS-PLATFORM: this project requires context from multiple platforms to fulfill its objective.")
+        else:
+            structural_lines.append(f"Custom project (no type registry template).")
+    except Exception as e:
+        structural_lines.append(f"(Could not load type registry: {e})")
+
+    structural_assessment = "\n".join(structural_lines) if structural_lines else "No structural issues detected."
+
+    # ── Layer 3: Context Adequacy ──
+    # What platforms are connected, how fresh, and are they relevant to the objective?
+    context_lines = []
+    try:
+        from services.freshness import calculate_freshness
+        from datetime import datetime, timezone as tz
+
+        conn_result = client.table("platform_connections").select(
+            "platform, status"
+        ).eq("user_id", user_id).order("platform").execute()
+
+        registry_result = client.table("sync_registry").select(
+            "platform, last_synced_at"
+        ).eq("user_id", user_id).execute()
+
+        max_synced = {}
+        for row in (registry_result.data or []):
+            p = row.get("platform", "")
+            ts = row.get("last_synced_at")
+            if ts and (p not in max_synced or ts > max_synced[p]):
+                max_synced[p] = ts
+
+        now = datetime.now(tz.utc)
+        connected_platforms = []
+        for p in (conn_result.data or []):
+            pname = p.get("platform", "unknown")
+            last_synced = max_synced.get(pname)
+            freshness_str = calculate_freshness(last_synced, now)
+            connected_platforms.append(f"{pname} ({p.get('status', '?')}, {freshness_str})")
+
+        if connected_platforms:
+            context_lines.append(f"Connected platforms: {', '.join(connected_platforms)}")
+        else:
+            context_lines.append("NO PLATFORMS CONNECTED — agents have no external context to draw from.")
+
+        # Evaluate relevance: does the objective *need* these platforms?
+        platform_count = len(conn_result.data or [])
+        if "cross_platform" in (actual_scopes if 'actual_scopes' in dir() else set()):
+            if platform_count < 2:
+                context_lines.append(f"CONTEXT GAP: cross-platform objective requires 2+ platforms, only {platform_count} connected. The project CANNOT fulfill its stated purpose.")
+            else:
+                context_lines.append(f"Cross-platform coverage: {platform_count} platforms connected.")
+
+    except Exception as e:
+        context_lines.append(f"(Could not load platform context: {e})")
+
+    context_assessment = "\n".join(context_lines) if context_lines else "Context status unknown."
+
+    # ── Layer 4-5: Execution State ──
+    # Contributor freshness + content (existing logic)
     class _FakeAuth:
         def __init__(self, c, uid):
             self.client = c
@@ -172,14 +300,13 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
 
     contributor_lines.append(f"All fresh: {'YES' if freshness.get('all_fresh') else 'NO'}")
 
-    # Read work plan + prior quality assessment (ADR-121: PM needs to see its own prior assessment)
+    # Read work plan + prior quality assessment
     work_plan = await pw.read("memory/work_plan.md")
     quality_assessment = await pw.read("memory/quality_assessment.md")
     if quality_assessment:
         work_plan = (work_plan or "") + f"\n\n---\n\n## Prior Quality Assessment\n{quality_assessment}"
 
     # ADR-123: Migrate legacy intentions to work_plan if present
-    # If PROJECT.md still has ## Intentions (pre-ADR-123), seed them into work_plan
     legacy_intentions = project.get("legacy_intentions", [])
     if legacy_intentions and not work_plan:
         lines = ["## Execution Plan (migrated from legacy intentions)"]
@@ -197,8 +324,7 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
                 parts.append(f"  budget: {i['budget']}")
             lines.extend(parts)
         migrated_plan = "\n".join(lines)
-        # Write migrated plan to PM's memory
-        await pw.write(f"memory/work_plan.md", migrated_plan,
+        await pw.write("memory/work_plan.md", migrated_plan,
                         summary="Migrated legacy intentions to work plan",
                         tags=["work_plan", "migration"])
         work_plan = migrated_plan
@@ -212,9 +338,9 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
             excerpt = (content[:300] + f"\n... ({len(content)} chars)") if content and len(content) > 300 else (content or "(empty)")
             user_shared_lines.append(f"- **{sf}**: {excerpt}")
     except Exception:
-        pass  # No user_shared/ files or folder doesn't exist
+        pass
 
-    # ADR-120 P4: Work budget status for graceful degradation
+    # Work budget status
     budget_status = "Unknown"
     try:
         from services.platform_limits import check_work_budget
@@ -229,12 +355,19 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
     except Exception:
         pass
 
+    # Prior project assessment (PM's own evolving cognitive state)
+    prior_assessment = await pw.read("memory/project_assessment.md") or ""
+
     return {
         "project_context": "\n".join(project_lines),
+        "commitment_assessment": commitment,
+        "structural_assessment": structural_assessment,
+        "context_assessment": context_assessment,
         "contributor_status": "\n".join(contributor_lines) if contributor_lines else "No contributors listed.",
-        "work_plan": work_plan or "No work plan set. Your first action should be update_work_plan.",
+        "work_plan": work_plan or "No work plan set.",
         "budget_status": budget_status,
         "user_shared_files": "\n".join(user_shared_lines) if user_shared_lines else "",
+        "prior_assessment": prior_assessment,
     }
 
 
@@ -529,6 +662,35 @@ async def _handle_pm_decision(
         )
     except Exception:
         pass  # Non-fatal
+
+    # PM cognitive model v1.0: Extract and persist project_assessment to workspace
+    project_assessment = decision.get("project_assessment")
+    if project_assessment and project_slug:
+        try:
+            from services.workspace import ProjectWorkspace as _PW
+            _pw = _PW(client, user_id, project_slug)
+            # Format assessment as readable markdown
+            constraint = project_assessment.get("constraint_layer", "?")
+            assessment_md = (
+                f"# Project Assessment — {project_slug}\n\n"
+                f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
+                f"**Current Constraint:** Layer {constraint} — {project_assessment.get('constraint_summary', 'unknown')}\n\n"
+                f"## Layer Evaluation\n\n"
+                f"1. **Commitment:** {project_assessment.get('layer_1_commitment', 'unknown')}\n"
+                f"2. **Structure:** {project_assessment.get('layer_2_structure', 'unknown')}\n"
+                f"3. **Context:** {project_assessment.get('layer_3_context', 'unknown')}\n"
+                f"4. **Quality:** {project_assessment.get('layer_4_quality', 'unknown')}\n"
+                f"5. **Readiness:** {project_assessment.get('layer_5_readiness', 'unknown')}\n\n"
+                f"**Action taken:** {action} — {reason}\n"
+            )
+            await _pw.write(
+                "memory/project_assessment.md", assessment_md,
+                summary=f"PM assessment: constraint at layer {constraint}",
+                tags=["project_assessment", "pm"],
+            )
+            logger.info(f"[PM] Wrote project_assessment.md: constraint_layer={constraint}")
+        except Exception as e:
+            logger.warning(f"[PM] Failed to write project_assessment.md: {e}")
 
     # ADR-120 P4: Graceful degradation — override to escalate if budget exhausted
     if action in ("assemble", "advance_contributor") and action != "escalate":
