@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.21.2] - PM cognitive model v1.0 — layered prerequisite reasoning + project_assessment.md
+
+### Changed
+- `api/agents/chat_agent.py`: PM Chat Prompt v2.0 → v3.0. Replaces flat status dump with 5-layer prerequisite cognitive model: (1) Commitment — is the objective complete?, (2) Structure — right team for the commitment?, (3) Context — right inputs for the objective? (platform connections are supply, not demand), (4) Output Quality — contribution depth/coverage, (5) Delivery Readiness — assembly/budget/work plan. PM stops at the first broken layer. New template fields: `{commitment_assessment}`, `{structural_assessment}`, `{context_assessment}`, `{prior_assessment}`. Communication guidelines: opinionated stance, act-don't-narrate, context-objective fitness over platform enumeration.
+- `api/services/agent_pipeline.py`: PM headless prompt v5.0 → v6.0. Same 5-layer model. Every PM JSON response now requires `"project_assessment"` field — structured layered evaluation (constraint_layer, per-layer status). Persisted to `memory/project_assessment.md` as PM's evolving cognitive state. Decision rules rewritten in prerequisite order: commitment → structure → context → quality → readiness. Layer 1-3 gaps → escalate. `build_role_prompt()` PM branch: passes new context fields (`commitment_assessment`, `structural_assessment`, `context_assessment`, `prior_assessment`).
+- `api/services/agent_execution.py`: `_load_pm_project_context()` enriched with three new data layers: (1) Commitment assessment — checks objective field completeness (deliverable/audience/format/purpose). (2) Structural assessment — queries project type registry for expected vs actual contributor roles/scopes, detects missing scopes (e.g., cross_platform project with single-platform agents). (3) Context assessment — queries `platform_connections` + `sync_registry` for connected platforms and freshness, evaluates against project scope requirements (cross-platform needs 2+ platforms). Also loads `memory/project_assessment.md` as prior assessment. `_handle_pm_decision()`: extracts `project_assessment` from PM JSON output and writes to `memory/project_assessment.md` as formatted markdown.
+- `docs/architecture/workspace-conventions.md`: Added `memory/project_assessment.md` to project folder tree, notes, memory file table, and writer table.
+
+### Expected behavior
+- PM reasons through prerequisite layers on every pulse and chat turn — stops at the first broken layer instead of reporting everything at equal weight
+- A cross-platform synthesis project with only Slack connected will get Layer 2/3 escalation ("cannot fulfill objective") instead of "Slack data is stale"
+- PM's layered assessment persists in `memory/project_assessment.md` — creates evolving cognitive state across pulses
+- PM chat responses lead with the constraint layer, not a flat status dump
+- Platform connections are evaluated for objective-relevance, not assumed to be context
+
+---
+
 ## [2026.03.21.1] - Data surfacing streamline — PM in PROJECT.md, dead DB writes removed, naming unified
 
 ### Changed
