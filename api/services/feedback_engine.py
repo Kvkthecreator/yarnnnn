@@ -11,9 +11,15 @@ These metrics feed the Feedback layer of the agent intelligence model
 memory/preferences.md, loaded by all strategies via load_context() (ADR-117).
 """
 
+from __future__ import annotations
+
+import logging
 import re
 import difflib
+from collections import Counter
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def compute_edit_metrics(draft: str, final: str) -> dict:
@@ -282,3 +288,54 @@ def detect_restructures(draft_sections: list[str], final_sections: list[str]) ->
                 })
 
     return restructures
+
+
+# =============================================================================
+# Agent Feedback Metrics — run history aggregation for pulse seniority checks
+# =============================================================================
+
+async def get_agent_feedback_metrics(client, agent_id: str) -> dict:
+    """
+    Compute feedback metrics for an agent from its run history.
+
+    Returns:
+        {
+            "total_runs": int,
+            "approval_rate": float (0.0-1.0),
+            "delivered": int,
+            "approved": int,
+        }
+
+    Used by agent_pulse.py to determine seniority for Tier 2 eligibility.
+    Mirrors the logic in composer.py heartbeat_data_query.
+    """
+    try:
+        resp = (
+            client.table("agent_runs")
+            .select("status")
+            .eq("agent_id", agent_id)
+            .execute()
+        )
+        runs = resp.data or []
+    except Exception as e:
+        logger.warning(f"[FEEDBACK] Failed to fetch runs for {agent_id}: {e}")
+        return {"total_runs": 0, "approval_rate": 0.0, "delivered": 0, "approved": 0}
+
+    counts = Counter(r.get("status") for r in runs)
+    total = len(runs)
+
+    if total == 0:
+        return {"total_runs": 0, "approval_rate": 0.0, "delivered": 0, "approved": 0}
+
+    # Weighted approval: explicit approve=1.0, auto-delivered=0.5
+    approved = counts.get("approved", 0)
+    delivered = counts.get("delivered", 0)
+    weighted = approved + (delivered * 0.5)
+    approval_rate = weighted / total if total > 0 else 0.0
+
+    return {
+        "total_runs": total,
+        "approval_rate": round(approval_rate, 3),
+        "delivered": delivered,
+        "approved": approved,
+    }
