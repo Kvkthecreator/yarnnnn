@@ -38,10 +38,11 @@ import {
   FolderOpen,
   Folder,
   File,
-  Settings,
   AtSign,
   BarChart3,
   Combine,
+  Activity,
+  Users,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -59,6 +60,7 @@ import { useTP } from '@/contexts/TPContext';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
+import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
 import type {
   ProjectDetail,
   ProjectActivityItem,
@@ -1499,10 +1501,177 @@ function SettingsTab({
 }
 
 // =============================================================================
-// Main Component
+// ADR-126: Workfloor — Agent Pulse Visualization
 // =============================================================================
 
-type TabId = 'meeting-room' | 'context' | 'outputs' | 'settings';
+type PulseDecision = 'generate' | 'observe' | 'wait' | 'escalate';
+
+const PULSE_DECISION_CONFIG: Record<PulseDecision, { label: string; color: string; bgColor: string }> = {
+  generate: { label: 'Generating', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-500' },
+  observe: { label: 'Observing', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-500' },
+  wait: { label: 'Waiting', color: 'text-muted-foreground', bgColor: 'bg-gray-400' },
+  escalate: { label: 'Needs attention', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-500' },
+};
+
+function WorkfloorView({
+  members,
+  activities,
+  slug,
+}: {
+  members: ProjectMember[];
+  activities: ProjectActivityItem[];
+  slug: string;
+}) {
+  // Derive latest pulse state per agent from activity events
+  const agentPulseState = useCallback(() => {
+    const states: Record<string, { decision: PulseDecision; reason?: string; timestamp: string }> = {};
+    // Walk activities in chronological order — last one wins
+    for (const a of activities) {
+      if (a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed') {
+        const agentSlug = a.metadata?.agent_slug as string | undefined;
+        const decision = (a.metadata?.action as string || 'observe') as PulseDecision;
+        if (agentSlug) {
+          states[agentSlug] = {
+            decision,
+            reason: a.metadata?.reason as string | undefined,
+            timestamp: a.created_at,
+          };
+        }
+      }
+    }
+    return states;
+  }, [activities]);
+
+  const pulseStates = agentPulseState();
+
+  // Sort: PM first, then by role
+  const sorted = [...members].sort((a, b) => {
+    if (a.role === 'pm' && b.role !== 'pm') return -1;
+    if (b.role === 'pm' && a.role !== 'pm') return 1;
+    return 0;
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-3xl mx-auto">
+          {sorted.length === 0 ? (
+            <div className="text-center py-12">
+              <Activity className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No agents assigned yet.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {sorted.map((m) => {
+                const name = agentDisplayName(m.title, m.agent_slug);
+                const pulse = pulseStates[m.agent_slug];
+                const decisionConfig = pulse
+                  ? PULSE_DECISION_CONFIG[pulse.decision] || PULSE_DECISION_CONFIG.wait
+                  : null;
+
+                return (
+                  <div
+                    key={m.agent_slug}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background hover:bg-muted/30 transition-colors"
+                  >
+                    {/* Avatar with pulse ring */}
+                    <div className="relative">
+                      <AgentAvatar
+                        name={name}
+                        role={m.role}
+                        avatarUrl={m.avatar_url}
+                        size="md"
+                        status={m.status}
+                      />
+                      {/* Pulse ring animation for active agents */}
+                      {pulse?.decision === 'generate' && (
+                        <span className="absolute inset-0 rounded-full border-2 border-green-500/40 animate-ping" />
+                      )}
+                    </div>
+
+                    {/* Identity + state */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">{name}</span>
+                        {m.role && (
+                          <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
+                            {roleShortLabel(m.role)}
+                          </span>
+                        )}
+                      </div>
+                      {/* Pulse state */}
+                      {decisionConfig ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', decisionConfig.bgColor)} />
+                          <span className={cn('text-xs', decisionConfig.color)}>
+                            {decisionConfig.label}
+                          </span>
+                          {pulse?.reason && (
+                            <span className="text-[11px] text-muted-foreground truncate">
+                              — {pulse.reason}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {m.last_run_at
+                            ? `Last active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
+                            : 'No activity yet'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Timestamp */}
+                    {pulse?.timestamp && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {format(new Date(pulse.timestamp), 'h:mm a')}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Recent pulse timeline */}
+          {activities.filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed').length > 0 && (
+            <div className="mt-6 border-t border-border pt-4">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">Recent Pulse Activity</p>
+              <div className="space-y-1.5">
+                {activities
+                  .filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed')
+                  .slice(-10)
+                  .reverse()
+                  .map((a) => {
+                    const config = ACTIVITY_EVENT_CONFIG[a.event_type];
+                    return (
+                      <div key={a.id} className="flex items-start gap-2 py-1">
+                        <span className={cn('mt-0.5 shrink-0', config?.color || 'text-muted-foreground')}>
+                          {config?.icon || <HeartPulse className="w-3.5 h-3.5" />}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs">{formatActivitySummary(a)}</p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {format(new Date(a.created_at), 'h:mm a')}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main Component — WorkspaceLayout architecture (matches Orchestrator)
+// =============================================================================
+
+type MainView = 'meeting-room' | 'workfloor';
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1513,7 +1682,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>('meeting-room');
+  const [mainView, setMainView] = useState<MainView>('meeting-room');
   const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
 
   const loadProject = useCallback(async () => {
@@ -1574,110 +1743,119 @@ export default function ProjectDetailPage() {
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const members = meta.contributors || [];
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'meeting-room', label: 'Meeting Room', icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'context', label: 'Context', icon: <FolderOpen className="w-4 h-4" /> },
-    { id: 'outputs', label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`, icon: <Package className="w-4 h-4" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+  // Right panel tabs: Participants, Context, Outputs, Settings
+  const panelTabs: WorkspacePanelTab[] = [
+    {
+      id: 'participants',
+      label: `Team (${members.length})`,
+      content: members.length > 0 ? (
+        <ParticipantsSidebar
+          members={members}
+          contributionCounts={contribution_counts}
+          slug={slug}
+          pmIntelligence={pm_intelligence}
+        />
+      ) : (
+        <div className="p-4 text-center">
+          <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground">No agents assigned</p>
+        </div>
+      ),
+    },
+    {
+      id: 'context',
+      label: 'Context',
+      content: <ContextTab slug={slug} />,
+    },
+    {
+      id: 'outputs',
+      label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`,
+      content: (
+        <div className="overflow-y-auto">
+          <OutputsTab slug={slug} />
+        </div>
+      ),
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      content: (
+        <div className="overflow-y-auto">
+          <SettingsTab
+            slug={slug}
+            project={meta}
+            objective={objective}
+            members={members}
+            onUpdateObjective={(obj) => setObjective(obj)}
+            onArchive={handleArchive}
+            archiving={archiving}
+          />
+        </div>
+      ),
+    },
   ];
 
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="shrink-0 border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4">
-          <Link
-            href="/projects"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Projects
-          </Link>
-
-          <div>
-            <h1 className="text-xl font-bold">{title}</h1>
-            {objective?.deliverable && (
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {objective.deliverable}
-                {objective.audience && ` for ${objective.audience}`}
-                {objective.format && ` — ${objective.format}`}
-              </p>
-            )}
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 mt-4 -mb-4 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-                  activeTab === tab.id
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === 'meeting-room' && (
-          <div className="h-full flex overflow-hidden">
-            {/* Chat column */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-              <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
-            </div>
-            {/* Participants panel (desktop only) */}
-            {members.length > 0 && (
-              <div className="hidden lg:flex lg:flex-col w-64 xl:w-72 border-l border-border bg-background shrink-0">
-                <div className="px-3 py-2 border-b border-border shrink-0">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Participants ({members.length})
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  <ParticipantsSidebar
-                    members={members}
-                    contributionCounts={contribution_counts}
-                    slug={slug}
-                    pmIntelligence={pm_intelligence}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+  // View toggle controls in the chat header
+  const viewToggle = (
+    <div className="flex items-center bg-muted rounded-lg p-0.5">
+      <button
+        onClick={() => setMainView('meeting-room')}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+          mainView === 'meeting-room'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
         )}
-        {activeTab === 'context' && (
-          <ContextTab slug={slug} />
+      >
+        <MessageSquare className="w-3 h-3" />
+        <span className="hidden sm:inline">Chat</span>
+      </button>
+      <button
+        onClick={() => setMainView('workfloor')}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+          mainView === 'workfloor'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
         )}
-        {activeTab === 'outputs' && (
-          <div className="h-full overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-4 md:px-6">
-              <OutputsTab slug={slug} />
-            </div>
-          </div>
-        )}
-        {activeTab === 'settings' && (
-          <div className="h-full overflow-y-auto">
-            <SettingsTab
-              slug={slug}
-              project={meta}
-              objective={objective}
-              members={members}
-              onUpdateObjective={(obj) => setObjective(obj)}
-              onArchive={handleArchive}
-              archiving={archiving}
-            />
-          </div>
-        )}
-      </div>
+      >
+        <Activity className="w-3 h-3" />
+        <span className="hidden sm:inline">Workfloor</span>
+      </button>
     </div>
+  );
+
+  return (
+    <WorkspaceLayout
+      identity={{
+        icon: <FolderKanban className="w-5 h-5" />,
+        label: title,
+        badge: objective?.deliverable ? (
+          <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden md:inline">
+            {objective.deliverable}
+          </span>
+        ) : undefined,
+      }}
+      breadcrumb={
+        <Link
+          href="/projects"
+          className="flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Projects</span>
+        </Link>
+      }
+      headerControls={viewToggle}
+      panelTabs={panelTabs}
+      panelDefaultOpen={true}
+      panelDefaultPct={30}
+    >
+      {/* Main view — Meeting Room or Workfloor */}
+      {mainView === 'meeting-room' ? (
+        <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
+      ) : (
+        <WorkfloorView members={members} activities={activities} slug={slug} />
+      )}
+    </WorkspaceLayout>
   );
 }
