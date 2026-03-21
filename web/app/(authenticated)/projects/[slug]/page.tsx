@@ -1386,7 +1386,6 @@ function SettingsTab({
   slug,
   project,
   objective,
-  members,
   onUpdateObjective,
   onArchive,
   archiving,
@@ -1394,7 +1393,6 @@ function SettingsTab({
   slug: string;
   project: ProjectDetail['project'];
   objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
-  members: ProjectMember[];
   onUpdateObjective: (obj: { deliverable?: string; audience?: string; format?: string; purpose?: string }) => void;
   onArchive: () => void;
   archiving: boolean;
@@ -1409,34 +1407,6 @@ function SettingsTab({
           objective={objective}
           onUpdate={onUpdateObjective}
         />
-      </section>
-
-      {/* Members */}
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Members</h3>
-        {members.length > 0 ? (
-          <div className="space-y-2">
-            {members.map((m) => (
-              <div key={m.agent_slug} className="flex items-center gap-2 text-sm">
-                <AgentAvatar name={agentDisplayName(m.title, m.agent_slug)} role={m.role} avatarUrl={m.avatar_url} size="sm" />
-                <span className="font-medium">{agentDisplayName(m.title, m.agent_slug)}</span>
-                {m.role && (
-                  <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(m.role))}>
-                    {roleDisplayName(m.role)}
-                  </span>
-                )}
-                {m.expected_contribution && (
-                  <span className="text-xs text-muted-foreground ml-auto">{m.expected_contribution}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No members assigned.</p>
-        )}
-        <p className="text-xs text-muted-foreground mt-2">
-          Members are managed via the meeting room. Ask the PM to add or reassign members.
-        </p>
       </section>
 
       {/* Assembly Spec */}
@@ -1785,7 +1755,6 @@ export default function ProjectDetailPage() {
             slug={slug}
             project={meta}
             objective={objective}
-            members={members}
             onUpdateObjective={(obj) => setObjective(obj)}
             onArchive={handleArchive}
             archiving={archiving}

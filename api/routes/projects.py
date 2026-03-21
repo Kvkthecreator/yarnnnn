@@ -20,6 +20,7 @@ Endpoints:
 
 import json as _json
 import logging
+import re
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -27,6 +28,180 @@ from typing import Optional
 from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-128 Phase 6: Cognitive state parsing helpers
+# =============================================================================
+
+# Regex for contributor self-assessment fields:
+# **Mandate**: description (high|medium|low — optional reason)
+_ASSESSMENT_FIELD_RE = re.compile(
+    r"\*\*(\w[\w ]*)\*\*:\s*(.+?)\s*\((high|medium|low)(?:\s*[—–-]\s*(.+?))?\)",
+    re.IGNORECASE,
+)
+
+# Map field names from self_assessment.md to API field names
+_FIELD_NAME_MAP = {
+    "mandate": "mandate",
+    "domain fitness": "fitness",
+    "context currency": "currency",
+    "output confidence": "confidence",
+}
+
+
+def _parse_self_assessment(content: str) -> Optional[dict]:
+    """Parse self_assessment.md → cognitive state dict with trajectory.
+
+    Returns:
+        {
+            "mandate": {"level": "high", "reason": "..."},
+            "fitness": {"level": "medium", "reason": "..."},
+            "currency": {"level": "high"},
+            "confidence": {"level": "medium", "reason": "..."},
+            "confidence_trajectory": ["medium", "high", "high", "low", "high"],
+        }
+        or None if no parseable assessment found.
+    """
+    if not content or "Not yet assessed" in content:
+        return None
+
+    # Split into entries by ## headers (each run is a ## section)
+    entries = re.split(r"(?=^## )", content, flags=re.MULTILINE)
+    entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("##")]
+
+    if not entries:
+        return None
+
+    # Parse latest entry (first one — newest first convention)
+    latest = entries[0]
+    state = {}
+    for match in _ASSESSMENT_FIELD_RE.finditer(latest):
+        field_name = match.group(1).strip().lower()
+        api_name = _FIELD_NAME_MAP.get(field_name)
+        if api_name:
+            entry = {"level": match.group(3).lower()}
+            reason = match.group(4)
+            if reason:
+                entry["reason"] = reason.strip()[:120]
+            state[api_name] = entry
+
+    if not state:
+        return None
+
+    # Build confidence trajectory from all entries (up to 5)
+    trajectory = []
+    for entry_text in entries[:5]:
+        for m in _ASSESSMENT_FIELD_RE.finditer(entry_text):
+            if m.group(1).strip().lower() == "output confidence":
+                trajectory.append(m.group(3).lower())
+                break
+
+    if trajectory:
+        state["confidence_trajectory"] = trajectory
+
+    return state
+
+
+def _parse_pm_assessment(content: str) -> Optional[dict]:
+    """Parse project_assessment.md → PM cognitive state.
+
+    PM assessment may be JSON (PM produces JSON) or structured markdown.
+    Returns:
+        {
+            "layers": {
+                "commitment": "satisfied"|"broken"|"unknown",
+                "structure": ...,
+                "context": ...,
+                "quality": ...,
+                "readiness": ...,
+            },
+            "constraint_summary": "first broken layer summary",
+            "raw_assessment": "full text (capped)",
+        }
+        or None if no assessment.
+    """
+    if not content or "No assessment yet" in content:
+        return None
+
+    raw = content[:2000]
+    layer_names = ["commitment", "structure", "context", "quality", "readiness"]
+
+    # Try JSON parse first (PM often produces JSON)
+    try:
+        data = _json.loads(content)
+        if isinstance(data, dict):
+            layers = {}
+            constraint_summary = None
+            for ln in layer_names:
+                layer_data = data.get(ln) or data.get(f"layer_{ln}") or {}
+                if isinstance(layer_data, dict):
+                    status = layer_data.get("status", "unknown")
+                    if status in ("satisfied", "ok", "healthy", "green"):
+                        layers[ln] = "satisfied"
+                    elif status in ("broken", "blocked", "red", "constraint"):
+                        layers[ln] = "broken"
+                        if not constraint_summary:
+                            constraint_summary = (
+                                layer_data.get("summary")
+                                or layer_data.get("assessment")
+                                or layer_data.get("reason")
+                                or ""
+                            )[:200]
+                    else:
+                        layers[ln] = "unknown"
+                elif isinstance(layer_data, str):
+                    lower = layer_data.lower()
+                    if any(w in lower for w in ("satisfied", "ok", "healthy")):
+                        layers[ln] = "satisfied"
+                    elif any(w in lower for w in ("broken", "blocked", "missing", "constraint")):
+                        layers[ln] = "broken"
+                        if not constraint_summary:
+                            constraint_summary = layer_data[:200]
+                    else:
+                        layers[ln] = "unknown"
+                else:
+                    layers[ln] = "unknown"
+
+            return {
+                "layers": layers,
+                "constraint_summary": constraint_summary,
+                "raw_assessment": raw,
+            }
+    except (_json.JSONDecodeError, ValueError, TypeError):
+        pass
+
+    # Fallback: markdown heuristic — look for layer references
+    layers = {}
+    constraint_summary = None
+    content_lower = content.lower()
+    for ln in layer_names:
+        # Look for patterns like "Layer 1 — Commitment: satisfied" or "✓ Commitment" or "✗ Context"
+        if re.search(rf"[✓✔☑]\s*{ln}", content_lower):
+            layers[ln] = "satisfied"
+        elif re.search(rf"[✗✘☒]\s*{ln}", content_lower):
+            layers[ln] = "broken"
+            if not constraint_summary:
+                # Try to grab text after the broken layer marker
+                m = re.search(rf"[✗✘☒]\s*{ln}[:\s—–-]*(.{{1,200}})", content_lower)
+                if m:
+                    constraint_summary = m.group(1).strip()[:200]
+        elif re.search(rf"layer.*{ln}.*(?:broken|blocked|missing|constraint)", content_lower):
+            layers[ln] = "broken"
+        elif re.search(rf"layer.*{ln}.*(?:satisfied|ok|healthy)", content_lower):
+            layers[ln] = "satisfied"
+        else:
+            layers[ln] = "unknown"
+
+    if all(v == "unknown" for v in layers.values()):
+        # Couldn't parse layers — return raw only
+        return {"layers": {ln: "unknown" for ln in layer_names}, "raw_assessment": raw}
+
+    return {
+        "layers": layers,
+        "constraint_summary": constraint_summary,
+        "raw_assessment": raw,
+    }
 
 router = APIRouter()
 
@@ -200,6 +375,13 @@ async def get_project(slug: str, user: UserClient):
                     c["seniority"] = seniority
                     c["total_runs"] = total_runs
                     c["approval_rate"] = round(approval_rate)
+                # ADR-128 Phase 6: Cognitive state from self_assessment.md
+                if c.get("role") != "pm":
+                    sa_content = await ws.read("memory/self_assessment.md")
+                    if sa_content:
+                        cognitive = _parse_self_assessment(sa_content)
+                        if cognitive:
+                            c["cognitive_state"] = cognitive
             except Exception:
                 pass  # Non-critical — card still works without identity data
     except Exception:
@@ -220,12 +402,22 @@ async def get_project(slug: str, user: UserClient):
     if briefs:
         pm_intelligence["briefs"] = briefs
 
+    # ADR-128 Phase 6: PM cognitive state from project_assessment.md
+    project_cognitive_state = None
+    try:
+        pa_content = await pw.read("memory/project_assessment.md")
+        if pa_content:
+            project_cognitive_state = _parse_pm_assessment(pa_content)
+    except Exception:
+        pass
+
     return {
         "project_slug": slug,
         "project": project,
         "contribution_counts": contribution_counts,
         "assembly_count": len(assemblies),
         "pm_intelligence": pm_intelligence if pm_intelligence else None,
+        "project_cognitive_state": project_cognitive_state,
     }
 
 
@@ -424,8 +616,8 @@ async def list_project_outputs(slug: str, user: UserClient, limit: int = Query(d
     folders = await pw.list_assemblies()
 
     outputs = []
-    for full_folder in reversed(folders[-limit:]):
-        manifest_raw = await pw.read(f"{full_folder}/manifest.json")
+    for folder_name in reversed(folders[-limit:]):
+        manifest_raw = await pw.read(f"assembly/{folder_name}/manifest.json")
         if not manifest_raw:
             continue
         try:
@@ -433,8 +625,7 @@ async def list_project_outputs(slug: str, user: UserClient, limit: int = Query(d
         except _json.JSONDecodeError:
             continue
 
-        # Strip "assembly/" prefix for the folder identifier (matches detail URL param)
-        folder_id = full_folder.removeprefix("assembly/")
+        folder_id = folder_name
         outputs.append({
             "folder": folder_id,
             "version": manifest.get("version", 0),
