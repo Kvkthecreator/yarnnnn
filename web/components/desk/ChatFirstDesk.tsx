@@ -187,67 +187,17 @@ function formatTokenCount(tokens: number): string {
 // Starter templates — project creation + TP capabilities
 // =============================================================================
 
-type TemplateIcon = 'slack' | 'gmail' | 'notion' | 'globe' | 'search' | 'plus';
-
 /**
- * Project creation templates — registry-backed only (ADR-122 project-first model).
+ * Starter prompt — single "New Project" card.
  *
- * 3 platform cards (1:1 with PROJECT_TYPE_REGISTRY platform types) + 1 blank project card.
- * Cards without registry backing removed — no aspirational templates.
+ * Platform-specific projects (Slack/Gmail/Notion Recap) are created via bootstrap
+ * on OAuth connection (ADR-110/113/122), not from starter cards. This eliminates
+ * redundancy: bootstrap auto-scaffolds on connect, cards were just a chat detour.
  */
-const PROJECT_TEMPLATES = [
-  {
-    id: 'slack-recap',
-    label: 'Slack Recap',
-    description: 'Daily summary of your Slack channels',
-    prompt: 'Set up a Slack recap project for me',
-    icon: 'slack' as TemplateIcon,
-  },
-  {
-    id: 'gmail-recap',
-    label: 'Gmail Recap',
-    description: 'Daily recap of your Gmail labels',
-    prompt: 'Set up a Gmail recap project for me',
-    icon: 'gmail' as TemplateIcon,
-  },
-  {
-    id: 'notion-recap',
-    label: 'Notion Recap',
-    description: 'Daily recap of your Notion pages',
-    prompt: 'Set up a Notion recap project for me',
-    icon: 'notion' as TemplateIcon,
-  },
-  {
-    id: 'new-project',
-    label: 'New Project',
-    description: 'Start a custom project from scratch',
-    prompt: 'I want to create a new project',
-    icon: 'plus' as TemplateIcon,
-  },
-];
+const NEW_PROJECT_PROMPT = 'I want to create a new project';
 
 /** "Just chat" — single open-ended prompt for everything that isn't project creation */
 const CHAT_PROMPT = 'Ask me anything — search your platforms, research the web, manage your agents, or just chat.';
-
-/** Map template icon keys to React nodes — platform icons + lucide fallbacks */
-function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
-  switch (icon) {
-    case 'slack':
-      return getPlatformIcon('slack', 'w-full h-full');
-    case 'gmail':
-      return getPlatformIcon('gmail', 'w-full h-full');
-    case 'notion':
-      return getPlatformIcon('notion', 'w-full h-full');
-    case 'globe':
-      return <Globe className="w-full h-full" />;
-    case 'search':
-      return <Search className="w-full h-full" />;
-    case 'plus':
-      return <Command className="w-full h-full" />;
-    default:
-      return <Command className="w-full h-full" />;
-  }
-}
 
 // =============================================================================
 // Main component
@@ -605,7 +555,7 @@ export function ChatFirstDesk() {
               <div className="max-w-2xl mx-auto mb-4">
                 <div className="flex items-center gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
                   <span className="w-5 h-5 shrink-0 text-primary">
-                    {getTemplateIcon(bootstrapProvider as TemplateIcon)}
+                    {getPlatformIcon(bootstrapProvider, 'w-full h-full')}
                   </span>
                   {bootstrapProject ? (
                     <div className="flex-1 flex items-center justify-between">
@@ -653,41 +603,22 @@ export function ChatFirstDesk() {
                     Set up a project, search your platforms, or just ask anything.
                   </p>
                 </div>
-                <div className="max-w-2xl mx-auto space-y-4">
-                  {/* Project creation cards */}
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Set up a project</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {PROJECT_TEMPLATES.filter((tpl) => {
-                        // ADR-110: Hide template for already-bootstrapped platform
-                        if (!bootstrapProvider) return true;
-                        const platformMap: Record<string, string> = {
-                          'slack-recap': 'slack',
-                          'gmail-recap': 'google',
-                          'notion-recap': 'notion',
-                        };
-                        return platformMap[tpl.id] !== bootstrapProvider;
-                      }).map((tpl) => (
-                        <button
-                          key={tpl.id}
-                          onClick={() => {
-                            setInput(tpl.prompt);
-                            textareaRef.current?.focus();
-                          }}
-                          className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                        >
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="w-4 h-4 shrink-0 text-muted-foreground">
-                              {getTemplateIcon(tpl.icon)}
-                            </span>
-                            <span className="text-sm font-medium">{tpl.label}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
-                        </button>
-                      ))}
+                <div className="max-w-md mx-auto space-y-4">
+                  <button
+                    onClick={() => {
+                      setInput(NEW_PROJECT_PROMPT);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                      <Command className="w-full h-full" />
+                    </span>
+                    <div>
+                      <span className="text-sm font-medium">New Project</span>
+                      <span className="text-xs text-muted-foreground block">Start a custom project from scratch</span>
                     </div>
-                  </div>
-                  {/* Just chat */}
+                  </button>
                   <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
                 </div>
               </div>
@@ -803,26 +734,21 @@ export function ChatFirstDesk() {
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {PROJECT_TEMPLATES.map((tpl) => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => {
-                        sendMessage(tpl.prompt, { surface });
-                        setShowCreateCards(false);
-                      }}
-                      className="flex flex-col items-start gap-0.5 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="w-3.5 h-3.5 shrink-0 text-muted-foreground">
-                          {getTemplateIcon(tpl.icon)}
-                        </span>
-                        <span className="text-sm font-medium">{tpl.label}</span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground leading-snug">{tpl.description}</span>
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={() => {
+                    sendMessage(NEW_PROJECT_PROMPT, { surface });
+                    setShowCreateCards(false);
+                  }}
+                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                >
+                  <span className="w-3.5 h-3.5 shrink-0 text-muted-foreground">
+                    <Command className="w-full h-full" />
+                  </span>
+                  <div>
+                    <span className="text-sm font-medium">New Project</span>
+                    <span className="text-[11px] text-muted-foreground block">Start a custom project from scratch</span>
+                  </div>
+                </button>
               </div>
             )}
 
