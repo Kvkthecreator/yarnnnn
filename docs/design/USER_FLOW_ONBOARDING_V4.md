@@ -96,8 +96,9 @@ Dashboard shows a clean welcome with **two paths**:
 2. **Dashboard shows transitional state**: platform connected, sync in progress
 3. **Onboarding Bootstrap** (ADR-110/122): post-sync, `maybe_bootstrap_project()` calls `scaffold_project(type_key)` which creates:
    - Project folder (`/projects/{slug}/PROJECT.md`)
-   - Member agent (e.g., "Slack Agent", role=digest)
-   - PM agent ("PM: Slack Recap")
+   - Member agent (e.g., "Slack Agent", role=digest) + seeded `memory/self_assessment.md` (ADR-128)
+   - PM agent ("PM: Slack Recap") + seeded `memory/project_assessment.md` (ADR-128)
+   - Cognitive files initialized with "awaiting first run/pulse" state — PM sees clean starting signal
    - First agent run executes immediately
 4. **Bootstrap banner** appears in Orchestrator: "{Project Title} is ready! → View project"
 5. **User clicks through to Meeting Room** at `/projects/{slug}`

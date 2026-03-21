@@ -107,6 +107,21 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 
 ---
 
+## Directive and Decision Persistence (ADR-128)
+
+Meeting room conversations (project sessions, ADR-124) produce directives and decisions that must outlive the session. ADR-128 introduces a persistence mechanism: agents self-write durable guidance to workspace files during chat, rather than relying on post-chat extraction.
+
+| What persists | Where | Written by | Survives |
+|---------------|-------|-----------|----------|
+| User directives to contributors | `/agents/{slug}/memory/directives.md` | Agent-via-chat (WriteWorkspace) | Session rotation, compaction |
+| Project-level decisions | `/projects/{slug}/memory/decisions.md` | PM-via-chat (WriteWorkspace) | Session rotation, compaction |
+
+**How it works**: During meeting room conversation, agents judge whether a user statement is a durable directive (focus area, style preference, priority) vs. ephemeral discussion. Durable directives are appended to the appropriate `memory/*.md` file via the WriteWorkspace primitive (already registered for `agent_chat` mode). On the agent's next headless run, `load_context()` reads all `memory/*.md` files, so the directive is injected into the execution context.
+
+**What this solves**: Without this, a user saying "focus on action items, not just summaries" in the meeting room would be lost when the session compacts or rotates. With directive persistence, the guidance survives in the filesystem and shapes all future runs.
+
+---
+
 ## Remaining gaps
 
 1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*

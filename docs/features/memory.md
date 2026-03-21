@@ -28,6 +28,7 @@ Memory is everything YARNNN knows *about the user* — their name, role, how the
 - Not a log of what YARNNN has done — that is Activity
 - Not generated output — that is Work
 - Not agent-specific knowledge — that lives in agent workspace files (`/agents/{slug}/`). See ADR-087, ADR-106.
+- Not agent cognitive state — self-assessments, directives, and project assessments live in agent/project workspace `memory/` files (ADR-128). See below.
 
 ---
 
@@ -164,6 +165,23 @@ Users can add, edit, and delete Memory entries directly. Changes are immediate.
 | `api/services/working_memory.py` | Formats memory for prompt injection |
 | `api/routes/memory.py` | Memory page API endpoints |
 | `api/services/session_continuity.py` | Session summary generation (chat-layer, separate from memory) |
+
+---
+
+## Agent Cognitive Files (ADR-128)
+
+Separate from user Memory, agents maintain their own cognitive state in workspace `memory/` files. These are **not** part of the Memory page UI — they are coordination infrastructure between agents.
+
+| File | Scope | Written by | Semantics |
+|------|-------|-----------|-----------|
+| `/agents/{slug}/memory/self_assessment.md` | Per-agent | Agent after each run | Rolling history (5 recent): mandate, fitness, currency, confidence |
+| `/agents/{slug}/memory/directives.md` | Per-agent | Agent-via-chat | Accumulated user directives from meeting room |
+| `/projects/{slug}/memory/project_assessment.md` | Per-project | PM after each pulse | Overwrite: 5-layer prerequisite evaluation |
+| `/projects/{slug}/memory/decisions.md` | Per-project | PM-via-chat | Accumulated project-level decisions from meeting room |
+
+**Key distinction**: User memory (`/memory/`) is user-owned, user-visible, and user-editable. Agent cognitive files (`/agents/{slug}/memory/`, `/projects/{slug}/memory/`) are system-managed coordination infrastructure. They are never shown on the Memory page.
+
+See [workspace-conventions.md](../architecture/workspace-conventions.md) for full file semantics. See [agent-framework.md](../architecture/agent-framework.md) for the cognitive architecture.
 
 ---
 

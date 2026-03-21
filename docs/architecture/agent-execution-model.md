@@ -146,27 +146,43 @@ Pulse Dispatcher (scheduler)
 │   └── Decision: generate | observe | wait | escalate
 ├── 2. If "generate" → dispatch_trigger() routing
 ├── 3. Strategy selection + context gathering (ADR-045)
+│   └── mandate_context injected: PROJECT.md objective + PM brief (ADR-128)
 ├── 4. Version creation
 ├── 5. Agent (mode="headless")           ← agent invocation
 │   ├── Receives: gathered context + type prompt + directives + memory + learned preferences (ADR-101)
+│   ├── mandate_context: project objective + PM brief + last self-assessment (ADR-128)
 │   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
 │   ├── Max tool rounds: scope-aware (2-6, ADR-081/109)
-│   └── Returns: structured content (text)
-├── 6. Retention marking (ADR-072)
-├── 7. Output to workspace + project contributions
-├── 8. PM pulse triggered (contributor output event)
-└── 9. Activity logging (pulse decision + run)
+│   └── Returns: structured content (text) + ## Contributor Assessment block (ADR-128)
+├── 6. Assessment extraction + stripping (ADR-128)
+│   ├── Parse ## Contributor Assessment from output (4 fields: mandate, fitness, currency, confidence)
+│   ├── Append to memory/self_assessment.md (rolling history, 5 most recent)
+│   └── Strip assessment block from draft — users never see coordination infrastructure
+├── 7. Retention marking (ADR-072)
+├── 8. Output to workspace + project contributions (assessment already stripped)
+├── 9. PM pulse triggered (contributor output event)
+└── 10. Activity logging (pulse decision + run)
 ```
 
 **PM Coordination pulse:**
 ```
 PM Pulse (Tier 3)
-├── 1. PM senses project state (contributor freshness, quality, work plan, budget)
-├── 2. PM decides: assemble | steer | advance_contributor | assess_quality | wait | escalate
-├── 3. If "assemble" → assembly composition + delivery
-├── 4. If "steer" → write contribution brief to contributor
-├── 5. If "advance_contributor" → trigger contributor pulse
-└── 6. Activity logging (PM pulse decision)
+├── 1. PM senses project state:
+│   ├── Contributor freshness, quality, work plan, budget (existing)
+│   ├── Contributor self-assessments — rolling history from memory/self_assessment.md (ADR-128)
+│   └── Last pulse metadata per contributor from activity_log (ADR-128)
+├── 2. PM walks prerequisite layers 1→5 (ADR-128 cognitive model):
+│   ├── L1 Commitment: objective completeness
+│   ├── L2 Structure: right team composition for the objective
+│   ├── L3 Context: required platform data available and relevant
+│   ├── L4 Quality: contributor output + self-assessment trajectories
+│   └── L5 Readiness: work plan, budget, assembly readiness
+├── 3. PM decides: assemble | steer | advance_contributor | assess_quality | wait | escalate
+├── 4. PM writes project_assessment to memory/project_assessment.md (overwrite — authoritative snapshot)
+├── 5. If "assemble" → assembly composition + delivery
+├── 6. If "steer" → write contribution brief to contributor
+├── 7. If "advance_contributor" → trigger contributor pulse
+└── 8. Activity logging (PM pulse decision)
 ```
 
 **Key difference from pre-ADR-126:** The agent decides whether to generate — not the scheduler. Freshness checks, budget gates, and self-assessment all live inside the pulse, not in the scheduler's top-down logic.

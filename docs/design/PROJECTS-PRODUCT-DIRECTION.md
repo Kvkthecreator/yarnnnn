@@ -38,6 +38,8 @@ These were resolved through architectural discourse (2026-03-18) and should not 
 
 5. **Composer manages project assembly.** No dedicated coordinator agent. Composer reads contributions, invokes output gateway skills, writes assembled output to `/projects/{slug}/assembly/`. Single-surface model preserved.
 
+8. **PM is a coherence monitor, not just a logistics coordinator.** PM reads contributor self-assessment histories (rolling, 5 recent) and walks prerequisite layers (commitment → structure → context → quality → readiness) every pulse. PM writes `project_assessment.md` as an authoritative snapshot. Contributors read it to understand project constraints. This is the multi-agent coherence protocol (ADR-128).
+
 6. **Projects are ongoing, not scheduled.** No cron expression on projects. Composer assembles when contributions have meaningfully changed. Projects trail indefinitely until archived by user, Composer, or dissolution.
 
 7. **TP/Composer is the single conversational surface.** User says "let's talk about the Q2 review" and Composer scopes context to that project. No separate project chat interface.
@@ -232,6 +234,8 @@ Same workspace layout pattern (chat + panel), different panel tabs:
 **Memory** — project-level accumulated state:
 - `preferences.md` — distilled from user feedback on assembled outputs ("leadership prefers bullet points over paragraphs," "include the chart on page 1")
 - `observations.md` — cross-contribution patterns Composer has noticed ("Slack data and email data overlap on client mentions — deduplicate in assembly")
+- `project_assessment.md` — PM's layered evaluation (ADR-128): which prerequisite layer (commitment/structure/context/quality/readiness) is the current constraint. Rewritten every PM pulse.
+- `decisions.md` — project-level decisions persisted from meeting room conversations (ADR-128). Accumulated, not overwritten.
 - Read-only display. System-written, not user-editable.
 
 **Settings** — project configuration:

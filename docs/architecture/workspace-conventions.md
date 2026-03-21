@@ -65,6 +65,13 @@ YARNNN's workspace conventions deliberately mirror Claude Code's filesystem mode
 │   ├── observations.md             # Timestamped observations from review passes
 │   ├── preferences.md              # Learned preferences from user edit patterns (ADR-117)
 │   ├── projects.json               # Project memberships list (ADR-119 Phase 2)
+│   ├── self_assessment.md          # Rolling self-assessment history (ADR-128)
+│   │                               # 5 most recent entries, newest first
+│   │                               # 4 dimensions: mandate, domain fitness, context currency, output confidence
+│   │                               # Seeded at creation with "awaiting first run"
+│   ├── directives.md               # Accumulated user directives from meeting room chat (ADR-128)
+│   │                               # Append-only — agent persists durable guidance via WriteWorkspace
+│   │                               # Read by agent on next headless run via load_context()
 │   ├── goal.md                     # Assigned goal and milestones
 │   ├── state.md                    # Operational state metadata
 │   └── {topic}.md                  # Agent-created topic files (unbounded)
@@ -127,7 +134,10 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 │   ├── pm_agent.json               # PM agent reference (pm_agent_id, pm_title)
 │   ├── project_assessment.md       # PM's layered project evaluation (PM cognitive model v1.0)
 │   │                               # 5-layer: commitment → structure → context → quality → readiness
-│   │                               # Rewritten every PM pulse — evolving cognitive state
+│   │                               # Rewritten every PM pulse — authoritative snapshot (ADR-128)
+│   ├── decisions.md                # Project-level decisions from meeting room chat (ADR-128)
+│   │                               # Append-only — PM persists objective refinements,
+│   │                               # structural changes, delivery adjustments via WriteWorkspace
 │   ├── work_plan.md                # PM's operational plan (ADR-120 Phase 4)
 │   │                               # Intentions, focus areas, budget status
 │   ├── quality_assessment.md       # PM's contribution quality scoring (ADR-121)
@@ -331,7 +341,10 @@ Topic-scoped persistent memory. Mirrors Claude Code's `.claude/memory/` director
 | `observations.md` | Agent (via `record_observation()`) | Timestamped review pass observations |
 | `preferences.md` | Feedback engine (system) | Learned preferences from user edit patterns |
 | `projects.json` | System (scaffold_project) | Project memberships list |
+| `self_assessment.md` | Agent (post-generation, ADR-128) | Rolling history (5 recent) of mandate/fitness/currency/confidence |
+| `directives.md` | Agent-via-chat (WriteWorkspace, ADR-128) | Accumulated user directives from meeting room |
 | `project_assessment.md` | PM agent | Layered evaluation: commitment→structure→context→quality→readiness |
+| `decisions.md` | PM-via-chat (WriteWorkspace, ADR-128) | Project-level decisions from meeting room |
 | `work_plan.md` | PM agent | Operational plan, intentions, focus areas |
 | `{topic}.md` | Agent (via WriteWorkspace) | Agent-determined topic memory |
 
@@ -391,6 +404,9 @@ Ephemeral staging area for user-contributed files (ADR-127).
 | `agent_execution.py` | Write output folder | `outputs/{date}/output.md` + `manifest.json` |
 | `agent_execution.py` | Write contribution | `/projects/{slug}/contributions/{agent_slug}/` |
 | `proactive_review.py` | Append observation | `memory/observations.md` |
+| `agent_execution.py` | Append self-assessment (ADR-128) | `memory/self_assessment.md` |
+| Agent-via-chat | Persist directive (ADR-128) | `memory/directives.md` |
+| PM-via-chat | Persist decision (ADR-128) | `/projects/{slug}/memory/decisions.md` |
 | `feedback_distillation.py` | Write preferences | `memory/preferences.md` |
 | `scaffold_project()` | Write PROJECT.md | `/projects/{slug}/PROJECT.md` |
 | PM agent | Write brief | `/projects/{slug}/contributions/{slug}/brief.md` |
@@ -429,5 +445,6 @@ When extending the workspace with new file types:
 - [ADR-123: Project Objective & Ownership](../adr/ADR-123-project-objective-ownership.md) — objective model, work plan
 - [ADR-124: Project Meeting Room](../adr/ADR-124-project-meeting-room.md) — project conversation surface
 - [ADR-127: User-Shared File Staging](../adr/ADR-127-user-shared-file-staging.md) — `user_shared/` convention
+- [ADR-128: Multi-Agent Coherence Protocol](../adr/ADR-128-multi-agent-coherence-protocol.md) — cognitive files, coherence flows, self-assessment
 - [Naming Conventions](naming-conventions.md) — broader YARNNN naming system
 - [Agent Execution Model](agent-execution-model.md) — how orchestration invokes agents

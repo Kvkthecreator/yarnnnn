@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.21.3] - ADR-128: Multi-Agent Coherence Protocol — documentation phase
+
+### Changed
+- `docs/architecture/FOUNDATIONS.md`: v3.4 — Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism. ADR-128 in relationship table.
+- `docs/architecture/agent-execution-model.md`: Pulse→Generation pipeline updated with mandate_context injection (step 3), assessment output (step 5), assessment extraction + stripping (new step 6). PM coordination pulse enriched with self-assessment reading and 5-layer prerequisite walk.
+- `docs/architecture/agent-framework.md`: New "Agent Cognitive Architecture (ADR-128)" section — contributor cognitive model (4 dimensions), cognitive files table, initialization at scaffold time, coherence loop diagram, Phase 6 placeholder.
+- `docs/architecture/workspace-conventions.md`: Added `self_assessment.md` and `directives.md` to agent workspace tree. Added `decisions.md` to project workspace tree. Updated memory file table with 4 new entries. Updated access patterns with cognitive file writers. Added ADR-128 reference.
+- `docs/design/PROJECT-DELIVERY-MODEL.md`: v1.1 — PM heartbeat reads contributor self-assessments alongside freshness. Assembly gating includes cognitive state.
+- `docs/design/PROJECTS-PRODUCT-DIRECTION.md`: New settled decision #8: PM as coherence monitor. Memory tab expanded with project_assessment.md and decisions.md.
+- `docs/design/USER_FLOW_ONBOARDING_V4.md`: Bootstrap scaffold note — cognitive files seeded at creation with "awaiting first run/pulse" state.
+- `docs/features/memory.md`: New "Agent Cognitive Files (ADR-128)" section distinguishing user memory from agent cognitive state.
+- `docs/features/sessions.md`: New "Directive and Decision Persistence (ADR-128)" section — how meeting room directives survive session rotation via WriteWorkspace.
+- `docs/features/context.md`: New "Agent Cognitive Files — Cross-Agent Context (ADR-128)" section — mandate_context as third context substrate alongside platform and knowledge.
+- `docs/adr/ADR-128-multi-agent-coherence-protocol.md`: New ADR — three substrates, four flows, contributor cognitive model, design decisions D1-D4, workspace file conventions, 6 implementation phases.
+- `CLAUDE.md`: ADR-128 entry added to ADR reference list.
+
+### Expected behavior
+- No runtime behavior changes — this is documentation only
+- Establishes canonical reference for multi-agent coherence protocol
+- Code implementation follows in subsequent changelog entries (Phases 0-4)
+
+---
+
 ## [2026.03.21.2] - PM cognitive model v1.0 — layered prerequisite reasoning + project_assessment.md
 
 ### Changed

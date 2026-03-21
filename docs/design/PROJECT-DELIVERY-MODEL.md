@@ -106,6 +106,7 @@ These are decoupled. An agent might pulse every 5 minutes (senior, always sensin
 - Currently checks contribution freshness → triggers assembly
 - Needs extension: also triggers delivery based on project cadence
 - Single-agent projects: PM passthrough (contribution = output, deliver immediately)
+- **ADR-128**: PM now reads contributor self-assessment histories (rolling, 5 recent) alongside freshness. Assembly gating considers both output recency AND contributor self-reported confidence. PM writes `project_assessment.md` each pulse — contributors read this to understand project constraints.
 
 ### Frontend
 - Agent detail pages: remove delivery configuration
@@ -131,3 +132,4 @@ These are decoupled. An agent might pulse every 5 minutes (senior, always sensin
 | Date | Change |
 |------|--------|
 | 2026-03-20 | v1 — Decision captured: agents produce, projects deliver. PM for all projects. |
+| 2026-03-21 | v1.1 — ADR-128: PM heartbeat now reads contributor self-assessments + writes project_assessment.md. Assembly gating considers contributor cognitive state. |

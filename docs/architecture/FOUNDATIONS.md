@@ -66,6 +66,22 @@ Perception is not just external platform data. The perception substrate is **eve
 
 3. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's own compositional reasoning create a shared recursive layer. As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
 
+### Three Intelligence Substrates (ADR-128 Corollary)
+
+Perception flows through three distinct substrates that must stay coherent:
+
+1. **Conversation** — project sessions, chat messages, compaction. What was said. Append-only, compacts over time.
+2. **Filesystem** — workspace files (`AGENT.md`, `memory/`, `PROJECT.md`, cognitive files). What agents know. Evolves with each pulse/run.
+3. **Agent Cognition** — role prompts, pulse decisions, execution strategies. How agents think. Shaped by substrate 2.
+
+These are not hierarchical — they are peer substrates. Intelligence degrades when they fall out of sync: a user directive in conversation that doesn't reach the filesystem evaporates on session rotation; a PM assessment in the filesystem that agents can't read produces coordination blind spots.
+
+The **coherence protocol** (ADR-128) defines four flows that keep substrates aligned:
+1. **Cognition → Filesystem**: Contributors write self-assessments (`memory/self_assessment.md`) after each run — rolling history of mandate fitness, domain fitness, context currency, output confidence.
+2. **Filesystem → Cognition**: PM reads contributor self-assessments during its pulse — trajectory data (not just current state) informs steering decisions.
+3. **Conversation → Filesystem**: Agents persist durable directives from chat to `memory/directives.md` — user guidance survives session rotation.
+4. **Filesystem → Conversation**: Contributors read PM's `project_assessment.md` — they know which prerequisite layer constrains the project.
+
 ### The Recursive Property
 
 ```
@@ -136,6 +152,19 @@ Autonomy is graduated and domain-specific:
 - **Trusted**: agent can take consequential external actions (e.g., post to social media, send emails)
 
 Autonomy is earned per-capability, not globally. An agent might be autonomous for digests but supervised for write-backs.
+
+### Agent Cognitive State (ADR-128)
+
+A developing agent is not just its outputs and feedback — it has a **cognitive state** that persists between executions. This state is materialized in workspace files, seeded at creation time, and updated on every run:
+
+- **`memory/self_assessment.md`** — rolling history (5 most recent) of the agent's self-evaluation: mandate clarity, domain fitness, context currency, output confidence. This is the agent's evolving self-awareness.
+- **`memory/directives.md`** — accumulated user guidance from meeting room conversations that persists across session rotations.
+
+PM agents maintain additional cognitive files at the project level:
+- **`memory/project_assessment.md`** — the PM's layered evaluation of the project, rewritten each pulse. This is the authoritative project health snapshot.
+- **`memory/decisions.md`** — project-level decisions from meeting room conversations.
+
+Cognitive files are **not output** — they are coordination infrastructure. They are stripped from delivered content and exist solely to enable cross-agent coherence. The asymmetry is intentional: contributor assessments use rolling append (trajectory data for PM), PM assessments use overwrite (authoritative snapshot for contributors).
 
 ### The Agent Pulse — Mechanism of Autonomy (ADR-126)
 
@@ -329,6 +358,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Implemented |
 | ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
 | ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as fourth perception layer — project transcript alongside external/internal/reflexive), Axiom 3 (agents as participants with presence), Axiom 4 (accumulated attention visible in conversation). Three data scopes (agent/group/project). Project surface as group chat. Extends ADR-080 with `agent_chat` mode. | Proposed |
+| ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + four coherence flows), Axiom 3 (cognitive files as developmental mechanism). Contributor self-assessment, PM project assessment, chat directive persistence, cross-agent visibility. | Proposed |
 
 ---
 
@@ -370,3 +400,4 @@ These require further design work before implementation:
 | 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, `intentions` consolidated into PM `memory/work_plan.md`. Ownership model: PROJECT.md = charter (User/Composer/TP), PM memory/ = operations (PM). |
 | 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
 | 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |
+| 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128). Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism — agents accumulate self-awareness, not just outputs. |

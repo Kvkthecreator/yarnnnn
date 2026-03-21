@@ -86,6 +86,8 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 **Lifecycle**: Persistent. Memory from six months ago is still in the prompt today unless the user or TP explicitly removes it.
 
+> **ADR-128 extension:** The Memory layer now extends to per-agent **cognitive files** in workspace (`self_assessment.md`, `directives.md`, `project_assessment.md`, `decisions.md`). These persist agent self-awareness across executions and enable cross-agent coordination: PM reads contributor assessments to inform steering; contributors read PM's project assessment as mandate context. Cognitive files follow the same persistence and workspace conventions as `memory/*.md` but serve the coherence protocol between agents rather than user-facing memory.
+
 ---
 
 ## Layer 2 — Activity
@@ -364,6 +366,12 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
    - Effect: Agent assesses whether existing agents are current or if new work is warranted
    - Enables: Smart `advance_schedule` vs `create_child` vs `observe` decisions (ADR-092)
 
+4. **Cross-agent coherence** (Work → Work, ADR-128)
+   - When: Agent pulse or execution reads another agent's cognitive files
+   - What: PM reads contributor `self_assessment.md`; contributors read PM `project_assessment.md` as mandate context
+   - Effect: Agents coordinate through persistent workspace files rather than direct communication
+   - Enables: PM steering informed by contributor self-awareness; contributor alignment to project objective
+
 **Removed** (ADR-087 Phase 2): `process_feedback()` (edit-diff heuristics) and `process_patterns()` (activity log pattern detection). Superseded by the conversational iteration model.
 
 ### Key insight: Layer 4 is both output and input
@@ -435,6 +443,7 @@ The more agents a user runs, the more the system learns what they value. This cr
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
 - [ADR-068](../adr/ADR-068-signal-emergent-agents.md) — Signal-emergent agents (Superseded by ADR-092)
 - [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — Agent Intelligence & Mode Taxonomy (dissolves signal processing, defines coordinator/proactive/reactive modes)
+- ADR-128 — Multi-Agent Coherence Protocol (cognitive files, mandate context, cross-agent coordination via workspace)
 - [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
 
 **Architecture docs**:

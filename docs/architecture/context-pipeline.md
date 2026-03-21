@@ -221,6 +221,8 @@ The platform distinguishes four storage domains with distinct lifecycle and acce
 ┌─────────────────────────────────────────────────────────────┐
 │  AGENT INTELLIGENCE  (workspace_files: /agents/{slug}/)      │
 │  AGENT.md, memory/*.md, thesis.md, working/, runs/           │
+│  + cognitive files: self_assessment.md, directives.md,       │
+│    project_assessment.md, decisions.md (ADR-128)             │
 │  Singular source of truth — DB columns deprecated (ADR-106)  │
 │  Per-agent, private, persistent                              │
 └─────────────────────────────────────────────────────────────┘
@@ -234,6 +236,8 @@ The platform distinguishes four storage domains with distinct lifecycle and acce
 ```
 
 **OS analogy:** `/memory/` = `/etc/` (system config), `/agents/` = `/home/` (per-process private state), `/knowledge/` = `/var/shared/` (shared knowledge filesystem), `platform_content` = `/dev/` (device drivers — raw external I/O).
+
+> **ADR-128 (Multi-Agent Coherence Protocol):** Agent Intelligence now includes **cognitive files** (`self_assessment.md`, `directives.md`, `project_assessment.md`, `decisions.md`) that persist agent self-awareness across executions. These files enable cross-agent coordination: PM reads contributor self-assessments to steer effectively; contributors read PM's project assessment as mandate context. This creates a new cross-agent context layer within the existing workspace filesystem.
 
 > **ADR-107 (implemented):** Agent-produced outputs write to `/knowledge/` filesystem in `workspace_files` — organized by content class (digests, analyses, briefs, research, insights) with structured metadata. Outputs enter `/knowledge/` at delivery time. The previous `platform="yarnnn"` rows in `platform_content` (ADR-102) have been superseded and deleted. See [ADR-107](../adr/ADR-107-knowledge-filesystem-architecture.md).
 

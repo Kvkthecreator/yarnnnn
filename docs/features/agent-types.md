@@ -352,6 +352,14 @@ The following skills/templates are implemented in the backend but hidden from th
 
 ---
 
+## Self-Assessment (ADR-128: Multi-Agent Coherence Protocol)
+
+All contributor roles now produce a **self-assessment** as part of their output. During headless execution, contributors append a `## Contributor Assessment` block to their generated content. This block is extracted, appended to `memory/self_assessment.md` (rolling 5 recent entries), and stripped before delivery. The user never sees it; the agent and PM do.
+
+PM role agents write `project_assessment.md` each pulse, synthesizing contributor self-assessments into a project-level coherence view.
+
+---
+
 ## Key Files (shared across all skills)
 
 | Concern | Location |

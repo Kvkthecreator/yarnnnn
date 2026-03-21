@@ -438,6 +438,63 @@ Pulse events (`agent_pulsed`, `pm_pulsed`) make agent thinking visible between r
 
 ---
 
+## Agent Cognitive Architecture (ADR-128)
+
+Every project-scoped agent maintains **cognitive files** — persistent self-awareness that survives across executions. These files are seeded at creation time and updated on every run/pulse.
+
+### Contributor Cognitive Model
+
+Contributors evaluate themselves on four dimensions (analogous to PM's 5 prerequisite layers):
+
+| Dimension | Question | Example signal |
+|-----------|----------|---------------|
+| **Mandate** | What am I supposed to contribute? | PROJECT.md objective + PM brief |
+| **Domain Fitness** | Does my scope/context cover the mandate? | Platform-scoped agent asked for cross-platform work → low fitness |
+| **Context Currency** | Is my input fresh and substantial enough? | Stale platform data, few items fetched → low currency |
+| **Output Confidence** | How well does this output address the mandate? | Thin output, missing sections → low confidence |
+
+Self-assessment is produced as a `## Contributor Assessment` block in the agent's output, parsed and stripped before delivery, then appended to `memory/self_assessment.md` (rolling history, 5 most recent, newest first).
+
+### Cognitive Files
+
+| File | Owner | Semantics | Written by | Read by |
+|------|-------|-----------|-----------|---------|
+| `memory/self_assessment.md` | Contributor | Rolling append (5 recent) | Agent after each run | PM during pulse, agent (last entry only) |
+| `memory/directives.md` | Contributor | Append | Agent-via-chat (WriteWorkspace) | Agent during headless run |
+| `memory/project_assessment.md` | PM (project-level) | Overwrite | PM after each pulse | Contributors during headless run |
+| `memory/decisions.md` | PM (project-level) | Append | PM-via-chat (WriteWorkspace) | All project members |
+
+### Initialization
+
+Cognitive files are seeded at scaffold time — not lazily on first run:
+- `scaffold_project()` seeds `memory/project_assessment.md` with "No assessment yet — PM has not pulsed."
+- `create_agent_for_project()` seeds `memory/self_assessment.md` with "Not yet assessed — awaiting first run."
+- `AGENT.md` template includes coherence protocol reference.
+
+This gives PM clear signal on first pulse: "not yet assessed" ≠ "assessed as low confidence" ≠ "legacy agent without cognitive files."
+
+### The Coherence Loop
+
+```
+PM assesses project → writes project_assessment.md (overwrite)
+    ↓
+Contributor reads PM assessment during next run (via load_context)
+    ↓
+Contributor produces output + self-assessment (4 dimensions)
+    ↓
+Self-assessment appended to memory/self_assessment.md (rolling, 5 recent)
+    ↓
+PM reads contributor self-assessment history on next pulse
+    ↓
+PM has trajectory data: "confidence declining over 3 runs" → structural problem
+```
+
+### Phase 6: Cognitive Dashboard (Future)
+
+ADR-128 Phases 1-5 build the cognitive data substrate. A future "situation room" view would surface agent cognitive state beyond what the meeting room conversation shows — PM constraint layer, contributor confidence trajectories, flow activity. Not scoped in ADR-128. See ADR-128 Phase 6.
+
+---
+
 ## Execution Strategies by Scope
 
 ```python

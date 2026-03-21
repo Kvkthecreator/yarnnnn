@@ -101,7 +101,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
 
 **Key design**:
 - Tier 1 absorbs `should_skip_agent()` and work budget check from scheduler
-- Tier 2 absorbs the proactive review logic from `proactive_review.py`
+- Tier 2 absorbs the proactive review logic from `proactive_review.py`. ADR-128 formalizes what Tier 2 reads: the agent's own `memory/self_assessment.md` (rolling history), `memory/directives.md` (user guidance from chat), and mandate_context from PROJECT.md
 - PM gets Tier 3 (coordination pulse) — absorbs PM heartbeat from `agent_pipeline.py`
 - All pulse decisions logged as `agent_pulsed` / `pm_pulsed` activity events
 

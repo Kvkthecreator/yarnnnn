@@ -103,6 +103,21 @@ User-uploaded PDFs, DOCX, TXT, MD files are chunked, embedded, and stored in `fi
 
 Agent outputs are written to `workspace_files` under `/knowledge/{class}/...` (ADR-107). This is persistent, user-scoped, and shared across agents. Use `QueryKnowledge` to search it from headless execution.
 
+### Agent Cognitive Files — Cross-Agent Context (ADR-128)
+
+In addition to external platform data and shared knowledge, agents read **cognitive context** from workspace files during headless execution:
+
+| What the agent reads | Source path | Purpose |
+|---------------------|-------------|---------|
+| PM's project assessment | `/projects/{slug}/memory/project_assessment.md` | Know which prerequisite layer constrains the project |
+| Own last self-assessment | `/agents/{slug}/memory/self_assessment.md` | Reflect on whether conditions changed since last run |
+| PM contribution brief | `/projects/{slug}/contributions/{slug}/brief.md` | Understand PM's steering directive |
+| User directives | `/agents/{slug}/memory/directives.md` | Durable user guidance from meeting room |
+
+This cognitive context is injected as `mandate_context` in the agent's prompt — presented alongside gathered platform/knowledge context. It answers "what am I supposed to contribute and how does PM evaluate the project?" rather than "what data is available?"
+
+The three context substrates (external platforms, internal knowledge, agent cognition) are peer layers — each contributes to the agent's situational awareness. See [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) Axiom 2 for the three intelligence substrates.
+
 ### `sync_registry` — Per-resource sync state
 
 Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by `platform_worker.py` to track sync progress across runs.

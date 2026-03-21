@@ -78,6 +78,10 @@ These appear only in ADRs and architecture documentation. They help contributors
 | Content that has been referenced and is kept indefinitely | **Retained content** | ADR-072 |
 | The four data layers | **Memory / Activity / Context / Work** | ADR-063 |
 | Graduated response to incoming signals | **Signal strength** (high/medium/low) | ADR-088 |
+| Project objective + PM brief injected into contributor prompts | **Mandate context** | ADR-128 |
+| Rules for intelligence flow between conversation, filesystem, and agent cognition substrates | **Coherence protocol** | ADR-128 |
+| Workspace memory files that persist agent self-awareness across executions | **Cognitive files** | ADR-128 |
+| Contributor's evaluation of mandate fitness, domain fitness, context currency, output confidence | **Self-assessment** | ADR-128 |
 
 ---
 
