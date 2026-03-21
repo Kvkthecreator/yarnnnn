@@ -146,8 +146,8 @@ const BACKGROUND_JOB_GROUPS = [
     types: [
       'Memory Extraction',
       'Session Summaries',
-      'Pattern Detection',
       'Agent Generation',
+      'Composer Heartbeat',
       'Content Cleanup',
     ],
   },

@@ -110,6 +110,7 @@ JOB_SCHEDULE_DESCRIPTIONS = {
     "Session Summaries": "Daily at 00:00 UTC",
     "Agent Generation": "When due (checked every 5 min)",
     "Agent Pulse": "Role-based cadence (every 5 min check)",
+    "Composer Heartbeat": "Pro: every 5 min / Free: daily at 00:00 UTC",
     "Content Cleanup": "Daily at 00:00 UTC",
     "Scheduler Heartbeat": "Every 5 min",
 }
@@ -406,6 +407,7 @@ async def get_system_status(auth: UserClient):
         ("session_summary_written", "Session Summaries"),
         ("agent_generated", "Agent Generation"),
         ("agent_pulsed", "Agent Pulse"),
+        ("composer_heartbeat", "Composer Heartbeat"),
         ("content_cleanup", "Content Cleanup"),
         ("scheduler_heartbeat", "Scheduler Heartbeat"),
     ]
