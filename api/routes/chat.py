@@ -1116,18 +1116,27 @@ async def global_chat(
 
         if not target_id:
             # Default to PM agent for this project
+            # Primary: pm_agent.json (written by scaffold_project)
+            # Fallback: title-match query (for pre-scaffold projects)
             try:
                 pw = ProjectWorkspace(auth.client, auth.user_id, request_project_slug)
-                project = await pw.read_project()
-                if project:
-                    for c in project.get("contributors", []):
-                        # Find the PM contributor
-                        pm_result = auth.client.table("agents").select(
-                            "id, user_id, title, scope, role, agent_instructions, agent_memory, sources"
-                        ).eq("id", c.get("agent_id", "")).eq("role", "pm").execute()
+                pm_json = await pw.read("memory/pm_agent.json")
+                if pm_json:
+                    import json as _json
+                    pm_data = _json.loads(pm_json)
+                    pm_id = pm_data.get("pm_agent_id", "")
+                    if pm_id:
+                        target_id = pm_id
+                if not target_id:
+                    # Fallback: find PM agent whose title contains the project name
+                    project = await pw.read_project()
+                    project_title = project.get("title", "") if project else ""
+                    if project_title:
+                        pm_result = auth.client.table("agents").select("id").eq(
+                            "user_id", auth.user_id
+                        ).eq("role", "pm").ilike("title", f"%{project_title}%").limit(1).execute()
                         if pm_result.data:
                             target_id = pm_result.data[0]["id"]
-                            break
             except Exception as e:
                 logger.warning(f"[CHAT] Failed to find PM for project {request_project_slug}: {e}")
 
