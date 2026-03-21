@@ -226,23 +226,8 @@ const PROJECT_TEMPLATES = [
   },
 ];
 
-/** Capability templates — surface TP's built-in abilities beyond project creation */
-const CAPABILITY_TEMPLATES = [
-  {
-    id: 'search-platforms',
-    label: 'Search platforms',
-    description: 'Find anything across your Slack, Gmail, Notion, and Calendar',
-    prompt: 'Search across my connected platforms for ',
-    icon: 'search' as TemplateIcon,
-  },
-  {
-    id: 'web-research',
-    label: 'Web research',
-    description: 'Search the web for current info, news, or trends',
-    prompt: 'Search the web for ',
-    icon: 'globe' as TemplateIcon,
-  },
-];
+/** "Just chat" — single open-ended prompt for everything that isn't project creation */
+const CHAT_PROMPT = 'Ask me anything — search your platforms, research the web, manage your agents, or just chat.';
 
 /** Map template icon keys to React nodes — platform icons + lucide fallbacks */
 function getTemplateIcon(icon: TemplateIcon): React.ReactNode {
@@ -702,30 +687,8 @@ export function ChatFirstDesk() {
                       ))}
                     </div>
                   </div>
-                  {/* Capability cards */}
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">Or ask directly</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {CAPABILITY_TEMPLATES.map((tpl) => (
-                        <button
-                          key={tpl.id}
-                          onClick={() => {
-                            setInput(tpl.prompt);
-                            textareaRef.current?.focus();
-                          }}
-                          className="flex flex-col items-start gap-1 p-3 rounded-lg border border-dashed border-border hover:border-primary/30 hover:bg-muted/50 transition-colors text-left"
-                        >
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="w-4 h-4 shrink-0 text-muted-foreground">
-                              {getTemplateIcon(tpl.icon)}
-                            </span>
-                            <span className="text-sm font-medium">{tpl.label}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground leading-snug">{tpl.description}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Just chat */}
+                  <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
                 </div>
               </div>
             )}
