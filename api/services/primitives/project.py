@@ -250,7 +250,7 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
 
         pm_result = await create_agent_record(
             auth.client, auth.user_id,
-            title=f"PM: {title}",
+            title=f"Project Manager: {title}",
             role="pm",
             origin="composer",
             mode="recurring",

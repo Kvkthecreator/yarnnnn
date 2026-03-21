@@ -370,7 +370,7 @@ async def scaffold_project(
         try:
             pm_result = await create_agent_record(
                 client, user_id,
-                title=f"PM: {title}",
+                title=f"Project Manager: {title}",
                 role="pm",
                 origin="composer",
                 mode="recurring",
@@ -414,7 +414,7 @@ async def scaffold_project(
         try:
             await pw.write(
                 "memory/pm_agent.json",
-                _json.dumps({"pm_agent_id": pm_agent_id, "pm_title": f"PM: {title}"}),
+                _json.dumps({"pm_agent_id": pm_agent_id, "pm_title": f"Project Manager: {title}"}),
                 summary="PM agent reference",
                 content_type="application/json",
             )
