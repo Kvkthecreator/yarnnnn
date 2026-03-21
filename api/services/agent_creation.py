@@ -85,6 +85,7 @@ AGENT_COLUMNS = {
     "type_config", "destination", "origin",
     "mode", "trigger_type",
     "trigger_config", "last_triggered_at", "scope", "role",
+    "avatar_url",
 }
 
 

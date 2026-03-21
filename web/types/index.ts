@@ -428,6 +428,7 @@ export interface Agent {
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
   avg_edit_distance?: number;  // Average over last 5 versions
   description?: string;
+  avatar_url?: string | null;
 }
 
 export interface AgentCreate {
@@ -465,6 +466,7 @@ export interface AgentUpdate {
   mode?: AgentMode;
   trigger_config?: Record<string, unknown>;
   description?: string;
+  avatar_url?: string | null;
 }
 
 // ADR-049: Source snapshot for tracking what data was used at generation time
@@ -816,6 +818,7 @@ export interface ProjectMember {
   schedule?: Record<string, unknown>;
   last_run_at?: string;
   created_at?: string;
+  avatar_url?: string | null;
 }
 
 // ADR-123 Phase 3: PM intelligence surfacing

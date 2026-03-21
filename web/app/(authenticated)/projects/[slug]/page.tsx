@@ -46,6 +46,16 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import {
+  agentDisplayName,
+  roleBadgeColor,
+  roleDisplayName,
+  roleShortLabel,
+  scopeDisplayName,
+  statusIndicator,
+  authorColor as getAuthorColorFromRole,
+} from '@/lib/agent-identity';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import { useTP } from '@/contexts/TPContext';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
@@ -207,13 +217,7 @@ function getAuthorLabel(msg: TPMessage): string {
 /** Color accent per author role */
 function getAuthorColor(msg: TPMessage): string {
   if (msg.role === 'user') return 'text-primary/70';
-  switch (msg.authorRole) {
-    case 'pm': return 'text-purple-600 dark:text-purple-400';
-    case 'digest': return 'text-blue-600 dark:text-blue-400';
-    case 'monitor': return 'text-amber-600 dark:text-amber-400';
-    case 'research': return 'text-green-600 dark:text-green-400';
-    default: return 'text-muted-foreground/70';
-  }
+  return getAuthorColorFromRole(msg.authorRole);
 }
 
 /** Bubble background per author type */
@@ -535,12 +539,9 @@ function MeetingRoomTab({
                   onClick={() => handleMentionSelect(c)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
                 >
-                  <span className={cn(
-                    'w-2 h-2 rounded-full shrink-0',
-                    c.role === 'pm' ? 'bg-purple-500' : 'bg-blue-500'
-                  )} />
+                  <AgentAvatar name={agentDisplayName(c.title, c.agent_slug)} role={c.role} avatarUrl={c.avatar_url} size="sm" />
                   <span className="font-medium">
-                    {c.title || c.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
+                    {agentDisplayName(c.title, c.agent_slug)}
                   </span>
                   {c.role && (
                     <span className="text-xs text-muted-foreground">{roleDisplayName(c.role)}</span>
@@ -1000,82 +1001,6 @@ function OutputsTab({ slug }: { slug: string }) {
 }
 
 // =============================================================================
-// Shared helpers for member display
-// =============================================================================
-
-/** Display name for a member — title or humanized slug */
-function memberName(m: ProjectMember): string {
-  return m.title || m.agent_slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
-}
-
-/** Role → user-facing display name */
-function roleDisplayName(role?: string): string {
-  switch (role) {
-    case 'pm': return 'Project Manager';
-    case 'digest': return 'Recap';
-    case 'monitor': return 'Monitor';
-    case 'research': return 'Researcher';
-    case 'synthesize': return 'Synthesizer';
-    case 'prepare': return 'Prep';
-    case 'act': return 'Operator';
-    case 'custom': return 'Custom';
-    default: return role || '';
-  }
-}
-
-/** Scope → user-facing display name */
-function scopeDisplayName(scope?: string): string {
-  switch (scope) {
-    case 'platform': return 'Single platform';
-    case 'cross_platform': return 'Cross-platform';
-    case 'knowledge': return 'Knowledge';
-    case 'research': return 'Research';
-    case 'autonomous': return 'Autonomous';
-    default: return scope?.replace(/_/g, ' ') || '';
-  }
-}
-
-/** Role badge color */
-function roleBadgeColor(role?: string): string {
-  switch (role) {
-    case 'pm': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
-    case 'digest': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
-    case 'monitor': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
-    case 'research': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
-    case 'synthesize': return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
-    case 'prepare': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
-    default: return 'bg-muted text-muted-foreground';
-  }
-}
-
-/** Avatar color based on role */
-function avatarColor(role?: string): string {
-  switch (role) {
-    case 'pm': return 'bg-purple-500';
-    case 'digest': return 'bg-blue-500';
-    case 'monitor': return 'bg-amber-500';
-    case 'research': return 'bg-green-500';
-    case 'synthesize': return 'bg-teal-500';
-    case 'prepare': return 'bg-indigo-500';
-    default: return 'bg-gray-500';
-  }
-}
-
-/** Status indicator */
-function statusIndicator(status?: string): { color: string; label: string } {
-  switch (status) {
-    case 'active': return { color: 'bg-green-500', label: 'Active' };
-    case 'paused': return { color: 'bg-amber-500', label: 'Paused' };
-    case 'archived': return { color: 'bg-gray-400', label: 'Archived' };
-    default: return { color: 'bg-green-500', label: 'Active' };
-  }
-}
-
-// =============================================================================
-// Agent Profile Card — slide-out panel
-// =============================================================================
-
-// =============================================================================
 // Participants Sidebar — compact list for Meeting Room panel
 // =============================================================================
 
@@ -1109,9 +1034,7 @@ function ParticipantsSidebar({
         <div className="px-3 py-2">
           <div className="space-y-0.5">
             {sorted.map((m) => {
-              const name = memberName(m);
-              const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-              const si = statusIndicator(m.status);
+              const name = agentDisplayName(m.title, m.agent_slug);
               const isSelected = selectedMember?.agent_slug === m.agent_slug;
 
               return (
@@ -1123,21 +1046,19 @@ function ParticipantsSidebar({
                     isSelected ? 'bg-muted' : 'hover:bg-muted/50',
                   )}
                 >
-                  <div className="relative shrink-0">
-                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold', avatarColor(m.role))}>
-                      {initials}
-                    </div>
-                    <span className={cn(
-                      'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-                      si.color,
-                    )} />
-                  </div>
+                  <AgentAvatar
+                    name={name}
+                    role={m.role}
+                    avatarUrl={m.avatar_url}
+                    size="sm"
+                    status={m.status}
+                  />
                   <div className="flex-1 min-w-0">
                     <span className="text-xs font-medium truncate block">{name}</span>
                   </div>
                   {m.role && (
                     <span className={cn('text-[9px] font-medium px-1 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
-                      {m.role === 'pm' ? 'PM' : roleDisplayName(m.role)}
+                      {roleShortLabel(m.role)}
                     </span>
                   )}
                 </button>
@@ -1187,17 +1108,20 @@ function InlineProfileCard({
       .finally(() => setFilesLoading(false));
   }, [slug, member.agent_slug]);
 
-  const name = memberName(member);
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const name = agentDisplayName(member.title, member.agent_slug);
   const si = statusIndicator(member.status);
 
   return (
     <div className="px-3 py-3 space-y-3">
       {/* Header */}
       <div className="flex items-start gap-2.5">
-        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0', avatarColor(member.role))}>
-          {initials}
-        </div>
+        <AgentAvatar
+          name={name}
+          role={member.role}
+          avatarUrl={member.avatar_url}
+          size="md"
+          status={member.status}
+        />
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold truncate">{name}</h3>
           <div className="flex items-center gap-1.5 mt-0.5">
@@ -1513,8 +1437,8 @@ function SettingsTab({
           <div className="space-y-2">
             {members.map((m) => (
               <div key={m.agent_slug} className="flex items-center gap-2 text-sm">
-                <span className={cn('w-2 h-2 rounded-full shrink-0', avatarColor(m.role))} />
-                <span className="font-medium">{memberName(m)}</span>
+                <AgentAvatar name={agentDisplayName(m.title, m.agent_slug)} role={m.role} avatarUrl={m.avatar_url} size="sm" />
+                <span className="font-medium">{agentDisplayName(m.title, m.agent_slug)}</span>
                 {m.role && (
                   <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(m.role))}>
                     {roleDisplayName(m.role)}

@@ -131,7 +131,7 @@ async def get_project(slug: str, user: UserClient):
         from services.workspace import get_agent_slug as _gas
         agents_result = user.client.table("agents").select(
             "id, title, role, scope, mode, status, origin, schedule, "
-            "last_run_at, created_at, updated_at"
+            "last_run_at, created_at, updated_at, avatar_url"
         ).eq("user_id", user.user_id).execute()
         # Build slug → agent map for O(1) lookup
         slug_to_agent = {}
@@ -156,6 +156,7 @@ async def get_project(slug: str, user: UserClient):
                 c["schedule"] = agent.get("schedule")
                 c["last_run_at"] = agent.get("last_run_at")
                 c["created_at"] = agent.get("created_at")
+                c["avatar_url"] = agent.get("avatar_url")
     except Exception:
         pass
     project["contributors"] = enriched_contributors

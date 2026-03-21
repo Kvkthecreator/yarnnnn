@@ -34,6 +34,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { ROLE_LABELS } from '@/lib/constants/agents';
 import { cn } from '@/lib/utils';
+import { statusIndicator } from '@/lib/agent-identity';
 import type { Agent, AgentStatus } from '@/types';
 
 // =============================================================================
@@ -260,7 +261,7 @@ function AgentCard({
           {getAgentPlatformIcon(agent)}
           <span className={cn(
             'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
-            agent.status === 'paused' ? 'bg-amber-400' : 'bg-green-500'
+            statusIndicator(agent.status).color,
           )} />
         </div>
 
