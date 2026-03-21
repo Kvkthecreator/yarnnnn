@@ -1042,7 +1042,7 @@ function ParticipantsSidebar({
                   key={m.agent_slug}
                   onClick={() => setSelectedMember(isSelected ? null : m)}
                   className={cn(
-                    'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left',
+                    'w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors text-left',
                     isSelected ? 'bg-muted' : 'hover:bg-muted/50',
                   )}
                 >
@@ -1050,11 +1050,11 @@ function ParticipantsSidebar({
                     name={name}
                     role={m.role}
                     avatarUrl={m.avatar_url}
-                    size="sm"
+                    size="md"
                     status={m.status}
                   />
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-medium truncate block">{name}</span>
+                    <span className="text-sm font-medium truncate block">{name}</span>
                   </div>
                   {m.role && (
                     <span className={cn('text-[9px] font-medium px-1 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
@@ -1111,12 +1111,12 @@ function InlineProfileCard({
   return (
     <div className="px-3 py-3 space-y-3">
       {/* Identity header */}
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-3">
         <AgentAvatar
           name={name}
           role={member.role}
           avatarUrl={member.avatar_url}
-          size="md"
+          size="lg"
           status={member.status}
         />
         <div className="flex-1 min-w-0">
