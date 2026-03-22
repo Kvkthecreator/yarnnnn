@@ -10,8 +10,7 @@ Modes:
 
 Usage:
   RefreshPlatformContent(platform="slack")
-  RefreshPlatformContent(platform="gmail")
-  RefreshPlatformContent(platform="calendar")
+  RefreshPlatformContent(platform="notion")
 """
 
 import logging
@@ -39,13 +38,13 @@ Typical flow:
 2. RefreshPlatformContent(platform="slack") → syncs latest, returns summary
 3. Search(scope="platform_content", platform="slack") → fresh results
 
-Supported platforms: slack, gmail, notion, calendar""",
+Supported platforms: slack, notion""",
     "input_schema": {
         "type": "object",
         "properties": {
             "platform": {
                 "type": "string",
-                "enum": ["slack", "gmail", "notion", "calendar"],
+                "enum": ["slack", "notion"],
                 "description": "Platform to refresh"
             }
         },
@@ -63,7 +62,7 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
 
     Args:
         auth: Auth context with user_id, client, and optionally headless/agent_sources
-        input: {"platform": "slack|gmail|notion|calendar"}
+        input: {"platform": "slack|notion"}
 
     Returns:
         {success, platform, items_synced, message, refreshed_at}
@@ -75,14 +74,14 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
         return {
             "success": False,
             "error": "missing_platform",
-            "message": "Platform is required (slack, gmail, notion, calendar)",
+            "message": "Platform is required (slack, notion)",
         }
 
-    if platform not in ("slack", "gmail", "notion", "calendar"):
+    if platform not in ("slack", "notion"):
         return {
             "success": False,
             "error": "invalid_platform",
-            "message": f"Unsupported platform: {platform}. Use: slack, gmail, notion, calendar",
+            "message": f"Unsupported platform: {platform}. Use: slack, notion",
         }
 
     user_id = auth.user_id
@@ -95,9 +94,6 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
             configured_platforms = {
                 s.get("platform", "") for s in agent_sources if isinstance(s, dict)
             }
-            # google connection covers both gmail and calendar
-            if "google" in configured_platforms:
-                configured_platforms.update({"gmail", "calendar"})
             if platform not in configured_platforms:
                 return {
                     "success": False,
@@ -108,12 +104,7 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
                     ),
                 }
 
-    # Google OAuth may store as platform="gmail" or platform="google" depending on
-    # when the connection was created. Check both for Gmail/Calendar connections.
-    if platform in ("gmail", "calendar"):
-        db_platforms = ["gmail", "google"]
-    else:
-        db_platforms = [platform]
+    db_platforms = [platform]
 
     # 1. Check platform is connected
     try:

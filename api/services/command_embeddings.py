@@ -45,16 +45,9 @@ COMMAND_DESCRIPTIONS = {
 
     "recap": """
         Create a platform recap agent to catch up on everything in a connected platform.
-        Slack recap, Gmail digest, Notion summary, email digest, channel summary.
-        Catch me up on Slack, summarize my emails, what happened in Notion.
+        Slack recap, Notion summary, channel summary.
+        Catch me up on Slack, what happened in Notion.
         Daily recap, weekly digest, platform summary, catch up on messages.
-    """,
-
-    "prep": """
-        Set up auto meeting prep with daily briefings from your calendar.
-        Meeting preparation, 1:1 prep, event prep, call prep, daily briefing.
-        Prepare for my meetings, get ready for today's calls, calendar prep.
-        One-on-one prep, standup prep, discussion points for meetings.
     """,
 
     "research": """
@@ -69,14 +62,14 @@ COMMAND_DESCRIPTIONS = {
     # =========================================================================
     "search": """
         Search across connected platforms to find specific information.
-        Find in Slack, search Gmail, look up in Notion, find messages.
+        Find in Slack, look up in Notion, find messages.
         Search my platforms, look for, find that conversation, where did I see.
         Platform search, content search, find across my tools.
     """,
 
     "sync": """
         Refresh platform data to pull the latest from connected tools.
-        Sync my Slack, refresh Gmail, update Notion data, resync platforms.
+        Sync my Slack, update Notion data, resync platforms.
         Pull latest data, get fresh data, update my platforms, resync.
     """,
 

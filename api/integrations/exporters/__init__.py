@@ -24,7 +24,6 @@ from .registry import ExporterRegistry, get_exporter_registry
 from .slack import SlackExporter
 from .notion import NotionExporter
 from .download import DownloadExporter
-from .gmail import GmailExporter
 
 __all__ = [
     "DestinationExporter",
@@ -34,5 +33,4 @@ __all__ = [
     "SlackExporter",
     "NotionExporter",
     "DownloadExporter",
-    "GmailExporter",
 ]

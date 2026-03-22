@@ -269,12 +269,8 @@ class DeliveryService:
                 metadata={}
             )
 
-        # Map platform names to connection lookup candidates
-        # Google OAuth stores connections under "google" platform,
-        # so "gmail" falls back to "google"
+        # ADR-131: Only Slack and Notion remain — no Google/Gmail alias resolution needed
         lookup_candidates = [platform]
-        if platform == "gmail":
-            lookup_candidates.append("google")
 
         try:
             # Get user's integration — try each candidate
@@ -914,7 +910,7 @@ async def _deliver_email_from_manifest(
     from the manifest's files array, and sends via Resend.
     """
     from jobs.email import send_email
-    from services.platform_output import generate_gmail_html
+    from services.platform_output import generate_email_html
 
     target = destination.get("target")
     if not target:
@@ -933,7 +929,7 @@ async def _deliver_email_from_manifest(
 
     # Generate HTML from markdown content
     try:
-        html_body = generate_gmail_html(
+        html_body = generate_email_html(
             content=text_content,
             variant="default",
             metadata={
@@ -1008,8 +1004,6 @@ async def _get_exporter_context_standalone(
         return ExporterContext(user_id=user_id, access_token="", metadata={})
 
     lookup_candidates = [platform]
-    if platform == "gmail":
-        lookup_candidates.append("google")
 
     try:
         for candidate in lookup_candidates:

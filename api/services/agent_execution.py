@@ -1452,7 +1452,7 @@ def normalize_destination_for_delivery(
     Returns:
         Normalized destination dict, or None if no valid destination
     """
-    # No destination at all - use email (aliased to gmail exporter)
+    # No destination at all - use email delivery via Resend
     if not destination:
         if user_email:
             logger.info(f"[EXEC] No destination - defaulting to email: {user_email}")

@@ -54,7 +54,7 @@ class NotionEventType(str, Enum):
 @dataclass
 class PlatformEvent:
     """Normalized event from any platform."""
-    platform: Literal["slack", "gmail", "notion"]
+    platform: Literal["slack", "notion"]
     event_type: str
     user_id: str            # YARNNN user ID (from integration lookup)
     resource_id: str        # Channel ID, label, page ID
@@ -63,7 +63,7 @@ class PlatformEvent:
     event_ts: datetime      # When event occurred
 
     # Optional context
-    thread_id: Optional[str] = None  # Thread ts for Slack, thread ID for Gmail
+    thread_id: Optional[str] = None  # Thread ts for Slack
     sender_id: Optional[str] = None  # Who triggered the event
     sender_name: Optional[str] = None
     content_preview: Optional[str] = None
@@ -84,7 +84,7 @@ class EventTriggerConfig:
 
     Stored in agent.trigger_config when trigger_type='event'.
     """
-    platform: Literal["slack", "gmail", "notion"]
+    platform: Literal["slack", "notion"]
     event_types: list[str]  # Which event types to respond to
     resource_ids: list[str]  # Which resources to monitor (channels, labels, pages)
     cooldown: Optional[CooldownConfig] = None

@@ -266,9 +266,7 @@ async def get_system_status(auth: UserClient):
         registry_by_platform.setdefault(p, []).append(row)
 
     # ─── Platform Content Counts (per platform) ───────────────────────────────
-    # Map platform_connections.platform → platform_content.platform
-    # Note: "google" connection provides both "gmail" and "calendar" content platforms
-    content_platforms = ["slack", "gmail", "notion", "calendar"]
+    content_platforms = ["slack", "notion"]
     content_counts: dict[str, PlatformContentSummary] = {}
 
     for cp in content_platforms:
@@ -306,15 +304,10 @@ async def get_system_status(auth: UserClient):
 
     # ─── Build Platform Sync Status ────────────────────────────────────────────
     platform_sync = []
-    all_platforms = ["slack", "gmail", "notion", "calendar"]
+    all_platforms = ["slack", "notion"]  # ADR-131: Gmail/Calendar sunset
 
     def _get_active_connection(logical_platform: str) -> Optional[dict]:
-        # Google OAuth rows may be stored as either "google" or legacy "gmail".
-        if logical_platform in ("gmail", "calendar"):
-            candidates = ("google", "gmail")
-        else:
-            candidates = (logical_platform,)
-
+        candidates = (logical_platform,)
         for candidate in candidates:
             row = next((r for r in connection_rows if r.get("platform") == candidate), None)
             if row and row.get("status") == "active":

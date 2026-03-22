@@ -218,26 +218,6 @@ class NotionPagesListResponse(BaseModel):
     pages: list[NotionPageResponse]
 
 
-# ADR-046: Calendar response models
-class CalendarEventResponse(BaseModel):
-    """Google Calendar event info."""
-    id: str
-    title: str
-    start: str  # ISO datetime
-    end: str  # ISO datetime
-    attendees: list[dict] = []
-    location: Optional[str] = None
-    description: Optional[str] = None
-    meeting_link: Optional[str] = None
-    recurring: bool = False
-
-
-class CalendarEventsListResponse(BaseModel):
-    """List of calendar events."""
-    events: list[CalendarEventResponse]
-    calendar_id: str
-
-
 # ADR-072: Platform content response models
 class PlatformContentItem(BaseModel):
     """A single synced content item from platform_content."""
@@ -280,7 +260,6 @@ class ImportScopeRequest(BaseModel):
     """
     recency_days: int = 7  # How far back to go
     max_items: int = 100  # Maximum items to fetch
-    include_sent: bool = True  # Gmail: include sent messages
     include_threads: bool = True  # Slack: expand thread replies
 
 
@@ -466,10 +445,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         from datetime import timedelta
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        def _logical_provider(raw_provider: str) -> str:
-            # Google OAuth connection backs both Gmail and Calendar.
-            return "gmail" if raw_provider in ("gmail", "google") else raw_provider
-
+        # ADR-131: Only Slack and Notion remain — no Google/Gmail alias resolution needed
         def _is_active(row: dict[str, Any]) -> bool:
             return row.get("status") == IntegrationStatus.ACTIVE.value
 
@@ -479,18 +455,17 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             if _is_active(candidate) and not _is_active(existing):
                 return candidate
             if _is_active(candidate) == _is_active(existing):
-                # Prefer the most recently connected row if both have equal status quality.
                 if str(candidate.get("created_at") or "") >= str(existing.get("created_at") or ""):
                     return candidate
             return existing
 
         canonical_integrations: dict[str, dict[str, Any]] = {}
         for integration in integrations_result.data:
-            logical = _logical_provider(integration["platform"])
-            if logical not in {"slack", "gmail", "notion", "calendar"}:
+            provider = integration["platform"]
+            if provider not in {"slack", "notion"}:
                 continue
-            canonical_integrations[logical] = _pick_preferred(
-                canonical_integrations.get(logical),
+            canonical_integrations[provider] = _pick_preferred(
+                canonical_integrations.get(provider),
                 integration,
             )
 
@@ -514,23 +489,13 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             landscape = integration.get("landscape", {}) or {}
             selected_sources = landscape.get("selected_sources", []) or []
             resources = landscape.get("resources", []) or []
-
-            if provider == "calendar":
-                calendar_sources = [
-                    s for s in selected_sources
-                    if isinstance(s, dict) and ((s.get("metadata", {}) or {}).get("platform") == "calendar")
-                ]
-                return len(calendar_sources)
-
             return len(selected_sources) if selected_sources else len(resources)
 
         def _to_summary(provider: str, integration: dict[str, Any]) -> PlatformSummary:
             metadata = integration.get("metadata", {}) or {}
             resource_type = {
                 "slack": "channels",
-                "gmail": "labels",
                 "notion": "pages",
-                "calendar": "calendars",
             }.get(provider, "resources")
 
             return PlatformSummary(
@@ -544,22 +509,11 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 activity_7d=_count_activity(provider),
             )
 
-        # Emit core platform summaries in stable order.
-        for provider in ("slack", "gmail", "notion"):
+        # Emit platform summaries in stable order (ADR-131: Slack + Notion only)
+        for provider in ("slack", "notion"):
             integration = canonical_integrations.get(provider)
             if integration:
                 platforms.append(_to_summary(provider, integration))
-
-        # Emit calendar summary from direct connection if present, else from Gmail/Google capability.
-        if canonical_integrations.get("calendar"):
-            platforms.append(_to_summary("calendar", canonical_integrations["calendar"]))
-        elif canonical_integrations.get("gmail"):
-            gmail_integration = canonical_integrations["gmail"]
-            gmail_meta = gmail_integration.get("metadata", {}) or {}
-            capabilities = gmail_meta.get("capabilities", [])
-            has_calendar = "calendar" in capabilities or not capabilities
-            if has_calendar:
-                platforms.append(_to_summary("calendar", gmail_integration))
 
         # Total agents count
         total_result = auth.client.table("agents").select(
@@ -880,7 +834,6 @@ async def disconnect_integration(
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     try:
-        # Try all alias candidates (Google may be stored as "google" or "gmail")
         result_data = None
         for p in providers_to_try:
             result = auth.client.table("platform_connections").delete().eq(
@@ -987,10 +940,7 @@ async def export_to_provider(
             access_token = token_manager.decrypt(integration_row["credentials_encrypted"])
             refresh_token = token_manager.decrypt(integration_row["refresh_token_encrypted"]) if integration_row.get("refresh_token_encrypted") else None
 
-            # Build metadata, adding refresh_token for Gmail (ADR-029)
             metadata = integration_row.get("metadata", {}) or {}
-            if provider == "gmail" and refresh_token:
-                metadata["refresh_token"] = refresh_token
 
             context = ExporterContext(
                 user_id=user_id,
@@ -1663,7 +1613,6 @@ async def oauth_callback(
                 "landscape_discovered_at": None,
             }
             # Only overwrite refresh_token if the new OAuth response actually has one.
-            # Google only returns refresh_token on first consent; re-connects may omit it.
             if token_data.get("refresh_token_encrypted"):
                 update_data["refresh_token_encrypted"] = token_data["refresh_token_encrypted"]
 
@@ -1734,7 +1683,7 @@ async def oauth_callback(
                     # Compute smart defaults within tier limits
                     limits = get_limits_for_user(service_client, user_id_for_auto)
                     limit_field = PROVIDER_LIMIT_MAP.get(
-                        "gmail" if provider == "google" else provider,
+                        provider,
                         "slack_channels"
                     )
                     max_sources = getattr(limits, limit_field, 5)
@@ -1837,8 +1786,8 @@ async def get_landscape(
 
     If landscape hasn't been discovered or refresh=True, fetches from provider.
     """
-    if provider not in ["gmail", "slack", "notion", "google", "calendar"]:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+    if provider not in ["slack", "notion"]:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}. ADR-131: Only Slack and Notion are supported.")
 
     user_id = auth.user_id
 
@@ -1893,9 +1842,8 @@ async def get_landscape(
             from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
 
             limits = get_limits_for_user(auth.client, user_id)
-            # For google provider, use gmail limit (calendars are unlimited)
             limit_field = PROVIDER_LIMIT_MAP.get(
-                "gmail" if resolved_provider == "google" else resolved_provider,
+                resolved_provider,
                 "slack_channels"
             )
             max_sources = getattr(limits, limit_field, 5)
@@ -1925,12 +1873,9 @@ async def get_landscape(
         discovered_at = integration.data[0].get("landscape_discovered_at")
 
     # Get sync records for this provider (ADR-058)
-    # Use original provider (not resolved_provider) because sync_registry stores
-    # "gmail" and "calendar" as separate platform values, not the DB connection's platform.
-    sync_platform = provider if provider in ("gmail", "calendar") else resolved_provider
     sync_result = auth.client.table("sync_registry").select(
         "resource_id, resource_name, last_synced_at, item_count, last_error, last_error_at"
-    ).eq("user_id", user_id).eq("platform", sync_platform).execute()
+    ).eq("user_id", user_id).eq("platform", resolved_provider).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
@@ -1938,27 +1883,11 @@ async def get_landscape(
         """Return ID variants to tolerate legacy/normalized sync IDs."""
         if not resource_id:
             return []
-        variants = [resource_id]
-        if provider == "gmail":
-            if resource_id.startswith("label:"):
-                variants.append(resource_id.split(":", 1)[1])
-            else:
-                variants.append(f"label:{resource_id}")
-        return variants
+        return [resource_id]
 
     # Build resource list with sync status
-    # The "gmail" DB row contains BOTH gmail labels and calendars in its landscape.
-    # Filter to only the requested domain so each context page shows its own resources.
-    domain_filter = provider if provider in ("gmail", "calendar") else None
-
     resources = []
     for resource in landscape_data.get("resources", []):
-        # Filter by domain when requesting a sub-platform of the Google connection
-        if domain_filter:
-            resource_platform = (resource.get("metadata") or {}).get("platform")
-            if resource_platform and resource_platform != domain_filter:
-                continue
-
         resource_id = resource.get("id")
         sync_data = {}
         for candidate_id in _sync_variants(resource_id):
@@ -2037,7 +1966,7 @@ async def get_platform_context(
 
     Returns recent synced content, ordered by source_timestamp descending.
     """
-    if provider not in ["gmail", "slack", "notion", "calendar", "yarnnn"]:
+    if provider not in ["slack", "notion", "yarnnn"]:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     user_id = auth.user_id
@@ -2200,9 +2129,8 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
 
     Response includes:
     - tier: "free" | "pro"
-    - limits: slack_channels, gmail_labels, notion_pages, calendars,
-              total_platforms, sync_frequency, monthly_messages,
-              active_agents
+    - limits: slack_channels, notion_pages, total_platforms,
+              sync_frequency, monthly_messages, active_agents
     - usage: Current usage counts for each resource
     - next_sync: ISO timestamp of next scheduled platform sync
     """
@@ -2275,8 +2203,6 @@ async def update_selected_sources(
     for source_id in allowed_ids:
         if source_id in resource_map:
             r = resource_map[source_id]
-            # Infer platform: Google resources have metadata.platform (gmail/calendar),
-            # otherwise use the connection provider directly
             platform = r.get("metadata", {}).get("platform") or provider
             selected_sources.append({
                 "id": source_id,
@@ -2334,9 +2260,7 @@ async def get_selected_sources(
     summary = get_usage_summary(auth.client, user_id)
     limit_field = {
         "slack": "slack_channels",
-        "gmail": "gmail_labels",
         "notion": "notion_pages",
-        "calendar": "calendars",
     }.get(provider, "slack_channels")
     limit = summary["limits"].get(limit_field, 1)
 

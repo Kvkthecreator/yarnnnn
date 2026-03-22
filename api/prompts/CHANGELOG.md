@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.5] - ADR-131 Phase 3: Deep sweep — Gmail/Calendar removal from all code paths
+
+### Changed
+- `exporters/__init__.py`: **CRASH FIX** — removed `from .gmail import GmailExporter` (file was already deleted)
+- `exporters/resend.py`: Updated docstrings (sole email channel), renamed `generate_gmail_html` → `generate_email_html`
+- `platform_output.py`: Renamed `generate_gmail_html` → `generate_email_html`, updated Literal type, section header
+- `delivery.py`: Removed Gmail lookup fallbacks, renamed `generate_gmail_html` calls
+- `integrations.py`: Deleted CalendarEventResponse/CalendarEventsListResponse models, removed Gmail/Calendar from provider validation, summary endpoint, landscape sync, limit maps, resource type maps
+- `agent_pipeline.py`: Deleted gmail/calendar from `_PLATFORM_DIGEST_SIGNALS`, deleted `prepare` role default instruction and prompt template, cleaned synthesize/digest prompts
+- `composer.py`: Removed calendar exclusion from gap-filling, cleaned example description
+- `notifications.py`: Removed "gmail" from delivery_platform check
+- `agent_execution.py`: Updated comment (email via Resend, not gmail exporter)
+- `primitives/refresh.py`: Platform enum → slack/notion only, removed Google alias resolution
+- `primitives/search.py`: Platform enum → slack/notion only, cleaned memory error message
+- `primitives/system_state.py`: Removed gmail/calendar landscape branches, cleaned description
+- `primitives/registry.py`: Removed Google metadata extraction, cleaned tool description
+- `event_triggers.py`: Cleaned Literal types to slack/notion only
+- `execution_strategies.py`: Removed Google platform set and alias matching
+- `commands.py`: Deleted entire "prep" command, cleaned platform references in recap/search/sync/research
+- `command_embeddings.py`: Deleted prep command embedding, cleaned platform references
+- `routes/agents.py`: Cleaned EventTrigger/SourceConfig Literal types, updated PrepareConfig docstring
+- `routes/admin.py`: Cleaned platform content loop and limit field mapping
+- `routes/system.py`: Cleaned content_platforms and all_platforms lists, removed Google alias resolution
+- `routes/memory.py`: Cleaned STYLE_PLATFORM_ALIASES and ALLOWED_STYLE_PLATFORMS
+- `workers/platform_worker.py`: Removed Google alias resolution from sync lock/release/main sync, cleaned TTL map
+
+### Expected behavior
+- **Crash fix**: Agent generation no longer fails with `No module named 'integrations.exporters.gmail'`
+- All tool definitions (Search, RefreshPlatformContent, list_integrations, SystemState) now only expose slack/notion as valid platforms
+- Email delivery uses `generate_email_html` (renamed from gmail-specific name)
+- No Google/Gmail/Calendar alias resolution anywhere in codebase
+
+---
+
 ## [2026.03.22.4] - ADR-130 three-registry architecture — docs sweep
 
 ### Changed

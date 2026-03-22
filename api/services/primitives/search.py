@@ -69,7 +69,7 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "platform": {
                 "type": "string",
-                "enum": ["slack", "gmail", "notion", "calendar"],
+                "enum": ["slack", "notion"],
                 "description": "Filter platform_content by platform (optional). For agent outputs, use QueryKnowledge instead."
             },
             "limit": {
@@ -127,7 +127,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 "scope='memory' is not searchable — memory is already in your working memory "
                 "context at session start. Check the 'What you've told me' section of your context. "
                 "To search platform content use scope='platform_content' (cache fallback) or "
-                "use live platform tools (platform_slack_*, platform_gmail_*, etc.) for current data."
+                "use live platform tools (platform_slack_*, etc.) for current data."
             ),
         }
 

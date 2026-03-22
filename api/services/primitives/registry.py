@@ -112,11 +112,6 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
             item["authed_user_id"] = metadata["authed_user_id"]
         if i["platform"] == "notion" and metadata.get("designated_page_id"):
             item["designated_page_id"] = metadata["designated_page_id"]
-        if i["platform"] == "google":
-            if metadata.get("user_email"):
-                item["user_email"] = metadata["user_email"]
-            if metadata.get("designated_calendar_id"):
-                item["designated_calendar_id"] = metadata["designated_calendar_id"]
         items.append(item)
 
     return {
@@ -131,10 +126,9 @@ LIST_INTEGRATIONS_TOOL = {
     "description": """List the user's connected platform integrations and their metadata.
 
 Call this first when about to use a platform tool, to get:
-- Which platforms are active (slack, gmail, notion, google/calendar)
+- Which platforms are active (slack, notion)
 - Slack: authed_user_id — use as channel_id when sending DMs to self
 - Notion: designated_page_id — use as page_id when writing to user's YARNNN page
-- Gmail/Calendar: user_email and designated_calendar_id
 
 AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
 If not connected, suggest connecting in Settings.""",

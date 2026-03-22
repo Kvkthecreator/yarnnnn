@@ -53,7 +53,7 @@ This is system introspection, not content search. Use Search for content.""",
             },
             "platform": {
                 "type": "string",
-                "description": "Filter to specific platform (slack, gmail, notion, calendar)"
+                "description": "Filter to specific platform (slack, notion)"
             }
         },
         "required": []
@@ -302,15 +302,6 @@ def _parse_landscape(landscape_raw: dict, platform: str) -> list[dict]:
                 "name": channel.get("name"),
             })
 
-    elif platform == "gmail":
-        # Gmail landscape: labels
-        for label in landscape_raw.get("labels", []):
-            resources.append({
-                "type": "label",
-                "id": label.get("id"),
-                "name": label.get("name"),
-            })
-
     elif platform == "notion":
         # Notion landscape: pages, databases
         for page in landscape_raw.get("pages", []):
@@ -318,15 +309,6 @@ def _parse_landscape(landscape_raw: dict, platform: str) -> list[dict]:
                 "type": "page",
                 "id": page.get("id"),
                 "name": page.get("title"),
-            })
-
-    elif platform == "calendar":
-        # Calendar landscape: calendars
-        for cal in landscape_raw.get("calendars", []):
-            resources.append({
-                "type": "calendar",
-                "id": cal.get("id"),
-                "name": cal.get("summary"),
             })
 
     return resources[:20]  # Cap at 20 resources

@@ -212,7 +212,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
 
     platforms_without_coverage = [
         p for p in connected_platforms
-        if p not in platforms_with_project and p != "calendar"
+        if p not in platforms_with_project
     ]
 
     # 5. Stale agents — active but haven't run in 2x their schedule frequency
@@ -938,7 +938,7 @@ Respond with ONLY a JSON object:
 
 To create an agent:
 ```json
-{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack, Gmail, and Notion to surface cross-cutting themes.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections.", "reason": "2+ platforms with active digests producing knowledge"}
+{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack and Notion to surface cross-cutting themes.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections.", "reason": "2+ platforms with active digests producing knowledge"}
 ```
 
 To create a project (combines 2+ agents' outputs into an assembled deliverable):

@@ -70,8 +70,8 @@ class DigestConfig(BaseModel):
 
 
 class PrepareConfig(BaseModel):
-    """Config for prepare role (auto meeting prep, daily calendar-driven)."""
-    delivery_time: Optional[str] = "08:00"  # Preferred morning delivery time
+    """Config for prepare role. ADR-131: Calendar sunset — prepare role is legacy."""
+    delivery_time: Optional[str] = "08:00"
 
 
 class SynthesizeConfig(BaseModel):
@@ -238,7 +238,7 @@ class EventTriggerConfig(BaseModel):
 
     Used when trigger_type='event'.
     """
-    platform: Literal["slack", "gmail", "notion"]
+    platform: Literal["slack", "notion"]
     event_types: list[str] = Field(default_factory=list)  # ["app_mention", "message_im"]
     resource_ids: list[str] = Field(default_factory=list)  # ["C123", "D456"]
     cooldown: Optional[CooldownConfig] = None
@@ -259,7 +259,7 @@ class DataSource(BaseModel):
     value: str  # URL, document_id, or description text
     label: Optional[str] = None
     # Integration source fields
-    provider: Optional[Literal["gmail", "slack", "notion"]] = None
+    provider: Optional[Literal["slack", "notion"]] = None
     source: Optional[str] = None  # inbox, query:..., channel_id, page_id
 
 

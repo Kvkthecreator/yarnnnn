@@ -34,7 +34,7 @@ COMMANDS: Dict[str, Dict[str, Any]] = {
 
 User wants to create an agent. Guide them through setup:
 
-1. Ask what kind: `Clarify(question="What should this agent do?", options=["Platform recap", "Meeting prep", "Work summary", "Research & insights"])`
+1. Ask what kind: `Clarify(question="What should this agent do?", options=["Platform recap", "Work summary", "Research & insights"])`
 2. Based on choice, ask platform/frequency/recipient as needed
 3. Confirm and create with `CreateAgent(...)`
 
@@ -69,7 +69,7 @@ Create a work summary agent — synthesizes activity across the user's connected
     "recap": {
         "name": "recap",
         "description": "Create a platform recap — catch up on everything across a connected platform",
-        "trigger_patterns": ["recap", "platform recap", "slack recap", "gmail recap", "notion recap", "email recap", "slack digest", "email digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
+        "trigger_patterns": ["recap", "platform recap", "slack recap", "notion recap", "slack digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
         "role": "digest",
         "system_prompt_addition": """
 ---
@@ -80,51 +80,21 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
 
 **Flow:**
 1. Check for duplicates: `List(pattern="agent:*")` — if a recap already exists for the requested platform, offer to edit it instead
-2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Gmail", "Notion", "Calendar"])`
+2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Notion"])`
 3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
 4. Confirm: "I'll create a [frequency] [Platform] Recap project. Ready?"
 5. On confirmation: `CreateAgent(title="[Platform] Agent", role="digest", frequency=..., sources=[all synced sources for platform])`
 6. Offer first draft
 
 **Important:**
-- Agent title format: "[Platform] Agent" (e.g., "Slack Agent", "Gmail Agent") — the agent is the worker, the project is the deliverable
-- Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/labels/pages
+- Agent title format: "[Platform] Agent" (e.g., "Slack Agent", "Notion Agent") — the agent is the worker, the project is the deliverable
+- Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/pages
 - One recap per platform per user — check duplicates before creating
 - Defaults: frequency=daily, role=digest
 """,
     },
 
-    "prep": {
-        "name": "prep",
-        "description": "Set up auto meeting prep — daily briefings from your calendar",
-        "trigger_patterns": ["meeting prep", "auto meeting prep", "calendar prep", "daily briefing", "brief", "meeting brief", "event prep", "call prep", "1:1 prep"],
-        "role": "prepare",
-        "system_prompt_addition": """
----
-
-## Active Command: Auto Meeting Prep
-
-Set up daily auto meeting prep — every morning, YARNNN reads the user's Google Calendar and sends a prep briefing with context from Slack, Gmail, and Notion for each meeting ahead.
-
-**Requirements:**
-- Google Calendar must be connected. If not, guide the user to connect it first.
-- One auto meeting prep per user — if one already exists, explain and offer to update it.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="agent:*")` — look for existing prepare role
-2. Verify Google Calendar connection: `List(pattern="connection:*")` — check for google/calendar
-3. If no calendar: "Auto Meeting Prep requires Google Calendar. Let's connect it first." → guide to connections
-4. Ask delivery time: `Clarify(question="What time should your meeting prep arrive?", options=["7:00 AM", "8:00 AM", "9:00 AM"])`
-5. Confirm: "I'll set up Auto Meeting Prep — every morning at [time], you'll get a briefing for the day's meetings. Ready?"
-6. On confirmation: `CreateAgent(title="Auto Meeting Prep", role="prepare", frequency="daily", sources=[all calendar + all connected platform sources])`
-
-**Important:**
-- Title: "Auto Meeting Prep" (fixed — not user-customizable)
-- Sources: ALL calendar sources + ALL other connected platform sources (Slack, Gmail, Notion) for cross-platform context about attendees and topics
-- One per user — check duplicates before creating
-- Defaults: frequency=daily, role=prepare
-""",
-    },
+    # ADR-131: "prep" command deleted (Calendar sunset — no meeting prep without calendar data)
 
     "research": {
         "name": "research",
@@ -144,7 +114,7 @@ Set up Proactive Insights — YARNNN watches the user's connected platforms for 
 3. Confirm: "I'll scan your connected platforms regularly and surface emerging themes with external context. Would you like a daily or weekly pulse?"
 4. Ask frequency: `Clarify(question="How often should I check for insights?", options=["Weekly (recommended)", "Daily"])`
 5. On confirmation: `CreateAgent(title="Proactive Insights", role="synthesize", mode="proactive")`
-- Sources: ALL connected platform sources (Slack, Gmail, Notion, Calendar) — for cross-platform signal detection
+- Sources: ALL connected platform sources (Slack, Notion) — for cross-platform signal detection
 - One per user — check duplicates before creating
 - Defaults: mode=proactive, role=synthesize, scope=autonomous
 - Do NOT ask for a research topic — topic selection is autonomous from platform signals
@@ -156,8 +126,8 @@ Set up Proactive Insights — YARNNN watches the user's connected platforms for 
     # =========================================================================
     "search": {
         "name": "search",
-        "description": "Search across your connected platforms (Slack, Gmail, Notion, Calendar)",
-        "trigger_patterns": ["search my platforms", "find in slack", "find in gmail", "find in notion", "search for", "look up"],
+        "description": "Search across your connected platforms (Slack, Notion)",
+        "trigger_patterns": ["search my platforms", "find in slack", "find in notion", "search for", "look up"],
         "system_prompt_addition": """
 ---
 
@@ -173,7 +143,7 @@ Ask the user what they're looking for if not clear from context. You can filter 
 
     "sync": {
         "name": "sync",
-        "description": "Refresh platform data — pull latest from Slack, Gmail, Notion, or Calendar",
+        "description": "Refresh platform data — pull latest from Slack or Notion",
         "trigger_patterns": ["sync my", "refresh my", "update my", "pull latest", "resync"],
         "system_prompt_addition": """
 ---

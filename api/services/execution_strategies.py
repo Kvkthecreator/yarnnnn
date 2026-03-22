@@ -87,22 +87,13 @@ class PlatformBoundStrategy(ExecutionStrategy):
         context_parts = []
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
-        # Filter sources to primary platform
-        # The "google" connection provides both "gmail" and "calendar" content,
-        # so a source with provider="google" should match primary_platform="calendar" or "gmail"
-        google_platforms = {"gmail", "calendar"}
-
-        # Include sources with type="integration_import" or sources missing the type field
-        # (untyped sources are treated as integration_import with a warning)
+        # Filter sources to primary platform (ADR-131: only slack, notion remain)
         def _is_integration(s):
             return s.get("type") == "integration_import" or (s.get("provider") or s.get("platform"))
 
         def _matches_platform(s):
             p = s.get("provider") or s.get("platform")
-            return (
-                p == primary_platform
-                or (p == "google" and primary_platform in google_platforms)
-            )
+            return p == primary_platform
 
         untyped = [s for s in sources if s.get("type") not in ("integration_import",) and (s.get("provider") or s.get("platform"))]
         if untyped:
@@ -391,7 +382,7 @@ def _build_analyst_directive(title: str, description: str) -> str:
 
 Investigation approach:
 - Start from your workspace context (thesis, observations, working notes)
-- Use **QueryKnowledge** to search the user's synced platforms (Slack, Gmail, Notion, Calendar) for relevant evidence
+- Use **QueryKnowledge** to search the user's synced platforms (Slack, Notion) for relevant evidence
 - Use **WebSearch** for external context and trends
 - Focus on what's genuinely significant — not everything that exists
 - After investigating, update your workspace:

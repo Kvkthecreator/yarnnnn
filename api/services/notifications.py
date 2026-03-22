@@ -337,13 +337,13 @@ async def notify_agent_delivered(
     """
     Send notification when an agent has been delivered.
 
-    When delivery_platform is "email" or "gmail", the content email already
+    When delivery_platform is "email", the content email already
     landed in the user's inbox — skip the separate notification email to
     avoid duplicates. Still log to notifications table for audit.
     """
     # Skip email notification when content was delivered via email —
     # the content email IS the notification (ADR-040 / ADR-066).
-    if delivery_platform in ("email", "gmail"):
+    if delivery_platform == "email":
         logger.info(
             f"[NOTIFICATION] Skipped delivery notification — content delivered via {delivery_platform}"
         )

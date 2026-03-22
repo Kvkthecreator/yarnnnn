@@ -5,7 +5,7 @@ Generates platform-specific output formats instead of markdown.
 
 Supported formats:
 - Slack Block Kit (for slack_digest, slack_update)
-- Gmail HTML (for email_summary) [future]
+- Email HTML (for email delivery via Resend)
 - Notion Blocks (for notion_page) [future]
 
 Usage:
@@ -309,7 +309,7 @@ def _chunk_text(text: str, max_length: int = 2800) -> list[str]:
 # =============================================================================
 
 def generate_platform_output(
-    platform: Literal["slack", "gmail", "notion", "download"],
+    platform: Literal["slack", "email", "notion", "download"],
     content: str,
     variant: Optional[str] = None,
     metadata: Optional[dict] = None,
@@ -339,9 +339,9 @@ def generate_platform_output(
             "raw": content,
         }
 
-    elif platform == "gmail":
-        # ADR-031 Phase 5: Gmail HTML generation with variant support
-        html = generate_gmail_html(content, variant or "default", metadata)
+    elif platform == "email":
+        # ADR-031 Phase 5: Email HTML generation with variant support
+        html = generate_email_html(content, variant or "default", metadata)
         return {
             "format": "html",
             "content": html,
@@ -365,10 +365,10 @@ def generate_platform_output(
 
 
 # =============================================================================
-# Gmail HTML Generator - ADR-031 Phase 5
+# Email HTML Generator - ADR-031 Phase 5, ADR-131 (renamed from generate_gmail_html)
 # =============================================================================
 
-def generate_gmail_html(
+def generate_email_html(
     content: str,
     variant: str = "default",
     metadata: Optional[dict] = None,
@@ -382,7 +382,7 @@ def generate_gmail_html(
         metadata: Additional context (subject, recipient, etc.)
 
     Returns:
-        HTML string suitable for Gmail
+        HTML string suitable for email delivery
     """
     metadata = metadata or {}
 

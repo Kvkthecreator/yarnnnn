@@ -2,14 +2,7 @@
 Resend Exporter - ADR-066 Email-First Delivery
 
 Delivers agent content via Resend API (server-side, no user OAuth required).
-
-This is the default email delivery channel. Unlike GmailExporter (which requires
-the user's Google OAuth refresh_token), ResendExporter works for all users
-regardless of their platform connections.
-
-GmailExporter remains available for explicit Gmail draft/send operations that
-require appearing as the user's own email. ResendExporter handles the common
-case: delivering formatted content to the user's inbox from noreply@yarnnn.com.
+ADR-131: This is now the sole email delivery channel (GmailExporter removed).
 
 Destination Schema:
     {
@@ -34,16 +27,7 @@ logger = logging.getLogger(__name__)
 class ResendExporter(DestinationExporter):
     """
     Delivers content via Resend API — no user OAuth required.
-
-    Advantages over GmailExporter for default delivery:
-    - Works for all users (no Google connection needed)
-    - Server-side only (no token refresh issues)
-    - Consistent sender: noreply@yarnnn.com
-    - Free tier: 3,000 emails/month; Pro: $20/mo for 50k
-
-    GmailExporter remains for:
-    - Creating Gmail drafts (requires OAuth)
-    - Sending as the user's own address (requires OAuth)
+    ADR-131: Sole email delivery channel (GmailExporter removed with Gmail sunset).
     """
 
     @property
@@ -73,7 +57,7 @@ class ResendExporter(DestinationExporter):
     ) -> ExportResult:
         """Deliver content via Resend API."""
         from jobs.email import send_email
-        from services.platform_output import generate_gmail_html
+        from services.platform_output import generate_email_html
 
         target = destination.get("target")
         if not target:
@@ -98,7 +82,7 @@ class ResendExporter(DestinationExporter):
         platform_variant = metadata.get("platform_variant")
         agent_id = metadata.get("agent_id", "")
         try:
-            html_body = generate_gmail_html(
+            html_body = generate_email_html(
                 content=content,
                 variant=platform_variant or "default",
                 metadata={

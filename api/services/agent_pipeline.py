@@ -36,23 +36,11 @@ _PLATFORM_DIGEST_SIGNALS = {
         "- Questions that went unanswered (gaps worth surfacing)\n"
         "- Decision language (\"we decided\", \"agreed\", \"let's go with\")"
     ),
-    "gmail": (
-        "- Unread emails from priority senders\n"
-        "- Threads waiting for response\n"
-        "- Emails with action items or deadlines mentioned\n"
-        "- Thread stalls (conversations that went quiet)"
-    ),
     "notion": (
         "- Recent edits and who made them\n"
         "- New content added (sections, pages, blocks)\n"
         "- Completed tasks (checkboxes, status changes)\n"
         "- Unresolved comments or questions"
-    ),
-    "calendar": (
-        "- Upcoming meetings and their attendees\n"
-        "- High-priority or large-group sessions\n"
-        "- Meetings that would benefit from preparation\n"
-        "- Scheduling conflicts or unusually dense periods"
     ),
     "default": (
         "- High-signal items and key decisions\n"
@@ -67,7 +55,6 @@ _PLATFORM_DIGEST_SIGNALS = {
 # ADR-109: Keyed by role name
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
-    "prepare": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
     "synthesize": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "monitor": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
     "research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
@@ -133,12 +120,10 @@ STRUCTURE:
 3-5 bullet points of the most important things that happened across the entire platform. Lead with what matters most — decisions made, problems surfaced, progress on key work.
 
 ## By Source
-Write a subsection for each source (channel, label, page, calendar) that has content in the gathered context. Use `###` headers.
+Write a subsection for each source (channel, page) that has content in the gathered context. Use `###` headers.
 
 For Slack: group by channel name (e.g., `### #engineering`, `### #daily-work`)
-For Gmail: group by category or sender (e.g., `### Infrastructure Alerts`, `### Client Communication`)
 For Notion: group by page or database (e.g., `### Architecture Docs`, `### Sprint Board`)
-For Calendar: group by timeframe (e.g., `### This Week`, `### Next Week`)
 
 Rules:
 - Every source with data gets a subsection — do not combine or skip
@@ -148,89 +133,7 @@ Rules:
 
 Write the recap now:""" + _ASSESSMENT_POSTAMBLE,
 
-    # prepare: v4 (2026.03.21) — ADR-128 mandate_context + assessment postamble
-    "prepare": """You are generating auto meeting prep titled "{title}".
-
-{mandate_context}
-
-TODAY'S DATE: {today_date}
-
-{user_instructions}
-
-GATHERED CONTEXT:
-{gathered_context}
-
-{recipient_context}
-
-DELIVERY: This output will be emailed directly to the user's inbox each morning.
-Write for scanning on mobile — lead with what requires action, keep each meeting's prep tight and skimmable.
-
-INSTRUCTIONS:
-This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate the most useful prep you can.
-
-YOUR JOB IS NOT TO REFORMAT THE CALENDAR. Your job is to prepare the user for conversations — surface what they'd otherwise have to dig for themselves. Be a diligent research assistant, not a calendar summarizer.
-
-BEFORE WRITING: Use your tools aggressively.
-- Search platform content for each attendee's name or email — find recent Slack mentions, email threads, Notion references
-- For external/unfamiliar contacts: use WebSearch to look up the person and their company
-- For recurring meetings: search for what was discussed in past versions or related threads
-- If a search returns nothing useful, say so — "No prior interactions found" is more valuable than padding with the user's own activity
-
-MEETING CLASSIFICATION — the classification determines WHAT you research, not just how long you write:
-
-1. RECURRING INTERNAL (weekly sync, 1:1, standup — same attendees)
-   YOUR FOCUS: What does the OTHER person need to hear, and what might THEY raise?
-   - Open threads between you and this person (Slack DMs, email chains, shared Notion docs)
-   - Decisions pending from last meeting (check past versions if available)
-   - Blockers or updates relevant to THEIR work, not just yours
-   - Frame as conversation topics, not an activity log
-   BAD: "Here's what you did this week" (they already know)
-   GOOD: "승진님 asked about the sync architecture last time — update: we resolved the scheduler issue. Open item: memory extraction timeline still TBD."
-
-2. EXTERNAL / NEW CONTACT (unfamiliar attendees, intro, kickoff)
-   YOUR FOCUS: Who is this person and what should the user know before walking in?
-   - Use WebSearch to research the attendee and their company — role, background, what they invest in / work on
-   - Search platform content for any prior mentions of this person or company
-   - Surface relevant email threads (outreach, introductions)
-   - Suggest 2-3 questions the user should ask based on what you find
-   - If you find nothing, say explicitly: "I couldn't find background on [name]. Consider checking LinkedIn before the meeting."
-   BAD: "This is a meeting about potential investment. Here's what YOU'VE been doing." (irrelevant to prep)
-   GOOD: "Roger Kim, Partner at SB Partners — early-stage B2B SaaS focus, portfolio includes [X, Y]. They typically write $500K-$1M checks. No prior email threads found. Questions to ask: What's their thesis on AI infrastructure? Do they lead or follow?"
-
-3. LARGE GROUP / ALL-HANDS (many attendees, town hall, all-hands)
-   YOUR FOCUS: What should the user contribute or watch for?
-   - Agenda items (from calendar description or related Slack/email)
-   - Key decisions expected — what's being decided and what's the user's stake?
-   - Context the user should have before speaking up
-   - Recent relevant developments from Slack/email that may come up
-
-4. LOW-STAKES / ROUTINE (casual catch-up, social, no agenda)
-   YOUR FOCUS: Brief assurance with 1-2 helpful notes
-   - "No specific prep needed."
-   - If there IS something worth mentioning: "Quick context: [relevant note]"
-
-OUTPUT:
-Start with: "Your meetings for {date_range}"
-
-For each meeting (chronological order by start time):
-
-### [Meeting Title] — [Time]
-**Attendees:** [who they are, not just emails — include role/context if found]
-**Type:** [classification]
-**Prep:**
-[classification-appropriate content as described above]
-
----
-
-Rules:
-- Chronological order by meeting start time — no exceptions
-- Use tools (Search, WebSearch) for EVERY meeting that isn't low-stakes. Try hard.
-- If a tool search returns nothing, say "No results found" — don't fill the gap with generic content
-- If no calendar events found at all, say so clearly and suggest checking Google Calendar connection
-- Be specific: names, dates, numbers from actual context — never fabricate
-- Focus on what the user DOESN'T already know, not what they DO
-
-Write the meeting prep now:""" + _ASSESSMENT_POSTAMBLE,
+    # ADR-131: "prepare" role prompt deleted (Calendar sunset — no meeting prep without calendar data)
 
     "synthesize": """You are producing a work summary titled "{title}".
 
@@ -264,26 +167,19 @@ PART 1 — CROSS-PLATFORM SYNTHESIS (top of the document):
 - Blockers and Risks: anything impeding progress — don't bury these
 - Next Steps: actionable items with owners where known
 - Cross-Platform Connections: explicitly call out threads that span platforms. Examples:
-  - "The Render deployment issues discussed in #dev-ops (Slack) align with the billing alerts in Gmail"
   - "The architecture decisions captured in Notion were first debated in #engineering (Slack)"
-  - "The meeting prep email (Gmail) relates to the project timeline in Notion"
-  Look for: same topics across platforms, cause-and-effect chains (email alert → Slack discussion → Notion doc update), people mentioned in multiple places. This is the most valuable part — insights no single-platform tool can provide.
+  - "The feature request discussed in #product (Slack) is now tracked in the Sprint Board (Notion)"
+  Look for: same topics across platforms, cause-and-effect chains, people mentioned in multiple places. This is the most valuable part — insights no single-platform tool can provide.
 
 PART 2 — PLATFORM ACTIVITY (below a horizontal rule):
-Write a SEPARATE "##" section for each platform. The gathered context contains headers like "## Slack: ...", "## Gmail: ...", "## Notion: ...". You MUST produce one section per platform.
+Write a SEPARATE "##" section for each platform. The gathered context contains headers like "## Slack: ...", "## Notion: ...". You MUST produce one section per platform.
 
 Expected output structure for Part 2:
 ## Slack
 (channel-by-channel summary of discussions, decisions, and activity)
 
-## Gmail
-(notable emails, action items, important threads)
-
 ## Notion
 (document updates, new content, changes)
-
-## Calendar
-(upcoming events, conflicts, prep needs — only if calendar data present)
 
 Rules:
 - Every platform with data in the gathered context gets its own section — do not combine or skip

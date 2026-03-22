@@ -108,8 +108,8 @@ class OnboardingStateResponse(BaseModel):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-STYLE_PLATFORM_ALIASES = {"email": "gmail"}
-ALLOWED_STYLE_PLATFORMS = {"slack", "gmail", "notion", "calendar"}
+STYLE_PLATFORM_ALIASES = {}  # ADR-131: No aliases needed (Gmail/Calendar sunset)
+ALLOWED_STYLE_PLATFORMS = {"slack", "notion"}
 
 
 def _normalize_style_platform(platform: str) -> str:

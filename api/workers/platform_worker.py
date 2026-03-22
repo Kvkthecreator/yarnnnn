@@ -58,11 +58,7 @@ async def acquire_sync_lock(client, user_id: str, platform: str) -> bool:
     now = datetime.now(timezone.utc)
     stale_cutoff = (now - _SYNC_LOCK_TIMEOUT).isoformat()
 
-    # Google OAuth may store as gmail/google — check both
-    if platform in ("gmail", "calendar", "google"):
-        db_platforms = ["gmail", "google"]
-    else:
-        db_platforms = [platform]
+    db_platforms = [platform]
 
     # Use microsecond-precision timestamp as a nonce to verify we own the lock.
     lock_nonce = now.isoformat()
@@ -100,10 +96,7 @@ async def release_sync_lock(client, user_id: str, platform: str) -> None:
 
     ADR-112: Called in finally block after sync completes (success or failure).
     """
-    if platform in ("gmail", "calendar", "google"):
-        db_platforms = ["gmail", "google"]
-    else:
-        db_platforms = [platform]
+    db_platforms = [platform]
 
     try:
         for db_platform in db_platforms:
@@ -129,7 +122,7 @@ def sync_platform(
 
     Args:
         user_id: User ID to sync for
-        provider: Provider name (slack, gmail, notion, calendar)
+        provider: Provider name (slack, notion)
         selected_sources: List of source IDs to sync (channel IDs, label IDs, etc.)
                          If None, will be fetched from integration.landscape.selected_sources
         supabase_url: Supabase URL (uses env var if not provided)
@@ -177,12 +170,7 @@ async def _sync_platform_async(
     client = create_client(supabase_url, supabase_key)
 
     try:
-        # Google OAuth may be stored as platform="gmail" or platform="google" depending
-        # on when the connection was created. Try both variants for Google-related providers.
-        if provider in ("gmail", "calendar", "google"):
-            db_candidates = ["gmail", "google"]
-        else:
-            db_candidates = [provider]
+        db_candidates = [provider]
 
         # Find an active connection from the candidate platform names
         integration = None
@@ -916,10 +904,8 @@ async def _store_platform_content(
 
     # TTL based on source type (ADR-072, extended ADR-077)
     ttl_hours = {
-        "slack": 336,     # 14 days (was 7)
-        "gmail": 720,     # 30 days (was 14)
-        "notion": 2160,   # 90 days (was 30)
-        "calendar": 48,   # 2 days  (was 1)
+        "slack": 336,     # 14 days
+        "notion": 2160,   # 90 days
     }.get(source_type, 336)
 
     now = datetime.now(timezone.utc)

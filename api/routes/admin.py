@@ -925,7 +925,7 @@ async def get_pipeline_stats(admin: AdminAuth):
 
         # By platform
         content_by_platform = {}
-        for p in ["slack", "gmail", "notion", "calendar"]:
+        for p in ["slack", "notion"]:
             p_result = client.table("platform_content").select(
                 "id", count="exact"
             ).eq("platform", p).or_(
@@ -1166,7 +1166,7 @@ async def admin_backfill_sources(
 
         # Get limit for this platform
         limit_field = PROVIDER_LIMIT_MAP.get(
-            "gmail" if platform == "google" else platform,
+            platform,
             "slack_channels"
         )
         max_sources = getattr(limits, limit_field, 5)
