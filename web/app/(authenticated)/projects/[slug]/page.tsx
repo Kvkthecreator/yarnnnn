@@ -1657,7 +1657,6 @@ function WorkfloorView({
   // Derive latest pulse state per agent from activity events
   const agentPulseState = useCallback(() => {
     const states: Record<string, { decision: PulseDecision; reason?: string; timestamp: string }> = {};
-    // Walk activities in chronological order — last one wins
     for (const a of activities) {
       if (a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed') {
         const agentSlug = a.metadata?.agent_slug as string | undefined;
@@ -1683,126 +1682,161 @@ function WorkfloorView({
     return 0;
   });
 
+  // Build a "thought" for each agent — what they're currently doing/thinking
+  const getAgentThought = (m: ProjectMember, pulse: { decision: PulseDecision; reason?: string; timestamp: string } | undefined) => {
+    const isPM = m.role === 'pm';
+
+    // Active pulse state — use reason as the thought
+    if (pulse?.reason) {
+      return pulse.reason;
+    }
+    if (pulse?.decision === 'generate') {
+      return isPM ? 'Coordinating assembly...' : 'Working on the next output...';
+    }
+    if (pulse?.decision === 'observe') {
+      return isPM ? 'Monitoring contributor state...' : 'Watching for new signals...';
+    }
+    if (pulse?.decision === 'wait') {
+      return 'Waiting for the right moment...';
+    }
+    if (pulse?.decision === 'escalate') {
+      return 'Something needs attention.';
+    }
+
+    // No pulse — use last activity
+    if (m.last_run_at) {
+      return `Last active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`;
+    }
+    return 'Getting ready...';
+  };
+
+  // PM has actionable layers?
+  const pmHasAssessment = pmCognitiveState &&
+    !Object.values(pmCognitiveState.layers).every(v => v === 'unknown');
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {sorted.length === 0 ? (
-            <div className="text-center py-12">
-              <Activity className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No agents assigned yet.</p>
+            <div className="text-center py-16">
+              <Activity className="w-12 h-12 text-muted-foreground/15 mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">No agents on the workfloor yet.</p>
             </div>
           ) : (
-            <div className="grid gap-3">
-              {sorted.map((m) => {
-                const name = agentDisplayName(m.title, m.agent_slug);
-                const pulse = pulseStates[m.agent_slug];
-                const decisionConfig = pulse
-                  ? PULSE_DECISION_CONFIG[pulse.decision] || PULSE_DECISION_CONFIG.wait
-                  : null;
-                const isPM = m.role === 'pm';
+            <>
+              {/* Agent cards — avatar-centered, Sims-inspired */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sorted.map((m) => {
+                  const name = agentDisplayName(m.title, m.agent_slug);
+                  const pulse = pulseStates[m.agent_slug];
+                  const decisionConfig = pulse
+                    ? PULSE_DECISION_CONFIG[pulse.decision] || PULSE_DECISION_CONFIG.wait
+                    : null;
+                  const isPM = m.role === 'pm';
+                  const thought = getAgentThought(m, pulse);
 
-                return (
-                  <div
-                    key={m.agent_slug}
-                    className="p-3 rounded-xl border border-border bg-background hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Avatar with pulse ring */}
-                      <div className="relative">
+                  return (
+                    <div
+                      key={m.agent_slug}
+                      className="group relative flex flex-col items-center p-5 rounded-2xl border border-border bg-background hover:bg-muted/20 transition-all"
+                    >
+                      {/* Pulse indicator — top-right corner */}
+                      {decisionConfig && (
+                        <div className="absolute top-3 right-3 flex items-center gap-1">
+                          <span className={cn('w-2 h-2 rounded-full', decisionConfig.bgColor)} />
+                          <span className={cn('text-[10px] font-medium', decisionConfig.color)}>
+                            {decisionConfig.label}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Avatar — centered, large, with pulse ring */}
+                      <div className="relative mb-3">
                         <AgentAvatar
                           name={name}
                           role={m.role}
                           avatarUrl={m.avatar_url}
-                          size="md"
+                          size="lg"
                           status={m.status}
                         />
-                        {/* Pulse ring animation for active agents */}
+                        {/* Pulse ring for generating */}
                         {pulse?.decision === 'generate' && (
-                          <span className="absolute inset-0 rounded-full border-2 border-green-500/40 animate-ping" />
+                          <span className="absolute inset-0 rounded-full border-2 border-green-500/30 animate-ping" />
+                        )}
+                        {/* Subtle breathing for observing */}
+                        {pulse?.decision === 'observe' && (
+                          <span className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-pulse" />
                         )}
                       </div>
 
-                      {/* Identity + pulse state */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">{name}</span>
-                          {m.role && (
-                            <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0', roleBadgeColor(m.role))}>
-                              {roleShortLabel(m.role)}
-                            </span>
-                          )}
+                      {/* Name + role */}
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-sm font-semibold">{name}</span>
+                        {m.role && (
+                          <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full', roleBadgeColor(m.role))}>
+                            {roleShortLabel(m.role)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Thought bubble — what the agent is thinking/doing */}
+                      <p className="text-[11px] text-muted-foreground text-center leading-relaxed max-w-[200px] mb-2 italic">
+                        &ldquo;{thought}&rdquo;
+                      </p>
+
+                      {/* Cognitive state — contributors get bars, PM gets layers */}
+                      {isPM && pmHasAssessment && pmCognitiveState && (
+                        <div className="w-full mt-1">
+                          <PMLayers state={pmCognitiveState} />
                         </div>
-                        {/* Pulse state */}
-                        {decisionConfig ? (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', decisionConfig.bgColor)} />
-                            <span className={cn('text-xs', decisionConfig.color)}>
-                              {decisionConfig.label}
-                            </span>
-                            {pulse?.reason && (
-                              <span className="text-[11px] text-muted-foreground truncate">
-                                — {pulse.reason}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {m.last_run_at
-                              ? `Last active ${formatDistanceToNow(new Date(m.last_run_at), { addSuffix: true })}`
-                              : 'No activity yet'}
-                          </p>
-                        )}
-                      </div>
+                      )}
+                      {!isPM && m.cognitive_state && (
+                        <div className="w-full mt-1">
+                          <CognitiveCards cognitive={m.cognitive_state} />
+                        </div>
+                      )}
 
-                      {/* Timestamp */}
+                      {/* Timestamp — subtle bottom */}
                       {pulse?.timestamp && (
-                        <span className="text-[10px] text-muted-foreground shrink-0">
+                        <span className="text-[9px] text-muted-foreground/50 mt-2">
                           {format(new Date(pulse.timestamp), 'h:mm a')}
                         </span>
                       )}
                     </div>
-
-                    {/* ADR-128 Phase 6: Cognitive state — contributor bars or PM layers */}
-                    {isPM && pmCognitiveState && (
-                      <PMLayers state={pmCognitiveState} />
-                    )}
-                    {!isPM && m.cognitive_state && (
-                      <CognitiveCards cognitive={m.cognitive_state} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Recent pulse timeline */}
-          {activities.filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed').length > 0 && (
-            <div className="mt-6 border-t border-border pt-4">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">Recent Pulse Activity</p>
-              <div className="space-y-1.5">
-                {activities
-                  .filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed')
-                  .slice(-10)
-                  .reverse()
-                  .map((a) => {
-                    const config = ACTIVITY_EVENT_CONFIG[a.event_type];
-                    return (
-                      <div key={a.id} className="flex items-start gap-2 py-1">
-                        <span className={cn('mt-0.5 shrink-0', config?.color || 'text-muted-foreground')}>
-                          {config?.icon || <HeartPulse className="w-3.5 h-3.5" />}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs">{formatActivitySummary(a)}</p>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {format(new Date(a.created_at), 'h:mm a')}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  );
+                })}
               </div>
-            </div>
+
+              {/* Recent activity timeline */}
+              {activities.filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed').length > 0 && (
+                <div className="mt-8 border-t border-border pt-4">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">Recent Activity</p>
+                  <div className="space-y-1.5">
+                    {activities
+                      .filter(a => a.event_type === 'agent_pulsed' || a.event_type === 'pm_pulsed')
+                      .slice(-8)
+                      .reverse()
+                      .map((a) => {
+                        const config = ACTIVITY_EVENT_CONFIG[a.event_type];
+                        return (
+                          <div key={a.id} className="flex items-start gap-2 py-1">
+                            <span className={cn('mt-0.5 shrink-0', config?.color || 'text-muted-foreground')}>
+                              {config?.icon || <HeartPulse className="w-3.5 h-3.5" />}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs">{formatActivitySummary(a)}</p>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {format(new Date(a.created_at), 'h:mm a')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1825,7 +1859,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
-  const [mainView, setMainView] = useState<MainView>('meeting-room');
+  const [mainView, setMainView] = useState<MainView>('workfloor');
   const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
 
   const loadProject = useCallback(async () => {
@@ -1937,21 +1971,9 @@ export default function ProjectDetailPage() {
     },
   ];
 
-  // View toggle controls in the chat header
+  // View toggle controls — Workfloor is primary (default), Chat is secondary
   const viewToggle = (
     <div className="flex items-center bg-muted rounded-lg p-0.5">
-      <button
-        onClick={() => setMainView('meeting-room')}
-        className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
-          mainView === 'meeting-room'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
-      >
-        <MessageSquare className="w-3 h-3" />
-        <span className="hidden sm:inline">Chat</span>
-      </button>
       <button
         onClick={() => setMainView('workfloor')}
         className={cn(
@@ -1963,6 +1985,18 @@ export default function ProjectDetailPage() {
       >
         <Activity className="w-3 h-3" />
         <span className="hidden sm:inline">Workfloor</span>
+      </button>
+      <button
+        onClick={() => setMainView('meeting-room')}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
+          mainView === 'meeting-room'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <MessageSquare className="w-3 h-3" />
+        <span className="hidden sm:inline">Chat</span>
       </button>
     </div>
   );
