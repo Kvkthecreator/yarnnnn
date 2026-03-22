@@ -1,11 +1,11 @@
 """
-yarnnn-output-gateway — Output gateway for agent artifact production (ADR-118).
+yarnnn-output-gateway — Output gateway for agent artifact production.
 
-Single POST /render endpoint. Skills convert structured input to binary files.
-Uploads results to Supabase Storage and returns the URL.
-GET /skills/{name}/SKILL.md serves skill instructions for agent context injection.
+POST /render  — ADR-118: Skills convert structured input to binary files.
+POST /compose — ADR-130: HTML composition engine (markdown + assets → styled HTML).
+GET /skills/{name}/SKILL.md — skill instructions for agent context injection.
 
-ADR-118 D.2 hardening:
+Hardening (ADR-118 D.2):
 - Service-to-service auth via shared secret (X-Render-Secret header)
 - Request size limits (5MB max payload)
 - User-scoped storage paths ({user_id}/{date}/{filename}.{ext})
@@ -31,7 +31,7 @@ import importlib
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="yarnnn-output-gateway", version="2.2.0")
+app = FastAPI(title="yarnnn-output-gateway", version="3.0.0")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
@@ -176,6 +176,8 @@ async def health():
     return {
         "status": "ok",
         "skills": list(SKILLS.keys()),
+        "compose": True,
+        "layout_modes": ["document", "presentation", "dashboard", "data"],
         "storage": bool(SUPABASE_URL and SUPABASE_SERVICE_KEY),
     }
 
@@ -262,3 +264,70 @@ async def render(req: RenderRequest, request: Request):
     except Exception as e:
         logger.error(f"[RENDER] Storage upload failed: {e}")
         return RenderResponse(success=False, error=f"Storage upload failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# ADR-130: HTML Composition Engine
+# ---------------------------------------------------------------------------
+
+from compose import ComposeRequest, ComposeResponse, compose_html
+
+
+@app.post("/compose", response_model=ComposeResponse)
+async def compose(req: ComposeRequest, request: Request):
+    """ADR-130 Phase 1: Compose markdown + assets into styled HTML.
+
+    Layout modes: document (default), presentation, dashboard, data.
+    Optionally uploads the HTML to Supabase Storage.
+    """
+    _validate_render_secret(request)
+
+    caller_id = req.user_id or (request.client.host if request.client else "unknown")
+    if not _check_rate_limit(caller_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded (60 req/min)")
+
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE:
+        raise HTTPException(status_code=413, detail=f"Request too large (max {MAX_REQUEST_SIZE // 1024 // 1024}MB)")
+
+    valid_modes = ("document", "presentation", "dashboard", "data")
+    if req.layout_mode not in valid_modes:
+        return ComposeResponse(
+            success=False,
+            error=f"Invalid layout_mode: {req.layout_mode}. Valid: {valid_modes}",
+        )
+
+    try:
+        html = compose_html(
+            md_text=req.markdown,
+            title=req.title,
+            layout_mode=req.layout_mode,
+            assets=req.assets or [],
+            brand_css=req.brand_css,
+        )
+    except Exception as e:
+        logger.error(f"[COMPOSE] Composition failed: {e}")
+        return ComposeResponse(success=False, error=f"Composition failed: {str(e)}")
+
+    html_bytes = html.encode("utf-8")
+    size_bytes = len(html_bytes)
+
+    # Upload to storage if user_id provided and storage is configured
+    output_url = None
+    if req.user_id and SUPABASE_URL and SUPABASE_SERVICE_KEY:
+        try:
+            date_prefix = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+            safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in req.title).strip().replace(" ", "-")[:50]
+            filename = safe_title or "output"
+            storage_path = f"{req.user_id}/{date_prefix}/{filename}.html"
+            output_url = await _upload_to_storage(html_bytes, storage_path, "text/html")
+        except Exception as e:
+            logger.warning(f"[COMPOSE] Storage upload failed (non-fatal): {e}")
+
+    return ComposeResponse(
+        success=True,
+        html=html,
+        output_url=output_url,
+        content_type="text/html",
+        size_bytes=size_bytes,
+    )
