@@ -2,11 +2,10 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
-import { HOME_ROUTE, ORCHESTRATOR_ROUTE } from "@/lib/routes";
+import { HOME_ROUTE } from "@/lib/routes";
 
 const PROTECTED_PREFIXES = [
   HOME_ROUTE,
-  ORCHESTRATOR_ROUTE,
   "/projects",
   "/agents",
   "/memory",

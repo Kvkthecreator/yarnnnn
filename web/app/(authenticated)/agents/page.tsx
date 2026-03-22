@@ -29,7 +29,7 @@ import {
   Brain,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
+import { HOME_ROUTE } from '@/lib/routes';
 import { formatDistanceToNow } from 'date-fns';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { ROLE_LABELS } from '@/lib/constants/agents';
@@ -355,7 +355,7 @@ export default function AgentsPage() {
           <h1 className="text-2xl font-bold">Agents</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Recurring outputs your agent produces on schedule.{' '}
-            <Link href={`${ORCHESTRATOR_ROUTE}?create`} className="text-primary hover:underline">
+            <Link href={`${HOME_ROUTE}?create`} className="text-primary hover:underline">
               Ask your agent
             </Link>{' '}
             to create one.
@@ -393,7 +393,7 @@ export default function AgentsPage() {
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No agents yet</p>
             <button
-              onClick={() => router.push(`${ORCHESTRATOR_ROUTE}?create`)}
+              onClick={() => router.push(`${HOME_ROUTE}?create`)}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <Plus className="w-4 h-4" />

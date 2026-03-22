@@ -97,15 +97,17 @@ Behavior:
 - Escape key closes overlay panel (< lg only)
 - Tab bar shared between inline and overlay modes
 
-### 4.2 `/dashboard` — Global TP
+### 4.2 `/orchestrator` — Global TP (Home)
 
-**Panel tabs:** Agents | Context
+**Panel tabs:** Projects | Platforms
 
-Panel defaults open. Shows agent list (compact entry cards linking to `/agents/[id]`) and platform sync status.
+Panel defaults open. Projects tab shows compact project list linking to `/projects/[slug]`. Platforms tab shows connected platforms + sync status + document uploads. Empty state shows platform connect cards (Slack, Notion) for cold-start onboarding.
+
+Dashboard page removed (2026-03-22) — Orchestrator is the single landing page. Post-login and post-OAuth both redirect here.
 
 ### 4.3 `/agents/[id]` — Agent Workspace
 
-**Panel tabs:** Versions | Instructions | Memory | Sessions | Settings
+**Panel tabs:** Versions | Instructions | Memory | Settings
 
 Panel defaults open with Versions tab. VersionsPanel has two internal modes:
 1. **List mode** — compact version list with Run Now bar. Click a version to enter preview mode.
@@ -205,3 +207,4 @@ See [COGNITIVE-DASHBOARD-DESIGN.md](COGNITIVE-DASHBOARD-DESIGN.md) for full desi
 | 2026-03-04 | v1: Drawer overlay model — InlineVersionCard + overlay drawer |
 | 2026-03-11 | v2: Persistent panel — inline panel (≥lg), versions in panel, InlineVersionCard deleted |
 | 2026-03-21 | v3: WorkfloorView cognitive state evolution — 4-bar contributor cards, 5-layer PM card, InlineProfileCard self-assessment (ADR-128 Phase 6) |
+| 2026-03-22 | v4: Dashboard collapsed into Orchestrator — single landing page. Sessions tab removed. Nav: Orchestrator (home) + Projects. Cold-start onboarding integrated into Orchestrator empty state. |

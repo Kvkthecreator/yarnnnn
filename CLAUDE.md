@@ -54,7 +54,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Becomes Bootstrap bounded context within Composer (ADR-111). (Implemented.)
 - **ADR-111**: Agent Composer — TP's compositional capability (not a separate service). Three bounded contexts: **Bootstrap** (deterministic fast-path), **Heartbeat** (periodic TP self-assessment of agent workforce), **Composer** (assessment + creation/adjustment/dissolution). Unifies Write/CreateAgent into single `CreateAgent` primitive. Autonomy-first: bias toward action, feedback as correction. Proactive/coordinator modes reframed as TP supervisory capabilities. Platform content as onramp (dependency decreases over time). Lifecycle progression: per-agent maturity signals (run count, approval rate, edit distance trend), auto-pause underperformers, auto-create synthesis from mature digests, cross-agent pattern detection. (Implemented — all 5 phases.) **Phases 3-5 partially superseded by ADR-126** — Composer heartbeat/assessment thins to portfolio-only; per-agent assessment replaced by bottom-up pulse outcomes
 - **ADR-112**: Sync Efficiency & Concurrency Control — three layers: (1) atomic sync lock on `platform_connections` replacing `SCHEDULE_WINDOW_MINUTES` timing hack, (2) platform-level heartbeat fast-path (Slack latest, Notion search) to skip source iteration when nothing changed, (3) per-source skip hints (deferred). Coordinates all three sync paths (scheduled, manual, TP RefreshPlatformContent). (Implemented.)
-- **ADR-113**: Auto Source Selection — eliminates manual source selection as prerequisite for platform connections. OAuth callback auto-discovers landscape, applies `compute_smart_defaults()`, kicks off first sync immediately. Post-OAuth redirect changed from `/orchestrator` to `/dashboard`. Context pages become optional refinement, not first-time entry point. Dashboard platform cards trigger OAuth directly. (Implemented.)
+- **ADR-113**: Auto Source Selection — eliminates manual source selection as prerequisite for platform connections. OAuth callback auto-discovers landscape, applies `compute_smart_defaults()`, kicks off first sync immediately. Post-OAuth redirect goes to `/orchestrator` (home). Context pages become optional refinement, not first-time entry point. Orchestrator empty state shows platform connect cards for cold-start onboarding. (Implemented.)
 - **ADR-114**: Composer Substrate-Aware Assessment — evolves Composer from platform-metadata-centric to recursive-substrate-aware. Four phases: (1) knowledge corpus signals in heartbeat_data_query, (2) substrate-aware heuristics in should_composer_act, (3) knowledge summary in LLM prompt, (4) Composer prompt v2.0. Establishes Composer prompt versioning policy (same rigor as Orchestrator). (Phases 1-3 Implemented. Phase 4 absorbed into ADR-120 Phase 5 — Composer Prompt v2.0 shipped.)
 - **ADR-116**: Agent Identity & Inter-Agent Knowledge Infrastructure — makes agents discoverable and composable. Five phases: (1) knowledge metadata search (QueryKnowledge filters by agent_id/role/scope), (2) agent discovery primitive (DiscoverAgents), (3) cross-agent workspace reading (ReadAgentContext — read-only), (4) agent card auto-generation + MCP exposure (get_agent_card, search_knowledge, discover_agents tools), (5) consumption tracking + Composer agent dependency graph (orphaned producers, missing producers, stale dependencies). Agent-native identity thesis: workspace IS identity, agents are first-class participants not human proxies. (Implemented.)
 
@@ -297,7 +297,7 @@ You MUST:
 ### ADR-057: Streamlined Onboarding (updated by ADR-113)
 
 - OAuth callback auto-discovers landscape + auto-selects sources + kicks off sync (ADR-113)
-- Redirects to `/dashboard?provider=X&status=connected`
+- Redirects to `/orchestrator?provider=X&status=connected`
 - Source curation on context pages is optional refinement, not prerequisite
 - Tier-gated source limits enforced by `compute_smart_defaults()` max_sources
 
@@ -337,7 +337,7 @@ You MUST:
 | Project Workspace | `api/services/workspace.py` — `ProjectWorkspace` class (ADR-119 Phase 2) |
 | Project Primitives | `api/services/primitives/project.py` (ADR-119 Phase 2: CreateProject, ReadProject) |
 | Project Routes | `api/routes/projects.py` (ADR-119 Phase 2: CRUD) |
-| Dashboard Summary | `api/routes/dashboard.py` (Supervision Dashboard) |
+| Dashboard Summary | DELETED (2026-03-22) — collapsed into Orchestrator |
 | Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
 | Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
 | Platform API Clients | `api/integrations/core/{slack,notion}_client.py` |
@@ -353,9 +353,8 @@ You MUST:
 | Frontend API Client | `web/lib/api/client.ts` |
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding UI | `web/components/onboarding/` |
-| Supervision Dashboard | `web/app/(authenticated)/dashboard/page.tsx` |
-| Orchestrator (TP Chat) | `web/app/(authenticated)/orchestrator/page.tsx` |
-| Route Constants | `web/lib/routes.ts` (HOME_ROUTE, ORCHESTRATOR_ROUTE) |
+| Orchestrator (Home) | `web/app/(authenticated)/orchestrator/page.tsx` |
+| Route Constants | `web/lib/routes.ts` (HOME_ROUTE = "/orchestrator", PROJECTS_ROUTE) |
 
 ---
 

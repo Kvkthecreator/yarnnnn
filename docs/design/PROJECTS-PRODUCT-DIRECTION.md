@@ -1,7 +1,7 @@
 # Projects as Product Direction
 
 **Date:** 2026-03-18
-**Status:** Proposed
+**Status:** Partially superseded — Dashboard collapsed into Orchestrator (2026-03-22). All dashboard references below now point to the Orchestrator page. Navigation: Orchestrator (home) + Projects.
 **Related:**
 - [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — taxonomy + user-facing identity section
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model (extends to project-first)

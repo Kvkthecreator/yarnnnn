@@ -100,8 +100,7 @@ interface RouteItem {
   path: string;
 }
 
-// Primary: Dashboard (home) + Orchestrator + Projects
-const ORCHESTRATOR_NAV: RouteItem = { id: 'orchestrator', label: ORCHESTRATOR_LABEL, icon: Command, path: ORCHESTRATOR_ROUTE };
+// Primary: Orchestrator (home) + Projects
 const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: Briefcase, path: PROJECTS_ROUTE };
 
 // Secondary: Context + Activity + Settings
@@ -117,7 +116,7 @@ const SECONDARY_PAGES: RouteItem[] = [
 const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Agents', icon: Briefcase, path: '/agents' };
 
 // All primary routes for pathname matching
-const PRIMARY_ROUTES = [ORCHESTRATOR_NAV, PROJECTS_ROUTE_NAV];
+const PRIMARY_ROUTES = [PROJECTS_ROUTE_NAV];
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
@@ -193,9 +192,9 @@ function AuthenticatedLayoutInner({
       }
 
       // For remaining surfaces (work, review, create, etc.), use surface system
-      // If not on orchestrator, navigate there first (surfaces live on the chat page)
-      if (!isOrchestratorRoute(window.location.pathname)) {
-        router.push(ORCHESTRATOR_ROUTE);
+      // If not on orchestrator (home), navigate there first (surfaces live on the chat page)
+      if (!isHomeRoute(window.location.pathname)) {
+        router.push(HOME_ROUTE);
       }
       // Use handoff version if we have a message from TP
       if (handoffMessage) {
@@ -207,7 +206,7 @@ function AuthenticatedLayoutInner({
     [setSurface, setSurfaceWithHandoff, router]
   );
 
-  // Navigate to home (dashboard)
+  // Navigate to home (orchestrator)
   const navigateToHome = useCallback(() => {
     if (!isOnHome) {
       router.push(HOME_ROUTE);

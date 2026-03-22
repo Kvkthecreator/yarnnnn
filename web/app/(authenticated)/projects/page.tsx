@@ -16,7 +16,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
+import { HOME_ROUTE } from '@/lib/routes';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { ProjectSummary } from '@/types';
@@ -62,7 +62,7 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold">Projects</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Multi-agent collaborative work.{' '}
-            <Link href={ORCHESTRATOR_ROUTE} className="text-primary hover:underline">
+            <Link href={HOME_ROUTE} className="text-primary hover:underline">
               Ask your Orchestrator
             </Link>{' '}
             to start a project.
@@ -79,7 +79,7 @@ export default function ProjectsPage() {
             <Briefcase className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground mb-4">No projects yet</p>
             <button
-              onClick={() => router.push(ORCHESTRATOR_ROUTE)}
+              onClick={() => router.push(HOME_ROUTE)}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <MessageSquare className="w-4 h-4" />

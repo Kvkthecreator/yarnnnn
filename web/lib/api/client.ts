@@ -380,13 +380,6 @@ export const api = {
       }>(`/api/chat/history?${params.toString()}`);
     },
 
-    // List global (non-agent-scoped) TP sessions — lightweight metadata for dashboard panel
-    listSessions: (limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
-        `/api/chat/sessions${params}`
-      );
-    },
   },
 
   // Subscription endpoints (Lemon Squeezy)
@@ -1228,37 +1221,6 @@ export const api = {
       }>("/api/system/sync-timestamps"),
   },
 
-  // Dashboard — ADR-122 Phase 5: project-first (no standalone agents)
-  dashboard: {
-    getSummary: () =>
-      request<{
-        projects: Array<{
-          project_slug: string;
-          title: string;
-          type_key: string | null;
-          purpose: string | null;
-          updated_at: string | null;
-          agents: Array<{
-            id: string;
-            title: string;
-            status: string;
-            origin: string;
-            role: string;
-            scope: string;
-            sources: Array<{ provider?: string; resource_id?: string }>;
-            last_run_at: string | null;
-            next_pulse_at: string | null;
-          }>;
-        }>;
-        connected_platforms: string[];
-        attention: Array<{
-          type: 'auto_paused' | 'failed';
-          message: string;
-          agent_id: string;
-          project_slug?: string;
-        }>;
-      }>("/api/dashboard/summary"),
-  },
 };
 
 export default api;

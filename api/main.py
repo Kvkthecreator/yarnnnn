@@ -41,7 +41,7 @@ def _validate_environment():
             "Check your .env file or deployment config."
         )
 
-    optional = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LEMONSQUEEZY_API_KEY"]
+    optional = ["LEMONSQUEEZY_API_KEY"]  # ADR-131: Google env vars removed (sunset)
     for var in optional:
         if not os.getenv(var):
             logger.warning(f"[STARTUP] Optional env var not set: {var}")
@@ -52,7 +52,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, knowledge, dashboard, projects
+from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, knowledge, projects
 
 app = FastAPI(
     title="YARNNN API",
@@ -109,9 +109,6 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 # Knowledge filesystem routes (ADR-107 Phase 3)
 app.include_router(knowledge.router, prefix="/api", tags=["knowledge"])
-
-# Dashboard summary (Supervision Dashboard)
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 # Project routes (ADR-119 Phase 2)
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])

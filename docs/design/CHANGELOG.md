@@ -4,6 +4,27 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-03-22 — Dashboard collapsed into Orchestrator
+
+- **Dashboard page deleted** — `/dashboard` route, backend endpoint (`/api/dashboard/summary`), and API client method removed.
+- **Orchestrator is the single landing page** — `HOME_ROUTE = "/orchestrator"`. Post-login and post-OAuth redirects land here.
+- **Cold-start onboarding integrated** — Orchestrator empty state shows platform connect cards (Slack, Notion) when no platforms connected, with "or" divider to "New Project" card.
+- **Sessions tab removed** — Sessions are infrastructure, not product. Orchestrator panel: Projects + Platforms only.
+- **Navigation simplified** — Dropdown: Orchestrator (home) + Projects. Dashboard entry removed. `ORCHESTRATOR_ROUTE` alias deleted — `HOME_ROUTE` is the canonical reference.
+- Updated: `WORKSPACE-LAYOUT-NAVIGATION.md` (v4).
+
+### Active docs (6 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ACTION-MAPPING.md` | Design principle: directives → chat, configuration → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy (show/execute/prompt/attach) for + menu actions |
+| `WORKSPACE-LAYOUT-NAVIGATION.md` | Canonical layout architecture (WorkspaceLayout, scoped chat, WorkfloorView) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Agent frontend: source-first grouping, card anatomy, creation flow, cognitive state |
+| `PROJECTS-PRODUCT-DIRECTION.md` | Projects as product direction, settled decisions |
+| `COGNITIVE-DASHBOARD-DESIGN.md` | ADR-128 Phase 6: cognitive state surfacing on Workfloor + Team panel |
+
+---
+
 ## 2026-03-21 — ADR-128 Phase 6: Cognitive Dashboard Design
 
 - New active doc: `COGNITIVE-DASHBOARD-DESIGN.md`
