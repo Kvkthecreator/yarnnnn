@@ -1,198 +1,201 @@
 # Agent Capability & Output Substrate
 
 > **Status**: Canonical (ADR-130)
-> **Date**: 2026-03-22
+> **Date**: 2026-03-22 (revised)
 > **Rule**: All capability, output, and rendering decisions should be consistent with this document.
 
 ---
 
 ## Core Principle
 
-**Agent work is structured content, not files.** Capabilities determine what agents can do. The platform renders their work visually for humans and exposes it structurally for other agents. File formats are mechanical exports for external sharing.
+**Agent types determine capabilities. Capabilities are deterministic. The platform renders output.**
 
 Three concerns, separated:
-1. **Capability** — what can this agent do? (agent-owned, earned via development)
+1. **Capability** — what can this agent do? (determined by agent type, fixed at creation)
 2. **Presentation** — how should the output look? (platform-owned, layout modes)
 3. **Export** — what file format is needed externally? (platform-owned, on-demand)
 
 ---
 
-## Capability Model
+## Three-Registry Architecture
 
-### Capability tiers
+### 1. Agent Type Registry
 
-```
-Tier 1: Core (all agents, from creation)
-├── read — workspace, knowledge base, platform content
-├── search — cross-reference sources
-├── synthesize — produce narrative from inputs
-└── produce_markdown — structured content output
-
-Tier 2: Domain (role-specific, from creation)
-├── research — web search, investigation, citation
-├── monitor — change detection, alerting, pattern tracking
-├── data_analysis — structured data, metrics, computation
-├── coordination — freshness, steering, assembly (PM)
-└── preparation — agenda, context gathering, profiling
-
-Tier 3: Expressive (earned at associate seniority)
-├── visualization — chart/diagram generation via RenderAsset
-├── rich_composition — multi-section output with embedded assets
-├── cross_agent — reference and build on other agents' outputs
-└── layout_hint — specify presentation mode for output
-
-Tier 4: Autonomous (senior+, requires user authorization)
-├── write_back — post to external platforms
-├── action — consequential external system actions
-└── self_direction — propose and execute investigations
-```
-
-### Capability → agent wiring
+Each agent type is a deterministic capability bundle. Type = capability set. Personification comes from instructions (user-configurable), not capability gating.
 
 ```
-Agent creation
-  └── Role determines Tier 1 + Tier 2 base capabilities
-        └── Seeded in AGENT.md ## Capabilities
-
-Seniority progression (feedback-gated)
-  └── Associate: unlocks Tier 3 capabilities
-        └── AGENT.md updated by Composer on promotion
-
-  └── Senior: unlocks Tier 4 eligibility
-        └── Requires explicit user authorization per capability
-
-Duty promotion (ADR-117)
-  └── New duties may add Tier 2 capabilities from other roles
-        └── e.g., digest agent earns monitor duty → gains detect_change
+digest:     [read_platforms, synthesize, produce_markdown, compose_html]
+monitor:    [read_platforms, detect_change, alert, produce_markdown, compose_html]
+research:   [read_platforms, web_search, investigate, produce_markdown,
+             chart, mermaid, compose_html]
+synthesize: [read_platforms, cross_reference, data_analysis, chart, mermaid,
+             produce_markdown, compose_html]
+prepare:    [read_platforms, calendar_access, profile_attendees,
+             produce_markdown, compose_html]
+pm:         [read_workspace, check_freshness, steer_contributors,
+             trigger_assembly, manage_work_plan]
 ```
 
-### Capability metadata in workspace
+Each type also defines: default instructions, pulse cadence, prompt template.
 
-`AGENT.md` carries a `## Capabilities` section:
+New types (video, slack_writer, etc.) are added by extending this registry + deploying runtimes. No framework changes required.
 
-```markdown
-## Capabilities
-- core: read, search, synthesize, produce_markdown
-- data_analysis: process_data, compute_metrics, structured_output
-- visualization: render_chart, render_diagram (earned: 2026-03-15)
-- rich_composition: embed_assets, multi_section (earned: 2026-03-15)
+### 2. Capability Registry
+
+Each capability maps to: a runtime, a tool (if any), skill docs (if any), and an output type.
+
+```
+Cognitive (prompt-driven, no tool):
+├── read_platforms, synthesize, detect_change, cross_reference
+├── data_analysis, alert, investigate, calendar_access, profile_attendees
+└── produce_markdown
+
+Tool-backed (internal tools):
+├── web_search       → tool: WebSearch
+└── read_workspace   → tool: ReadWorkspace
+
+Asset production (compute runtimes):
+├── chart            → runtime: python_render, tool: RenderAsset, docs: chart/SKILL.md
+├── mermaid          → runtime: python_render, tool: RenderAsset, docs: mermaid/SKILL.md
+├── image            → runtime: python_render, tool: RenderAsset, docs: image/SKILL.md
+└── video_render     → runtime: node_remotion, tool: RenderAsset, docs: video/SKILL.md
+
+Composition (post-generation pipeline step):
+└── compose_html     → runtime: python_render, post_generation: true
+
+Platform skills (external APIs, SKILL.md importable from marketplace):
+├── write_slack      → runtime: external:slack, tool: SlackWrite, requires_auth
+└── write_notion     → runtime: external:notion, tool: NotionWrite, requires_auth
+
+PM coordination (internal):
+├── check_freshness     → tool: CheckContributorFreshness
+├── steer_contributors  → tool: WriteWorkspace
+├── trigger_assembly    → (pipeline action)
+└── manage_work_plan    → tool: UpdateWorkPlan
 ```
 
-This is readable by:
-- **The agent itself** — self-awareness of what it can do
-- **Other agents** via `ReadAgentContext` — capability discovery
-- **PM agents** — knowing what contributors can produce for assembly planning
-- **Composer** — identifying capability gaps when creating agents/projects
+**Two sourcing modes** for skill knowledge:
+- **Built-in**: SKILL.md authored by us (chart, mermaid, image, compose)
+- **Imported**: SKILL.md from Claude Code skills marketplace (platform write-backs, MCP tools)
+
+### 3. Runtime Registry
+
+```
+internal:        In-process, no HTTP call
+python_render:   yarnnn-render service (Docker: Python + matplotlib + pandoc + pillow + mermaid-cli)
+node_remotion:   yarnnn-video service (Docker: Node.js + Remotion + Chrome) [future]
+external:slack:  Slack API via user OAuth token
+external:notion: Notion API via user OAuth token
+```
+
+### Resolution path
+
+```
+Agent type → capabilities → for each capability:
+  → resolve tool definition (what the LLM calls)
+  → resolve skill docs (what enters the prompt)
+  → resolve runtime (where it executes)
+```
 
 ---
 
 ## Output Pipeline
 
 ```
-┌─────────────────────────────────────────────────┐
-│                AGENT GENERATION                  │
-│                                                  │
-│  Agent produces:                                 │
-│  ├── Structured markdown (output.md)             │
-│  ├── Asset references (charts, images, diagrams) │
-│  ├── Structured data (JSON for tables/metrics)   │
-│  └── Manifest with capabilities_used + metadata  │
-│                                                  │
-│  Assets produced via RenderAsset (Tier 3):       │
-│  ├── chart (data → SVG/PNG via matplotlib)       │
-│  ├── diagram (mermaid spec → SVG)                │
-│  ├── image (composition via Pillow)              │
-│  └── stored in outputs/{date}/assets/            │
-└──────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                 AGENT GENERATION                     │
+│                                                      │
+│  Agent type determines available capabilities.       │
+│  Agent produces:                                     │
+│  ├── Structured markdown (output.md)                 │
+│  ├── Asset references via RenderAsset (if type has   │
+│  │   chart/mermaid/image/video capabilities)          │
+│  └── Structured data (JSON for tables/metrics)       │
+│                                                      │
+│  RenderAsset calls:                                  │
+│  ├── python_render → chart/mermaid/image → SVG/PNG   │
+│  └── node_remotion → video → MP4 [future]            │
+└──────────────────┬──────────────────────────────────┘
                    │
                    ▼
-┌─────────────────────────────────────────────────┐
-│              WORKSPACE STORAGE                   │
-│                                                  │
-│  /agents/{slug}/outputs/{date}/                  │
-│  ├── output.md        (structured source)        │
-│  ├── manifest.json    (capabilities, assets, etc)│
-│  └── assets/                                     │
-│      ├── *.svg        (charts, diagrams)         │
-│      ├── *.png        (images)                   │
-│      └── *.json       (structured data)          │
-│                                                  │
-│  /projects/{slug}/assembly/{date}/               │
-│  ├── output.md        (composed from contribs)   │
-│  ├── manifest.json                               │
-│  └── assets/          (aggregated)               │
-└──────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│            POST-GENERATION PIPELINE                  │
+│                                                      │
+│  If agent type has compose_html capability:           │
+│  ├── Call POST /compose with output.md + assets       │
+│  ├── Apply layout mode (document/presentation/        │
+│  │   dashboard/data)                                  │
+│  └── Store output.html alongside output.md            │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│              WORKSPACE STORAGE                       │
+│                                                      │
+│  /agents/{slug}/outputs/{date}/                      │
+│  ├── output.md        (structured source)            │
+│  ├── output.html      (composed, platform-rendered)  │
+│  ├── manifest.json    (type, capabilities, assets)   │
+│  └── assets/                                         │
+│      ├── *.svg        (charts, diagrams)             │
+│      ├── *.png        (images)                       │
+│      ├── *.mp4        (video) [future]               │
+│      └── *.json       (structured data)              │
+└──────────────────┬──────────────────────────────────┘
                    │
           ┌────────┼─────────────────┐
           ▼        ▼                 ▼
      ┌─────────┐ ┌───────────┐ ┌──────────┐
      │ Agent   │ │ Platform  │ │ Platform │
-     │ Consume │ │ Render    │ │ Export   │
+     │ Consume │ │ Display   │ │ Export   │
      │         │ │           │ │          │
-     │ Read    │ │ Compose   │ │ HTML→PDF │
-     │ output  │ │ markdown  │ │ data→XLS │
-     │ .md via │ │ + assets  │ │ HTML→img │
-     │ Read-   │ │ → styled  │ │          │
-     │ Agent-  │ │ HTML with │ │ On-demand│
-     │ Context │ │ layout    │ │ download │
-     │         │ │ mode      │ │ buttons  │
-     └─────────┘ └─────┬─────┘ └──────────┘
-                       │
-              ┌────────┼────────┐
-              ▼        ▼        ▼
-         ┌─────────┐ ┌──────┐ ┌───────┐
-         │ In-App  │ │Email │ │Public │
-         │         │ │      │ │Share  │
-         │ Outputs │ │HTML  │ │       │
-         │ tab,    │ │body  │ │URL    │
-         │ meeting │ │(zero │ │render │
-         │ room    │ │conv) │ │       │
-         └─────────┘ └──────┘ └───────┘
+     │ Read    │ │ Render    │ │ HTML→PDF │
+     │ output  │ │ output    │ │ data→XLS │
+     │ .md via │ │ .html in  │ │ HTML→img │
+     │ Read-   │ │ app, send │ │          │
+     │ Agent-  │ │ via email │ │ On-demand│
+     │ Context │ │           │ │ download │
+     └─────────┘ └───────────┘ └──────────┘
 ```
 
 ---
 
 ## Multi-Agent Composition
 
-All agents produce structured content. Composition operates in one language regardless of output complexity:
+All agents produce structured content. Composition operates in one language:
 
 ```markdown
-<!-- From workspace: /projects/q2-review/contributions/researcher/output.md -->
+<!-- Researcher's contribution -->
 ## Market Analysis
 ![Competitor landscape](assets/competitor-chart.svg)
-Key findings: three new entrants in the mid-market segment...
+Key findings from Q2...
 
-<!-- From workspace: /projects/q2-review/contributions/data-analyst/output.md -->
+<!-- Data agent's contribution -->
 ## Performance Metrics
 | Metric | Q1 | Q2 | Change |
 |--------|----|----|--------|
 | Revenue | $2.1M | $2.8M | +33% |
 ![Revenue trend](assets/revenue-trend.svg)
 
-<!-- From workspace: /projects/q2-review/contributions/writer/output.md -->
+<!-- Writer's contribution -->
 ## Executive Summary
-Based on the analysis above, three strategic priorities emerge...
+Based on the analysis above...
 ```
 
-PM arranges sections, specifies layout mode, triggers assembly. Platform composes HTML. No format-specific knowledge at any layer.
-
-**Key insight**: the PM doesn't need to know how to make a presentation, a document, or a spreadsheet. It knows how to arrange contributions and specify intent ("this should look like a dashboard" or "this needs to feel like an executive briefing"). The platform translates intent to visual treatment.
+PM arranges sections, specifies layout mode. Platform composes HTML. No format-specific knowledge at any layer.
 
 ---
 
-## Layout Modes
-
-The platform applies visual treatment based on content and intent:
+## Layout Modes (platform-owned)
 
 | Mode | Visual treatment | Best for | How specified |
 |---|---|---|---|
 | **document** | Flowing text, max-width, reading-optimized | Reports, digests, analysis | Default |
 | **presentation** | Full-screen sections, large type, slide breaks at `##`/`---` | Executive reviews, team updates | PM or agent metadata |
 | **dashboard** | CSS grid, metric cards, KPI panels | Operational summaries, status reports | PM or content detection |
-| **data** | Dense tables, tabular nums, sticky headers | Data-heavy outputs, comparisons | Content detection (table-dominant) |
-| **interactive** (future) | Client-side JS, filterable, explorable | Complex analysis, drill-down | Tier 4 capability |
+| **data** | Dense tables, tabular nums, sticky headers | Data-heavy outputs, comparisons | Content detection |
 
-Layout mode is decoupled from agent capability. Any agent's output can be rendered in any mode. The same output can be re-rendered in a different mode without regeneration.
+Layout mode is decoupled from agent type. Any agent's output can be rendered in any mode.
 
 ---
 
@@ -203,7 +206,8 @@ Layout mode is decoupled from agent capability. Any agent's output can be render
 ```
 /agents/{slug}/outputs/{date}/
 ├── output.md          # structured source (agent writes)
-├── manifest.json      # metadata (extended)
+├── output.html        # composed by platform (post-generation)
+├── manifest.json      # metadata
 └── assets/            # visual assets
     ├── *.svg          # charts, diagrams
     ├── *.png          # images
@@ -216,11 +220,13 @@ Layout mode is decoupled from agent capability. Any agent's output can be render
 {
   "version": 1,
   "agent_id": "uuid",
+  "agent_type": "synthesize",
   "run_number": 5,
   "layout_mode": "dashboard",
-  "capabilities_used": ["core", "visualization", "data_analysis"],
+  "capabilities_used": ["chart", "data_analysis"],
   "files": [
-    {"path": "output.md", "role": "source"},
+    {"path": "output.md", "role": "source", "content_type": "text/markdown"},
+    {"path": "output.html", "role": "composed", "content_type": "text/html"},
     {"path": "assets/revenue-chart.svg", "role": "asset", "content_type": "image/svg+xml"}
   ],
   "structured_data": [
@@ -230,13 +236,19 @@ Layout mode is decoupled from agent capability. Any agent's output can be render
 }
 ```
 
-### AGENT.md capabilities section
+### AGENT.md type and capabilities
 
 ```markdown
+# Agent: Weekly Slack Recap
+
+## Type
+digest
+
 ## Capabilities
-- core: read, search, synthesize, produce_markdown
-- data_analysis: process_data, compute_metrics (role: synthesize)
-- visualization: render_chart, render_diagram (earned: 2026-03-15, associate)
+- read_platforms, synthesize, produce_markdown, compose_html
+
+## Instructions
+Recap all activity across connected Slack channels...
 ```
 
 ---
@@ -245,11 +257,13 @@ Layout mode is decoupled from agent capability. Any agent's output can be render
 
 | Component | Relationship |
 |---|---|
-| **Agent Framework (ADR-109, 117)** | Capability tiers replace `SKILL_ENABLED_ROLES`. Role portfolios gain capability requirements. Seniority unlocks expressive capabilities. |
-| **Workspace (ADR-106, 119)** | Output folders gain `assets/`. Manifest gains `capabilities_used`. AGENT.md gains `## Capabilities`. |
-| **Skills (ADR-118)** | Format-builder skills dissolve. Asset renderers (chart, mermaid, image) become Tier 3 capabilities via RenderAsset. Two-filesystem architecture preserved. |
-| **Assembly (ADR-120, 121)** | PM composes structured markdown sections. Layout mode specified at assembly level. No format-specific composition. |
-| **Coherence (ADR-128)** | Self-assessments include capability usage. PM assessment includes contributor capability evaluation. |
+| **Agent Framework (ADR-109)** | Agent Type Registry replaces `SKILL_ENABLED_ROLES` + `ROLE_PORTFOLIOS` seniority tiers. Pulse cadence absorbed into type definitions. |
+| **Workspace (ADR-106, 119)** | Output folders gain `output.html` + `assets/`. Manifest gains `agent_type` + `capabilities_used`. AGENT.md gains `## Type` + `## Capabilities`. |
+| **Skills (ADR-118)** | Format-builder skills dissolved. Asset renderers (chart, mermaid, image) preserved as compute primitives. Two-filesystem architecture preserved. SKILL.md convention preserved for skill knowledge. |
+| **Assembly (ADR-120, 121)** | PM composes structured markdown sections. Layout mode specified at assembly level. |
+| **Coherence (ADR-128)** | Self-assessments continue for knowledge development. Not gated by seniority. |
 | **Delivery (ADR-118 D.3)** | Composed HTML as email body. Exports as download attachments. |
 | **Meeting Room (ADR-124)** | Rich HTML output previews in chat stream. |
-| **Composer (ADR-111)** | Capability gap analysis: "this project needs data_analysis but no contributor has it." |
+| **Composer (ADR-111)** | Creates agents of known types. Capability gap analysis: "this project needs data_analysis — create a synthesize agent." |
+| **Pulse (ADR-126)** | Simplified: no Tier 2 seniority self-assessment. Pulse remains as sense→decide cycle. |
+| **Feedback (ADR-117)** | Feedback distillation preserved (edits → preferences.md). Seniority progression deleted. |

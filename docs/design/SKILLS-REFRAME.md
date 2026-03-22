@@ -1,171 +1,208 @@
-# From Skills to Capabilities: Agent-Native Capability Model
+# From Skills to Capabilities: Three-Registry Migration
 
 > **Status**: Design Decision
-> **Date**: 2026-03-22
-> **Implements**: ADR-130 (Agent-Native Output & Capability Substrate)
-> **Supersedes**: ADR-118's implicit "skill = format builder" model
+> **Date**: 2026-03-22 (revised)
+> **Implements**: ADR-130 (Agent Capability Substrate — Three-Registry Architecture)
+> **Supersedes**: ADR-118's format-builder model, ADR-117's seniority-gated capability progression
 
 ---
 
 ## The Problem
 
-ADR-118 defined skills as format builders — each skill takes a constrained input spec and produces a specific file format. This conflates three concerns:
+The current system manages agent capabilities through three disconnected mechanisms that conflate type, capability, and runtime:
 
-1. **What can this agent do?** → hardcoded by role (`SKILL_ENABLED_ROLES`)
-2. **How should the output look?** → determined by which skill is called
-3. **What file do you need?** → the skill IS the file format
+1. `SKILL_ENABLED_ROLES = frozenset({"synthesize", "research", "monitor", "custom"})` — binary capability gating by role name
+2. `ROLE_PORTFOLIOS` — seniority-based duty expansion that never actually gates capabilities
+3. `RuntimeDispatch` → single Python render service for all skill types, all-or-nothing SKILL.md injection
 
-The result: agents that need rich visual output must learn python-pptx's object model via a JSON DSL. Agents that gain seniority don't gain new capabilities. Multi-agent composition requires format-specific assembly per output type. The recursive perception loop breaks on binary files.
+Additionally, the seniority system (`classify_seniority()`) creates cold-start problems, relies on subjective LLM-judged metrics, and adds complexity without proven quality benefit.
 
 ## The Reframe
 
-**A capability is what an agent can do.** Not what file format it produces. Not what tool it calls. What cognitive or productive action it can take within its domain.
+**Agent types determine capabilities. Capabilities are deterministic. The platform renders output.**
 
-Capabilities are:
-- **Earned** — gated by seniority, feedback history, and role portfolio
-- **Composable** — multiple capabilities combine to produce richer work
-- **Discoverable** — other agents can query what capabilities a peer has
-- **Workspace-native** — recorded in AGENT.md, updated by Composer on promotion
+Three registries replace all scattered gating:
+- **Agent Type Registry** — what bundles of capabilities each type gets
+- **Capability Registry** — what each capability enables, where it executes
+- **Runtime Registry** — where compute happens (Python, Node.js, external APIs)
 
----
-
-## Capability Taxonomy
-
-### By tier (progression)
-
-| Tier | Available when | Examples | What it enables |
-|---|---|---|---|
-| **1: Core** | All agents, from creation | read, search, synthesize, produce_markdown | Basic output: structured text from sources |
-| **2: Domain** | Role-specific, from creation | research, monitor, data_analysis, coordination, preparation | Role-appropriate tools and primitives |
-| **3: Expressive** | Associate seniority (earned) | visualization, rich_composition, cross_agent, layout_hint | Rich output: charts, multi-section, agent references |
-| **4: Autonomous** | Senior + user authorization | write_back, action, self_direction | Consequential external actions |
-
-### By nature (what the capability produces)
-
-| Nature | Capabilities | Output type | Where stored |
-|---|---|---|---|
-| **Cognitive** | research, monitor, data_analysis, coordination | Knowledge (narrative, analysis, structured data) | `output.md` |
-| **Productive** | visualization, rich_composition | Assets (SVG charts, diagrams, composed images) | `assets/` folder |
-| **Interactive** | cross_agent, layout_hint | Metadata (references, layout mode) | `manifest.json` |
-| **External** | write_back, action | Side effects (Slack posts, emails, Notion updates) | External platforms + activity log |
+No earning. No progression. No seniority-gated capability tiers. Agent development is about knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth.
 
 ---
 
-## Migration from Current System
+## Current → New Mapping
 
-### What changes
+### What gets replaced
 
-| Current | New | Migration |
+| Current | New | Phase |
 |---|---|---|
-| `SKILL_ENABLED_ROLES = {"synthesize", "research", "monitor", "custom"}` | `ROLE_BASE_CAPABILITIES` mapping role → Tier 1+2 capabilities | Phase 3: replace constant, update all references |
-| `_fetch_skill_docs()` → inject all SKILL.md | `_fetch_capability_docs()` → inject only capability-relevant docs | Phase 4: scope injection to earned capabilities |
-| `RuntimeDispatch(type, input, output_format)` | `RenderAsset(type, input)` for assets; export via platform | Phase 4: new primitive, Phase 6: remove old |
-| Role-based skill injection in system prompt | Capability-based tool injection | Phase 3: capability-aware prompt building |
-| No capability metadata in workspace | `AGENT.md ## Capabilities` section | Phase 3: seed at creation, update on promotion |
+| `SKILL_ENABLED_ROLES` | `AGENT_TYPES[type].capabilities` | Phase 1 |
+| `ROLE_PORTFOLIOS` (seniority tiers) | Flattened to single duty set per type | Phase 1 |
+| `classify_seniority()` | Deleted | Phase 1 |
+| `get_eligible_duties()` | Deleted | Phase 1 |
+| `get_promotion_duty()` | Deleted | Phase 1 |
+| `ROLE_PULSE_CADENCE` | `AGENT_TYPES[type].pulse_cadence` | Phase 1 |
+| `_fetch_skill_docs()` (all-or-nothing) | `_fetch_capability_docs(capabilities)` (scoped) | Phase 1 |
+| `RuntimeDispatch` (monolithic tool) | `RenderAsset` (scoped to type's asset capabilities) | Phase 1 |
+| `render/skills/pptx/` | Deleted (HTML presentation mode) | Phase 3 |
+| `render/skills/html/` | Absorbed into compose engine | Phase 3 |
+| `render/skills/data/` | Absorbed into compose engine | Phase 3 |
+| `render/skills/pdf/` | Retained as export step only | Phase 3 |
+| `render/skills/xlsx/` | Retained as export step only | Phase 3 |
 
-### What stays the same
+### What stays
 
-- **Two-filesystem architecture** (ADR-118) — capability filesystem (render service) + content filesystem (workspace). Preserved.
-- **SKILL.md conventions** — asset capabilities still have SKILL.md files. Preserved for chart, mermaid, image.
-- **Skill auto-discovery** — render service still discovers capabilities from folder structure. Preserved.
-- **Role portfolios** (ADR-117) — career tracks and duty progression. Extended with capability requirements.
-- **Feedback-gated progression** — seniority from run count + approval rate. Unchanged, now also gates capability tiers.
-
-### What gets deleted (Phase 6)
-
-- `SKILL_ENABLED_ROLES` constant in `agent_framework.py`
-- Format-builder skills: `render/skills/pptx/`, `render/skills/pdf/`, `render/skills/html/`, `render/skills/xlsx/`, `render/skills/data/`
-- `RuntimeDispatch` primitive (replaced by `RenderAsset`)
-- Format-specific SKILL.md injection in `_build_headless_system_prompt()`
+- `render/skills/chart/` — asset renderer, compute primitive
+- `render/skills/mermaid/` — asset renderer, compute primitive
+- `render/skills/image/` — asset renderer, compute primitive
+- Compose engine (`render/compose.py`, `POST /compose`) — preserved and integrated
+- Output folder conventions (ADR-119) — unchanged
+- Delivery pipeline (`deliver_from_output_folder()`) — unchanged
+- Feedback distillation (ADR-117 Phase 1) — agents still learn from edits
+- Agent pulse (ADR-126) — simplified, no Tier 2 seniority self-assessment
+- SKILL.md convention — preserved for skill knowledge (Claude Code compatible)
 
 ---
 
-## Capability × Agent Framework Integration
+## Current → New Wiring
 
-### Current wiring (disconnected)
+### Current wiring (disconnected, scattered)
 
 ```
 agent_framework.py
-├── SKILL_ENABLED_ROLES (hardcoded by role name)
-├── ROLE_PORTFOLIOS (duties by seniority, no capability link)
-└── classify_seniority() (returns level, no capabilities)
+├── SKILL_ENABLED_ROLES (hardcoded frozen set by role name)
+├── ROLE_PORTFOLIOS (seniority × duties, never gates capabilities)
+├── ROLE_PULSE_CADENCE (separate registry by role)
+├── classify_seniority() (feedback-based, gates duties only)
+├── get_eligible_duties() (seniority-dependent)
+└── get_promotion_duty() (seniority-dependent)
 
 agent_execution.py
-├── _fetch_skill_docs() (fetches ALL skill docs if role matches)
-├── _build_headless_system_prompt() (injects skills section if role matches)
+├── _fetch_skill_docs() (fetches ALL 8 SKILL.md if role matches)
+├── _build_headless_system_prompt() (injects all skills if role matches)
 └── generate_draft_inline() (checks SKILL_ENABLED_ROLES for injection)
 
 agent_creation.py
 ├── create_agent_record() (seeds AGENT.md with capability ref if role matches)
+└── Appends "Available Capabilities" section for skill-enabled roles
 ```
 
-### Proposed wiring (integrated)
+### New wiring (three registries, deterministic)
 
 ```
 agent_framework.py
-├── ROLE_BASE_CAPABILITIES (role → Tier 1+2 capabilities)
-├── SENIORITY_UNLOCKS (seniority → Tier 3+4 capabilities)
-├── ROLE_PORTFOLIOS (duties with capabilities_required field)
-├── classify_seniority() (returns level + unlocked capabilities)
-└── get_agent_capabilities(role, seniority, earned_duties) → set
+├── AGENT_TYPES (type → capability set + pulse cadence + prompt template)
+├── CAPABILITIES (capability → runtime + tool + skill_docs + output_type)
+├── RUNTIMES (runtime → endpoint + auth + timeout)
+├── get_type_capabilities(type) → capability list
+├── get_type_tools(type) → scoped tool definitions
+└── get_type_skill_docs(type) → scoped SKILL.md content paths
 
 agent_execution.py
-├── _fetch_capability_docs(capabilities) (fetches docs for earned capabilities only)
-├── _build_headless_system_prompt() (capability-aware injection)
-└── generate_draft_inline() (calls get_agent_capabilities, scopes tools)
+├── _fetch_capability_docs(capabilities) (fetches only relevant SKILL.md)
+├── _build_headless_system_prompt() (scoped to type's capabilities)
+└── generate_draft_inline() (calls get_type_tools, scopes tools to type)
+    └── Post-generation: compose step if type has compose_html
 
 agent_creation.py
-├── create_agent_record() (seeds AGENT.md ## Capabilities from role)
+├── create_agent_record() (seeds AGENT.md with ## Type + ## Capabilities)
+└── Fixed capability set from AGENT_TYPES[type]
 
 agent_pipeline.py
-├── build_role_prompt() (references agent's capabilities in prompt)
-├── ROLE_PROMPTS (capability-aware generation instructions)
+├── build_role_prompt() (references agent's known capabilities)
+└── ROLE_PROMPTS (keyed by type's prompt_template)
 ```
 
 ---
 
-## Marketplace Foundation (Phase 7+)
+## Skill Knowledge: Built-in vs. Imported
 
-The capability model creates a foundation for external capability import:
+The capability registry accommodates two sourcing modes for skill knowledge:
 
-### MCP tools as capabilities
-When a user connects an MCP server with custom tools, those tools could map to agent capabilities. An MCP tool `analyze_sentiment` becomes a Tier 2 capability available to agents in the user's workspace.
+### Built-in capabilities (our own)
 
-### Ecosystem alignment
-The AI tool ecosystem is converging on "agents that use tools." Our capability model aligns:
-- **MCP tools** → map to capabilities
-- **Claude Code skills** → asset capabilities follow the same SKILL.md pattern
-- **Agent-to-agent protocols (A2A)** → capability metadata in AGENT.md enables discovery
+Internal compute primitives we own, version, and deploy:
+- **Asset renderers**: chart, mermaid, image — SKILL.md + render scripts in `render/skills/`
+- **Compose engine**: markdown + assets → styled HTML — `render/compose.py`
+- **Export steps**: HTML → PDF, data → XLSX — `render/` service (future)
 
-### What makes this a platform, not just an app
-The capability model means YARNNN can accommodate capabilities we haven't built:
-- External MCP servers add capabilities without code changes
-- New asset renderers (3D, audio, video) plug into the asset tier
-- User-defined capabilities (custom MCP tools) become part of the agent's repertoire
-- The capability registry + workspace metadata make all of this discoverable
+### Imported capabilities (marketplace / external)
 
-This is the difference between "we built 8 format converters" and "agents can acquire and exercise any capability the ecosystem provides."
+Platform-specific skills where someone else owns the API:
+- **Platform write-backs**: Slack write, Notion write, Linear create — SKILL.md format, copy/adapted from Claude Code skills marketplace
+- **MCP tools**: External MCP servers providing capabilities — registered via the same capability schema
+- **Future integrations**: Figma, GitHub, etc.
+
+The distinction matters for evolution:
+- Built-in capabilities evolve on our deploy cycle
+- Imported capabilities evolve on external API changes
+- Both use the same SKILL.md convention for LLM knowledge injection
+- Both are registered identically in the capability registry
+
+---
+
+## Video: The Stress Test
+
+Video rendering validates the three-registry architecture:
+
+```
+Agent Type Registry:
+  "video": {
+    capabilities: ["read_workspace", "video_render", "produce_markdown"],
+    pulse_cadence: "schedule",
+    prompt_template: "video",
+  }
+
+Capability Registry:
+  "video_render": {
+    runtime: "node_remotion",
+    tool: "RenderAsset",
+    skill_docs: "video/SKILL.md",
+    output_type: "asset",
+  }
+
+Runtime Registry:
+  "node_remotion": {
+    endpoint: "https://yarnnn-video.onrender.com",
+    protocol: "http_post",
+    auth: "render_secret",
+    timeout: 120,
+  }
+```
+
+Adding video requires:
+1. Add type entry to `AGENT_TYPES`
+2. Add capability entry to `CAPABILITIES`
+3. Add runtime entry to `RUNTIMES`
+4. Deploy Node.js service with Remotion
+5. Create `video/SKILL.md` for LLM knowledge
+
+No changes to: agent framework, execution pipeline, delivery, workspace conventions, or frontend. The architecture accommodates new runtimes without structural changes.
 
 ---
 
 ## Example: Before and After
 
-### Before (format-builder model)
+### Before (format-builder model + seniority gating)
 
 A synthesize-role agent produces a quarterly report:
-1. Agent generates text content
-2. Agent calls `RuntimeDispatch(type="chart", input={data}, output_format="png")` → chart uploaded to storage
-3. Agent calls `RuntimeDispatch(type="presentation", input={title, slides}, output_format="pptx")` → PPTX with blank template styling
-4. PPTX delivered as email attachment
-5. Downstream agents cannot read PPTX
+1. `SKILL_ENABLED_ROLES` check: "synthesize" → allowed
+2. `_fetch_skill_docs()` fetches ALL 8 SKILL.md files (~8K tokens into prompt)
+3. Agent calls `RuntimeDispatch(type="chart", input={data}, output_format="png")` → PNG
+4. Agent calls `RuntimeDispatch(type="presentation", input={slides}, output_format="pptx")` → blank PPTX
+5. PPTX delivered as email attachment
+6. Downstream agents cannot read PPTX
+7. Agent at "new" seniority — no visualization capability yet (cold-start)
 
-### After (capability model)
+### After (three registries, deterministic types)
 
-A synthesize-role agent with `data_analysis` + `visualization` capabilities (earned at associate):
-1. Agent analyzes data, produces structured markdown with metric tables
-2. Agent calls `RenderAsset(type="chart", input={data})` → SVG in `assets/` folder
-3. Agent references chart: `![Revenue Trend](assets/revenue-trend.svg)`
-4. `output.md` + `assets/` saved to workspace
-5. Platform composes HTML (dashboard layout mode) → renders in-app + emails as HTML body
-6. Downstream agents read `output.md` — structured, parseable, composable
-7. User clicks "Download PDF" → platform exports HTML → PDF on demand
+A synthesize-type agent produces a quarterly report:
+1. `AGENT_TYPES["synthesize"].capabilities` → includes chart, mermaid, compose_html
+2. `_fetch_capability_docs(["chart", "mermaid"])` → only 2 relevant SKILL.md files
+3. Agent calls `RenderAsset(type="chart", input={data})` → SVG in `assets/`
+4. Agent references: `![Revenue Trend](assets/revenue-trend.svg)`
+5. Post-generation: compose engine renders markdown + SVG → styled HTML (dashboard mode)
+6. HTML delivered as email body
+7. Downstream agents read `output.md` — structured, parseable, composable
+8. User clicks "Download PDF" → platform exports HTML → PDF on demand
+9. All capabilities available from first run — no cold-start

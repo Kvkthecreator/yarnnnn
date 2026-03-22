@@ -106,52 +106,33 @@ Architecture decisions should prioritize the health of this recursive loop over 
 
 An agent is not a static configuration that runs the same task forever. An agent is a **persistent entity with a developmental trajectory**.
 
-### The Agent Lifecycle
+### Agent Identity = Type + Instructions
 
-An agent progresses through seniority levels, driven by accumulated experience and earned trust:
+An agent's **type** determines its capabilities — what tools, runtimes, and actions are available. Type is deterministic, fixed at creation, and defines the mechanical boundary of what an agent can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+
+An agent's **instructions** determine its persona — how it applies its capabilities, what it pays attention to, what judgment it exercises. Instructions are user-configurable and prompt-level.
 
 ```
-Creation → New → Associate → Senior → [Evolved | Dissolved]
+Agent = Type (capabilities, fixed) + Instructions (persona, configurable)
 ```
 
-At each level, the agent's relationship to its domain deepens:
+### Two Dimensions of Agent Development
 
-- **New**: Single duty, single trigger, read-only. Produces drafts for review. Learning what the user cares about from edits and feedback.
-- **Associate**: Consistent performer with earned trust (≥5 runs, ≥60% approval). Holds a developing domain thesis. Accumulating observations and preferences.
-- **Senior**: Eligible for expanded duties within pre-configured career tracks (≥10 runs, ≥80% approval). What started as a digest agent now monitors, researches, and acts within its domain — each as a separate duty sharing the accumulated workspace context.
-- **Evolved**: Agent's duty portfolio is fully expanded. Domain thesis is refined through extensive accumulated feedback. TP may split a senior agent into specialized sub-patterns, or an agent may absorb adjacent responsibilities.
+**Knowledge depth** — what the agent knows about its domain.
 
-### Three Dimensions of Agent Development
+An agent develops inward through accumulated workspace state:
+- **Memory**: observations, domain thesis, learned preferences (workspace `memory/*.md`)
+- **Feedback**: user edits distilled into behavioral preferences (`memory/preferences.md`)
+- **Self-assessment**: mandate fitness, domain fitness, context currency (`memory/self_assessment.md`)
+- **Directives**: accumulated user guidance from conversations (`memory/directives.md`)
 
-**Duties** — what the agent is responsible for.
+A tenured agent produces better output because it knows more about its domain, not because it has more tools. This is the compounding mechanism — each execution cycle benefits from accumulated workspace state.
 
-An agent's duties expand with seniority and can be multiple. A senior Slack agent might simultaneously:
-- Digest daily activity (recurring duty — seed role)
-- Monitor for escalation signals (reactive duty — earned at senior seniority)
+**Autonomy** — how much supervision consequential actions require.
 
-Duties are pre-configured per role portfolio (ADR-117 Phase 3). A duty can be earned through feedback-gated seniority progression — Composer promotes along deterministic tracks. Each duty carries its own trigger type and uses the duty's role for execution (prompt, primitives, output skills).
+Consequential external actions (posting to Slack, sending emails, updating Notion) are gated by **explicit user authorization per agent**, not earned through seniority or feedback metrics. "This agent can post to #general" is a user setting.
 
 Note: "Objectives" at the project level (ADR-123) are distinct — they represent the project's north star (what, for whom, why, in what form), not agent responsibilities.
-
-**Capabilities** — what actions the agent can take.
-
-Capabilities expand with tenure:
-- **Read**: observe and summarize (default, always available)
-- **Analyze**: cross-reference, identify patterns, produce insights (available early)
-- **Write-back**: post to platforms, send messages, update documents (earned through demonstrated quality)
-- **Act**: take consequential actions in external systems (highest trust, requires explicit user authorization)
-
-The progression is not automatic — it's gated by feedback history. An agent that consistently produces approved outputs earns write-back capability. An agent whose outputs are frequently edited stays in supervised mode longer.
-
-**Autonomy** — how much supervision each action requires.
-
-Autonomy is graduated and domain-specific:
-- **Supervised**: all outputs are drafts, user must approve before delivery
-- **Semi-autonomous**: routine outputs auto-deliver, novel or high-stakes outputs require review
-- **Autonomous**: agent acts within its domain without supervision, user is notified post-hoc
-- **Trusted**: agent can take consequential external actions (e.g., post to social media, send emails)
-
-Autonomy is earned per-capability, not globally. An agent might be autonomous for digests but supervised for write-backs.
 
 ### Agent Cognitive State (ADR-128)
 
@@ -170,28 +151,18 @@ Cognitive files are **not output** — they are coordination infrastructure. The
 
 An agent is alive when it has a **pulse** — an autonomous sense→decide cycle that runs independent of user interaction. The pulse is upstream of execution: a pulse that decides "generate" produces a run; a pulse that decides "observe" does not — but the pulse still happened, and that's visible intelligence.
 
-Pulse cadence evolves with seniority:
-- **New**: Pulse fires on schedule (training wheels — generates whenever scheduled, unless no fresh content)
-- **Associate**: Pulse fires on schedule, but agent self-assesses before generating (may skip if nothing worth saying)
-- **Senior**: Pulse fires every cycle (always sensing domain — may generate off-schedule when signals warrant it)
-- **PM**: Pulse fires every cycle + on contributor output (coordination pulse — senses project state continuously)
+Pulse cadence is determined by agent type (ADR-130):
+- **monitor**: every 15 minutes (always alert)
+- **pm**: every 30 minutes (responsive to contributor output)
+- **digest/prepare**: every 12 hours (daily rhythm)
+- **synthesize/research/custom**: on schedule (delivery rhythm)
 
 The pulse uses a cheap-first funnel:
 1. **Tier 1 (deterministic, zero LLM)**: Fresh content? Budget available? Recent enough? ~80% of pulses resolve here.
-2. **Tier 2 (Haiku self-assessment)**: Agent reads own workspace, thesis, observations, and decides. Associate+ agents only.
+2. **Tier 2 (self-assessment)**: Agent reads own workspace, thesis, observations, and decides whether to generate.
 3. **Tier 3 (PM coordination)**: PM reads contributor freshness, quality, work plan, decides coordination action.
 
 Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in project meeting rooms, agent timelines, and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
-
-### Implication: The Trigger Is a Property of the Duty, Not the Agent
-
-The current taxonomy treats trigger as a static agent property (recurring, goal, reactive). Under the developmental model, trigger is a property of each **duty**:
-
-- A recurring duty executes on a schedule (daily digest)
-- A goal-driven duty executes until a condition is met (investigate this pattern)
-- A reactive duty executes when an event occurs (escalation detected)
-
-A senior agent holds multiple duties with different triggers simultaneously. The agent's "mode" is the composite of its active duties, not a single static setting.
 
 ### Objectives at Project Scope (ADR-123)
 
@@ -332,11 +303,11 @@ These follow from the axioms and are stated explicitly for implementation guidan
 2. **Workspace is the shared OS** — All persistent state (agent memory, outputs, user knowledge, TP assessments) lives in the workspace filesystem. External platforms flow through `platform_content` with TTLs; internal content persists and compounds.
 3. **Agents are the write path** — All modifications to workspace files, project folders, and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
 4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
-5. **Agents develop, they don't just execute** — The architecture must support intention evolution, capability progression, and autonomy graduation. Static configuration is the starting point, not the steady state.
+5. **Agents develop through knowledge, not capability expansion** — Agent capabilities are fixed by type. Development is about knowledge depth: accumulated memory, learned preferences, refined domain expertise. The architecture supports this deepening through workspace state (memory, feedback distillation, self-assessment), not through mechanical capability unlocking.
 6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
 7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If intentions subsume triggers, there is no parallel trigger system.
 8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or projects exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
-9. **Capabilities are earned, not assigned; output is structured, not formatted** — Agent capabilities (what they can do) are earned via seniority and feedback, not hardcoded by role. Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually, and legacy formats are mechanical exports. The output substrate optimizes for agent-to-agent composability first, human viewing second, file export third. Skills are cognitive capabilities (research, analysis, visualization), not format builders (PDF, PPTX, XLSX). Capabilities are discoverable — recorded in workspace, readable by other agents, used by Composer for gap analysis. See ADR-130.
+9. **Agent types determine capabilities; output is structured, not formatted** — Agent capabilities are determined by agent type (deterministic, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
 
 ---
 
@@ -360,7 +331,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
 | ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as fourth perception layer — project transcript alongside external/internal/reflexive), Axiom 3 (agents as participants with presence), Axiom 4 (accumulated attention visible in conversation). Three data scopes (agent/group/project). Project surface as group chat. Extends ADR-080 with `agent_chat` mode. | Proposed |
 | ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + four coherence flows), Axiom 3 (cognitive files as developmental mechanism). Contributor self-assessment, PM project assessment, chat directive persistence, cross-agent visibility. | Proposed |
-| ADR-130 (Agent-Native Capability Substrate) | Implements Derived Principle 9 — capabilities earned not assigned, output structured not formatted. Three-concern separation (capability/presentation/export). Capability tiers aligned with seniority (Axiom 3). Partially supersedes ADR-118 Phase D. | Proposed |
+| ADR-130 (Agent Capability Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities replace seniority-gated progression. Three-concern separation (capability/presentation/export). Supersedes ADR-118 Phase D + ADR-117 seniority-gated capabilities. | Proposed |
 
 ---
 
@@ -370,9 +341,9 @@ These require further design work before implementation:
 
 1. **Intention model** — How are agent intentions represented? Are they explicit (stored in workspace) or implicit (derived from agent behavior)? How does TP create, modify, or retire an agent's intentions?
 
-2. **Capability gating mechanism** — How does the system track and enforce which capabilities an agent has earned? Is this a property of the agent record, derived from feedback history, or managed by TP?
+2. ~~**Capability gating mechanism** — How does the system track and enforce which capabilities an agent has earned?~~ → **Resolved by ADR-130.** Capabilities are determined by agent type, fixed at creation. No earning, no tracking. Three-registry architecture (Agent Types, Capabilities, Runtimes).
 
-3. **Autonomy graduation criteria** — What constitutes "enough feedback" to graduate from supervised to semi-autonomous? Is this per-capability or global? Who decides — TP or the user?
+3. ~~**Autonomy graduation criteria** — What constitutes "enough feedback" to graduate from supervised to semi-autonomous?~~ → **Resolved by ADR-130.** Consequential actions gated by explicit user authorization per agent, not earned through seniority.
 
 4. **Multi-intention scheduling** — If an agent holds multiple intentions with different temporal profiles (daily digest + event-driven monitoring + goal-driven research), how does the scheduler express this? Is it multiple scheduled entries for one agent?
 
@@ -403,4 +374,4 @@ These require further design work before implementation:
 | 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
 | 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |
 | 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128). Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism — agents accumulate self-awareness, not just outputs. |
-| 2026-03-22 | v3.5 — Agent-Native Capability Substrate (ADR-130). Derived Principle 9: capabilities earned not assigned, three-concern separation (capability/presentation/export). Capability tiers (core → domain → expressive → autonomous) aligned with seniority progression. Capability metadata in AGENT.md enables discovery and composition. Skills reframed as cognitive capabilities. |
+| 2026-03-22 | v3.5 — Agent Capability Substrate (ADR-130). Three-registry architecture: Agent Types (deterministic capability bundles), Capabilities (what each enables + runtime), Runtimes (where compute happens). Seniority-gated capability progression removed — agent development is knowledge depth, not capability breadth. Derived Principle 5 revised: development through knowledge, not capability expansion. Derived Principle 9 revised: types determine capabilities, three registries. Axiom 3 revised: Agent = Type (fixed capabilities) + Instructions (configurable persona). |
