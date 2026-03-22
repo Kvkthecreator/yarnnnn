@@ -24,8 +24,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Extraction model — using sonnet as haiku-4 is not yet available
-EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-sonnet-4-20250514")
+# Extraction model — Haiku is sufficient for fact extraction from conversations
+EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
 
 # Minimum messages to trigger extraction
 MIN_MESSAGES_FOR_EXTRACTION = 3

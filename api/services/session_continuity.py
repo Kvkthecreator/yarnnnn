@@ -23,8 +23,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Model for summarization
-SUMMARY_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-sonnet-4-20250514")
+# Model for summarization — Haiku is sufficient for session summaries
+SUMMARY_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
 
 # Minimum user messages for a session to be worth summarizing
 MIN_MESSAGES_FOR_SUMMARY = 3

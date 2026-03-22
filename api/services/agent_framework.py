@@ -53,8 +53,8 @@ SKILL_ENABLED_ROLES = frozenset({"synthesize", "research", "monitor", "custom"})
 # This is the conservative default — the agent senses as often as it delivers.
 
 ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
-    "monitor":    timedelta(minutes=15),   # Watchdog — always alert
-    "pm":         timedelta(minutes=30),   # Coordinator — responsive to contributor output
+    "monitor":    timedelta(hours=1),      # Watchdog — hourly sensing (was 15min, relaxed for API cost)
+    "pm":         timedelta(hours=2),      # Coordinator — bi-hourly (was 30min, relaxed for API cost)
     "digest":     timedelta(hours=12),     # Summarizer — senses twice per delivery cycle
     "synthesize": "schedule",              # Pattern-finder — senses on delivery rhythm
     "research":   "schedule",              # Investigator — senses on schedule

@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.1] - API cost optimization: relaxed pulse cadence + Haiku for extraction
+
+### Changed
+- `agent_framework.py`: Relaxed `ROLE_PULSE_CADENCE` — monitor 15min→1h, pm 30min→2h. Reduces Tier 2 Haiku calls by ~4x for monitors and ~4x for PMs.
+- `memory.py`: Default `EXTRACTION_MODEL` changed from Sonnet to Haiku (`claude-haiku-4-5-20251001`). Memory extraction runs once daily — Haiku is sufficient for fact extraction from conversations.
+- `session_continuity.py`: Default `SUMMARY_MODEL` changed from Sonnet to Haiku. Session summaries are structured extraction, not creative work.
+- Expected behavior: ~75% reduction in nightly extraction cost, ~4x reduction in pulse LLM frequency. Both still overridable via `MEMORY_EXTRACTION_MODEL` env var.
+
 ## [2026.03.22.6] - ADR-131 Phase 4: Dead code cleanup — Gmail/Calendar remnants
 
 ### Removed
