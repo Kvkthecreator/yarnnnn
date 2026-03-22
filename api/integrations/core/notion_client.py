@@ -9,7 +9,7 @@ Why Direct API instead of MCP?
 3. Neither option works with YARNNN's existing OAuth access tokens
 4. Direct API calls to api.notion.com work perfectly with OAuth tokens
 
-This follows the same pattern as GoogleAPIClient for Gmail/Calendar.
+Direct API is the standard pattern for all YARNNN platform clients.
 """
 
 import logging

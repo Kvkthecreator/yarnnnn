@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.6] - ADR-131 Phase 4: Dead code cleanup — Gmail/Calendar remnants
+
+### Removed
+- `context_import.py`: Deleted `import_gmail_messages()` and `_format_gmail_messages()` (zero callers)
+- `platform_semantics.py`: Deleted `GmailSemanticSignals` class and `extract_gmail_message_signals()` (zero callers)
+- `test_adr056_sync.py`: Removed Gmail and Calendar test cases (functions already deleted from worker)
+- `slack_client.py`, `notion_client.py`: Cleaned stale GoogleAPIClient references in docstrings
+- `platform_sync_scheduler.py`: Removed stale Google split-sync comment
+
 ## [2026.03.22.5] - ADR-131 Phase 3: Deep sweep — Gmail/Calendar removal from all code paths
 
 ### Changed

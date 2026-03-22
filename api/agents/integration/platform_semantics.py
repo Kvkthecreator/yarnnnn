@@ -1,8 +1,8 @@
 """
 Platform Semantic Extraction - ADR-031 Phase 1
 
-Extracts platform-specific signals that inform "what's worth saying",
-not just "how to say it".
+Extracts platform-specific signals from Slack and Notion that inform
+"what's worth saying", not just "how to say it".
 
 This module provides:
 1. Signal extraction from raw platform data
@@ -383,85 +383,6 @@ def extract_slack_channel_signals(
         result[key].sort(key=lambda x: x.get("_importance", 0), reverse=True)
 
     return result
-
-
-# =============================================================================
-# Gmail Semantic Extraction
-# =============================================================================
-
-@dataclass
-class GmailSemanticSignals:
-    """Semantic signals from Gmail messages."""
-    has_question: bool = False
-    has_action_request: bool = False
-    mentions_deadline: bool = False
-    is_urgent: bool = False
-    is_reply: bool = False
-    thread_length: int = 1
-    has_attachment: bool = False
-    is_from_external: bool = False
-
-    def to_dict(self) -> dict:
-        return {
-            "has_question": self.has_question,
-            "has_action_request": self.has_action_request,
-            "mentions_deadline": self.mentions_deadline,
-            "is_urgent": self.is_urgent,
-            "is_reply": self.is_reply,
-            "thread_length": self.thread_length,
-            "has_attachment": self.has_attachment,
-            "is_from_external": self.is_from_external,
-        }
-
-    @property
-    def importance_score(self) -> float:
-        score = 0.3
-        if self.is_urgent:
-            score += 0.3
-        if self.mentions_deadline:
-            score += 0.2
-        if self.has_action_request:
-            score += 0.1
-        if self.has_question and not self.is_reply:
-            score += 0.1
-        if self.is_from_external:
-            score += 0.1
-        return min(1.0, score)
-
-
-def extract_gmail_message_signals(
-    message: dict,
-    user_email: Optional[str] = None,
-) -> GmailSemanticSignals:
-    """Extract semantic signals from a Gmail message."""
-    signals = GmailSemanticSignals()
-
-    headers = message.get("headers", {})
-    body = message.get("body", message.get("snippet", ""))
-    subject = headers.get("Subject", headers.get("subject", ""))
-
-    full_text = f"{subject}\n{body}"
-
-    # Pattern detection
-    signals.has_question = _matches_patterns(full_text, QUESTION_PATTERNS)
-    signals.has_action_request = _matches_patterns(full_text, ACTION_PATTERNS)
-    signals.mentions_deadline = _matches_patterns(full_text, DEADLINE_PATTERNS)
-    signals.is_urgent = _matches_patterns(full_text, URGENCY_PATTERNS)
-
-    # Reply detection
-    signals.is_reply = subject.lower().startswith("re:")
-
-    # Attachment detection
-    signals.has_attachment = bool(message.get("attachments") or message.get("parts"))
-
-    # External sender detection
-    if user_email:
-        from_addr = headers.get("From", headers.get("from", ""))
-        user_domain = user_email.split("@")[-1] if "@" in user_email else ""
-        if user_domain and user_domain not in from_addr:
-            signals.is_from_external = True
-
-    return signals
 
 
 # =============================================================================

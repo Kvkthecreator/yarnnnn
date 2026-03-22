@@ -2,8 +2,7 @@
 Context Import Agent - Extract and structure context from external platforms.
 
 This agent processes raw data from Slack/Notion and produces structured
-context blocks for storage. It's the intelligence layer that transforms
-noise into signal.
+context blocks for storage.
 
 See ADR-027: Integration Read Architecture
 """
@@ -39,7 +38,7 @@ class ContextImportAgent:
     """
     Agent that extracts structured context from raw external data.
 
-    Takes raw messages/pages from Slack or Notion and produces:
+    Takes raw messages/pages from Slack and Notion and produces:
     - Structured context blocks (decisions, action items, etc.)
     - Summary of what was imported
     - Metadata for provenance
@@ -259,73 +258,6 @@ Last edited: {page_content.get('last_edited', 'Unknown')}
         except Exception as e:
             logger.error(f"[CONTEXT_IMPORT_AGENT] Execution failed: {e}")
             raise
-
-    async def import_gmail_messages(
-        self,
-        messages: list[dict],
-        source_name: str,
-        instructions: Optional[str] = None
-    ) -> ImportResult:
-        """
-        Import context from Gmail messages.
-
-        ADR-029: Gmail as full integration platform.
-
-        Args:
-            messages: Raw message data from MCP gmail_get_message tool
-            source_name: Label for the import (e.g., "Inbox", "Thread", "Search: query")
-            instructions: Optional user guidance (e.g., "Focus on project updates")
-
-        Returns:
-            ImportResult with extracted blocks and summary
-        """
-        # Prepare messages for the prompt
-        formatted_messages = self._format_gmail_messages(messages)
-
-        user_prompt = f"""## Source
-Gmail: {source_name}
-Message count: {len(messages)}
-
-## Messages
-{formatted_messages}
-"""
-
-        if instructions:
-            user_prompt += f"""
-## User Instructions
-{instructions}
-"""
-
-        return await self._execute(user_prompt, "gmail", len(messages))
-
-    def _format_gmail_messages(self, messages: list[dict]) -> str:
-        """Format Gmail messages for the prompt."""
-        lines = []
-
-        for msg in messages:
-            # Extract headers
-            headers = msg.get("headers", {})
-            from_addr = headers.get("From", headers.get("from", "Unknown"))
-            to_addr = headers.get("To", headers.get("to", ""))
-            subject = headers.get("Subject", headers.get("subject", "(no subject)"))
-            date = headers.get("Date", headers.get("date", ""))
-
-            # Extract body
-            body = msg.get("body", msg.get("snippet", ""))
-            # Truncate very long bodies
-            if len(body) > 2000:
-                body = body[:2000] + "... [truncated]"
-
-            lines.append(f"---")
-            lines.append(f"From: {from_addr}")
-            lines.append(f"To: {to_addr}")
-            lines.append(f"Date: {date}")
-            lines.append(f"Subject: {subject}")
-            lines.append(f"")
-            lines.append(body)
-            lines.append("")
-
-        return "\n".join(lines)
 
     def _format_slack_messages(self, messages: list[dict]) -> str:
         """Format Slack messages for the prompt."""

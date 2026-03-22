@@ -3,7 +3,7 @@ Slack API Client.
 
 ADR-076: Direct API client for Slack operations.
 Replaces MCP Gateway (ADR-050) with direct REST calls,
-matching the GoogleAPIClient and NotionAPIClient patterns.
+matching the NotionAPIClient pattern.
 
 Slack bot tokens (xoxb-...) don't expire, so no token refresh needed.
 """

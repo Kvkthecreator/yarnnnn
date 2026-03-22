@@ -45,13 +45,13 @@ def test_get_selected_sources_extracts_ids():
     mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
         data={
             "landscape": {
-                "selected_sources": ["label:INBOX", "label:Label_123"]
+                "selected_sources": ["page-id-1", "page-id-2"]
             }
         }
     )
 
-    result = asyncio.run(_get_selected_sources(mock_client, "user123", "gmail"))
-    assert result == ["label:INBOX", "label:Label_123"], f"Expected labels, got {result}"
+    result = asyncio.run(_get_selected_sources(mock_client, "user123", "notion"))
+    assert result == ["page-id-1", "page-id-2"], f"Expected page IDs, got {result}"
     print("✅ _get_selected_sources with strings: PASSED")
 
     # Test case 3: No landscape data
@@ -68,7 +68,7 @@ def test_get_selected_sources_extracts_ids():
         data={"landscape": {"selected_sources": []}}
     )
 
-    result = asyncio.run(_get_selected_sources(mock_client, "user123", "calendar"))
+    result = asyncio.run(_get_selected_sources(mock_client, "user123", "slack"))
     assert result == [], f"Expected empty list, got {result}"
     print("✅ _get_selected_sources with empty list: PASSED")
 
@@ -138,79 +138,6 @@ def test_sync_slack_skips_when_no_sources():
 
 
 # =============================================================================
-# Test: Gmail sync with labels
-# =============================================================================
-
-def test_sync_gmail_uses_label_ids():
-    """Test that _sync_gmail passes label_ids to GoogleAPIClient."""
-    from workers.platform_worker import _sync_gmail
-
-    mock_client = MagicMock()
-    integration = {
-        "settings": {},
-        "refresh_token": "refresh-token-123",
-    }
-
-    selected_sources = ["label:Label_123", "Label_456"]  # Both formats
-
-    # Patch at source module
-    with patch("integrations.core.google_client.GoogleAPIClient") as MockClient:
-        with patch.dict("os.environ", {"GOOGLE_CLIENT_ID": "client-id", "GOOGLE_CLIENT_SECRET": "client-secret"}):
-            mock_google = AsyncMock()
-            MockClient.return_value = mock_google
-
-            # Return message list
-            mock_google.list_gmail_messages.return_value = [
-                {"id": "msg1"},
-            ]
-
-            # Return full message
-            mock_google.get_gmail_message.return_value = {
-                "id": "msg1",
-                "snippet": "Test email content",
-                "payload": {
-                    "headers": [
-                        {"name": "Subject", "value": "Test Subject"},
-                        {"name": "From", "value": "test@example.com"},
-                        {"name": "Date", "value": "2026-02-12"},
-                    ]
-                },
-                "labelIds": ["Label_123"],
-            }
-
-            result = asyncio.run(_sync_gmail(mock_client, "user123", integration, selected_sources))
-
-            # Should have synced 2 labels (1 message each)
-            assert result["labels_synced"] == 2, f"Expected 2 labels synced, got {result}"
-            assert result["items_synced"] == 2, f"Expected 2 items, got {result}"
-
-            # Verify list_gmail_messages was called with label_ids
-            calls = mock_google.list_gmail_messages.call_args_list
-            assert len(calls) == 2
-
-            # First call should have label_ids=["Label_123"]
-            assert calls[0].kwargs.get("label_ids") == ["Label_123"]
-            # Second call should have label_ids=["Label_456"]
-            assert calls[1].kwargs.get("label_ids") == ["Label_456"]
-
-            print("✅ _sync_gmail uses label_ids: PASSED")
-
-
-def test_sync_gmail_skips_when_no_sources():
-    """Test that _sync_gmail skips when no sources selected."""
-    from workers.platform_worker import _sync_gmail
-
-    mock_client = MagicMock()
-    integration = {"settings": {}, "refresh_token": "token"}
-
-    result = asyncio.run(_sync_gmail(mock_client, "user123", integration, []))
-
-    assert result["items_synced"] == 0
-    assert result.get("skipped") == "no_sources_selected"
-    print("✅ _sync_gmail skips when empty: PASSED")
-
-
-# =============================================================================
 # Test: Notion sync with direct page fetch
 # =============================================================================
 
@@ -260,71 +187,6 @@ def test_sync_notion_skips_when_no_sources():
     assert result["items_synced"] == 0
     assert result.get("skipped") == "no_sources_selected"
     print("✅ _sync_notion skips when empty: PASSED")
-
-
-# =============================================================================
-# Test: Calendar sync
-# =============================================================================
-
-def test_sync_calendar_fetches_per_calendar():
-    """Test that _sync_calendar fetches events per calendar ID."""
-    from workers.platform_worker import _sync_calendar
-
-    mock_client = MagicMock()
-    integration = {
-        "settings": {},
-        "refresh_token": "refresh-token-123",
-    }
-
-    selected_sources = ["primary", "work@example.com"]
-
-    # Patch at source module
-    with patch("integrations.core.google_client.GoogleAPIClient") as MockClient:
-        with patch.dict("os.environ", {"GOOGLE_CLIENT_ID": "client-id", "GOOGLE_CLIENT_SECRET": "client-secret"}):
-            mock_google = AsyncMock()
-            MockClient.return_value = mock_google
-
-            # Return events for each calendar (dict format with items key)
-            mock_google.list_calendar_events.side_effect = [
-                {
-                    "items": [
-                        {"id": "event1", "summary": "Meeting 1", "start": {"dateTime": "2026-02-12T10:00:00Z"}},
-                        {"id": "event2", "summary": "Meeting 2", "start": {"dateTime": "2026-02-12T14:00:00Z"}},
-                    ],
-                },
-                {
-                    "items": [
-                        {"id": "event3", "summary": "Work Event", "start": {"date": "2026-02-13"}},
-                    ],
-                },
-            ]
-
-            result = asyncio.run(_sync_calendar(mock_client, "user123", integration, selected_sources))
-
-            assert result["calendars_synced"] == 2, f"Expected 2 calendars synced, got {result}"
-            assert result["items_synced"] == 3, f"Expected 3 events, got {result}"
-
-            # Verify list_calendar_events was called for each calendar
-            calls = mock_google.list_calendar_events.call_args_list
-            assert len(calls) == 2
-            assert calls[0].kwargs.get("calendar_id") == "primary"
-            assert calls[1].kwargs.get("calendar_id") == "work@example.com"
-
-            print("✅ _sync_calendar fetches per calendar: PASSED")
-
-
-def test_sync_calendar_skips_when_no_sources():
-    """Test that _sync_calendar skips when no sources selected."""
-    from workers.platform_worker import _sync_calendar
-
-    mock_client = MagicMock()
-    integration = {"settings": {}, "refresh_token": "token"}
-
-    result = asyncio.run(_sync_calendar(mock_client, "user123", integration, []))
-
-    assert result["items_synced"] == 0
-    assert result.get("skipped") == "no_sources_selected"
-    print("✅ _sync_calendar skips when empty: PASSED")
 
 
 # =============================================================================
@@ -387,17 +249,9 @@ if __name__ == "__main__":
     test_sync_slack_filters_by_selected_sources()
     test_sync_slack_skips_when_no_sources()
 
-    print("\n--- Gmail sync tests ---")
-    test_sync_gmail_uses_label_ids()
-    test_sync_gmail_skips_when_no_sources()
-
     print("\n--- Notion sync tests ---")
     test_sync_notion_fetches_pages_directly()
     test_sync_notion_skips_when_no_sources()
-
-    print("\n--- Calendar sync tests ---")
-    test_sync_calendar_fetches_per_calendar()
-    test_sync_calendar_skips_when_no_sources()
 
     print("\n--- sync_platform entry point tests ---")
     test_sync_platform_extracts_selected_sources_from_landscape()
