@@ -30,6 +30,38 @@ from services.supabase import UserClient
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# PROJECT.md field extractors (inlined from deleted routes/dashboard.py)
+# ---------------------------------------------------------------------------
+
+def _extract_title(content: str) -> str:
+    """Extract title (first H1) from PROJECT.md content."""
+    for line in (content or "").split("\n"):
+        if line.startswith("# "):
+            return line[2:].strip()
+    return ""
+
+
+def _extract_type_key(content: str) -> str | None:
+    """Extract type_key from PROJECT.md content without full parse."""
+    match = re.search(r'\*\*Type\*\*:\s*(\S+)', content or "")
+    return match.group(1) if match else None
+
+
+def _extract_purpose(content: str) -> str | None:
+    """Extract Purpose from PROJECT.md Objective section."""
+    in_objective = False
+    for line in (content or "").split("\n"):
+        if line.strip().startswith("## Objective"):
+            in_objective = True
+            continue
+        if in_objective and line.strip().startswith("## "):
+            break
+        if in_objective and "**Purpose**:" in line:
+            return line.split("**Purpose**:", 1)[1].strip()
+    return None
+
+
 # =============================================================================
 # ADR-128 Phase 6: Cognitive state parsing helpers
 # =============================================================================
@@ -245,8 +277,6 @@ class UpdateProjectRequest(BaseModel):
 @router.get("")
 async def list_projects(user: UserClient):
     """List all projects for the user — parsed from PROJECT.md content."""
-    from routes.dashboard import _extract_title, _extract_type_key, _extract_purpose
-
     try:
         # Query workspace_files for /projects/*/PROJECT.md (include content for parsing)
         result = (
