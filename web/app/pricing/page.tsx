@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Free and Pro plans for autonomous agents. All plans include Slack, Gmail, Notion, and Calendar connections.",
+    "Free and Pro plans for autonomous AI agents. All plans include Slack, Gmail, Notion, and Calendar. Start free, upgrade when you need more.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "autonomous AI pricing", "AI work assistant plans", "agent pricing"],
 });
@@ -22,14 +22,17 @@ interface PricingFeature {
 
 const features: PricingFeature[] = [
   { name: "Active agents", free: "2", pro: "10" },
+  { name: "Work units / month", free: "60", pro: "1,000" },
+  { name: "Monthly messages", free: "50", pro: "Unlimited" },
   { name: "Platforms available", free: "All 4", pro: "All 4" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
   { name: "Gmail labels", free: "5", pro: "Unlimited" },
   { name: "Notion pages", free: "10", pro: "Unlimited" },
   { name: "Sync frequency", free: "1x daily", pro: "Hourly" },
-  { name: "Monthly messages", free: "50", pro: "Unlimited" },
+  { name: "Rich output (PDF, PPTX, XLSX)", free: true, pro: true },
   { name: "Run history & review", free: true, pro: true },
   { name: "Learning from your edits", free: true, pro: true },
+  { name: "Multi-agent collaboration", free: true, pro: true },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -85,16 +88,17 @@ export default function PricingPage() {
                 Simple, honest pricing
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Start free, upgrade when you need more.
-                Every plan includes all four integrations and supervised agents.
+                Start free. Upgrade when your agents need more capacity.
+                Every plan includes all four integrations.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-16">
+              {/* Free */}
               <div className="border border-white/10 rounded-2xl p-8 flex flex-col">
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
-                  <p className="text-white/50 text-sm mb-6">Experience the full platform</p>
+                  <p className="text-white/50 text-sm mb-6">See what autonomous work feels like</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
                     <span className="text-white/50">/month</span>
@@ -104,11 +108,15 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>50 messages per month</span>
+                    <span>2 active agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>2 active agents</span>
+                    <span>60 work units / month</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>50 messages / month</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -116,7 +124,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1x daily sync</span>
+                    <span>Daily sync</span>
                   </li>
                 </ul>
 
@@ -128,6 +136,7 @@ export default function PricingPage() {
                 </Link>
               </div>
 
+              {/* Pro */}
               <div className="border border-white/20 rounded-2xl p-8 flex flex-col bg-white/5 relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="px-3 py-1 bg-white text-black text-xs font-medium rounded-full">
@@ -137,7 +146,7 @@ export default function PricingPage() {
 
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Pro</h2>
-                  <p className="text-white/50 text-sm mb-6">Unlimited messages and maximum throughput</p>
+                  <p className="text-white/50 text-sm mb-6">Full autonomous workforce</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$19</span>
                     <span className="text-white/50">/month</span>
@@ -150,11 +159,15 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited messages</span>
+                    <span>10 active agents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 active agents</span>
+                    <span>1,000 work units / month</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Unlimited messages</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -179,6 +192,23 @@ export default function PricingPage() {
               </div>
             </div>
 
+            {/* What are work units */}
+            <div className="max-w-3xl mx-auto mb-16">
+              <div className="border border-white/10 rounded-2xl p-6">
+                <h3 className="text-lg font-medium mb-3">What are work units?</h3>
+                <p className="text-white/50 text-sm leading-relaxed mb-4">
+                  Work units measure the autonomous work your agents do — each agent run,
+                  report assembly, and rendered output (PDF, slides, etc.) costs one unit.
+                  Messages (your conversations with agents) are counted separately.
+                </p>
+                <p className="text-white/40 text-xs">
+                  Free: 60 units/month covers daily runs for 2 agents. Pro: 1,000 units/month
+                  covers a full workforce running multiple times per day.
+                </p>
+              </div>
+            </div>
+
+            {/* Compare table */}
             <div className="border border-white/10 rounded-2xl overflow-hidden max-w-3xl mx-auto">
               <div className="p-6 border-b border-white/10">
                 <h3 className="text-lg font-medium">Compare plans</h3>
@@ -214,9 +244,9 @@ export default function PricingPage() {
             </div>
 
             <div className="text-center mt-16 mb-8">
-              <p className="text-white/70 text-lg mb-2">All plans include full integration coverage.</p>
+              <p className="text-white/70 text-lg mb-2">All plans include full platform coverage.</p>
               <p className="text-white/40 text-sm">
-                Slack, Gmail, Notion, and Calendar are available on every plan. Limits scale with Pro.
+                Slack, Gmail, Notion, and Calendar on every plan. Rich output formats included.
               </p>
             </div>
 

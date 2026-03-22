@@ -22,22 +22,22 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an autonomous AI platform for recurring knowledge work. It connects to Slack, Gmail, Notion, and Calendar, then runs persistent agents that deliver real work in the background and improve with every cycle.",
-      },
-      {
-        question: "What is the Orchestrator?",
-        answer:
-          "The Orchestrator is yarnnn's conversational interface. You use it to create agents, refine their output, and direct the system. It shares the same context and intelligence as your background agents.",
+          "yarnnn is an AI agent platform for recurring knowledge work. It connects to Slack, Gmail, Notion, and Calendar, then runs persistent agents in the background that deliver real work on schedule — recaps, briefs, research, reports — and improve with every cycle.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "Chat tools are session-centric — they reset every time. yarnnn is system-centric: it maintains synced work context, runs agents on schedule, and improves them over time through supervision and feedback loops.",
+          "Chat tools are session-based — they help in the moment but reset when you close the tab. yarnnn is system-based: it maintains synced context from your work tools, runs agents on schedule without you, and learns from your feedback over time. The output gets better the longer it runs.",
       },
       {
-        question: "Is yarnnn an AI agent platform?",
+        question: "What does \"autonomous\" mean here?",
         answer:
-          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the agent — a persistent entity with its own instructions, memory, sources, schedule, and run history.",
+          "Agents run in the background on schedule — you don't need to prompt them. They pull fresh context from your connected tools, produce work, and deliver it. You review and redirect when needed. Over time, they require less supervision.",
+      },
+      {
+        question: "What kind of work can agents do?",
+        answer:
+          "Common jobs include: weekly team updates from Slack, email triage and digests, meeting prep briefings, competitor monitoring, research tracking, and cross-platform status reports. Agents can also produce rich output like PDFs, slides, and spreadsheets.",
       },
     ],
   },
@@ -47,7 +47,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Which platforms does yarnnn connect to?",
         answer:
-          "Slack, Gmail, Google Calendar, and Notion. You authorize via OAuth and choose which channels, labels, or pages to include.",
+          "Slack, Gmail, Google Calendar, and Notion. You authorize via OAuth and choose which channels, labels, or pages to include — or let yarnnn auto-select based on your activity.",
       },
       {
         question: "Is my data safe?",
@@ -57,37 +57,37 @@ const faqSections: FaqSection[] = [
       {
         question: "What does yarnnn sync?",
         answer:
-          "Only selected source content and metadata needed for context-aware generation. Sync behavior and cadence depend on your plan.",
-      },
-      {
-        question: "Can yarnnn post or edit things in my tools?",
-        answer:
-          "Source integrations are read-only for context ingestion. Delivery is separate: yarnnn can send outputs to destinations you configure, but it does not silently mutate the source systems it reads from.",
+          "Only selected source content and metadata needed for context-aware work. yarnnn reads from your tools — it does not post, edit, or modify anything in them. Delivery is separate and controlled by you.",
       },
     ],
   },
   {
-    category: "Agents",
+    category: "Agents & How They Work",
     items: [
-      {
-        question: "What are agents?",
-        answer:
-          "Agents are autonomous entities that deliver recurring work on a schedule. Each has its own instructions, memory, and sources. You supervise their runs from the dashboard.",
-      },
-      {
-        question: "What kinds of agents can I create?",
-        answer:
-          "Common agent types include Recap (channel/label summaries), Meeting Prep (briefings from your calendar), Watch (monitoring for themes), Research (topic tracking with web search), and Summary (cross-platform synthesis).",
-      },
       {
         question: "Do I have to create agents manually?",
         answer:
-          "No. When you connect a platform, yarnnn automatically creates a matching project and agent. You can also create projects through conversation with the Orchestrator.",
+          "No. When you connect a platform, yarnnn automatically creates agents matched to your workflow and starts running them. You can also create agents through conversation — just describe what you need in plain language.",
       },
       {
         question: "How do agents improve over time?",
         answer:
-          "Each delivered, reviewed, or edited run becomes signal for future execution. Agents learn your preferred structure, emphasis, and tone as they accumulate feedback.",
+          "Every delivered, reviewed, or edited output becomes signal for future runs. Agents learn your preferred structure, emphasis, and tone. They also accumulate domain knowledge — understanding your team, projects, and communication patterns more deeply with each cycle.",
+      },
+      {
+        question: "Can multiple agents work together?",
+        answer:
+          "Yes. For bigger jobs, multiple agents can collaborate — one pulls from Slack, another from Gmail, another does research. A coordinator agent assembles their work into one polished deliverable. You get a finished product, not fragments.",
+      },
+      {
+        question: "Can I talk to agents directly?",
+        answer:
+          "Yes. Each agent has a meeting room where you can give direction, ask questions, or redirect their focus. Your instructions persist across sessions — agents remember what you told them.",
+      },
+      {
+        question: "What output formats are available?",
+        answer:
+          "Agents can produce plain text, email-ready content, PDFs, slide decks (PPTX), spreadsheets (XLSX), charts, and more. The format depends on the job — a weekly digest might be email, while a leadership report might be a PDF or slides.",
       },
     ],
   },
@@ -97,22 +97,17 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include Slack, Gmail, Notion, and Calendar integration. Pro adds unlimited messages, more agents, faster sync, and unlimited sources.",
+          "yarnnn has Free and Pro plans. Both include all four platform integrations. Free gives you 2 agents, 50 messages/month, and daily sync. Pro gives you 10 agents, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
       },
       {
-        question: "What are current agent limits?",
+        question: "What are work units?",
         answer:
-          "Free supports 2 active agents. Pro supports 10.",
+          "Work units measure autonomous work — agent runs, report assemblies, and rendered output. Free includes 60 work units/month, Pro includes 1,000. This is separate from messages (your conversations with agents).",
       },
       {
         question: "How does sync frequency differ by plan?",
         answer:
-          "Free: 1x daily. Pro: hourly.",
-      },
-      {
-        question: "How does source capacity differ by plan?",
-        answer:
-          "Free: 5 Slack channels, 5 Gmail labels, 10 Notion pages. Pro: unlimited across all platforms.",
+          "Free: once daily. Pro: hourly. Faster sync means agents work with fresher context.",
       },
     ],
   },
@@ -122,17 +117,17 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up and connect one platform. yarnnn creates your first agent automatically. You can also ask the Orchestrator to create agents for topics or tasks — no platform needed.",
-      },
-      {
-        question: "Do I need to configure everything up front?",
-        answer:
-          "No. Start with one platform and one agent. Expand as you build confidence in the output quality.",
+          "Sign up and connect one platform. yarnnn creates your first agents automatically and starts working. No configuration required — you can refine later.",
       },
       {
         question: "What is the best first agent?",
         answer:
-          "Most users start with a Slack or Gmail Recap — these give fast value and create clean feedback signal for future improvements.",
+          "Most users start with a Slack or Gmail recap. These give fast, visible value and create clean feedback signal for the system to learn from.",
+      },
+      {
+        question: "How quickly do I see results?",
+        answer:
+          "Your first agent output is typically ready within minutes of connecting a platform. From there, quality improves with every cycle as agents accumulate context and learn from your feedback.",
       },
     ],
   },
@@ -143,14 +138,14 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: product model, integrations, agent types and modes, pricing, and getting started.",
+    "Frequently asked questions about yarnnn: how agents work, platform integrations, pricing, output formats, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
     "autonomous ai faq",
-    "agent modes",
+    "ai agent faq",
     "work agents faq",
-    "context powered ai",
+    "ai employee faq",
   ],
 });
 
@@ -182,7 +177,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Product model, integrations, pricing, and how to get meaningful autonomous output quickly.
+              How agents work, what they can do, pricing, and how to get useful output fast.
             </p>
 
             <div className="space-y-16">
@@ -204,7 +199,7 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start with one agent, then expand from real usage signal.</p>
+              <p className="text-white/50 mb-8">Start with one agent — you&apos;ll see results in minutes.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"

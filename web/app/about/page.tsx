@@ -9,14 +9,14 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — Why we built yarnnn",
   description:
-    "We built yarnnn because useful AI work requires persistent context and supervised autonomy. Specialists should improve over time and deliver useful work, not restart every session.",
+    "We built yarnnn because AI should do the recurring work, not just answer questions. Persistent agents that learn your context and deliver real output on schedule.",
   path: "/about",
   keywords: [
     "about yarnnn",
     "autonomous ai",
-    "context accumulation",
+    "ai employee",
     "agent intelligence",
-    "supervision model",
+    "recurring ai work",
   ],
 });
 
@@ -43,27 +43,31 @@ export default function AboutPage() {
         <LandingHeader inverted />
 
         <main className="flex-1">
+          {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              We built yarnnn because
+              AI should do the work,
               <br />
-              <span className="text-white/50">AI should compound, not reset.</span>
+              <span className="text-white/50">not just answer questions.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Most AI products are powerful in a single interaction but weak over time.
-                They do not retain the right work context, and they rarely run meaningful work autonomously.
+                Most AI products are impressive in a single conversation. But close the tab
+                and everything resets. Tomorrow you&apos;re starting from scratch.
               </p>
               <p>
-                Real knowledge work is recurring and context-heavy. Good automation needs memory,
-                source grounding, and supervision loops that improve quality each cycle.
+                Real knowledge work is recurring. The same reports, the same updates, the same
+                synthesis across the same tools — week after week. Good AI for this kind of work
+                needs memory, context from your actual systems, and the ability to run without you.
               </p>
               <p className="text-white font-medium">
-                yarnnn is our answer: a system of autonomous agents that learns from your world and your supervision.
+                yarnnn is what we built: AI agents that know your work, run on schedule, and get
+                better with every cycle. You supervise outcomes instead of doing the work yourself.
               </p>
             </div>
           </section>
 
+          {/* What we believe */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">What we believe</h2>
@@ -71,60 +75,65 @@ export default function AboutPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Context creates utility</h3>
+                    <h3 className="text-lg font-medium text-white">AI should know your work</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Intelligence without context produces generic output. Useful AI needs grounded awareness of
-                      decisions, relationships, timing, and source history.
+                      Intelligence without context produces generic output. Useful AI needs
+                      grounded awareness of your team, your projects, your communication patterns,
+                      and what happened last week.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn connects to your work platforms and accumulates context that improves every future run.
+                      yarnnn connects to Slack, Gmail, Notion, and Calendar — and remembers
+                      everything across sessions.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Supervision beats prompting</h3>
+                    <h3 className="text-lg font-medium text-white">Supervision, not prompting</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      The goal is not faster prompting. The goal is reliable autonomous work that can be reviewed,
-                      refined, and redirected with clear control points.
+                      The goal isn&apos;t faster prompting. The goal is to not have to prompt at all.
+                      Agents run in the background and deliver work. You review, redirect, and
+                      move on.
                     </p>
                     <p className="text-white/30 text-sm">
-                      In yarnnn, you supervise agents instead of manually rebuilding the same outputs.
+                      The shift: from operator to supervisor. From building context to reviewing output.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Modeled autonomy matters</h3>
+                    <h3 className="text-lg font-medium text-white">Agents should develop</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Different work needs different behaviors. Some agents should run on cadence.
-                      Others should react to events, review proactively, or coordinate downstream work.
+                      A good assistant gets better over time. They learn your preferences,
+                      understand what matters, and require less direction the longer they work for you.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn agents adapt their behavior to fit the work — scheduled recaps, event-driven prep, ongoing monitoring, or deep research.
+                      yarnnn agents learn from your edits, remember your feedback, and build
+                      domain knowledge that compounds with every cycle.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Compounding is the moat</h3>
+                    <h3 className="text-lg font-medium text-white">The longer it runs, the better it gets</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Persistent source context plus agent memory creates durable performance gains.
-                      Over time, supervision effort drops while quality rises.
+                      Day 1, the output is good. Day 90, it&apos;s irreplaceable. An agent that knows
+                      3 months of your Slack, email, and meeting patterns can&apos;t be replicated by
+                      switching to another tool.
                     </p>
                     <p className="text-white/30 text-sm">
-                      The longer an agent runs, the harder its accumulated intelligence is to replicate elsewhere.
+                      That compounding intelligence is the product. Everything else is support.
                     </p>
                   </div>
                 </div>
@@ -132,75 +141,85 @@ export default function AboutPage() {
             </div>
           </section>
 
+          {/* What yarnnn is not */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-8">What yarnnn is not</h2>
               <p className="text-white/50 mb-12 max-w-xl">
-                We intentionally avoid broad, vague product surface area.
+                We&apos;re focused. These are things we intentionally chose not to be.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not just a chat UI</h3>
+                  <h3 className="text-lg font-medium mb-2">Not a chatbot</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    The Orchestrator is your interface into a running system of agents, not the product itself.
+                    You can talk to yarnnn, but the product is the work that happens
+                    when you&apos;re not talking. Agents run in the background.
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not template fill-in automation</h3>
+                  <h3 className="text-lg font-medium mb-2">Not template automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Agents generate from live context and memory, not static form fields.
+                    Agents generate from live context and accumulated memory, not
+                    static form fields.
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not context-free agent tooling</h3>
+                  <h3 className="text-lg font-medium mb-2">Not one-shot task execution</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    We do not optimize for isolated one-off tasks disconnected from source systems.
+                    We optimize for recurring, high-context work — not arbitrary one-off commands
+                    disconnected from your real systems.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not uncontrolled automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    The model is supervised autonomy with run history, delivery history, and explicit user control.
+                    Every agent has run history, delivery controls, and explicit user oversight.
+                    Supervised autonomy, not a black box.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
+          {/* Who it's for */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-12">Who yarnnn is for</h2>
 
               <div className="space-y-6">
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Operators with recurring high-context work</h3>
+                  <h3 className="text-base font-medium mb-2">People who do the same knowledge work every week</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Founders, consultants, chiefs of staff, and team leads who repeatedly synthesize across tools.
+                    Founders, consultants, chiefs of staff, and team leads who spend hours
+                    synthesizing across tools — every Monday, every Friday, before every meeting.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Teams that run on multiple platforms</h3>
+                  <h3 className="text-base font-medium mb-2">Teams spread across Slack, Gmail, Notion, and Calendar</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    If your workflow spans Slack, Gmail, Notion, and Calendar, yarnnn turns that sprawl into coherent output.
+                    If your workflow spans multiple platforms, yarnnn turns that sprawl into
+                    coherent, recurring output. Automatically.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People shifting from execution to supervision</h3>
+                  <h3 className="text-base font-medium mb-2">Anyone who wants to supervise instead of execute</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    If you want fewer repetitive drafting cycles and more high-quality supervision, yarnnn is built for that transition.
+                    If you&apos;d rather review a finished brief than build one from scratch,
+                    yarnnn is built for that shift.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
+          {/* CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Build your first agent.
+                Put your first agent to work.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
                 Connect your tools, let yarnnn create your first agent, and start supervising.
