@@ -15,7 +15,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ORCHESTRATOR_ROUTE } from '@/lib/routes';
+import { HOME_ROUTE } from '@/lib/routes';
 import {
   Command,
   CheckCircle2,
@@ -36,6 +36,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
+import { usePlatformOnboardingState } from '@/hooks/usePlatformOnboardingState';
 import { Todo } from '@/types/desk';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
@@ -236,6 +237,21 @@ export function ChatFirstDesk() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Platform onboarding state — for cold-start empty state
+  const { state: onboardingState } = usePlatformOnboardingState();
+  const [connecting, setConnecting] = useState<string | null>(null);
+
+  const handleConnect = useCallback(async (platform: string) => {
+    setConnecting(platform);
+    try {
+      const result = await api.integrations.getAuthorizationUrl(platform);
+      window.location.href = result.authorization_url;
+    } catch (err) {
+      console.error(`Failed to initiate ${platform} OAuth:`, err);
+      setConnecting(null);
+    }
+  }, []);
+
   const {
     attachments,
     attachmentPreviews,
@@ -255,7 +271,7 @@ export function ChatFirstDesk() {
     if (searchParams?.has('create')) {
       setInput('I want to set up a new project');
       textareaRef.current?.focus();
-      router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
+      router.replace(HOME_ROUTE, { scroll: false });
     }
   }, [searchParams, router]);
 
@@ -269,7 +285,7 @@ export function ChatFirstDesk() {
     const status = searchParams?.get('status');
     if (provider && status === 'connected') {
       setBootstrapProvider(provider);
-      router.replace(ORCHESTRATOR_ROUTE, { scroll: false });
+      router.replace(HOME_ROUTE, { scroll: false });
 
       // Map OAuth provider to registry type_key
       const BOOTSTRAP_TYPE_KEYS: Record<string, string> = {
@@ -574,12 +590,45 @@ export function ChatFirstDesk() {
               <div className="py-8">
                 <div className="text-center mb-8">
                   <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                  <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
+                  <h2 className="text-lg font-medium mb-1">
+                    {onboardingState === 'no_platforms' ? 'Welcome to YARNNN' : 'What would you like to work on?'}
+                  </h2>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    Set up a project, search your platforms, or just ask anything.
+                    {onboardingState === 'no_platforms'
+                      ? 'Connect a work platform to get started, or create a project from scratch.'
+                      : 'Set up a project, search your platforms, or just ask anything.'}
                   </p>
                 </div>
-                <div className="max-w-md mx-auto space-y-4">
+                <div className="max-w-md mx-auto space-y-3">
+                  {onboardingState === 'no_platforms' && (
+                    <>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connect a platform</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['slack', 'notion'] as const).map((platform) => (
+                          <button
+                            key={platform}
+                            onClick={() => handleConnect(platform)}
+                            disabled={connecting !== null}
+                            className={cn(
+                              "flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left",
+                              connecting === platform && "opacity-70",
+                            )}
+                          >
+                            {connecting === platform
+                              ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                              : getPlatformIcon(platform, 'w-5 h-5')
+                            }
+                            <span className="text-sm font-medium capitalize">{platform}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3 py-1">
+                        <div className="flex-1 border-t border-border" />
+                        <span className="text-xs text-muted-foreground">or</span>
+                        <div className="flex-1 border-t border-border" />
+                      </div>
+                    </>
+                  )}
                   <button
                     onClick={() => {
                       setInput(NEW_PROJECT_PROMPT);
@@ -595,7 +644,9 @@ export function ChatFirstDesk() {
                       <span className="text-xs text-muted-foreground block">Start a custom project from scratch</span>
                     </div>
                   </button>
-                  <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
+                  {onboardingState !== 'no_platforms' && (
+                    <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
+                  )}
                 </div>
               </div>
             )}

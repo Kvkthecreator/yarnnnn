@@ -3,10 +3,11 @@
 /**
  * ADR-037: Chat-First Surface Architecture
  *
- * Navigation model (simplified 2026-03-19):
- * Primary:   Dashboard | Orchestrator | Projects
+ * Navigation model (simplified 2026-03-22):
+ * Primary:   Orchestrator | Projects
  * Secondary: Context | Activity | Settings
  *
+ * Dashboard collapsed into Orchestrator (single landing page).
  * Agents hidden from nav (ADR-122: all agents belong to projects).
  * Agent pages still accessible via direct URL and project cross-links.
  * Context = platform connections + uploaded files (was "Sources").
@@ -15,14 +16,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Command, ChevronDown, Settings, Briefcase, Activity, Layers, LayoutDashboard } from 'lucide-react';
+import { Command, ChevronDown, Settings, Briefcase, Activity, Layers } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_LABEL, HOME_ROUTE, isHomeRoute, ORCHESTRATOR_ROUTE, ORCHESTRATOR_LABEL, isOrchestratorRoute, PROJECTS_ROUTE, PROJECTS_LABEL } from '@/lib/routes';
+import { HOME_LABEL, HOME_ROUTE, isHomeRoute, PROJECTS_ROUTE, PROJECTS_LABEL } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -230,9 +231,9 @@ function AuthenticatedLayoutInner({
         label: currentRoute.label,
       };
     }
-    // On home route = Dashboard
+    // On home route = Orchestrator
     return {
-      icon: LayoutDashboard,
+      icon: Command,
       label: HOME_LABEL,
     };
   };
@@ -275,7 +276,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary: Dashboard + Orchestrator + Projects */}
+                {/* Primary: Orchestrator (home) + Projects */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -289,22 +290,8 @@ function AuthenticatedLayoutInner({
                     isOnHome && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <LayoutDashboard className="w-4 h-4" />
-                  {HOME_LABEL}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDropdownOpen(false);
-                    router.push(ORCHESTRATOR_ROUTE);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    isOrchestratorRoute(pathname) && 'bg-primary/5 text-primary'
-                  )}
-                >
                   <Command className="w-4 h-4" />
-                  {ORCHESTRATOR_LABEL}
+                  {HOME_LABEL}
                 </button>
                 <button
                   onClick={(e) => {

@@ -5,8 +5,9 @@ Handles event-driven agent triggering from platform events.
 
 Supports:
 - Slack events (mentions, DMs, channel messages)
-- Gmail events (new emails, thread updates)
 - Notion events (page changes) [future]
+
+ADR-131: Gmail events removed (sunset).
 
 Event Flow:
 1. Platform webhook → event_triggers.handle_event()
@@ -17,7 +18,6 @@ Event Flow:
 Usage:
     from services.event_triggers import (
         handle_slack_event,
-        handle_gmail_event,
         get_agents_for_event,
     )
 """
@@ -43,12 +43,6 @@ class SlackEventType(str, Enum):
     MESSAGE_IM = "message_im"         # DM to bot
     MESSAGE_CHANNEL = "message"       # Message in subscribed channel
     REACTION_ADDED = "reaction_added" # Reaction on a message
-
-
-class GmailEventType(str, Enum):
-    """Gmail event types that can trigger agents."""
-    NEW_MESSAGE = "new_message"       # New email received
-    THREAD_UPDATE = "thread_update"   # Reply to existing thread
 
 
 class NotionEventType(str, Enum):
@@ -348,42 +342,6 @@ async def handle_slack_event(
         thread_id=thread_ts,
         sender_id=user,
         content_preview=text[:200] if text else None,
-    )
-
-    return await get_agents_for_event(db_client, event)
-
-
-async def handle_gmail_event(
-    db_client,
-    push_notification: dict,
-    user_id: str,
-) -> list[TriggerMatch]:
-    """
-    Handle incoming Gmail push notification and find matching agents.
-
-    Args:
-        db_client: Supabase client
-        push_notification: Gmail push notification payload
-        user_id: YARNNN user ID (from webhook routing)
-
-    Returns:
-        List of matched agents
-    """
-    # Gmail push notifications are minimal - they just indicate change
-    # We need to fetch actual messages to determine event details
-    history_id = push_notification.get("historyId")
-
-    # For now, treat as generic new message event
-    # Full implementation would fetch history and determine specific changes
-
-    event = PlatformEvent(
-        platform="gmail",
-        event_type="new_message",
-        user_id=user_id,
-        resource_id="inbox",  # Would be determined by which labels changed
-        resource_name="Inbox",
-        event_data=push_notification,
-        event_ts=datetime.now(timezone.utc),
     )
 
     return await get_agents_for_event(db_client, event)

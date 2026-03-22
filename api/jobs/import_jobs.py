@@ -1,13 +1,14 @@
 """
 YARNNN v5 - Integration Import Jobs
 
-Processes context import jobs for Slack/Gmail/Notion integrations.
+Processes context import jobs for Slack/Notion integrations.
 Integrated into unified_scheduler.py to run every 5 minutes.
+ADR-131: Gmail import removed (sunset).
 
 Flow:
 1. Query pending import jobs from integration_import_jobs table
 2. Fetch user's platform credentials from platform_connections
-3. Fetch data via MCP (Slack channels, Gmail labels, Notion pages)
+3. Fetch data via Direct API (Slack channels, Notion pages)
 4. Store results in platform_content (ADR-058 Knowledge Base Architecture)
 5. Update sync_registry with sync status
 6. Update job status
@@ -561,254 +562,6 @@ async def process_notion_import(
     }
 
 
-async def process_gmail_import(
-    supabase_client,
-    job: dict,
-    integration: dict,
-    google_client,  # GoogleAPIClient, NOT MCP
-    agent,
-    token_manager,
-) -> dict:
-    """
-    Process a Gmail import job (ADR-029).
-
-    Uses GoogleAPIClient for Gmail API calls (NOT MCP protocol).
-
-    Supports importing:
-    - inbox: Recent messages from inbox
-    - thread:<id>: Specific email thread
-    - query:<query>: Messages matching Gmail search query
-    """
-    import os
-    from services.platform_content import store_gmail_items_batch
-
-    user_id = job["user_id"]
-    metadata = integration.get("metadata", {}) or {}
-
-    resource_id = job["resource_id"]  # "inbox", "thread:abc123", or "query:from:sarah"
-    resource_name = job.get("resource_name", resource_id)
-    instructions = job.get("instructions")
-
-    # Check if style learning is requested
-    config = job.get("config") or {}
-    learn_style = config.get("learn_style", False)
-
-    # ADR-030: Get scope parameters
-    scope = job.get("scope") or {}
-    recency_days = scope.get("recency_days", 7)
-    max_items = scope.get("max_items", 100)
-
-    # Get OAuth credentials
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        raise ValueError("Google OAuth not configured")
-
-    # Decrypt refresh token
-    refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
-    if not refresh_token:
-        raise ValueError("Gmail integration missing refresh token")
-
-    # Parse resource type
-    if resource_id.startswith("thread:"):
-        thread_id = resource_id.split(":", 1)[1]
-        logger.info(f"[IMPORT] Fetching Gmail thread: {thread_id}")
-
-        thread_data = await google_client.get_gmail_thread(
-            thread_id=thread_id,
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token,
-        )
-        messages = thread_data.get("messages", [])
-
-    elif resource_id.startswith("label:"):
-        # ADR-055: Label-based import - sync emails from a specific label
-        label_id = resource_id.split(":", 1)[1]
-        logger.info(f"[IMPORT] Fetching Gmail messages for label: {label_id} ({resource_name})")
-
-        # Add recency filter
-        from datetime import timedelta
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=recency_days)
-        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
-
-        messages = await google_client.list_gmail_messages(
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token,
-            query=date_filter,
-            max_results=max_items,
-            label_ids=[label_id],  # ADR-055: Filter by label
-        )
-
-    else:
-        # Default: list messages (inbox or query)
-        # ADR-030: Build query with recency filter
-        base_query = None
-        if resource_id.startswith("query:"):
-            base_query = resource_id.split(":", 1)[1]
-        elif resource_id != "inbox":
-            base_query = resource_id  # Treat as query
-
-        # Add recency filter to query
-        from datetime import timedelta
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=recency_days)
-        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
-
-        if base_query:
-            query = f"{base_query} {date_filter}"
-        else:
-            query = date_filter
-
-        logger.info(f"[IMPORT] Fetching Gmail messages: {query} (max: {max_items})")
-
-        messages = await google_client.list_gmail_messages(
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token,
-            query=query,
-            max_results=max_items,
-        )
-
-    if not messages:
-        return {
-            "blocks_extracted": 0,
-            "ephemeral_stored": 0,
-            "items_processed": 0,
-            "items_filtered": 0,
-            "summary": "No messages found",
-            "style_learned": False,
-        }
-
-    # Fetch full message content for each message
-    # ADR-030: Respect max_items from scope (capped at 50 for performance)
-    fetch_limit = min(max_items, 50)
-    messages_to_fetch = messages[:fetch_limit]
-    total_messages = len(messages_to_fetch)
-
-    # ADR-030: Update progress - fetching phase
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=10,
-        phase="fetching",
-        items_total=total_messages,
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    full_messages = []
-    for idx, msg in enumerate(messages_to_fetch):
-        msg_id = msg.get("id")
-        if msg_id:
-            try:
-                full_msg = await google_client.get_gmail_message(
-                    message_id=msg_id,
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token,
-                )
-                full_messages.append(full_msg)
-
-                # Update progress every 5 messages or at the end
-                if (idx + 1) % 5 == 0 or idx == total_messages - 1:
-                    fetch_progress = 10 + int((idx + 1) / total_messages * 40)  # 10-50%
-                    await update_job_progress(
-                        supabase_client,
-                        job["id"],
-                        progress=fetch_progress,
-                        phase="fetching",
-                        items_total=total_messages,
-                        items_completed=idx + 1,
-                        current_resource=resource_name,
-                    )
-            except Exception as e:
-                logger.warning(f"[IMPORT] Failed to fetch message {msg_id}: {e}")
-
-    # ADR-030: Update progress - processing phase
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=55,
-        phase="processing",
-        items_total=len(full_messages),
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    # Run agent to extract context
-    logger.info(f"[IMPORT] Processing {len(full_messages)} Gmail messages with agent")
-    import_result = await agent.import_gmail_messages(
-        messages=full_messages,
-        source_name=resource_name,
-        instructions=instructions,
-    )
-
-    # ADR-030: Update progress - storing phase
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=75,
-        phase="storing",
-        items_total=len(import_result.blocks) if import_result.blocks else 0,
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    # ADR-058: Store raw messages to platform_content
-    # Use resource_id for proper association (especially for label: imports)
-    items_stored = await store_gmail_items_batch(
-        db_client=supabase_client,
-        user_id=user_id,
-        label=resource_id,  # ADR-055: Use resource_id for proper filtering
-        messages=full_messages,
-    )
-    logger.info(f"[IMPORT] Stored {items_stored} emails to platform_content")
-
-    # ADR-058: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in platform_content only
-    blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
-
-    # ADR-030: Update progress - nearly complete
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=95,
-        phase="storing",
-        items_total=blocks_extracted,
-        items_completed=blocks_extracted,
-        current_resource=resource_name,
-    )
-
-    # ADR-059: Style learning removed — TP learns style conversationally
-    style_learned = False
-    style_confidence = None
-
-    # ADR-030: Update coverage state
-    await update_coverage_state(
-        supabase_client,
-        user_id=user_id,
-        provider="gmail",
-        resource_id=resource_id,
-        resource_name=resource_name,
-        coverage_state="partial" if recency_days < 90 else "covered",
-        scope=scope,
-        items_extracted=len(full_messages),
-        blocks_created=blocks_extracted,  # ADR-038: blocks extracted (not stored to memories)
-    )
-
-    return {
-        "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
-        "ephemeral_stored": items_stored,
-        "items_processed": import_result.items_processed,
-        "items_filtered": import_result.items_filtered,
-        "summary": import_result.summary,
-        "style_learned": style_learned,
-        "style_confidence": style_confidence,
-    }
-
-
 async def process_import_job(supabase_client, job: dict) -> bool:
     """
     Process a single import job.
@@ -818,7 +571,6 @@ async def process_import_job(supabase_client, job: dict) -> bool:
     """
     from integrations.core.slack_client import get_slack_client
     from integrations.core.notion_client import get_notion_client
-    from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
     from agents.integration.context_import import ContextImportAgent
 
@@ -855,12 +607,6 @@ async def process_import_job(supabase_client, job: dict) -> bool:
             notion_client = get_notion_client()
             result = await process_notion_import(
                 supabase_client, job, integration, notion_client, agent, token_manager
-            )
-        elif provider == "gmail":
-            # ADR-029: Gmail import support (Direct API)
-            google_client = get_google_client()
-            result = await process_gmail_import(
-                supabase_client, job, integration, google_client, agent, token_manager
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}")

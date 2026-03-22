@@ -27,7 +27,7 @@ CREATE_PROJECT_TOOL = {
     "description": """Create a new project. Two modes:
 
 1. **Platform project** (use type_key): Creates the project with member agent(s) + PM automatically.
-   Available type_keys: slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom.
+   Available type_keys: slack_digest, notion_digest, cross_platform_synthesis, custom.
    Every project gets a PM agent for coordination and delivery. Just pass title and type_key.
 
 2. **Custom project** (no type_key): Assembles existing agents into a collaboration project.
@@ -52,7 +52,7 @@ Examples:
             },
             "type_key": {
                 "type": "string",
-                "description": "Project type from registry: slack_digest, gmail_digest, notion_digest, cross_platform_synthesis, custom. When set, agents are created automatically.",
+                "description": "Project type from registry: slack_digest, notion_digest, cross_platform_synthesis, custom. When set, agents are created automatically.",
             },
             "objective": {
                 "type": "object",

@@ -441,16 +441,6 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
                 "freshness": calculate_freshness(last_synced, now),
             })
 
-            # Google OAuth stores one "gmail" row covering both Gmail and Calendar
-            if platform_name == "gmail":
-                cal_synced = max_synced.get("calendar")
-                platforms.append({
-                    "platform": "calendar",
-                    "status": status,
-                    "last_synced": cal_synced,
-                    "freshness": calculate_freshness(cal_synced, now),
-                })
-
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
 
@@ -572,16 +562,6 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
                 "freshness": calculate_freshness(last_synced, now),
                 "resources_synced": resource_counts.get(platform, 0),
             })
-
-            # Google OAuth stores one "gmail" row covering both Gmail and Calendar
-            if platform == "gmail":
-                cal_synced = max_synced.get("calendar")
-                platform_freshness.append({
-                    "platform": "calendar",
-                    "status": status,
-                    "freshness": calculate_freshness(cal_synced, now),
-                    "resources_synced": resource_counts.get("calendar", 0),
-                })
 
         summary["platform_sync_freshness"] = platform_freshness
 

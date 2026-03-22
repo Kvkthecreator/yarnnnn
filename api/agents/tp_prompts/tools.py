@@ -85,7 +85,7 @@ Format: `<type>:<identifier>`
 - "agent" = recurring automated content (reports, digests, updates)
 - "version" = generated agent content (output of a generation run)
 - "memory" = context/knowledge about user (read-only; updated implicitly)
-- "platform" = connected integration (Slack, Gmail, Notion)
+- "platform" = connected integration (Slack, Notion)
 
 ---
 
@@ -151,7 +151,6 @@ agent creation, PM setup, source resolution, and delivery defaults automatically
 ```
 CreateProject(type_key: "slack_digest")
 CreateProject(type_key: "notion_digest")
-CreateProject(type_key: "gmail_digest")
 ```
 These are 1:1 with platform. Don't create duplicates — registry enforces uniqueness.
 

@@ -79,7 +79,7 @@ async def validate_integration(auth: Any, provider: str) -> IntegrationHealth:
 
     Args:
         auth: Auth context with user_id and client
-        provider: Platform provider name (slack, gmail, notion)
+        provider: Platform provider name (slack, notion)
 
     Returns:
         IntegrationHealth with detailed test results
@@ -193,8 +193,6 @@ async def _test_read(auth: Any, provider: str, config: dict) -> CapabilityStatus
     try:
         if provider == "slack":
             result = await _test_slack_read(auth, result)
-        elif provider == "gmail":
-            result = await _test_gmail_read(auth, result)
         elif provider == "notion":
             result = await _test_notion_read(auth, result)
         else:
@@ -240,58 +238,6 @@ async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
     result.details = {
         "channels_found": len(channels),
         "first_channel": channels[0] if channels else None,
-    }
-
-    return result
-
-
-async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilityStatus:
-    """Test Gmail read capabilities."""
-    import os
-    from integrations.core.google_client import get_google_client
-    from integrations.core.tokens import get_token_manager
-
-    # Get credentials
-    integration = auth.client.table("platform_connections").select(
-        "credentials_encrypted, refresh_token_encrypted, metadata"
-    ).eq("user_id", auth.user_id).eq("platform", "gmail").single().execute()
-
-    if not integration.data:
-        result.status = "failed"
-        result.error = "No Gmail integration"
-        return result
-
-    token_manager = get_token_manager()
-    refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
-
-    if not refresh_token_encrypted:
-        result.status = "failed"
-        result.error = "Missing refresh token. Please reconnect Gmail."
-        return result
-
-    refresh_token = token_manager.decrypt(refresh_token_encrypted)
-
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        result.status = "failed"
-        result.error = "Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET"
-        return result
-
-    # Try listing messages
-    google_client = get_google_client()
-    messages = await google_client.list_gmail_messages(
-        client_id=client_id,
-        client_secret=client_secret,
-        refresh_token=refresh_token,
-        max_results=1,
-    )
-
-    result.status = "ok"
-    result.details = {
-        "messages_found": len(messages),
-        "can_list": True,
     }
 
     return result
@@ -377,10 +323,6 @@ def _generate_recommendations(health: IntegrationHealth, config: dict) -> list[s
             if "team_id" in (cap.error or ""):
                 recommendations.append(
                     "Re-authenticate Slack to ensure team_id is captured"
-                )
-            if "refresh_token" in (cap.error or ""):
-                recommendations.append(
-                    "Re-authenticate Gmail with offline access to get refresh_token"
                 )
 
     # Add platform-specific recommendations
