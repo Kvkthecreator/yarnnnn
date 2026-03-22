@@ -10,32 +10,49 @@ Each agent combines four things:
 
 1. **A job**: what it is supposed to produce
 2. **Coverage**: which sources it should draw from
-3. **A mode**: when it should act
+3. **A schedule**: when and how often it runs
 4. **Feedback history**: what it has learned from prior runs
 
 That is why the tenth run of an agent should be better than the first.
 
-## Common agent patterns
+## Common agent jobs
 
 Most users begin with one of these:
 
-- **Recap / Digest**: summarize activity in a source or domain
-- **Meeting Prep**: prepare context before a meeting
-- **Status Update**: synthesize updates for a stakeholder or team
-- **Watch**: monitor a topic and surface meaningful signal
-- **Research**: investigate a bounded question and return a structured result
+- **Weekly update**: summarize Slack channels, Gmail labels, or Notion pages on a schedule
+- **Meeting prep**: pull relevant context into a briefing before each meeting
+- **Email triage**: highlight what needs attention and what can wait
+- **Competitor watch**: monitor topics or competitors with web research
+- **Research tracker**: investigate a topic and deepen findings over time
+- **Status report**: synthesize activity across platforms into a polished deliverable
 
-## Modes
+## How agents run
 
-Modes describe how an agent decides when to act.
+Every agent has a **pulse** — an autonomous sense-and-decide cycle that runs on cadence.
 
-| Mode | What it means |
-|---|---|
-| `recurring` | Runs on a schedule |
-| `goal` | Runs toward a specific objective |
-| `reactive` | Runs when event-driven conditions are met |
-| `proactive` | Reviews a domain periodically and acts when warranted |
-| `coordinator` | Participates in a supervisory review loop managed by the system |
+When the pulse fires, the agent checks whether it has fresh context and enough signal to produce useful work. If it does, it generates. If not, it waits. Either way, the pulse is visible — you can see what your agents are doing even when they decide not to generate.
+
+New agents pulse on their schedule. As agents gain tenure and trust, their pulse becomes more sophisticated — they self-assess before generating and can act off-schedule when something warrants it.
+
+## Agents work together
+
+For bigger jobs, multiple agents can collaborate on a single deliverable.
+
+One agent pulls from Slack, another from Gmail, another does research — then a coordinator (the Project Manager agent) assembles their contributions into one polished output. You get a finished product, not fragments.
+
+This is how [projects](projects.md) work: a team of agents with a shared objective, coordinated by a PM.
+
+## Output formats
+
+Agents can produce:
+
+- plain text and email-ready content
+- PDF reports
+- slide decks (PPTX)
+- spreadsheets (XLSX)
+- charts and visualizations
+
+The format depends on the job. A daily recap might be email-ready text. A leadership report might be a PDF or slides.
 
 ## What supervision looks like
 
@@ -43,9 +60,9 @@ Every run gives you something concrete to evaluate.
 
 - review the work
 - edit it if needed
-- refine the instructions through TP
+- talk to the agent directly in its [meeting room](projects.md) to redirect its focus
 
-That feedback becomes part of the agent's future behavior.
+That feedback becomes part of the agent's future behavior. Instructions you give in conversation persist across sessions — agents remember what you told them.
 
 ## Why persistence matters
 

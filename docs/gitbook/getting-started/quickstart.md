@@ -6,7 +6,7 @@ Start with one platform, one useful work product, and one feedback loop.
 
 Sign in at [app.yarnnn.com](https://app.yarnnn.com).
 
-You will land on the dashboard, where you can connect tools and inspect the system as it starts working.
+You will land on the dashboard, where you can connect tools and see your projects and agents as they start working.
 
 ## 2. Connect one platform
 
@@ -28,7 +28,7 @@ After connection, YARNNN:
 - discovers available sources
 - applies smart default coverage
 - starts the first sync
-- creates a matching starter agent
+- creates a matching project with agents
 
 You do not need to fully configure the system before seeing value.
 
@@ -38,26 +38,34 @@ Once the first run lands:
 
 - keep it as-is if it is already useful
 - edit it if it is too broad or misses emphasis
-- ask the Thinking Partner to refine the agent
+- go to the project's meeting room and talk to the agent directly
 
 This first run is the fastest way to teach the system what "good" looks like for you.
 
-## 5. Use the Thinking Partner
+## 5. Talk to your agents
 
-Ask the Thinking Partner to help with follow-up work, for example:
+Each project has a **meeting room** where you can talk to any agent directly:
 
 > "Make this recap tighter and focus on blockers."
 
-> "Create a status update agent for leadership."
+> "Lead with risks next time."
+
+> "Stop including the #random channel."
+
+Your instructions persist across sessions — agents remember what you told them.
+
+You can also use the **Orchestrator** for system-wide questions:
+
+> "Create a project that gives me a weekly leadership brief."
 
 > "What changed across Slack and Gmail about the launch?"
 
 ## 6. Expand only after you see value
 
-Once one agent is producing useful work:
+Once one project is producing useful work:
 
 - add another platform
 - widen or narrow coverage
-- create additional agents for status, watch, research, or prep
+- create additional projects for status reports, research, or monitoring
 
 The right onboarding strategy is usually narrow first, then compound.

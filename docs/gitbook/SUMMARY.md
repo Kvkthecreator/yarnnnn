@@ -11,8 +11,9 @@
 ## How It Works
 
 * [How YARNNN works](concepts/how-yarnnn-works.md)
-* [Thinking Partner](concepts/thinking-partner.md)
 * [What are agents?](concepts/what-are-agents.md)
+* [Projects & multi-agent work](concepts/projects.md)
+* [Thinking Partner](concepts/thinking-partner.md)
 * [How YARNNN learns](concepts/how-yarnnn-learns.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
 
