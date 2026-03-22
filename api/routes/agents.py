@@ -1255,7 +1255,7 @@ async def update_run(
     # Verify ownership through agent
     check = (
         auth.client.table("agents")
-        .select("id, title, role, scope, destination")
+        .select("id, title, role, scope, destination, type_config")
         .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1324,7 +1324,7 @@ async def update_run(
     # Activity log: record approval or rejection (ADR-063)
     if request.status in ("approved", "rejected"):
         try:
-            from services.activity_log import write_activity
+            from services.activity_log import write_activity, resolve_agent_project_slug
             from services.supabase import get_service_client
             import asyncio
             agent_title = check.data.get("title") or str(agent_id)
@@ -1336,6 +1336,10 @@ async def update_run(
                 "run_id": str(run_id),
                 "role": check.data.get("role"),
             }
+            # ADR-129: Enrich with project_slug
+            _proj_slug = resolve_agent_project_slug(check.data)
+            if _proj_slug:
+                metadata["project_slug"] = _proj_slug
 
             # Track edit patterns for memory extraction
             if request.status == "approved":

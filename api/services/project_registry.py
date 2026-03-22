@@ -11,7 +11,7 @@ Design axiom: every project gets a PM. No exceptions. PM is project
 infrastructure, not a user-facing agent — excluded from tier agent limits.
 
 Changelog: api/prompts/CHANGELOG.md
-Version: v1.4 (2026-03-21)
+Version: v1.5 (2026-03-22)
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Project Type Registry v1.4
+# Project Type Registry v1.5
 # =============================================================================
 
 PROJECT_TYPE_REGISTRY: dict[str, dict] = {
@@ -32,7 +32,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
     # ── Platform digest types (1:1 with platform, uniqueness enforced) ──
 
     "slack_digest": {
-        "display_name": "Slack Recap",
+        "display_name": "Slack",
         "category": "platform",
         "platform": "slack",
         "description": "Daily recap of Slack activity across connected channels.",
@@ -58,7 +58,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
     },
 
     "gmail_digest": {
-        "display_name": "Gmail Recap",
+        "display_name": "Gmail",
         "category": "platform",
         "platform": "google",
         "description": "Daily recap of Gmail activity across connected labels.",
@@ -84,7 +84,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
     },
 
     "notion_digest": {
-        "display_name": "Notion Recap",
+        "display_name": "Notion",
         "category": "platform",
         "platform": "notion",
         "description": "Daily recap of Notion activity across connected pages.",
@@ -364,7 +364,7 @@ async def scaffold_project(
                 "expected_contribution": c.get("expected_contribution", ""),
             })
 
-    # ── Create PM agent BEFORE writing PROJECT.md so PM is in contributor list ──
+    # ── Create PM agent (infrastructure, NOT a contributor — ADR-122) ──
     pm_agent_id = None
     if ptype["pm"]:
         try:
@@ -385,17 +385,14 @@ async def scaffold_project(
                 pm_agent_id = pm_result["agent_id"]
                 pm_slug = get_agent_slug(pm_result["agent"])
                 logger.info(f"[REGISTRY] Created PM agent {pm_agent_id} for project {project_slug}")
-                contributor_records.append({
-                    "agent_slug": pm_slug,
-                    "agent_id": pm_agent_id,
-                    "expected_contribution": "project coordination",
-                })
+                # PM is project infrastructure, not a functional contributor.
+                # Do NOT add to contributor_records — only functional agents belong there.
             else:
                 logger.warning(f"[REGISTRY] PM creation failed: {pm_result.get('message')}")
         except Exception as e:
             logger.warning(f"[REGISTRY] PM auto-creation failed: {e}")
 
-    # ── Write PROJECT.md (includes all contributors + PM) ──
+    # ── Write PROJECT.md (functional contributors only, PM excluded) ──
     pw = ProjectWorkspace(client, user_id, project_slug)
     success = await pw.write_project(
         title=title,

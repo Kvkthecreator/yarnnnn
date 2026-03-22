@@ -228,7 +228,7 @@ async def get_due_pulse_agents(supabase_client) -> list[dict]:
 
     result = (
         supabase_client.table("agents")
-        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config")
+        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config, project_id")
         .eq("status", "active")
         .lte("next_pulse_at", now.isoformat())
         .execute()
@@ -267,13 +267,16 @@ async def process_agent(supabase_client, agent: dict) -> bool:
     Returns True if successful.
     """
     from services.trigger_dispatch import dispatch_trigger
-    from services.activity_log import write_activity
+    from services.activity_log import write_activity, resolve_agent_project_slug
 
     agent_id = agent["id"]
     user_id = agent["user_id"]
     title = agent["title"]
     role = agent.get("role", "custom")
     schedule = agent.get("schedule", {})
+
+    # ADR-129: Resolve project_slug once for all activity events
+    _proj_slug = resolve_agent_project_slug(agent)
 
     # ADR-117 Phase 3: Resolve duties to execute
     duties = resolve_due_duties(agent)
@@ -282,19 +285,24 @@ async def process_agent(supabase_client, agent: dict) -> bool:
     # ADR-072: Write agent_scheduled event when queued for execution
     try:
         next_run = calculate_next_pulse_from_schedule(schedule)
+        _sched_meta = {
+            "agent_id": agent_id,
+            "scheduled_for": datetime.now(timezone.utc).isoformat(),
+            "trigger_reason": "schedule",
+            "role": role,
+            "duties": [d["duty"] for d in duties],
+        }
+        # ADR-129: Enrich with project_slug
+        _proj_slug = resolve_agent_project_slug(agent)
+        if _proj_slug:
+            _sched_meta["project_slug"] = _proj_slug
         await write_activity(
             client=supabase_client,
             user_id=user_id,
             event_type="agent_scheduled",
             summary=f"Queued: {title}",
             event_ref=agent_id,
-            metadata={
-                "agent_id": agent_id,
-                "scheduled_for": datetime.now(timezone.utc).isoformat(),
-                "trigger_reason": "schedule",
-                "role": role,
-                "duties": [d["duty"] for d in duties],
-            },
+            metadata=_sched_meta,
         )
     except Exception as e:
         logger.warning(f"[AGENT] Failed to write scheduled event: {e}")
@@ -319,17 +327,21 @@ async def process_agent(supabase_client, agent: dict) -> bool:
             if success:
                 logger.info(f"[AGENT] ✓ Complete: {title} (duty={duty_name})")
                 try:
+                    _gen_meta = {
+                        "role": role,
+                        "duty": duty_name,
+                        "run_id": result.get("run_id"),
+                    }
+                    # ADR-129: Enrich with project_slug
+                    if _proj_slug:
+                        _gen_meta["project_slug"] = _proj_slug
                     await write_activity(
                         client=supabase_client,
                         user_id=user_id,
                         event_type="agent_generated",
                         summary=f"Generated: {title}" + (f" ({duty_name})" if duty_name != role else ""),
                         event_ref=agent_id,
-                        metadata={
-                            "role": role,
-                            "duty": duty_name,
-                            "run_id": result.get("run_id"),
-                        },
+                        metadata=_gen_meta,
                     )
                 except Exception as e:
                     logger.debug(f"[AGENT] Activity log write failed for {title}: {e}")

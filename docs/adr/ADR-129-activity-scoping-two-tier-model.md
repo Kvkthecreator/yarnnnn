@@ -1,6 +1,6 @@
 # ADR-129: Activity Scoping — Two-Tier Model
 
-**Status**: Proposed
+**Status**: Phase 1 Implemented
 **Date**: 2026-03-22
 **Extends**: ADR-063 (Activity Log / Four-Layer Model), ADR-124 (Project Meeting Room), ADR-125 (Project-Native Session Architecture)
 **Supersedes**: None (refines the activity domain within existing four-layer model)
@@ -130,10 +130,13 @@ Together, these three substrates provide a complete project activity picture wit
 
 ## Implementation Phases
 
-### Phase 1: Agent event enrichment (backend)
-- Resolve `agents.project_id` → project slug at all agent lifecycle `write_activity()` call sites
-- Add `project_slug` to metadata for: `agent_scheduled`, `agent_generated`, `agent_pulsed`, `agent_approved`, `agent_rejected`, `agent_run`
-- Expand `PROJECT_EVENT_TYPES` in `api/routes/projects.py` to include agent lifecycle events
+### Phase 1: Agent event enrichment (backend) — IMPLEMENTED
+- `resolve_agent_project_slug()` + `resolve_agent_project_slug_full()` utilities in `activity_log.py`
+- `agent_pulse.py`: `_log_pulse_event()` enriches `agent_pulsed` metadata with project_slug
+- `unified_scheduler.py`: `agent_scheduled` + `agent_generated` enriched with project_slug; `project_id` added to agent select
+- `agent_execution.py`: Both PM and regular `agent_run` events enriched with project_slug
+- `routes/agents.py`: `agent_approved` + `agent_rejected` enriched with project_slug; `type_config` added to agent select
+- `routes/projects.py`: `PROJECT_EVENT_TYPES` expanded to include `agent_pulsed`, `agent_run`, `agent_scheduled`, `agent_generated`, `agent_approved`, `agent_rejected`, `pm_pulsed`, `project_file_triaged`
 
 ### Phase 2: Global activity page refinement (frontend)
 - Introduce workspace-level vs project-level categorization in EVENT_CONFIG

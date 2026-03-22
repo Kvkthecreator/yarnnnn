@@ -190,7 +190,7 @@ function formatTokenCount(tokens: number): string {
 /**
  * Starter prompt — single "New Project" card.
  *
- * Platform-specific projects (Slack/Gmail/Notion Recap) are created via bootstrap
+ * Platform-specific projects (Slack/Gmail/Notion) are created via bootstrap
  * on OAuth connection (ADR-110/113/122), not from starter cards. This eliminates
  * redundancy: bootstrap auto-scaffolds on connect, cards were just a chat detour.
  */

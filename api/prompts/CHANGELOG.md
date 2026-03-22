@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.1] - Fix PM-as-contributor bug + platform project naming — ADR-122
+
+### Changed
+- `api/services/project_registry.py` v1.5: PM no longer added to `contributor_records` in `scaffold_project()`. PM is project infrastructure (ADR-122), not a functional contributor — only actual contributor agents appear in PROJECT.md § Contributors. Platform project `display_name` simplified: "Slack Recap" → "Slack", "Gmail Recap" → "Gmail", "Notion Recap" → "Notion". Platform name is the stable identity anchor; agent duties may evolve beyond digest.
+- `api/services/agent_execution.py`: `_load_pm_project_context()` Layer 2 structural assessment filters out PM entries (by `expected_contribution == "project coordination"`) from actual contributor count. Safety net for existing projects scaffolded before the registry fix.
+
+### Expected behavior
+- New projects: PM created but excluded from PROJECT.md contributors list. Structural assessment sees correct contributor count.
+- Existing projects: PM entry in PROJECT.md tolerated — runtime filter prevents false escalation about wrong structure.
+- Platform projects named by platform ("Slack"), not by initial duty ("Slack Recap"). Agents may earn duties beyond digest over time.
+
+---
+
 ## [2026.03.21.4] - ADR-128: Multi-Agent Coherence Protocol — Phases 0-4 implementation
 
 ### Changed

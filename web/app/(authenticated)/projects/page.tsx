@@ -22,9 +22,9 @@ import { formatDistanceToNow } from 'date-fns';
 import type { ProjectSummary } from '@/types';
 
 const TYPE_LABELS: Record<string, string> = {
-  slack_digest: 'Slack Recap',
-  gmail_digest: 'Gmail Recap',
-  notion_digest: 'Notion Recap',
+  slack_digest: 'Slack',
+  gmail_digest: 'Gmail',
+  notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform Insights',
   custom: 'Custom Project',
 };

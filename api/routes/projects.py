@@ -569,15 +569,26 @@ async def archive_project(slug: str, user: UserClient):
 
 
 # ADR-119 Phase 4: Project activity event types
+# ADR-129: Expanded to include agent lifecycle events (enriched with project_slug)
 PROJECT_EVENT_TYPES = [
+    # PM coordination events (always had project_slug)
     "project_heartbeat",
     "project_assembled",
     "project_escalated",
     "project_contributor_advanced",
-    "duty_promoted",
-    # ADR-123 Phase 3: PM intelligence events
     "project_quality_assessed",
     "project_contributor_steered",
+    "project_file_triaged",
+    "pm_pulsed",
+    # Agent lifecycle events (ADR-129: now enriched with project_slug)
+    "agent_pulsed",
+    "agent_run",
+    "agent_scheduled",
+    "agent_generated",
+    "agent_approved",
+    "agent_rejected",
+    # Composer events that carry project_slug
+    "duty_promoted",
 ]
 
 

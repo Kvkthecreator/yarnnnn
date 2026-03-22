@@ -160,7 +160,12 @@ async def _load_pm_project_context(client, user_id: str, project_slug: str) -> d
         type_def = get_project_type(type_key)
         if type_def:
             expected_contributors = type_def.get("contributors", [])
-            actual_contributors = project.get("contributors", [])
+            # Filter out PM from contributors — PM is infrastructure, not a functional contributor (ADR-122)
+            all_contributors = project.get("contributors", [])
+            actual_contributors = [
+                c for c in all_contributors
+                if c.get("expected_contribution") != "project coordination"
+            ]
             structural_lines.append(f"Project type '{type_key}' expects {len(expected_contributors)} contributor(s).")
             structural_lines.append(f"Currently has {len(actual_contributors)} contributor(s).")
 
@@ -2522,6 +2527,10 @@ async def execute_agent_generation(
     title = agent.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
 
+    # ADR-129: Resolve project_slug for activity event enrichment
+    from services.activity_log import resolve_agent_project_slug
+    _proj_slug = resolve_agent_project_slug(agent)
+
     # ADR-117 Phase 3: Resolve duty from trigger_context → effective_role
     # When running a non-seed duty (e.g., monitor on a digest agent), the duty's
     # role determines prompt selection and SKILL.md injection.
@@ -2648,23 +2657,26 @@ async def execute_agent_generation(
             try:
                 from services.activity_log import write_activity
                 from services.supabase import get_service_client as _get_svc_pm
+                _pm_run_meta = {
+                    "agent_id": str(agent_id),
+                    "version_number": next_version,
+                    "role": role,
+                    "scope": scope,
+                    "strategy": strategy.strategy_name,
+                    "final_status": pm_status,
+                    "pm_action": pm_result.get("pm_action"),
+                    "input_tokens": usage.get("input_tokens", 0),
+                    "output_tokens": usage.get("output_tokens", 0),
+                }
+                if _proj_slug:
+                    _pm_run_meta["project_slug"] = _proj_slug
                 await write_activity(
                     client=_get_svc_pm(),
                     user_id=user_id,
                     event_type="agent_run",
                     summary=f"{title} v{next_version} {pm_result.get('pm_action', 'unknown')}",
                     event_ref=version_id,
-                    metadata={
-                        "agent_id": str(agent_id),
-                        "version_number": next_version,
-                        "role": role,
-                        "scope": scope,
-                        "strategy": strategy.strategy_name,
-                        "final_status": pm_status,
-                        "pm_action": pm_result.get("pm_action"),
-                        "input_tokens": usage.get("input_tokens", 0),
-                        "output_tokens": usage.get("output_tokens", 0),
-                    },
+                    metadata=_pm_run_meta,
                 )
             except Exception:
                 pass
@@ -2927,23 +2939,27 @@ async def execute_agent_generation(
         try:
             from services.activity_log import write_activity
             from services.supabase import get_service_client as _get_svc2
+            _run_meta = {
+                "agent_id": str(agent_id),
+                "version_number": next_version,
+                "role": role,  # ADR-109: For pattern detection
+                "scope": scope,
+                "strategy": strategy.strategy_name,
+                "final_status": final_status,
+                "delivery_error": delivery_error,
+                "input_tokens": usage.get("input_tokens", 0),  # ADR-101
+                "output_tokens": usage.get("output_tokens", 0),  # ADR-101
+            }
+            # ADR-129: Enrich with project_slug
+            if _proj_slug:
+                _run_meta["project_slug"] = _proj_slug
             await write_activity(
                 client=_get_svc2(),
                 user_id=user_id,
                 event_type="agent_run",
                 summary=f"{title} v{next_version} {final_status}",
                 event_ref=version_id,
-                metadata={
-                    "agent_id": str(agent_id),
-                    "version_number": next_version,
-                    "role": role,  # ADR-109: For pattern detection
-                    "scope": scope,
-                    "strategy": strategy.strategy_name,
-                    "final_status": final_status,
-                    "delivery_error": delivery_error,
-                    "input_tokens": usage.get("input_tokens", 0),  # ADR-101
-                    "output_tokens": usage.get("output_tokens", 0),  # ADR-101
-                },
+                metadata=_run_meta,
             )
         except Exception:
             pass  # Non-fatal — never block execution

@@ -471,7 +471,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     t1_decision = await _tier1_deterministic(client, agent)
     if t1_decision is not None:
         logger.info(f"[PULSE] Tier 1 resolved: {title} → {t1_decision.action} ({t1_decision.reason})")
-        await _log_pulse_event(client, user_id, agent_id, title, t1_decision)
+        await _log_pulse_event(client, user_id, agent_id, title, t1_decision, agent=agent)
         await _apply_pulse_decision(client, agent, t1_decision)
         return t1_decision
 
@@ -495,7 +495,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     if eligible_for_tier2:
         t2_decision = await _tier2_self_assessment(client, agent)
         logger.info(f"[PULSE] Tier 2 resolved: {title} → {t2_decision.action} ({t2_decision.reason})")
-        await _log_pulse_event(client, user_id, agent_id, title, t2_decision)
+        await _log_pulse_event(client, user_id, agent_id, title, t2_decision, agent=agent)
         await _apply_pulse_decision(client, agent, t2_decision)
         return t2_decision
 
@@ -507,7 +507,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
         metadata={"gate": "default_generate", "seniority": seniority},
     )
     logger.info(f"[PULSE] Default generate: {title}")
-    await _log_pulse_event(client, user_id, agent_id, title, default_decision)
+    await _log_pulse_event(client, user_id, agent_id, title, default_decision, agent=agent)
     await _apply_pulse_decision(client, agent, default_decision)
     return default_decision
 
@@ -522,23 +522,30 @@ async def _log_pulse_event(
     agent_id: str,
     title: str,
     decision: PulseDecision,
+    agent: Optional[dict] = None,
 ) -> None:
     """Log pulse decision to activity_log as 'agent_pulsed' event."""
-    from services.activity_log import write_activity
+    from services.activity_log import write_activity, resolve_agent_project_slug
 
     try:
+        meta = {
+            "action": decision.action,
+            "reason": decision.reason,
+            "tier": decision.tier,
+            **decision.metadata,
+        }
+        # ADR-129: Enrich with project_slug for project-scoped activity
+        if agent:
+            slug = resolve_agent_project_slug(agent)
+            if slug:
+                meta["project_slug"] = slug
         await write_activity(
             client=client,
             user_id=user_id,
             event_type="agent_pulsed",
             summary=f"{title} pulsed: {decision.action} — {decision.reason[:100]}",
             event_ref=agent_id,
-            metadata={
-                "action": decision.action,
-                "reason": decision.reason,
-                "tier": decision.tier,
-                **decision.metadata,
-            },
+            metadata=meta,
         )
     except Exception:
         pass  # Non-fatal
