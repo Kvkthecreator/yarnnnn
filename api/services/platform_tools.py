@@ -254,11 +254,9 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     """
     Handle a platform tool call by routing to appropriate backend.
 
-    ADR-076 Routing (all Direct API):
+    ADR-076 Routing (all Direct API), ADR-131 (Gmail/Calendar sunset):
     - Slack: Direct API (SlackAPIClient)
     - Notion: Direct API (NotionAPIClient)
-    - Gmail: Direct API (GoogleAPIClient)
-    - Calendar: Direct API (GoogleAPIClient)
 
     Args:
         auth: Auth context

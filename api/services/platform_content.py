@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Types
 # =============================================================================
 
-PlatformType = Literal["slack", "gmail", "notion", "calendar"]
+PlatformType = Literal["slack", "notion", "yarnnn"]
 RetainedReason = Literal["agent_execution", "tp_session"]
 
 
@@ -113,9 +113,7 @@ class PlatformSemanticSignals:
 
 DEFAULT_TTL_HOURS = {
     "slack": 168,      # 7 days
-    "gmail": 336,      # 14 days
     "notion": 720,     # 30 days
-    "calendar": 24,    # 1 day
 }
 
 
@@ -161,7 +159,7 @@ async def store_platform_content(
     Args:
         db_client: Supabase client
         user_id: User UUID
-        platform: Platform type (slack, gmail, notion, calendar)
+        platform: Platform type (slack, notion, yarnnn)
         resource_id: Identifier within platform (channel_id, label, page_id)
         item_id: Unique identifier for the item within resource
         content: The actual content
@@ -319,99 +317,6 @@ async def store_slack_items_batch(
         )
 
     logger.info(f"[PLATFORM_CONTENT] Stored {count} Slack messages from #{channel_name}")
-    return count
-
-
-async def store_gmail_items_batch(
-    db_client,
-    user_id: str,
-    label: str,
-    messages: list[dict],
-    user_email: Optional[str] = None,
-) -> int:
-    """
-    Store Gmail messages as platform content.
-    Returns count of entries stored.
-    """
-    if not messages:
-        return 0
-
-    now = datetime.now(timezone.utc)
-    expires_at = now + get_ttl("gmail")
-
-    records = []
-    for msg in messages:
-        headers = msg.get("headers", {})
-
-        source_ts = None
-        date_str = headers.get("Date", headers.get("date", ""))
-        if date_str:
-            try:
-                from email.utils import parsedate_to_datetime
-                source_ts = parsedate_to_datetime(date_str)
-            except (ValueError, TypeError):
-                pass
-
-        subject = headers.get("Subject", headers.get("subject", ""))
-        body = msg.get("body", msg.get("snippet", ""))
-        content = f"Subject: {subject}\n\n{body}" if subject else body
-        content_hash = compute_content_hash(content)
-
-        from_header = headers.get("From", headers.get("from", ""))
-
-        is_user_authored = False
-        if user_email and from_header:
-            is_user_authored = user_email.lower() in from_header.lower()
-
-        metadata = {
-            "message_id": msg.get("id"),
-            "thread_id": msg.get("threadId"),
-            "from": from_header,
-            "to": headers.get("To", headers.get("to")),
-            "labels": msg.get("labelIds", []),
-        }
-
-        records.append({
-            "user_id": user_id,
-            "platform": "gmail",
-            "resource_id": label,
-            "resource_name": label,
-            "item_id": msg.get("id", ""),
-            "content": content[:10000],
-            "content_type": "email",
-            "content_hash": content_hash,
-            "title": subject,
-            "author": from_header,
-            "author_id": None,
-            "is_user_authored": is_user_authored,
-            "source_timestamp": source_ts.isoformat() if source_ts else None,
-            "fetched_at": now.isoformat(),
-            "retained": False,
-            "expires_at": expires_at.isoformat(),
-            "metadata": metadata,
-        })
-
-    if not records:
-        return 0
-
-    result = db_client.table("platform_content").upsert(
-        records,
-        on_conflict="user_id,platform,resource_id,item_id,content_hash"
-    ).execute()
-    count = len(result.data) if result.data else 0
-
-    if count > 0:
-        await _update_sync_registry_after_store(
-            db_client,
-            user_id,
-            platform="gmail",
-            resource_id=label,
-            resource_name=label,
-            item_count=count,
-            source_latest_at=_get_latest_source_timestamp(messages, platform="gmail"),
-        )
-
-    logger.info(f"[PLATFORM_CONTENT] Stored {count} Gmail messages from {label}")
     return count
 
 
@@ -696,43 +601,22 @@ async def get_content_for_agent(
             logger.warning(f"[CONTENT] Skipping source with no provider/platform: {source}")
             continue
 
-        # Normalize provider → platform_content.platform
-        # The "google" connection provides both "gmail" and "calendar" content.
-        # Agent sources may reference provider="google" for calendar,
-        # or provider="gmail" for email — but platform_content stores
-        # platform="calendar" and platform="gmail" respectively.
+        # ADR-131: Only Slack and Notion remain (Gmail/Calendar sunset)
         platform = provider
-        if provider == "google":
-            if resource_id and resource_id != "all":
-                # Determine if this is calendar or gmail based on resource_id
-                gmail_labels = {"INBOX", "SENT", "IMPORTANT", "STARRED", "SPAM", "TRASH",
-                               "UNREAD", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
-                               "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"}
-                if resource_id.upper() in gmail_labels or resource_id.startswith("label:"):
-                    platform = "gmail"
-                else:
-                    platform = "calendar"
-            # google + "all" → fetch both gmail and calendar below
 
         # Handle "all" sentinel: fetch all content for this platform, no resource_id filter
         is_all = not resource_id or resource_id == "all"
 
         if is_all:
-            # For "google" with "all", fetch both gmail and calendar
-            fetch_platforms = ["gmail", "calendar"] if provider == "google" else [platform]
             items = await get_platform_content(
                 db_client=db_client,
                 user_id=user_id,
-                platforms=fetch_platforms,
+                platforms=[platform],
                 resource_ids=None,  # No filter — all resources for this platform
                 limit=limit_per_source,
             )
         else:
-            # Normalize gmail resource_id: agent sources may use "INBOX"
-            # but platform_content stores "label:INBOX"
             query_resource_id = resource_id
-            if platform == "gmail" and not resource_id.startswith("label:"):
-                query_resource_id = f"label:{resource_id}"
 
             items = await get_platform_content(
                 db_client=db_client,
@@ -1026,14 +910,6 @@ def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") 
             except (ValueError, TypeError):
                 pass
 
-        elif platform == "gmail":
-            date_str = msg.get("headers", {}).get("Date") or msg.get("headers", {}).get("date", "")
-            if date_str:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    ts = parsedate_to_datetime(date_str)
-                except (ValueError, TypeError):
-                    pass
 
         elif platform == "notion":
             edited = msg.get("last_edited_time") or msg.get("lastEditedTime")

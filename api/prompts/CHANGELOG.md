@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.3] - ADR-131 Phase 2: Full Gmail/Calendar code removal
+
+### Changed
+- `api/agents/tp_prompts/tools.py`: Removed `gmail_digest` from CreateProject examples, updated platform list.
+- `api/services/primitives/project.py`: Removed `gmail_digest` from CreateProject type_key descriptions.
+- `api/services/platform_tools.py`: Deleted GMAIL_TOOLS, CALENDAR_TOOLS, `_handle_google_tool()`, `_execute_gmail_tool()`, `_execute_calendar_tool()`. Only Slack and Notion tool handlers remain.
+- `api/routes/webhooks.py`: Deleted Gmail push notification endpoint and helpers.
+- `api/integrations/validation.py`: Deleted `_test_gmail_read()` and Gmail branch.
+- `api/jobs/import_jobs.py`: Deleted `process_gmail_import()` and Gmail branch in `process_import_job()`.
+- `api/services/working_memory.py`: Removed Calendar synthesis from Gmail platform connection row.
+- `api/services/event_triggers.py`: Deleted `GmailEventType` and `handle_gmail_event()`.
+- `api/services/platform_content.py`: Deleted `store_gmail_items_batch()`, removed Gmail/Calendar from TTL config, cleaned Google provider normalization.
+
+### Expected behavior
+- Zero Gmail/Calendar code paths remain in the runtime. No tool definitions, no event handlers, no sync, no import.
+- Platform tools dynamically loaded only for Slack and Notion.
+
+---
+
 ## [2026.03.22.2] - ADR-131: Gmail & Calendar sunset — prompt cleanup
 
 ### Changed

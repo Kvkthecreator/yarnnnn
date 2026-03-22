@@ -264,11 +264,7 @@ def test_platform_content_updates_sync_registry():
         "Should update sync_registry after storing"
     print("  ✓ store_slack_items_batch updates sync_registry")
 
-    from services.platform_content import store_gmail_items_batch
-    source = inspect.getsource(store_gmail_items_batch)
-    assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
-        "Gmail should update sync_registry"
-    print("  ✓ store_gmail_items_batch updates sync_registry")
+    # ADR-131: store_gmail_items_batch removed (sunset)
 
     from services.platform_content import store_notion_item
     source = inspect.getsource(store_notion_item)
