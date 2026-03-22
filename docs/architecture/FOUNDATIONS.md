@@ -197,12 +197,12 @@ A senior agent holds multiple duties with different triggers simultaneously. The
 
 Projects have objectives — their north star — and they exhibit a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
 
-- "I want an Excel and PPT on my company's Q2 report" — bounded objective, 2-3 agents, known skills, predictable work
+- "I want a Q2 report with data analysis and an executive summary" — bounded objective, 2-3 agents, known capabilities, predictable work
 - "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially infinite agents/files/runs
 
 The PM agent's core cognitive task is **translating the objective into executable, bounded work** — decomposing a user's project objective into an operational work plan: which agents contribute, which skills produce output, what cadence, what assembly format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
 
-Objectives include delivery and format preferences: the user wants email delivery, or a PPTX deck, or both CSV and PDF. These preferences are data in PROJECT.md's `## Objective` section — they shape the PM's assembly decisions and skill selection. The PM's operational execution plan lives separately in `memory/work_plan.md` (ADR-123: charter vs. operations separation).
+Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in PROJECT.md's `## Objective` section — they shape the PM's assembly decisions, layout mode selection, and export format. The PM's operational execution plan lives separately in `memory/work_plan.md` (ADR-123: charter vs. operations separation). Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
 
 ---
 
@@ -336,6 +336,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
 7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If intentions subsume triggers, there is no parallel trigger system.
 8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or projects exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
+9. **Output is agent-native, not format-native** — Agent output is structured content rendered as HTML, not files targeting desktop editing applications. HTML is the universal composition primitive: agents produce it, the platform renders it, humans view it in-app, other agents can read it, and legacy formats (PDF, PPTX, XLSX) are mechanical exports for external sharing. The output substrate must optimize for the widest expressiveness with the simplest composition — this is HTML. Skills are cognitive capabilities (what agents can do), not format builders (what file type they produce). See ADR-130.
 
 ---
 
@@ -353,12 +354,13 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-109 (Agent Framework) | Implements taxonomy — **needs revision**: trigger axis and static skill model don't accommodate agent development (Axiom 3) | Partially superseded |
 | ADR-111 (Agent Composer) | Implements Axiom 5 — Composer delegates project execution to PM agents (v3 update) | Aligned (post v3) |
 | ADR-112 (Sync Efficiency) | Implements Axiom 2 L0 — perception reliability | Aligned |
-| ADR-118 (Skills as Capability Layer) | Implements Axiom 1 capability axis — skill library as agent toolbox | Aligned |
+| ADR-118 (Skills as Capability Layer) | Implements Axiom 1 capability axis — skill library as agent toolbox. **Phase D format-builder skills partially superseded by ADR-130** | Partially superseded (Phase D) |
 | ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, project folders, manifests | Aligned |
 | ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Implemented |
 | ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
 | ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as fourth perception layer — project transcript alongside external/internal/reflexive), Axiom 3 (agents as participants with presence), Axiom 4 (accumulated attention visible in conversation). Three data scopes (agent/group/project). Project surface as group chat. Extends ADR-080 with `agent_chat` mode. | Proposed |
 | ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + four coherence flows), Axiom 3 (cognitive files as developmental mechanism). Contributor self-assessment, PM project assessment, chat directive persistence, cross-agent visibility. | Proposed |
+| ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — output is agent-native (HTML), not format-native. Skills reframed as cognitive capabilities. Multi-agent composition in one language. Partially supersedes ADR-118 Phase D. | Proposed |
 
 ---
 
@@ -401,3 +403,4 @@ These require further design work before implementation:
 | 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
 | 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |
 | 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128). Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism — agents accumulate self-awareness, not just outputs. |
+| 2026-03-22 | v3.5 — HTML-Native Output Substrate (ADR-130). Derived Principle 9: output is agent-native (HTML), not format-native (PPTX/PDF). Skills reframed as cognitive capabilities, not format builders. Objective examples updated to remove format-specific references. |
