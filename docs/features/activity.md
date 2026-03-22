@@ -1,6 +1,7 @@
 # Activity
 
 > Layer 2 of 4 in the YARNNN four-layer model (ADR-063)
+> Two-tier scoping model (ADR-129)
 
 ---
 
@@ -8,20 +9,38 @@
 
 Activity is the system provenance log — a record of what YARNNN has done. It answers the question "what happened recently?" rather than "what do I know about the user?" (Memory) or "what's on the platforms right now?" (Context).
 
-Every time YARNNN completes something meaningful — runs a agent, syncs a platform, notes a memory, finishes a chat turn — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
-
-Recent activity is injected into every TP session at startup, so TP can answer "when did you last run my digest?" without a live database query.
+Every time YARNNN completes something meaningful — runs an agent, syncs a platform, pulses an agent, assembles a project output — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
 
 **Analogy**: Activity is YARNNN's git commit log. It records what was done, when, and what the outcome was. It is not the output itself (that is Work) and not the content (that is Context).
+
+---
+
+## Two-Tier Scoping Model (ADR-129)
+
+Activity serves two distinct scopes:
+
+### Tier 1 — Workspace Activity (macro)
+
+User-level operational events. "What did my system do today?" Surfaces on the global `/activity` page as a supervision dashboard.
+
+### Tier 2 — Project Activity (micro)
+
+Project-scoped events from three substrates:
+1. **Activity events** — `activity_log` rows with `project_slug` in metadata
+2. **Conversation** — `session_messages` via project sessions (ADR-125)
+3. **Workspace changes** — `workspace_files` timestamps and folder structure
+
+These merge into a unified project timeline via `mergeTimeline()` in the Meeting Room (ADR-124).
 
 ---
 
 ## What it is not
 
 - Not platform content — that is Context (`platform_content`)
-- Not generated output — that is Work (`agent_runs`)
+- Not generated output — that is Work (`agent_runs`, workspace output folders)
 - Not stable user knowledge — that is Memory (`user_memory`)
-- Not a replacement for `agent_runs` or `session_messages` — those still hold the full records; Activity holds lightweight summaries
+- Not a replacement for `agent_runs` or `session_messages` — those hold full records; Activity holds lightweight event summaries
+- Not a separate table per project — the same `activity_log` table serves both tiers via metadata filtering
 
 ---
 
@@ -32,31 +51,63 @@ Append-only. Written by service role only (no user-facing INSERT).
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | PK |
-| `user_id` | UUID | FK → auth.users |
+| `user_id` | UUID | FK -> auth.users |
 | `event_type` | TEXT | Constrained enum (see below) |
-| `event_ref` | UUID | FK to related record (version_id, session_id, etc.) |
+| `event_ref` | UUID | FK to related record (run_id, session_id, etc.) |
 | `summary` | TEXT | Human-readable one-liner for prompt injection |
-| `metadata` | JSONB | Structured event detail |
+| `metadata` | JSONB | Structured event detail; project events include `project_slug` |
 | `created_at` | TIMESTAMPTZ | Auto |
 
-**event_type values:**
-
-| event_type | Written by | When | summary example |
-|---|---|---|---|
-| `agent_run` | `agent_execution.py` | After a version is generated | `"Weekly Digest v3 delivered"` |
-| `agent_scheduled` | `unified_scheduler.py` | When scheduler triggers a agent | `"Scheduled: Weekly Digest"` |
-| `memory_written` | `memory.py` | After nightly memory extraction | `"Noted: prefers bullet points"` |
-| `session_summary_written` | `memory.py` | After session summary extraction | `"Session summary written"` |
-| `pattern_detected` | `memory.py` | After activity pattern detection | `"Pattern: prefers morning agents"` |
-| `platform_synced` | `platform_worker.py` | After a sync batch completes | `"Synced gmail: 12 items"` |
-| `content_cleanup` | `platform_content.py` | After expired content removal | `"Cleaned up 45 expired items"` |
-| `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete"` |
-| `integration_connected` | `routes/integrations.py` | After OAuth connection | `"Connected: gmail"` |
-| `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min | Observability pulse |
-| `agent_pulsed` | `agent_pulse.py` (ADR-126) | On pulse cadence | Agent sense→decide event with decision + reason |
-| `pm_pulsed` | `agent_pulse.py` (ADR-126) | On PM pulse cadence | PM coordination decision (assemble/steer/wait/etc.) |
-
 **RLS**: Users can SELECT their own rows. No INSERT/UPDATE/DELETE via user-facing clients — service role only.
+
+---
+
+## Event Type Registry
+
+### Workspace-level events (Tier 1)
+
+| event_type | Written by | When | Scope |
+|---|---|---|---|
+| `platform_synced` | `platform_worker.py` | After sync batch completes | Platform |
+| `content_cleanup` | `unified_scheduler.py` | After expired content removal | Platform |
+| `integration_connected` | `routes/integrations.py` | After OAuth connection | Platform |
+| `integration_disconnected` | `routes/integrations.py` | After OAuth disconnection | Platform |
+| `composer_heartbeat` | `unified_scheduler.py` | After Composer assessment cycle | Composer |
+| `agent_bootstrapped` | `onboarding_bootstrap.py` | After auto-created agent on platform connect | Composer |
+| `project_scaffolded` | `project_registry.py` | After project scaffolded via registry | Composer |
+| `duty_promoted` | `composer.py` | After Composer promoted agent duty | Composer |
+| `memory_written` | `memory.py` | After nightly memory extraction | Memory |
+| `session_summary_written` | `unified_scheduler.py` | After session summary generation | Memory |
+| `chat_session` | `chat.py` | At end of each chat turn | Chat |
+| `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min execution cycle | System |
+
+### Project-level events (Tier 2)
+
+These events carry `project_slug` in their JSONB `metadata` field.
+
+**Agent lifecycle events** (carry `project_slug` via agent's `project_id`):
+
+| event_type | Written by | When |
+|---|---|---|
+| `agent_run` | `agent_execution.py` | After agent version generated |
+| `agent_scheduled` | `unified_scheduler.py` | When scheduler triggers an agent |
+| `agent_generated` | `unified_scheduler.py` | After successful agent generation |
+| `agent_approved` | `routes/agents.py` | When user approves a run |
+| `agent_rejected` | `routes/agents.py` | When user rejects a run |
+| `agent_pulsed` | `agent_pulse.py` | On agent pulse cadence (ADR-126) |
+
+**PM coordination events** (carry `project_slug` directly):
+
+| event_type | Written by | When |
+|---|---|---|
+| `pm_pulsed` | `agent_pulse.py` | On PM pulse cadence (ADR-126) |
+| `project_heartbeat` | `agent_execution.py` | PM checked on contributors |
+| `project_assembled` | `agent_execution.py` | PM triggered assembly |
+| `project_escalated` | `agent_execution.py` | PM escalated to TP |
+| `project_contributor_advanced` | `agent_execution.py` | PM advanced contributor schedule |
+| `project_contributor_steered` | `agent_execution.py` | PM wrote contribution brief (ADR-121) |
+| `project_quality_assessed` | `agent_execution.py` | PM assessed contribution quality (ADR-121) |
+| `project_file_triaged` | `agent_execution.py` | PM triaged user_shared/ file (ADR-127) |
 
 ---
 
@@ -64,40 +115,51 @@ Append-only. Written by service role only (no user-facing INSERT).
 
 Each write point is a single `write_activity()` call from `api/services/activity_log.py`. All calls are wrapped in `try/except pass` — a log failure is never allowed to block the primary operation.
 
+The `VALID_EVENT_TYPES` frozenset in `activity_log.py` is the canonical constraint — any event_type not in that set is rejected with a warning log.
+
 ```
 agent_execution.py
-  → version delivered
-  → write_activity("agent_run", summary="Weekly Digest v3 delivered", ...)
+  -> version delivered
+  -> write_activity("agent_run", summary="Weekly Digest v3 delivered", metadata={agent_id, project_slug, ...})
+
+agent_pulse.py
+  -> pulse decision made
+  -> write_activity("agent_pulsed", summary="Observed: no new content", metadata={action, reason, tier, ...})
 
 platform_worker.py
-  → sync batch returns successfully
-  → write_activity("platform_synced", summary="Synced gmail: 12 items", ...)
+  -> sync batch returns successfully
+  -> write_activity("platform_synced", summary="Synced gmail: 12 items", ...)
 
-memory.py (nightly extraction)
-  → user_memory upsert succeeds
-  → write_activity("memory_written", summary="Noted: prefers bullet points", ...)
-
-chat.py
-  → done: True signal after assistant response
-  → write_activity("chat_session", summary="Chat turn complete", ...)
+unified_scheduler.py
+  -> agent generation triggered
+  -> write_activity("agent_scheduled", summary="Scheduled: Weekly Digest", metadata={agent_id, ...})
 ```
 
 ---
 
 ## How Activity is read
 
-`working_memory.py → _get_recent_activity()` fetches the last 10 events within the last 7 days and includes them in the working memory dict. They are rendered by `format_for_prompt()` as a "Recent activity" block:
+### Working memory injection (TP prompt)
+
+`working_memory.py -> _get_recent_activity()` fetches the last 10 events within the last 7 days and includes them in the working memory dict. They are rendered by `format_for_prompt()` as a "Recent activity" block:
 
 ```
 ### Recent activity
-- 2026-02-18 09:00 · Weekly Digest v3 generated (staged)
-- 2026-02-18 08:45 · Synced gmail: 12 items
-- 2026-02-17 14:30 · Chat turn complete (tools: platform_gmail_search)
-- 2026-02-17 09:00 · Weekly Digest v2 generated (delivered)
-- 2026-02-17 08:45 · Noted: prefers bullet points
+- 2026-03-22 09:00 . Weekly Digest v3 generated (staged)
+- 2026-03-22 08:45 . Synced gmail: 12 items
+- 2026-03-21 14:30 . PM checked on contributors - 2 fresh, 1 overdue
+- 2026-03-21 09:00 . Agent pulsed: observe (no new content)
 ```
 
 This block consumes approximately 300 tokens of the 2,000 token working memory budget.
+
+### Global activity page (`/activity`)
+
+`/api/memory/activity` returns up to 200 events from the last 30 days. Frontend groups by date and provides category filters (Agents, Projects, Memory, Sync, Chat, System). `EVENT_CONFIG` maps each event_type to label, icon, color, and category. Expandable metadata detail panel renders event-specific structured data.
+
+### Project activity (`/api/projects/{slug}/activity`)
+
+Returns project-scoped events filtered by `PROJECT_EVENT_TYPES` + `metadata->>project_slug`. Merged with `session_messages` via `mergeTimeline()` in the Meeting Room tab, sorted by timestamp to create a unified chronological stream.
 
 ---
 
@@ -105,9 +167,11 @@ This block consumes approximately 300 tokens of the 2,000 token working memory b
 
 **TP grounding**: TP can answer "when did you last run my digest?" or "what happened in last night's sync?" from working memory, without a live database lookup mid-conversation.
 
-**System transparency**: The log provides an auditable trail of what YARNNN has done for each user, useful for debugging and future frontend "activity feed" features.
+**Supervision**: The global activity page provides an auditable trail of what YARNNN has done across the workspace — platform operations, Composer decisions, memory extraction.
 
-**Cold-start awareness**: On a brand-new account, the block is empty. TP knows it has no history. This is better than silence — it's an explicit signal.
+**Project intelligence**: Project timelines show agent thinking (pulse decisions), PM coordination (steering, assessment, assembly), and conversation — making agent intelligence visible between output deliveries.
+
+**Cold-start awareness**: On a brand-new account, the activity block is empty. TP knows it has no history. This is better than silence — it's an explicit signal.
 
 ---
 
@@ -116,45 +180,56 @@ This block consumes approximately 300 tokens of the 2,000 token working memory b
 | Question | Answer |
 |---|---|
 | Can users write to Activity directly? | No — service role only |
-| Is Activity deleted when a agent is deleted? | No — the log is immutable |
+| Is Activity deleted when an agent is deleted? | No — the log is immutable |
 | Does Activity replace `agent_runs`? | No — `agent_runs` holds the full generated content; Activity holds the summary event |
-| Does Activity replace `session_messages`? | No — `session_messages` holds the full conversation; Activity holds the lightweight session event |
+| Does Activity replace `session_messages`? | No — `session_messages` holds the full conversation; Activity holds the lightweight event |
 | What happens if a write_activity() call fails? | The calling operation continues — the log write is non-fatal by design |
+| How are project events filtered? | Via `metadata->>project_slug` JSONB filtering, not a dedicated column |
+| Is there a separate table per project? | No — one table, two conceptual tiers via metadata |
 
 ---
 
 ## Volume expectations
 
-- Agent runs: ~1–3/day per user (scheduled digests)
-- Platform syncs: ~4–8/day per user (per platform_connections)
-- Memory writes: occasional (user-driven or TP-driven during conversation)
-- Chat turns: ~5–20/day per active user
+- Agent runs: ~1-3/day per project
+- Agent pulse events: ~4-48/day per agent (varies by role cadence, ADR-126)
+- PM pulse events: ~48/day per project (30-min cadence)
+- Platform syncs: ~4-8/day per user
+- Memory writes: occasional (nightly extraction)
+- Chat turns: ~5-20/day per active user
 
-Typical: ~20–40 rows/day per active user. No TTL — rows accumulate over time. At this volume, the table stays small indefinitely.
+Typical: ~50-200 rows/day per active user (increased from ~20-40 due to pulse events). No TTL — rows accumulate over time. At this volume, the table stays manageable indefinitely.
 
 ---
 
-## Evolution: Agent Pulse Events (ADR-126)
+## Frontend Configuration
 
-ADR-126 (Agent Pulse) introduces `agent_pulsed` and `pm_pulsed` as first-class activity events. Every pulse decision (generate, observe, wait, escalate) is logged with the agent's reasoning. This makes agent intelligence **visible between runs** — not just when output is produced.
+### EVENT_CONFIG (global activity page)
 
-Pulse events are the primary data source for:
-- **Project meeting room timelines** (ADR-124): agents shown thinking, not just producing
-- **Dashboard agent health**: pulse outcomes replace Composer's top-down maturity assessment
-- **Composer portfolio decisions**: Composer reads pulse outcomes instead of reimplementing per-agent assessment
+Master lookup in `web/app/(authenticated)/activity/page.tsx`. Maps each `event_type` to:
+- `label` — human-readable name
+- `icon` — Lucide icon component
+- `color` — Tailwind color class
+- `category` — filter group (Agents, Projects, Memory, Sync, Chat, System)
 
-## Evolution: Meeting Room Inline Events (ADR-124, Proposed)
+### ACTIVITY_EVENT_CONFIG (project timeline)
 
-ADR-124 (Project Meeting Room) proposes surfacing activity events as inline cards within the project chat stream — PM quality assessments, assembly completions, contributor delivery events, and steer actions appear as structured event cards alongside attributed agent messages. First-order events (decisions, assessments) live in the stream; second-order data (full run content, file details) is fetched on demand. ADR-126 pulse events are the natural source for these inline cards.
+Project-specific config in `web/app/(authenticated)/projects/[slug]/page.tsx`. Uses personified labels (e.g., "Check-in" instead of "project_heartbeat"). `formatActivitySummary()` transforms raw metadata into narrative text per event type.
+
+### FILTER_CATEGORIES / CATEGORY_EVENT_TYPES
+
+Category-based filtering on the global activity page. User selects a category chip -> events filtered to matching event_type array.
 
 ---
 
 ## Related
 
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer design and implementation
-- [ADR-124](../adr/ADR-124-project-meeting-room.md) — Project Meeting Room (activity events as inline chat cards)
+- [ADR-124](../adr/ADR-124-project-meeting-room.md) — Meeting Room (activity events as inline chat cards)
+- [ADR-125](../adr/ADR-125-project-native-session-architecture.md) — Project-scoped sessions
+- [ADR-126](../adr/ADR-126-agent-pulse.md) — Agent Pulse (high-frequency activity source)
+- [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) — Two-tier scoping model
 - [Four-Layer Model](../architecture/four-layer-model.md) — Architectural overview
-- [Backend Orchestration](../architecture/backend-orchestration.md) — Full event type registry (Observability section)
-- `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`
+- `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`, `VALID_EVENT_TYPES`
 - `api/services/working_memory.py` — `_get_recent_activity()`, prompt injection
 - `supabase/migrations/060_activity_log.sql` — Schema

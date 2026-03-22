@@ -92,24 +92,27 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 ## Layer 2 — Activity
 
+> **ADR-129 update (2026-03-22):** Activity now operates as a two-tier scoping model. Workspace-level (macro) events provide supervision; project-level (micro) events surface in project timelines via three substrates (activity events + conversation + workspace changes). See [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) and [docs/features/activity.md](../features/activity.md) for the full event type registry.
+
 **What it is**: The system provenance log — a record of what YARNNN has done. Answers "what happened recently?" not "what do I know?" (Memory) or "what's on the platforms?" (Context).
 
-**Table**: `activity_log` — append-only. Four event types:
+**Table**: `activity_log` — append-only. 34 event types across two tiers (see [activity.md](../features/activity.md) for the complete registry):
 
-| event_type | Written by | When |
+| Tier | Example events | Scope |
 |---|---|---|
-| `agent_run` | `agent_execution.py` | After version created |
-| `memory_written` | `memory.py` | After `user_memory` upsert (implicit extraction) |
-| `platform_synced` | `platform_worker.py` | After sync batch completes |
-| `chat_session` | `chat.py` | After each chat turn |
+| Workspace (macro) | `platform_synced`, `composer_heartbeat`, `memory_written`, `chat_session` | User-wide supervision |
+| Project (micro) | `agent_pulsed`, `agent_run`, `project_heartbeat`, `pm_pulsed`, `project_assembled` | Project timeline via `metadata.project_slug` |
 
-**How it is written**: Single `write_activity()` call at each write point. All calls wrapped in `try/except pass` — a log failure is never allowed to block the primary operation.
+**How it is written**: Single `write_activity()` call at each write point. All calls wrapped in `try/except pass` — a log failure is never allowed to block the primary operation. `VALID_EVENT_TYPES` frozenset in `activity_log.py` is the canonical constraint.
 
-**How it is read**: `working_memory.py → _get_recent_activity()` fetches the last 10 events in the last 7 days and renders them as a "### Recent activity" block in the TP system prompt (~300 tokens of the 2,000 token working memory budget).
+**How it is read**:
+- **TP prompt**: `working_memory.py → _get_recent_activity()` fetches the last 10 events in the last 7 days (~300 tokens of the 2,000 token working memory budget)
+- **Global activity page**: `/api/memory/activity` — up to 200 events, 30-day window, category-filtered
+- **Project timeline**: `/api/projects/{slug}/activity` — filtered by `metadata->>project_slug`, merged with `session_messages` via `mergeTimeline()` (ADR-124)
 
 **Key property**: Service-role writes only. Users can SELECT their own rows via RLS, but cannot INSERT, UPDATE, or DELETE.
 
-**Lifecycle**: Append-only, no TTL. Rows accumulate indefinitely. Typical volume: 20–40 rows/day per active user.
+**Lifecycle**: Append-only, no TTL. Rows accumulate indefinitely. Typical volume: ~50–200 rows/day per active user (pulse events increase volume over original ~20–40 estimate).
 
 ---
 
@@ -439,6 +442,7 @@ The more agents a user runs, the more the system learns what they value. This cr
 - [ADR-062](../adr/ADR-062-platform-context-architecture-SUPERSEDED.md) — Superseded by ADR-072 (unified content layer replaces filesystem_items cache)
 
 **Layer-specific ADRs**:
+- [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) — Activity scoping: two-tier model (workspace macro + project micro)
 - [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
 - [ADR-068](../adr/ADR-068-signal-emergent-agents.md) — Signal-emergent agents (Superseded by ADR-092)
