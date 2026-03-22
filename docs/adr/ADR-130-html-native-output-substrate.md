@@ -1,294 +1,397 @@
-# ADR-130: HTML-Native Output Substrate
+# ADR-130: Agent-Native Output & Capability Substrate
 
 > **Status**: Proposed
 > **Date**: 2026-03-22
 > **Authors**: KVK, Claude
-> **Supersedes**: ADR-118 Phase D skills-as-format-builders model (partially)
-> **Extends**: ADR-106 (Workspace Architecture), ADR-118 (Skills as Capability Layer), ADR-119 (Workspace Filesystem), ADR-120 (Project Execution), ADR-128 (Multi-Agent Coherence)
-> **Implements**: FOUNDATIONS.md Axiom 2 (recursive perception), Axiom 4 (accumulated attention), Axiom 6 (autonomy)
+> **Supersedes**: ADR-118 Phase D (format-builder skills model)
+> **Extends**: ADR-106 (Workspace), ADR-109 (Agent Framework), ADR-117 (Feedback & Development), ADR-118 (Skills Layer), ADR-119 (Workspace Filesystem), ADR-120 (Project Execution), ADR-128 (Coherence)
+> **Implements**: FOUNDATIONS Axiom 2 (recursive perception), Axiom 3 (developing entities), Axiom 4 (accumulated attention), Axiom 6 (autonomy)
 
 ---
 
 ## Context
 
-YARNNN's output gateway (ADR-118) currently implements 8 skills organized as **format builders**: each skill takes a constrained JSON spec and produces a specific file format (PDF, PPTX, XLSX, chart PNG, etc.). The agent's LLM must express its output through each format's input schema — a different DSL per format.
+YARNNN agents produce work. That work needs to be:
+1. **Consumable by humans** — visually rich, contextually appropriate, deliverable
+2. **Consumable by other agents** — structured, parseable, composable into larger work
+3. **Composable across agents** — a researcher's findings, a data analyst's charts, and a writer's narrative assemble into a coherent deliverable without format-specific glue
+4. **Progressively capable** — as agents develop (Axiom 3), their output expressiveness and capability repertoire should expand
 
-### Problems with the current model
+The current system fails on all four. ADR-118's 8 format-builder skills (pdf, pptx, xlsx, chart, mermaid, html, data, image) define capabilities as "what file format can you produce." This creates:
 
-1. **Format-specific impedance mismatch.** The PPTX skill accepts `{title, slides: [{title, content}]}` — a schema so constrained that outputs are visually blank. The LLM cannot express visual richness through a limited JSON DSL. Meanwhile, Claude Code producing PPTX inline writes full python-pptx code with custom colors, shapes, and positioning — because it has the full expressiveness of a programming language, not a constrained schema.
+- **Constrained expressiveness** — agents must express through rigid JSON DSLs per format. A PPTX skill that only accepts `{title, slides: [{title, content}]}` produces blank templates.
+- **Format-specific composition** — assembling multi-agent output requires format-specific knowledge (python-pptx object model, openpyxl cell formatting). The PM must speak every format's language.
+- **Opaque agent-to-agent handoff** — binary files (PPTX, PDF) are unreadable by downstream agents. The recursive perception loop (Axiom 2) breaks.
+- **Static capability model** — `SKILL_ENABLED_ROLES` hardcodes which roles get RuntimeDispatch by role name, not by seniority or earned capability. A new agent and a senior agent have identical capabilities.
+- **No capability discovery** — agents can't discover what other agents can do, can't request new capabilities, can't negotiate output format with consumers.
 
-2. **Skill-per-format scaling problem.** Each output format requires its own skill with its own input schema, rendering code, and maintenance. Adding visual richness means expanding each skill's DSL independently — an N×M matrix of features × formats.
+### The deeper problem
 
-3. **Multi-agent composition friction.** When a researcher finds logos, a data agent produces charts, and a content agent writes narrative — assembling these into a PPTX requires understanding python-pptx's object model (slide layouts, placeholder indices, shape positioning). Each format has its own composition semantics. The PM's assembly step must speak every format's language.
+The format-builder model conflates three separate concerns:
 
-4. **Agent-to-agent consumption blocked.** A PPTX file is opaque to downstream agents. An agent cannot reason over another agent's slide deck. The output format serves human consumption at the expense of agent consumption — violating the recursive perception substrate (Axiom 2).
+1. **What can this agent do?** (capability — research, analyze, visualize, coordinate)
+2. **How should the output look?** (presentation — document, dashboard, slides, data table)
+3. **What file do you need?** (export — PDF, XLSX, PNG for external sharing)
 
-5. **Paradigm misalignment.** File formats (PPTX, XLSX, DOCX) are containers designed for desktop editing applications. Agent output is not authored iteratively in an editor — it arrives complete. The consumption pattern is view-and-evaluate, not open-in-app-and-edit. Optimizing for file formats optimizes for a workflow that doesn't exist in agent-produced work.
-
-### The axiomatic ground
-
-The simplest composition primitive that accommodates the widest range of expression will produce the best outputs. HTML is that primitive:
-
-- It is the universal render target (browsers display it natively)
-- It can express anything from a memo to a dashboard with charts, tables, images, and data
-- It composes by concatenation with structure (images are `<img>`, charts are inline SVG, tables are `<table>`)
-- It converts mechanically to every legacy format (PDF via print/puppeteer, images via screenshot)
-- It IS the email format (zero-conversion delivery)
-- Agents can read it (structured text with semantic markup)
-- Claude is exceptionally good at generating it
-
-This is not a bet on market direction. It is a structural truth about the nature of the problem: multi-agent, heterogeneous-asset composition into rich visual output. HTML eliminates the impedance mismatch that makes every other format harder.
+By fusing all three into "skills = format builders," the system can't evolve any concern independently. An agent that gains data analysis capability shouldn't need a new XLSX skill — it should be able to produce structured data that the platform renders appropriately and exports on demand.
 
 ---
 
 ## Decision
 
-### HTML as the primary output substrate
+### 1. Structured content as the universal output primitive
 
-Agent output is **structured content** (markdown with embedded data references, images, and semantic annotations) that the platform renders as **styled HTML**. HTML is the canonical visual representation. All other formats are **mechanical exports** from HTML, not independent rendering pipelines.
+Agent output is **structured content** — markdown with embedded data references, images, and semantic annotations. This is the agent-native format: readable by humans (via rendering), readable by agents (via parsing), and composable across agents (via concatenation with structure).
+
+The platform renders structured content visually. The rendering is a platform concern, not an agent concern. Agents produce knowledge; the platform presents it.
 
 ```
-Agent produces: structured content (markdown + asset references)
-     ↓
-Workspace stores: source content + referenced assets (images, SVGs, data files)
-     ↓
-Render layer: source → styled HTML (with brand CSS, embedded assets, layout)
-     ↓
-Surfacing: HTML rendered in-app (outputs tab, meeting room, email)
-     ↓
-Export: HTML → PDF / HTML → image / structured data → XLSX (mechanical)
+Agent capability  → produces structured content + assets to workspace
+                         ↓
+Workspace stores  → source content + assets (images, data, SVGs)
+                         ↓
+Platform renders  → styled HTML for human consumption (layout mode + brand)
+                         ↓
+Platform exports  → legacy formats on demand (PDF, XLSX, image)
+                         ↓
+Agents consume    → downstream agents read structured source, not rendered HTML
 ```
 
-### Skills reframed: cognitive capabilities, not format builders
+### 2. Capabilities separated from presentation separated from export
 
-Skills stop being "format builders" and become "cognitive capabilities" — what agents can *do*, not what file format they produce. The output of every skill is workspace content (text, data, images) that flows into the HTML rendering pipeline.
+| Concern | Owner | Examples |
+|---|---|---|
+| **Capability** | Agent (earned via seniority) | research, data-analysis, visualization, monitoring, coordination |
+| **Presentation** | Platform (layout mode on output) | document, presentation, dashboard, data, interactive |
+| **Export** | Platform (on-demand, mechanical) | PDF, XLSX, PNG, email (HTML-native) |
 
-| Old model (format-builder) | New model (cognitive capability) |
-|---|---|
-| `presentation` skill → PPTX file | Agent produces structured sections + assets → HTML renders as presentation-style layout → export to PDF/PPTX |
-| `spreadsheet` skill → XLSX file | `data-analysis` capability → structured data tables + computations → HTML renders as interactive tables → export to XLSX |
-| `chart` skill → PNG file | `visualization` capability → SVG/canvas charts as workspace assets → embedded in HTML output |
-| `document` skill → PDF file | Agent produces markdown → HTML renders as document → export to PDF |
-| `image` skill → composed PNG | `asset-acquisition` capability → images as workspace files → embedded in HTML output |
+Agents never think about format. They think about what they know and what they can produce. The platform handles how it looks and how it ships.
 
-### The render service becomes an export service
+### 3. Capability as a first-class concept in the agent model
 
-The output gateway (yarnnn-render) evolves from 8 format-specific skill renderers to:
+Currently, capabilities are implicit — derived from role name via `SKILL_ENABLED_ROLES`. This ADR makes capabilities explicit, earned, and composable:
 
-1. **HTML composition engine** — takes structured content + assets from workspace → produces styled, self-contained HTML with embedded assets, brand CSS, and layout intelligence
-2. **Export pipeline** — mechanical conversion from HTML to legacy formats:
-   - HTML → PDF (via puppeteer/playwright, high fidelity)
-   - HTML → image/PNG (via screenshot, for thumbnails and previews)
-   - Structured data → XLSX (direct from data, not from HTML)
-   - HTML → email (already native — zero conversion)
-3. **Asset rendering** — chart generation (matplotlib/d3 → SVG), diagram rendering (mermaid → SVG) — these produce assets that embed into HTML, not standalone files
+**Capability registry** — each capability defines:
+- What it enables (primitives, tools, asset production)
+- Prerequisites (seniority, prior capabilities, feedback thresholds)
+- Output types it produces (structured data, narrative, visual assets, actions)
 
-### Multi-agent composition via HTML
+**Capability progression** — aligns with Axiom 3 (developing entities):
+- **New agents**: core capabilities for their role (read, search, synthesize)
+- **Associate agents**: earned capabilities via feedback (visualize, cross-reference)
+- **Senior agents**: full capability portfolio for their role track (coordinate, investigate, act)
 
-The critical unlock: multi-agent composition becomes **structural**, not format-specific.
+**Capability metadata in workspace** — `AGENT.md` gains a `## Capabilities` section that reflects current earned capabilities. This is readable by other agents (enabling capability discovery) and updated by the Composer on promotion.
 
-**Current model** (format-specific composition):
+### 4. HTML as the rendering substrate (not the output format)
+
+HTML is not what agents produce — it's how the platform renders agent output for humans. The distinction matters:
+
+- **Agent produces**: markdown + asset references (structured, agent-readable)
+- **Platform renders**: HTML (human-viewable, styled, layout-aware)
+- **Platform exports**: PDF, XLSX, etc. (for external consumption)
+- **Other agents read**: the markdown source, not the HTML
+
+HTML is chosen because it is the simplest composition primitive that accommodates the widest visual expressiveness. But agents don't write HTML — they write structured content that the platform composes into HTML.
+
+### 5. Layout modes as platform intelligence
+
+The platform applies visual treatment based on the output's nature, not agent instruction:
+
+- **Document** — flowing text, tables, charts. Default. For reports, digests, analysis.
+- **Presentation** — sectioned, full-screen, large type. For executive summaries, review decks.
+- **Dashboard** — grid layout, metric cards, KPIs. For operational outputs.
+- **Data** — tabular, sortable, dense. For data-heavy outputs.
+- **Interactive** (future) — stateful, filterable, explorable. For complex analysis.
+
+Layout mode can be:
+- Inferred from content structure (tables → data mode, few sections with metrics → dashboard)
+- Specified by the agent in output metadata
+- Specified by the PM during assembly
+- Overridden by the user in the UI
+
+### 6. Multi-agent composition in one language
+
+All agents produce structured content. Composition is structural:
+
+```markdown
+<!-- Researcher's contribution (from workspace) -->
+## Market Analysis
+![Competitor landscape](assets/competitor-chart.svg)
+Key findings from Q2...
+
+<!-- Data agent's contribution (from workspace) -->
+## Performance Metrics
+| Metric | Q1 | Q2 | Change |
+|--------|----|----|--------|
+| Revenue | $2.1M | $2.8M | +33% |
+![Revenue trend](assets/revenue-trend.svg)
+
+<!-- Writer's contribution (from workspace) -->
+## Executive Summary
+Based on the analysis above...
 ```
-Researcher output (text) ─┐
-Data agent output (JSON) ──┤── PM must understand python-pptx to compose
-Content agent output (text)┤   into a PPTX with images, charts, narrative
-Brand assets (images) ─────┘
+
+The PM arranges these sections. The platform renders them. No format-specific knowledge required at any layer.
+
+### 7. Asset capabilities as workspace-native producers
+
+Asset capabilities (charts, diagrams, images) produce workspace files that agents reference in their output:
+
+- `RenderAsset(type="chart", input={data_spec})` → SVG in `assets/` folder
+- `RenderAsset(type="diagram", input={mermaid_spec})` → SVG in `assets/` folder
+- Agent references: `![Revenue Trend](assets/revenue-trend.svg)`
+
+Assets are workspace files — visible to other agents, versionable, composable. Not opaque binary blobs uploaded to storage.
+
+---
+
+## Capability Architecture
+
+### Capability tiers
+
+**Tier 1: Core capabilities** (all agents, from creation)
+- Read workspace, knowledge base, platform content
+- Search and cross-reference
+- Synthesize narrative from sources
+- Produce structured markdown output
+
+**Tier 2: Domain capabilities** (role-specific, available from creation)
+- **Research**: web search, source investigation, citation
+- **Monitoring**: change detection, threshold alerting, pattern tracking
+- **Data analysis**: structured data processing, metric computation
+- **Coordination**: freshness tracking, contributor steering, assembly (PM only)
+- **Preparation**: agenda building, context gathering, stakeholder profiling
+
+**Tier 3: Expressive capabilities** (earned via seniority progression)
+- **Visualization**: chart generation, diagram creation (via RenderAsset)
+- **Rich composition**: multi-section outputs with embedded assets
+- **Cross-agent reference**: citing and building on other agents' outputs
+- **Layout specification**: agent can specify layout mode based on content awareness
+
+**Tier 4: Autonomous capabilities** (senior+ with explicit user authorization)
+- **Write-back**: post to external platforms (Slack, email, Notion)
+- **Action**: take consequential actions in external systems
+- **Self-direction**: propose and execute investigations without user prompt
+
+### Capability → agent framework wiring
+
+```python
+# In agent_framework.py (proposed evolution)
+CAPABILITY_TIERS = {
+    "core": ["read", "search", "synthesize", "produce_markdown"],
+    "research": ["web_search", "investigate", "cite"],
+    "monitor": ["detect_change", "alert", "track_pattern"],
+    "data_analysis": ["process_data", "compute_metrics", "structured_output"],
+    "coordination": ["check_freshness", "steer_contributor", "assemble"],
+    "visualization": ["render_chart", "render_diagram"],  # Tier 3: earned
+    "rich_composition": ["embed_assets", "multi_section", "layout_hint"],
+    "cross_agent": ["read_agent_context", "cite_agent_output"],
+    "write_back": ["post_slack", "send_email", "update_notion"],
+}
+
+ROLE_BASE_CAPABILITIES = {
+    "digest": ["core"],
+    "research": ["core", "research"],
+    "monitor": ["core", "monitor"],
+    "synthesize": ["core", "data_analysis"],
+    "pm": ["core", "coordination"],
+    ...
+}
+
+SENIORITY_UNLOCKS = {
+    "associate": ["visualization", "rich_composition"],
+    "senior": ["cross_agent", "layout_hint"],
+}
 ```
 
-**New model** (HTML composition):
+### Capability metadata in workspace
+
+`AGENT.md` evolves:
+
+```markdown
+# Agent: Weekly Slack Recap
+
+## Role
+digest
+
+## Capabilities
+- core: read, search, synthesize, produce_markdown
+- visualization: render_chart (earned at associate)
+- rich_composition: embed_assets, multi_section (earned at associate)
+
+## Instructions
+...
 ```
-Researcher output (markdown + images) ─┐
-Data agent output (data tables + SVGs) ─┤── PM arranges HTML sections
-Content agent output (markdown) ────────┤   All assets embed naturally
-Brand assets (CSS + logos) ─────────────┘   via <img>, <svg>, <table>
-```
 
-The PM's assembly prompt already composes text from multiple contributors. With HTML as the substrate, it composes **rich visual content** with the same ease — because HTML composition is just arranging blocks of structured content, not manipulating format-specific object models.
+This is readable by:
+- The agent itself (self-awareness of what it can do)
+- Other agents via `ReadAgentContext` (capability discovery)
+- The PM (knowing what contributors can produce)
+- The Composer (deciding what capabilities are missing in a project)
 
-### Workspace conventions for assets
+---
 
-Assets (images, charts, data files) contributed by agents live in the workspace filesystem and are referenced by path in the HTML output:
+## Workspace & Filesystem Implications
+
+### Output folder structure (extended)
 
 ```
 /agents/{slug}/outputs/{date}/
-├── output.md          # structured content (primary)
-├── output.html        # rendered HTML (generated by render layer)
-├── manifest.json      # metadata (unchanged)
-├── assets/
-│   ├── chart-revenue.svg
-│   ├── logo-competitor.png
-│   └── data-metrics.json
-└── style.css          # optional brand/layout overrides
-
-/projects/{slug}/assembly/{date}/
-├── output.md          # composed content from contributors
-├── output.html        # rendered HTML
-├── manifest.json
-└── assets/            # aggregated from contributor assets
+├── output.md          # structured source (agent writes)
+├── manifest.json      # metadata: layout_mode, capabilities_used, assets
+├── assets/            # visual assets produced by agent capabilities
+│   ├── *.svg          # charts, diagrams
+│   ├── *.png          # images
+│   └── *.json         # structured data (for downstream agents + XLSX export)
+└── (output.html)      # rendered by platform, not by agent — may be cached here
 ```
 
-### Presentation-style layouts in HTML
+### Manifest schema (extended)
 
-The concern "but I need it to look like a presentation" is addressed by **layout modes** in the HTML rendering, not by producing PPTX files:
-
-- **Document mode** — flowing text, headings, tables, charts. Default for reports, digests, analysis.
-- **Presentation mode** — slide-like sections with full-bleed backgrounds, large type, image placement. Each `## Heading` or `---` delimiter becomes a "slide." Renders as a scrollable/navigable HTML presentation (like reveal.js or Slidev).
-- **Dashboard mode** — grid layout with metric cards, charts, KPIs. For recurring operational outputs.
-- **Data mode** — structured tables with sort/filter affordances. For data-heavy outputs.
-
-The agent (or PM during assembly) specifies the layout mode. The render engine applies the appropriate CSS/structure. The same content can be re-rendered in different modes without regeneration.
-
-### Brand application
-
-User brand assets (logo, colors, fonts) stored in workspace (`/brand/` or project-level) are applied as CSS overrides during HTML rendering. This is structurally simpler than template-based branding in PPTX/DOCX (which requires manipulating slide masters, style definitions, etc.).
-
-```
-/brand/
-├── logo.png
-├── brand.css          # colors, fonts, spacing overrides
-└── brand.json         # structured brand metadata
+```json
+{
+  "version": 1,
+  "agent_id": "uuid",
+  "run_number": 5,
+  "layout_mode": "dashboard",
+  "capabilities_used": ["core", "visualization", "data_analysis"],
+  "files": [
+    {"path": "output.md", "role": "source", "content_type": "text/markdown"},
+    {"path": "assets/revenue-chart.svg", "role": "asset", "content_type": "image/svg+xml"}
+  ],
+  "structured_data": [
+    {"path": "assets/metrics.json", "schema": "tabular", "export_hint": "xlsx"}
+  ],
+  "delivery": {"channel": "email", "status": "pending"}
+}
 ```
 
-### In-app surfacing
+### Agent-to-agent consumption
 
-Project outputs pages render the HTML directly. No download required for viewing. The output IS the interface:
+Downstream agents read `output.md` (structured source), not `output.html` (rendered view). This preserves the recursive perception loop:
 
-- **Outputs tab** — rendered HTML inline (iframe or sanitized injection)
-- **Meeting room** — output previews as rich cards with expandable HTML view
-- **Email delivery** — HTML is the email body (zero conversion)
-- **External sharing** — public URL renders the HTML; download buttons offer PDF/PPTX exports
+- Agent B reads Agent A's `output.md` via `ReadAgentContext`
+- Agent B can parse sections, extract data from tables, reference charts
+- Agent B produces its own output that builds on Agent A's knowledge
+- The platform renders both outputs for human viewing
 
-### RuntimeDispatch evolution
+### Capability manifest in AGENT.md
 
-The `RuntimeDispatch` primitive evolves:
+Capabilities are workspace metadata — readable, versionable, agent-discoverable:
 
-**Current**: `RuntimeDispatch(type="presentation", input={slide_spec}, output_format="pptx")`
+```markdown
+## Capabilities
+- core: read, search, synthesize, produce_markdown
+- visualization: render_chart, render_diagram (earned: 2026-03-15, associate promotion)
+- rich_composition: embed_assets, multi_section (earned: 2026-03-15)
+```
 
-**New**: Two-phase approach:
-1. **Asset rendering** (during generation): `RenderAsset(type="chart", input={data_spec})` → produces SVG/PNG in workspace assets folder. Used by agents to create visual assets during their generation step.
-2. **Export** (post-generation, on-demand): `ExportOutput(format="pdf")` → mechanical conversion of the output HTML to a downloadable file. Triggered by delivery config or user request, not during generation.
-
-This separates **creation** (agent produces content + assets) from **formatting** (platform renders HTML + exports to legacy formats).
+Updated by Composer on duty promotion. Read by PM for assembly planning.
 
 ---
 
-## Relationship to ADR-118
+## Impact on Existing Systems
 
-ADR-118's core thesis — "Claude Code online," two-filesystem architecture, skills as curated capabilities — **remains valid**. What changes:
+### Agent framework (`agent_framework.py`)
+- `SKILL_ENABLED_ROLES` → evolves to `ROLE_BASE_CAPABILITIES` + `SENIORITY_UNLOCKS`
+- `ROLE_PORTFOLIOS` → duties gain `capabilities_required` field
+- `classify_seniority()` → also returns unlocked capabilities
+- New: `get_agent_capabilities(role, seniority, earned_duties)` function
 
-| ADR-118 concept | Status under ADR-130 |
-|---|---|
-| Two-filesystem architecture (capability + content) | **Preserved** — capability filesystem is skills/assets on render service; content filesystem is workspace |
-| Skills follow SKILL.md conventions | **Preserved** — but SKILL.md describes cognitive capabilities, not format-specific rendering |
-| Skill auto-discovery | **Preserved** — render service still discovers skills from folder structure |
-| 8 format-builder skills | **Superseded** — dissolves into: asset renderers (chart, mermaid, image) + HTML composition engine + export pipeline |
-| RuntimeDispatch primitive | **Evolved** — splits into RenderAsset (creation-time) + ExportOutput (delivery-time) |
-| `content_url` on workspace_files | **Preserved** — rendered HTML and exported files stored in Supabase Storage |
-| Render service Docker container | **Preserved** — gains puppeteer/playwright for HTML→PDF, keeps matplotlib/mermaid for asset rendering |
+### Agent creation (`agent_creation.py`)
+- AGENT.md seeded with `## Capabilities` section based on role
+- No longer checks `SKILL_ENABLED_ROLES` — checks capability tiers instead
 
-### Skills that survive as asset capabilities
+### Agent execution (`agent_execution.py`)
+- `_fetch_skill_docs()` → `_fetch_capability_docs()` — fetches relevant SKILL.md based on agent's current capabilities, not role name
+- `RuntimeDispatch` → `RenderAsset` for asset production (Tier 3 capability)
+- System prompt injection: capabilities-aware, not role-hardcoded
 
-- **chart** → asset renderer (data spec → SVG/PNG), embedded in HTML output
-- **mermaid** → asset renderer (diagram spec → SVG), embedded in HTML output
-- **image** → asset acquisition/composition (Pillow), produces workspace files
-- **data** → data export (structured data → CSV/JSON), for XLSX export path
+### Agent pipeline (`agent_pipeline.py`)
+- Role prompts updated: agents told to produce structured markdown, reference assets
+- Assembly prompt updated: PM composes markdown sections, specifies layout mode
+- Capability awareness in prompts: "You have visualization capability" vs. "You have RuntimeDispatch"
 
-### Skills that dissolve into the HTML pipeline
+### Render service (`render/main.py`)
+- `/compose` endpoint (Phase 1 — implemented): markdown + assets → HTML
+- `/render` → retained for asset rendering (chart, mermaid, image)
+- Future `/export` → HTML → PDF/image, data → XLSX
 
-- **pdf** → becomes an export from HTML (puppeteer), not a separate skill
-- **pptx** → becomes an export from presentation-mode HTML, or deprecated
-- **xlsx** → becomes an export from structured data tables, not from HTML
-- **html** → becomes the primary render path, not a separate skill
+### Delivery (`delivery.py`)
+- `deliver_from_output_folder()` → sends composed HTML as email body
+- Attachment model → structured data files offered as XLSX downloads
 
----
-
-## Impact Analysis
-
-### Upstream (agent generation)
-
-- **Agent pipeline prompts** (`agent_pipeline.py`): Role prompts gain awareness of asset capabilities. Agents told to produce structured markdown with asset references, not format-specific specs.
-- **Assembly prompt** (`agent_pipeline.py` composition section): PM told to compose HTML sections from contributor markdown, not format-specific assembly.
-- **SKILL.md injection**: Asset capability SKILLs injected (chart, mermaid, image specs). Format-builder SKILLs removed from context.
-- **Headless primitives**: `RenderAsset` replaces `RuntimeDispatch` for creation-time asset generation.
-
-### Midstream (workspace + render)
-
-- **Workspace conventions** (`workspace-conventions.md`): Output folders gain `assets/` subfolder and `output.html` alongside `output.md`.
-- **Render service** (`render/main.py`): New `/compose` endpoint (markdown + assets → HTML). `/render` endpoint simplified to asset rendering only. New `/export` endpoint (HTML → PDF/image).
-- **Manifest schema**: `manifest.json` gains `layout_mode` field and `assets[]` array.
-
-### Downstream (delivery + surfacing)
-
-- **Delivery** (`delivery.py`): `deliver_from_output_folder()` sends `output.html` as email body (currently converts markdown→HTML — simpler with pre-rendered HTML).
-- **Frontend outputs**: Outputs tab renders HTML directly instead of showing download links.
-- **Export buttons**: "Download as PDF" / "Download as PPTX" triggers export service on-demand.
-
-### Render service Docker
-
-Gains: `puppeteer` or `playwright` (HTML→PDF, HTML→image)
-Keeps: `matplotlib`, `mermaid-cli`, `pillow` (asset rendering)
-Drops: `python-pptx` (PPTX export from HTML is a different path — or deprecated entirely)
-Keeps: `openpyxl` (XLSX export from structured data)
+### Frontend
+- Outputs tab → renders HTML inline
+- Meeting room → rich output cards
+- Export buttons → on-demand format conversion
 
 ---
 
 ## Phases
 
-### Phase 1: HTML composition engine
-- New `/compose` endpoint on render service: markdown + asset URLs → styled, self-contained HTML
-- Layout modes: document (default), presentation, dashboard
-- Brand CSS injection (from workspace `/brand/` files)
-- `output.html` written alongside `output.md` in output folders
+### Phase 1: HTML composition engine (IMPLEMENTED)
+- `/compose` endpoint on render service
+- Layout modes: document, presentation, dashboard, data
+- Brand CSS injection
+- Asset URL resolution
 
-### Phase 2: In-app HTML surfacing
-- Outputs tab renders `output.html` inline (sanitized iframe)
-- Meeting room output cards show HTML preview
-- Remove download-only UX for outputs
+### Phase 2: In-app HTML surfacing + agent pipeline integration
+- Outputs tab renders composed HTML inline
+- `agent_execution.py` calls `/compose` after generation to produce `output.html`
+- Email delivery uses composed HTML
+- Meeting room shows rich output previews
 
-### Phase 3: Asset rendering pipeline
-- `RenderAsset` primitive replaces `RuntimeDispatch` for charts/diagrams/images
-- Assets written to `outputs/{date}/assets/` subfolder
-- Agent pipeline prompts updated: produce markdown with `![](assets/chart.svg)` references
-- Assembly prompt updated: compose HTML sections, reference contributor assets
+### Phase 3: Capability model in agent framework
+- `ROLE_BASE_CAPABILITIES` + `SENIORITY_UNLOCKS` replace `SKILL_ENABLED_ROLES`
+- `get_agent_capabilities()` function
+- AGENT.md `## Capabilities` section seeded at creation, updated on promotion
+- Capability-aware primitive injection (replace role-based skill injection)
 
-### Phase 4: Export pipeline
-- `/export` endpoint: HTML → PDF (via puppeteer), HTML → image
-- Structured data → XLSX (direct, not via HTML)
-- Export buttons in frontend (outputs tab, meeting room)
-- Email delivery uses `output.html` directly
+### Phase 4: Asset rendering as earned capability
+- `RenderAsset` primitive (replaces `RuntimeDispatch` for asset production)
+- Gated by Tier 3 capability (associate+ seniority)
+- Assets written to `outputs/{date}/assets/`
+- Agent prompts reference assets via markdown image syntax
 
-### Phase 5: Dissolve format-builder skills
-- Remove `pptx`, `pdf`, `html` skills from render service (replaced by compose + export)
+### Phase 5: Export pipeline
+- `/export` endpoint: HTML → PDF (via puppeteer/playwright), HTML → image
+- Structured data → XLSX (direct from manifest `structured_data`)
+- Export buttons in frontend
+- Email delivery uses composed HTML directly
+
+### Phase 6: Dissolve format-builder skills
+- Remove `pptx`, `pdf`, `html` skills from render service
 - Keep `chart`, `mermaid`, `image` as asset renderers
-- Keep `data` for structured export
-- Update RuntimeDispatch → RenderAsset in all primitives and prompts
-- Update SKILL.md files to reflect cognitive capability framing
+- Update all prompts and primitives to capability model
+- Delete `SKILL_ENABLED_ROLES`
 
-### Phase 6: Presentation-mode + brand system
-- Presentation-mode HTML: slide-like sections, transitions, full-bleed layouts
-- Brand system: `/brand/` workspace folder, CSS injection, logo placement
-- Dashboard-mode HTML: metric cards, grid layouts
-- Data-mode HTML: interactive tables with sort/filter (client-side JS)
+### Phase 7: Capability discovery + marketplace foundation
+- Agents can query "who has capability X" via `DiscoverAgents` enhancement
+- PM selects contributors based on capability match to project objective
+- Composer evaluates capability gaps when deciding what agents to create
+- Foundation for external capability import (MCP tools as capabilities)
 
 ---
 
 ## Trade-offs
 
-### Accepted trade-offs
+### Accepted
 
-1. **PPTX export fidelity** — An HTML-to-PPTX export will not produce natively editable slides with slide masters, transitions, and PowerPoint-specific features. We accept this because: (a) agent output is viewed and evaluated, not edited in PowerPoint; (b) the visual quality of HTML-rendered content exceeds the quality of our current constrained PPTX skill; (c) PDF export from HTML is high-fidelity and covers most "share externally" needs.
+1. **Legacy format export fidelity** — Exports from HTML (PDF, image) are high-fidelity for viewing. Natively editable formats (PPTX with slide masters, XLSX with formulas) are lower fidelity or deferred. We accept this because agent output is viewed and evaluated, not edited in desktop apps.
 
-2. **XLSX from data, not HTML** — Spreadsheets with formulas and filters are genuinely more useful as native XLSX than as HTML tables. We keep the structured-data-to-XLSX path as a direct export, not routed through HTML. This is the one case where the legacy format adds real value over HTML rendering.
+2. **XLSX from data, not HTML** — Spreadsheets with formulas and filters are genuinely more useful as native XLSX. We keep a direct structured-data-to-XLSX path. This is the one case where the legacy format adds real value.
 
-3. **Puppeteer/playwright dependency** — HTML→PDF requires a headless browser in the Docker container. This increases image size and memory. Accepted because: the render service is already a heavy Docker image (pandoc, LaTeX, matplotlib, mermaid-cli), and puppeteer is the industry standard for high-fidelity HTML→PDF.
+3. **Incremental capability migration** — Existing `RuntimeDispatch` + `SKILL_ENABLED_ROLES` continue working during migration. Singular implementation achieved at Phase 6 completion.
 
-### Rejected alternatives
+### Rejected
 
-1. **Code-as-input model** — Let agents pass python-pptx/openpyxl code to the render service for execution. Rejected: solves the expressiveness problem but introduces security risk (arbitrary code execution), doesn't solve the multi-agent composition problem, and doesn't address agent-to-agent consumption.
+1. **Code-as-input model** — Agents pass python-pptx code to render service. Rejected: security risk, doesn't solve composition, doesn't enable capability progression.
 
-2. **Rich JSON DSL per format** — Expand each skill's input schema to support more visual features. Rejected: N×M scaling problem (features × formats), doesn't solve composition, doesn't help agent consumption.
+2. **Rich JSON DSL per format** — Expand each skill's schema. Rejected: N×M scaling, doesn't solve any of the four requirements.
 
-3. **Keep format-builder skills alongside HTML** — Dual approach. Rejected: violates FOUNDATIONS Derived Principle 7 (singular implementation). Two output paths means two sets of prompts, two composition strategies, two delivery paths.
+3. **Keep format-builders alongside capabilities** — Dual approach. Rejected: violates Derived Principle 7 (singular implementation).
 
 ---
 
@@ -296,22 +399,23 @@ Keeps: `openpyxl` (XLSX export from structured data)
 
 | Foundation | Alignment |
 |---|---|
-| **Axiom 2 (Recursive Perception)** | HTML output is readable by downstream agents — structured text with semantic markup. PPTX/PDF output is opaque. HTML closes the recursive loop. |
-| **Axiom 3 (Developing Entities)** | Agents can produce increasingly rich output as they develop — HTML's expressiveness ceiling is much higher than constrained JSON DSLs. Senior agents can produce dashboards; new agents produce simple documents. Same substrate. |
-| **Axiom 4 (Accumulated Attention)** | Output quality compounds with tenure. HTML allows richer expression of accumulated domain knowledge (charts, cross-references, visual hierarchy) without format-specific friction. |
-| **Axiom 6 (Autonomy)** | End-to-end autonomous flow: agent generates → HTML renders → delivers via email (HTML-native) or in-app. No human intervention to "open the file." |
-| **Derived Principle 7 (Singular Implementation)** | One output substrate (HTML), one composition language, one rendering pipeline. No parallel format-specific paths. |
+| **Axiom 2 (Recursive Perception)** | Structured content is agent-readable. Downstream agents consume `output.md`, not opaque binaries. Capability metadata in AGENT.md enables cross-agent discovery. |
+| **Axiom 3 (Developing Entities)** | Capabilities are earned via seniority. New agents produce simple markdown; senior agents produce rich multi-asset compositions. The substrate accommodates the full developmental range. |
+| **Axiom 4 (Accumulated Attention)** | Capability progression compounds with tenure. A senior agent with visualization + cross-reference capabilities produces fundamentally richer output than a new agent — same substrate, more expressiveness. |
+| **Axiom 6 (Autonomy)** | End-to-end autonomous flow: agent generates structured content → platform renders → delivers. No human intervention to "open the file" or "convert the format." |
+| **Derived Principle 7 (Singular)** | One output substrate, one composition language, one capability model. No parallel format-specific paths. |
+| **Derived Principle 9 (Agent-Native)** | Output optimized for agent production and consumption first, human viewing second, legacy export third. |
 
 ---
 
 ## Open Questions
 
-1. **Presentation-mode navigation** — Should presentation-mode HTML be a scrollable page with visual slide breaks, or an interactive presenter view with keyboard navigation (like reveal.js)? Scrollable is simpler; presenter view is more "presentation-like."
+1. **Capability prerequisite graph** — Should capabilities have dependencies (e.g., "visualization requires data_analysis")? Or is role-based portfolio sufficient? Dependencies add precision but complexity.
 
-2. **Client-side interactivity** — Dashboard-mode and data-mode benefit from client-side JS (sort/filter tables, hover tooltips on charts). How much JS is acceptable in output HTML? Zero-JS is safest for email delivery; rich-JS enables better in-app experience. Possible: two renders (email-safe static + in-app interactive).
+2. **Interactive outputs** — Can agents produce outputs with client-side interactivity (filterable tables, explorable charts)? Requires JS in HTML. Tension with email delivery (no JS). Solution: two renders (static for email, interactive for in-app)?
 
-3. **PPTX export priority** — Is PPTX export worth building at all? PDF covers "share externally." If specific users need PPTX, it could be a later phase or community contribution. Deferring saves significant effort.
+3. **External capability import** — How do MCP tools map to capabilities? If a user connects an MCP server with new tools, do those become agent capabilities? This is the marketplace question — deferred but architecturally important.
 
-4. **Brand system scope** — How sophisticated should brand application be? Minimum: logo + color palette + font. Maximum: full design system with component variants. Start minimum, expand based on user demand.
+4. **Capability versioning** — When a capability's implementation changes (e.g., chart rendering improves), do existing agents benefit automatically? Or do they need to "re-earn" the capability?
 
-5. **Puppeteer vs. alternatives** — Puppeteer is heavy. Alternatives: `weasyprint` (Python, lighter, less fidelity), `wkhtmltopdf` (deprecated but light), `playwright` (similar to puppeteer, multi-browser). Evaluate during Phase 4.
+5. **Structured data as primary output** — Some agents (data analysts) produce structured data (JSON/CSV) as their primary contribution, not narrative. How does this flow through the composition pipeline? Manifest `structured_data` field is a start, but the agent prompt model is markdown-first.

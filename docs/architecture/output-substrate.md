@@ -1,18 +1,92 @@
-# Output Substrate Architecture
+# Agent Capability & Output Substrate
 
 > **Status**: Canonical (ADR-130)
 > **Date**: 2026-03-22
-> **Rule**: All output-related architecture should be consistent with this document.
+> **Rule**: All capability, output, and rendering decisions should be consistent with this document.
 
 ---
 
 ## Core Principle
 
-**Agent output is structured content, not files.** The platform renders it visually for humans and exposes it structurally for agents. Legacy file formats are mechanical exports for external sharing.
+**Agent work is structured content, not files.** Capabilities determine what agents can do. The platform renders their work visually for humans and exposes it structurally for other agents. File formats are mechanical exports for external sharing.
+
+Three concerns, separated:
+1. **Capability** — what can this agent do? (agent-owned, earned via development)
+2. **Presentation** — how should the output look? (platform-owned, layout modes)
+3. **Export** — what file format is needed externally? (platform-owned, on-demand)
 
 ---
 
-## The Output Pipeline
+## Capability Model
+
+### Capability tiers
+
+```
+Tier 1: Core (all agents, from creation)
+├── read — workspace, knowledge base, platform content
+├── search — cross-reference sources
+├── synthesize — produce narrative from inputs
+└── produce_markdown — structured content output
+
+Tier 2: Domain (role-specific, from creation)
+├── research — web search, investigation, citation
+├── monitor — change detection, alerting, pattern tracking
+├── data_analysis — structured data, metrics, computation
+├── coordination — freshness, steering, assembly (PM)
+└── preparation — agenda, context gathering, profiling
+
+Tier 3: Expressive (earned at associate seniority)
+├── visualization — chart/diagram generation via RenderAsset
+├── rich_composition — multi-section output with embedded assets
+├── cross_agent — reference and build on other agents' outputs
+└── layout_hint — specify presentation mode for output
+
+Tier 4: Autonomous (senior+, requires user authorization)
+├── write_back — post to external platforms
+├── action — consequential external system actions
+└── self_direction — propose and execute investigations
+```
+
+### Capability → agent wiring
+
+```
+Agent creation
+  └── Role determines Tier 1 + Tier 2 base capabilities
+        └── Seeded in AGENT.md ## Capabilities
+
+Seniority progression (feedback-gated)
+  └── Associate: unlocks Tier 3 capabilities
+        └── AGENT.md updated by Composer on promotion
+
+  └── Senior: unlocks Tier 4 eligibility
+        └── Requires explicit user authorization per capability
+
+Duty promotion (ADR-117)
+  └── New duties may add Tier 2 capabilities from other roles
+        └── e.g., digest agent earns monitor duty → gains detect_change
+```
+
+### Capability metadata in workspace
+
+`AGENT.md` carries a `## Capabilities` section:
+
+```markdown
+## Capabilities
+- core: read, search, synthesize, produce_markdown
+- data_analysis: process_data, compute_metrics, structured_output
+- visualization: render_chart, render_diagram (earned: 2026-03-15)
+- rich_composition: embed_assets, multi_section (earned: 2026-03-15)
+```
+
+This is readable by:
+- **The agent itself** — self-awareness of what it can do
+- **Other agents** via `ReadAgentContext` — capability discovery
+- **PM agents** — knowing what contributors can produce for assembly planning
+- **Composer** — identifying capability gaps when creating agents/projects
+
+---
+
+## Output Pipeline
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -21,10 +95,10 @@
 │  Agent produces:                                 │
 │  ├── Structured markdown (output.md)             │
 │  ├── Asset references (charts, images, diagrams) │
-│  └── Layout hint (document | presentation |      │
-│       dashboard | data)                          │
+│  ├── Structured data (JSON for tables/metrics)   │
+│  └── Manifest with capabilities_used + metadata  │
 │                                                  │
-│  Assets produced via RenderAsset primitive:       │
+│  Assets produced via RenderAsset (Tier 3):       │
 │  ├── chart (data → SVG/PNG via matplotlib)       │
 │  ├── diagram (mermaid spec → SVG)                │
 │  ├── image (composition via Pillow)              │
@@ -37,11 +111,11 @@
 │                                                  │
 │  /agents/{slug}/outputs/{date}/                  │
 │  ├── output.md        (structured source)        │
-│  ├── manifest.json    (metadata, asset refs)     │
+│  ├── manifest.json    (capabilities, assets, etc)│
 │  └── assets/                                     │
-│      ├── chart-revenue.svg                       │
-│      ├── logo.png                                │
-│      └── data-summary.json                       │
+│      ├── *.svg        (charts, diagrams)         │
+│      ├── *.png        (images)                   │
+│      └── *.json       (structured data)          │
 │                                                  │
 │  /projects/{slug}/assembly/{date}/               │
 │  ├── output.md        (composed from contribs)   │
@@ -49,212 +123,121 @@
 │  └── assets/          (aggregated)               │
 └──────────────────┬──────────────────────────────┘
                    │
-                   ▼
-┌─────────────────────────────────────────────────┐
-│            HTML COMPOSITION ENGINE               │
-│         (render service /compose endpoint)        │
-│                                                  │
-│  Input: output.md + assets + layout_mode + brand │
-│  Output: self-contained HTML                     │
-│                                                  │
-│  Layout modes:                                   │
-│  ├── document   — flowing text, tables, charts   │
-│  ├── presentation — slide-like sections          │
-│  ├── dashboard  — metric cards, grid layout      │
-│  └── data       — structured tables              │
-│                                                  │
-│  Brand injection:                                │
-│  ├── /brand/brand.css (colors, fonts)            │
-│  ├── /brand/logo.png  (header placement)         │
-│  └── defaults if no brand configured             │
-└──────────────────┬──────────────────────────────┘
-                   │
-          ┌────────┼────────┐
-          ▼        ▼        ▼
-     ┌─────────┐ ┌──────┐ ┌───────┐
-     │ In-App  │ │Email │ │Export │
-     │ Render  │ │      │ │       │
-     │         │ │HTML  │ │HTML   │
-     │ Outputs │ │body  │ │→ PDF  │
-     │ tab,    │ │(zero │ │→ image│
-     │ meeting │ │conv) │ │→ PPTX │
-     │ room    │ │      │ │data   │
-     │         │ │      │ │→ XLSX │
-     └─────────┘ └──────┘ └───────┘
+          ┌────────┼─────────────────┐
+          ▼        ▼                 ▼
+     ┌─────────┐ ┌───────────┐ ┌──────────┐
+     │ Agent   │ │ Platform  │ │ Platform │
+     │ Consume │ │ Render    │ │ Export   │
+     │         │ │           │ │          │
+     │ Read    │ │ Compose   │ │ HTML→PDF │
+     │ output  │ │ markdown  │ │ data→XLS │
+     │ .md via │ │ + assets  │ │ HTML→img │
+     │ Read-   │ │ → styled  │ │          │
+     │ Agent-  │ │ HTML with │ │ On-demand│
+     │ Context │ │ layout    │ │ download │
+     │         │ │ mode      │ │ buttons  │
+     └─────────┘ └─────┬─────┘ └──────────┘
+                       │
+              ┌────────┼────────┐
+              ▼        ▼        ▼
+         ┌─────────┐ ┌──────┐ ┌───────┐
+         │ In-App  │ │Email │ │Public │
+         │         │ │      │ │Share  │
+         │ Outputs │ │HTML  │ │       │
+         │ tab,    │ │body  │ │URL    │
+         │ meeting │ │(zero │ │render │
+         │ room    │ │conv) │ │       │
+         └─────────┘ └──────┘ └───────┘
 ```
 
 ---
 
 ## Multi-Agent Composition
 
-The key architectural advantage: multi-agent composition operates in **one language** regardless of output complexity.
-
-### Before (format-specific composition)
-
-Each output format required format-specific assembly logic:
-- PPTX: understand slide layouts, placeholder indices, shape positioning
-- PDF: understand LaTeX templates, pandoc options
-- XLSX: understand sheet structures, cell formatting
-- The PM assembly step needed format-specific knowledge per output type
-
-### After (HTML composition)
-
-All agents produce structured markdown with asset references. Composition is structural:
+All agents produce structured content. Composition operates in one language regardless of output complexity:
 
 ```markdown
-<!-- Researcher's contribution -->
+<!-- From workspace: /projects/q2-review/contributions/researcher/output.md -->
 ## Market Analysis
 ![Competitor landscape](assets/competitor-chart.svg)
+Key findings: three new entrants in the mid-market segment...
 
-Key findings from Q2...
-
-<!-- Data agent's contribution -->
+<!-- From workspace: /projects/q2-review/contributions/data-analyst/output.md -->
 ## Performance Metrics
 | Metric | Q1 | Q2 | Change |
 |--------|----|----|--------|
 | Revenue | $2.1M | $2.8M | +33% |
-
 ![Revenue trend](assets/revenue-trend.svg)
 
-<!-- Content agent's contribution -->
+<!-- From workspace: /projects/q2-review/contributions/writer/output.md -->
 ## Executive Summary
-Based on the analysis above...
+Based on the analysis above, three strategic priorities emerge...
 ```
 
-The PM arranges these sections, adds transitions, selects layout mode. The render engine handles visual presentation. No format-specific knowledge required at the composition layer.
+PM arranges sections, specifies layout mode, triggers assembly. Platform composes HTML. No format-specific knowledge at any layer.
+
+**Key insight**: the PM doesn't need to know how to make a presentation, a document, or a spreadsheet. It knows how to arrange contributions and specify intent ("this should look like a dashboard" or "this needs to feel like an executive briefing"). The platform translates intent to visual treatment.
 
 ---
 
-## Capability Architecture (Skills Reframe)
+## Layout Modes
 
-### Asset capabilities (produce workspace files)
+The platform applies visual treatment based on content and intent:
 
-| Capability | Tool | Input | Output | When used |
-|---|---|---|---|---|
-| **chart** | matplotlib | Data spec (labels, datasets, chart_type) | SVG or PNG in `assets/` | Agent needs data visualization |
-| **diagram** | mermaid-cli | Mermaid spec (flowchart, sequence, etc.) | SVG in `assets/` | Agent needs structural diagrams |
-| **image** | Pillow | Composition spec (layers, text, shapes) | PNG in `assets/` | Agent needs composed images |
+| Mode | Visual treatment | Best for | How specified |
+|---|---|---|---|
+| **document** | Flowing text, max-width, reading-optimized | Reports, digests, analysis | Default |
+| **presentation** | Full-screen sections, large type, slide breaks at `##`/`---` | Executive reviews, team updates | PM or agent metadata |
+| **dashboard** | CSS grid, metric cards, KPI panels | Operational summaries, status reports | PM or content detection |
+| **data** | Dense tables, tabular nums, sticky headers | Data-heavy outputs, comparisons | Content detection (table-dominant) |
+| **interactive** (future) | Client-side JS, filterable, explorable | Complex analysis, drill-down | Tier 4 capability |
 
-### Cognitive capabilities (agent intelligence, not render service)
-
-These are capabilities the agent exercises during generation — they're about *what the agent can do*, not what the render service produces:
-
-| Capability | Description | Available to |
-|---|---|---|
-| **research** | Web search, source investigation | research role, senior agents |
-| **data-analysis** | Cross-reference data, compute metrics, produce structured tables | analyst role, senior agents |
-| **content-synthesis** | Compose narrative from multiple sources | all roles (core capability) |
-| **monitoring** | Detect changes, track patterns, alert on thresholds | monitor role |
-| **coordination** | Track freshness, steer contributors, trigger assembly | PM role |
-
-### Export capabilities (mechanical, on-demand)
-
-| Export | Method | Trigger |
-|---|---|---|
-| **PDF** | HTML → puppeteer/playwright | Delivery config, user download |
-| **Image** | HTML → screenshot | Thumbnail generation, sharing |
-| **XLSX** | Structured data → openpyxl | User download (data-mode outputs) |
-| **Email** | HTML → email body | Delivery config (zero conversion) |
-
----
-
-## Surfacing Model
-
-### In-app (primary)
-
-The platform renders output HTML directly. This is the primary consumption path:
-
-- **Outputs tab**: Full HTML render (iframe or sanitized). Layout mode determines visual treatment.
-- **Meeting room**: Output preview cards with expandable HTML view. Rich visual inline, not just text summaries.
-- **Dashboard**: Output status cards with thumbnail previews (HTML → image thumbnail).
-
-### Email delivery
-
-HTML IS email. The `output.html` becomes the email body with zero conversion. Asset images referenced by URL. This is structurally simpler and higher fidelity than the current markdown→HTML conversion in delivery.py.
-
-### External sharing
-
-- **Public URL**: Renders the HTML (authenticated or public link).
-- **Download buttons**: "Download as PDF" triggers export service. "Download data as XLSX" for data-mode outputs.
-- **PPTX export**: Deferred — evaluate user demand before building. PDF covers most "share externally" needs.
+Layout mode is decoupled from agent capability. Any agent's output can be rendered in any mode. The same output can be re-rendered in a different mode without regeneration.
 
 ---
 
 ## Workspace Conventions (ADR-119 extension)
 
-### Output folder structure (updated)
+### Output folder structure
 
 ```
 /agents/{slug}/outputs/{date}/
-├── output.md          # structured source (agent writes this)
-├── output.html        # rendered HTML (compose engine generates this)
-├── manifest.json      # metadata (extended with layout_mode, assets)
-├── assets/            # visual assets produced during generation
-│   ├── *.svg          # charts, diagrams
-│   ├── *.png          # images, screenshots
-│   └── *.json         # structured data (for XLSX export)
-└── exports/           # on-demand exports (generated when requested)
-    ├── *.pdf
-    └── *.xlsx
+├── output.md          # structured source (agent writes)
+├── manifest.json      # metadata (extended)
+└── assets/            # visual assets
+    ├── *.svg          # charts, diagrams
+    ├── *.png          # images
+    └── *.json         # structured data
 ```
 
-### Manifest schema (extended)
+### Manifest schema
 
 ```json
 {
   "version": 1,
   "agent_id": "uuid",
   "run_number": 5,
-  "layout_mode": "presentation",
+  "layout_mode": "dashboard",
+  "capabilities_used": ["core", "visualization", "data_analysis"],
   "files": [
-    {"path": "output.md", "role": "source", "content_type": "text/markdown"},
-    {"path": "output.html", "role": "rendered", "content_type": "text/html", "content_url": "..."},
+    {"path": "output.md", "role": "source"},
     {"path": "assets/revenue-chart.svg", "role": "asset", "content_type": "image/svg+xml"}
   ],
-  "assets": [
-    {"path": "assets/revenue-chart.svg", "type": "chart", "caption": "Q2 Revenue Trend"}
+  "structured_data": [
+    {"path": "assets/metrics.json", "schema": "tabular", "export_hint": "xlsx"}
   ],
-  "delivery": {
-    "channel": "email",
-    "status": "pending"
-  }
+  "delivery": {"channel": "email", "status": "pending"}
 }
 ```
 
-### Brand folder
+### AGENT.md capabilities section
 
+```markdown
+## Capabilities
+- core: read, search, synthesize, produce_markdown
+- data_analysis: process_data, compute_metrics (role: synthesize)
+- visualization: render_chart, render_diagram (earned: 2026-03-15, associate)
 ```
-/brand/                    # user-level brand assets
-├── brand.css              # color palette, fonts, spacing
-├── logo.png               # primary logo
-├── logo-dark.png          # dark-mode variant (optional)
-└── brand.json             # structured brand metadata
-    {
-      "name": "Acme Corp",
-      "primary_color": "#1a56db",
-      "font_family": "Inter, sans-serif"
-    }
-```
-
----
-
-## Layout Modes
-
-### Document (default)
-
-Flowing text with headings, paragraphs, tables, charts, blockquotes. Optimized for reading. Print-friendly. This is what most digests, analyses, and reports use.
-
-### Presentation
-
-Each `## Heading` or `---` delimiter becomes a visual "slide." Large headings, full-width images, generous whitespace. Navigable sections (scroll or click-through). Background colors per section. This replaces PPTX for agent-produced presentations — the content is presentation-ready, the HTML renders it presentation-style, and PDF export preserves the visual treatment.
-
-### Dashboard
-
-Grid layout with metric cards, KPI panels, charts arranged in columns. Numbers prominent, trends visible. For recurring operational outputs (weekly metrics, status dashboards, monitoring summaries).
-
-### Data
-
-Structured tables as the primary element. Sort/filter affordances (client-side JS in in-app render, static in email). Row highlighting, conditional formatting. For data-heavy outputs where the table IS the deliverable. XLSX export available for this mode.
 
 ---
 
@@ -262,9 +245,11 @@ Structured tables as the primary element. Sort/filter affordances (client-side J
 
 | Component | Relationship |
 |---|---|
-| **Workspace (ADR-106, 119)** | Output folders gain `assets/` and `output.html`. Manifest extended. |
-| **Skills (ADR-118)** | Skills reframed: asset renderers (chart, mermaid, image) survive. Format builders (pdf, pptx, xlsx, html) dissolve into compose + export. |
-| **Assembly (ADR-120, 121)** | PM composition produces markdown sections from contributors. Render engine composes HTML. PM specifies layout mode. |
-| **Coherence (ADR-128)** | Self-assessments stripped from output.md before HTML rendering (unchanged). Cognitive files are not output. |
-| **Delivery (ADR-118 D.3)** | `deliver_from_output_folder()` sends `output.html` as email body. Attachments become export downloads, not primary output. |
-| **Meeting Room (ADR-124)** | Output previews rendered as rich HTML cards in the chat stream. |
+| **Agent Framework (ADR-109, 117)** | Capability tiers replace `SKILL_ENABLED_ROLES`. Role portfolios gain capability requirements. Seniority unlocks expressive capabilities. |
+| **Workspace (ADR-106, 119)** | Output folders gain `assets/`. Manifest gains `capabilities_used`. AGENT.md gains `## Capabilities`. |
+| **Skills (ADR-118)** | Format-builder skills dissolve. Asset renderers (chart, mermaid, image) become Tier 3 capabilities via RenderAsset. Two-filesystem architecture preserved. |
+| **Assembly (ADR-120, 121)** | PM composes structured markdown sections. Layout mode specified at assembly level. No format-specific composition. |
+| **Coherence (ADR-128)** | Self-assessments include capability usage. PM assessment includes contributor capability evaluation. |
+| **Delivery (ADR-118 D.3)** | Composed HTML as email body. Exports as download attachments. |
+| **Meeting Room (ADR-124)** | Rich HTML output previews in chat stream. |
+| **Composer (ADR-111)** | Capability gap analysis: "this project needs data_analysis but no contributor has it." |
