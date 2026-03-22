@@ -9,7 +9,6 @@
  *
  * Panel tabs:
  * - Projects: compact entry cards linking to /projects/[slug]
- * - Sessions: chat session history
  * - Platforms: connected platforms + document uploads (PlatformSyncStatus component)
  */
 
@@ -48,8 +47,7 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
-import { SessionsPanel } from '@/components/agents/AgentDrawerPanels';
-import type { AgentSession, ProjectSummary } from '@/types';
+import type { ProjectSummary } from '@/types';
 
 // =============================================================================
 // Panel: Projects (compact entry cards — ADR-122/124 project-first model)
@@ -234,25 +232,9 @@ export function ChatFirstDesk() {
   const [shareFilename, setShareFilename] = useState('');
   const [shareContent, setShareContent] = useState('');
   const [shareLoading, setShareLoading] = useState(false);
-  const [sessions, setSessions] = useState<AgentSession[]>([]);
   const createCardsRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Load global sessions for the Sessions panel
-  const loadSessions = useCallback(async () => {
-    try {
-      const data = await api.chat.listSessions();
-      setSessions(data);
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => { void loadSessions(); }, [loadSessions]);
-
-  // Refresh sessions after each TP turn completes
-  useEffect(() => {
-    if (!isLoading) { void loadSessions(); }
-  }, [isLoading, loadSessions]);
 
   const {
     attachments,
@@ -486,11 +468,6 @@ export function ChatFirstDesk() {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsPanel />,
-    },
-    {
-      id: 'sessions',
-      label: 'Sessions',
-      content: <SessionsPanel sessions={sessions} />,
     },
     {
       id: 'platforms',
