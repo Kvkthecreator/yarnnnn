@@ -11,7 +11,7 @@
  */
 
 import { Loader2, CheckCircle2, ArrowRight, Settings, Clock, Zap } from "lucide-react";
-import { SlackIcon, GmailIcon, NotionIcon, GoogleCalendarIcon } from "@/components/ui/PlatformIcons";
+import { SlackIcon, NotionIcon } from "@/components/ui/PlatformIcons";
 
 interface PlatformOnboardingPromptProps {
   /** Navigate to settings to connect platforms */
@@ -41,26 +41,16 @@ export function PlatformOnboardingPrompt({
       </div>
 
       {/* ADR-053: Simplified platform cards with "pick one" messaging */}
-      <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className="w-full grid grid-cols-2 gap-4 mb-6">
         <PlatformCard
           icon={<SlackIcon className="w-8 h-8" />}
           name="Slack"
           description="1 channel to start"
         />
         <PlatformCard
-          icon={<GmailIcon className="w-8 h-8" />}
-          name="Gmail"
-          description="Your inbox"
-        />
-        <PlatformCard
           icon={<NotionIcon className="w-8 h-8" />}
           name="Notion"
           description="1 workspace page"
-        />
-        <PlatformCard
-          icon={<GoogleCalendarIcon className="w-8 h-8" />}
-          name="Calendar"
-          description="Your schedule"
         />
       </div>
 
@@ -233,7 +223,7 @@ export function NoPlatformsBanner({
   return (
     <div className="mb-4 p-4 bg-muted/50 rounded-2xl flex items-center justify-between">
       <p className="text-sm text-muted-foreground">
-        Connect Slack, Gmail, or Notion to automatically build your context.
+        Connect Slack or Notion to automatically build your context.
       </p>
       <div className="flex items-center gap-2">
         <button

@@ -32,9 +32,7 @@ import {
   Clock,
   ArrowRight,
   ChevronDown,
-  Mail,
   MessageSquare,
-  Calendar,
   Filter,
   Link,
   Unlink,
@@ -473,12 +471,8 @@ export default function ActivityPage() {
     switch (provider) {
       case 'slack':
         return <MessageSquare className="w-3 h-3" />;
-      case 'gmail':
-        return <Mail className="w-3 h-3" />;
       case 'notion':
         return <FileText className="w-3 h-3" />;
-      case 'calendar':
-        return <Calendar className="w-3 h-3" />;
       default:
         return null;
     }

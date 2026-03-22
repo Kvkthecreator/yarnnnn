@@ -28,20 +28,6 @@ Best starting use cases:
 - product watch
 - cross-team weekly summary
 
-### Gmail
-
-YARNNN can:
-
-- summarize important email threads
-- pull client or stakeholder context into agents
-- combine inbox context with Slack, Notion, and Calendar
-
-Best starting use cases:
-
-- client communication digest
-- inbox summary
-- stakeholder status synthesis
-
 ### Notion
 
 YARNNN can:
@@ -56,22 +42,11 @@ Best starting use cases:
 - research brief
 - status update grounded in current documentation
 
-### Google Calendar
-
-YARNNN can:
-
-- generate meeting prep
-- answer schedule-aware questions
-- use upcoming events as timing context for other work
-
-Calendar is especially useful when paired with Slack and Gmail.
-
 ## Refining coverage later
 
 After the first sync, go to the Context area if you want to:
 
 - add or remove Slack channels
-- change Gmail labels
 - narrow or expand Notion page coverage
 - disconnect a platform entirely
 

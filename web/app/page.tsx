@@ -10,15 +10,14 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "AI Agents That Work While You Sleep",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs AI agents that deliver real work on schedule. Connect once. Wake up to finished work.",
+    "yarnnn connects to Slack and Notion, then runs AI agents that deliver real work on schedule. Connect once. Wake up to finished work.",
   path: "/",
   keywords: [
     "autonomous ai",
     "ai agent platform",
     "ai work agent",
     "slack ai summary",
-    "gmail ai digest",
-    "ai meeting prep",
+    "notion ai summary",
     "autonomous workflow",
     "ai employee",
     "agent automation",
@@ -63,7 +62,7 @@ export default function LandingPage() {
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
                   Connect your tools once. yarnnn runs agents in the background
-                  that deliver real work on schedule — recaps, briefs, research,
+                  that deliver real work on schedule — recaps, research,
                   reports. You wake up to finished work. They get better every cycle.
                 </p>
 
@@ -94,9 +93,9 @@ export default function LandingPage() {
                   <span className="text-[#1a1a1a]/50">Still doing it yourself.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  You spend hours pulling updates from Slack, summarizing emails,
-                  prepping for meetings, and stitching context across tools that
-                  don&apos;t talk to each other.
+                  You spend hours pulling updates from Slack, summarizing docs,
+                  and stitching context across tools that don&apos;t talk to each
+                  other.
                 </p>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">
                   AI chat tools help in the moment, but they forget everything
@@ -133,8 +132,8 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Connect your tools</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Link Slack, Gmail, Notion, or Calendar. yarnnn immediately
-                  creates your first agents and starts syncing.
+                  Link Slack or Notion. yarnnn immediately creates your first
+                  agents and starts syncing.
                 </p>
               </div>
 
@@ -173,19 +172,19 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="glass-card-light p-6">
                 <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Weekly team update</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Slack and email, synthesized</h3>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Slack and Notion, synthesized</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Daily or weekly summaries of your channels and inboxes — highlights, decisions,
+                  Daily or weekly summaries of your channels and pages — highlights, decisions,
                   and action items delivered on schedule.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
                 <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Meeting prep</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Briefed before every meeting</h3>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Context when you need it</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Every morning, yarnnn reads your calendar and pulls context from
-                  Slack, Gmail, and Notion into a prep briefing for each meeting.
+                  yarnnn pulls context from Slack and Notion into prep briefings
+                  that keep you informed before every key moment.
                 </p>
               </div>
 
@@ -204,15 +203,6 @@ export default function LandingPage() {
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   Multiple agents pull from different sources, then combine into one
                   polished report — PDF, slides, or email-ready.
-                </p>
-              </div>
-
-              <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Email triage</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">What needs your attention</h3>
-                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Daily recap of your Gmail labels — key threads, follow-ups, and
-                  what actually needs you vs. what can wait.
                 </p>
               </div>
 

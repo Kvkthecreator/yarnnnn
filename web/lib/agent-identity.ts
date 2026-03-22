@@ -12,7 +12,7 @@
 /** Avatar background color by role */
 export function avatarColor(role?: string): string {
   switch (role) {
-    case 'pm': return 'bg-purple-500';
+    case 'pm': return 'bg-purple-600';
     case 'digest': return 'bg-blue-500';
     case 'monitor': return 'bg-amber-500';
     case 'research': return 'bg-green-500';

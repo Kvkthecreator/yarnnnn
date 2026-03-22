@@ -88,7 +88,7 @@ export function useSourceSelection({
 
     try {
       const addedIds = Array.from(selectedIds).filter((id) => !originalIds.has(id));
-      const apiProvider = getApiProvider(platform) as "slack" | "gmail" | "notion" | "calendar";
+      const apiProvider = getApiProvider(platform) as "slack" | "notion";
       const result = await api.integrations.updateSources(
         apiProvider,
         Array.from(selectedIds)
@@ -141,11 +141,9 @@ export function useSourceSelection({
           total: newlySelectedIds.length,
         });
 
-        const apiProvider = getApiProvider(platform) as "slack" | "gmail" | "notion" | "calendar";
-        // Gmail labels need label: prefix for backend processing
-        const resourceIdForImport = platform === 'gmail' ? `label:${sourceId}` : sourceId;
+        const apiProvider = getApiProvider(platform) as "slack" | "notion";
         const job = await api.integrations.startImport(apiProvider, {
-          resource_id: resourceIdForImport,
+          resource_id: sourceId,
           resource_name: resource?.name,
           scope: { recency_days: 7, max_items: 100 },
         });

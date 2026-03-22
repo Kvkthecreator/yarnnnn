@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Mail, Slack, FileCode, Calendar, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Slack, FileCode, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from './card';
 
@@ -38,12 +38,6 @@ const PLATFORM_CONFIG: Record<string, {
   color: string;
   bgColor: string;
 }> = {
-  gmail: {
-    icon: <Mail className="w-6 h-6" />,
-    label: 'Gmail',
-    color: 'text-red-500',
-    bgColor: 'bg-red-50 dark:bg-red-950/30',
-  },
   slack: {
     icon: <Slack className="w-6 h-6" />,
     label: 'Slack',
@@ -55,18 +49,6 @@ const PLATFORM_CONFIG: Record<string, {
     label: 'Notion',
     color: 'text-gray-700 dark:text-gray-300',
     bgColor: 'bg-gray-50 dark:bg-gray-800/50',
-  },
-  google: {
-    icon: <Calendar className="w-6 h-6" />,
-    label: 'Google',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
-  },
-  calendar: {
-    icon: <Calendar className="w-6 h-6" />,
-    label: 'Calendar',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
   },
 };
 
@@ -216,7 +198,7 @@ export function AddPlatformCard({ onClick, className }: AddPlatformCardProps) {
           Connect Platform
         </p>
         <p className="text-xs text-muted-foreground/70 mt-1">
-          Slack, Gmail, Notion, Calendar
+          Slack, Notion
         </p>
       </CardContent>
     </Card>

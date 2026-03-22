@@ -7,9 +7,7 @@ YARNNN uses your data to ground responses, run agents, and improve work quality 
 | Platform | What YARNNN can access |
 |---|---|
 | Slack | Selected channel content |
-| Gmail | Selected label content |
 | Notion | Selected pages and databases |
-| Google Calendar | Upcoming events and schedule context |
 | Documents | Files you upload directly to YARNNN |
 
 Coverage is user-scoped and can be refined after connection.
@@ -36,7 +34,7 @@ to improve later work quality.
 
 ## What YARNNN does not do
 
-- it does not post, send, or edit content inside Slack, Gmail, Notion, or Calendar
+- it does not post or edit content inside Slack or Notion
 - it does not share your data with other users
 - it does not train external foundation models on your data
 - it does not store your passwords; it stores encrypted OAuth tokens

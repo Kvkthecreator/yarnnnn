@@ -12,11 +12,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Mail,
   Slack,
   FileCode,
   Download,
-  Calendar,
   ChevronRight,
   Check,
   Loader2,
@@ -49,15 +47,6 @@ const PLATFORM_CONFIG: Record<string, {
   color: string;
   formats: { value: string; label: string; description: string }[];
 }> = {
-  gmail: {
-    icon: <Mail className="w-5 h-5" />,
-    label: 'Gmail',
-    color: 'text-red-500',
-    formats: [
-      { value: 'draft', label: 'Draft', description: 'Creates a draft in your Gmail' },
-      { value: 'send', label: 'Send directly', description: 'Sends email immediately' },
-    ],
-  },
   slack: {
     icon: <Slack className="w-5 h-5" />,
     label: 'Slack',
@@ -82,22 +71,6 @@ const PLATFORM_CONFIG: Record<string, {
     color: 'text-blue-500',
     formats: [
       { value: 'markdown', label: 'Markdown', description: 'Download as .md file' },
-    ],
-  },
-  google: {
-    icon: <Calendar className="w-5 h-5" />,
-    label: 'Google',
-    color: 'text-blue-500',
-    formats: [
-      { value: 'draft', label: 'Draft', description: 'Creates a draft in your Gmail' },
-    ],
-  },
-  calendar: {
-    icon: <Calendar className="w-5 h-5" />,
-    label: 'Calendar',
-    color: 'text-blue-500',
-    formats: [
-      { value: 'markdown', label: 'Download', description: 'Download as markdown file' },
     ],
   },
 };
@@ -248,7 +221,7 @@ export function DestinationSelector({
               <div>
                 <p className="font-medium">No integrations connected</p>
                 <p className="text-xs mt-1">
-                  Connect Gmail, Slack, or Notion to enable platform delivery.
+                  Connect Slack or Notion to enable platform delivery.
                 </p>
                 <Link
                   href="/system"
@@ -321,24 +294,6 @@ export function DestinationSelector({
       </div>
 
       {/* Target input (platform-specific) */}
-      {selectedFormat && selectedPlatform === 'gmail' && (
-        <div>
-          <label className="block text-sm font-medium mb-1.5">
-            Recipient email
-          </label>
-          <input
-            type="email"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            placeholder="recipient@example.com"
-            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            The email address this will be sent to
-          </p>
-        </div>
-      )}
-
       {selectedFormat && selectedPlatform === 'slack' && (
         <div>
           <label className="block text-sm font-medium mb-1.5">
@@ -404,12 +359,6 @@ export function DestinationSelector({
         <div className="p-3 bg-muted/50 rounded-md">
           <div className="text-sm">
             <span className="font-medium">Summary: </span>
-            {selectedPlatform === 'gmail' && selectedFormat === 'draft' && (
-              <span>Draft will appear in your Gmail Drafts folder</span>
-            )}
-            {selectedPlatform === 'gmail' && selectedFormat === 'send' && (
-              <span>Email will be sent to {target || '(enter email)'}</span>
-            )}
             {selectedPlatform === 'slack' && selectedFormat === 'dm_draft' && (
               <span>You'll receive a DM with content for {target || '(select channel)'}</span>
             )}

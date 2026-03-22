@@ -39,7 +39,7 @@ Most day-to-day interaction happens in **meeting rooms** — talking directly to
 
 Examples:
 
-> "What changed across Slack and Gmail about the launch this week?"
+> "What changed across Slack and Notion about the launch this week?"
 
 > "Create a project that gives me a weekly leadership brief from engineering and product."
 

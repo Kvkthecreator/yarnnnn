@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, Check, Mail, Slack, FileCode, AlertCircle } from 'lucide-react';
+import { Loader2, Check, Slack, FileCode, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { DataSource, IntegrationProvider } from '@/types';
@@ -41,11 +41,6 @@ const PLATFORM_CONFIG: Record<
     icon: <Slack className="w-4 h-4" />,
     label: 'Slack',
     color: 'text-purple-500',
-  },
-  gmail: {
-    icon: <Mail className="w-4 h-4" />,
-    label: 'Gmail',
-    color: 'text-red-500',
   },
   notion: {
     icon: <FileCode className="w-4 h-4" />,
@@ -102,24 +97,6 @@ export function SourcePicker({ value, onChange, suggestedPlatform }: SourcePicke
         }
       } catch {
         // Notion not connected, ignore
-      }
-
-      // Add Gmail inbox as a default option if Gmail is connected
-      try {
-        const integrations = await api.integrations.list();
-        const hasGmail = integrations.integrations?.some(
-          (i) => i.provider === 'gmail' && i.status === 'active'
-        );
-        if (hasGmail) {
-          allResources.push({
-            id: 'inbox',
-            name: 'Inbox',
-            type: 'label',
-            provider: 'gmail' as IntegrationProvider,
-          });
-        }
-      } catch {
-        // Ignore
       }
 
       // Sort suggested platform first

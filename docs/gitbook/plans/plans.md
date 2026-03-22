@@ -8,14 +8,12 @@ Plan limits below reflect the current product model: **Free** and **Pro**.
 |---|---|---|
 | Price | $0 | $19/mo |
 | Early bird | - | $9/mo while available |
-| Platforms available | All 4 | All 4 |
+| Platforms available | All | All |
 | Active agents | 2 | 10 |
 | Work units / month | 60 | 1,000 |
 | Monthly messages | 50 | Unlimited |
 | Slack sources | 5 | Unlimited |
-| Gmail labels | 5 | Unlimited |
 | Notion pages | 10 | Unlimited |
-| Calendar sources | Automatic | Automatic |
 | Sync frequency | 1x daily | Hourly |
 | Rich output (PDF, PPTX, XLSX) | Included | Included |
 | Multi-agent collaboration | Included | Included |
@@ -39,8 +37,7 @@ Work units measure autonomous work — each agent run, report assembly, and rend
 
 ## Notes
 
-- Source limits are enforced per provider.
-- Calendar sync does not require per-resource source selection.
+- Source limits are enforced per platform.
 - Project Manager agents are infrastructure — they do not count against your active agent limit.
 - Usage and next sync timestamp are available via `GET /api/user/limits`.
 - Pricing details may evolve; check the [changelog](../changelog.md) for updates.

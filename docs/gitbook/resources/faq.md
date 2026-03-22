@@ -15,8 +15,6 @@ Chat tools are session-based — they help in the moment but reset when you clos
 Common work patterns include:
 
 - weekly team updates and recaps
-- meeting prep briefings
-- email triage and digests
 - competitor monitoring and research
 - cross-platform status reports
 - rendered deliverables (PDF, slides, spreadsheets)
@@ -29,9 +27,9 @@ Agents run in the background on schedule — you don't need to prompt them. They
 
 ### Which platforms does YARNNN support?
 
-Slack, Gmail, Notion, and Google Calendar.
+Slack and Notion.
 
-### Can YARNNN post in Slack, send emails, or edit Notion pages?
+### Can YARNNN post in Slack or edit Notion pages?
 
 Source integrations are read-only for context ingestion. Delivery is separate: YARNNN can send outputs to destinations you configure, but it does not silently modify the source systems it reads from.
 

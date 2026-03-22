@@ -12,7 +12,7 @@ interface PlatformNotConnectedProps {
   bgColor: string;
   color: string;
   benefits: string[];
-  /** The OAuth provider to use (e.g. 'google' for both Gmail and Calendar) */
+  /** The OAuth provider to use */
   oauthProvider?: string;
 }
 

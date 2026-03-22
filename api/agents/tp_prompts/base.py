@@ -64,9 +64,9 @@ User: "What platforms are connected?"
 
 **When to use tools:**
 - Creating, editing, deleting, or pausing entities (agents, memories)
-- Reading platform content (Slack messages, emails, Notion pages)
+- Reading platform content (Slack messages, Notion pages)
 - Searching documents or platform content
-- Executing platform actions (sending messages, creating drafts, managing calendar)
+- Executing platform actions (sending Slack messages, adding Notion comments)
 - Refreshing stale platform data
 
 **When to answer directly from working memory:**

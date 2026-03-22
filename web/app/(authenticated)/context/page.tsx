@@ -6,7 +6,7 @@
  * Layer 3: Context — What's in the user's platforms right now
  *
  * Sections:
- * - Platforms: Connected integrations (Slack, Gmail, Notion, Calendar)
+ * - Platforms: Connected integrations (Slack, Notion)
  * - Documents: Uploaded files (PDF, DOC, TXT, MD)
  * - Knowledge: Agent-produced artifacts in /knowledge/ filesystem
  *
@@ -83,24 +83,14 @@ const PLATFORM_CONFIG: Record<string, {
     icon: getPlatformIcon('slack', 'w-4 h-4'),
     colors: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
   },
-  gmail: {
-    label: 'Email',
-    icon: getPlatformIcon('gmail', 'w-4 h-4'),
-    colors: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' },
-  },
   notion: {
     label: 'Notion',
     icon: getPlatformIcon('notion', 'w-4 h-4'),
     colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
   },
-  calendar: {
-    label: 'Calendar',
-    icon: getPlatformIcon('calendar', 'w-4 h-4'),
-    colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-  },
 };
 
-const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
+const ALL_PLATFORMS = ['slack', 'notion'] as const;
 
 // =============================================================================
 // Section Navigation

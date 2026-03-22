@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Free and Pro plans for autonomous AI agents. All plans include Slack, Gmail, Notion, and Calendar. Start free, upgrade when you need more.",
+    "Free and Pro plans for autonomous AI agents. All plans include Slack and Notion. Start free, upgrade when you need more.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "autonomous AI pricing", "AI work assistant plans", "agent pricing"],
 });
@@ -24,9 +24,8 @@ const features: PricingFeature[] = [
   { name: "Active agents", free: "2", pro: "10" },
   { name: "Work units / month", free: "60", pro: "1,000" },
   { name: "Monthly messages", free: "50", pro: "Unlimited" },
-  { name: "Platforms available", free: "All 4", pro: "All 4" },
+  { name: "Platforms available", free: "All", pro: "All" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
-  { name: "Gmail labels", free: "5", pro: "Unlimited" },
   { name: "Notion pages", free: "10", pro: "Unlimited" },
   { name: "Sync frequency", free: "1x daily", pro: "Hourly" },
   { name: "Rich output (PDF, PPTX, XLSX)", free: true, pro: true },
@@ -89,7 +88,7 @@ export default function PricingPage() {
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
                 Start free. Upgrade when your agents need more capacity.
-                Every plan includes all four integrations.
+                Every plan includes all integrations.
               </p>
             </div>
 
@@ -120,7 +119,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>All 4 platforms</span>
+                    <span>All platforms</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -246,7 +245,7 @@ export default function PricingPage() {
             <div className="text-center mt-16 mb-8">
               <p className="text-white/70 text-lg mb-2">All plans include full platform coverage.</p>
               <p className="text-white/40 text-sm">
-                Slack, Gmail, Notion, and Calendar on every plan. Rich output formats included.
+                Slack and Notion on every plan. Rich output formats included.
               </p>
             </div>
 

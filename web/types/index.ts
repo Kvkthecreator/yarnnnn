@@ -8,9 +8,8 @@
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk" | "user_stated" | "conversation" | "preference";
 
 // Source reference for imported memories (platform provenance)
-// ADR-046: Added calendar as a platform
 export interface SourceRef {
-  platform?: "slack" | "notion" | "gmail" | "calendar";
+  platform?: "slack" | "notion";
   resource_id?: string;
   resource_name?: string;
   job_id?: string;
@@ -223,11 +222,11 @@ export type AgentStatus = "active" | "paused" | "archived";
 // Legacy statuses (staged, reviewing, approved, rejected) kept for backwards compatibility
 export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "delivered" | "failed";
 export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
-// ADR-029 Phase 2: Added integration_import for Gmail/Slack/Notion data sources
+// ADR-029 Phase 2: Added integration_import for Slack/Notion data sources
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
 
 // Integration import source provider
-export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar";
+export type IntegrationProvider = "slack" | "notion";
 
 // ADR-109: Scope × Skill × Trigger Framework
 export type Scope =
@@ -325,25 +324,15 @@ export interface DataSource {
 export type QualityTrend = "improving" | "stable" | "declining";
 
 // ADR-028: Destination-first agents
-// ADR-029: Gmail as full integration platform
-export type DestinationPlatform = "slack" | "notion" | "gmail" | "calendar" | "email" | "download";
+// ADR-029: Destination platforms
+export type DestinationPlatform = "slack" | "notion" | "email" | "download";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
-
-// Gmail-specific format: send, draft, reply
-export type GmailDeliveryFormat = "send" | "draft" | "reply";
 
 export interface Destination {
   platform: DestinationPlatform;
-  target?: string;  // Channel ID, page ID, recipient email, or null for download
-  format?: string;  // message, thread, page, send, draft, reply, markdown, html
+  target?: string;  // Channel ID, page ID, or null for download
+  format?: string;  // message, thread, page, markdown, html
   options?: Record<string, unknown>;
-}
-
-// ADR-029: Gmail-specific destination options
-export interface GmailDestinationOptions {
-  cc?: string;
-  subject?: string;
-  thread_id?: string;  // For replies
 }
 
 // ADR-087: Agent memory observation
@@ -715,16 +704,14 @@ export interface PlatformContentResponse {
 // Context Pages: Shared Platform Types
 // =============================================================================
 
-export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'calendar';
+export type PlatformProvider = 'slack' | 'notion';
 
-export type ApiProvider = "slack" | "notion" | "gmail" | "calendar";
+export type ApiProvider = "slack" | "notion";
 
 /** Map frontend platform names to backend provider names (identity after provider streamlining) */
 export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
   slack: ['slack'],
-  gmail: ['gmail'],
   notion: ['notion'],
-  calendar: ['calendar'],
 };
 
 /** Get the provider to use for API calls (identity mapping) */
@@ -765,15 +752,13 @@ export interface SelectedSource {
   last_sync_at: string | null;
 }
 
-export type NumericLimitField = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
+export type NumericLimitField = 'slack_channels' | 'notion_pages' | 'total_platforms';
 
 export interface TierLimits {
   tier: 'free' | 'pro';
   limits: {
     slack_channels: number;
-    gmail_labels: number;
     notion_pages: number;
-    calendars: number;
     total_platforms: number;
     sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
     monthly_messages: number; // -1 for unlimited (ADR-100)
@@ -781,9 +766,7 @@ export interface TierLimits {
   };
   usage: {
     slack_channels: number;
-    gmail_labels: number;
     notion_pages: number;
-    calendars: number;
     platforms_connected: number;
     monthly_messages_used: number; // ADR-100
     active_agents: number;

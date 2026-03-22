@@ -190,7 +190,7 @@ function formatTokenCount(tokens: number): string {
 /**
  * Starter prompt — single "New Project" card.
  *
- * Platform-specific projects (Slack/Gmail/Notion) are created via bootstrap
+ * Platform-specific projects (Slack/Notion) are created via bootstrap
  * on OAuth connection (ADR-110/113/122), not from starter cards. This eliminates
  * redundancy: bootstrap auto-scaffolds on connect, cards were just a chat detour.
  */
@@ -292,7 +292,6 @@ export function ChatFirstDesk() {
       // Map OAuth provider to registry type_key
       const BOOTSTRAP_TYPE_KEYS: Record<string, string> = {
         slack: 'slack_digest',
-        google: 'gmail_digest',
         notion: 'notion_digest',
       };
       const expectedTypeKey = BOOTSTRAP_TYPE_KEYS[provider];

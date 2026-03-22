@@ -41,8 +41,7 @@ TOOLS_SECTION = """---
 
 **RefreshPlatformContent(platform)** - Sync latest platform data into cache
 - `RefreshPlatformContent(platform="slack")` - refresh Slack content
-- `RefreshPlatformContent(platform="gmail")` - refresh Gmail content
-- `RefreshPlatformContent(platform="calendar")` - refresh Calendar content
+- `RefreshPlatformContent(platform="notion")` - refresh Notion content
 - Use when Search returns stale/empty results. Then re-query with Search.
 
 ### External Operations

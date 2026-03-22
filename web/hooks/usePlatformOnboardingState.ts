@@ -4,7 +4,7 @@
  * ADR-033: Platform-First Onboarding State Hook
  *
  * Platform-centric onboarding replaces the legacy memory/document counting approach.
- * Users are guided to connect platforms (Slack, Gmail, Notion) as the primary way
+ * Users are guided to connect platforms (Slack, Notion) as the primary way
  * to build context, rather than manual upload/paste.
  *
  * States:

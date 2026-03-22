@@ -17,14 +17,12 @@ import { api } from '@/lib/api/client';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
-const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
+const ALL_PLATFORMS = ['slack', 'notion'] as const;
 type PlatformKey = typeof ALL_PLATFORMS[number];
 
 const PLATFORM_CONFIG: Record<PlatformKey, { label: string }> = {
   slack: { label: 'Slack' },
-  gmail: { label: 'Email' },
   notion: { label: 'Notion' },
-  calendar: { label: 'Calendar' },
 };
 
 const KNOWLEDGE_CLASSES = [

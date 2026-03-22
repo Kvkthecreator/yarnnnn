@@ -21,7 +21,7 @@ Connect Notion so YARNNN can use your docs and databases as structured backgroun
 ## Tips
 
 - prioritize pages you actually use to make decisions
-- Notion becomes more valuable when paired with Slack or Gmail
+- Notion becomes more valuable when paired with Slack
 - trim low-value docs if summaries become too diffuse
 - use Notion-heavy coverage for status and research agents
 

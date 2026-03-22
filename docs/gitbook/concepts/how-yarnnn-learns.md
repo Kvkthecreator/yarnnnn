@@ -6,7 +6,7 @@ YARNNN improves because it accumulates signal over time instead of starting from
 
 ### 1. Your synced work context
 
-As Slack, Gmail, Notion, Calendar, and documents accumulate, later runs can reason from a richer substrate than earlier runs.
+As Slack, Notion, and documents accumulate, later runs can reason from a richer substrate than earlier runs.
 
 This is not just retrieval. It is continuity.
 

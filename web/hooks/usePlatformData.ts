@@ -27,7 +27,7 @@ interface UsePlatformDataReturn {
 }
 
 interface UsePlatformDataOptions {
-  /** Skip landscape/sources fetch (e.g. for calendar) */
+  /** Skip landscape/sources fetch */
   skipResources?: boolean;
   /** Skip platform context fetch */
   skipContext?: boolean;
@@ -59,7 +59,6 @@ export function usePlatformData(
         sourcesResult,
         limitsResult,
         platformContextResult,
-        calendarsResult,
       ] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         options?.skipResources
@@ -73,34 +72,10 @@ export function usePlatformData(
           ? Promise.resolve({ items: [], total_count: 0, freshest_at: null, platform })
           : api.integrations.getPlatformContext(apiProvider, { limit: 10 })
               .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
-        // Load available calendars for Calendar platform
-        platform === 'calendar'
-          ? api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] }))
-          : Promise.resolve({ calendars: [] }),
       ]);
 
       setIntegration(integrationResult as IntegrationData | null);
-
-      // For calendar, convert calendars list to resources format
-      if (platform === 'calendar' && calendarsResult?.calendars) {
-        const calendarResources: LandscapeResource[] = calendarsResult.calendars.map(
-          (cal: { id: string; summary: string; primary?: boolean }) => ({
-            id: cal.id,
-            name: cal.summary,
-            resource_type: 'calendar',
-            coverage_state: 'uncovered' as const,
-            last_extracted_at: null,
-            items_extracted: 0,
-            metadata: { primary: cal.primary },
-            last_error: null,
-            last_error_at: null,
-            recommended: false,
-          })
-        );
-        setResources(calendarResources);
-      } else {
-        setResources((landscapeResult as { resources: LandscapeResource[] }).resources || []);
-      }
+      setResources((landscapeResult as { resources: LandscapeResource[] }).resources || []);
 
       setTierLimits(limitsResult as TierLimits | null);
 

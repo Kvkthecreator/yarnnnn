@@ -19,9 +19,7 @@ That is why the tenth run of an agent should be better than the first.
 
 Most users begin with one of these:
 
-- **Weekly update**: summarize Slack channels, Gmail labels, or Notion pages on a schedule
-- **Meeting prep**: pull relevant context into a briefing before each meeting
-- **Email triage**: highlight what needs attention and what can wait
+- **Weekly update**: summarize Slack channels or Notion pages on a schedule
 - **Competitor watch**: monitor topics or competitors with web research
 - **Research tracker**: investigate a topic and deepen findings over time
 - **Status report**: synthesize activity across platforms into a polished deliverable
@@ -38,7 +36,7 @@ New agents pulse on their schedule. As agents gain tenure and trust, their pulse
 
 For bigger jobs, multiple agents can collaborate on a single deliverable.
 
-One agent pulls from Slack, another from Gmail, another does research — then a coordinator (the Project Manager agent) assembles their contributions into one polished output. You get a finished product, not fragments.
+One agent pulls from Slack, another from Notion, another does research — then a coordinator (the Project Manager agent) assembles their contributions into one polished output. You get a finished product, not fragments.
 
 This is how [projects](projects.md) work: a team of agents with a shared objective, coordinated by a PM.
 

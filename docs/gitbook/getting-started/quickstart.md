@@ -13,11 +13,7 @@ You will land on the dashboard, where you can connect tools and see your project
 Choose the platform that already contains the clearest signal for your work:
 
 - **Slack** for team discussion and decisions
-- **Gmail** for inbox and client communication
 - **Notion** for docs and project state
-- **Google Calendar** for schedule-aware prep
-
-If you want the fastest autonomous first result, start with **Slack, Gmail, or Notion**. Calendar is most useful once YARNNN also has other work context to pull from.
 
 YARNNN uses read-only access. It does not post, send, or modify content in your connected tools.
 
@@ -58,7 +54,7 @@ You can also use the **Orchestrator** for system-wide questions:
 
 > "Create a project that gives me a weekly leadership brief."
 
-> "What changed across Slack and Gmail about the launch?"
+> "What changed across Slack and Notion about the launch?"
 
 ## 6. Expand only after you see value
 

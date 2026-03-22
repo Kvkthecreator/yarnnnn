@@ -1,21 +1,21 @@
 """
 Landscape Discovery Service
 
-Discovers available resources (labels, channels, pages, calendars) from
-connected platforms. Used by:
+Discovers available resources (channels, pages) from connected platforms.
+Used by:
 - GET /integrations/{provider}/landscape (on-demand from context page)
 - Platform worker (after content sync to keep landscape fresh)
 
 ADR-079: Smart auto-selection — when landscape is first discovered and no
 sources are selected, auto-selects the most valuable sources up to tier limit.
 
+ADR-131: Gmail and Calendar sunset — only Slack and Notion remain.
+
 No LLM calls — purely platform API reads.
 """
 
 import logging
 from datetime import datetime, timezone
-
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -47,51 +47,12 @@ def _extract_notion_parent_type(page: dict) -> str:
     return "unknown"
 
 
-async def fetch_google_calendars(
-    user_id: str,
-    client_id: str,
-    client_secret: str,
-    refresh_token: str,
-) -> list[dict]:
-    """
-    Fetch list of calendars from Google Calendar API.
-    Uses refresh token to get fresh access token, then lists calendars.
-    """
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            }
-        )
-
-        if token_response.status_code != 200:
-            raise Exception(f"Failed to refresh token: {token_response.text}")
-
-        access_token = token_response.json().get("access_token")
-
-        calendar_response = await client.get(
-            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"maxResults": 50}
-        )
-
-        if calendar_response.status_code != 200:
-            raise Exception(f"Failed to list calendars: {calendar_response.text}")
-
-        data = calendar_response.json()
-        return data.get("items", [])
-
-
 async def discover_landscape(provider: str, user_id: str, integration: dict) -> dict:
     """
     Discover resources from a provider.
 
     Args:
-        provider: Platform name (gmail, google, slack, notion)
+        provider: Platform name (slack, notion)
         user_id: User UUID
         integration: Row from platform_connections with credentials
 
@@ -102,117 +63,7 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
 
     token_manager = get_token_manager()
 
-    if provider in ("gmail", "google"):
-        from integrations.core.google_client import get_google_client
-        from integrations.core.oauth import OAUTH_CONFIGS
-
-        google_client = get_google_client()
-        google_config = OAUTH_CONFIGS.get("google") or OAUTH_CONFIGS["gmail"]
-        client_id = google_config.client_id
-        client_secret = google_config.client_secret
-
-        # Determine access method: prefer refresh token, fall back to stored access token
-        # (access token is valid ~1 hour after OAuth, enough for initial landscape discovery)
-        access_token = None
-        refresh_token = None
-
-        try:
-            if integration.get("refresh_token_encrypted"):
-                refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
-            elif integration.get("credentials_encrypted"):
-                access_token = token_manager.decrypt(integration["credentials_encrypted"])
-                logger.info(
-                    f"[LANDSCAPE] No refresh token for {provider} user {user_id[:8]}, "
-                    "using stored access token for landscape discovery."
-                )
-            else:
-                logger.warning(
-                    f"[LANDSCAPE] No refresh token or access token for {provider} user {user_id}. "
-                    "Cannot discover landscape."
-                )
-                return {"resources": []}
-        except Exception as e:
-            logger.error(f"[LANDSCAPE] Token decryption failed for {provider} user {user_id[:8]}: {e}")
-            raise RuntimeError(
-                f"Token decryption failed for {provider}. The integration may need to be reconnected."
-            ) from e
-
-        resources = []
-
-        # List Gmail labels
-        try:
-            if refresh_token:
-                labels = await google_client.list_gmail_labels(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token
-                )
-            else:
-                # Direct access token call (no refresh available)
-                async with httpx.AsyncClient() as http_client:
-                    resp = await http_client.get(
-                        "https://gmail.googleapis.com/gmail/v1/users/me/labels",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                    )
-                    data = resp.json()
-                    if "error" in data:
-                        raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
-                    labels = data.get("labels", [])
-
-            for label in labels:
-                resources.append({
-                    "id": label.get("id"),
-                    "name": label.get("name"),
-                    "type": "label",
-                    "metadata": {
-                        "type": label.get("type"),
-                        "messageListVisibility": label.get("messageListVisibility"),
-                        "labelListVisibility": label.get("labelListVisibility"),
-                        "platform": "gmail",
-                    }
-                })
-        except Exception as e:
-            logger.warning(f"[LANDSCAPE] Failed to list Gmail labels for {user_id}: {e}")
-
-        # Also list calendars (Google OAuth covers both Gmail and Calendar)
-        try:
-            if refresh_token:
-                calendars = await fetch_google_calendars(
-                    user_id=user_id,
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token
-                )
-            else:
-                # Direct access token call (no refresh available)
-                async with httpx.AsyncClient() as http_client:
-                    resp = await http_client.get(
-                        "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                        params={"maxResults": 50},
-                    )
-                    data = resp.json()
-                    if "error" in data:
-                        raise RuntimeError(f"Calendar API error: {data['error']}")
-                    calendars = data.get("items", [])
-
-            for cal in calendars:
-                resources.append({
-                    "id": cal.get("id"),
-                    "name": cal.get("summary", "Untitled Calendar"),
-                    "type": "calendar",
-                    "metadata": {
-                        "primary": cal.get("primary", False),
-                        "accessRole": cal.get("accessRole"),
-                        "platform": "calendar",
-                    }
-                })
-        except Exception as e:
-            logger.warning(f"[LANDSCAPE] Failed to list calendars for {user_id}: {e}")
-
-        return {"resources": resources}
-
-    elif provider == "slack":
+    if provider == "slack":
         from integrations.core.slack_client import get_slack_client
 
         bot_token = token_manager.decrypt(integration["credentials_encrypted"])
@@ -289,8 +140,6 @@ def compute_smart_defaults(
     Selection heuristics per platform:
     - Slack: Score by work-signal (name patterns, purpose text, member count).
              Deprioritize social/noise channels. Boost team/project channels.
-    - Gmail: INBOX + SENT first, then user-created labels (skip system noise)
-    - Calendar: ALL calendars (unlimited, tiny data volume)
     - Notion: Boost databases and workspace-level pages over nested untitled pages.
               Sort by last_edited within tiers.
     """
@@ -299,54 +148,7 @@ def compute_smart_defaults(
 
     selected = []
 
-    if provider in ("gmail", "google"):
-        # Split by metadata.platform
-        gmail_resources = [r for r in resources if r.get("metadata", {}).get("platform") == "gmail"]
-        calendar_resources = [r for r in resources if r.get("metadata", {}).get("platform") == "calendar"]
-
-        # Calendar: auto-select ALL (unlimited tier, tiny data)
-        for cal in calendar_resources:
-            selected.append({
-                "id": cal["id"],
-                "name": cal.get("name", ""),
-                "type": cal.get("type", "calendar"),
-                "platform": "calendar",
-            })
-
-        # Gmail: prioritize high-value labels
-        # Priority order: INBOX > SENT > STARRED > IMPORTANT > user labels > system labels
-        GMAIL_PRIORITY = ["INBOX", "SENT", "STARRED", "IMPORTANT"]
-        GMAIL_SKIP = {"SPAM", "TRASH", "DRAFT", "UNREAD", "CATEGORY_PERSONAL",
-                       "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES",
-                       "CATEGORY_FORUMS"}
-
-        priority_labels = []
-        user_labels = []
-        for r in gmail_resources:
-            label_id = r.get("id", "")
-            label_type = r.get("metadata", {}).get("type", "")
-            if label_id in GMAIL_PRIORITY:
-                priority_labels.append((GMAIL_PRIORITY.index(label_id), r))
-            elif label_id in GMAIL_SKIP:
-                continue  # Never auto-select noise labels
-            elif label_type == "user" or "/" in r.get("name", ""):
-                # User-created labels or nested labels (e.g., INBOX/FYI)
-                user_labels.append(r)
-
-        # Sort priority labels by defined order
-        priority_labels.sort(key=lambda x: x[0])
-        gmail_ranked = [r for _, r in priority_labels] + user_labels
-
-        # Apply limit (max_sources applies to gmail portion only)
-        for r in gmail_ranked[:max_sources]:
-            selected.append({
-                "id": r["id"],
-                "name": r.get("name", ""),
-                "type": r.get("type", "label"),
-                "platform": "gmail",
-            })
-
-    elif provider == "slack":
+    if provider == "slack":
         ranked = _score_slack_channels(resources)
         for r in ranked[:max_sources]:
             selected.append({
@@ -561,10 +363,7 @@ async def refresh_landscape(
         else:
             from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
             limits = get_limits_for_user(client, user_id)
-            limit_field = PROVIDER_LIMIT_MAP.get(
-                "gmail" if provider == "google" else provider,
-                "slack_channels"
-            )
+            limit_field = PROVIDER_LIMIT_MAP.get(provider, "slack_channels")
             max_sources = getattr(limits, limit_field, 5)
             if max_sources == -1:
                 max_sources = 999

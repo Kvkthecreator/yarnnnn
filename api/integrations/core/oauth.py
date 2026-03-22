@@ -87,47 +87,7 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         scopes=[],  # Notion doesn't use scopes in the same way
         redirect_path="/api/integrations/notion/callback",
     ),
-    # ADR-029: Gmail integration (legacy, redirects to google)
-    "gmail": OAuthConfig(
-        provider="gmail",
-        client_id_env="GOOGLE_CLIENT_ID",
-        client_secret_env="GOOGLE_CLIENT_SECRET",
-        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
-        token_url="https://oauth2.googleapis.com/token",
-        scopes=[
-            # Gmail: Full access for context + agent export
-            "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.compose",
-            "https://www.googleapis.com/auth/gmail.modify",
-            # Calendar: Full access for context + event creation
-            "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/calendar.events.readonly",
-            "https://www.googleapis.com/auth/calendar.events",
-        ],
-        redirect_path="/api/integrations/gmail/callback",
-    ),
-    # ADR-046: Google integration (unified Gmail + Calendar)
-    # This is the preferred provider name going forward
-    "google": OAuthConfig(
-        provider="google",
-        client_id_env="GOOGLE_CLIENT_ID",
-        client_secret_env="GOOGLE_CLIENT_SECRET",
-        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
-        token_url="https://oauth2.googleapis.com/token",
-        scopes=[
-            # Gmail: Full access for context + agent export
-            "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.compose",
-            "https://www.googleapis.com/auth/gmail.modify",
-            # Calendar: Full access for context + event creation
-            "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/calendar.events.readonly",
-            "https://www.googleapis.com/auth/calendar.events",
-        ],
-        redirect_path="/api/integrations/google/callback",
-    ),
+    # ADR-131: Gmail and Calendar OAuth configs removed (sunset)
 }
 
 
@@ -216,18 +176,6 @@ def get_authorization_url(provider: str, user_id: str, redirect_to: Optional[str
             "redirect_uri": config.redirect_uri,
             "response_type": "code",
             "owner": "user",
-            "state": state,
-        }
-    elif provider in ("gmail", "google"):
-        # ADR-029/046: Google OAuth with offline access for refresh token
-        # Supports both Gmail and Calendar scopes
-        params = {
-            "client_id": config.client_id,
-            "redirect_uri": config.redirect_uri,
-            "response_type": "code",
-            "scope": " ".join(config.scopes),
-            "access_type": "offline",  # Required for refresh token
-            "prompt": "consent",  # Force consent to get refresh token
             "state": state,
         }
     else:
@@ -344,67 +292,6 @@ async def exchange_code_for_token(
                 "redirect_to": redirect_to,
             }
 
-        elif provider in ("gmail", "google"):
-            # ADR-029/046: Google OAuth token exchange (Gmail + Calendar)
-            response = await client.post(
-                config.token_url,
-                data={
-                    "client_id": config.client_id,
-                    "client_secret": config.client_secret,
-                    "code": code,
-                    "redirect_uri": config.redirect_uri,
-                    "grant_type": "authorization_code",
-                },
-            )
-            data = response.json()
-
-            if "error" in data:
-                raise ValueError(f"Google OAuth error: {data.get('error_description', data.get('error'))}")
-
-            token_manager = get_token_manager()
-
-            # Get user info from Google
-            user_info_response = await client.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {data['access_token']}"}
-            )
-            user_info = user_info_response.json()
-
-            # Calculate token expiry
-            expires_in = data.get("expires_in", 3600)
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-
-            # ADR-046: Determine capabilities from granted scopes
-            granted_scope = data.get("scope", "")
-            capabilities = []
-            if "gmail" in granted_scope:
-                capabilities.append("gmail")
-            if "calendar" in granted_scope:
-                capabilities.append("calendar")
-
-            if not data.get("refresh_token"):
-                logger.warning(
-                    f"[OAUTH] Google did not return refresh token for user {user_id}. "
-                    "Landscape discovery and content sync will fail once access token expires."
-                )
-
-            return {
-                "user_id": user_id,
-                "platform": provider,
-                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
-                "refresh_token_encrypted": token_manager.encrypt(data["refresh_token"]) if data.get("refresh_token") else None,
-                "metadata": {
-                    "email": user_info.get("email"),
-                    "name": user_info.get("name"),
-                    "picture": user_info.get("picture"),
-                    "scope": granted_scope,
-                    "expires_at": expires_at.isoformat(),
-                    "capabilities": capabilities,  # ADR-046: Track enabled capabilities
-                },
-                "status": IntegrationStatus.ACTIVE.value,
-                "redirect_to": redirect_to,
-            }
-
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -427,7 +314,7 @@ def get_frontend_redirect_url(
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
 
     if success:
-        redirect_provider = "gmail" if provider == "google" else provider
+        redirect_provider = provider
         params = {
             "provider": redirect_provider,
             "status": "connected",

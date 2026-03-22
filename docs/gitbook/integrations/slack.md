@@ -7,7 +7,7 @@ Connect Slack so YARNNN can read team conversation and turn it into useful super
 - answer questions grounded in channel history
 - produce recap and digest agents
 - detect recurring themes, blockers, and decision threads
-- combine Slack context with Gmail, Notion, and Calendar
+- combine Slack context with Notion
 
 ## Setup
 

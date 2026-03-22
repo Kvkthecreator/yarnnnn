@@ -3,10 +3,8 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import {
-  Mail,
   Slack,
   FileCode,
-  Calendar,
   ChevronDown,
   Check,
   X,
@@ -21,7 +19,7 @@ import { cn } from '@/lib/utils';
  * Used in Context Browser and Agent List surfaces.
  */
 
-export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'calendar';
+export type PlatformFilterValue = 'all' | 'slack' | 'notion';
 
 interface PlatformFilterProps {
   value: PlatformFilterValue;
@@ -49,22 +47,12 @@ const PLATFORM_CONFIG: Record<
     label: 'Notion',
     color: 'text-gray-700 dark:text-gray-300',
   },
-  gmail: {
-    icon: <Mail className="w-3.5 h-3.5" />,
-    label: 'Gmail',
-    color: 'text-red-500',
-  },
-  calendar: {
-    icon: <Calendar className="w-3.5 h-3.5" />,
-    label: 'Calendar',
-    color: 'text-blue-500',
-  },
 };
 
 export function PlatformFilter({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
+  availablePlatforms = ['all', 'slack', 'notion'],
   counts,
   compact = false,
   className,
@@ -187,7 +175,7 @@ export function PlatformFilter({
 export function PlatformFilterChips({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
+  availablePlatforms = ['all', 'slack', 'notion'],
   counts,
   className,
 }: Omit<PlatformFilterProps, 'compact'>) {

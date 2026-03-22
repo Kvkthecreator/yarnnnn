@@ -22,7 +22,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an AI agent platform for recurring knowledge work. It connects to Slack, Gmail, Notion, and Calendar, then runs persistent agents in the background that deliver real work on schedule — recaps, briefs, research, reports — and improve with every cycle.",
+          "yarnnn is an AI agent platform for recurring knowledge work. It connects to Slack and Notion, then runs persistent agents in the background that deliver real work on schedule — recaps, research, reports — and improve with every cycle.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
@@ -37,7 +37,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What kind of work can agents do?",
         answer:
-          "Common jobs include: weekly team updates from Slack, email triage and digests, meeting prep briefings, competitor monitoring, research tracking, and cross-platform status reports. Agents can also produce rich output like PDFs, slides, and spreadsheets.",
+          "Common jobs include: weekly team updates from Slack, Notion page summaries, competitor monitoring, research tracking, and cross-platform status reports. Agents can also produce rich output like PDFs, slides, and spreadsheets.",
       },
     ],
   },
@@ -47,7 +47,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Which platforms does yarnnn connect to?",
         answer:
-          "Slack, Gmail, Google Calendar, and Notion. You authorize via OAuth and choose which channels, labels, or pages to include — or let yarnnn auto-select based on your activity.",
+          "Slack and Notion. You authorize via OAuth and choose which channels or pages to include — or let yarnnn auto-select based on your activity.",
       },
       {
         question: "Is my data safe?",
@@ -77,7 +77,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Can multiple agents work together?",
         answer:
-          "Yes. For bigger jobs, multiple agents can collaborate — one pulls from Slack, another from Gmail, another does research. A coordinator agent assembles their work into one polished deliverable. You get a finished product, not fragments.",
+          "Yes. For bigger jobs, multiple agents can collaborate — one pulls from Slack, another from Notion, another does research. A coordinator agent assembles their work into one polished deliverable. You get a finished product, not fragments.",
       },
       {
         question: "Can I talk to agents directly?",
@@ -97,7 +97,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include all four platform integrations. Free gives you 2 agents, 50 messages/month, and daily sync. Pro gives you 10 agents, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
+          "yarnnn has Free and Pro plans. Both include all platform integrations. Free gives you 2 agents, 50 messages/month, and daily sync. Pro gives you 10 agents, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
       },
       {
         question: "What are work units?",
@@ -122,7 +122,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is the best first agent?",
         answer:
-          "Most users start with a Slack or Gmail recap. These give fast, visible value and create clean feedback signal for the system to learn from.",
+          "Most users start with a Slack recap. These give fast, visible value and create clean feedback signal for the system to learn from.",
       },
       {
         question: "How quickly do I see results?",

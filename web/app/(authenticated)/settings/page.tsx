@@ -132,13 +132,7 @@ export default function SettingsPage() {
           .map((p: { provider: string }) => p.provider)
       );
 
-      // Backward-compatibility for older payloads that may still emit "google".
-      if (activePlatforms.has("google")) {
-        activePlatforms.add("gmail");
-        activePlatforms.add("calendar");
-      }
-
-      const connectedCount = ["slack", "gmail", "notion", "calendar"].filter((p) =>
+      const connectedCount = ["slack", "notion"].filter((p) =>
         activePlatforms.has(p)
       ).length;
 
@@ -147,7 +141,7 @@ export default function SettingsPage() {
         documents: documents.documents?.length || 0,
         platforms: {
           connected: connectedCount,
-          total: 4, // Slack, Gmail, Notion, Calendar
+          total: 2, // Slack, Notion
         },
         facts: Array.isArray(facts) ? facts.length : 0,
       });
@@ -425,7 +419,6 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 {[
                   { label: "Slack sources", used: limits.usage.slack_channels, limit: limits.limits.slack_channels },
-                  { label: "Gmail labels", used: limits.usage.gmail_labels, limit: limits.limits.gmail_labels },
                   { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
                   { label: "Monthly messages", used: limits.usage.monthly_messages_used, limit: limits.limits.monthly_messages },
                   { label: "Active agents", used: limits.usage.active_agents, limit: limits.limits.active_agents },

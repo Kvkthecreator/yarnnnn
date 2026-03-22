@@ -23,7 +23,6 @@ import type { ProjectSummary } from '@/types';
 
 const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack',
-  gmail_digest: 'Gmail',
   notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform Insights',
   custom: 'Custom Project',
@@ -31,7 +30,6 @@ const TYPE_LABELS: Record<string, string> = {
 
 function getProjectIcon(typeKey: string | null): React.ReactNode {
   if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-5 h-5');
-  if (typeKey === 'gmail_digest') return getPlatformIcon('gmail', 'w-5 h-5');
   if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-5 h-5');
   return <Briefcase className="w-5 h-5 text-muted-foreground" />;
 }

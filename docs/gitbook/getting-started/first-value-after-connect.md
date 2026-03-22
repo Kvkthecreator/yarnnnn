@@ -4,7 +4,7 @@ YARNNN is designed so the first useful result shows up quickly, without a long s
 
 ## What should happen
 
-After you connect **Slack, Gmail, or Notion**, YARNNN moves through a short sequence:
+After you connect **Slack or Notion**, YARNNN moves through a short sequence:
 
 1. Discovers the sources available on that platform
 2. Auto-selects a small set of high-signal defaults
@@ -15,12 +15,9 @@ After you connect **Slack, Gmail, or Notion**, YARNNN moves through a short sequ
 For example:
 
 - Connect Slack → YARNNN creates a Slack Recap project
-- Connect Gmail → YARNNN creates a Gmail Digest project
 - Connect Notion → YARNNN creates a Notion Summary project
 
 Each project includes a Project Manager agent that handles coordination and delivery.
-
-Calendar is different: it adds schedule context immediately, but its best standalone value usually appears once YARNNN can combine it with other context for meeting prep.
 
 ## What you should do
 
@@ -37,7 +34,7 @@ You do not need to perfect the system before seeing value. The product is built 
 
 That usually means coverage should be tightened, not that the model is wrong.
 
-- Remove low-value Slack channels, Gmail labels, or Notion pages
+- Remove low-value Slack channels or Notion pages
 - Ask for a narrower audience or structure
 - Start with one platform before adding more
 

@@ -47,34 +47,23 @@ function getSourceAffinityGroup(agent: Agent): string {
   for (const s of agent.sources ?? []) {
     const p = s.provider as string | undefined;
     if (p) {
-      if (p === 'google') {
-        const rid = s.resource_id;
-        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
-          providers['gmail'] = true;
-        } else {
-          providers['calendar'] = true;
-        }
-      } else {
-        providers[p] = true;
-      }
+      providers[p] = true;
     }
   }
   const keys = Object.keys(providers);
   if (keys.length === 0) return 'research';
   if (keys.length >= 2) return 'cross-platform';
-  return keys[0]; // 'slack', 'gmail', 'notion', 'calendar'
+  return keys[0]; // 'slack', 'notion'
 }
 
 const GROUP_ORDER: Record<string, number> = {
-  slack: 0, gmail: 1, notion: 2, calendar: 3,
-  'cross-platform': 4, research: 5,
+  slack: 0, notion: 1,
+  'cross-platform': 2, research: 3,
 };
 
 const GROUP_LABELS: Record<string, string> = {
   slack: 'Slack',
-  gmail: 'Gmail',
   notion: 'Notion',
-  calendar: 'Calendar',
   'cross-platform': 'Cross-platform',
   research: 'Research & Knowledge',
 };
@@ -190,16 +179,7 @@ function getAgentPlatformIcon(agent: Agent): React.ReactNode {
   for (const s of agent.sources ?? []) {
     const p = s.provider as string | undefined;
     if (p) {
-      if (p === 'google') {
-        const rid = s.resource_id;
-        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
-          providers['gmail'] = true;
-        } else {
-          providers['calendar'] = true;
-        }
-      } else {
-        providers[p] = true;
-      }
+      providers[p] = true;
     }
   }
 

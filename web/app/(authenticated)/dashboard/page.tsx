@@ -44,7 +44,6 @@ type AttentionItem = DashboardData['attention'][number];
 
 const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack',
-  gmail_digest: 'Gmail',
   notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform Insights',
   custom: 'Custom Project',
@@ -57,11 +56,8 @@ const TYPE_LABELS: Record<string, string> = {
 function getAgentIcon(agent: DashboardAgent): React.ReactNode {
   const providers: string[] = [];
   for (const s of agent.sources ?? []) {
-    if (s.provider) {
-      const p = s.provider === 'google'
-        ? (s.resource_id?.startsWith('label:') ? 'gmail' : 'calendar')
-        : s.provider;
-      if (!providers.includes(p)) providers.push(p);
+    if (s.provider && !providers.includes(s.provider)) {
+      providers.push(s.provider);
     }
   }
   if (providers.length === 0) {
@@ -76,7 +72,6 @@ function getProjectIcon(project: DashboardProject): React.ReactNode {
   // Platform projects get platform icon; others get folder icon
   const typeKey = project.type_key;
   if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-5 h-5');
-  if (typeKey === 'gmail_digest') return getPlatformIcon('gmail', 'w-5 h-5');
   if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-5 h-5');
   return <Briefcase className="w-5 h-5 text-muted-foreground" />;
 }
@@ -115,8 +110,7 @@ export default function DashboardPage() {
   const handleConnect = useCallback(async (platform: string) => {
     setConnecting(platform);
     try {
-      const authProvider = platform === 'calendar' ? 'google' : platform;
-      const result = await api.integrations.getAuthorizationUrl(authProvider);
+      const result = await api.integrations.getAuthorizationUrl(platform);
       window.location.href = result.authorization_url;
     } catch (err) {
       console.error(`Failed to initiate ${platform} OAuth:`, err);
@@ -160,7 +154,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Connect a platform to get started</h2>
             <div className="grid grid-cols-2 gap-3">
-              {(['slack', 'gmail', 'notion', 'calendar'] as const).map((platform) => (
+              {(['slack', 'notion'] as const).map((platform) => (
                 <button
                   key={platform}
                   onClick={() => handleConnect(platform)}
@@ -174,7 +168,7 @@ export default function DashboardPage() {
                     ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     : getPlatformIcon(platform, 'w-5 h-5')
                   }
-                  <span className="text-sm font-medium capitalize">{platform === 'calendar' ? 'Google Calendar' : platform}</span>
+                  <span className="text-sm font-medium capitalize">{platform}</span>
                 </button>
               ))}
             </div>
@@ -204,8 +198,8 @@ export default function DashboardPage() {
 
   // ── Transitional: platforms connected but no work yet ────────────────
   if (hasNoWork) {
-    const unconnected = (['slack', 'gmail', 'notion', 'calendar'] as const).filter(
-      (p) => !connected_platforms.includes(p === 'calendar' ? 'google' : p) && !connected_platforms.includes(p)
+    const unconnected = (['slack', 'notion'] as const).filter(
+      (p) => !connected_platforms.includes(p)
     );
 
     return (
@@ -243,7 +237,7 @@ export default function DashboardPage() {
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         : getPlatformIcon(platform, 'w-3.5 h-3.5')
                       }
-                      <span className="capitalize">{platform === 'calendar' ? 'Calendar' : platform}</span>
+                      <span className="capitalize">{platform}</span>
                     </button>
                   ))}
                 </div>

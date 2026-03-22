@@ -795,7 +795,7 @@ export const api = {
 
     // Start import job
     startImport: (
-      provider: "slack" | "notion" | "gmail" | "calendar",
+      provider: "slack" | "notion",
       data: {
         resource_id: string;
         resource_name?: string;
@@ -883,7 +883,7 @@ export const api = {
 
     // ADR-030: Landscape and Coverage
     // Get platform landscape with coverage state
-    getLandscape: (provider: "slack" | "notion" | "gmail" | "calendar", refresh?: boolean) =>
+    getLandscape: (provider: "slack" | "notion", refresh?: boolean) =>
       request<{
         provider: string;
         discovered_at: string | null;
@@ -909,7 +909,7 @@ export const api = {
 
     // ADR-072: Get synced platform content from platform_content
     getPlatformContext: (
-      provider: "slack" | "notion" | "gmail" | "calendar",
+      provider: "slack" | "notion",
       options?: { limit?: number; resourceId?: string; offset?: number }
     ) =>
       request<{
@@ -945,7 +945,7 @@ export const api = {
 
     // Update coverage state (mark as excluded or reset)
     updateCoverage: (
-      provider: "slack" | "notion" | "gmail" | "calendar",
+      provider: "slack" | "notion",
       resourceId: string,
       coverageState: "excluded" | "uncovered"
     ) =>
@@ -980,9 +980,7 @@ export const api = {
         tier: "free" | "pro";
         limits: {
           slack_channels: number;
-          gmail_labels: number;
           notion_pages: number;
-          calendars: number;
           total_platforms: number;
           sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
           monthly_messages: number; // -1 for unlimited
@@ -990,9 +988,7 @@ export const api = {
         };
         usage: {
           slack_channels: number;
-          gmail_labels: number;
           notion_pages: number;
-          calendars: number;
           platforms_connected: number;
           monthly_messages_used: number;
           active_agents: number;
@@ -1001,7 +997,7 @@ export const api = {
       }>("/api/user/limits"),
 
     // Get selected sources for a platform
-    getSources: (provider: "slack" | "gmail" | "notion" | "calendar") =>
+    getSources: (provider: "slack" | "notion") =>
       request<{
         sources: Array<{
           id: string;
@@ -1019,7 +1015,7 @@ export const api = {
 
     // Update selected sources for a platform
     updateSources: (
-      provider: "slack" | "gmail" | "notion" | "calendar",
+      provider: "slack" | "notion",
       sourceIds: string[]
     ) =>
       request<{
@@ -1032,7 +1028,7 @@ export const api = {
       }),
 
     // Trigger on-demand sync for a platform
-    triggerSync: (provider: "slack" | "gmail" | "notion") =>
+    triggerSync: (provider: "slack" | "notion") =>
       request<{
         success: boolean;
         message: string;
@@ -1098,81 +1094,6 @@ export const api = {
         method: "DELETE",
       }),
 
-    // ADR-050/051: Google designated settings (Calendar + Email)
-    getGoogleDesignatedSettings: () =>
-      request<{
-        success: boolean;
-        designated_calendar_id: string | null;
-        designated_calendar_name: string | null;
-        designated_email: string | null;
-        message: string;
-      }>("/api/integrations/google/designated-settings"),
-
-    setGoogleDesignatedSettings: (options: {
-      calendarId?: string;
-      calendarName?: string;
-      email?: string;
-    }) =>
-      request<{
-        success: boolean;
-        designated_calendar_id: string | null;
-        designated_calendar_name: string | null;
-        designated_email: string | null;
-        message: string;
-      }>("/api/integrations/google/designated-settings", {
-        method: "PUT",
-        body: JSON.stringify({
-          designated_calendar_id: options.calendarId,
-          designated_calendar_name: options.calendarName,
-          designated_email: options.email,
-        }),
-      }),
-
-    clearGoogleDesignatedSettings: () =>
-      request<{
-        success: boolean;
-        designated_calendar_id: null;
-        designated_calendar_name: null;
-        designated_email: string | null; // Email preserved
-        message: string;
-      }>("/api/integrations/google/designated-settings", {
-        method: "DELETE",
-      }),
-
-    // List Google Calendars for picker
-    listGoogleCalendars: () =>
-      request<{
-        calendars: Array<{ id: string; summary: string; primary?: boolean }>;
-      }>("/api/integrations/google/calendars"),
-
-    // Get calendar events for visual calendar display
-    getCalendarEvents: (options?: {
-      calendarId?: string;
-      timeMin?: string;  // RFC3339 format
-      timeMax?: string;  // RFC3339 format
-      maxResults?: number;
-    }) => {
-      const params = new URLSearchParams();
-      if (options?.calendarId) params.append("calendar_id", options.calendarId);
-      if (options?.timeMin) params.append("time_min", options.timeMin);
-      if (options?.timeMax) params.append("time_max", options.timeMax);
-      if (options?.maxResults) params.append("max_results", String(options.maxResults));
-      const query = params.toString();
-      return request<{
-        events: Array<{
-          id: string;
-          title: string;
-          start: string;
-          end: string;
-          attendees: Array<{ email: string; name?: string; self?: boolean }>;
-          location?: string;
-          description?: string;
-          meeting_link?: string;
-          recurring: boolean;
-        }>;
-        calendar_id: string;
-      }>(`/api/integrations/google/events${query ? `?${query}` : ""}`);
-    },
   },
 
   // ADR-063: Activity Log (what YARNNN has done)

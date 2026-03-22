@@ -68,9 +68,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
  */
 const PLATFORM_RESOURCE_MESSAGES: Record<string, string> = {
   slack: "Listing Slack channels",
-  gmail: "Listing Gmail labels",
   notion: "Listing Notion pages",
-  calendar: "Listing calendars",
 };
 
 /**
@@ -78,9 +76,7 @@ const PLATFORM_RESOURCE_MESSAGES: Record<string, string> = {
  */
 const PLATFORM_SYNC_MESSAGES: Record<string, string> = {
   slack: "Syncing Slack messages",
-  gmail: "Syncing emails",
   notion: "Syncing Notion content",
-  calendar: "Syncing calendar events",
 };
 
 /**

@@ -84,7 +84,7 @@ export default function AboutPage() {
                       and what happened last week.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn connects to Slack, Gmail, Notion, and Calendar — and remembers
+                      yarnnn connects to Slack and Notion — and remembers
                       everything across sessions.
                     </p>
                   </div>
@@ -129,7 +129,7 @@ export default function AboutPage() {
                   <div className="text-white/50">
                     <p className="mb-4">
                       Day 1, the output is good. Day 90, it&apos;s irreplaceable. An agent that knows
-                      3 months of your Slack, email, and meeting patterns can&apos;t be replicated by
+                      3 months of your Slack and Notion patterns can&apos;t be replicated by
                       switching to another tool.
                     </p>
                     <p className="text-white/30 text-sm">
@@ -197,7 +197,7 @@ export default function AboutPage() {
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Teams spread across Slack, Gmail, Notion, and Calendar</h3>
+                  <h3 className="text-base font-medium mb-2">Teams spread across Slack and Notion</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     If your workflow spans multiple platforms, yarnnn turns that sprawl into
                     coherent, recurring output. Automatically.

@@ -16,7 +16,7 @@ import {
   X,
   CheckCircle,
   FileText,
-  Calendar,
+  Clock,
   Loader2,
   Play,
   Brain,
@@ -108,7 +108,7 @@ export function SetupConfirmModal({
               What I'll Create
             </h4>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Calendar className="w-3 h-3" />
+              <Clock className="w-3 h-3" />
               {data.title} · {data.schedule}
             </p>
           </section>

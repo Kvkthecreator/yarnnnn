@@ -57,31 +57,7 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "version": "2026-03-20",
     },
 
-    "gmail_digest": {
-        "display_name": "Gmail",
-        "category": "platform",
-        "platform": "google",
-        "description": "Daily recap of Gmail activity across connected labels.",
-        "objective": {
-            "deliverable": "Daily Gmail recap",
-            "audience": "You",
-            "format": "email",
-            "purpose": "Inbox triage — highlights and action items surfaced daily",
-        },
-        "contributors": [
-            {
-                "title_template": "Gmail Agent",
-                "role": "digest",
-                "scope": "platform",
-                "frequency": "daily",
-                "sources_from": "platform",
-            },
-        ],
-        "pm": True,
-        "assembly_spec": "Coordinate Gmail digest output and deliver to user.",
-        "delivery_default": {"platform": "email"},
-        "version": "2026-03-20",
-    },
+    # ADR-131: gmail_digest removed (Gmail sunset)
 
     "notion_digest": {
         "display_name": "Notion",
@@ -335,6 +311,7 @@ async def scaffold_project(
             sources=agent_sources,
             destination=None,  # Agents produce, projects deliver — no direct agent delivery
             agent_instructions=agent_instructions,
+            type_config={"project_slug": project_slug},  # ADR-129: enable activity event enrichment
             execute_now=execute_now,
         )
 

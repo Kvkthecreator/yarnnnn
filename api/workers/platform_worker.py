@@ -1,8 +1,10 @@
 """
 Platform Sync Worker
 
-Background worker for syncing platform data (Slack, Gmail, Notion, Calendar).
+Background worker for syncing platform data (Slack, Notion).
 Called by scheduler cron, manual "Sync Now" button, and TP RefreshPlatformContent.
+
+ADR-131: Gmail and Calendar integrations sunset — only Slack and Notion remain.
 
 ADR-056: Per-Source Sync Implementation
 - Only syncs user's selected sources (not all available)
@@ -17,8 +19,6 @@ ADR-072: Unified Content Layer
 ADR-073: Sync Tokens (Incremental Sync)
 - Reads/writes platform_cursor via sync_registry for each (user, platform, resource)
 - Slack: passes `oldest` ts to skip already-fetched messages
-- Gmail: refines `after:` date query from last sync timestamp
-- Calendar: uses Google Calendar syncToken for delta event sync
 - Notion: compares last_edited_time to skip unchanged pages
 
 ADR-112: Sync Efficiency & Concurrency Control
@@ -28,7 +28,6 @@ ADR-112: Sync Efficiency & Concurrency Control
 """
 
 import asyncio
-import base64
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -277,41 +276,6 @@ async def _sync_platform_inner(
             sync_result = await _sync_slack(client, user_id, integration, selected_sources)
         elif provider == "notion":
             sync_result = await _sync_notion(client, user_id, integration, selected_sources)
-        elif provider in ("gmail", "calendar", "google"):
-            # Google OAuth provides both Gmail and Calendar from a single connection.
-            # Split selected_sources by type using landscape resource metadata.
-            landscape = integration.get("landscape", {}) or {}
-            resources = landscape.get("resources", [])
-            gmail_ids = {r["id"] for r in resources if isinstance(r, dict) and r.get("metadata", {}).get("platform") == "gmail"}
-            calendar_ids = {r["id"] for r in resources if isinstance(r, dict) and r.get("metadata", {}).get("platform") == "calendar"}
-
-            gmail_sources = [s for s in selected_sources if s in gmail_ids]
-            calendar_sources = [s for s in selected_sources if s in calendar_ids]
-
-            total_items = 0
-            errors = []
-
-            if gmail_sources:
-                gmail_result = await _sync_gmail(client, user_id, integration, gmail_sources)
-                total_items += gmail_result.get("items_synced", 0)
-                if "error" in gmail_result:
-                    errors.append(f"gmail: {gmail_result['error']}")
-
-            if calendar_sources:
-                cal_result = await _sync_calendar(client, user_id, integration, calendar_sources)
-                total_items += cal_result.get("items_synced", 0)
-                if "error" in cal_result:
-                    errors.append(f"calendar: {cal_result['error']}")
-
-            sync_result = {
-                "items_synced": total_items,
-                "gmail_sources": len(gmail_sources),
-                "calendar_sources": len(calendar_sources),
-            }
-            if errors:
-                sync_result["error"] = "; ".join(errors)
-
-            logger.info(f"[PLATFORM_WORKER] Google split sync: gmail={len(gmail_sources)} sources, calendar={len(calendar_sources)} sources, items={total_items}")
         else:
             return {
                 "success": False,
@@ -441,27 +405,6 @@ async def _heartbeat_check(client, user_id: str, provider: str, integration: dic
             _update_sync_cursor(client, integration["id"], settings, sync_cursor)
             return False
 
-        elif provider in ("gmail", "google"):
-            # Gmail: compare historyId (monotonically increasing)
-            token_mgr = get_token_manager()
-            creds = await token_mgr.get_credentials(client, user_id, "gmail")
-            if not creds:
-                return False
-
-            from integrations.core.google_client import GoogleAPIClient
-            google = GoogleAPIClient()
-            current_hid = await google.get_gmail_history_id(
-                creds["client_id"], creds["client_secret"], creds["refresh_token"]
-            )
-
-            prev_hid = sync_cursor.get("gmail_history_id")
-            if prev_hid and current_hid == prev_hid:
-                return True  # No changes
-
-            sync_cursor["gmail_history_id"] = current_hid
-            _update_sync_cursor(client, integration["id"], settings, sync_cursor)
-            return False
-
         elif provider == "notion":
             # Notion: search for recently edited pages
             token_mgr = get_token_manager()
@@ -482,11 +425,6 @@ async def _heartbeat_check(client, user_id: str, provider: str, integration: dic
             notion = NotionAPIClient()
             has_changes = await notion.check_recent_changes(access_token, last_synced)
             return not has_changes
-
-        elif provider == "calendar":
-            # Calendar uses syncToken natively in list_calendar_events — heartbeat
-            # not needed separately. The existing delta detection IS the heartbeat.
-            return False
 
     except Exception as e:
         logger.debug(f"[HEARTBEAT] Check failed for {provider} (falling through to full sync): {e}")
@@ -731,219 +669,6 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
         return {"error": str(e), "items_synced": items_synced}
 
 
-def _extract_gmail_body(payload: dict) -> str:
-    """Extract plain text body from Gmail message payload.
-
-    Gmail messages can be:
-    - Simple: body.data directly on payload
-    - Multipart: parts[] with different mimeTypes
-    - Nested multipart: parts containing parts (multipart/alternative inside multipart/mixed)
-    """
-    def _decode_body(data: str) -> str:
-        try:
-            return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-        except Exception:
-            return ""
-
-    def _find_text_parts(part: dict) -> list[str]:
-        mime = part.get("mimeType", "")
-        body_data = part.get("body", {}).get("data")
-        parts = part.get("parts", [])
-
-        if mime == "text/plain" and body_data:
-            return [_decode_body(body_data)]
-        if mime == "text/html" and body_data and not parts:
-            # HTML fallback — strip tags for plain text
-            import re
-            html = _decode_body(body_data)
-            text = re.sub(r"<[^>]+>", " ", html)
-            text = re.sub(r"\s+", " ", text).strip()
-            return [text]
-        # Recurse into sub-parts
-        results = []
-        for sub in parts:
-            results.extend(_find_text_parts(sub))
-        return results
-
-    texts = _find_text_parts(payload)
-    return "\n".join(texts)[:10000] if texts else ""
-
-
-async def _sync_gmail(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
-    """
-    Sync Gmail messages.
-
-    ADR-055/ADR-056: Label-based sync - only syncs selected labels.
-    ADR-077: Paginated message list, concurrent fetch, 30-day initial window.
-    selected_sources format: ["label:Label_123", "label:Label_456"] or ["Label_123", "Label_456"]
-    """
-    from integrations.core.google_client import GoogleAPIClient
-    from integrations.core.tokens import get_token_manager
-    from datetime import timedelta
-    import os
-
-    refresh_token_encrypted = integration.get("refresh_token_encrypted")
-    if not refresh_token_encrypted:
-        return {"error": "Missing Gmail refresh token", "items_synced": 0}
-
-    token_manager = get_token_manager()
-    refresh_token = token_manager.decrypt(refresh_token_encrypted)
-
-    # ADR-056: If no sources selected, nothing to sync
-    if not selected_sources:
-        logger.info("[PLATFORM_WORKER] No Gmail labels selected, skipping sync")
-        return {"items_synced": 0, "labels_synced": 0, "skipped": "no_sources_selected"}
-
-    logger.info(f"[PLATFORM_WORKER] Gmail sync: {len(selected_sources)} labels selected")
-
-    google_client = GoogleAPIClient()
-    client_id = os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        return {"error": "Missing Google OAuth credentials", "items_synced": 0}
-
-    from services.freshness import get_sync_state, update_sync_registry
-
-    items_synced = 0
-    labels_synced = 0
-
-    # ADR-077: Concurrent message fetch helper
-    sem = asyncio.Semaphore(10)
-
-    async def _fetch_one_message(msg_id: str) -> Optional[dict]:
-        async with sem:
-            try:
-                return await google_client.get_gmail_message(
-                    message_id=msg_id,
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token,
-                )
-            except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Failed to fetch Gmail message {msg_id}: {e}")
-                return None
-
-    try:
-        for source in selected_sources:
-            # Handle both "label:Label_123" and "Label_123" formats
-            if source.startswith("label:"):
-                label_id = source.split(":", 1)[1]
-                resource_id = source  # Keep full format for storage
-            else:
-                label_id = source
-                resource_id = f"label:{source}"
-
-            logger.debug(f"[PLATFORM_WORKER] Syncing Gmail label: {label_id}")
-
-            # ADR-073: Use sync cursor for tighter date filter
-            sync_state = await get_sync_state(client, user_id, "gmail", resource_id)
-            if sync_state and sync_state.get("platform_cursor"):
-                date_filter = f"after:{sync_state['platform_cursor']}"
-            else:
-                # ADR-077: 30-day initial window (was 7 days)
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
-                date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
-
-            try:
-                # ADR-077: Paginated fetch — up to 200 message stubs per label
-                messages = await google_client.list_gmail_messages_paginated(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token,
-                    query=date_filter,
-                    label_ids=[label_id],
-                    max_messages=200,
-                )
-
-                # ADR-077: Concurrent message content fetch (batches of 10)
-                msg_ids = [m.get("id") for m in messages if m.get("id")]
-                label_items = 0
-
-                # Fetch in batches of 10 concurrently
-                for batch_start in range(0, len(msg_ids), 10):
-                    batch = msg_ids[batch_start:batch_start + 10]
-                    full_msgs = await asyncio.gather(
-                        *[_fetch_one_message(mid) for mid in batch]
-                    )
-
-                    for full_msg in full_msgs:
-                        if not full_msg:
-                            continue
-
-                        msg_id = full_msg.get("id", "")
-
-                        # Extract headers
-                        headers = {
-                            h["name"].lower(): h["value"]
-                            for h in full_msg.get("payload", {}).get("headers", [])
-                        }
-                        subject = headers.get("subject", "No subject")
-                        sender = headers.get("from", "")
-                        date_str = headers.get("date", "")
-
-                        # Extract body text from payload
-                        body_text = _extract_gmail_body(full_msg.get("payload", {}))
-                        content = body_text or full_msg.get("snippet", "")
-
-                        try:
-                            await _store_platform_content(
-                                client=client,
-                                user_id=user_id,
-                                source_type="gmail",
-                                resource_id=resource_id,
-                                resource_name=subject,
-                                item_id=msg_id,
-                                content=content,
-                                title=subject,
-                                author=sender,
-                                content_type="email",
-                                metadata={
-                                    "message_id": msg_id,
-                                    "subject": subject,
-                                    "from": sender,
-                                    "label_id": label_id,
-                                    "labels": full_msg.get("labelIds", []),
-                                    "thread_id": full_msg.get("threadId"),
-                                },
-                                source_timestamp=date_str,
-                            )
-                            items_synced += 1
-                            label_items += 1
-                        except Exception as e:
-                            logger.warning(f"[PLATFORM_WORKER] Failed to store Gmail message {msg_id}: {e}")
-
-                # ADR-073: Update sync cursor with today's date
-                now = datetime.now(timezone.utc)
-                await update_sync_registry(
-                    client, user_id, "gmail", resource_id,
-                    resource_name=label_id,
-                    platform_cursor=now.strftime('%Y/%m/%d'),
-                    item_count=label_items,
-                )
-                labels_synced += 1
-
-                logger.info(f"[PLATFORM_WORKER] Gmail label {label_id}: {label_items} emails from {len(msg_ids)} found")
-
-            except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Failed to sync Gmail label {label_id}: {e}")
-                await update_sync_registry(
-                    client, user_id, "gmail", resource_id,
-                    resource_name=label_id,
-                    last_error=str(e),
-                )
-
-        logger.info(f"[PLATFORM_WORKER] Gmail sync complete: {labels_synced} labels, {items_synced} emails")
-        return {
-            "items_synced": items_synced,
-            "labels_synced": labels_synced,
-        }
-
-    except Exception as e:
-        logger.warning(f"[PLATFORM_WORKER] Gmail sync error: {e}")
-        return {"error": str(e), "items_synced": items_synced}
-
-
 async def _sync_notion(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
     """
     Sync Notion pages and databases.
@@ -1163,179 +888,6 @@ def _extract_text_from_notion_blocks(blocks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def _sync_calendar(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
-    """
-    Sync Google Calendar events.
-
-    ADR-056: Syncs only selected calendars (calendar IDs).
-    ADR-077: Wider time window (-7d to +14d), pagination, debug logging.
-    """
-    from integrations.core.google_client import GoogleAPIClient
-    from integrations.core.tokens import get_token_manager
-    import os
-
-    refresh_token_encrypted = integration.get("refresh_token_encrypted")
-    if not refresh_token_encrypted:
-        return {"error": "Missing Calendar refresh token", "items_synced": 0}
-
-    token_manager = get_token_manager()
-    refresh_token = token_manager.decrypt(refresh_token_encrypted)
-
-    # ADR-056: If no sources selected, nothing to sync
-    if not selected_sources:
-        logger.info("[PLATFORM_WORKER] No calendars selected, skipping sync")
-        return {"items_synced": 0, "calendars_synced": 0, "skipped": "no_sources_selected"}
-
-    logger.info(f"[PLATFORM_WORKER] Calendar sync: {len(selected_sources)} calendars selected: {selected_sources}")
-
-    google_client = GoogleAPIClient()
-    client_id = os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        return {"error": "Missing Google OAuth credentials", "items_synced": 0}
-
-    from services.freshness import get_sync_state, update_sync_registry
-
-    items_synced = 0
-    calendars_synced = 0
-
-    try:
-        for calendar_id in selected_sources:
-            try:
-                logger.info(f"[PLATFORM_WORKER] Syncing calendar: {calendar_id}")
-
-                # ADR-073: Try incremental sync with syncToken first
-                sync_state = await get_sync_state(client, user_id, "calendar", calendar_id)
-                stored_sync_token = sync_state.get("platform_cursor") if sync_state else None
-
-                cal_result = None
-                if stored_sync_token:
-                    logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: attempting incremental sync with stored token")
-                    cal_result = await google_client.list_calendar_events(
-                        client_id=client_id,
-                        client_secret=client_secret,
-                        refresh_token=refresh_token,
-                        calendar_id=calendar_id,
-                        max_results=200,
-                        sync_token=stored_sync_token,
-                    )
-                    # If token expired (410 Gone), fall back to full sync
-                    if cal_result.get("invalid_sync_token"):
-                        logger.info(f"[PLATFORM_WORKER] Calendar syncToken expired for {calendar_id}, falling back to full sync")
-                        cal_result = None
-
-                if cal_result is None:
-                    # ADR-077: Full sync with wider window — past 7 days + next 14 days
-                    logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: full sync -7d to +14d")
-                    cal_result = await google_client.list_calendar_events(
-                        client_id=client_id,
-                        client_secret=client_secret,
-                        refresh_token=refresh_token,
-                        calendar_id=calendar_id,
-                        time_min="-7d",
-                        time_max="+14d",
-                        max_results=200,
-                    )
-
-                events = cal_result.get("items", [])
-                next_sync_token = cal_result.get("next_sync_token")
-
-                logger.info(
-                    f"[PLATFORM_WORKER] Calendar {calendar_id}: "
-                    f"API returned {len(events)} events, "
-                    f"next_sync_token={'yes' if next_sync_token else 'no'}"
-                )
-
-                stored_count = 0
-                for event in events:
-                    event_id = event.get("id")
-                    if not event_id:
-                        continue
-
-                    # Incremental sync may return cancelled events
-                    if event.get("status") == "cancelled":
-                        continue
-
-                    summary = event.get("summary", "No title")
-                    description = event.get("description", "")
-                    location = event.get("location", "")
-
-                    # Get start/end times
-                    start = event.get("start", {})
-                    start_time = start.get("dateTime") or start.get("date", "")
-                    end = event.get("end", {})
-                    end_time = end.get("dateTime") or end.get("date", "")
-
-                    # Build content from event details
-                    content_parts = [summary]
-                    if start_time:
-                        content_parts.append(f"When: {start_time} — {end_time}")
-                    if description:
-                        content_parts.append(description)
-                    if location:
-                        content_parts.append(f"Location: {location}")
-                    attendees = event.get("attendees", [])
-                    if attendees:
-                        names = [a.get("displayName") or a.get("email", "") for a in attendees[:10]]
-                        content_parts.append(f"Attendees: {', '.join(names)}")
-                    content = "\n".join(content_parts)
-
-                    try:
-                        await _store_platform_content(
-                            client=client,
-                            user_id=user_id,
-                            source_type="calendar",
-                            resource_id=calendar_id,
-                            resource_name=summary,
-                            item_id=event_id,
-                            content=content,
-                            content_type="event",
-                            metadata={
-                                "event_id": event_id,
-                                "start": start_time,
-                                "end": end_time,
-                                "location": location,
-                                "attendees": [a.get("email") for a in attendees],
-                                "organizer": event.get("organizer", {}).get("email"),
-                                "html_link": event.get("htmlLink"),
-                                "status": event.get("status"),
-                            },
-                            source_timestamp=start_time,
-                        )
-                        items_synced += 1
-                        stored_count += 1
-                    except Exception as e:
-                        logger.warning(f"[PLATFORM_WORKER] Failed to store calendar event {event_id}: {e}")
-
-                # ADR-073: Save syncToken for next incremental sync
-                await update_sync_registry(
-                    client, user_id, "calendar", calendar_id,
-                    platform_cursor=next_sync_token,
-                    item_count=stored_count,
-                )
-                calendars_synced += 1
-
-                logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: {stored_count} events stored")
-
-            except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Failed to sync calendar {calendar_id}: {e}", exc_info=True)
-                await update_sync_registry(
-                    client, user_id, "calendar", calendar_id,
-                    last_error=str(e),
-                )
-
-        logger.info(f"[PLATFORM_WORKER] Calendar sync complete: {calendars_synced} calendars, {items_synced} events")
-        return {
-            "items_synced": items_synced,
-            "calendars_synced": calendars_synced,
-        }
-
-    except Exception as e:
-        logger.warning(f"[PLATFORM_WORKER] Calendar sync error: {e}")
-        return {"error": str(e), "items_synced": items_synced}
-
-
 async def _store_platform_content(
     client,
     user_id: str,
@@ -1354,8 +906,6 @@ async def _store_platform_content(
 
     item_id is the platform-native identifier for the specific item within the resource:
     - Slack: message ts
-    - Gmail: message_id
-    - Calendar: event_id
     - Notion: page_id (same as resource_id for Notion since each page is its own resource)
 
     Upserts on (user_id, platform, resource_id, item_id, content_hash) — matching the UNIQUE constraint.

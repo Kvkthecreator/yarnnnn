@@ -7,9 +7,7 @@ YARNNN connects to the tools where your work already happens so TP and your agen
 | Platform | What YARNNN reads | Typical first value |
 |---|---|---|
 | [Slack](slack.md) | Selected channel activity | Team recap, signal watch, discussion summary |
-| [Gmail](gmail.md) | Selected label content | Inbox digest, client recap, status context |
 | [Notion](notion.md) | Selected pages and databases | Doc-grounded summary, project context, research input |
-| [Google Calendar](google-calendar.md) | Upcoming events and calendars | Schedule context and stronger meeting prep once paired with other sources |
 
 ## Connection model
 

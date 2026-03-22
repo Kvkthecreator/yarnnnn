@@ -18,8 +18,7 @@ export const metadata: Metadata = getMarketingMetadata({
     "ai agents",
     "ai employee",
     "slack ai summary",
-    "gmail ai digest",
-    "ai meeting prep",
+    "notion ai summary",
   ],
 });
 
@@ -33,7 +32,7 @@ export default function HowItWorksPage() {
     step: [
       {
         "@type": "HowToStep",
-        name: "Connect your tools — Slack, Gmail, Notion, or Calendar",
+        name: "Connect your tools — Slack or Notion",
       },
       {
         "@type": "HowToStep",
@@ -81,26 +80,18 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Connect your tools</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl mb-8">
-                    Link Slack, Gmail, Notion, or Calendar. yarnnn immediately syncs your data
-                    and creates your first agents — no setup required. You choose which channels,
-                    labels, or pages to include. Or let yarnnn figure it out.
+                    Link Slack or Notion. yarnnn immediately syncs your data
+                    and creates your first agents — no setup required. You choose which channels
+                    or pages to include. Or let yarnnn figure it out.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4 max-w-md">
                     <div className="border border-white/10 rounded-xl p-4 text-center">
                       <div className="text-lg font-medium mb-1">Slack</div>
                       <p className="text-white/40 text-xs">Channels & threads</p>
                     </div>
                     <div className="border border-white/10 rounded-xl p-4 text-center">
-                      <div className="text-lg font-medium mb-1">Gmail</div>
-                      <p className="text-white/40 text-xs">Labels & threads</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4 text-center">
                       <div className="text-lg font-medium mb-1">Notion</div>
                       <p className="text-white/40 text-xs">Pages & databases</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4 text-center">
-                      <div className="text-lg font-medium mb-1">Calendar</div>
-                      <p className="text-white/40 text-xs">All events</p>
                     </div>
                   </div>
                 </div>
@@ -124,7 +115,7 @@ export default function HowItWorksPage() {
                     <div className="border border-white/10 rounded-xl p-6">
                       <div className="text-lg font-medium mb-3">Weekly updates</div>
                       <p className="text-white/50 text-sm leading-relaxed">
-                        Summaries of Slack channels, Gmail labels, or Notion pages.
+                        Summaries of Slack channels or Notion pages.
                         Delivered on your schedule with highlights, decisions, and action items.
                       </p>
                     </div>
@@ -132,8 +123,8 @@ export default function HowItWorksPage() {
                     <div className="border border-white/10 rounded-xl p-6">
                       <div className="text-lg font-medium mb-3">Meeting prep</div>
                       <p className="text-white/50 text-sm leading-relaxed">
-                        Before each meeting, yarnnn pulls relevant context from email,
-                        Slack, and docs into a briefing you can skim in 2 minutes.
+                        yarnnn pulls relevant context from Slack and Notion
+                        into a briefing you can skim in 2 minutes.
                       </p>
                     </div>
 
@@ -206,7 +197,7 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Agents work together</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
                 For bigger jobs, multiple agents collaborate. One pulls from Slack, another
-                from Gmail, another does research — then a coordinator assembles their work
+                from Notion, another does research — then a coordinator assembles their work
                 into one deliverable. You get a finished product, not fragments.
               </p>
 
@@ -219,7 +210,7 @@ export default function HowItWorksPage() {
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Gmail agent flags key client threads and follow-ups</p>
+                    <p className="text-white/70 text-sm">Notion agent pulls key updates from project pages</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
@@ -289,7 +280,7 @@ export default function HowItWorksPage() {
                   <p className="text-white/70 text-sm italic">&ldquo;Track these three competitors and give me a weekly update.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Before my meetings, generate a prep brief from email and docs.&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Before my meetings, generate a prep brief from Slack and Notion.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
                   <p className="text-white/70 text-sm italic">&ldquo;Summarize my week across all platforms every Friday.&rdquo;</p>

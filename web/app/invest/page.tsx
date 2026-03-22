@@ -101,7 +101,7 @@ export default function InvestPage() {
                   <h3 className="text-base font-medium mb-3">Stage</h3>
                   <div className="text-white/50 text-sm space-y-2">
                     <p>Delaware C-Corp, pre-revenue</p>
-                    <p>MVP live with all four integrations shipping</p>
+                    <p>MVP live with platform integrations shipping</p>
                     <p>Solo founder — full stack built and shipped independently</p>
                   </div>
                 </div>
@@ -117,11 +117,11 @@ export default function InvestPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Four integrations</h3>
+                    <h3 className="text-lg font-medium text-white">Two integrations</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
-                      Slack, Gmail, Notion, and Google Calendar — all connected and syncing.
+                      Slack and Notion — connected and syncing.
                       Cross-platform context accumulates automatically with every sync cycle.
                     </p>
                   </div>
@@ -129,13 +129,14 @@ export default function InvestPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Two operating modes</h3>
+                    <h3 className="text-lg font-medium text-white">Multi-agent projects</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
-                      Orchestrator for context-aware conversations. Autonomous agents for scheduled
-                      work — weekly recaps, project summaries, meeting prep, and richer
-                      work products — generated without repeated prompting.
+                      Agents collaborate inside projects — each with a Project Manager agent that
+                      coordinates contributions, assesses quality, and assembles deliverables.
+                      Meeting rooms let users talk to any agent directly. Output ships as
+                      PDF, slides, spreadsheets, and more.
                     </p>
                   </div>
                 </div>
@@ -155,12 +156,12 @@ export default function InvestPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">90+ ADRs</h3>
+                    <h3 className="text-lg font-medium text-white">125+ ADRs</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
                       Architecture Decision Records documenting every design choice — from the
-                      unified content layer to workspace outputs and output skills. This is a
+                      agent pulse engine to multi-agent coherence and output skills. This is a
                       purpose-built work system, not an API wrapper.
                     </p>
                   </div>
@@ -254,9 +255,9 @@ export default function InvestPage() {
                 </p>
                 <p>
                   Shipped the entire MVP solo: full-stack application (Next.js + FastAPI + Supabase),
-                  four platform integrations, unified agent architecture documented across 90+
-                  Architecture Decision Records, and a working context accumulation engine — all
-                  before raising a dollar.
+                  platform integrations, multi-agent project architecture documented across
+                  125+ Architecture Decision Records, and a working context accumulation engine —
+                  all before raising a dollar.
                 </p>
               </div>
             </div>

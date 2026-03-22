@@ -14,7 +14,7 @@ export const BRAND = {
   name: "yarnnn",
   tagline: "AI Agents That Work While You Sleep",
   description:
-    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs AI agents that deliver real work on schedule. Connect once. Wake up to finished work.",
+    "yarnnn connects to Slack and Notion, then runs AI agents that deliver real work on schedule. Connect once. Wake up to finished work.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };

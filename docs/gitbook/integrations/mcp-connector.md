@@ -8,7 +8,7 @@ This works with **Claude** (claude.ai, Claude Desktop, Claude Code) and **ChatGP
 
 Once connected, you can ask your AI tool to:
 
-* **Search your work context** — "Use YARNNN to search Slack and Gmail for anything about the product launch"
+* **Search your work context** — "Use YARNNN to search Slack and Notion for anything about the product launch"
 * **Trigger an agent** — "Run my weekly engineering recap in YARNNN"
 * **Read agent output** — "Show me the latest status update from YARNNN"
 * **Check what's connected** — "What platforms are synced in YARNNN?"
@@ -118,7 +118,7 @@ Once connected, your AI tool has access to these YARNNN capabilities:
 | What you can ask for | What happens |
 |---|---|
 | "Check my YARNNN status" | Shows connected platforms, sync freshness, and active agents |
-| "Search my Slack/Gmail/Notion for X" | Searches synced content across platforms |
+| "Search my Slack/Notion for X" | Searches synced content across platforms |
 | "What does YARNNN know about me?" | Shows profile, preferences, and learned patterns |
 | "List my agents" | Shows configured agents with schedules |
 | "Run my weekly digest" | Triggers an agent to generate a new run |

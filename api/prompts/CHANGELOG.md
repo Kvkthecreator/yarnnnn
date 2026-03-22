@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.2] - ADR-131: Gmail & Calendar sunset — prompt cleanup
+
+### Changed
+- `api/agents/tp_prompts/platforms.py`: Removed Gmail/Calendar sections — landing zones, Calendar CRUD workflow, Gmail tool references. Only Slack and Notion remain.
+- `api/agents/tp_prompts/tools.py`: Removed Gmail/Calendar from RefreshPlatformContent examples.
+- `api/agents/tp_prompts/behaviors.py`: Updated examples (Gmail → Notion), removed Calendar create example, updated platform lists from "Slack/Notion/Gmail" to "Slack/Notion".
+- `api/agents/tp_prompts/base.py`: Updated tool usage guidance — removed "creating drafts, managing calendar".
+- `api/services/project_registry.py` v1.5: Removed `gmail_digest` project type.
+
+### Expected behavior
+- TP no longer references Gmail or Calendar tools or content. Platform guidance scoped to Slack and Notion.
+- Bootstrap no longer creates Gmail digest projects.
+- Existing Gmail/Calendar platform_content remains in DB but is no longer refreshed or referenced.
+
+---
+
 ## [2026.03.22.1] - Fix PM-as-contributor bug + platform project naming — ADR-122
 
 ### Changed

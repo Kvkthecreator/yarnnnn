@@ -20,18 +20,6 @@ export const NotionIcon = ({ className }: IconProps) => (
   </svg>
 );
 
-export const GmailIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" />
-  </svg>
-);
-
-export const GoogleCalendarIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18.316 5.684H24v12.632h-5.684V5.684zM5.684 24h12.632v-5.684H5.684V24zM18.316 5.684V0H5.684v5.684h12.632zM5.684 18.316H0V5.684h5.684v12.632zM18.316 18.316h5.684V5.684h-5.684v12.632zM5.684 5.684H0V0h5.684v5.684zM24 5.684h-5.684V0H24v5.684zM5.684 24H0v-5.684h5.684V24z" />
-  </svg>
-);
-
 export const YarnnnIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
@@ -50,12 +38,6 @@ export function getPlatformIcon(
       return <SlackIcon className={className} />;
     case "notion":
       return <NotionIcon className={className} />;
-    case "gmail":
-      return <GmailIcon className={className} />;
-    case "google":
-    case "google-calendar":
-    case "calendar":
-      return <GoogleCalendarIcon className={className} />;
     default:
       return null;
   }

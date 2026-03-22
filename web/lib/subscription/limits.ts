@@ -2,7 +2,7 @@
  * Subscription tier limits and feature flags
  *
  * ADR-100: Simplified 2-tier monetization (Free + Pro).
- * Platform resource limits (Slack channels, Gmail labels, etc.) are defined in
+ * Platform resource limits (Slack channels, Notion pages, etc.) are defined in
  * api/services/platform_limits.py and fetched via API.
  *
  * Tier structure (ADR-100, 2026-03-09):

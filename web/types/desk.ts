@@ -24,7 +24,7 @@ export type DeskSurface =
   | { type: 'document-list' }
   // Platforms (ADR-033)
   | { type: 'platform-list' }
-  | { type: 'platform-detail'; platform: 'slack' | 'notion' | 'gmail' | 'calendar' }
+  | { type: 'platform-detail'; platform: 'slack' | 'notion' }
   // Idle state
   | { type: 'idle' };
 
@@ -219,7 +219,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'platform-detail':
       return {
         type: 'platform-detail',
-        platform: data.platform as 'slack' | 'notion' | 'gmail' | 'calendar',
+        platform: data.platform as 'slack' | 'notion',
       };
 
     // Dashboard/Home
@@ -319,8 +319,8 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
       return { type: 'platform-list' };
     case 'platform-detail': {
       const platform = params.get('platform');
-      if (platform && ['slack', 'notion', 'gmail', 'calendar'].includes(platform)) {
-        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' | 'gmail' | 'calendar' };
+      if (platform && ['slack', 'notion'].includes(platform)) {
+        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' };
       }
       break;
     }

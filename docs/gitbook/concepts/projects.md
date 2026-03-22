@@ -16,7 +16,7 @@ Simple jobs — like a Slack recap — are a project with one contributor and a 
 
 There are three ways:
 
-1. **Automatically**: when you connect a platform, YARNNN creates a matching project (Slack Recap, Gmail Digest, etc.)
+1. **Automatically**: when you connect a platform, YARNNN creates a matching project (Slack Recap, Notion Summary, etc.)
 2. **Through conversation**: ask the Orchestrator to create a project — "give me a weekly leadership brief from engineering and product"
 3. **By the system**: YARNNN's Composer periodically assesses your work and may suggest or auto-create projects when the pattern is clear
 
@@ -54,7 +54,7 @@ For bigger jobs, the PM assembles contributions from multiple agents into one de
 Example: a weekly leadership brief might involve:
 
 - a Slack agent summarizing #engineering and #product
-- a Gmail agent flagging key client threads
+- a Notion agent pulling project status from docs
 - a research agent tracking competitor activity
 - the PM assembling all three into one polished report
 
@@ -67,7 +67,6 @@ YARNNN has a curated registry of project types:
 | Type | Created by | What it does |
 |---|---|---|
 | Slack Recap | Auto (on connect) | Summarizes selected Slack channels |
-| Gmail Digest | Auto (on connect) | Recaps selected Gmail labels |
 | Notion Summary | Auto (on connect) | Summarizes selected Notion pages |
 | Custom | Conversation or Composer | Any recurring work you describe |
 

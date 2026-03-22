@@ -126,13 +126,12 @@ def _initialize_default_exporters(registry: ExporterRegistry) -> None:
     from .slack import SlackExporter
     from .notion import NotionExporter
     from .download import DownloadExporter
-    from .gmail import GmailExporter  # ADR-029
     from .resend import ResendExporter  # ADR-066: Default email delivery
 
     registry.register(SlackExporter())
     registry.register(NotionExporter())
     registry.register(DownloadExporter())
-    registry.register(GmailExporter())  # ADR-029: Gmail drafts/sends via OAuth
+    # ADR-131: GmailExporter removed (Gmail sunset). Email delivery via Resend.
     registry.register(ResendExporter())  # ADR-066: Default "email" delivery via Resend (no OAuth)
 
     logger.info(f"[EXPORTERS] Initialized registry with: {registry.list_platforms()}")

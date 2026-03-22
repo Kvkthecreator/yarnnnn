@@ -16,9 +16,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   MessageSquare,
-  Mail,
   FileText,
-  Calendar,
   AlertCircle,
   CheckCircle2,
   Loader2,
@@ -33,7 +31,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useDocuments } from '@/hooks/useDocuments';
 
-type Provider = 'slack' | 'gmail' | 'notion' | 'calendar';
+type Provider = 'slack' | 'notion';
 
 interface Integration {
   id: string;
@@ -99,13 +97,6 @@ const PLATFORM_CONFIG: Record<string, {
     bgColor: 'bg-purple-100 dark:bg-purple-900/30',
     connectLabel: 'channels',
   },
-  gmail: {
-    icon: Mail,
-    label: 'Gmail',
-    color: 'text-red-600',
-    bgColor: 'bg-red-100 dark:bg-red-900/30',
-    connectLabel: 'inbox',
-  },
   notion: {
     icon: FileText,
     label: 'Notion',
@@ -113,17 +104,10 @@ const PLATFORM_CONFIG: Record<string, {
     bgColor: 'bg-gray-100 dark:bg-gray-800',
     connectLabel: 'pages',
   },
-  calendar: {
-    icon: Calendar,
-    label: 'Calendar',
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-    connectLabel: 'schedule',
-  },
 };
 
 // All available platforms in display order
-const ALL_PLATFORMS: Provider[] = ['slack', 'gmail', 'notion', 'calendar'];
+const ALL_PLATFORMS: Provider[] = ['slack', 'notion'];
 
 interface PlatformSyncStatusProps {
   className?: string;
@@ -232,8 +216,7 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const handleConnect = async (provider: Provider) => {
     setConnecting(provider);
     try {
-      // Calendar uses Google OAuth
-      const authProvider = provider === 'calendar' ? 'google' : provider;
+      const authProvider = provider;
       const result = await api.integrations.getAuthorizationUrl(authProvider);
       // Redirect to OAuth — callback redirects to /dashboard?provider={platform}&status=connected (ADR-110)
       window.location.href = result.authorization_url;
@@ -245,26 +228,16 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
 
   // Check if a platform is connected
   const isConnected = (provider: Provider): boolean => {
-    // Gmail and Calendar both use Google OAuth — check for gmail row
-    if (provider === 'gmail' || provider === 'calendar') {
-      return integrations.some(i => i.provider === 'gmail');
-    }
     return integrations.some(i => i.provider === provider);
   };
 
   // Get integration for a provider
   const getIntegration = (provider: Provider): Integration | undefined => {
-    if (provider === 'gmail' || provider === 'calendar') {
-      return integrations.find(i => i.provider === 'gmail');
-    }
     return integrations.find(i => i.provider === provider);
   };
 
   // Get sync status for a provider
   const getSyncStatus = (provider: Provider): SyncStatus | undefined => {
-    if (provider === 'gmail' || provider === 'calendar') {
-      return syncStatuses['gmail'];
-    }
     return syncStatuses[provider];
   };
 

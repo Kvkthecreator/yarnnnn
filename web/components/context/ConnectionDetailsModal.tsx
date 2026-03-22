@@ -14,7 +14,6 @@ import {
   RefreshCw,
   LogOut,
   AlertCircle,
-  Calendar,
   User,
   Shield,
   Loader2,
@@ -294,25 +293,12 @@ function getPermissionsForProvider(provider: string): string[] {
         'Read user profiles',
         'Write messages (for agents)',
       ];
-    case 'gmail':
-      return [
-        'Read email labels',
-        'Read email messages',
-        'Create drafts',
-        'Read calendar events',
-      ];
     case 'notion':
       return [
         'Read pages',
         'Read databases',
         'Create comments',
         'Create pages',
-      ];
-    case 'calendar':
-      return [
-        'Read calendar events',
-        'Create calendar events',
-        'Update calendar events',
       ];
     default:
       return ['Full access to connected workspace'];

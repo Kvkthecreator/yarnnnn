@@ -6,7 +6,7 @@ YARNNN is built around a simple product loop:
 
 ## 1. Connect
 
-You connect Slack, Gmail, Notion, or Google Calendar through OAuth.
+You connect Slack or Notion through OAuth.
 
 YARNNN gets read-only access so it can understand your work context, not act inside those tools.
 
@@ -17,9 +17,7 @@ After connection, YARNNN discovers the available sources and syncs the selected 
 This is the raw substrate:
 
 - Slack messages
-- Gmail threads
 - Notion pages and databases
-- Calendar events
 - uploaded files and documents
 
 ## 3. Bootstrap
@@ -31,7 +29,6 @@ After the first sync, it creates a matching project with agents for the platform
 For example:
 
 - Connect Slack → YARNNN creates a Slack Recap project with a digest agent
-- Connect Gmail → YARNNN creates a Gmail Digest project
 - Connect Notion → YARNNN creates a Notion Summary project
 
 Each project includes a Project Manager agent that coordinates delivery.
@@ -85,6 +82,6 @@ Meeting rooms are where most day-to-day interaction happens. The orchestrator is
 
 For bigger jobs, multiple agents collaborate within a [project](projects.md).
 
-One agent might pull from Slack, another from Gmail, another does research — then the Project Manager agent assembles their contributions into one polished deliverable. You get a finished product, not fragments.
+One agent might pull from Slack, another from Notion, another does research — then the Project Manager agent assembles their contributions into one polished deliverable. You get a finished product, not fragments.
 
 This coordination happens automatically. The PM agent tracks contribution freshness, assesses quality, and decides when to assemble.

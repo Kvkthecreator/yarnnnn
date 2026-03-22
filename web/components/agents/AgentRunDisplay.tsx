@@ -35,10 +35,8 @@ import type { Agent, AgentRun, SourceSnapshot, RenderedOutput } from '@/types';
 
 const PLATFORM_EMOJI: Record<string, string> = {
   slack: '\u{1F4AC}',
-  gmail: '\u{1F4E7}',
   email: '\u{1F4E7}',
   notion: '\u{1F4DD}',
-  calendar: '\u{1F4C5}',
   synthesis: '\u{1F4CA}',
 };
 

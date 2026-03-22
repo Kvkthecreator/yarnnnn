@@ -32,9 +32,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Note: "calendar" is NOT listed separately — it shares the "gmail" DB row (single Google OAuth).
-# The worker's provider="google" branch splits sources by metadata.platform and syncs both.
-PROVIDERS = ["slack", "gmail", "notion"]
+# ADR-131: Gmail and Calendar sunset — only Slack and Notion remain.
+PROVIDERS = ["slack", "notion"]
 
 
 async def get_users_due_for_sync(supabase_client) -> list[dict]:

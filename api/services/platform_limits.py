@@ -3,10 +3,11 @@ Platform Limits Service
 
 ADR-100: Simplified 2-tier monetization (Free + Pro).
 ADR-077: Widened source limits to support richer content accumulation.
+ADR-131: Gmail and Calendar sunset — only Slack and Notion remain.
 
-Tier Structure (ADR-100, 2026-03-09):
-- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50 messages/month, 2 agents
-- Pro ($19/mo, Early Bird $9/mo): unlimited sources, all platforms, hourly sync, unlimited messages, 10 agents
+Tier Structure (ADR-100/ADR-131):
+- Free: 5 slack/10 notion, 2 platforms, 1x/day sync, 50 messages/month, 2 agents
+- Pro ($19/mo, Early Bird $9/mo): unlimited sources, 2 platforms, hourly sync, unlimited messages, 10 agents
 
 Key gates (by cost impact):
 1. Monthly messages — user-understandable proxy for Anthropic API spend
@@ -29,11 +30,9 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 
 @dataclass
 class PlatformLimits:
-    """Resource limits for a user tier (ADR-100)."""
+    """Resource limits for a user tier (ADR-100, ADR-131)."""
     slack_channels: int       # -1 for unlimited
-    gmail_labels: int         # -1 for unlimited
     notion_pages: int         # -1 for unlimited
-    calendars: int            # -1 for unlimited (no source selection for calendar)
     total_platforms: int
     sync_frequency: SyncFrequency
     monthly_messages: int     # -1 for unlimited (ADR-100: replaces daily_token_budget)
@@ -46,10 +45,8 @@ class PlatformLimits:
 TIER_LIMITS = {
     "free": PlatformLimits(
         slack_channels=5,
-        gmail_labels=5,
         notion_pages=10,
-        calendars=-1,            # No source selection for calendar
-        total_platforms=4,       # All platforms open
+        total_platforms=2,       # ADR-131: Slack + Notion
         sync_frequency="1x_daily",
         monthly_messages=50,
         active_agents=2,
@@ -58,10 +55,8 @@ TIER_LIMITS = {
     ),
     "pro": PlatformLimits(
         slack_channels=-1,       # Unlimited
-        gmail_labels=-1,
         notion_pages=-1,
-        calendars=-1,
-        total_platforms=4,
+        total_platforms=2,       # ADR-131: Slack + Notion
         sync_frequency="hourly",
         monthly_messages=-1,     # Unlimited
         active_agents=10,
@@ -73,9 +68,7 @@ TIER_LIMITS = {
 # Provider to limit field mapping
 PROVIDER_LIMIT_MAP = {
     "slack": "slack_channels",
-    "gmail": "gmail_labels",
     "notion": "notion_pages",
-    "calendar": "calendars",
 }
 
 # Sync frequency schedules (times in user's timezone)
@@ -268,9 +261,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
         "tier": tier,
         "limits": {
             "slack_channels": limits.slack_channels,
-            "gmail_labels": limits.gmail_labels,
             "notion_pages": limits.notion_pages,
-            "calendars": limits.calendars,
             "total_platforms": limits.total_platforms,
             "sync_frequency": limits.sync_frequency,
             "monthly_messages": limits.monthly_messages,
@@ -280,9 +271,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
-            "gmail_labels": get_source_count(client, user_id, "gmail"),
             "notion_pages": get_source_count(client, user_id, "notion"),
-            "calendars": get_source_count(client, user_id, "calendar"),
             "platforms_connected": get_platform_count(client, user_id),
             "monthly_messages_used": monthly_messages_used,
             "active_agents": get_active_agent_count(client, user_id),

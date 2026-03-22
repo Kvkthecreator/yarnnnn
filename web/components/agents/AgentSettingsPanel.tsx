@@ -29,7 +29,6 @@ import {
   Send,
   Slack,
   FileCode,
-  Calendar,
   CheckCircle2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -94,8 +93,8 @@ export function AgentSettingsPanel({
   // New source input
   const [newSourceType, setNewSourceType] = useState<DataSourceType>('integration_import');
   const [newSourceValue, setNewSourceValue] = useState('');
-  const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('gmail');
-  const [newSourceQuery, setNewSourceQuery] = useState('inbox');
+  const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('slack');
+  const [newSourceQuery, setNewSourceQuery] = useState('');
 
   // Load user email for email-first default
   useEffect(() => {
@@ -341,12 +340,8 @@ export function AgentSettingsPanel({
                   ) : source.type === 'integration_import' ? (
                     source.provider === 'slack' ? (
                       <Slack className="w-4 h-4 text-purple-500 shrink-0" />
-                    ) : source.provider === 'gmail' ? (
-                      <Mail className="w-4 h-4 text-red-500 shrink-0" />
                     ) : source.provider === 'notion' ? (
                       <FileText className="w-4 h-4 text-amber-600 shrink-0" />
-                    ) : source.provider === 'calendar' || (source.provider as unknown as string) === 'google' ? (
-                      <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
                     ) : (
                       <FileCode className="w-4 h-4 text-gray-500 shrink-0" />
                     )
@@ -404,11 +399,10 @@ export function AgentSettingsPanel({
                   value={newSourceProvider}
                   onChange={(e) => {
                     setNewSourceProvider(e.target.value as IntegrationProvider);
-                    setNewSourceQuery(e.target.value === 'gmail' ? 'inbox' : '');
+                    setNewSourceQuery('');
                   }}
                   className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="gmail">Gmail</option>
                   <option value="slack">Slack</option>
                   <option value="notion">Notion</option>
                 </select>
@@ -418,24 +412,6 @@ export function AgentSettingsPanel({
             {/* Integration import configuration */}
             {newSourceType === 'integration_import' && (
               <div className="p-3 border border-border rounded-md space-y-3 bg-muted/30">
-                {newSourceProvider === 'gmail' && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Source</label>
-                      <select
-                        value={newSourceQuery}
-                        onChange={(e) => setNewSourceQuery(e.target.value)}
-                        className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="inbox">Inbox (recent messages)</option>
-                        <option value="query:is:unread">Unread messages</option>
-                        <option value="query:is:starred">Starred messages</option>
-                        <option value="query:in:sent">Sent messages</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
                 {newSourceProvider === 'slack' && (
                   <div>
                     <label className="block text-xs font-medium mb-1">Channel ID</label>

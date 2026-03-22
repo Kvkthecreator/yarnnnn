@@ -135,6 +135,7 @@ Together, these three substrates provide a complete project activity picture wit
 - `agent_pulse.py`: `_log_pulse_event()` enriches `agent_pulsed` metadata with project_slug
 - `unified_scheduler.py`: `agent_scheduled` + `agent_generated` enriched with project_slug; `project_id` added to agent select
 - `agent_execution.py`: Both PM and regular `agent_run` events enriched with project_slug
+- `project_registry.py`: `scaffold_project()` sets `type_config.project_slug` on contributor agents at creation time (closes gap where only PM agents had project_slug in type_config)
 - `routes/agents.py`: `agent_approved` + `agent_rejected` enriched with project_slug; `type_config` added to agent select
 - `routes/projects.py`: `PROJECT_EVENT_TYPES` expanded to include `agent_pulsed`, `agent_run`, `agent_scheduled`, `agent_generated`, `agent_approved`, `agent_rejected`, `pm_pulsed`, `project_file_triaged`
 

@@ -84,73 +84,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         "version": "2026-02-12",
     },
 
-    "gmail": {
-        "display_name": "Gmail",
-        "mcp_server": None,  # Direct API, not MCP
-        "transport": "direct_api",
-
-        "params": {
-            "to": {
-                "description": "Recipient email address",
-                "valid_patterns": [r"^[^@]+@[^@]+\.[^@]+$"],  # Basic email pattern
-                "valid_examples": ["user@example.com"],
-            },
-            "subject": {
-                "description": "Email subject line",
-                "valid_patterns": [r".+"],
-            },
-            "body": {
-                "description": "Email body content",
-                "valid_patterns": [r".+"],
-            },
-            "cc": {
-                "description": "CC recipients (optional)",
-                "valid_patterns": [r"^[^@]+@[^@]+\.[^@]+$"],
-                "optional": True,
-            },
-        },
-
-        # ADR-046: Platform tools via Direct API
-        "capabilities": {
-            "search": {
-                "supported": True,
-                "platform_tool": "platform_gmail_search",
-                "notes": "Search messages with Gmail query syntax",
-            },
-            "get_thread": {
-                "supported": True,
-                "platform_tool": "platform_gmail_get_thread",
-                "notes": "Get full email thread/conversation",
-            },
-            "send": {
-                "supported": True,
-                "platform_tool": "platform_gmail_send",
-                "notes": "Send email - confirm recipient first",
-            },
-            "create_draft": {
-                "supported": True,
-                "platform_tool": "platform_gmail_create_draft",
-                "notes": "Preferred for review workflow",
-            },
-        },
-
-        "auth": {
-            "type": "oauth_refresh",
-            "token_field": "credentials_encrypted",
-            "metadata_required": ["refresh_token"],
-            "env_required": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
-        },
-
-        "quirks": [
-            "Use platform_gmail_* tools directly (ADR-046)",
-            "Uses refresh_token flow, not direct access_token",
-            "Access token refreshed automatically on each call",
-            "Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars",
-            "Prefer create_draft over send for agents",
-        ],
-
-        "version": "2026-02-12",
-    },
+    # ADR-131: Gmail platform entry removed (sunset)
 
     "notion": {
         "display_name": "Notion",

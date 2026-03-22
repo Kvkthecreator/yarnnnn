@@ -4,11 +4,10 @@
  * DraftStatusIndicator - ADR-032 Phase 2
  *
  * Shows where a draft was pushed after a version is approved.
- * Platform-centric drafts: drafts live in Gmail Drafts, Slack DMs, Notion Drafts DB.
+ * Platform-centric drafts: drafts live in Slack DMs, Notion Drafts DB.
  */
 
 import {
-  Mail,
   Slack,
   FileCode,
   Download,
@@ -33,13 +32,6 @@ const PLATFORM_CONFIG: Record<string, {
   getDraftLocation: (format?: string, target?: string) => string;
   getDeepLink?: (externalUrl?: string, externalId?: string) => string | null;
 }> = {
-  gmail: {
-    icon: Mail,
-    color: 'text-red-600',
-    bgColor: 'bg-red-50',
-    getDraftLocation: () => 'Gmail Drafts folder',
-    getDeepLink: () => 'https://mail.google.com/mail/u/0/#drafts',
-  },
   slack: {
     icon: Slack,
     color: 'text-purple-600',

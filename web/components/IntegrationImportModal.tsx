@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 import { useDesk } from "@/contexts/DeskContext";
 import { HOME_LABEL, HOME_ROUTE } from "@/lib/routes";
 
-type Provider = "slack" | "notion" | "gmail" | "calendar";
+type Provider = "slack" | "notion";
 type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
 
 const getApiProvider = (provider: Provider): Provider => {
@@ -357,10 +357,6 @@ export function IntegrationImportModal({
     max_items: provider === "notion" ? 10 : 100,
   });
 
-  // Gmail-specific state (ADR-029)
-  const [gmailImportType, setGmailImportType] = useState<"inbox" | "query">("inbox");
-  const [gmailQuery, setGmailQuery] = useState("");
-
   // Import state
   const [isImporting, setIsImporting] = useState(false);
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
@@ -368,18 +364,11 @@ export function IntegrationImportModal({
 
   // Load landscape when modal opens
   const loadResources = useCallback(async (refresh = false) => {
-    // Gmail doesn't need to load resources - uses predefined options
-    if (provider === "gmail") {
-      setIsLoadingResources(false);
-      return;
-    }
-
     setIsLoadingResources(true);
     setResourceError(null);
 
     try {
       // ADR-030: Use landscape endpoint for coverage data
-      // ADR-046: Use API provider for backend calls (calendar → google)
       const apiProvider = getApiProvider(provider);
       const response = await api.integrations.getLandscape(apiProvider, refresh);
       setLandscape({
@@ -424,40 +413,18 @@ export function IntegrationImportModal({
   }, [importJob]);
 
   const handleImport = async () => {
-    // Gmail uses different resource ID format
-    const isGmailProvider = provider === "gmail";
-    if (!isGmailProvider && !selectedResource) return;
-    if (isGmailProvider && gmailImportType === "query" && !gmailQuery.trim()) return;
+    if (!selectedResource) return;
 
     setIsImporting(true);
     setImportError(null);
 
     try {
       // Get resource ID and name based on provider
-      let resourceId: string;
-      let resourceName: string | undefined;
-
-      if (isGmailProvider) {
-        // Gmail: "inbox" or "query:<search_query>"
-        if (gmailImportType === "inbox") {
-          resourceId = "inbox";
-          resourceName = "Inbox";
-        } else {
-          resourceId = `query:${gmailQuery.trim()}`;
-          resourceName = `Search: ${gmailQuery.trim().slice(0, 30)}${gmailQuery.length > 30 ? "..." : ""}`;
-        }
-      } else if (provider === "slack") {
-        resourceId = selectedResource!;
-        const resource = landscape?.resources.find((r) => r.id === selectedResource);
-        resourceName = resource?.name;
-      } else {
-        resourceId = selectedResource!;
-        const resource = landscape?.resources.find((r) => r.id === selectedResource);
-        resourceName = resource?.name;
-      }
+      const resourceId = selectedResource!;
+      const resource = landscape?.resources.find((r) => r.id === selectedResource);
+      const resourceName = resource?.name;
 
       // ADR-030: Include scope parameters
-      // ADR-046: Use API provider for backend calls (calendar → google)
       const apiProvider = getApiProvider(provider);
       const job = await api.integrations.startImport(apiProvider, {
         resource_id: resourceId,
@@ -492,9 +459,6 @@ export function IntegrationImportModal({
       recency_days: 7,
       max_items: provider === "notion" ? 10 : 100,
     });
-    // Reset Gmail state
-    setGmailImportType("inbox");
-    setGmailQuery("");
 
     onClose();
 
@@ -509,9 +473,8 @@ export function IntegrationImportModal({
   const resources = landscape?.resources || [];
   // Filter out excluded resources for selection
   const selectableResources = resources.filter(r => r.coverage_state !== "excluded");
-  const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
-  const resourceLabel = provider === "slack" ? "channel" : provider === "notion" ? "page" : "source";
-  const isGmail = provider === "gmail";
+  const providerName = provider === "slack" ? "Slack" : "Notion";
+  const resourceLabel = provider === "slack" ? "channel" : "page";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -530,7 +493,7 @@ export function IntegrationImportModal({
             <h2 className="font-semibold">Import from {providerName}</h2>
           </div>
           <div className="flex items-center gap-2">
-            {!isGmail && landscape && (
+            {landscape && (
               <button
                 onClick={() => loadResources(true)}
                 disabled={isLoadingResources}
@@ -582,73 +545,16 @@ export function IntegrationImportModal({
           ) : (
             <>
               <p className="text-sm text-muted-foreground mb-4">
-                {isGmail
-                  ? "Import context from your inbox or search for specific emails. I'll extract key decisions, action items, and project context automatically."
-                  : `Select a ${resourceLabel} to import context from. I'll extract key decisions, action items, and project context automatically.`}
+                {`Select a ${resourceLabel} to import context from. I'll extract key decisions, action items, and project context automatically.`}
               </p>
 
-              {/* ADR-030: Coverage summary for non-Gmail providers */}
-              {!isGmail && landscape?.coverage_summary && (
+              {/* ADR-030: Coverage summary */}
+              {landscape?.coverage_summary && (
                 <CoverageSummaryBar summary={landscape.coverage_summary} />
               )}
 
-              {/* Gmail-specific UI (ADR-029) */}
-              {isGmail ? (
-                <div className="space-y-4">
-                  {/* Import type selector */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setGmailImportType("inbox")}
-                      className={`flex-1 p-3 rounded-lg border transition-colors ${
-                        gmailImportType === "inbox"
-                          ? "bg-primary/10 border-primary"
-                          : "border-border hover:bg-muted"
-                      }`}
-                    >
-                      <div className="font-medium text-sm">Recent Inbox</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Import your latest inbox messages
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGmailImportType("query")}
-                      className={`flex-1 p-3 rounded-lg border transition-colors ${
-                        gmailImportType === "query"
-                          ? "bg-primary/10 border-primary"
-                          : "border-border hover:bg-muted"
-                      }`}
-                    >
-                      <div className="font-medium text-sm">Search</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Find specific emails by query
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* Query input (shown when search selected) */}
-                  {gmailImportType === "query" && (
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Gmail Search Query
-                      </label>
-                      <input
-                        type="text"
-                        value={gmailQuery}
-                        onChange={(e) => setGmailQuery(e.target.value)}
-                        placeholder="e.g., from:sarah@company.com or subject:project update"
-                        className="w-full p-3 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Uses Gmail search syntax. Examples: &quot;from:name@email.com&quot;, &quot;subject:weekly&quot;, &quot;after:2024/01/01&quot;
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* Resource list for Slack/Notion with coverage indicators */
-                <>
+              {/* Resource list for Slack/Notion with coverage indicators */}
+              <>
                   {isLoadingResources ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -717,10 +623,9 @@ export function IntegrationImportModal({
                     </div>
                   )}
                 </>
-              )}
 
               {/* ADR-030: Scope configuration */}
-              {(isGmail || selectableResources.length > 0) && (
+              {selectableResources.length > 0 && (
                 <ScopeConfiguration
                   scope={scope}
                   onChange={setScope}
@@ -729,7 +634,7 @@ export function IntegrationImportModal({
               )}
 
               {/* Instructions (optional) - shown for all providers */}
-              {(isGmail || selectableResources.length > 0) && (
+              {selectableResources.length > 0 && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium mb-2">
                     Instructions (optional)
@@ -743,8 +648,8 @@ export function IntegrationImportModal({
                 </div>
               )}
 
-              {/* Style Learning Toggle - ADR-027 Phase 5, ADR-029 */}
-              {(isGmail || selectableResources.length > 0) && (
+              {/* Style Learning Toggle - ADR-027 Phase 5 */}
+              {selectableResources.length > 0 && (
                 <div className="mt-4 p-3 border border-border rounded-lg bg-muted/30">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
@@ -756,9 +661,7 @@ export function IntegrationImportModal({
                     <div>
                       <span className="text-sm font-medium">Learn my writing style</span>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {provider === "gmail"
-                          ? "Analyze your email writing to capture your professional communication style"
-                          : provider === "slack"
+                        {provider === "slack"
                           ? "Analyze your messages to capture your casual communication style"
                           : "Analyze this content to capture your documentation style"}
                       </p>
@@ -817,7 +720,7 @@ export function IntegrationImportModal({
                 onClick={handleImport}
                 disabled={
                   isImporting ||
-                  (isGmail ? (gmailImportType === "query" && !gmailQuery.trim()) : !selectedResource)
+                  !selectedResource
                 }
                 className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
               >
@@ -856,7 +759,7 @@ function ImportJobStatus({
   onViewContext?: () => void;
   onStartChat?: () => void;
 }) {
-  const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
+  const providerName = provider === "slack" ? "Slack" : "Notion";
 
   if (job.status === "pending" || job.status === "processing") {
     const details = job.progress_details;

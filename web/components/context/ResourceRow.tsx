@@ -59,7 +59,7 @@ interface ResourceRowProps {
   disabled: boolean;
   /** Platform-specific metadata renderer */
   renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
-  /** Whether to show coverage badge (false for calendar) */
+  /** Whether to show coverage badge */
   showCoverage?: boolean;
 }
 

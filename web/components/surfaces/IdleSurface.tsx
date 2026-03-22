@@ -23,7 +23,6 @@ import {
   Loader2,
   Pause,
   AlertCircle,
-  Calendar,
   FileText,
   ChevronRight,
   CheckCircle2,
@@ -267,7 +266,7 @@ export function IdleSurface() {
 
         {/* Upcoming Schedule (primary focus) */}
         <DashboardSection
-          icon={<Calendar className="w-4 h-4" />}
+          icon={<Clock className="w-4 h-4" />}
           title="Upcoming Schedule"
           action={
             data && data.agents.length > 0 ? (
@@ -291,7 +290,7 @@ export function IdleSurface() {
             ))
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No scheduled agents yet</p>
               <p className="text-xs mt-1">Ask TP to help you set one up</p>
             </div>

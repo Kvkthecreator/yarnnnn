@@ -33,7 +33,7 @@ function computeHealth(opts: {
   syncFrequency: string;
   liveQueryMode?: boolean;
 }): { tone: HealthTone; label: string } {
-  if (opts.liveQueryMode) return { tone: 'neutral', label: 'Live calendar access' };
+  if (opts.liveQueryMode) return { tone: 'neutral', label: 'Live access' };
   if (opts.errorCount > 0) return { tone: 'red', label: `${opts.errorCount} source${opts.errorCount !== 1 ? 's' : ''} with errors` };
   if (opts.selectedCount === 0) return { tone: 'neutral', label: 'No sources selected' };
   if (opts.syncedCount === 0) return { tone: 'neutral', label: `${opts.selectedCount} selected · awaiting first sync` };
@@ -65,7 +65,7 @@ const BAR_CLASSES: Record<HealthTone, string> = {
 };
 
 interface CompactSyncStatusProps {
-  platform: 'slack' | 'gmail' | 'notion' | 'calendar';
+  platform: 'slack' | 'notion';
   tier: string;
   syncFrequency: string;
   selectedCount: number;

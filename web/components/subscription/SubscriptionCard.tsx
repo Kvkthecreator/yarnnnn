@@ -33,11 +33,9 @@ const PRO_FEATURES = [
 ];
 
 const COMPARE_ROWS: Array<{ label: string; free: string; pro: string }> = [
-  { label: "Platforms", free: "4", pro: "4" },
+  { label: "Platforms", free: "All", pro: "All" },
   { label: "Slack sources", free: "5", pro: "Unlimited" },
-  { label: "Gmail labels", free: "5", pro: "Unlimited" },
   { label: "Notion pages", free: "10", pro: "Unlimited" },
-  { label: "Calendars", free: "Unlimited", pro: "Unlimited" },
   { label: "Sync frequency", free: "1x daily", pro: "Hourly" },
   { label: "Monthly messages", free: "50", pro: "Unlimited" },
   { label: "Active agents", free: "2", pro: "10" },

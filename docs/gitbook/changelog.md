@@ -71,7 +71,7 @@ Notable updates to YARNNN and GitBook docs.
 
 ### Updated plans (Feb 23)
 - New plan tiers: Free, Starter, and Pro
-- All four platforms available on every plan, including Free
+- All platforms available on every plan, including Free
 - Smart signal detection available on Starter and above
 
 ### Smarter context (Feb 20)

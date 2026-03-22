@@ -51,16 +51,7 @@ function getAgentPlatformIcon(agent: Agent): React.ReactNode {
   for (const s of agent.sources ?? []) {
     const p = s.provider as string | undefined;
     if (p) {
-      if (p === 'google') {
-        const rid = s.resource_id;
-        if (rid && (['INBOX', 'SENT', 'IMPORTANT', 'STARRED'].includes(rid.toUpperCase()) || rid.startsWith('label:'))) {
-          providers['gmail'] = true;
-        } else {
-          providers['calendar'] = true;
-        }
-      } else {
-        providers[p] = true;
-      }
+      providers[p] = true;
     }
   }
   const keys = Object.keys(providers);
