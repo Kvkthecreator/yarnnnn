@@ -24,11 +24,10 @@ import {
   Send,
   X,
   ImagePlus,
-  ArrowRight,
   Upload,
   Search,
   Globe,
-  Layers,
+  Briefcase,
   RefreshCw,
   Bookmark,
   FileText,
@@ -48,11 +47,25 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
+import { formatDistanceToNow } from 'date-fns';
 import type { ProjectSummary } from '@/types';
 
 // =============================================================================
 // Panel: Projects (compact entry cards — ADR-122/124 project-first model)
 // =============================================================================
+
+const TYPE_LABELS: Record<string, string> = {
+  slack_digest: 'Slack',
+  notion_digest: 'Notion',
+  cross_platform_synthesis: 'Cross-Platform',
+  custom: 'Custom',
+};
+
+function getProjectIcon(typeKey: string | null): React.ReactNode {
+  if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-4 h-4');
+  if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-4 h-4');
+  return <Briefcase className="w-4 h-4 text-muted-foreground" />;
+}
 
 function ProjectsPanel() {
   const { isLoading } = useTP();
@@ -126,7 +139,7 @@ function ProjectsPanel() {
   if (projects.length === 0) {
     return (
       <div className="p-4 text-center">
-        <Layers className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No projects yet</p>
         <p className="text-xs text-muted-foreground/70 mt-1">Connect a platform or ask yarnnn to set one up</p>
       </div>
@@ -140,15 +153,31 @@ function ProjectsPanel() {
           <Link
             key={p.project_slug}
             href={`/projects/${p.project_slug}`}
-            className="flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors group"
+            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors group"
           >
-            <div className="min-w-0">
-              <span className="text-sm font-medium truncate block">{p.title}</span>
+            <div className="shrink-0">
+              {getProjectIcon(p.type_key)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium truncate">
+                  {p.title || p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </span>
+                {p.type_key && TYPE_LABELS[p.type_key] && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                    {TYPE_LABELS[p.type_key]}
+                  </span>
+                )}
+              </div>
               {p.purpose && (
                 <span className="text-xs text-muted-foreground truncate block">{p.purpose}</span>
               )}
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2" />
+            {p.updated_at && (
+              <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
+              </span>
+            )}
           </Link>
         ))}
       </div>

@@ -24,8 +24,8 @@ import type { ProjectSummary } from '@/types';
 const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack',
   notion_digest: 'Notion',
-  cross_platform_synthesis: 'Cross-Platform Insights',
-  custom: 'Custom Project',
+  cross_platform_synthesis: 'Cross-Platform',
+  custom: 'Custom',
 };
 
 function getProjectIcon(typeKey: string | null): React.ReactNode {
@@ -89,39 +89,37 @@ export default function ProjectsPage() {
         ) : (
           <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
             {projects.map((project) => (
-              <button
+              <Link
                 key={project.project_slug}
-                onClick={() => router.push(`/projects/${project.project_slug}`)}
-                className="w-full p-4 hover:bg-muted/50 transition-colors text-left"
+                href={`/projects/${project.project_slug}`}
+                className="flex items-center gap-3 w-full p-4 hover:bg-muted/50 transition-colors text-left"
               >
-                <div className="flex items-center gap-3">
-                  <div className="shrink-0">
-                    {getProjectIcon(project.type_key)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold truncate">
-                        {project.title || project.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                <div className="shrink-0">
+                  {getProjectIcon(project.type_key)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">
+                      {project.title || project.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                    {project.type_key && TYPE_LABELS[project.type_key] && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                        {TYPE_LABELS[project.type_key]}
                       </span>
-                      {project.type_key && TYPE_LABELS[project.type_key] && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                          {TYPE_LABELS[project.type_key]}
-                        </span>
-                      )}
-                    </div>
-                    {project.purpose && (
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {project.purpose}
-                      </p>
                     )}
                   </div>
-                  {project.updated_at && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
-                    </span>
+                  {project.purpose && (
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {project.purpose}
+                    </p>
                   )}
                 </div>
-              </button>
+                {project.updated_at && (
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                  </span>
+                )}
+              </Link>
             ))}
           </div>
         )}
