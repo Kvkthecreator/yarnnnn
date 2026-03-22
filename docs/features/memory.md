@@ -13,7 +13,7 @@ Memory is everything YARNNN knows *about the user* — their name, role, how the
 | File | Purpose | Example content |
 |------|---------|-----------------|
 | `/memory/MEMORY.md` | Profile (identity) | name, role, company, timezone, summary |
-| `/memory/preferences.md` | Per-platform tone/verbosity | slack: casual/brief, gmail: formal/detailed |
+| `/memory/preferences.md` | Per-platform tone/verbosity | slack: casual/brief, notion: detailed |
 | `/memory/notes.md` | Accumulated facts, instructions, preferences | "Prefers bullet points", "Always include TL;DR" |
 
 **Analogy**: Memory is YARNNN's equivalent of Claude Code's auto-memory. The system learns from interaction and stores what's useful. Users can review and edit anytime.
@@ -81,7 +81,6 @@ Timezone: Asia/Singapore
 
 ### Your preferences
 - slack: tone: casual, verbosity: brief
-- gmail: verbosity: detailed
 
 ### What you've told me
 - Note: always include TL;DR

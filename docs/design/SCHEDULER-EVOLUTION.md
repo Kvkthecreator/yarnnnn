@@ -49,13 +49,13 @@ Every 5 minutes:
 │   ├── Query agents where next_pulse_at <= now (ALL modes, not just recurring/goal)
 │   ├── For each agent: run pulse (agent_pulse.py)
 │   │   ├── Tier 1: Deterministic gates (fresh content? budget? recent run? cooldown?)
-│   │   ├── Tier 2: Agent self-assessment (Haiku, associate+ seniority only)
+│   │   ├── Tier 2: Agent self-assessment (Haiku, all agents — no seniority gate, ADR-130)
 │   │   └── Decision: generate | observe | wait | escalate
 │   ├── On "generate" → dispatch_trigger() (existing pipeline, unchanged)
 │   ├── On "observe" → write observation to workspace, log activity
 │   ├── On "wait" → log activity only
 │   ├── On "escalate" → flag for Composer attention
-│   └── Update next_pulse_at based on seniority + mode
+│   └── Update next_pulse_at based on agent type + mode
 ├── 2. PM PULSE DISPATCH (Tier 3)
 │   ├── Query PM agents where next_pulse_at <= now
 │   ├── PM reads project state (contributor freshness, quality, work plan, budget)
@@ -90,7 +90,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     - Cooldown period elapsed?
     - First run? (always generate)
 
-    Tier 2 (Haiku self-assessment, associate+ only):
+    Tier 2 (Haiku self-assessment, all agents — ADR-130 removed seniority gate):
     - Agent reads own workspace + fresh content summary
     - Haiku decides: generate | observe | wait | escalate
     - ~200 tokens context, ~50 tokens response
@@ -174,17 +174,20 @@ After ADR-126:
 - Coordinator agents in DB: functionally equivalent to proactive, pulse like proactive
 - `proactive_next_review_at` column → absorbed into `next_pulse_at`
 
-### Phase 5: Pulse Cadence Evolution
+### Phase 5: Pulse Cadence (Type-Based)
 
-Seniority-based cadence graduation:
+Pulse cadence is determined by agent type (ADR-130), not seniority progression:
 
-| Seniority | Mode: recurring | Mode: proactive | Mode: reactive |
-|-----------|----------------|-----------------|----------------|
-| **new** | Pulse on schedule (= current behavior, training wheels) | Pulse every cycle (proactive from birth) | Pulse on event accumulation |
-| **associate** | Pulse on schedule + Tier 2 self-assessment (can skip) | Pulse every cycle + Tier 2 | Pulse on event + Tier 2 |
-| **senior** | Pulse every cycle (always sensing, generate when warranted) | Pulse every cycle | Pulse every cycle |
+| Agent Type | Default Cadence | Character |
+|------------|----------------|-----------|
+| **monitor** | 15 min | Watchdog — always alert |
+| **pm** | 30 min | Coordinator — responsive to contributor output |
+| **digest** | 12 hours | Summarizer — senses twice per delivery cycle |
+| **prepare** | 12 hours | Pre-meeting worker — senses twice daily |
+| **synthesize** | schedule | Pattern-finder — senses on delivery rhythm |
+| **research** | schedule | Investigator — senses on schedule |
 
-**Training wheels**: New recurring agents pulse exactly on their schedule — functionally identical to current behavior. As they mature (associate+), they gain the self-assessment capability to skip unnecessary runs or act early.
+All agents get Tier 2 self-assessment from their first pulse — no seniority prerequisite (ADR-130 removed seniority gating).
 
 ---
 

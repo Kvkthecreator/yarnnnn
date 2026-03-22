@@ -118,7 +118,7 @@ In `agent_chat` mode, **read primitives are open to all agents** — any agent c
 - **Execute(agent.approve)** — removed 2026-03-20. ADR-066 removed approval gates; handler also had a bug.
 - **Execute(memory.extract)** — removed 2026-03-20. ADR-064 moved extraction to nightly cron.
 
-> **list_integrations** returns `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` + `designated_calendar_id` (Gmail/Calendar). Call this first before any platform tool to get the correct IDs for default landing zones.
+> **list_integrations** returns `authed_user_id` (Slack), `designated_page_id` (Notion). Call this first before any platform tool to get the correct IDs for default landing zones.
 
 ---
 
@@ -194,7 +194,7 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
-| `platform` | string | Source platform (slack, gmail, notion, calendar, yarnnn) | ✓ Badge |
+| `platform` | string | Source platform (slack, notion, yarnnn) | ✓ Badge |
 | `resource_name` | string | Channel/folder/page name | ✓ Primary |
 | `content` | string | The imported content | ✓ Truncated |
 | `content_type` | string | Type (message, email, page, etc.) | — |
@@ -492,10 +492,10 @@ Find entities by content using text search.
 
 **Scopes**: `platform_content`, `document`, `agent`, `work`, `all`
 
-**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`, `calendar`, `yarnnn`
+**Platform Filter** (optional, for `platform_content` scope): `slack`, `notion`, `yarnnn`
 
 > **Scope clarification**:
-> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar) and agent outputs (`yarnnn`, ADR-102). If external content is stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
+> - `platform_content` searches synced platform data (Slack/Notion) and agent outputs (`yarnnn`, ADR-102). If external content is stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
 > - `document` searches uploaded files (PDF, DOCX, TXT, MD)
 > - `memory` is **not a valid scope** (ADR-065) — memory is already injected into working memory at session start. Passing `scope="memory"` returns an error.
 
@@ -578,7 +578,9 @@ Synchronous write-through cache refresh. Calls the same `_sync_platform_async()`
 }
 ```
 
-**Supported platforms**: `slack`, `gmail`, `notion`, `calendar` (not `yarnnn` — agent outputs are written internally, not synced)
+**Supported platforms**: `slack`, `notion` (not `yarnnn` — agent outputs are written internally, not synced)
+
+> **ADR-131**: Gmail and Calendar sunset. Only Slack and Notion remain as connected platforms.
 
 **Mode**: Chat only (`["chat"]`). Headless mode uses `freshness.sync_stale_sources()` instead.
 
@@ -698,7 +700,7 @@ api/services/primitives/
 ├── system_state.py       # GetSystemState
 ├── coordinator.py        # CreateAgent + AdvanceAgentSchedule (ADR-111)
 ├── workspace.py          # 7 workspace primitives (ADR-106, ADR-116)
-├── runtime_dispatch.py   # RuntimeDispatch — output gateway (ADR-118)
+├── runtime_dispatch.py   # RenderAsset — type-scoped asset production (ADR-130, was RuntimeDispatch)
 ├── project.py            # CreateProject + ReadProject (ADR-119, ADR-122)
 └── project_execution.py  # 4 PM/project primitives (ADR-120)
 ```
@@ -807,7 +809,8 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat + headless mode model
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace primitives
 - [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — DiscoverAgents, ReadAgentContext
-- [ADR-118: Skills as Capability Layer](../adr/ADR-118-skills-as-capability-layer.md) — RuntimeDispatch
+- [ADR-118: Skills as Capability Layer](../adr/ADR-118-skills-as-capability-layer.md) — output gateway
+- [ADR-130: Agent Capability Substrate](../adr/ADR-130-html-native-output-substrate.md) — three-registry architecture, RenderAsset (replaces RuntimeDispatch)
 - [ADR-119: Workspace Filesystem Architecture](../adr/ADR-119-workspace-filesystem-architecture.md) — project primitives
 - [ADR-120: Project Execution & Work Budget](../adr/ADR-120-project-execution-work-budget.md) — PM primitives
 - [ADR-122: Project Type Registry](../adr/ADR-122-project-type-registry.md) — scaffold_project()

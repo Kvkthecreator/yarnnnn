@@ -80,13 +80,11 @@ YARNNN's workspace conventions deliberately mirror Claude Code's filesystem mode
 │   └── {date}/                     # e.g., outputs/2026-03-18T1500/
 │       ├── output.md               # Primary text output (feedback surface)
 │       ├── manifest.json           # Run metadata, file list, delivery status
-│       └── {rendered_files}        # Binary artifacts from RuntimeDispatch (ADR-118)
+│       └── {rendered_files}        # Binary artifacts from RenderAsset (ADR-130)
 │
 ├── working/                        # Intermediate research (ephemeral scratch)
 │   └── {topic}.md                  # Research notes, saved queries, evidence
 │
-├── duties/                         # Multi-duty portfolio (ADR-117 Phase 3)
-│   └── {duty_name}.md              # Per-duty definition and instructions
 │
 ├── history/                        # Version archives (ADR-119 Phase 3)
 │   └── {filename}/                 # e.g., history/AGENT.md/
@@ -103,7 +101,6 @@ YARNNN's workspace conventions deliberately mirror Claude Code's filesystem mode
 These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 versions):
 - `AGENT.md`, `thesis.md`
 - All files under `memory/`
-- All files under `duties/`
 
 ---
 
@@ -128,7 +125,7 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 │   └── {date}/                     # Dated assembly folder
 │       ├── output.md               # Assembled text output
 │       ├── manifest.json           # Assembly metadata, sources, delivery status
-│       └── {rendered_files}        # Binary artifacts from RuntimeDispatch
+│       └── {rendered_files}        # Binary artifacts from RenderAsset (ADR-130)
 │
 ├── memory/                         # Project-level state and coordination
 │   ├── pm_agent.json               # PM agent reference (pm_agent_id, pm_title)
@@ -199,7 +196,7 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 
 Agent outputs enter `/knowledge/` at delivery time (not generation). Only approved/delivered outputs are written. Directory placement communicates content class, versioning, and provenance.
 
-**External platform data** (Slack, Gmail, Notion, Calendar) stays in `platform_content` table — flat, TTL-managed, sync-pipeline-written. `/knowledge/` is for agent-produced knowledge only.
+**External platform data** (Slack, Notion) stays in `platform_content` table — flat, TTL-managed, sync-pipeline-written. `/knowledge/` is for agent-produced knowledge only.
 
 ---
 
@@ -307,7 +304,7 @@ Max 5 versions kept per file. Oldest auto-deleted when limit exceeded.
 
 **Evolving file patterns** (triggers auto-versioning):
 - Exact: `AGENT.md`, `thesis.md`, `PROJECT.md`
-- Directory prefixes: `memory/`, `duties/`
+- Directory prefixes: `memory/`
 
 ---
 

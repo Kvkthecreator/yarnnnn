@@ -66,7 +66,7 @@ When content is consumed by a downstream system, it's marked retained:
 
 | Column | Notes |
 |---|---|
-| `platform` | `slack`, `gmail`, `notion`, `calendar` |
+| `platform` | `slack`, `notion` (ADR-131: Gmail/Calendar sunset) |
 | `resource_id` | Channel ID, label, page ID, calendar ID |
 | `resource_name` | Human-readable name |
 | `item_id` | Unique item identifier from platform |
@@ -87,9 +87,7 @@ When content is consumed by a downstream system, it's marked retained:
 | Platform | Expiry |
 |---|---|
 | Slack | 14 days |
-| Gmail | 30 days |
 | Notion | 90 days |
-| Calendar | 2 days |
 
 ### `platform_connections` — OAuth credentials and settings
 
@@ -157,9 +155,9 @@ All platforms use Direct API clients — no MCP, no gateway (ADR-076).
 | Platform | Sync method | What is stored |
 |---|---|---|
 | Slack | `SlackAPIClient` direct REST | Paginated history (1000 initial/500 incremental), thread replies, filtered system messages |
-| Gmail | `GoogleAPIClient` direct REST | Paginated messages (200/label), concurrent fetch, 30-day initial window |
 | Notion | `NotionAPIClient` direct REST | Recursive block content (depth=3), database rows |
-| Calendar | `GoogleAPIClient` direct REST | Events -7d to +14d, paginated (200 max) |
+
+> **ADR-131**: Gmail and Calendar sunset. `GoogleAPIClient` removed. Only Slack and Notion remain.
 
 ---
 

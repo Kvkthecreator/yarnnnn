@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.22.4] - ADR-130 three-registry architecture — docs sweep
+
+### Changed
+- `docs/architecture/agent-framework.md`: Removed seniority system (classify_seniority, ROLE_PORTFOLIOS, SKILL_ENABLED_ROLES), duty mechanics, promotion flow. Replaced with ADR-130 agent type registry — deterministic capabilities per type. Development = knowledge depth, not capability expansion. Gmail/Calendar templates removed (ADR-131).
+- `docs/architecture/primitives.md`: RuntimeDispatch → RenderAsset. Gmail/Calendar removed from platform filters, RefreshPlatformContent, list_integrations.
+- `docs/architecture/workspace-conventions.md`: RuntimeDispatch → RenderAsset. Duties folder removed. Gmail/Calendar removed from knowledge section.
+- `docs/design/COGNITIVE-DASHBOARD-DESIGN.md`: Removed seniority references from InlineProfileCard design.
+- `docs/design/SCHEDULER-EVOLUTION.md`: Removed seniority gating from Tier 2. Phase 5 rewritten as type-based cadence (ADR-130), not seniority graduation.
+- `docs/design/AGENT-PRESENTATION-PRINCIPLES.md`: Gmail/Calendar removed from source affinity groups, creation flow, icon derivation.
+- `docs/design/USER_FLOW_ONBOARDING_V4.md`: Gmail removed from dashboard cards, orchestrator cards, scaffold table.
+- `docs/features/context.md`: Gmail/Calendar removed from platform_content schema, TTL table, sync table.
+- `docs/features/meeting-prep.md`: Archived — Calendar sunset (ADR-131).
+- `docs/features/memory.md`: Gmail removed from preferences example.
+- `docs/testing/PRODUCTION_TESTING_PLAYBOOK.md`: RuntimeDispatch → RenderAsset. Gmail removed from type_key table.
+
+### Expected behavior
+- All secondary docs now consistent with ADR-130 (three-registry, no seniority) and ADR-131 (Gmail/Calendar sunset).
+- No behavioral change — documentation-only updates.
+
+---
+
 ## [2026.03.22.3] - ADR-131 Phase 2: Full Gmail/Calendar code removal
 
 ### Changed

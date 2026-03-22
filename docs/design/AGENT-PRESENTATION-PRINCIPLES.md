@@ -40,7 +40,7 @@ This means:
 
 | Tier | Visual | Meaning |
 |------|--------|---------|
-| Single platform | Platform icon (Slack, Gmail, Notion, Calendar) | Reads from one platform |
+| Single platform | Platform icon (Slack, Notion) | Reads from one platform |
 | Multi-platform | Stacked/overlapping platform icons | Reads from 2+ connected platforms |
 | Knowledge | Brain/library icon | Reads from accumulated knowledge, no live platform |
 | Web/Research | Globe icon | Primarily web-driven, no platform sources |
@@ -65,12 +65,12 @@ The current 8 skills × 5 scopes matrix yields ~20 natural combinations. Present
 
 ```
 Step 1: "What do you want to stay on top of?"
-  → Show connected platforms as cards (Slack, Gmail, Notion, Calendar)
+  → Show connected platforms as cards (Slack, Notion)
   → Plus: "Everything" (cross-platform), "A topic" (research/knowledge)
 
 Step 2: "How should I help?" (contextual to Step 1)
   → If Slack selected: Recap (digest), Watch (monitor), Summary (synthesize)
-  → If Calendar selected: Meeting Prep (prepare)
+  → If Notion selected: Recap (digest), Summary (synthesize)
   → If "Everything": Work Summary (synthesize), Proactive Insights (synthesize+proactive)
   → If "A topic": Research (research), Domain Tracker (monitor)
 
@@ -129,10 +129,7 @@ function getAgentPlatformIcons(agent: Agent): PlatformIcon[] {
   const providers = new Set(
     agent.sources
       ?.filter(s => s.provider)
-      .map(s => s.provider === 'google' ?
-        (s.resource_id?.startsWith('label:') ? 'gmail' : 'calendar') :
-        s.provider
-      ) ?? []
+      .map(s => s.provider) ?? []
   );
 
   if (providers.size === 0) {
@@ -142,6 +139,8 @@ function getAgentPlatformIcons(agent: Agent): PlatformIcon[] {
   return [...providers]; // ['slack'], ['slack', 'notion'], etc.
 }
 ```
+
+> **ADR-131**: Gmail and Calendar sunset. Google provider split (gmail/calendar from single OAuth) removed. Only Slack and Notion remain.
 
 ### Sidebar panel (compact)
 
@@ -178,9 +177,7 @@ Platform icon replaces the generic play/pause as the leading visual element. Act
 | Group label | Criteria | Icon |
 |-------------|----------|------|
 | **Slack** | All sources are `provider: "slack"` | Slack icon |
-| **Gmail** | All sources are `provider: "gmail"` or `provider: "google"` (gmail) | Gmail icon |
 | **Notion** | All sources are `provider: "notion"` | Notion icon |
-| **Calendar** | All sources are `provider: "calendar"` or `provider: "google"` (calendar) | Calendar icon |
 | **Cross-platform** | Sources from 2+ providers | Stacked icons |
 | **Research & Knowledge** | No platform sources, or knowledge-scope | Globe/brain icon |
 

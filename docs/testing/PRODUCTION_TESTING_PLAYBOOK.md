@@ -344,7 +344,7 @@ ORDER BY created_at DESC LIMIT 3;
 1. PM produces `assemble` action
 2. Contribution gathering: reads contributor output folders
 3. Assembly composition: LLM integrates contributions
-4. If format=pptx: RuntimeDispatch → render service → PPTX
+4. If format=pptx: RenderAsset → render service → PPTX
 5. Upload to Supabase Storage
 6. Manifest written with sources + delivery status
 7. Email delivery via Resend
@@ -527,7 +527,6 @@ WHERE user_id = '{USER_ID}'
 | Platform | Type Key |
 |----------|----------|
 | Slack | `slack_digest` |
-| Gmail | `gmail_digest` |
 | Notion | `notion_digest` |
 | Cross-platform | `cross_platform_synthesis` |
 | Custom | `custom` |

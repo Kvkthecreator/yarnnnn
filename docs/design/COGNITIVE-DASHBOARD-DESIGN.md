@@ -111,11 +111,11 @@ The "Recent Pulse Activity" timeline below the cards currently shows only `agent
 
 ## Design: InlineProfileCard Enrichment
 
-The right-panel profile card (Team tab → click agent) currently shows: avatar, name, role badge, status, bio, seniority/runs/approval, thesis, last active, PM brief, contributions.
+The right-panel profile card (Team tab → click agent) currently shows: avatar, name, role badge, status, bio, runs/approval, thesis, last active, PM brief, contributions.
 
 ### New Section: Cognitive State
 
-Insert between "developmental state" (seniority row) and "thesis" sections:
+Insert between "runs/approval" and "thesis" sections:
 
 ```
 ┌─ Profile Card ──────────────────────────┐
@@ -124,7 +124,7 @@ Insert between "developmental state" (seniority row) and "thesis" sections:
 │                                         │
 │ "Monitors Slack channels for..."        │  ← bio (existing)
 │                                         │
-│ Associate · 12 runs · 83% approved      │  ← developmental (existing)
+│ 12 runs · 83% approved                  │  ← run stats (existing)
 │                                         │
 │ ┌─ Self-Assessment (latest) ──────────┐ │  ← NEW
 │ │ Mandate:  high                      │ │

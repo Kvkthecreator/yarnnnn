@@ -1,7 +1,7 @@
 # Agent Framework: Scope × Role × Trigger
 
 **Status:** Canonical
-**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126)
+**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
@@ -9,6 +9,7 @@
 - [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem, three storage domains
 - [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — agent discovery, cross-agent reading, agent cards, MCP exposure
 - [ADR-126: Agent Pulse — Autonomous Awareness Engine](../adr/ADR-126-agent-pulse.md) — pulse model, role-based cadence, three-tier funnel
+- [ADR-130: Agent Capability Substrate](../adr/ADR-130-html-native-output-substrate.md) — three-registry architecture: agent types, capabilities, runtimes
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md)
 - [Analysis: Agent Taxonomy First Principles](../analysis/agent-taxonomy-first-principles-2026-03-12.md) — full discourse and stress-testing
@@ -16,7 +17,7 @@
 
 ---
 
-> **Relationship to FOUNDATIONS.md (2026-03-16):** This framework describes the **initial configuration** of an agent — its starting point. FOUNDATIONS.md Axiom 3 (Agents as Developing Entities) describes how agents evolve beyond this initial configuration over time: intentions become dynamic and multiple, capabilities are earned through feedback, autonomy graduates per-capability. The Scope × Role × Trigger taxonomy is the seed; the developmental trajectory is the growth. See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis on developmental trajectory. See [ADR-092 revision notes](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for reframing of proactive/coordinator modes as TP supervisory capabilities.
+> **Relationship to FOUNDATIONS.md (2026-03-22):** This framework describes agent configuration via the Scope × Role × Trigger taxonomy. FOUNDATIONS.md Axiom 3 (Agents as Developing Entities) describes how agents develop — through accumulated knowledge and domain expertise, not capability expansion. Agent types determine capabilities deterministically (ADR-130); instructions determine persona. Development is knowledge depth, not capability breadth. See [ADR-092 revision notes](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for reframing of proactive/coordinator modes as TP supervisory capabilities.
 
 ## Foundational Principle
 
@@ -95,18 +96,16 @@ Role determines the agent's **prompt template**, **available primitives**, **out
 
 > **Removed: `orchestrate`** (2026-03-18). The orchestrate role described coordination that is actually performed by TP (chat) and Composer (cron service) — neither of which is an agent in the database. No orchestrate agent was ever instantiated in code. Agent fleet management is a backend infrastructure concern (Composer, ADR-111), not an agent role. If domain-specific fleet coordination is needed in the future, it can be re-added. See also: the `coordinator` trigger (below) remains valid as a scheduling mode.
 
-### One agent, one seed role — duties expand (ADR-117 Phase 3)
+### One agent, one role — type determines capabilities (ADR-130)
 
-An agent's **role** (its seed identity) never changes. A digest agent is always a digest agent. But senior agents earn **duties** — additional responsibilities within pre-configured career tracks (role portfolios).
+An agent's **role** is its permanent identity. A digest agent is always a digest agent. Multi-role requests decompose into multiple agents.
 
-Multi-role requests at inception still decompose into multiple agents. But a mature digest agent can earn a monitor duty, gaining alert capabilities within the same domain context. This preserves accumulated workspace knowledge instead of fragmenting it across separate agents.
+- The **role** determines the agent's core identity, primitives, prompt template, and capabilities
+- **Agent type** (mapped from role) determines the deterministic capability set — what tools and runtimes the agent can use
+- **Instructions** determine the agent's persona and behavioral directives — user-configurable
+- **Development** happens through accumulated knowledge depth (memory, preferences, thesis), not capability expansion
 
-- The **role** determines the agent's core identity, initial primitives, and prompt template
-- **Duties** expand at senior seniority, adding new trigger × role combinations to the agent
-- Each duty run uses the duty's role for prompt selection, SKILL.md injection, and primitive gating
-- **Role portfolios** are pre-configured and deterministic — Composer promotes along known tracks, never invents combinations
-
-See: [Agent Development: Role Portfolios & Duties](#agent-development-role-portfolios--duties) below.
+See: [Agent Capability Substrate](output-substrate.md) and [ADR-130](../adr/ADR-130-html-native-output-substrate.md) for the three-registry architecture.
 
 ### Primitive gating by role
 
@@ -120,7 +119,7 @@ ROLE_PRIMITIVES = {
     "act":          ["Search", "Read", "QueryKnowledge", "SlackReply", "SlackPost", "SendEmail", "UpdateNotionPage"],  # future, gated by ActionPolicy
 }
 # DiscoverAgents, ReadAgentContext: ADR-116 — inter-agent discovery and cross-agent workspace reading
-# RuntimeDispatch: ADR-118 — added to all roles when agent has authorized skills in AGENT.md
+# RenderAsset: ADR-130 — type-scoped asset production (chart, mermaid, image), replaces RuntimeDispatch
 ```
 
 ### Action capability is policy, not dimension
@@ -189,9 +188,7 @@ Templates are pre-configured Scope × Role × Trigger combinations with sensible
 | Template Label | Scope | Role | Default Trigger | Description |
 |---------------|-------|-------|----------------|-------------|
 | **Slack Recap** | platform | digest | recurring | Channel activity summary |
-| **Gmail Recap** | platform | digest | recurring | Email recap by label |
 | **Notion Recap** | platform | digest | recurring | Page and database activity recap |
-| **Meeting Prep** | cross_platform | prepare | recurring | Calendar-driven briefing |
 | **Work Summary** | cross_platform | synthesize | recurring | Cross-platform status update |
 | **Channel Watch** | platform | monitor | proactive | Track changes in specific channels |
 | **Domain Tracker** | knowledge | monitor | proactive | Longitudinal domain monitoring |
@@ -206,9 +203,9 @@ When a platform is connected and first sync completes, the bootstrap service aut
 | Platform Connected | Project Created | Members Created | Notes |
 |-------------------|----------------|-----------------|-------|
 | Slack | Slack Recap | Slack Agent + PM | All synced channels |
-| Gmail | Gmail Recap | Gmail Agent + PM | All synced labels |
 | Notion | Notion Recap | Notion Agent + PM | All synced pages |
-| Calendar | *(none)* | Meeting Prep requires cross-platform context — deferred to Composer (ADR-111) |
+
+> **ADR-131**: Gmail and Calendar sunset. `gmail_digest` project type removed. Only Slack and Notion remain as connected platforms.
 
 See [ADR-110](../adr/ADR-110-onboarding-bootstrap.md) for trigger points and idempotency rules. The Composer (ADR-111) extends bootstrap to medium-confidence templates (cross-platform, knowledge-scope, research-scope) via substrate assessment.
 
@@ -281,66 +278,35 @@ For full product design: see [Projects Product Direction](../design/PROJECTS-PRO
 
 ### Progression: how identity evolves
 
-| Stage | Seniority | What happens | User sees |
-|---|---|---|---|
-| **Bootstrap** | New | User connects Slack → system creates digest agent | "Your Slack Agent" appears on dashboard |
-| **First value** | New | Agent runs, produces text recap | Email: "Here's your Slack recap" |
-| **Earning trust** | New → Associate | 5+ runs, 60%+ approval | Agent reliability established |
-| **Skill graduation** | Associate | Composer authorizes PDF skill based on seniority | Email now includes a PDF attachment |
-| **Duty promotion** | Senior | 10+ runs, 80%+ approval → Composer adds monitor duty | Agent now watches for escalations + digests |
-| **Job agent** | New | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears as standalone agent |
-| **Project** | Any | User asks or Composer suggests combining agents → project created | "Your Monday Brief" project appears above agents on dashboard |
-| **Composition** | Any | Project assembles outputs from contributing agents | Assembled deck/report delivered, standalone agents contribute silently |
+| Stage | What happens | User sees |
+|---|---|---|
+| **Bootstrap** | User connects Slack → system creates digest agent | "Your Slack Agent" appears on dashboard |
+| **First value** | Agent runs, produces text recap | Email: "Here's your Slack recap" |
+| **Knowledge growth** | Agent accumulates domain knowledge via thesis + memory | Outputs become more insightful over time |
+| **Richer output** | Agent type includes asset capabilities (chart, mermaid) | Email includes visualizations alongside text |
+| **Job agent** | User asks "I need a weekly brief" → Composer creates cross-platform agent | "Your Weekly Brief" appears as standalone agent |
+| **Project** | User asks or Composer suggests combining agents → project created | "Your Monday Brief" project appears above agents on dashboard |
+| **Composition** | Project assembles outputs from contributing agents | Assembled deck/report delivered, standalone agents contribute silently |
 
-At every stage, the user sees workers with job titles and projects with deliverables. The technical complexity (scope inference, role selection, skill authorization, duty promotion, project assembly) is invisible.
+At every stage, the user sees workers with job titles and projects with deliverables. The technical complexity (scope inference, role selection, type-based capabilities, project assembly) is invisible.
 
 ---
 
-## Agent Development: Role Portfolios & Duties (ADR-117 Phase 3)
+## Agent Development Model (ADR-130)
 
-### Seniority Levels
+### Development Through Knowledge, Not Capability Expansion
 
-Seniority is **derived** from feedback history, not stored:
+Agents develop inward — accumulating domain expertise, not unlocking new capabilities. An agent's capabilities are determined by its type at creation and never change.
 
-| Level | Threshold | Employee analogy |
+| Dimension | Mechanism | Example |
 |---|---|---|
-| **New** | Default (< 5 runs or < 60% approval) | Just hired, learning the ropes |
-| **Associate** | ≥ 5 runs AND ≥ 60% approval | Promoted, trusted, consistent |
-| **Senior** | ≥ 10 runs AND ≥ 80% approval | Ready for expanded responsibilities |
+| **Knowledge depth** | Thesis evolution, workspace memory, observations | Domain understanding deepens with each run |
+| **Behavioral refinement** | Feedback distillation → preferences.md | User edits teach output style |
+| **Authorization** | User-granted write-back permissions | User enables `write_slack` for a specific agent |
 
-Classification: `classify_seniority()` in `api/services/agent_framework.py`.
+There is no seniority system, no promotion flow, no duty expansion. An agent improves by knowing its domain better, not by gaining new tools.
 
-### Role Portfolios
-
-Pre-configured career tracks. Deterministic, versioned, testable. Composer promotes along known tracks — never invents combinations.
-
-| Seed Role | New | Associate | Senior (gains) |
-|---|---|---|---|
-| **digest** | digest (recurring) | digest (recurring) | + **monitor** (reactive) |
-| **monitor** | monitor (recurring) | monitor (recurring) | + **act** (reactive, future) |
-| **synthesize** | synthesize (recurring) | synthesize (recurring) | + **research** (goal) |
-| **research** | research (goal) | research (goal) | + **monitor** (proactive) |
-| **prepare** | prepare (recurring) | prepare (recurring) | (no expansion) |
-| **pm** | pm (proactive) | pm (proactive) | (no expansion) |
-| **custom** | custom (recurring) | custom (recurring) | (no expansion) |
-
-Registry: `ROLE_PORTFOLIOS` in `api/services/agent_framework.py`.
-
-### Duty Mechanics
-
-- **Storage**: `agents.duties` JSONB column + `/agents/{slug}/duties/{duty}.md` workspace files
-- **Execution**: Each duty run resolves `effective_role` from the duty, overriding the seed role for prompt selection, SKILL.md injection, and primitive gating
-- **Scheduling**: `resolve_due_duties()` returns all active duties; scheduler iterates and dispatches each with `trigger_context.duty`
-- **Tagging**: `agent_runs.duty_name` records which duty produced the run
-- **Backwards compat**: `duties=null` → synthetic single duty matching seed role
-
-### Promotion Flow
-
-1. Composer heartbeat detects senior agent with available duty promotion
-2. `_execute_promote_duty()` validates against `ROLE_PORTFOLIOS`
-3. Writes: `agents.duties` JSONB + workspace `duties/{duty}.md` + AGENT.md update
-4. Activity event: `duty_promoted` in `activity_log`
-5. Next scheduler cycle picks up the new duty
+> **ADR-130 supersedes ADR-117 Phase 3**: Seniority levels, role portfolios, duty mechanics, and promotion flow have been removed. `classify_seniority()`, `ROLE_PORTFOLIOS`, and `SKILL_ENABLED_ROLES` in `agent_framework.py` are deleted. See [ADR-130](../adr/ADR-130-html-native-output-substrate.md).
 
 ### Delivery Model — Agents Produce, Projects Deliver
 
@@ -357,26 +323,22 @@ See [PROJECT-DELIVERY-MODEL.md](../design/PROJECT-DELIVERY-MODEL.md) for full de
 
 ---
 
-## Output Skills (ADR-118)
+## Agent Capabilities (ADR-130)
 
-Skills are the output gateway's capability library. When a duty fires, its role determines RuntimeDispatch access:
+Capabilities are determined by agent type. Each type has a fixed capability set defined in the Agent Type Registry. No role-based gating, no seniority prerequisites.
 
-| Duty Role | Output Skills | Example |
+| Agent Type | Capabilities | Example |
 |---|---|---|
-| digest | ❌ text only | Slack Recap email |
-| prepare | ❌ text only | Meeting briefing |
-| monitor | ✅ all 8 skills | Alert with chart |
-| research | ✅ all 8 skills | Report with visualizations |
-| synthesize | ✅ all 8 skills | Cross-platform deck |
-| act | ❌ platform actions (future) | Slack reply |
-| pm | ❌ text only | Assembly coordination |
-| custom | ✅ all 8 skills | User-defined |
+| digest | read_platforms, synthesize, produce_markdown, compose_html | Slack Recap email |
+| monitor | read_platforms, detect_change, alert, produce_markdown, compose_html | Channel watch alert |
+| research | read_platforms, web_search, investigate, produce_markdown, chart, mermaid, compose_html | Report with visualizations |
+| synthesize | read_platforms, cross_reference, data_analysis, chart, mermaid, produce_markdown, compose_html | Cross-platform deck |
+| prepare | read_platforms, calendar_access, profile_attendees, produce_markdown, compose_html | Meeting briefing |
+| pm | read_workspace, check_freshness, steer_contributors, trigger_assembly, manage_work_plan | Assembly coordination |
 
-**8 available skills**: pdf, pptx, xlsx, chart, mermaid, html, data_export, image
+Asset-producing capabilities (chart, mermaid, image) resolve to `RenderAsset` tool calls against the `python_render` runtime. See [Agent Capability Substrate](output-substrate.md) for the three-registry architecture.
 
-Gate: `SKILL_ENABLED_ROLES` in `api/services/agent_framework.py`. When a duty's role is in this set, the agent gets SKILL.md injection and RuntimeDispatch access for that run.
-
-Key insight: A digest agent's **monitor duty** gets skill access; its **digest duty** does not. Per-run, not per-agent.
+Key insight: Type = capabilities. No per-run gating. A research agent always has chart/mermaid; a digest agent never does.
 
 ---
 
@@ -398,7 +360,7 @@ Every agent has a **pulse**: an autonomous sense→decide cycle that is upstream
 | Tier | Resolver | Cost | Who |
 |------|----------|------|-----|
 | **Tier 1** | Deterministic gates | Zero LLM | All agents |
-| **Tier 2** | Agent self-assessment (Haiku) | ~200 tokens | Associate+ seniority only |
+| **Tier 2** | Agent self-assessment (Haiku) | ~200 tokens | All agents (no seniority gate) |
 | **Tier 3** | PM coordination pulse | ~500 tokens | PM agents only |
 
 Tier 1 resolves ~80% of pulses: first run → generate, budget exhausted → wait, no fresh content → wait, reactive threshold not met → wait. Only when Tier 1 passes do more expensive tiers engage.
@@ -647,7 +609,7 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 | Concern | Location |
 |---------|----------|
 | This document | `docs/architecture/agent-framework.md` |
-| Role portfolios, seniority & pulse cadence | `api/services/agent_framework.py` (ADR-117 Phase 3, ADR-126 Phase 5) |
+| Agent type registry & pulse cadence | `api/services/agent_framework.py` (ADR-130, ADR-126 Phase 5) |
 | Pulse engine | `api/services/agent_pulse.py` (ADR-126) |
 | Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
 | Execution strategies | `api/services/execution_strategies.py` |
@@ -655,7 +617,7 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 | Type prompts (→ role prompts) | `api/services/agent_pipeline.py` |
 | Agent execution pipeline | `api/services/agent_execution.py` |
 | Agent workspace | `api/services/workspace.py` |
-| Composer (duty promotion) | `api/services/composer.py` |
+| Composer (portfolio management) | `api/services/composer.py` |
 | Output gateway skills | `render/skills/` (ADR-118) |
 | Frontend constants | `web/lib/constants/agents.ts` |
 

@@ -27,7 +27,7 @@ V5 was agent-centric: bootstrap created standalone agents, Orchestrator cards cr
 
 | Type | Description | Optimal path |
 |------|-------------|--------------|
-| **Platform-first** | Has Slack/Gmail/Notion/Calendar; wants recurring summaries from existing work data | Connect platforms → auto-created project → Meeting Room |
+| **Platform-first** | Has Slack/Notion; wants recurring summaries from existing work data | Connect platforms → auto-created project → Meeting Room |
 | **Topic-first** | Has a research question or monitoring need; doesn't need platform data | Orchestrator → "New Project" card → describe intent → project created → Meeting Room |
 | **Explorer** | Curious about AI agents; wants to see what's possible before committing | Dashboard → connect one platform → see first project result |
 
@@ -65,11 +65,8 @@ Dashboard shows a clean welcome with **two paths**:
 │  projects that deliver recurring insights.           │
 │                                                      │
 │  ┌─────────────┐  ┌─────────────┐                    │
-│  │ [Slack]      │  │ [Gmail]      │  ← OAuth direct  │
-│  │  Slack       │  │  Gmail       │                   │
-│  ├─────────────┤  ├─────────────┤                    │
-│  │ [Notion]     │  │ [Calendar]   │                   │
-│  │  Notion      │  │  Calendar    │                   │
+│  │ [Slack]      │  │ [Notion]     │  ← OAuth direct  │
+│  │  Slack       │  │  Notion      │                   │
 │  └─────────────┘  └─────────────┘                    │
 │                                                      │
 │  ──────────────── or ────────────────                │
@@ -108,8 +105,9 @@ Dashboard shows a clean welcome with **two paths**:
 | Type Key | Project Title | Member Agent | PM | First Run |
 |----------|--------------|-------------|-----|-----------|
 | `slack_digest` | Slack Recap | Slack Agent (digest/platform) | PM: Slack Recap | Immediate |
-| `gmail_digest` | Gmail Recap | Gmail Agent (digest/platform) | PM: Gmail Recap | Immediate |
 | `notion_digest` | Notion Recap | Notion Agent (digest/platform) | PM: Notion Recap | Immediate |
+
+> **ADR-131**: Gmail and Calendar sunset. `gmail_digest` project type removed.
 
 ### Source curation (optional)
 
@@ -130,11 +128,11 @@ Users can refine which sources are synced at `/context/{platform}` at any time. 
 
 ```
 SET UP A PROJECT
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ Slack Recap   │ │ Gmail Recap  │ │ Notion Recap │ │ New Project  │
-│ Daily summary │ │ Daily recap  │ │ Daily recap  │ │ Start from   │
-│ of channels   │ │ of labels    │ │ of pages     │ │ scratch      │
-└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Slack Recap   │ │ Notion Recap │ │ New Project  │
+│ Daily summary │ │ Daily recap  │ │ Start from   │
+│ of channels   │ │ of pages     │ │ scratch      │
+└──────────────┘ └──────────────┘ └──────────────┘
 
 OR ASK DIRECTLY
 ┌──────────────┐ ┌──────────────┐
@@ -239,7 +237,7 @@ Dashboard (empty state)
 | Primary unit | Agents | Projects (agents are members inside) |
 | Bootstrap creates | Standalone digest agent | Project with member agent + PM |
 | Bootstrap banner links to | `/agents/{id}` | `/projects/{slug}` (Meeting Room) |
-| Orchestrator cards | 6 project templates (3 aspirational) + 3 capability | 3 registry-backed + 1 blank + 2 capability |
+| Orchestrator cards | 6 project templates (3 aspirational) + 3 capability | 2 registry-backed + 1 blank + 2 capability (ADR-131: Gmail removed) |
 | Post-creation surface | Agent drawer | Meeting Room (group chat with agents) |
 | Context/objective refinement | TP chat | Meeting Room (PM conversation) |
 | Dashboard supervision | Agent health grid | Project health |
