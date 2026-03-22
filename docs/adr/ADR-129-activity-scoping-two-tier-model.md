@@ -1,6 +1,6 @@
 # ADR-129: Activity Scoping — Two-Tier Model
 
-**Status**: Phase 1 Implemented
+**Status**: Phases 1-3 Implemented
 **Date**: 2026-03-22
 **Extends**: ADR-063 (Activity Log / Four-Layer Model), ADR-124 (Project Meeting Room), ADR-125 (Project-Native Session Architecture)
 **Supersedes**: None (refines the activity domain within existing four-layer model)
@@ -138,13 +138,18 @@ Together, these three substrates provide a complete project activity picture wit
 - `routes/agents.py`: `agent_approved` + `agent_rejected` enriched with project_slug; `type_config` added to agent select
 - `routes/projects.py`: `PROJECT_EVENT_TYPES` expanded to include `agent_pulsed`, `agent_run`, `agent_scheduled`, `agent_generated`, `agent_approved`, `agent_rejected`, `pm_pulsed`, `project_file_triaged`
 
-### Phase 2: Global activity page refinement (frontend)
-- Introduce workspace-level vs project-level categorization in EVENT_CONFIG
-- De-emphasize project-specific events in global view (collapse or filter)
-- Add project links to agent events that carry project_slug
+### Phase 2: Global activity page refinement (frontend) — IMPLEMENTED
+- Added missing EVENT_CONFIGs: `project_quality_assessed`, `project_contributor_steered`, `project_file_triaged`, `project_scaffolded`
+- CATEGORY_EVENT_TYPES expanded: projects category now includes all 9 project event types
+- Navigation targets: agent events with `project_slug` link to project page (prefer project over agent)
+- Metadata detail renderers: all project events get dedicated renderers (heartbeat, quality, steer, triage, assembly, escalation, scaffold)
+- Agent event renderers enriched with `project_slug` detail row
+- Fixed `project_escalated` icon (Play → AlertTriangle)
 
-### Phase 3: Project timeline enrichment (frontend)
-- Show agent lifecycle events (pulse, generation, approval) in project meeting room timeline
+### Phase 3: Project timeline enrichment (frontend) — IMPLEMENTED
+- ACTIVITY_EVENT_CONFIG expanded with agent lifecycle events: `agent_run`, `agent_scheduled`, `agent_generated`, `agent_approved`, `agent_rejected`
+- `formatActivitySummary()` handles all new event types with personified labels
+- `mergeTimeline()` unchanged — already handles any event type from the activity endpoint
 - `mergeTimeline()` already handles this — just needs the data from enriched endpoint
 
 ### Phase 4: Documentation

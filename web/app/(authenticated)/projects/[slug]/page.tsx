@@ -43,6 +43,11 @@ import {
   Combine,
   Activity,
   Users,
+  Play,
+  ThumbsUp,
+  ThumbsDown,
+  CalendarClock,
+  FileOutput,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -135,6 +140,32 @@ const ACTIVITY_EVENT_CONFIG: Record<string, {
     icon: <FileText className="w-4 h-4" />,
     color: 'text-blue-500',
   },
+  // ADR-129: Agent lifecycle events now project-scoped
+  agent_run: {
+    label: 'Output',
+    icon: <Play className="w-4 h-4" />,
+    color: 'text-blue-500',
+  },
+  agent_scheduled: {
+    label: 'Scheduled',
+    icon: <CalendarClock className="w-4 h-4" />,
+    color: 'text-blue-400',
+  },
+  agent_generated: {
+    label: 'Generated',
+    icon: <FileOutput className="w-4 h-4" />,
+    color: 'text-emerald-500',
+  },
+  agent_approved: {
+    label: 'Approved',
+    icon: <ThumbsUp className="w-4 h-4" />,
+    color: 'text-green-500',
+  },
+  agent_rejected: {
+    label: 'Rejected',
+    icon: <ThumbsDown className="w-4 h-4" />,
+    color: 'text-red-500',
+  },
 };
 
 function formatActivitySummary(item: ProjectActivityItem): string {
@@ -169,6 +200,17 @@ function formatActivitySummary(item: ProjectActivityItem): string {
       const pmAction = meta.action || 'sensed';
       return `PM pulsed — ${pmAction}${meta.reason ? `: ${meta.reason}` : ''}`;
     }
+    // ADR-129: Agent lifecycle events in project timeline
+    case 'agent_run':
+      return item.summary || 'Agent produced output';
+    case 'agent_scheduled':
+      return item.summary || 'Agent queued for execution';
+    case 'agent_generated':
+      return item.summary || 'Agent generated content';
+    case 'agent_approved':
+      return item.summary || 'Output approved';
+    case 'agent_rejected':
+      return item.summary || 'Output rejected';
     default:
       return item.summary || item.event_type;
   }
