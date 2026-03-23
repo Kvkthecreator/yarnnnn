@@ -17,16 +17,60 @@
 
 YARNNN's workspace is a **virtual filesystem of human-readable files** backed by Postgres (`workspace_files` table). Path conventions are the schema. New capabilities extend paths, not database tables.
 
-Four top-level namespaces:
+Six top-level namespaces:
 
 | Namespace | Scope | Owner | Purpose |
 |-----------|-------|-------|---------|
 | `/agents/{slug}/` | Per-agent | Agent + system | Agent identity, memory, outputs, scratch |
 | `/projects/{slug}/` | Per-project | PM + contributors | Coordination, contributions, assembly |
 | `/knowledge/` | Global (shared) | Agents (at delivery) | Agent-produced knowledge artifacts |
-| `/memory/` | Global (user) | User + system | User identity, preferences, notes |
+| `/memory/` | Global (user) | User + system | User identity, preferences, topics, notes |
+| `/brand/{name}/` | Per-brand | User | Brand assets, templates, style guide |
+| `/user_shared/` | Global (user) | User | Ephemeral staging for user-contributed files (ADR-127) |
 
-Additionally, `/user_shared/` (global) and `/projects/{slug}/user_shared/` (project-scoped) serve as ephemeral staging areas for user-contributed files (ADR-127).
+Additionally, `/projects/{slug}/user_shared/` serves as project-scoped ephemeral staging (ADR-127).
+
+### `/memory/` — User Context (ADR-132)
+
+| File | Purpose |
+|------|---------|
+| `MEMORY.md` | User profile (name, role, company, timezone) |
+| `preferences.md` | Communication preferences (tone, verbosity per platform) |
+| `WORK.md` | Topics — macro context baskets that drive project scaffolding |
+| `notes.md` | Accumulated facts, instructions, preferences (extracted nightly) |
+
+### `/brand/{name}/` — Brand Context (ADR-132)
+
+Brand files are agent-readable context that shapes output tone, styling, and composition.
+
+| Path | Purpose |
+|------|---------|
+| `/brand/default/BRAND.md` | User's own brand (global default) |
+| `/brand/default/assets/` | Logo, images, icons |
+| `/brand/{name}/BRAND.md` | Topic-specific brand override (e.g., client brand) |
+| `/brand/{name}/assets/` | Topic-specific brand assets |
+
+Topics can reference a brand folder — if none specified, `/brand/default/` is used. Compose engine reads BRAND.md when styling HTML output. Agents read it for tone and style guidance.
+
+**BRAND.md format** (agent-readable):
+```markdown
+# Brand: {name}
+
+## Colors
+- Primary: #hex
+- Secondary: #hex
+- Accent: #hex
+
+## Typography
+- Headings: font name
+- Body: font name
+
+## Tone
+- {tone description}
+
+## Logo
+- assets/logo.png
+```
 
 ---
 

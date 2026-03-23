@@ -301,6 +301,51 @@ function TopicsPanel() {
 }
 
 // =============================================================================
+// =============================================================================
+// Panel: Brand (user brand context)
+// =============================================================================
+
+function BrandPanel() {
+  const [brandContent, setBrandContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.brand.get().then((data) => {
+      if (data.exists) setBrandContent(data.content);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!brandContent) {
+    return (
+      <div className="p-4 text-center">
+        <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No brand defined</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">
+          Tell your orchestrator about your brand — colors, tone, logo
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3">
+      <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+        <ReactMarkdown>{brandContent}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Panel: Context (platform sync status)
 // =============================================================================
 
@@ -564,11 +609,14 @@ export function ChatFirstDesk() {
   // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
-      id: 'create-project',
-      label: 'Create project',
-      icon: Command,
-      verb: 'show',
-      onSelect: () => setShowCreateCards((prev) => !prev),
+      id: 'add-topic',
+      label: 'Add a topic',
+      icon: Briefcase,
+      verb: 'prompt',
+      onSelect: () => {
+        setInput('I want to add a new topic to my workspace');
+        textareaRef.current?.focus();
+      },
     },
     {
       id: 'share-file',
@@ -649,6 +697,11 @@ export function ChatFirstDesk() {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsPanel />,
+    },
+    {
+      id: 'brand',
+      label: 'Brand',
+      content: <BrandPanel />,
     },
     {
       id: 'platforms',

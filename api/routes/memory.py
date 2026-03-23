@@ -352,6 +352,29 @@ async def get_topics(auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── Brand (ADR-132 — user/topic-level brand context) ────────────────────────
+
+@router.get("/user/brand")
+async def get_brand(auth: UserClient, name: str = "default"):
+    """Get brand file content. Reads /brand/{name}/BRAND.md from workspace."""
+    try:
+        path = f"/brand/{name}/BRAND.md"
+        result = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", auth.user_id)
+            .eq("path", path)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows and rows[0].get("content", "").strip():
+            return {"content": rows[0]["content"], "exists": True, "brand_name": name}
+        return {"content": None, "exists": False, "brand_name": name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Profile ──────────────────────────────────────────────────────────────────
 
 @router.get("/profile", response_model=ProfileResponse)

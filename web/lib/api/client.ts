@@ -266,6 +266,14 @@ export const api = {
       }),
   },
 
+  // Brand — user/topic-level brand context
+  brand: {
+    get: (name = "default") =>
+      request<{ content: string | null; exists: boolean; brand_name: string }>(
+        `/api/memory/user/brand?name=${name}`
+      ),
+  },
+
   // Document endpoints (ADR-008: Document Pipeline)
   documents: {
     // List user's documents
