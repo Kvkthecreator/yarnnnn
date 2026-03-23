@@ -1999,6 +1999,7 @@ export default function ProjectDetailPage() {
         <div className="overflow-y-auto h-full">
           {/* Objective — the mission board */}
           <div className="px-3 py-3 border-b border-border bg-muted/20">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Objective</p>
             <EditableObjective
               slug={slug}
               objective={objective}
