@@ -204,110 +204,7 @@ function ProjectsPanel() {
 }
 
 // =============================================================================
-// (TopicsPanel removed — absorbed into UserContextPanel)
-
-// =============================================================================
-// =============================================================================
-// Panel: Context (brand + profile — user identity)
-// =============================================================================
-
-function UserContextPanel() {
-  const [brandContent, setBrandContent] = useState<string | null>(null);
-  const [profileName, setProfileName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editingBrand, setEditingBrand] = useState(false);
-  const [brandDraft, setBrandDraft] = useState('');
-
-  useEffect(() => {
-    Promise.all([
-      api.brand.get(),
-      api.profile.get().catch(() => null),
-    ]).then(([brandData, profile]) => {
-      setBrandContent(brandData.exists ? brandData.content : null);
-      if (profile?.name) setProfileName(profile.name);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  const handleSaveBrand = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await api.brand.save(brandDraft);
-      setBrandContent(brandDraft);
-      setEditingBrand(false);
-    } catch (err) {
-      console.error('Failed to save brand:', err);
-    } finally { setSaving(false); }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  const hasBrandData = !!brandContent;
-
-  return (
-    <div className="p-3 space-y-5">
-      {/* Profile */}
-      {profileName && (
-        <div className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{profileName}</span>
-        </div>
-      )}
-
-      {/* Brand — editable */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand</p>
-          {hasBrandData && !editingBrand && (
-            <button
-              onClick={() => { setBrandDraft(brandContent || ''); setEditingBrand(true); }}
-              className="text-xs text-primary hover:underline"
-            >
-              Edit
-            </button>
-          )}
-        </div>
-
-        {editingBrand ? (
-          <div className="space-y-2">
-            <textarea
-              value={brandDraft}
-              onChange={(e) => setBrandDraft(e.target.value)}
-              rows={8}
-              className="w-full text-xs px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30 font-mono"
-            />
-            <div className="flex items-center gap-2">
-              <button onClick={handleSaveBrand} disabled={saving} className="text-xs text-primary hover:underline disabled:opacity-50">
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button onClick={() => setEditingBrand(false)} className="text-xs text-muted-foreground hover:text-foreground">
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : hasBrandData ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
-            <ReactMarkdown>{brandContent}</ReactMarkdown>
-          </div>
-        ) : (
-          <button
-            onClick={() => { setBrandDraft('# Brand: My Company\n\n## Tone\nProfessional and concise\n'); setEditingBrand(true); }}
-            className="text-xs text-muted-foreground/60 hover:text-primary"
-          >
-            + Set up brand
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+// (UserContextPanel removed — brand is project-level, not workspace-level)
 
 // =============================================================================
 // Panel: Platforms (platform sync status)
@@ -395,16 +292,12 @@ export function ChatFirstDesk() {
   const { state: onboardingState } = usePlatformOnboardingState();
   const [connecting, setConnecting] = useState<string | null>(null);
 
-  // ADR-132: Project + brand state for contextual action cards
+  // Project state for contextual action cards
   const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
-  const [hasBrand, setHasBrand] = useState(false);
   const hasProjects = mainProjects.length > 0;
   useEffect(() => {
     api.projects.list().then((data) => {
       setMainProjects(data.projects);
-    }).catch(() => {});
-    api.brand.get().then((data) => {
-      setHasBrand(data.exists);
     }).catch(() => {});
   }, []);
 
@@ -581,11 +474,11 @@ export function ChatFirstDesk() {
       },
     },
     {
-      id: 'share-file',
-      label: 'Share a file',
-      icon: FileText,
-      verb: 'prompt',
-      onSelect: () => setShowShareForm(true),
+      id: 'upload-file',
+      label: 'Upload file',
+      icon: Upload,
+      verb: 'attach',
+      onSelect: () => fileInputRef.current?.click(),
     },
     {
       id: 'search-platforms',
@@ -627,13 +520,6 @@ export function ChatFirstDesk() {
         textareaRef.current?.focus();
       },
     },
-    {
-      id: 'attach-image',
-      label: 'Attach image',
-      icon: ImagePlus,
-      verb: 'attach',
-      onSelect: () => fileInputRef.current?.click(),
-    },
   ];
 
   const handleOptionClick = (option: string) => {
@@ -653,16 +539,7 @@ export function ChatFirstDesk() {
     {
       id: 'projects',
       label: 'Projects',
-      content: (
-        <div className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto">
-            <ProjectsPanel />
-          </div>
-          <div className="border-t border-border">
-            <UserContextPanel />
-          </div>
-        </div>
-      ),
+      content: <ProjectsPanel />,
     },
     {
       id: 'platforms',
@@ -811,24 +688,8 @@ export function ChatFirstDesk() {
                           </div>
                         </>
                       )}
-                      {/* Priority-based contextual action cards */}
-                      {/* 1. Brand gap — set up brand if missing */}
-                      {!hasBrand && (
-                        <button
-                          onClick={() => {
-                            setInput('Help me set up my brand — company name, colors, and tone for my outputs');
-                            textareaRef.current?.focus();
-                          }}
-                          className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                        >
-                          <FileText className="w-5 h-5 shrink-0 text-muted-foreground" />
-                          <div>
-                            <span className="text-sm font-medium">Set up your brand</span>
-                            <span className="text-xs text-muted-foreground block">Define colors, tone, and style for your outputs</span>
-                          </div>
-                        </button>
-                      )}
-                      {/* 2. Objective gap — refine project with boilerplate objective */}
+                      {/* Contextual action cards — priority-ordered */}
+                      {/* 1. Objective gap — refine project with boilerplate objective */}
                       {(() => {
                         const needsObjective = mainProjects.find(
                           p => ['workspace', 'bounded_deliverable'].includes(p.type_key || '') && !p.objective_set
@@ -1160,7 +1021,7 @@ export function ChatFirstDesk() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,.docx,.txt,.md"
                   multiple
                   onChange={handleFileSelect}
                   className="hidden"

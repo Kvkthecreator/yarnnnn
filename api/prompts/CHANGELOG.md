@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.12] - ADR-132: CreateProject primitive — title-based type inference + multi-step guidance
+
+### Changed
+- `primitives/project.py`: **CreateProject tool description v2** — three modes: work project (title-only, inferred), platform project (type_key), custom project (explicit agents). Multi-step workflow guidance: when user uploads a file and wants a project, TP should Search → extract details → CreateProject with informed objective. Examples updated for new types.
+- `primitives/project.py`: **handle_create_project** — when no type_key and no contributors, auto-infers agent type + lifecycle from title via `infer_topic_type()`. "Fundraising" → drafter (bounded). "Competitive Watch" → scout (persistent). Falls through to manual creation only when explicit contributors provided.
+- Expected behavior: TP can create work-scoped projects with just a title — no need to ask user for type_key, agent type, or lifecycle. Type inference handles it. Multi-step "upload → create project" flow documented in tool description.
+
 ## [2026.03.23.11] - ADR-133 Phases 2+3: Cross-phase context + capability-aware coordination
 
 ### Changed

@@ -82,7 +82,7 @@ Users without platform connections can still provide rich context via documents 
 | Primitive | Purpose | Modes |
 |-----------|---------|-------|
 | **CreateAgent** | Create new agent (unified path via `create_agent_record()`) | chat, headless |
-| **CreateProject** | Create project (with `type_key` → `scaffold_project()` for platform types) | chat, headless |
+| **CreateProject** | Create project — title-only (auto-infers agent type + lifecycle), type_key (platform digests), or explicit (custom agents). ADR-132. | chat, headless |
 | **AdvanceAgentSchedule** | Set agent's next_pulse_at to now | headless |
 
 ### Agent Workspace (ADR-106, ADR-116)

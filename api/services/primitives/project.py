@@ -24,35 +24,44 @@ logger = logging.getLogger(__name__)
 
 CREATE_PROJECT_TOOL = {
     "name": "CreateProject",
-    "description": """Create a new project. Two modes:
+    "description": """Create a new project. Three modes:
 
-1. **Platform project** (use type_key): Creates the project with member agent(s) + PM automatically.
-   Available type_keys: slack_digest, notion_digest, cross_platform_synthesis, custom.
-   Every project gets a PM agent for coordination and delivery. Just pass title and type_key.
+1. **Work project** (recommended — just pass title): The system infers the right agent type,
+   lifecycle, and objective from the project name. "Fundraising" → drafter (bounded).
+   "Competitive tracking" → scout (persistent). "Client: Acme" → briefer (persistent).
+   Every project gets a PM + 1 contributor agent matched to the work type.
 
-2. **Custom project** (no type_key): Assembles existing agents into a collaboration project.
+2. **Platform project** (use type_key): For platform digests only.
+   Available type_keys: slack_digest, notion_digest.
+   Auto-creates digest agent + PM. Use when user connects a platform.
+
+3. **Custom project** (explicit agents): Assembles existing agents into a collaboration project.
    Pass title, objective, contributors, assembly_spec, delivery.
 
-For platform digest projects, ALWAYS use the type_key — do NOT ask the user follow-up questions.
+MULTI-STEP WORKFLOW — when user uploads a file and wants a project:
+1. Use Search to read the uploaded document content
+2. Extract: project name, deliverable type, audience, purpose
+3. Call CreateProject with informed title + objective
+4. The file will be available to the project's agents via Search
 
 Examples:
-  CreateProject(title="Notion Digest", type_key="notion_digest")
+  CreateProject(title="Fundraising")  ← auto-infers drafter type, bounded lifecycle
+  CreateProject(title="Competitive Watch")  ← auto-infers scout type
   CreateProject(title="Slack Recap", type_key="slack_digest")
   CreateProject(
-    title="Q2 Business Review",
-    objective={deliverable: "Executive presentation", audience: "Leadership", format: "pptx"},
-    contributors=[{agent_id: "uuid-1", expected_contribution: "Revenue data + charts"}]
+    title="Q2 Board Deck",
+    objective={deliverable: "Board presentation", audience: "Investors", format: "presentation", purpose: "Q2 performance review"}
   )""",
     "input_schema": {
         "type": "object",
         "properties": {
             "title": {
                 "type": "string",
-                "description": "Project title"
+                "description": "Project title — also used for agent type inference when no type_key provided"
             },
             "type_key": {
                 "type": "string",
-                "description": "Project type from registry: slack_digest, notion_digest, cross_platform_synthesis, custom. When set, agents are created automatically.",
+                "description": "Project type from registry. Usually NOT needed — type inference from title is preferred. Use only for: slack_digest, notion_digest.",
             },
             "objective": {
                 "type": "object",
@@ -114,18 +123,46 @@ async def handle_create_project(auth: Any, input: dict) -> dict:
     delivery = input.get("delivery", {})
     type_key = input.get("type_key")  # ADR-122: project type registry key
 
-    # ADR-122: If type_key matches registry, delegate to scaffold_project()
-    # which creates the project AND its member agents together
-    if type_key:
-        from services.project_registry import get_project_type, scaffold_project
-        ptype = get_project_type(type_key)
-        if ptype:
+    # ADR-122/132: Registry-based scaffolding — type_key or title-based inference
+    if type_key or not contributors_input:
+        from services.project_registry import get_project_type, scaffold_project, infer_topic_type
+
+        if type_key:
+            # Explicit type_key — platform digests
+            ptype = get_project_type(type_key)
+            if ptype:
+                return await scaffold_project(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    type_key=type_key,
+                    title_override=title if title != ptype["display_name"] else None,
+                    objective_override=objective if objective else None,
+                    delivery_override=delivery if delivery else None,
+                    execute_now=True,
+                )
+        else:
+            # No type_key, no contributors — infer from title (ADR-132 work-first)
+            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(title)
+            inferred_type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
+
             return await scaffold_project(
                 client=auth.client,
                 user_id=auth.user_id,
-                type_key=type_key,
-                title_override=title if title != ptype["display_name"] else None,
-                objective_override=objective if objective else None,
+                type_key=inferred_type_key,
+                scope_name=title,
+                objective_override=objective if objective else {
+                    "deliverable": f"{title} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
+                    "audience": "You",
+                    "format": "email",
+                    "purpose": inferred_purpose,
+                },
+                contributors_override=[{
+                    "title_template": f"{{scope_name}} {inferred_type.title()}",
+                    "role": inferred_type,
+                    "scope": "cross_platform",
+                    "frequency": "weekly" if inferred_lifecycle == "persistent" else "on_demand",
+                    "sources_from": "work_unit",
+                }] if inferred_type != "briefer" else None,
                 delivery_override=delivery if delivery else None,
                 execute_now=True,
             )
