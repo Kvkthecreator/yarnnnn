@@ -18,7 +18,19 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — Claude API limit for images
 const MAX_DOC_SIZE = 20 * 1024 * 1024; // 20MB — document upload limit
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'text/markdown',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document']; // pdf, txt, md, docx
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const DOCUMENT_EXTENSIONS = ['.pdf', '.txt', '.md', '.docx'];
+
+function isImage(file: File): boolean {
+  return IMAGE_TYPES.includes(file.type) || file.type.startsWith('image/');
+}
+
+function isDocument(file: File): boolean {
+  if (DOCUMENT_TYPES.includes(file.type)) return true;
+  // Fallback: check extension (browsers sometimes report empty/wrong MIME)
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+  return DOCUMENT_EXTENSIONS.includes(ext);
+}
 
 export interface DropZoneProps {
   onDragEnter: (e: React.DragEvent) => void;
@@ -103,13 +115,13 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
       let hasUnsupported = false;
 
       for (const file of files) {
-        if (IMAGE_TYPES.includes(file.type)) {
+        if (isImage(file)) {
           if (file.size > MAX_FILE_SIZE) {
             showError('Images must be under 5MB');
             continue;
           }
           images.push(file);
-        } else if (DOCUMENT_TYPES.includes(file.type)) {
+        } else if (isDocument(file)) {
           if (file.size > MAX_DOC_SIZE) {
             showError('Documents must be under 20MB');
             continue;
@@ -131,8 +143,12 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
         docs.forEach((f) => uploadDocument(f));
       }
 
-      if (hasUnsupported && images.length === 0 && docs.length === 0) {
-        showError('Unsupported file type. Supported: images, PDF, DOCX, TXT, MD.');
+      if (hasUnsupported) {
+        showError('Some files skipped — supported: images, PDF, DOCX, TXT, MD.');
+      }
+      if (images.length === 0 && docs.length === 0 && !hasUnsupported) {
+        // Files array was empty or all filtered out silently
+        showError('No supported files found.');
       }
     },
     [showError, uploadDocument]
@@ -154,7 +170,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     (e: React.ClipboardEvent) => {
       const files = Array.from(e.clipboardData.files);
       if (files.length === 0) return;
-      const imageFiles = files.filter((f) => IMAGE_TYPES.includes(f.type));
+      const imageFiles = files.filter((f) => isImage(f));
       if (imageFiles.length === 0) return;
       e.preventDefault();
       addFiles(imageFiles);
