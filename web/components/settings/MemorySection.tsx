@@ -30,12 +30,13 @@ import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { HOME_ROUTE } from '@/lib/routes';
+import ReactMarkdown from 'react-markdown';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Section = 'entries' | 'profile' | 'work' | 'styles';
+type Section = 'entries' | 'profile' | 'work' | 'brand';
 
 interface Profile {
   name?: string;
@@ -88,7 +89,7 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
   { id: 'work', label: 'Topics', icon: <Briefcase className="w-4 h-4" /> },
-  { id: 'styles', label: 'Preferences', icon: <Palette className="w-4 h-4" /> },
+  { id: 'brand', label: 'Brand', icon: <Palette className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -381,7 +382,104 @@ function TopicsSection() {
 }
 
 // =============================================================================
-// Styles Section
+// Brand Section (ADR-132 — replaces per-platform Preferences)
+// =============================================================================
+
+function BrandSection() {
+  const [brandContent, setBrandContent] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.brand.get().then((data) => {
+      if (data.exists && data.content) setBrandContent(data.content);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.brand.save(draft);
+      setBrandContent(draft);
+      setEditing(false);
+    } catch (err) {
+      console.error('Failed to save brand:', err);
+    } finally { setSaving(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Brand</h2>
+          {brandContent && !editing && (
+            <button
+              onClick={() => { setDraft(brandContent); setEditing(true); }}
+              className="text-sm text-primary hover:underline"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Your brand identity — colors, tone, voice. Applied to all agent outputs.
+        </p>
+      </div>
+
+      {editing ? (
+        <div className="space-y-3">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={14}
+            className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+          />
+          <div className="flex items-center gap-3">
+            <button onClick={handleSave} disabled={saving} className="text-sm font-medium text-primary hover:underline disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground hover:text-foreground">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : brandContent ? (
+        <div className="prose prose-sm dark:prose-invert max-w-none border border-border rounded-lg p-4">
+          <ReactMarkdown>{brandContent}</ReactMarkdown>
+        </div>
+      ) : (
+        <div className="border border-dashed border-border rounded-lg p-6 text-center">
+          <Palette className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground mb-3">No brand defined yet</p>
+          <button
+            onClick={() => {
+              setDraft('# Brand: My Company\n\n## Colors\n- Primary: #000000\n- Accent: #3b82f6\n\n## Tone\nProfessional and concise\n\n## Voice\nDirect, honest, no fluff\n');
+              setEditing(true);
+            }}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Set up your brand
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// =============================================================================
+// Styles Section (DEPRECATED — superseded by Brand section above)
 // =============================================================================
 
 function StylesSection({ loading }: { loading: boolean }) {
@@ -829,8 +927,8 @@ export function MemorySection() {
       {activeSection === 'work' && (
         <TopicsSection />
       )}
-      {activeSection === 'styles' && (
-        <StylesSection loading={false} />
+      {activeSection === 'brand' && (
+        <BrandSection />
       )}
     </div>
   );
