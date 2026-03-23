@@ -14,8 +14,11 @@
 import { useState, useRef, useCallback } from 'react';
 import type { TPImageAttachment } from '@/types/desk';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — Claude API limit
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — Claude API limit for images
+const MAX_DOC_SIZE = 20 * 1024 * 1024; // 20MB — document upload limit
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'text/markdown',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document']; // pdf, txt, md, docx
 
 export interface DropZoneProps {
   onDragEnter: (e: React.DragEvent) => void;
@@ -29,6 +32,8 @@ export interface UseFileAttachmentsReturn {
   attachmentPreviews: string[];
   isDragging: boolean;
   error: string | null;
+  /** Documents uploaded via drag-and-drop (non-image files) */
+  uploadedDocs: Array<{ name: string; status: 'uploading' | 'done' | 'error' }>;
 
   /** Spread on the container element: {...dropZoneProps} */
   dropZoneProps: DropZoneProps;
@@ -66,39 +71,71 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadedDocs, setUploadedDocs] = useState<Array<{ name: string; status: 'uploading' | 'done' | 'error' }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
   const showError = useCallback((msg: string) => {
     setError(msg);
-    setTimeout(() => setError(null), 3000);
+    setTimeout(() => setError(null), 5000);
   }, []);
+
+  const uploadDocument = useCallback(async (file: File) => {
+    const { api } = await import('@/lib/api/client');
+    setUploadedDocs((prev) => [...prev, { name: file.name, status: 'uploading' }]);
+    try {
+      await api.documents.upload(file);
+      setUploadedDocs((prev) =>
+        prev.map((d) => d.name === file.name ? { ...d, status: 'done' as const } : d)
+      );
+    } catch {
+      setUploadedDocs((prev) =>
+        prev.map((d) => d.name === file.name ? { ...d, status: 'error' as const } : d)
+      );
+      showError(`Failed to upload ${file.name}`);
+    }
+  }, [showError]);
 
   const addFiles = useCallback(
     (files: File[]) => {
-      const valid: File[] = [];
-      let hasRejected = false;
+      const images: File[] = [];
+      const docs: File[] = [];
+      let hasUnsupported = false;
+
       for (const file of files) {
-        if (!ACCEPTED_TYPES.includes(file.type)) {
-          hasRejected = true;
-          continue;
+        if (IMAGE_TYPES.includes(file.type)) {
+          if (file.size > MAX_FILE_SIZE) {
+            showError('Images must be under 5MB');
+            continue;
+          }
+          images.push(file);
+        } else if (DOCUMENT_TYPES.includes(file.type)) {
+          if (file.size > MAX_DOC_SIZE) {
+            showError('Documents must be under 20MB');
+            continue;
+          }
+          docs.push(file);
+        } else {
+          hasUnsupported = true;
         }
-        if (file.size > MAX_FILE_SIZE) {
-          showError('Images must be under 5MB');
-          continue;
-        }
-        valid.push(file);
       }
-      if (valid.length === 0) {
-        if (hasRejected) {
-          showError('Only images supported here. Use "Share a file" for documents.');
-        }
-        return;
+
+      // Attach images inline (for Claude vision)
+      if (images.length > 0) {
+        images.forEach((f) => addPreview(f, setAttachmentPreviews));
+        setAttachments((prev) => [...prev, ...images]);
       }
-      valid.forEach((f) => addPreview(f, setAttachmentPreviews));
-      setAttachments((prev) => [...prev, ...valid]);
+
+      // Upload documents via document pipeline
+      if (docs.length > 0) {
+        docs.forEach((f) => uploadDocument(f));
+      }
+
+      if (hasUnsupported && images.length === 0 && docs.length === 0) {
+        showError('Unsupported file type. Supported: images, PDF, DOCX, TXT, MD.');
+      }
     },
-    [showError]
+    [showError, uploadDocument]
   );
 
   // --- File input (paperclip button) ---
@@ -117,7 +154,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     (e: React.ClipboardEvent) => {
       const files = Array.from(e.clipboardData.files);
       if (files.length === 0) return;
-      const imageFiles = files.filter((f) => ACCEPTED_TYPES.includes(f.type));
+      const imageFiles = files.filter((f) => IMAGE_TYPES.includes(f.type));
       if (imageFiles.length === 0) return;
       e.preventDefault();
       addFiles(imageFiles);
@@ -179,7 +216,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     for (const file of attachments) {
       const base64 = await fileToBase64(file);
       const mediaType = file.type as TPImageAttachment['mediaType'];
-      if (ACCEPTED_TYPES.includes(mediaType)) {
+      if (IMAGE_TYPES.includes(mediaType)) {
         images.push({ data: base64, mediaType });
       }
     }
@@ -191,6 +228,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     attachmentPreviews,
     isDragging,
     error,
+    uploadedDocs,
     dropZoneProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
     handleFileSelect,
     handlePaste,
