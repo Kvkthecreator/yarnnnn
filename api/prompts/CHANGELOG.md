@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.13] - ADR-135: Chat as coordination substrate
+
+### Changed
+- `agent_pulse.py`: PM Tier 3 decisions now write to project chat session via `pm_announce()`. Dispatch, advance_phase, escalate, generate — all announced as attributed PM messages. PM log (`memory/pm_log.md`) read before decisions for cross-context continuity. JSON prompt strengthened with "IMPORTANT: ONLY raw JSON."
+- `agent_execution.py`: Contributor run completions write to project chat via `contributor_report()`. Summary includes word count + confidence assessment.
+- Expected behavior: Project chat timeline shows agent coordination (PM dispatches, contributor completions, phase advances) as natural language messages attributed to agents. No more "PM pulsed — unknown."
+
+### Added
+- `services/pm_coordination.py`: Unified helper for agent→chat communication. `pm_announce()` writes to chat session + pm_log.md + activity event. `contributor_report()` writes to chat session. `read_pm_log()` reads rolling decision history.
+
 ## [2026.03.23.12] - ADR-132: CreateProject primitive — title-based type inference + multi-step guidance
 
 ### Changed

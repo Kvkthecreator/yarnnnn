@@ -3041,6 +3041,21 @@ async def execute_agent_generation(
             except Exception as e:
                 logger.warning(f"[EXEC] ADR-133: PM nudge failed (non-fatal): {e}")
 
+            # ADR-135: Contributor reports completion to project chat
+            if project_slug:
+                try:
+                    from services.pm_coordination import contributor_report
+                    # Build a brief summary of what was produced
+                    word_count = len(draft.split()) if draft else 0
+                    summary = f"Run complete — {word_count} words."
+                    if contributor_assessment:
+                        confidence = contributor_assessment.get("confidence", "")
+                        if confidence:
+                            summary += f" Confidence: {confidence}."
+                    await contributor_report(svc_client, user_id, project_slug, agent, summary)
+                except Exception as e:
+                    logger.warning(f"[EXEC] ADR-135: Contributor chat message failed (non-fatal): {e}")
+
         logger.info(
             f"[EXEC] Complete: {title}, version={next_version}, "
             f"status={final_status}, strategy={strategy.strategy_name}"

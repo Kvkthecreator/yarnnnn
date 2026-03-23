@@ -522,6 +522,10 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
             "assessment_snippet": (assessment or "")[:300],
         })
 
+    # ADR-135: Read PM decision log for continuity across contexts
+    from services.pm_coordination import read_pm_log
+    pm_log = await read_pm_log(client, user_id, project_slug, max_entries=5)
+
     # --- Build Tier 3 prompt ---
     now = datetime.now(timezone.utc)
     prompt = _build_tier3_prompt(
@@ -532,6 +536,7 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
         phase_state=phase_state,
         contributor_status=contributor_status,
         now_iso=now.isoformat(),
+        pm_log=pm_log,
     )
 
     # --- Call Haiku for PM coordination decision ---
@@ -557,9 +562,11 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
     note = parsed.get("note", "")
     dispatch_targets = parsed.get("dispatch", [])  # list of contributor slugs to dispatch
 
+    # --- ADR-135: Announce PM decisions to chat session ---
+    from services.pm_coordination import pm_announce
+
     # --- Execute PM dispatch side effects ---
     if action == "dispatch" and dispatch_targets:
-        # ADR-133 Phase 2: Write phase briefs with cross-phase context before dispatching
         phase_context = parsed.get("phase_context", note)
         await _write_phase_briefs(
             client, user_id, project_slug, project_contributors,
@@ -568,9 +575,14 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
         dispatched = await _dispatch_contributors(
             client, user_id, project_slug, project_contributors, dispatch_targets,
         )
+        # Announce to chat
+        dispatch_names = [c.get("title", s) for c in project_contributors for s in dispatched if get_agent_slug(c) == s]
+        await pm_announce(client, user_id, project_slug, agent,
+            f"Dispatching {', '.join(dispatch_names or dispatched)}. {note}",
+            decision_type="dispatch")
         return PulseDecision(
-            action="generate",  # PM generates (updates phase state)
-            reason=f"Dispatched {len(dispatched)} contributors with phase briefs: {', '.join(dispatched)}",
+            action="generate",
+            reason=f"Dispatched {len(dispatched)} contributors: {', '.join(dispatched)}",
             tier=3,
             metadata={
                 "pm_action": "dispatch",
@@ -581,20 +593,21 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
 
     if action == "advance_phase":
         phase_name = parsed.get("phase", "")
-        # ADR-133 Phase 2: Update phase_state.json and log event
         await _advance_phase_state(client, user_id, project_slug, phase_name, phase_state)
+        await pm_announce(client, user_id, project_slug, agent,
+            f"Phase complete: {phase_name}. {note}",
+            decision_type="advance_phase")
         return PulseDecision(
-            action="generate",  # PM generates (writes next phase briefs)
+            action="generate",
             reason=f"Advancing phase: {phase_name}. {note}",
             tier=3,
-            metadata={
-                "pm_action": "advance_phase",
-                "phase": phase_name,
-                "project_slug": project_slug,
-            },
+            metadata={"pm_action": "advance_phase", "phase": phase_name, "project_slug": project_slug},
         )
 
     if action == "escalate":
+        await pm_announce(client, user_id, project_slug, agent,
+            f"Need help: {note}",
+            decision_type="escalate")
         return PulseDecision(
             action="escalate",
             reason=f"PM escalation: {note}",
@@ -603,6 +616,9 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
         )
 
     if action == "generate":
+        await pm_announce(client, user_id, project_slug, agent,
+            note or "Running project assessment.",
+            decision_type="generate")
         return PulseDecision(
             action="generate",
             reason=f"PM coordination: {note}",
@@ -786,6 +802,7 @@ def _build_tier3_prompt(
     phase_state: dict,
     contributor_status: list[dict],
     now_iso: str,
+    pm_log: str = "",
 ) -> str:
     """Build the PM Tier 3 coordination prompt."""
 
@@ -828,6 +845,9 @@ Current time: {now_iso}
 ## Contributors
 {contributors_text or "  (no contributors)"}
 
+## Your Recent Decisions
+{pm_log or "(No prior decisions — this is your first assessment.)"}
+
 ## Available Agent Types (for escalation requests)
 - briefer: summarizes platform activity (no assets)
 - monitor: watches for changes and alerts (no assets)
@@ -853,7 +873,8 @@ Assess the project state and decide what to do:
 5. **wait** — project is healthy, nothing to do right now.
    Use this when: current phase is in progress and contributors are working.
 
-Respond with ONLY a JSON object:
+IMPORTANT: Respond with ONLY a raw JSON object. No explanation, no markdown, no text before or after. Just the JSON.
+
 {{"action": "dispatch|advance_phase|generate|escalate|wait", "note": "why", "dispatch": ["slug1", "slug2"], "phase": "phase name if advancing", "phase_context": "what prior phases found that this phase should build on (for dispatch only)"}}
 """
 
