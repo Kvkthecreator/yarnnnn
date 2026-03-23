@@ -680,7 +680,7 @@ export function ChatFirstDesk() {
       }}
       panelTabs={panelTabs}
       panelDefaultOpen={true}
-      panelDefaultPct={25}
+      panelDefaultPct={35}
     >
       {/* Drop zone container — wraps messages + input */}
       <div className="relative flex flex-col flex-1 min-h-0" {...dropZoneProps}>

@@ -2034,8 +2034,8 @@ export default function ProjectDetailPage() {
           />
         </div>
 
-        {/* RIGHT: Context Panel — objective → output → team (25% width, matches orchestrator) */}
-        <div className="w-1/4 min-w-[280px] max-w-[400px] border-l border-border overflow-y-auto shrink-0 hidden md:block">
+        {/* RIGHT: Context Panel — objective → output → team (35% width, matches orchestrator) */}
+        <div className="w-[35%] min-w-[300px] max-w-[480px] border-l border-border overflow-y-auto shrink-0 hidden md:block">
 
           {/* 1. Objective */}
           <div className="px-3 py-3 border-b border-border">
