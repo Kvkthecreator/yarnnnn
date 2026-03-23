@@ -17,36 +17,42 @@
 
 YARNNN's workspace is a **virtual filesystem of human-readable files** backed by Postgres (`workspace_files` table). Path conventions are the schema. New capabilities extend paths, not database tables.
 
-Six top-level namespaces:
+Five top-level namespaces:
 
 | Namespace | Scope | Owner | Purpose |
 |-----------|-------|-------|---------|
+| `/workspace/` | User-level | User | Identity + brand (stable context that flows into projects) |
 | `/agents/{slug}/` | Per-agent | Agent + system | Agent identity, memory, outputs, scratch |
-| `/projects/{slug}/` | Per-project | PM + contributors | Coordination, contributions, assembly |
+| `/projects/{slug}/` | Per-project | PM + contributors | Coordination, contributions, assembly, identity + brand snapshots |
 | `/knowledge/` | Global (shared) | Agents (at delivery) | Agent-produced knowledge artifacts |
-| `/memory/` | Global (user) | User + system | User identity, preferences, topics, notes |
-| `/brand/{name}/` | Per-brand | User | Brand assets, templates, style guide |
-| `/user_shared/` | Global (user) | User | Ephemeral staging for user-contributed files (ADR-127) |
+| `/memory/` | TP-scoped | TP + extraction cron | TP-accumulated knowledge from conversations |
 
-Additionally, `/projects/{slug}/user_shared/` serves as project-scoped ephemeral staging (ADR-127).
+Additionally, `/user_shared/` and `/projects/{slug}/user_shared/` serve as ephemeral staging (ADR-127).
 
-### `/memory/` — User Context (ADR-132)
+### `/workspace/` — User Context (ADR-133)
+
+Two canonical files. Seeded into projects at scaffold time.
 
 | File | Purpose |
 |------|---------|
-| `MEMORY.md` | User profile (name, role, company, timezone) |
-| `preferences.md` | Communication preferences (tone, verbosity per platform) |
-| `WORK.md` | Topics — macro context baskets that drive project scaffolding |
-| `notes.md` | Accumulated facts, instructions, preferences (extracted nightly) |
+| `IDENTITY.md` | Who you are (name, role, company, industry, timezone, summary) |
+| `BRAND.md` | How outputs look and sound (colors, typography, tone, voice) |
 
-### `/brand/{name}/` — Brand Context (ADR-132)
+### `/memory/` — TP-Accumulated Knowledge
 
-Brand files are agent-readable context that shapes output tone, styling, and composition.
-
-| Path | Purpose |
+| File | Purpose |
 |------|---------|
-| `/brand/default/BRAND.md` | User's own brand (global default) |
-| `/brand/default/assets/` | Logo, images, icons |
+| `notes.md` | Standing instructions, observed facts (extracted nightly from conversations) |
+
+### `/projects/{slug}/` — Project Context (self-contained)
+
+Each project is a self-contained execution context. Agents read project-level files only — no hierarchy crossing at runtime.
+
+| File | Purpose |
+|------|---------|
+| `PROJECT.md` | Objective, contributors, assembly spec, delivery |
+| `IDENTITY.md` | Snapshot of workspace identity (seeded at scaffold time) |
+| `BRAND.md` | Snapshot of workspace brand (seeded at scaffold time, may diverge) |
 | `/brand/{name}/BRAND.md` | Topic-specific brand override (e.g., client brand) |
 | `/brand/{name}/assets/` | Topic-specific brand assets |
 

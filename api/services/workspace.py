@@ -1249,22 +1249,22 @@ class KnowledgeBase:
 
 class UserMemory:
     """
-    User-level memory: /memory/ (ADR-108)
+    User workspace context: /workspace/ (ADR-133)
 
-    Global user identity, preferences, and accumulated notes.
-    Three canonical files:
-    - /memory/MEMORY.md     — identity (name, role, company, timezone, bio)
-    - /memory/preferences.md — communication preferences (per-platform tone/verbosity, format prefs)
-    - /memory/notes.md       — standing instructions, observed facts (accumulated by extraction cron)
+    Two canonical files at workspace scope:
+    - /workspace/IDENTITY.md — who you are (name, role, company, industry, timezone, summary)
+    - /workspace/BRAND.md    — how outputs look and sound (colors, typography, tone, voice)
 
-    Replaces the user_memory key-value table. Analogous to /etc/ in Unix:
-    stable configuration that every process reads.
+    TP-accumulated knowledge stays at /memory/:
+    - /memory/notes.md       — standing instructions, observed facts (extracted nightly)
+
+    Seeded into projects at scaffold time → agents read project-level copies.
     """
 
     def __init__(self, db_client, user_id: str):
         self._db = db_client
         self._user_id = user_id
-        self._base = "/memory"
+        self._base = "/workspace"
 
     def _full_path(self, filename: str) -> str:
         """Convert filename to absolute workspace path."""
@@ -1327,38 +1327,75 @@ class UserMemory:
             return False
 
     async def read_all(self) -> dict[str, str]:
-        """Read all three memory files. Returns {filename: content}."""
+        """Read workspace context files. Returns {filename: content}.
+
+        ADR-133: IDENTITY.md + BRAND.md from /workspace/.
+        Also reads notes.md from /memory/ (TP-accumulated knowledge, separate path).
+        Returns legacy key 'MEMORY.md' mapped from IDENTITY.md for backward compat.
+        """
         files = {}
-        for filename in ("MEMORY.md", "preferences.md", "notes.md"):
+        for filename in ("IDENTITY.md", "BRAND.md"):
             content = await self.read(filename)
             if content:
-                files[filename] = content
+                # Map IDENTITY.md → MEMORY.md key for backward compat with working memory parser
+                key = "MEMORY.md" if filename == "IDENTITY.md" else filename
+                files[key] = content
+        # Notes stay at /memory/ — read directly
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content")
+                .eq("user_id", self._user_id)
+                .eq("path", "/memory/notes.md")
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if rows and rows[0].get("content"):
+                files["notes.md"] = rows[0]["content"]
+        except Exception:
+            pass
         return files
 
     def read_all_sync(self) -> dict[str, str]:
         """Synchronous read_all for thread pool use."""
         files = {}
-        for filename in ("MEMORY.md", "preferences.md", "notes.md"):
+        for filename in ("IDENTITY.md", "BRAND.md"):
             content = self.read_sync(filename)
             if content:
-                files[filename] = content
+                key = "MEMORY.md" if filename == "IDENTITY.md" else filename
+                files[key] = content
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("content")
+                .eq("user_id", self._user_id)
+                .eq("path", "/memory/notes.md")
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            if rows and rows[0].get("content"):
+                files["notes.md"] = rows[0]["content"]
+        except Exception:
+            pass
         return files
 
     async def get_profile(self) -> dict:
-        """Parse MEMORY.md into structured profile dict."""
-        content = await self.read("MEMORY.md")
+        """Parse IDENTITY.md into structured profile dict."""
+        content = await self.read("IDENTITY.md")
         return self._parse_memory_md(content)
 
     async def update_profile(self, updates: dict) -> bool:
-        """Update profile fields in MEMORY.md (read-merge-write)."""
+        """Update profile fields in IDENTITY.md (read-merge-write)."""
         current = await self.get_profile()
         current.update({k: v for k, v in updates.items() if v is not None})
         # Remove cleared fields
         for k, v in updates.items():
             if v is None or v == "":
                 current.pop(k, None)
-        return await self.write("MEMORY.md", self._render_memory_md(current),
-                                summary="User identity and profile")
+        return await self.write("IDENTITY.md", self._render_memory_md(current),
+                                summary="User identity")
 
     async def get_preferences(self) -> dict:
         """Parse preferences.md into structured dict."""

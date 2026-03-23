@@ -196,11 +196,15 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
     try:
         um = UserMemory(auth.client, auth.user_id)
 
-        # Update name in profile if provided
+        # ADR-133: Write workspace context first (identity + brand)
+        # so scaffold_project() can seed it into projects
         if body.name:
             profile = await um.get_profile()
             if not profile.get("name"):
                 await um.update_profile({"name": body.name})
+
+        if body.brand_content:
+            await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
         # Scaffold projects with type inference
         from services.project_registry import scaffold_project, infer_topic_type
@@ -242,14 +246,7 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
                     "title": result["title"],
                     "type_key": type_key,
                 })
-                # Seed BRAND.md into project if brand content provided
-                if body.brand_content:
-                    try:
-                        from services.workspace import ProjectWorkspace
-                        pw = ProjectWorkspace(auth.client, auth.user_id, slug)
-                        await pw.write("BRAND.md", body.brand_content, summary="Project brand")
-                    except Exception as e:
-                        logger.warning(f"[ONBOARDING] Brand seed failed for '{slug}': {e}")
+                # ADR-133: IDENTITY.md + BRAND.md seeded automatically by scaffold_project()
                 logger.info(f"[ONBOARDING] Scaffolded '{slug}' from '{name}'")
             else:
                 logger.warning(f"[ONBOARDING] Scaffold failed for '{name}': {result.get('message')}")
@@ -259,51 +256,36 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Brand (ADR-132 — user/topic-level brand context) ────────────────────────
+# ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────
 
 @router.get("/user/brand")
-async def get_brand(auth: UserClient, name: str = "default"):
-    """Get brand file content. Reads /brand/{name}/BRAND.md from workspace."""
+async def get_brand(auth: UserClient):
+    """Get workspace brand. Reads /workspace/BRAND.md."""
     try:
-        path = f"/brand/{name}/BRAND.md"
-        result = (
-            auth.client.table("workspace_files")
-            .select("content")
-            .eq("user_id", auth.user_id)
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        )
-        rows = result.data or []
-        if rows and rows[0].get("content", "").strip():
-            return {"content": rows[0]["content"], "exists": True, "brand_name": name}
-        return {"content": None, "exists": False, "brand_name": name}
+        um = UserMemory(auth.client, auth.user_id)
+        content = await um.read("BRAND.md")
+        if content and content.strip():
+            return {"content": content, "exists": True}
+        return {"content": None, "exists": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 class BrandSaveRequest(BaseModel):
     content: str
-    name: str = "default"
 
 
 @router.post("/user/brand")
 async def save_brand(body: BrandSaveRequest, auth: UserClient):
-    """Save brand file. Writes /brand/{name}/BRAND.md to workspace."""
+    """Save workspace brand. Writes /workspace/BRAND.md."""
     try:
-        path = f"/brand/{body.name}/BRAND.md"
-        from datetime import timezone as _tz
-        data = {
-            "user_id": auth.user_id,
-            "path": path,
-            "content": body.content,
-            "summary": f"Brand: {body.name}",
-            "updated_at": datetime.now(_tz.utc).isoformat(),
-        }
-        auth.client.table("workspace_files").upsert(
-            data, on_conflict="user_id,path"
-        ).execute()
-        return {"exists": True, "brand_name": body.name}
+        um = UserMemory(auth.client, auth.user_id)
+        success = await um.write("BRAND.md", body.content, summary="Brand identity")
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to write BRAND.md")
+        return {"exists": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

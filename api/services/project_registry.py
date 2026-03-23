@@ -557,6 +557,21 @@ async def scaffold_project(
     except Exception as e:
         logger.warning(f"[REGISTRY] Failed to seed project_assessment.md for {project_slug}: {e}")
 
+    # ── ADR-133: Seed workspace context into project ──
+    try:
+        from services.workspace import UserMemory
+        um = UserMemory(client, user_id)
+        # Seed IDENTITY.md from workspace
+        identity = await um.read("IDENTITY.md")
+        if identity:
+            await pw.write("IDENTITY.md", identity, summary="User identity (seeded from workspace)")
+        # Seed BRAND.md from workspace
+        brand = await um.read("BRAND.md")
+        if brand:
+            await pw.write("BRAND.md", brand, summary="Brand (seeded from workspace)")
+    except Exception as e:
+        logger.warning(f"[REGISTRY] Workspace context seeding failed for {project_slug}: {e}")
+
     # ── Seed member workspaces with project pointers ──
     for c in contributor_records:
         if not c.get("agent_slug"):

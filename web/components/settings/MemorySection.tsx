@@ -20,8 +20,6 @@ import {
   Palette,
   BookOpen,
   Briefcase,
-  Slack,
-  FileCode,
   Edit2,
   Trash2,
   CheckCircle2,
@@ -57,29 +55,6 @@ interface MemoryEntry {
   created_at: string;
   updated_at: string;
 }
-
-// =============================================================================
-// Platform Configuration (for styles)
-// =============================================================================
-
-const PLATFORM_CONFIG: Record<string, {
-  label: string;
-  icon: React.ReactNode;
-  colors: { bg: string; text: string };
-}> = {
-  slack: {
-    label: 'Slack',
-    icon: <Slack className="w-4 h-4" />,
-    colors: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  },
-  notion: {
-    label: 'Notion',
-    icon: <FileCode className="w-4 h-4" />,
-    colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
-  },
-};
-
-const ALL_PLATFORMS = ['slack', 'notion'] as const;
 
 // =============================================================================
 // Section Navigation
@@ -385,144 +360,7 @@ export function BrandSection() {
 }
 
 
-// =============================================================================
-// Styles Section (DEPRECATED — superseded by Brand section above)
-// =============================================================================
-
-function StylesSection({ loading }: { loading: boolean }) {
-  const [formData, setFormData] = useState<Record<string, { tone: string; verbosity: string }>>(() => {
-    const map: Record<string, { tone: string; verbosity: string }> = {};
-    for (const p of ALL_PLATFORMS) map[p] = { tone: '', verbosity: '' };
-    return map;
-  });
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'failed' | null>(null);
-
-  useEffect(() => {
-    api.styles.list().then((res) => {
-      setFormData((prev) => {
-        const next = { ...prev };
-        for (const s of res.styles || []) {
-          next[s.platform] = { tone: s.tone || '', verbosity: s.verbosity || '' };
-        }
-        return next;
-      });
-    }).catch(() => {});
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveStatus(null);
-    try {
-      for (const platform of ALL_PLATFORMS) {
-        const { tone, verbosity } = formData[platform];
-        await api.styles.update(platform, {
-          tone: tone || undefined,
-          verbosity: verbosity || undefined,
-        });
-      }
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus(null), 2500);
-    } catch {
-      setSaveStatus('failed');
-      setTimeout(() => setSaveStatus(null), 3000);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Communication Preferences</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Set your preferred tone and verbosity per platform.
-        </p>
-      </div>
-
-      <div className="bg-card rounded-lg border border-border p-6 space-y-5">
-        {ALL_PLATFORMS.map((platform) => {
-          const config = PLATFORM_CONFIG[platform];
-          const pref = formData[platform];
-
-          return (
-            <div key={platform} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className={cn("p-1.5 rounded-md", config.colors.bg, config.colors.text)}>
-                  {config.icon}
-                </div>
-                <span className="font-medium text-sm text-foreground">{config.label}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Tone</label>
-                  <select
-                    value={pref.tone}
-                    onChange={(e) => setFormData((prev) => ({
-                      ...prev,
-                      [platform]: { ...prev[platform], tone: e.target.value },
-                    }))}
-                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                  >
-                    <option value="">Not set</option>
-                    <option value="casual">Casual</option>
-                    <option value="formal">Formal</option>
-                    <option value="professional">Professional</option>
-                    <option value="friendly">Friendly</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
-                  <select
-                    value={pref.verbosity}
-                    onChange={(e) => setFormData((prev) => ({
-                      ...prev,
-                      [platform]: { ...prev[platform], verbosity: e.target.value },
-                    }))}
-                    className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                  >
-                    <option value="">Not set</option>
-                    <option value="minimal">Minimal</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="detailed">Detailed</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        <div className="flex items-center justify-end gap-3 pt-2">
-          {saveStatus && (
-            <span className={cn(
-              "text-xs animate-in fade-in duration-200",
-              saveStatus === 'saved'
-                ? "text-green-600 dark:text-green-400"
-                : "text-red-600 dark:text-red-400"
-            )}>
-              {saveStatus === 'saved' ? 'Saved' : 'Failed to save'}
-            </span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// (StylesSection deleted — ADR-133: preferences dissolved into BRAND.md + IDENTITY.md)
 
 // =============================================================================
 // Entries Section
