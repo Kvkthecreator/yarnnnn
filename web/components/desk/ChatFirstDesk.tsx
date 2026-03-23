@@ -208,60 +208,27 @@ function ProjectsPanel() {
 
 // =============================================================================
 // =============================================================================
-// Panel: Context (topics + brand — user identity & intent)
+// Panel: Context (brand + profile — user identity)
 // =============================================================================
 
 function UserContextPanel() {
-  const [topicsList, setTopicsList] = useState<Array<{ name: string; lifecycle: string; projects: string[]; status: string }>>([]);
   const [brandContent, setBrandContent] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [addingTopic, setAddingTopic] = useState(false);
-  const [newTopicName, setNewTopicName] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingBrand, setEditingBrand] = useState(false);
   const [brandDraft, setBrandDraft] = useState('');
 
-  const reload = useCallback(() => {
+  useEffect(() => {
     Promise.all([
-      api.topics.get(),
       api.brand.get(),
       api.profile.get().catch(() => null),
-    ]).then(([topicsData, brandData, profile]) => {
-      if (topicsData.exists) setTopicsList(topicsData.topics);
-      else setTopicsList([]);
+    ]).then(([brandData, profile]) => {
       setBrandContent(brandData.exists ? brandData.content : null);
       if (profile?.name) setProfileName(profile.name);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  const handleAddTopic = async () => {
-    if (!newTopicName.trim() || saving) return;
-    setSaving(true);
-    try {
-      const result = await api.topics.add(newTopicName.trim());
-      if (result.exists) setTopicsList(result.topics);
-      setNewTopicName('');
-      setAddingTopic(false);
-    } catch (err) {
-      console.error('Failed to add topic:', err);
-    } finally { setSaving(false); }
-  };
-
-  const handleRemoveTopic = async (name: string) => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      const result = await api.topics.remove(name);
-      if (result.exists) setTopicsList(result.topics);
-      else setTopicsList([]);
-    } catch (err) {
-      console.error('Failed to remove topic:', err);
-    } finally { setSaving(false); }
-  };
 
   const handleSaveBrand = async () => {
     if (saving) return;
@@ -283,106 +250,16 @@ function UserContextPanel() {
     );
   }
 
-  const active = topicsList.filter(t => t.status === 'active');
-  const completed = topicsList.filter(t => t.status === 'completed');
-  const hasTopicsData = topicsList.length > 0;
   const hasBrandData = !!brandContent;
 
   return (
     <div className="p-3 space-y-5">
-      {/* Profile header */}
+      {/* Profile */}
       {profileName && (
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{profileName}</span>
-          {active.length > 0 && (
-            <span> &middot; {active.length} topic{active.length !== 1 ? 's' : ''}</span>
-          )}
         </div>
       )}
-
-      {/* Topics — editable */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Topics</p>
-          {!addingTopic && (
-            <button
-              onClick={() => setAddingTopic(true)}
-              className="text-xs text-primary hover:underline"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-
-        {/* Add topic inline */}
-        {addingTopic && (
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={newTopicName}
-              onChange={(e) => setNewTopicName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddTopic(); if (e.key === 'Escape') setAddingTopic(false); }}
-              placeholder="Topic name..."
-              autoFocus
-              className="flex-1 text-sm px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
-            <button onClick={handleAddTopic} disabled={saving || !newTopicName.trim()} className="text-xs text-primary hover:underline disabled:opacity-50">
-              {saving ? '...' : 'Add'}
-            </button>
-            <button onClick={() => { setAddingTopic(false); setNewTopicName(''); }} className="text-xs text-muted-foreground hover:text-foreground">
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-
-        {/* Active topics */}
-        {active.map((t, i) => (
-          <div key={i} className="group">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-              <span className="text-foreground font-medium truncate flex-1">{t.name}</span>
-              <button
-                onClick={() => handleRemoveTopic(t.name)}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
-                title="Remove topic"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-            {/* Projects under this topic — secondary */}
-            {t.projects.length > 0 && (
-              <div className="ml-4 mt-0.5 space-y-0.5">
-                {t.projects.map((slug) => (
-                  <Link
-                    key={slug}
-                    href={`/projects/${slug}`}
-                    className="text-[11px] text-muted-foreground/70 hover:text-foreground hover:underline block truncate"
-                  >
-                    → {slug.replace(/-/g, ' ')}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* Completed topics */}
-        {completed.length > 0 && (
-          <div className="space-y-0.5 mt-2 pt-2 border-t border-border/30">
-            {completed.map((t, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground/60">
-                <CheckCircle2 className="w-3 h-3 shrink-0" />
-                <span className="truncate text-xs">{t.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!hasTopicsData && !addingTopic && (
-          <p className="text-xs text-muted-foreground/60">No topics yet</p>
-        )}
-      </div>
 
       {/* Brand — editable */}
       <div className="space-y-2">
@@ -518,17 +395,11 @@ export function ChatFirstDesk() {
   const { state: onboardingState } = usePlatformOnboardingState();
   const [connecting, setConnecting] = useState<string | null>(null);
 
-  // ADR-132: Topics — macro context baskets from onboarding
-  const [topics, setTopics] = useState<Array<{ name: string; projects: string[]; status: string }>>([]);
+  // ADR-132: Project + brand state for contextual action cards
   const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
   const [hasBrand, setHasBrand] = useState(false);
-  const hasTopics = topics.length > 0;
+  const hasProjects = mainProjects.length > 0;
   useEffect(() => {
-    api.topics.get().then((data) => {
-      if (data.exists && data.topics.length > 0) {
-        setTopics(data.topics);
-      }
-    }).catch(() => {});
     api.projects.list().then((data) => {
       setMainProjects(data.projects);
     }).catch(() => {});
@@ -700,12 +571,12 @@ export function ChatFirstDesk() {
   // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
-      id: 'add-topic',
-      label: 'Add a topic',
+      id: 'new-project',
+      label: 'New project',
       icon: Briefcase,
       verb: 'prompt',
       onSelect: () => {
-        setInput('I want to add a new topic to my workspace');
+        setInput('I want to create a new project');
         textareaRef.current?.focus();
       },
     },
@@ -894,14 +765,14 @@ export function ChatFirstDesk() {
               <div className="py-8">
                 {/* ADR-132: Three empty states based on onboarding + work index */}
 
-                {hasTopics ? (
+                {hasProjects ? (
                   /* POST-ONBOARDING: User has work scopes and projects */
                   <>
                     <div className="text-center mb-8">
                       <Briefcase className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                       <h2 className="text-lg font-medium mb-1">Your workspace is ready</h2>
                       <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        {topics.filter(s => s.status === 'active').length} active topic{topics.filter(s => s.status === 'active').length !== 1 ? 's' : ''} with projects set up.
+                        {mainProjects.length} project{mainProjects.length !== 1 ? 's' : ''} set up.
                         {onboardingState === 'no_platforms' ? ' Connect a platform to power your agents.' : ''}
                       </p>
                     </div>
@@ -974,15 +845,15 @@ export function ChatFirstDesk() {
                       {/* 3. Add more topics */}
                       <button
                         onClick={() => {
-                          setInput('I want to add a new topic to my workspace');
+                          setInput('I want to create a new project');
                           textareaRef.current?.focus();
                         }}
                         className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
                       >
                         <Briefcase className="w-5 h-5 shrink-0 text-muted-foreground" />
                         <div>
-                          <span className="text-sm font-medium">Add a topic</span>
-                          <span className="text-xs text-muted-foreground block">Add another area of work to your workspace</span>
+                          <span className="text-sm font-medium">New project</span>
+                          <span className="text-xs text-muted-foreground block">Set up a new project with the right agents</span>
                         </div>
                       </button>
                       <p className="text-xs text-muted-foreground/60 text-center px-1">

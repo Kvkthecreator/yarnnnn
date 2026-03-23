@@ -105,29 +105,20 @@ class BulkImportResponse(BaseModel):
 
 
 class OnboardingStateResponse(BaseModel):
-    """ADR-132: Simplified to work index check. Legacy state fields removed."""
-    has_work_index: bool = False
+    """ADR-132: Check if user has completed onboarding (has any projects)."""
+    has_projects: bool = False
 
 
-# ─── ADR-132: Topics — macro context baskets that drive project scaffolding ──
+# ─── ADR-132: Onboarding — scaffold projects directly ──
 
-class Topic(BaseModel):
+class OnboardingProject(BaseModel):
     name: str
-    lifecycle: str = "persistent"  # 'persistent' | 'bounded'
-    projects: list[str] = []  # list of project_slugs (1:N — one topic can have multiple projects)
-    status: str = "active"  # 'active' | 'completed'
 
 
-class TopicsRequest(BaseModel):
-    structure: str  # 'single' | 'multi'
-    topics: list[Topic]
+class OnboardingRequest(BaseModel):
+    projects: list[OnboardingProject]
     name: Optional[str] = None
-
-
-class TopicsResponse(BaseModel):
-    structure: Optional[str] = None
-    topics: list[Topic] = []
-    exists: bool = False
+    brand_content: Optional[str] = None  # default brand markdown
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,102 +160,38 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
 async def get_onboarding_state(auth: UserClient):
-    """Check if user has completed work-first onboarding (ADR-132).
+    """Check if user has completed onboarding (ADR-132).
 
-    Returns has_work_index: True if /memory/WORK.md exists.
+    Returns has_projects: True if user has any projects.
     Used by auth callback to gate new users to /onboarding.
     """
     try:
-        um = UserMemory(auth.client, auth.user_id)
-        work_content = await um.read("WORK.md")
-        has_work_index = bool(work_content and work_content.strip())
+        result = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq("user_id", auth.user_id)
+            .like("path", "/projects/%/PROJECT.md")
+            .limit(1)
+            .execute()
+        )
+        has_projects = len(result.data or []) > 0
 
         return OnboardingStateResponse(
-            has_work_index=has_work_index,
+            has_projects=has_projects,
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Topics (ADR-132) ────────────────────────────────────────────────────────
 
-def _format_topics_md(structure: str, topics: list[Topic]) -> str:
-    """Format WORK.md from structured topic data."""
-    lines = [
-        "# Topics\n",
-        f"structure: {structure}\n",
-        "## Topics\n",
-    ]
-    for t in topics:
-        lines.append(f"- **{t.name}**")
-        lines.append(f"  - lifecycle: {t.lifecycle}")
-        if t.projects:
-            lines.append(f"  - projects: {', '.join(t.projects)}")
-        lines.append(f"  - status: {t.status}")
-        lines.append("")
-    return "\n".join(lines)
+@router.post("/user/onboarding")
+async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
+    """Onboarding endpoint — scaffold projects from user's declared workstreams (ADR-132).
 
-
-def _parse_topics_md(content: str) -> tuple[Optional[str], list[Topic]]:
-    """Parse WORK.md back into structured topic data.
-
-    Backward compatible: reads both 'project_slug: x' (old) and 'projects: x, y' (new).
-    """
-    import re
-    structure = None
-    topics = []
-
-    struct_match = re.search(r"^structure:\s*(.+)$", content, re.MULTILINE)
-    if struct_match:
-        structure = struct_match.group(1).strip()
-
-    unit_pattern = re.compile(
-        r"- \*\*(.+?)\*\*\n"
-        r"((?:  - .+\n?)*)",
-        re.MULTILINE,
-    )
-    for match in unit_pattern.finditer(content):
-        name = match.group(1)
-        props_text = match.group(2)
-        lifecycle = "persistent"
-        projects: list[str] = []
-        status = "active"
-        for prop_line in props_text.strip().split("\n"):
-            prop_line = prop_line.strip().lstrip("- ")
-            if prop_line.startswith("lifecycle:"):
-                lifecycle = prop_line.split(":", 1)[1].strip()
-            elif prop_line.startswith("projects:"):
-                raw = prop_line.split(":", 1)[1].strip()
-                projects = [p.strip() for p in raw.split(",") if p.strip()]
-            elif prop_line.startswith("project_slug:"):
-                # Backward compat: old format had single project_slug
-                slug = prop_line.split(":", 1)[1].strip()
-                if slug:
-                    projects = [slug]
-            elif prop_line.startswith("status:"):
-                status = prop_line.split(":", 1)[1].strip()
-        topics.append(Topic(
-            name=name, lifecycle=lifecycle,
-            projects=projects, status=status,
-        ))
-    return structure, topics
-
-
-class TopicsSaveResponse(BaseModel):
-    structure: Optional[str] = None
-    topics: list[Topic] = []
-    exists: bool = False
-    projects_created: list[dict] = []
-
-
-@router.post("/user/work", response_model=TopicsSaveResponse)
-async def save_topics(body: TopicsRequest, auth: UserClient):
-    """Save the user's topics and scaffold projects (ADR-132).
-
-    Topics are macro context baskets — each can drive 1..N projects.
-    Called from onboarding page on first setup, and by TP for ongoing updates.
-    Initial scaffold creates 1 project per topic; Composer/TP can add more later.
+    Each project name gets type-inferred (briefer/scout/drafter/etc.) and scaffolded.
+    Called from the /onboarding page. Projects are the workstreams — no separate
+    "topics" layer.
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
@@ -275,138 +202,24 @@ async def save_topics(body: TopicsRequest, auth: UserClient):
             if not profile.get("name"):
                 await um.update_profile({"name": body.name})
 
-        # Scaffold projects for each topic with type inference
+        # Scaffold projects with type inference
         from services.project_registry import scaffold_project, infer_topic_type
         projects_created = []
-        updated_topics = []
 
-        for topic in body.topics:
-            if topic.projects:
-                updated_topics.append(topic)
+        for proj in body.projects:
+            name = proj.name.strip()
+            if not name:
                 continue
 
-            # Infer agent type and lifecycle from topic name
-            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(topic.name)
-            lifecycle = topic.lifecycle if topic.lifecycle != "persistent" else inferred_lifecycle
-            type_key = "bounded_deliverable" if lifecycle == "bounded" else "workspace"
+            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(name)
+            type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
 
             result = await scaffold_project(
                 client=auth.client,
                 user_id=auth.user_id,
                 type_key=type_key,
-                scope_name=topic.name,
+                scope_name=name,
                 execute_now=False,
-                # Override contributor template with inferred type
-                contributors_override=[{
-                    "title_template": f"{{scope_name}} {inferred_type.title()}",
-                    "role": inferred_type,
-                    "scope": "cross_platform",
-                    "frequency": "weekly" if lifecycle == "persistent" else "on_demand",
-                    "sources_from": "work_unit",
-                }] if inferred_type != "briefer" else None,  # briefer is already the default
-                objective_override={
-                    "deliverable": f"{topic.name} {'deliverable' if lifecycle == 'bounded' else 'update'}",
-                    "audience": "You",
-                    "format": "email",
-                    "purpose": inferred_purpose,
-                } if inferred_purpose else None,
-            )
-
-            if result.get("success"):
-                updated_topics.append(Topic(
-                    name=topic.name,
-                    lifecycle=topic.lifecycle,
-                    projects=[result["project_slug"]],
-                    status=topic.status,
-                ))
-                projects_created.append({
-                    "project_slug": result["project_slug"],
-                    "title": result["title"],
-                    "type_key": type_key,
-                    "topic_name": topic.name,
-                })
-                logger.info(f"[TOPICS] Scaffolded project '{result['project_slug']}' for topic '{topic.name}'")
-            else:
-                updated_topics.append(topic)
-                logger.warning(f"[TOPICS] Scaffold failed for topic '{topic.name}': {result.get('message')}")
-
-        # Write WORK.md with projects backfilled
-        content = _format_topics_md(body.structure, updated_topics)
-        success = await um.write("WORK.md", content, summary="Topics (ADR-132)")
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to write WORK.md")
-
-        return TopicsSaveResponse(
-            structure=body.structure,
-            topics=updated_topics,
-            exists=True,
-            projects_created=projects_created,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/user/work", response_model=TopicsResponse)
-async def get_topics(auth: UserClient):
-    """Get the user's topics (ADR-132)."""
-    try:
-        um = UserMemory(auth.client, auth.user_id)
-        content = await um.read("WORK.md")
-        if not content or not content.strip():
-            return TopicsResponse(exists=False)
-
-        structure, topics = _parse_topics_md(content)
-        return TopicsResponse(
-            structure=structure,
-            topics=topics,
-            exists=True,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class TopicAction(BaseModel):
-    """Single topic mutation."""
-    action: str  # 'add' | 'rename' | 'remove' | 'complete'
-    name: str
-    new_name: Optional[str] = None  # for rename
-
-
-@router.patch("/user/work")
-async def update_topic(body: TopicAction, auth: UserClient):
-    """Mutate a single topic in the work index.
-
-    Actions: add (creates topic + scaffolds project), rename, remove, complete.
-    """
-    try:
-        um = UserMemory(auth.client, auth.user_id)
-        content = await um.read("WORK.md")
-
-        if not content or not content.strip():
-            # No work index yet — create one for 'add' action
-            if body.action != "add":
-                raise HTTPException(status_code=404, detail="No topics exist yet")
-            structure = "multi"
-            topics = []
-        else:
-            structure, topics = _parse_topics_md(content)
-            structure = structure or "multi"
-
-        if body.action == "add":
-            # Check for duplicate
-            if any(t.name.lower() == body.name.lower() for t in topics):
-                raise HTTPException(status_code=409, detail=f"Topic '{body.name}' already exists")
-
-            # Infer type and scaffold
-            from services.project_registry import scaffold_project, infer_topic_type
-            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(body.name)
-            type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
-
-            result = await scaffold_project(
-                client=auth.client, user_id=auth.user_id,
-                type_key=type_key, scope_name=body.name, execute_now=False,
                 contributors_override=[{
                     "title_template": f"{{scope_name}} {inferred_type.title()}",
                     "role": inferred_type,
@@ -415,45 +228,33 @@ async def update_topic(body: TopicAction, auth: UserClient):
                     "sources_from": "work_unit",
                 }] if inferred_type != "briefer" else None,
                 objective_override={
-                    "deliverable": f"{body.name} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
-                    "audience": "You", "format": "email", "purpose": inferred_purpose,
+                    "deliverable": f"{name} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
+                    "audience": "You",
+                    "format": "email",
+                    "purpose": inferred_purpose,
                 } if inferred_purpose else None,
             )
 
-            projects = [result["project_slug"]] if result.get("success") else []
-            topics.append(Topic(name=body.name, lifecycle=inferred_lifecycle, projects=projects, status="active"))
+            if result.get("success"):
+                slug = result["project_slug"]
+                projects_created.append({
+                    "project_slug": slug,
+                    "title": result["title"],
+                    "type_key": type_key,
+                })
+                # Seed BRAND.md into project if brand content provided
+                if body.brand_content:
+                    try:
+                        from services.workspace import ProjectWorkspace
+                        pw = ProjectWorkspace(auth.client, auth.user_id, slug)
+                        await pw.write("BRAND.md", body.brand_content, summary="Project brand")
+                    except Exception as e:
+                        logger.warning(f"[ONBOARDING] Brand seed failed for '{slug}': {e}")
+                logger.info(f"[ONBOARDING] Scaffolded '{slug}' from '{name}'")
+            else:
+                logger.warning(f"[ONBOARDING] Scaffold failed for '{name}': {result.get('message')}")
 
-        elif body.action == "rename":
-            if not body.new_name:
-                raise HTTPException(status_code=400, detail="new_name required for rename")
-            found = False
-            for t in topics:
-                if t.name.lower() == body.name.lower():
-                    t.name = body.new_name.strip()
-                    found = True
-                    break
-            if not found:
-                raise HTTPException(status_code=404, detail=f"Topic '{body.name}' not found")
-
-        elif body.action == "remove":
-            topics = [t for t in topics if t.name.lower() != body.name.lower()]
-
-        elif body.action == "complete":
-            for t in topics:
-                if t.name.lower() == body.name.lower():
-                    t.status = "completed"
-                    break
-
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
-
-        # Write updated WORK.md
-        new_content = _format_topics_md(structure, topics)
-        await um.write("WORK.md", new_content, summary="Topics (ADR-132)")
-
-        return TopicsResponse(structure=structure, topics=topics, exists=True)
-    except HTTPException:
-        raise
+        return {"projects_created": projects_created, "count": len(projects_created)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

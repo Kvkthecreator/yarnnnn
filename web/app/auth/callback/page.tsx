@@ -50,7 +50,7 @@ function CallbackHandler() {
           try {
             setStatus("Setting up...");
             const onboardingState = await api.onboarding.getState();
-            if (!onboardingState.has_work_index) {
+            if (!onboardingState.has_projects) {
               window.location.href = ONBOARDING_ROUTE;
               return;
             }
@@ -74,7 +74,7 @@ function CallbackHandler() {
         if (next === HOME_ROUTE) {
           try {
             const onboardingState = await api.onboarding.getState();
-            if (!onboardingState.has_work_index) {
+            if (!onboardingState.has_projects) {
               window.location.href = ONBOARDING_ROUTE;
               return;
             }

@@ -90,16 +90,10 @@ async def build_working_memory(
         _get_user_shared_files_sync, user_id, _make_client()
     )
 
-    # ADR-132: Read work index alongside other memory files
-    work_index = await asyncio.to_thread(
-        _get_work_index_sync, user_id, _make_client()
-    )
-
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
-        "work_index": work_index,
         "agents": agents,
         "platforms": platforms,
         "recent_sessions": sessions,
@@ -726,29 +720,8 @@ def format_for_prompt(working_memory: dict) -> str:
             for p in pref.get("preferences", []):
                 lines.append(f"- Prefers: {p}")
 
-    # ADR-132: Topics — macro context baskets that drive project scaffolding
-    work_index = working_memory.get("work_index")
-    if work_index:
-        active = [t for t in work_index if t.get("status") == "active"]
-        completed = [t for t in work_index if t.get("status") == "completed"]
-        lines.append("\n### Your topics")
-        lines.append("The user's topics — each is a macro context basket that can drive one or more projects.")
-        for t in active:
-            projects = t.get("projects") or []
-            slug = t.get("project_slug")  # backward compat
-            if projects:
-                proj_links = ", ".join(f"/projects/{p}" for p in projects)
-                lines.append(f"- **{t['name']}** → {proj_links}")
-            elif slug:
-                lines.append(f"- **{t['name']}** → /projects/{slug}")
-            else:
-                lines.append(f"- **{t['name']}** (no project yet)")
-        if completed:
-            lines.append(f"- _Completed: {', '.join(t['name'] for t in completed)}_")
-        has_no_platforms = not working_memory.get("platforms")
-        if has_no_platforms:
-            lines.append("\n_No platforms connected yet. Suggest connecting Slack or Notion to give agents real data._")
-        lines.append("_To add topics or projects, the user can ask here. Click into a project to refine its objective._")
+    # (Topics layer removed — projects are the workstreams directly.
+    #  Active projects already shown in "Active agents" section above.)
 
     # Known facts / instructions
     known = working_memory.get("known", [])

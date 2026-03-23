@@ -112,26 +112,24 @@ export default function OnboardingPage() {
 
     setLoading(true);
     try {
-      // Save topics + scaffold projects
-      await api.topics.save({
-        structure,
-        topics: validScopes.map((s) => ({
-          name: s.name.trim(),
-          lifecycle: 'persistent' as const,
-          projects: [],
-          status: 'active' as const,
-        })),
-        name: name.trim() || undefined,
-      });
-
-      // Save brand if provided (non-fatal — brand is optional)
+      // Build brand content if provided
+      let brandContent: string | undefined;
       if (companyName.trim() || brandTone.trim()) {
         const brandLines = [`# Brand: ${companyName.trim() || 'Default'}`, ''];
         if (brandTone.trim()) {
           brandLines.push('## Tone', brandTone.trim(), '');
         }
-        await api.brand.save(brandLines.join('\n')).catch(() => null);
+        brandContent = brandLines.join('\n');
+        // Also save as default brand template
+        await api.brand.save(brandContent).catch(() => null);
       }
+
+      // Scaffold projects — brand gets seeded into each project folder
+      await api.onboardingScaffold.save(
+        validScopes.map((s) => ({ name: s.name.trim() })),
+        name.trim() || undefined,
+        brandContent,
+      );
 
       router.push(HOME_ROUTE);
     } catch (err) {

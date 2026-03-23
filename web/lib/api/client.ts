@@ -22,8 +22,6 @@ import type {
   KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
-  TopicsRequest,
-  TopicsResponse,
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
@@ -255,35 +253,13 @@ export const api = {
       request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
   },
 
-  // Topics (ADR-132) — macro context baskets that drive project scaffolding
-  topics: {
-    get: () =>
-      request<TopicsResponse>("/api/memory/user/work"),
-    save: (data: TopicsRequest) =>
-      request<TopicsResponse>("/api/memory/user/work", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    add: (name: string) =>
-      request<TopicsResponse>("/api/memory/user/work", {
-        method: "PATCH",
-        body: JSON.stringify({ action: "add", name }),
-      }),
-    rename: (name: string, newName: string) =>
-      request<TopicsResponse>("/api/memory/user/work", {
-        method: "PATCH",
-        body: JSON.stringify({ action: "rename", name, new_name: newName }),
-      }),
-    remove: (name: string) =>
-      request<TopicsResponse>("/api/memory/user/work", {
-        method: "PATCH",
-        body: JSON.stringify({ action: "remove", name }),
-      }),
-    complete: (name: string) =>
-      request<TopicsResponse>("/api/memory/user/work", {
-        method: "PATCH",
-        body: JSON.stringify({ action: "complete", name }),
-      }),
+  // Onboarding (ADR-132) — scaffold projects from declared workstreams
+  onboardingScaffold: {
+    save: (projects: Array<{ name: string }>, name?: string, brandContent?: string) =>
+      request<{ projects_created: Array<{ project_slug: string; title: string; type_key: string }>; count: number }>(
+        "/api/memory/user/onboarding",
+        { method: "POST", body: JSON.stringify({ projects, name, brand_content: brandContent }) },
+      ),
   },
 
   // Brand — user/topic-level brand context

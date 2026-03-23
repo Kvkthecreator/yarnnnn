@@ -36,7 +36,7 @@ import ReactMarkdown from 'react-markdown';
 // Types
 // =============================================================================
 
-type Section = 'entries' | 'profile' | 'work' | 'brand';
+type Section = 'entries' | 'profile' | 'brand';
 
 interface Profile {
   name?: string;
@@ -88,7 +88,6 @@ const ALL_PLATFORMS = ['slack', 'notion'] as const;
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-  { id: 'work', label: 'Topics', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'brand', label: 'Brand', icon: <Palette className="w-4 h-4" /> },
 ];
 
@@ -923,9 +922,6 @@ export function MemorySection() {
           loading={false}
           onUpdate={handleProfileUpdate}
         />
-      )}
-      {activeSection === 'work' && (
-        <TopicsSection />
       )}
       {activeSection === 'brand' && (
         <BrandSection />

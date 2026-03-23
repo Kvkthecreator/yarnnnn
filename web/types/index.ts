@@ -177,30 +177,12 @@ export interface KnowledgeSummaryResponse {
   }>;
 }
 
-// Onboarding State (ADR-132: simplified to work index check)
+// Onboarding State (ADR-132: check if user has any projects)
 export interface OnboardingStateResponse {
-  has_work_index: boolean;
+  has_projects: boolean;
 }
 
-// Topics (ADR-132) — macro context baskets that drive project scaffolding
-export interface Topic {
-  name: string;
-  lifecycle: "persistent" | "bounded";
-  projects: string[];  // list of project_slugs (1:N)
-  status: "active" | "completed";
-}
-
-export interface TopicsRequest {
-  structure: "single" | "multi";
-  topics: Topic[];
-  name?: string;
-}
-
-export interface TopicsResponse {
-  structure: string | null;
-  topics: Topic[];
-  exists: boolean;
-}
+// (Topics layer removed — projects are the workstreams directly)
 
 // API Response types
 export interface DeleteResponse {

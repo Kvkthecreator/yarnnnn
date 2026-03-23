@@ -609,7 +609,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "projects": projects_health,  # ADR-120 Phase 1
         "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
         "pulse_health": pulse_health,  # ADR-126: agent self-reported health from pulse events
-        "work_index": _get_work_index(client, user_id),  # ADR-132: user's declared work scopes
+        # (work_index removed — topics layer dissolved, projects are workstreams directly)
     }
 
 
@@ -657,15 +657,8 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
         agent_refs = list(set(e.get("event_ref", "?") for e in escalations))[:3]
         return True, f"pulse_escalation: {len(escalations)} agent(s) escalated in last 24h: {agent_refs}"
 
-    # ADR-132: Topics without projects — user declared topics but scaffolding failed or was skipped
-    work_index = assessment.get("work_index")
-    if work_index:
-        unscaffolded = [
-            t["name"] for t in work_index
-            if t.get("status") == "active" and not t.get("projects") and not t.get("project_slug")
-        ]
-        if unscaffolded:
-            return True, f"topic_gap: {len(unscaffolded)} declared topic(s) without projects: {unscaffolded[:3]}"
+    # (Topics layer removed — projects are the workstreams directly.
+    #  Coverage gap below handles the equivalent check.)
 
     # Coverage gap: platform connected but no project covering it (ADR-122)
     gaps = assessment["coverage"]["platforms_without_coverage"]
