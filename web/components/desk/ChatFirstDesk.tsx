@@ -204,25 +204,28 @@ function ProjectsPanel() {
 }
 
 // =============================================================================
-// Panel: Topics (ADR-132 — macro context baskets from onboarding)
+// (TopicsPanel removed — absorbed into UserContextPanel)
+
+// =============================================================================
+// =============================================================================
+// Panel: Context (topics + brand — user identity & intent)
 // =============================================================================
 
-function TopicsPanel() {
+function UserContextPanel() {
   const [topicsList, setTopicsList] = useState<Array<{ name: string; lifecycle: string; projects: string[]; status: string }>>([]);
-  const [loading, setLoading] = useState(true);
+  const [brandContent, setBrandContent] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       api.topics.get(),
+      api.brand.get(),
       api.profile.get().catch(() => null),
-    ]).then(([data, profile]) => {
-      if (data.exists) {
-        setTopicsList(data.topics);
-      }
-      if (profile?.name) {
-        setProfileName(profile.name);
-      }
+    ]).then(([topicsData, brandData, profile]) => {
+      if (topicsData.exists) setTopicsList(topicsData.topics);
+      if (brandData.exists) setBrandContent(brandData.content);
+      if (profile?.name) setProfileName(profile.name);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -235,11 +238,16 @@ function TopicsPanel() {
     );
   }
 
-  if (topicsList.length === 0) {
+  const active = topicsList.filter(t => t.status === 'active');
+  const completed = topicsList.filter(t => t.status === 'completed');
+  const hasTopicsData = topicsList.length > 0;
+  const hasBrandData = !!brandContent;
+
+  if (!hasTopicsData && !hasBrandData) {
     return (
       <div className="p-4 text-center">
         <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No topics defined</p>
+        <p className="text-sm text-muted-foreground">No context yet</p>
         <p className="text-xs text-muted-foreground/70 mt-1">
           Tell your orchestrator what you&apos;re working on
         </p>
@@ -247,53 +255,68 @@ function TopicsPanel() {
     );
   }
 
-  const active = topicsList.filter(t => t.status === 'active');
-  const completed = topicsList.filter(t => t.status === 'completed');
-
   return (
-    <div className="p-3 space-y-4">
+    <div className="p-3 space-y-5">
+      {/* Profile header */}
       {profileName && (
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{profileName}</span>
-          <span> &middot; {active.length} active topic{active.length !== 1 ? 's' : ''}</span>
+          {active.length > 0 && (
+            <span> &middot; {active.length} topic{active.length !== 1 ? 's' : ''}</span>
+          )}
         </div>
       )}
 
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</p>
-        {active.map((t, i) => (
-          <div key={i} className="space-y-0.5">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-              <span className="text-foreground font-medium truncate">{t.name}</span>
-            </div>
-            {/* Show projects under this topic */}
-            {t.projects.length > 0 && (
-              <div className="ml-4 space-y-0.5">
-                {t.projects.map((slug) => (
-                  <Link
-                    key={slug}
-                    href={`/projects/${slug}`}
-                    className="text-xs text-muted-foreground hover:text-foreground hover:underline block truncate"
-                  >
-                    {slug.replace(/-/g, ' ')}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {completed.length > 0 && (
+      {/* Topics */}
+      {hasTopicsData && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</p>
-          {completed.map((t, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{t.name}</span>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Topics</p>
+          {active.map((t, i) => (
+            <div key={i} className="space-y-0.5">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                <span className="text-foreground font-medium truncate">{t.name}</span>
+              </div>
+              {t.projects.length > 0 && (
+                <div className="ml-4 space-y-0.5">
+                  {t.projects.map((slug) => (
+                    <Link
+                      key={slug}
+                      href={`/projects/${slug}`}
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline block truncate"
+                    >
+                      {slug.replace(/-/g, ' ')}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
+          {completed.length > 0 && (
+            <div className="space-y-0.5 mt-2">
+              {completed.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{t.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Brand */}
+      {hasBrandData && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand</p>
+          <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
+            <ReactMarkdown>{brandContent}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+      {!hasBrandData && hasTopicsData && (
+        <div className="text-xs text-muted-foreground/60">
+          No brand set up yet — tell your orchestrator about your brand.
         </div>
       )}
     </div>
@@ -301,55 +324,10 @@ function TopicsPanel() {
 }
 
 // =============================================================================
-// =============================================================================
-// Panel: Brand (user brand context)
-// =============================================================================
-
-function BrandPanel() {
-  const [brandContent, setBrandContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.brand.get().then((data) => {
-      if (data.exists) setBrandContent(data.content);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!brandContent) {
-    return (
-      <div className="p-4 text-center">
-        <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No brand defined</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Tell your orchestrator about your brand — colors, tone, logo
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-3">
-      <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-        <ReactMarkdown>{brandContent}</ReactMarkdown>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// Panel: Context (platform sync status)
+// Panel: Platforms (platform sync status)
 // =============================================================================
 
-function ContextPanel() {
+function PlatformsPanel() {
   return (
     <div className="overflow-y-auto min-h-0">
       <PlatformSyncStatus />
@@ -693,9 +671,9 @@ export function ChatFirstDesk() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'topics',
-      label: 'Topics',
-      content: <TopicsPanel />,
+      id: 'context',
+      label: 'Context',
+      content: <UserContextPanel />,
     },
     {
       id: 'projects',
@@ -703,14 +681,9 @@ export function ChatFirstDesk() {
       content: <ProjectsPanel />,
     },
     {
-      id: 'brand',
-      label: 'Brand',
-      content: <BrandPanel />,
-    },
-    {
       id: 'platforms',
       label: 'Platforms',
-      content: <ContextPanel />,
+      content: <PlatformsPanel />,
     },
   ];
 
