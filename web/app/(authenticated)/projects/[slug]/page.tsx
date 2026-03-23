@@ -1936,6 +1936,22 @@ export default function ProjectDetailPage() {
     loadProject();
   }, [loadProject]);
 
+  // ADR-134: Poll for live updates (activities, agent state) every 10s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Lightweight refresh — just activity + project state
+      Promise.all([
+        api.projects.get(slug).catch(() => null),
+        api.projects.getActivity(slug, 30).catch(() => null),
+      ]).then(([detail, activityData]) => {
+        if (detail) setProject(detail);
+        if (activityData) setActivities(activityData.activities);
+        if (detail?.project?.objective) setObjective(detail.project.objective);
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [slug]);
+
   const handleArchive = async () => {
     if (!confirm('Archive this project? This will hide it from the active list.')) return;
     setArchiving(true);

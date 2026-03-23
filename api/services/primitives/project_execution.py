@@ -291,13 +291,43 @@ async def handle_request_contributor_advance(auth: Any, input: dict) -> dict:
 
         logger.info(f"[PM] Advanced contributor {agent_slug} for project {project_slug}: {reason}")
 
+        # ADR-133: Trigger inline execution — don't wait for scheduler cron
+        import asyncio
+        try:
+            # Fetch full agent record for process_agent
+            full_agent = auth.client.table("agents").select("*").eq("id", target_agent["id"]).single().execute()
+            if full_agent.data:
+                from services.agent_pulse import run_agent_pulse
+                from jobs.unified_scheduler import process_agent, calculate_next_pulse_at
+
+                async def _run_inline():
+                    try:
+                        from services.supabase import get_service_client
+                        svc = get_service_client()
+                        decision = await run_agent_pulse(svc, full_agent.data)
+                        if decision.action == "generate":
+                            await process_agent(svc, full_agent.data)
+                        # Update next_pulse_at after execution
+                        next_pulse = calculate_next_pulse_at(full_agent.data, decision)
+                        svc.table("agents").update({
+                            "next_pulse_at": next_pulse.isoformat(),
+                        }).eq("id", target_agent["id"]).execute()
+                        logger.info(f"[PM] Inline execution complete for {agent_slug}: {decision.action}")
+                    except Exception as e:
+                        logger.error(f"[PM] Inline execution failed for {agent_slug}: {e}")
+
+                asyncio.create_task(_run_inline())
+                logger.info(f"[PM] Triggered inline execution for {agent_slug}")
+        except Exception as e:
+            logger.warning(f"[PM] Inline trigger failed (will fall back to scheduler): {e}")
+
         return {
             "success": True,
             "agent_slug": agent_slug,
             "agent_id": target_agent["id"],
             "next_pulse_at": now,
             "reason": reason,
-            "message": f"Advanced {agent_slug}'s schedule to now. Reason: {reason}",
+            "message": f"Advanced {agent_slug} — executing now. Reason: {reason}",
         }
 
     except Exception as e:
