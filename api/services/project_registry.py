@@ -201,17 +201,23 @@ def get_project_type(type_key: str) -> Optional[dict]:
 # Heuristic keywords for lifecycle classification
 _BOUNDED_KEYWORDS = {
     "deck", "report", "presentation", "memo", "document", "proposal",
-    "review", "audit", "assessment", "analysis", "board", "pitch",
+    "review", "audit", "assessment", "board", "pitch",
     "q1", "q2", "q3", "q4", "fundrais", "launch", "event",
 }
 
 # Heuristic keywords for agent type inference
+# Order matters — more specific signals first, broader signals last
 _TYPE_SIGNALS: list[tuple[set[str], str, str]] = [
-    # (keywords, agent_type, objective_verb)
-    ({"competitor", "competitive", "market", "watch", "track", "monitor", "scout", "intel"},
-     "scout", "Track and surface intelligence on"),
+    # Monitor first — "monitoring" is very specific intent
+    ({"alert", "notify", "flag", "escalat", "watch for", "monitoring"},
+     "monitor", "Watch for changes and alert on"),
+    # Research before scout — "research" is explicit intent
     ({"research", "investigate", "analyze", "deep dive", "study"},
      "researcher", "Research and produce analysis on"),
+    # Scout — competitive/market intelligence (without "research" which is handled above)
+    ({"competitor", "competitive", "scout", "intel", "landscape"},
+     "scout", "Track and surface intelligence on"),
+    # Drafter — producing specific deliverables
     ({"draft", "write", "create", "produce", "prepare", "deck", "report", "memo", "pitch", "presentation", "document"},
      "drafter", "Produce deliverables for"),
     ({"metric", "data", "number", "kpi", "dashboard", "trend", "analytics"},
@@ -220,8 +226,7 @@ _TYPE_SIGNALS: list[tuple[set[str], str, str]] = [
      "writer", "Craft communications for"),
     ({"plan", "agenda", "meeting", "follow-up", "action item", "schedule"},
      "planner", "Prepare plans and agendas for"),
-    ({"alert", "notify", "flag", "escalat", "watch for"},
-     "monitor", "Watch for changes and alert on"),
+    # (monitor handled first in signal list above)
 ]
 
 
