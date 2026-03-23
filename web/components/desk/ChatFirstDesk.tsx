@@ -585,6 +585,7 @@ export function ChatFirstDesk() {
 
   const identityLabel = activeCommand ? formatCommandName(activeCommand) : 'Orchestrator';
 
+  // ADR-133: Platforms moved to Settings (infrastructure, not daily workspace concern)
   const panelTabs: WorkspacePanelTab[] = [
     {
       id: 'projects',
@@ -595,11 +596,6 @@ export function ChatFirstDesk() {
       id: 'context',
       label: 'Context',
       content: <ContextPanel />,
-    },
-    {
-      id: 'platforms',
-      label: 'Platforms',
-      content: <PlatformsPanel />,
     },
   ];
 
@@ -709,40 +705,9 @@ export function ChatFirstDesk() {
                       <h2 className="text-lg font-medium mb-1">Your workspace is ready</h2>
                       <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                         {mainProjects.length} project{mainProjects.length !== 1 ? 's' : ''} set up.
-                        {onboardingState === 'no_platforms' ? ' Connect a platform to power your agents.' : ''}
                       </p>
                     </div>
                     <div className="max-w-md mx-auto space-y-3">
-                      {/* Show platform connect if no platforms yet */}
-                      {onboardingState === 'no_platforms' && (
-                        <>
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connect a platform to enrich your projects</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            {(['slack', 'notion'] as const).map((platform) => (
-                              <button
-                                key={platform}
-                                onClick={() => handleConnect(platform)}
-                                disabled={connecting !== null}
-                                className={cn(
-                                  "flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left",
-                                  connecting === platform && "opacity-70",
-                                )}
-                              >
-                                {connecting === platform
-                                  ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                                  : getPlatformIcon(platform, 'w-5 h-5')
-                                }
-                                <span className="text-sm font-medium capitalize">{platform}</span>
-                              </button>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-3 py-1">
-                            <div className="flex-1 border-t border-border" />
-                            <span className="text-xs text-muted-foreground">or</span>
-                            <div className="flex-1 border-t border-border" />
-                          </div>
-                        </>
-                      )}
                       {/* Contextual action cards — priority-ordered */}
                       {/* 1. Objective gap — refine project with boilerplate objective */}
                       {(() => {
@@ -782,41 +747,16 @@ export function ChatFirstDesk() {
                     </div>
                   </>
                 ) : onboardingState === 'no_platforms' ? (
-                  /* COLD START: No work index, no platforms */
+                  /* COLD START: No projects */
                   <>
                     <div className="text-center mb-8">
                       <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                       <h2 className="text-lg font-medium mb-1">Welcome to YARNNN</h2>
                       <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        Connect a work platform to get started, or create a project from scratch.
+                        Tell me what you&apos;re working on and I&apos;ll set up the right team.
                       </p>
                     </div>
                     <div className="max-w-md mx-auto space-y-3">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connect a platform</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {(['slack', 'notion'] as const).map((platform) => (
-                          <button
-                            key={platform}
-                            onClick={() => handleConnect(platform)}
-                            disabled={connecting !== null}
-                            className={cn(
-                              "flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left",
-                              connecting === platform && "opacity-70",
-                            )}
-                          >
-                            {connecting === platform
-                              ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                              : getPlatformIcon(platform, 'w-5 h-5')
-                            }
-                            <span className="text-sm font-medium capitalize">{platform}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-3 py-1">
-                        <div className="flex-1 border-t border-border" />
-                        <span className="text-xs text-muted-foreground">or</span>
-                        <div className="flex-1 border-t border-border" />
-                      </div>
                       <button
                         onClick={() => {
                           setInput(NEW_PROJECT_PROMPT);
@@ -824,12 +764,10 @@ export function ChatFirstDesk() {
                         }}
                         className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
                       >
-                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
-                          <Command className="w-full h-full" />
-                        </span>
+                        <Briefcase className="w-5 h-5 shrink-0 text-muted-foreground" />
                         <div>
                           <span className="text-sm font-medium">New Project</span>
-                          <span className="text-xs text-muted-foreground block">Start a custom project from scratch</span>
+                          <span className="text-xs text-muted-foreground block">Create a project with the right agents</span>
                         </div>
                       </button>
                     </div>

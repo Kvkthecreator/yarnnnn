@@ -29,63 +29,11 @@ logger = logging.getLogger(__name__)
 
 PROJECT_TYPE_REGISTRY: dict[str, dict] = {
 
-    # ── Platform digest types (1:1 with platform, uniqueness enforced) ──
+    # Platform-specific types DELETED — platforms are infrastructure, not project types.
+    # Bootstrap uses "workspace" type with briefer agent for platform-connected projects.
+    # ADR-133: perception agents (briefer, monitor) bridge external data into projects.
 
-    "slack_digest": {
-        "display_name": "Slack",
-        "category": "platform",
-        "platform": "slack",
-        "description": "Daily recap of Slack activity across connected channels.",
-        "objective": {
-            "deliverable": "Daily Slack recap",
-            "audience": "You",
-            "format": "email",
-            "purpose": "Stay informed on team activity without reading every message",
-        },
-        "contributors": [
-            {
-                "title_template": "Slack Briefer",
-                "role": "briefer",
-                "scope": "platform",
-                "frequency": "daily",
-                "sources_from": "platform",
-            },
-        ],
-        "pm": True,
-        "assembly_spec": "Coordinate Slack digest output and deliver to user.",
-        "delivery_default": {"platform": "email"},
-        "version": "2026-03-20",
-    },
-
-    # ADR-131: gmail_digest removed (Gmail sunset)
-
-    "notion_digest": {
-        "display_name": "Notion",
-        "category": "platform",
-        "platform": "notion",
-        "description": "Daily recap of Notion activity across connected pages.",
-        "objective": {
-            "deliverable": "Daily Notion recap",
-            "audience": "You",
-            "format": "email",
-            "purpose": "Track workspace changes without visiting every page",
-        },
-        "contributors": [
-            {
-                "title_template": "Notion Briefer",
-                "role": "briefer",
-                "scope": "platform",
-                "frequency": "daily",
-                "sources_from": "platform",
-            },
-        ],
-        "pm": True,
-        "assembly_spec": "Coordinate Notion digest output and deliver to user.",
-        "delivery_default": {"platform": "email"},
-        "version": "2026-03-20",
-    },
-
-    # ── Work-scoped types (ADR-132 — scaffolded from user's work description) ──
+    # ── Project types ──
 
     "workspace": {
         "display_name": "Workspace",
@@ -142,45 +90,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "version": "2026-03-23",
     },
 
-    # ── Multi-agent project types ──
-
-    "cross_platform_synthesis": {
-        "display_name": "Cross-Platform Insights",
-        "category": "synthesis",
-        "platform": None,
-        "description": "Weekly synthesis across multiple platforms — patterns, themes, action items.",
-        "objective": {
-            "deliverable": "Weekly cross-platform insights report",
-            "audience": "You",
-            "format": "pdf",
-            "purpose": "See patterns across platforms that individual digests miss",
-        },
-        "contributors": [
-            {
-                "title_template": "Cross-Platform Analyst",
-                "role": "analyst",
-                "scope": "cross_platform",
-                "frequency": "weekly",
-                "sources_from": "all_platforms",
-            },
-        ],
-        "pm": True,
-        "assembly_spec": "Synthesize themes across all contributor outputs into a cohesive report.",
-        "delivery_default": {"platform": "email"},
-        "version": "2026-03-20",
-    },
-
-    "custom": {
-        "display_name": "Custom Project",
-        "category": "custom",
-        "platform": None,
-        "description": "User-defined project with custom agents and delivery.",
-        "objective": None,
-        "contributors": [],
-        "pm": True,
-        "assembly_spec": None,
-        "delivery_default": {"platform": "email"},
-        "version": "2026-03-20",
+    # cross_platform_synthesis + custom DELETED — subsumed by workspace type
+    # All projects use workspace (persistent) or bounded_deliverable (finite)
     },
 }
 

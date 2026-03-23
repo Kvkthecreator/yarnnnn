@@ -34,13 +34,20 @@ from typing import Any, Union
 # Type determines: capabilities, prompt template, pulse cadence, description.
 # Personification (title, scoping) comes from instructions + project context.
 #
-# v2 — 8 user-facing types + PM infrastructure type.
+# v3 — Three categories:
+#   PERCEPTION (non-recursive): bridge external data into project context
+#     briefer, monitor, scout — read external (platforms, web), write internal
+#   PRODUCTION (recursive, PM-orchestrated): work within project loop
+#     researcher, drafter, analyst, writer, planner — read internal, produce output
+#   COORDINATION (orchestrates recursion):
+#     pm — reads all contributions, steers, assembles, delivers
 
 AGENT_TYPES: dict[str, dict[str, Any]] = {
 
     # ── User-facing types (the product catalog) ──
 
     "briefer": {
+        "category": "perception",
         "display_name": "Briefer",
         "tagline": "Keeps you briefed on what's happening",
         "capabilities": [
@@ -53,6 +60,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "monitor": {
+        "category": "perception",
         "display_name": "Monitor",
         "tagline": "Watches for what matters and alerts you",
         "capabilities": [
@@ -66,10 +74,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "researcher": {
+        "category": "production",
         "display_name": "Researcher",
         "tagline": "Investigates topics and produces analysis",
         "capabilities": [
-            "read_platforms", "web_search", "investigate",
+            "search_knowledge", "web_search", "investigate",
             "produce_markdown", "chart", "mermaid", "image", "compose_html",
         ],
         "description": "Deep investigation on focused topics. Uses workspace context + web search. "
@@ -79,10 +88,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "drafter": {
+        "category": "production",
         "display_name": "Drafter",
         "tagline": "Produces deliverables and documents for you",
         "capabilities": [
-            "read_platforms", "produce_markdown",
+            "search_knowledge", "produce_markdown",
             "chart", "mermaid", "image", "video_render", "compose_html",
         ],
         "description": "Creates specific work products: reports, decks, client updates, "
@@ -92,10 +102,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "analyst": {
+        "category": "production",
         "display_name": "Analyst",
         "tagline": "Tracks metrics and surfaces patterns",
         "capabilities": [
-            "read_platforms", "data_analysis", "cross_reference",
+            "search_knowledge", "data_analysis", "cross_reference",
             "chart", "mermaid", "produce_markdown", "compose_html",
         ],
         "description": "Tracks patterns over time. Data analysis, trend identification, "
@@ -105,10 +116,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "writer": {
+        "category": "production",
         "display_name": "Writer",
         "tagline": "Crafts communications and content",
         "capabilities": [
-            "read_platforms", "produce_markdown",
+            "search_knowledge", "produce_markdown",
             "image", "video_render", "compose_html",
         ],
         "description": "Produces external-facing content: newsletters, investor updates, "
@@ -118,10 +130,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "planner": {
+        "category": "production",
         "display_name": "Planner",
         "tagline": "Prepares plans, agendas, and follow-ups",
         "capabilities": [
-            "read_platforms", "produce_markdown", "compose_html",
+            "search_knowledge", "produce_markdown", "compose_html",
         ],
         "description": "Event-driven or recurring planning: meeting prep, action item tracking, "
                        "project planning, follow-up reminders. Reads platform context for prep.",
@@ -130,10 +143,11 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "scout": {
+        "category": "perception",
         "display_name": "Scout",
         "tagline": "Tracks competitors and market movements",
         "capabilities": [
-            "read_platforms", "web_search",
+            "web_search", "search_knowledge",
             "produce_markdown", "chart", "image", "compose_html",
         ],
         "description": "Continuous competitive and market monitoring. Tracks external sources, "
@@ -145,6 +159,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     # ── Infrastructure type (not user-facing) ──
 
     "pm": {
+        "category": "coordination",
         "display_name": "Project Manager",
         "tagline": "Coordinates your project team",
         "capabilities": [
@@ -194,6 +209,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Tool-backed (internal primitives) --
     "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch"},
     "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadWorkspace"},
+    "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge"},
 
     # -- Asset production (compute runtimes) --
     "chart":   {

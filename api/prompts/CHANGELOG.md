@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.14] - ADR-133: Perception/Production/Coordination agent model
+
+### Changed
+- `agent_framework.py`: **AGENT_TYPES v3** — three categories: perception (briefer, monitor, scout), production (researcher, drafter, analyst, writer, planner), coordination (pm). `category` field added to each type.
+- `agent_framework.py`: `read_platforms` REMOVED from production types. Production agents get `search_knowledge` instead — they read processed knowledge from perception agents, not raw platform data.
+- `agent_framework.py`: `search_knowledge` capability added to capabilities registry (maps to QueryKnowledge tool).
+- `project_registry.py`: Platform-specific project types DELETED (slack_digest, notion_digest, cross_platform_synthesis, custom). Two types only: workspace + bounded_deliverable.
+- `onboarding_bootstrap.py`: Bootstrap creates workspace project with briefer (not platform-specific type). Uses infer_topic_type for scope_name.
+- Expected behavior: perception agents bridge external→internal (one-way). Production agents work recursively within PM-orchestrated loop. No spray-and-pray platform data injection.
+
+### Removed
+- Platform project types: slack_digest, notion_digest, cross_platform_synthesis, custom
+- `read_platforms` from: researcher, drafter, analyst, writer, planner, scout
+- Platforms tab from Orchestrator panel (moved to Settings — infrastructure)
+- Platform connect action cards from Orchestrator empty state
+
 ## [2026.03.23.13] - ADR-135: Chat as coordination substrate
 
 ### Changed

@@ -1,13 +1,13 @@
 """
-Onboarding Bootstrap — ADR-110, rewritten ADR-122, updated ADR-132
+Onboarding Bootstrap — ADR-110/122/133
 
-Deterministic project scaffolding on platform connection.
-No LLM involved. Registry lookup, not intelligence.
+Fallback project scaffolding on platform connection (for users who skipped onboarding).
+No LLM involved. Creates a workspace project with a briefer agent.
 
 Trigger: platform sync completion (called from platform_worker.py)
 
-ADR-132: If user completed onboarding (has any projects), skip generic
-platform digest. Users who skipped onboarding still get platform digests.
+ADR-133: Platform-specific project types deleted. Bootstrap creates a
+generic workspace project with a briefer agent that reads the connected platform.
 """
 
 from __future__ import annotations
@@ -40,62 +40,46 @@ async def maybe_bootstrap_project(
     platform: str,
 ) -> Optional[str]:
     """
-    Check conditions and scaffold a platform digest project if appropriate.
+    Scaffold a briefer project for a newly connected platform (fallback path).
 
-    Called after a successful platform sync in platform_worker.py.
-    Returns project_slug if created, None if skipped.
-
-    Conditions:
-    1. User has NOT completed onboarding (no projects yet)
-    2. Platform has a project type in the registry
-    3. Uniqueness (1 per platform per user)
-    4. Under tier agent limit
-    5. Platform has synced content
+    Only fires when user has no projects (skipped onboarding) and platform has content.
+    Creates a workspace project with a briefer agent reading the connected platform.
     """
-    from services.project_registry import (
-        get_platform_project_type, scaffold_project, _has_synced_content,
-    )
+    from services.project_registry import scaffold_project, _has_synced_content
 
-    # Skip generic digest if user already has projects from onboarding
+    # Skip if user already has projects from onboarding
     if await _has_onboarded_projects(client, user_id):
-        logger.info(f"[BOOTSTRAP] User has projects, skipping generic {platform} digest")
+        logger.info(f"[BOOTSTRAP] User has projects, skipping bootstrap for {platform}")
         return None
 
-    type_info = get_platform_project_type(platform)
-    if not type_info:
-        logger.info(f"[BOOTSTRAP] No project type for {platform}, skipping")
-        return None
-
-    type_key, ptype = type_info
-
-    from services.platform_limits import check_agent_limit
-    allowed, message = check_agent_limit(client, user_id)
-    if not allowed:
-        logger.info(f"[BOOTSTRAP] Agent limit reached for user {user_id}: {message}")
-        return None
-
+    # Check platform has synced content
     if not await _has_synced_content(client, user_id, platform):
         logger.info(f"[BOOTSTRAP] No synced content for {platform}, skipping")
         return None
 
+    from services.platform_limits import check_agent_limit
+    allowed, message = check_agent_limit(client, user_id)
+    if not allowed:
+        logger.info(f"[BOOTSTRAP] Agent limit reached: {message}")
+        return None
+
+    # Scaffold workspace project with briefer (platform is perception, not a project type)
+    platform_title = platform.capitalize()
     result = await scaffold_project(
-        client, user_id, type_key,
+        client, user_id,
+        type_key="workspace",
+        scope_name=f"{platform_title} Updates",
         execute_now=True,
     )
 
     if not result.get("success"):
         reason = result.get("reason", "unknown")
         if reason == "duplicate":
-            logger.info(f"[BOOTSTRAP] Project already exists for {platform}: {result.get('existing_slug')}")
+            logger.info(f"[BOOTSTRAP] Project already exists for {platform}")
         else:
-            logger.warning(f"[BOOTSTRAP] Scaffold failed for {platform}: {result.get('message')}")
+            logger.warning(f"[BOOTSTRAP] Scaffold failed: {result.get('message')}")
         return None
 
     project_slug = result["project_slug"]
-    agents = result.get("contributors_created", [])
-    logger.info(
-        f"[BOOTSTRAP] Scaffolded {type_key} project ({project_slug}) "
-        f"with {len(agents)} agent(s) for user {user_id}"
-    )
-
+    logger.info(f"[BOOTSTRAP] Scaffolded '{project_slug}' for {platform}")
     return project_slug

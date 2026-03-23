@@ -31,12 +31,24 @@ Additionally, `/user_shared/` and `/projects/{slug}/user_shared/` serve as ephem
 
 ### `/workspace/` — User Context (ADR-133)
 
-Two canonical files. Seeded into projects at scaffold time.
+Two canonical files. Read by agents at execution time (not copied into projects).
 
 | File | Purpose |
 |------|---------|
 | `IDENTITY.md` | Who you are (name, role, company, industry, timezone, summary) |
 | `BRAND.md` | How outputs look and sound (colors, typography, tone, voice) |
+
+### Agent Categories
+
+Three categories with different data access patterns:
+
+| Category | Examples | Reads external? | Reads internal? | Recursive? |
+|----------|----------|-----------------|-----------------|------------|
+| **Perception** | briefer, monitor, scout | Yes (platforms, web) | Via search_knowledge | No — one-way bridge |
+| **Production** | researcher, drafter, analyst, writer, planner | No | Yes (knowledge, contributions, workspace) | Yes — PM-orchestrated |
+| **Coordination** | pm | No | Yes (all contributions, workspace) | Yes — orchestrates the loop |
+
+Perception agents bridge external data (platforms, web) into the project's knowledge layer. Production agents work within the project's recursive loop, reading processed knowledge rather than raw external data. PM coordinates the loop.
 
 ### `/memory/` — TP-Accumulated Knowledge
 
