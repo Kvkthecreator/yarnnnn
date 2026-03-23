@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.9] - ADR-130 v2: Type-specific prompt templates
+
+### Added
+- `agent_pipeline.py`: **4 new ROLE_PROMPTS** — `drafter` (deliverable production: reports, decks, memos), `writer` (external content: newsletters, investor updates, social), `planner` (plans, agendas, action tracking), `scout` (competitive intelligence: competitor monitoring + web search + positioning implications).
+- Each prompt has distinct structure, instructions, and output format tailored to the agent's purpose.
+- `scout` field handler: injects `today_date` for time-sensitive competitive intel.
+- Expected behavior: agents now get role-appropriate prompts instead of falling back to generic custom template. Drafter produces polished deliverables. Writer matches user's voice. Planner tracks action items. Scout cites sources and recommends positioning responses.
+
+### Unchanged
+- `briefer` = `digest` prompt (platform summarization — well-tested, no change)
+- `analyst` = `synthesize` prompt (cross-reference patterns — well-tested)
+- `researcher` = `research` prompt (investigation + web search — well-tested)
+- `monitor` prompt (change detection + alerts — well-tested)
+
 ## [2026.03.23.8] - ADR-130: Capability redistribution + video skill + platform write-backs
 
 ### Changed

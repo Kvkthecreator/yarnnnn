@@ -438,15 +438,155 @@ Decision Rules (in prerequisite order):
 
 }  # end ROLE_PROMPTS
 
-# ADR-130 v2: Map new type names to prompt templates.
-# New types reuse existing prompt structures until type-specific prompts are written.
-ROLE_PROMPTS["briefer"]    = ROLE_PROMPTS["digest"]       # same summarization prompt
-ROLE_PROMPTS["analyst"]    = ROLE_PROMPTS["synthesize"]    # same cross-reference prompt
-ROLE_PROMPTS["researcher"] = ROLE_PROMPTS["research"]      # same investigation prompt
-ROLE_PROMPTS["drafter"]    = ROLE_PROMPTS["custom"]        # deliverable-focused (TODO: custom prompt)
-ROLE_PROMPTS["writer"]     = ROLE_PROMPTS["custom"]        # content-focused (TODO: custom prompt)
-ROLE_PROMPTS["planner"]    = ROLE_PROMPTS["custom"]        # planning-focused (TODO: custom prompt)
-ROLE_PROMPTS["scout"]      = ROLE_PROMPTS["research"]      # competitive intel uses research prompt
+# ADR-130 v2: Type-specific prompt templates.
+# briefer = digest prompt (platform summarization)
+# analyst = synthesize prompt (cross-reference patterns)
+# researcher = research prompt (investigation + web search)
+ROLE_PROMPTS["briefer"]    = ROLE_PROMPTS["digest"]
+ROLE_PROMPTS["analyst"]    = ROLE_PROMPTS["synthesize"]
+ROLE_PROMPTS["researcher"] = ROLE_PROMPTS["research"]
+
+# v2 type-specific prompts:
+
+ROLE_PROMPTS["drafter"] = """You are producing a deliverable titled "{title}".
+
+{mandate_context}
+
+{user_instructions}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+DELIVERY: This output will be delivered to the intended audience.
+Write for the target audience — clear structure, professional quality, ready to share.
+
+INSTRUCTIONS:
+- Produce a complete, polished deliverable — not a draft or outline
+- Structure for the audience: executives get summaries first, technical audiences get detail
+- Use data, evidence, and specifics from gathered context — never fabricate
+- Charts and diagrams where they strengthen the argument (use RuntimeDispatch if available)
+- If information gaps exist, note them clearly rather than working around them
+
+STRUCTURE:
+Adapt structure to the deliverable type. Common patterns:
+- **Report**: Executive summary → key findings → detailed sections → recommendations
+- **Deck/Presentation**: Title slide context → problem → solution → evidence → ask
+- **Memo**: Purpose → background → analysis → recommendation → next steps
+- **Client update**: Highlights → progress by workstream → upcoming → blockers
+
+Write the deliverable now:""" + _ASSESSMENT_POSTAMBLE
+
+ROLE_PROMPTS["writer"] = """You are producing content titled "{title}".
+
+{mandate_context}
+
+{user_instructions}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+DELIVERY: This content is for external sharing — it represents the user's voice and brand.
+Match the tone and style to the audience. Be authentic, not generic.
+
+INSTRUCTIONS:
+- Write in the user's voice — use their tone preferences if specified
+- Lead with what the audience cares about, not what the user wants to say
+- Be specific and concrete — avoid platitudes and filler
+- Keep it the right length for the format (newsletter ~500 words, social ~280 chars, email varies)
+- If referencing data or events, cite specifics from gathered context
+
+STRUCTURE:
+Adapt to the content type:
+- **Newsletter**: Hook → 2-3 substantive sections → CTA
+- **Investor update**: Metrics → progress → challenges → ask
+- **Client email**: Context → update → next steps
+- **Social post**: Hook → insight → CTA (concise)
+
+Write the content now:""" + _ASSESSMENT_POSTAMBLE
+
+ROLE_PROMPTS["planner"] = """You are producing a plan or agenda titled "{title}".
+
+{mandate_context}
+
+{user_instructions}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+DELIVERY: This plan should be actionable and scannable.
+Structure for quick reference — the user will use this to prepare or follow up.
+
+INSTRUCTIONS:
+- Lead with the most important items — what needs attention first
+- Be specific: include names, dates, deadlines, owners where known
+- Track action items explicitly — who does what by when
+- Flag dependencies and blockers
+- If preparing for an event (meeting, deadline), include prep checklist
+
+STRUCTURE:
+- **Meeting prep**: Agenda → attendee context → key discussion points → prep items
+- **Action tracker**: Open items → status → owners → deadlines
+- **Project plan**: Milestones → current status → next steps → risks
+- **Follow-up**: Decisions made → action items → deadlines → open questions
+
+Write the plan now:""" + _ASSESSMENT_POSTAMBLE
+
+ROLE_PROMPTS["scout"] = """You are producing competitive intelligence titled "{title}".
+
+{mandate_context}
+
+TODAY'S DATE: {today_date}
+
+{user_instructions}
+
+GATHERED CONTEXT (from your connected platforms + web research):
+{gathered_context}
+
+{recipient_context}
+
+DELIVERY: This intel report will be delivered to the user.
+Lead with the most significant competitive movement. Be specific and source everything.
+
+INSTRUCTIONS:
+You monitor the competitive landscape — tracking what others are doing so the user can respond.
+
+USE YOUR TOOLS:
+- **WebSearch**: Search for competitor product launches, pricing changes, fundraising, hiring, positioning shifts. 3-5 targeted queries.
+- **Search**: Cross-reference findings with internal platform data — are there internal discussions about these competitors?
+- Use all available tool rounds. Don't stop at surface-level results.
+
+OUTPUT FORMAT:
+
+## Competitive Landscape Update
+[2-3 sentence summary: what moved in the competitive landscape this period]
+
+### [Competitor/Development 1]
+**What happened:** [Specific event — product launch, pricing change, funding, hire, positioning shift]
+**Source:** [URL or platform reference]
+**Relevance:** [Why this matters to the user's business — connect to their positioning]
+
+### [Competitor/Development 2]
+[Same structure]
+
+## Market Signals
+[Broader market movements, category trends, or emerging players worth watching]
+
+## Positioning Implications
+[1-2 specific recommendations: how should the user's positioning or strategy adapt?]
+
+Rules:
+- EVERY finding must cite its source (URL for web, channel/date for internal)
+- Focus on actionable intelligence, not general industry news
+- If the landscape was quiet, say so — don't pad with irrelevant updates
+- Compare competitor moves to the user's current positioning when possible
+
+Write the intel report now:""" + _ASSESSMENT_POSTAMBLE
 
 
 # ADR-121/123: Assembly composition prompt (v3.0 — objective-aware)
@@ -609,6 +749,22 @@ def build_role_prompt(
         fields.update({
             "today_date": today_str,
         })
+
+    elif prompt_role == "scout":
+        # Scout uses today_date like research
+        from datetime import datetime
+        import pytz
+        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        today_str = datetime.now(tz).strftime("%A, %B %-d, %Y")
+        fields.update({
+            "today_date": today_str,
+        })
+
+    # drafter, writer, planner use only common fields (no special handling needed)
 
     elif prompt_role == "pm":
         # PM context injected by _load_pm_project_context() via type_config merge
