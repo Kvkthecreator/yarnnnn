@@ -171,13 +171,9 @@ Layer 5: READINESS — Ready to assemble and deliver?
 
 ## Critical Gaps (Honest Assessment)
 
-### 1. `update_work_plan` is Not Implemented
+### 1. ~~`update_work_plan` is Not Implemented~~ — RESOLVED
 
-The PM prompt lists `update_work_plan` as a valid action. The output validation checks for it. But there is **no handler** in `_handle_pm_decision()`. A PM that returns this action will fail silently.
-
-**Impact**: PM cannot evolve the work plan through headless execution. Work plans are static after scaffold unless manually edited or Tier 3 writes phase_state.json.
-
-**Fix needed**: Add handler that writes `memory/work_plan.md` from the PM's decision payload.
+The handler exists at `agent_execution.py:1033`. Writes structured markdown to `memory/work_plan.md` with assembly cadence, budget, contributors, skill sequence, and notes. Works correctly.
 
 ### 2. Two Engines Don't Coordinate
 
