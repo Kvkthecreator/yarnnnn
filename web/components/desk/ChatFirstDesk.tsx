@@ -220,9 +220,10 @@ function formatTokenCount(tokens: number): string {
 /**
  * Starter prompt — single "New Project" card.
  *
- * Platform-specific projects (Slack/Notion) are created via bootstrap
- * on OAuth connection (ADR-110/113/122), not from starter cards. This eliminates
- * redundancy: bootstrap auto-scaffolds on connect, cards were just a chat detour.
+ * ADR-132: Primary onboarding is work-first (/onboarding page). Users who
+ * completed onboarding already have work-scoped projects. Users who skipped
+ * onboarding fall back to platform bootstrap (ADR-110/122) on OAuth connect.
+ * This card serves users who want to create additional projects via chat.
  */
 const NEW_PROJECT_PROMPT = 'I want to create a new project';
 

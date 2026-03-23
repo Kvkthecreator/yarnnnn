@@ -105,11 +105,8 @@ class BulkImportResponse(BaseModel):
 
 
 class OnboardingStateResponse(BaseModel):
-    state: str           # 'cold_start' | 'minimal_context' | 'active'
-    memory_count: int
-    document_count: int
-    has_recent_chat: bool
-    has_work_index: bool = False  # ADR-132: True if /memory/WORK.md exists
+    """ADR-132: Simplified to work index check. Legacy state fields removed."""
+    has_work_index: bool = False
 
 
 # ─── ADR-132: Work Index Models ──────────────────────────────────────────────
@@ -172,48 +169,17 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
 async def get_onboarding_state(auth: UserClient):
-    """Detect user's onboarding state for welcome UX."""
-    from datetime import timedelta
+    """Check if user has completed work-first onboarding (ADR-132).
 
+    Returns has_work_index: True if /memory/WORK.md exists.
+    Used by auth callback to gate new users to /onboarding.
+    """
     try:
         um = UserMemory(auth.client, auth.user_id)
-        files = await um.read_all()
-        # Count meaningful content: profile fields + notes
-        profile = UserMemory._parse_memory_md(files.get("MEMORY.md"))
-        notes = UserMemory._parse_notes_md(files.get("notes.md"))
-        memory_count = len([v for v in profile.values() if v]) + len(notes)
-
-        doc_result = auth.client.table("filesystem_documents")\
-            .select("id", count="exact")\
-            .eq("user_id", auth.user_id)\
-            .execute()
-        document_count = doc_result.count or 0
-
-        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-        session_result = auth.client.table("chat_sessions")\
-            .select("id")\
-            .eq("user_id", auth.user_id)\
-            .gte("updated_at", seven_days_ago)\
-            .limit(1)\
-            .execute()
-        has_recent_chat = len(session_result.data or []) > 0
-
-        # ADR-132: Check if work index exists
         work_content = await um.read("WORK.md")
         has_work_index = bool(work_content and work_content.strip())
 
-        if memory_count == 0 and document_count == 0:
-            state = "cold_start"
-        elif memory_count < 3 and not has_recent_chat:
-            state = "minimal_context"
-        else:
-            state = "active"
-
         return OnboardingStateResponse(
-            state=state,
-            memory_count=memory_count,
-            document_count=document_count,
-            has_recent_chat=has_recent_chat,
             has_work_index=has_work_index,
         )
 

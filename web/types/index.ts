@@ -177,14 +177,8 @@ export interface KnowledgeSummaryResponse {
   }>;
 }
 
-// Onboarding State
-export type OnboardingState = "cold_start" | "minimal_context" | "active";
-
+// Onboarding State (ADR-132: simplified to work index check)
 export interface OnboardingStateResponse {
-  state: OnboardingState;
-  memory_count: number;
-  document_count: number;
-  has_recent_chat: boolean;
   has_work_index: boolean;
 }
 

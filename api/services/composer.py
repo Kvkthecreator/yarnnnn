@@ -657,6 +657,13 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
         agent_refs = list(set(e.get("event_ref", "?") for e in escalations))[:3]
         return True, f"pulse_escalation: {len(escalations)} agent(s) escalated in last 24h: {agent_refs}"
 
+    # ADR-132: Work scopes without projects — user declared work but scaffolding failed or was skipped
+    work_index = assessment.get("work_index")
+    if work_index:
+        unscaffolded = [s["name"] for s in work_index if s.get("status") == "active" and not s.get("project_slug")]
+        if unscaffolded:
+            return True, f"work_scope_gap: {len(unscaffolded)} declared work scope(s) without projects: {unscaffolded[:3]}"
+
     # Coverage gap: platform connected but no project covering it (ADR-122)
     gaps = assessment["coverage"]["platforms_without_coverage"]
     if gaps:
