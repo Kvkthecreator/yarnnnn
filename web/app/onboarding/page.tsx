@@ -104,11 +104,12 @@ export default function OnboardingPage() {
 
     setLoading(true);
     try {
-      await api.work.save({
+      await api.topics.save({
         structure,
-        scopes: validScopes.map((s) => ({
+        topics: validScopes.map((s) => ({
           name: s.name.trim(),
           lifecycle: 'persistent' as const,
+          projects: [],
           status: 'active' as const,
         })),
         name: name.trim() || undefined,

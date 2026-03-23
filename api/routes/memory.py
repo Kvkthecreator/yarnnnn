@@ -109,24 +109,24 @@ class OnboardingStateResponse(BaseModel):
     has_work_index: bool = False
 
 
-# ─── ADR-132: Work Index Models ──────────────────────────────────────────────
+# ─── ADR-132: Topics — macro context baskets that drive project scaffolding ──
 
-class WorkScope(BaseModel):
+class Topic(BaseModel):
     name: str
     lifecycle: str = "persistent"  # 'persistent' | 'bounded'
-    project_slug: Optional[str] = None
+    projects: list[str] = []  # list of project_slugs (1:N — one topic can have multiple projects)
     status: str = "active"  # 'active' | 'completed'
 
 
-class WorkIndexRequest(BaseModel):
+class TopicsRequest(BaseModel):
     structure: str  # 'single' | 'multi'
-    scopes: list[WorkScope]
+    topics: list[Topic]
     name: Optional[str] = None
 
 
-class WorkIndexResponse(BaseModel):
+class TopicsResponse(BaseModel):
     structure: Optional[str] = None
-    scopes: list[WorkScope] = []
+    topics: list[Topic] = []
     exists: bool = False
 
 
@@ -187,36 +187,38 @@ async def get_onboarding_state(auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Work Index (ADR-132) ────────────────────────────────────────────────────
+# ─── Topics (ADR-132) ────────────────────────────────────────────────────────
 
-def _format_work_md(structure: str, scopes: list[WorkScope]) -> str:
-    """Format WORK.md from structured data."""
+def _format_topics_md(structure: str, topics: list[Topic]) -> str:
+    """Format WORK.md from structured topic data."""
     lines = [
-        "# Work Structure\n",
+        "# Topics\n",
         f"structure: {structure}\n",
-        "## Work Units\n",
+        "## Topics\n",
     ]
-    for s in scopes:
-        lines.append(f"- **{s.name}**")
-        lines.append(f"  - lifecycle: {s.lifecycle}")
-        if s.project_slug:
-            lines.append(f"  - project_slug: {s.project_slug}")
-        lines.append(f"  - status: {s.status}")
+    for t in topics:
+        lines.append(f"- **{t.name}**")
+        lines.append(f"  - lifecycle: {t.lifecycle}")
+        if t.projects:
+            lines.append(f"  - projects: {', '.join(t.projects)}")
+        lines.append(f"  - status: {t.status}")
         lines.append("")
     return "\n".join(lines)
 
 
-def _parse_work_md(content: str) -> tuple[Optional[str], list[WorkScope]]:
-    """Parse WORK.md back into structured data."""
+def _parse_topics_md(content: str) -> tuple[Optional[str], list[Topic]]:
+    """Parse WORK.md back into structured topic data.
+
+    Backward compatible: reads both 'project_slug: x' (old) and 'projects: x, y' (new).
+    """
     import re
     structure = None
-    scopes = []
+    topics = []
 
     struct_match = re.search(r"^structure:\s*(.+)$", content, re.MULTILINE)
     if struct_match:
         structure = struct_match.group(1).strip()
 
-    # Parse work units: - **Name** followed by indented properties
     unit_pattern = re.compile(
         r"- \*\*(.+?)\*\*\n"
         r"((?:  - .+\n?)*)",
@@ -226,97 +228,102 @@ def _parse_work_md(content: str) -> tuple[Optional[str], list[WorkScope]]:
         name = match.group(1)
         props_text = match.group(2)
         lifecycle = "persistent"
-        project_slug = None
+        projects: list[str] = []
         status = "active"
         for prop_line in props_text.strip().split("\n"):
             prop_line = prop_line.strip().lstrip("- ")
             if prop_line.startswith("lifecycle:"):
                 lifecycle = prop_line.split(":", 1)[1].strip()
+            elif prop_line.startswith("projects:"):
+                raw = prop_line.split(":", 1)[1].strip()
+                projects = [p.strip() for p in raw.split(",") if p.strip()]
             elif prop_line.startswith("project_slug:"):
-                project_slug = prop_line.split(":", 1)[1].strip()
+                # Backward compat: old format had single project_slug
+                slug = prop_line.split(":", 1)[1].strip()
+                if slug:
+                    projects = [slug]
             elif prop_line.startswith("status:"):
                 status = prop_line.split(":", 1)[1].strip()
-        scopes.append(WorkScope(
+        topics.append(Topic(
             name=name, lifecycle=lifecycle,
-            project_slug=project_slug, status=status,
+            projects=projects, status=status,
         ))
-    return structure, scopes
+    return structure, topics
 
 
-class WorkIndexSaveResponse(BaseModel):
+class TopicsSaveResponse(BaseModel):
     structure: Optional[str] = None
-    scopes: list[WorkScope] = []
+    topics: list[Topic] = []
     exists: bool = False
     projects_created: list[dict] = []
 
 
-@router.post("/user/work", response_model=WorkIndexSaveResponse)
-async def save_work_index(body: WorkIndexRequest, auth: UserClient):
-    """Save the user's work index and scaffold projects (ADR-132).
+@router.post("/user/work", response_model=TopicsSaveResponse)
+async def save_topics(body: TopicsRequest, auth: UserClient):
+    """Save the user's topics and scaffold projects (ADR-132).
 
+    Topics are macro context baskets — each can drive 1..N projects.
     Called from onboarding page on first setup, and by TP for ongoing updates.
-    Scaffolds a project for each scope that doesn't already have one.
+    Initial scaffold creates 1 project per topic; Composer/TP can add more later.
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
 
-        # Also update name in profile if provided
+        # Update name in profile if provided
         if body.name:
             profile = await um.get_profile()
             if not profile.get("name"):
                 await um.update_profile({"name": body.name})
 
-        # Scaffold projects for each scope
+        # Scaffold projects for each topic
         from services.project_registry import scaffold_project
         projects_created = []
-        updated_scopes = []
+        updated_topics = []
 
-        for scope in body.scopes:
-            if scope.project_slug:
-                # Already scaffolded — keep as-is
-                updated_scopes.append(scope)
+        for topic in body.topics:
+            if topic.projects:
+                # Already has projects — keep as-is
+                updated_topics.append(topic)
                 continue
 
             # Determine project type from lifecycle
-            type_key = "bounded_deliverable" if scope.lifecycle == "bounded" else "workspace"
+            type_key = "bounded_deliverable" if topic.lifecycle == "bounded" else "workspace"
 
             result = await scaffold_project(
                 client=auth.client,
                 user_id=auth.user_id,
                 type_key=type_key,
-                scope_name=scope.name,
-                execute_now=False,  # Don't run agents yet — no platform sources
+                scope_name=topic.name,
+                execute_now=False,
             )
 
             if result.get("success"):
-                scope_with_slug = WorkScope(
-                    name=scope.name,
-                    lifecycle=scope.lifecycle,
-                    project_slug=result["project_slug"],
-                    status=scope.status,
-                )
-                updated_scopes.append(scope_with_slug)
+                updated_topics.append(Topic(
+                    name=topic.name,
+                    lifecycle=topic.lifecycle,
+                    projects=[result["project_slug"]],
+                    status=topic.status,
+                ))
                 projects_created.append({
                     "project_slug": result["project_slug"],
                     "title": result["title"],
                     "type_key": type_key,
-                    "scope_name": scope.name,
+                    "topic_name": topic.name,
                 })
-                logger.info(f"[WORK_INDEX] Scaffolded project '{result['project_slug']}' for scope '{scope.name}'")
+                logger.info(f"[TOPICS] Scaffolded project '{result['project_slug']}' for topic '{topic.name}'")
             else:
-                # Scaffolding failed — keep scope without project_slug
-                updated_scopes.append(scope)
-                logger.warning(f"[WORK_INDEX] Scaffold failed for scope '{scope.name}': {result.get('message')}")
+                updated_topics.append(topic)
+                logger.warning(f"[TOPICS] Scaffold failed for topic '{topic.name}': {result.get('message')}")
 
-        # Write WORK.md with project_slug backfilled
-        content = _format_work_md(body.structure, updated_scopes)
-        success = await um.write("WORK.md", content, summary="Work index (ADR-132)")
+        # Write WORK.md with projects backfilled
+        content = _format_topics_md(body.structure, updated_topics)
+        success = await um.write("WORK.md", content, summary="Topics (ADR-132)")
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write WORK.md")
 
-        return WorkIndexSaveResponse(
+        return TopicsSaveResponse(
             structure=body.structure,
-            scopes=updated_scopes,
+            topics=updated_topics,
             exists=True,
             projects_created=projects_created,
         )
@@ -326,19 +333,19 @@ async def save_work_index(body: WorkIndexRequest, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/user/work", response_model=WorkIndexResponse)
-async def get_work_index(auth: UserClient):
-    """Get the user's work index (ADR-132)."""
+@router.get("/user/work", response_model=TopicsResponse)
+async def get_topics(auth: UserClient):
+    """Get the user's topics (ADR-132)."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         content = await um.read("WORK.md")
         if not content or not content.strip():
-            return WorkIndexResponse(exists=False)
+            return TopicsResponse(exists=False)
 
-        structure, scopes = _parse_work_md(content)
-        return WorkIndexResponse(
+        structure, topics = _parse_topics_md(content)
+        return TopicsResponse(
             structure=structure,
-            scopes=scopes,
+            topics=topics,
             exists=True,
         )
     except Exception as e:

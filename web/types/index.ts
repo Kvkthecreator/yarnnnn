@@ -182,23 +182,23 @@ export interface OnboardingStateResponse {
   has_work_index: boolean;
 }
 
-// Work Index (ADR-132)
-export interface WorkScope {
+// Topics (ADR-132) — macro context baskets that drive project scaffolding
+export interface Topic {
   name: string;
   lifecycle: "persistent" | "bounded";
-  project_slug?: string | null;
+  projects: string[];  // list of project_slugs (1:N)
   status: "active" | "completed";
 }
 
-export interface WorkIndexRequest {
+export interface TopicsRequest {
   structure: "single" | "multi";
-  scopes: WorkScope[];
+  topics: Topic[];
   name?: string;
 }
 
-export interface WorkIndexResponse {
+export interface TopicsResponse {
   structure: string | null;
-  scopes: WorkScope[];
+  topics: Topic[];
   exists: boolean;
 }
 

@@ -22,8 +22,8 @@ import type {
   KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
-  WorkIndexRequest,
-  WorkIndexResponse,
+  TopicsRequest,
+  TopicsResponse,
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
@@ -255,12 +255,12 @@ export const api = {
       request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
   },
 
-  // Work Index (ADR-132)
-  work: {
+  // Topics (ADR-132) — macro context baskets that drive project scaffolding
+  topics: {
     get: () =>
-      request<WorkIndexResponse>("/api/memory/user/work"),
-    save: (data: WorkIndexRequest) =>
-      request<WorkIndexResponse>("/api/memory/user/work", {
+      request<TopicsResponse>("/api/memory/user/work"),
+    save: (data: TopicsRequest) =>
+      request<TopicsResponse>("/api/memory/user/work", {
         method: "POST",
         body: JSON.stringify(data),
       }),

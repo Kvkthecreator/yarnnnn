@@ -204,21 +204,21 @@ function ProjectsPanel() {
 }
 
 // =============================================================================
-// Panel: Work (ADR-132 — work scopes from onboarding)
+// Panel: Topics (ADR-132 — macro context baskets from onboarding)
 // =============================================================================
 
-function WorkPanel() {
-  const [scopes, setScopes] = useState<Array<{ name: string; lifecycle: string; project_slug?: string | null; status: string }>>([]);
+function TopicsPanel() {
+  const [topicsList, setTopicsList] = useState<Array<{ name: string; lifecycle: string; projects: string[]; status: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.work.get(),
+      api.topics.get(),
       api.profile.get().catch(() => null),
-    ]).then(([workData, profile]) => {
-      if (workData.exists) {
-        setScopes(workData.scopes);
+    ]).then(([data, profile]) => {
+      if (data.exists) {
+        setTopicsList(data.topics);
       }
       if (profile?.name) {
         setProfileName(profile.name);
@@ -235,11 +235,11 @@ function WorkPanel() {
     );
   }
 
-  if (scopes.length === 0) {
+  if (topicsList.length === 0) {
     return (
       <div className="p-4 text-center">
         <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No work scopes defined</p>
+        <p className="text-sm text-muted-foreground">No topics defined</p>
         <p className="text-xs text-muted-foreground/70 mt-1">
           Tell your orchestrator what you&apos;re working on
         </p>
@@ -247,47 +247,51 @@ function WorkPanel() {
     );
   }
 
-  const active = scopes.filter(s => s.status === 'active');
-  const completed = scopes.filter(s => s.status === 'completed');
+  const active = topicsList.filter(t => t.status === 'active');
+  const completed = topicsList.filter(t => t.status === 'completed');
 
   return (
     <div className="p-3 space-y-4">
-      {/* Profile summary */}
       {profileName && (
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{profileName}</span>
-          <span> &middot; {active.length} active scope{active.length !== 1 ? 's' : ''}</span>
+          <span> &middot; {active.length} active topic{active.length !== 1 ? 's' : ''}</span>
         </div>
       )}
 
-      {/* Active scopes */}
       <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active work</p>
-        {active.map((s, i) => (
-          <div key={i} className="flex items-center gap-2 text-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-            {s.project_slug ? (
-              <Link
-                href={`/projects/${s.project_slug}`}
-                className="text-foreground hover:underline truncate"
-              >
-                {s.name}
-              </Link>
-            ) : (
-              <span className="text-foreground truncate">{s.name}</span>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</p>
+        {active.map((t, i) => (
+          <div key={i} className="space-y-0.5">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+              <span className="text-foreground font-medium truncate">{t.name}</span>
+            </div>
+            {/* Show projects under this topic */}
+            {t.projects.length > 0 && (
+              <div className="ml-4 space-y-0.5">
+                {t.projects.map((slug) => (
+                  <Link
+                    key={slug}
+                    href={`/projects/${slug}`}
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline block truncate"
+                  >
+                    {slug.replace(/-/g, ' ')}
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Completed scopes */}
       {completed.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</p>
-          {completed.map((s, i) => (
+          {completed.map((t, i) => (
             <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{s.name}</span>
+              <span className="truncate">{t.name}</span>
             </div>
           ))}
         </div>
@@ -382,17 +386,16 @@ export function ChatFirstDesk() {
   const { state: onboardingState } = usePlatformOnboardingState();
   const [connecting, setConnecting] = useState<string | null>(null);
 
-  // ADR-132: Work index state — post-onboarding users have work scopes
-  const [workScopes, setWorkScopes] = useState<Array<{ name: string; project_slug?: string | null; status: string }>>([]);
+  // ADR-132: Topics — macro context baskets from onboarding
+  const [topics, setTopics] = useState<Array<{ name: string; projects: string[]; status: string }>>([]);
   const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
-  const hasWorkIndex = workScopes.length > 0;
+  const hasTopics = topics.length > 0;
   useEffect(() => {
-    api.work.get().then((data) => {
-      if (data.exists && data.scopes.length > 0) {
-        setWorkScopes(data.scopes);
+    api.topics.get().then((data) => {
+      if (data.exists && data.topics.length > 0) {
+        setTopics(data.topics);
       }
     }).catch(() => {});
-    // Also fetch projects for contextual action cards
     api.projects.list().then((data) => {
       setMainProjects(data.projects);
     }).catch(() => {});
@@ -638,9 +641,9 @@ export function ChatFirstDesk() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'work',
-      label: 'Work',
-      content: <WorkPanel />,
+      id: 'topics',
+      label: 'Topics',
+      content: <TopicsPanel />,
     },
     {
       id: 'projects',
@@ -752,14 +755,14 @@ export function ChatFirstDesk() {
               <div className="py-8">
                 {/* ADR-132: Three empty states based on onboarding + work index */}
 
-                {hasWorkIndex ? (
+                {hasTopics ? (
                   /* POST-ONBOARDING: User has work scopes and projects */
                   <>
                     <div className="text-center mb-8">
                       <Briefcase className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
                       <h2 className="text-lg font-medium mb-1">Your workspace is ready</h2>
                       <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        {workScopes.filter(s => s.status === 'active').length} active project{workScopes.filter(s => s.status === 'active').length !== 1 ? 's' : ''} set up from your work scopes.
+                        {topics.filter(s => s.status === 'active').length} active topic{topics.filter(s => s.status === 'active').length !== 1 ? 's' : ''} with projects set up.
                         {onboardingState === 'no_platforms' ? ' Connect a platform to power your agents.' : ''}
                       </p>
                     </div>

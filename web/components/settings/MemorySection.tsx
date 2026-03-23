@@ -87,7 +87,7 @@ const ALL_PLATFORMS = ['slack', 'notion'] as const;
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-  { id: 'work', label: 'Work', icon: <Briefcase className="w-4 h-4" /> },
+  { id: 'work', label: 'Topics', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'styles', label: 'Preferences', icon: <Palette className="w-4 h-4" /> },
 ];
 
@@ -287,18 +287,18 @@ function ProfileSection({ profile, loading, onUpdate }: {
 }
 
 // =============================================================================
-// Work Section (ADR-132 — work scopes from onboarding)
+// Topics Section (ADR-132 — macro context baskets from onboarding)
 // =============================================================================
 
-function WorkSection() {
-  const [scopes, setScopes] = useState<Array<{ name: string; lifecycle: string; project_slug?: string | null; status: string }>>([]);
+function TopicsSection() {
+  const [topicsList, setTopicsList] = useState<Array<{ name: string; lifecycle: string; projects: string[]; status: string }>>([]);
   const [structure, setStructure] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.work.get().then((data) => {
+    api.topics.get().then((data) => {
       if (data.exists) {
-        setScopes(data.scopes);
+        setTopicsList(data.topics);
         setStructure(data.structure);
       }
       setLoading(false);
@@ -313,17 +313,17 @@ function WorkSection() {
     );
   }
 
-  const active = scopes.filter(s => s.status === 'active');
-  const completed = scopes.filter(s => s.status === 'completed');
+  const active = topicsList.filter(t => t.status === 'active');
+  const completed = topicsList.filter(t => t.status === 'completed');
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Your Work</h2>
+        <h2 className="text-lg font-semibold text-foreground">Your Topics</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          {scopes.length === 0
-            ? 'No work scopes defined yet. Tell your orchestrator what you\'re working on.'
-            : `Work structure: ${structure === 'multi' ? 'multiple scopes' : 'single focus'}. Defined during onboarding.`}
+          {topicsList.length === 0
+            ? 'No topics defined yet. Tell your orchestrator what you\'re working on.'
+            : `${active.length} active topic${active.length !== 1 ? 's' : ''}. Each topic drives project scaffolding.`}
         </p>
       </div>
 
@@ -331,22 +331,27 @@ function WorkSection() {
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</p>
           <div className="space-y-2">
-            {active.map((s, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                  <div>
-                    <span className="text-sm font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{s.lifecycle}</span>
+            {active.map((t, i) => (
+              <div key={i} className="p-3 rounded-lg border border-border space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <span className="text-sm font-medium">{t.name}</span>
+                    <span className="text-xs text-muted-foreground">{t.lifecycle}</span>
                   </div>
                 </div>
-                {s.project_slug && (
-                  <Link
-                    href={`/projects/${s.project_slug}`}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    View project
-                  </Link>
+                {t.projects.length > 0 && (
+                  <div className="ml-5 space-y-0.5">
+                    {t.projects.map((slug) => (
+                      <Link
+                        key={slug}
+                        href={`/projects/${slug}`}
+                        className="text-xs text-primary hover:underline block"
+                      >
+                        {slug.replace(/-/g, ' ')}
+                      </Link>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}
@@ -358,10 +363,10 @@ function WorkSection() {
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</p>
           <div className="space-y-2">
-            {completed.map((s, i) => (
+            {completed.map((t, i) => (
               <div key={i} className="flex items-center gap-2.5 p-3 rounded-lg border border-border/50 opacity-60">
                 <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                <span className="text-sm">{s.name}</span>
+                <span className="text-sm">{t.name}</span>
               </div>
             ))}
           </div>
@@ -369,7 +374,7 @@ function WorkSection() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        To add or change work scopes, tell your orchestrator in chat.
+        To add or change topics, tell your orchestrator in chat.
       </p>
     </div>
   );
@@ -822,7 +827,7 @@ export function MemorySection() {
         />
       )}
       {activeSection === 'work' && (
-        <WorkSection />
+        <TopicsSection />
       )}
       {activeSection === 'styles' && (
         <StylesSection loading={false} />

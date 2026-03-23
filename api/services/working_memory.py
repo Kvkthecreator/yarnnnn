@@ -726,24 +726,29 @@ def format_for_prompt(working_memory: dict) -> str:
             for p in pref.get("preferences", []):
                 lines.append(f"- Prefers: {p}")
 
-    # ADR-132: Work index — what the user is working on
+    # ADR-132: Topics — macro context baskets that drive project scaffolding
     work_index = working_memory.get("work_index")
     if work_index:
-        active = [s for s in work_index if s.get("status") == "active"]
-        completed = [s for s in work_index if s.get("status") == "completed"]
-        lines.append("\n### Your work")
-        lines.append("The user described these work scopes during onboarding. Each is a project with agents.")
-        for s in active:
-            slug = s.get("project_slug")
-            slug_note = f" → /projects/{slug}" if slug else " (no project yet)"
-            lines.append(f"- **{s['name']}**{slug_note}")
+        active = [t for t in work_index if t.get("status") == "active"]
+        completed = [t for t in work_index if t.get("status") == "completed"]
+        lines.append("\n### Your topics")
+        lines.append("The user's topics — each is a macro context basket that can drive one or more projects.")
+        for t in active:
+            projects = t.get("projects") or []
+            slug = t.get("project_slug")  # backward compat
+            if projects:
+                proj_links = ", ".join(f"/projects/{p}" for p in projects)
+                lines.append(f"- **{t['name']}** → {proj_links}")
+            elif slug:
+                lines.append(f"- **{t['name']}** → /projects/{slug}")
+            else:
+                lines.append(f"- **{t['name']}** (no project yet)")
         if completed:
-            lines.append(f"- _Completed: {', '.join(s['name'] for s in completed)}_")
-        # Guidance for TP
+            lines.append(f"- _Completed: {', '.join(t['name'] for t in completed)}_")
         has_no_platforms = not working_memory.get("platforms")
         if has_no_platforms:
             lines.append("\n_No platforms connected yet. Suggest connecting Slack or Notion to give agents real data._")
-        lines.append("_To add more work scopes or agents, the user can ask here. Click into a project to refine its objective._")
+        lines.append("_To add topics or projects, the user can ask here. Click into a project to refine its objective._")
 
     # Known facts / instructions
     known = working_memory.get("known", [])
