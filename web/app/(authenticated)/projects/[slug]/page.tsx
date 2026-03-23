@@ -1,13 +1,11 @@
 'use client';
 
 /**
- * Project Detail Page — ADR-124
+ * Project Detail Page — ADR-134 (evolves ADR-124)
  *
- * Tab layout: Meeting Room | Context | Outputs | Settings
- * Meeting Room: split-view — chat timeline (left) + persistent participant sidebar (right).
- * Context: workspace file browser.
- * Outputs: assembly cards with inline markdown preview.
- * Settings: objective, assembly config, delivery, archive.
+ * Single-surface workfloor: agents as characters, output as hero, chat as drawer.
+ * No tabs — one continuous scene. Agents are your team, visible and alive.
+ * Click agent → chat drawer. Gear icon → settings modal.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -48,6 +46,7 @@ import {
   ThumbsDown,
   CalendarClock,
   FileOutput,
+  Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -1696,11 +1695,13 @@ function WorkfloorView({
   activities,
   slug,
   pmCognitiveState,
+  onAgentClick,
 }: {
   members: ProjectMember[];
   activities: ProjectActivityItem[];
   slug: string;
   pmCognitiveState?: PMCognitiveState | null;
+  onAgentClick?: (agentSlug: string) => void;
 }) {
   // Derive latest pulse state per agent from activity events
   const agentPulseState = useCallback(() => {
@@ -1787,7 +1788,8 @@ function WorkfloorView({
                   return (
                     <div
                       key={m.agent_slug}
-                      className="group relative flex flex-col items-center p-5 rounded-2xl border border-border bg-background hover:bg-muted/20 transition-all"
+                      onClick={() => onAgentClick?.(m.agent_slug)}
+                      className="group relative flex flex-col items-center p-5 rounded-2xl border border-border bg-background hover:bg-muted/20 transition-all cursor-pointer"
                     >
                       {/* Pulse indicator — top-right corner */}
                       {decisionConfig && (
@@ -1893,10 +1895,9 @@ function WorkfloorView({
 }
 
 // =============================================================================
-// Main Component — WorkspaceLayout architecture (matches Orchestrator)
 // =============================================================================
-
-type MainView = 'meeting-room' | 'workfloor';
+// Main Component — ADR-134: Single-surface workfloor with chat drawer
+// =============================================================================
 
 export default function ProjectDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -1907,8 +1908,12 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
-  const [mainView, setMainView] = useState<MainView>('workfloor');
   const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
+  // ADR-134: Chat drawer state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatAgentSlug, setChatAgentSlug] = useState<string | null>(null); // null = group chat
+  // ADR-134: Settings modal state
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const loadProject = useCallback(async () => {
     try {
@@ -1972,141 +1977,51 @@ export default function ProjectDetailPage() {
   const phaseState = (project as any).phase_state as { current_phase?: string; phases?: Record<string, { status: string }> } | null;
   const workPlan = (project as any).work_plan as string | null;
   const latestOutput = (project as any).latest_output as { folder: string; content: string; composed_html?: string } | null;
-
-  // ADR-133: Derive phase progression for header
   const phases = phaseState?.phases || {};
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
-  // ADR-134: Right panel — Team + PM State + Work Plan (continuous, not tabs)
-  const rightPanel: WorkspacePanelTab[] = [
-    {
-      id: 'team',
-      label: `Team (${members.length})`,
-      content: (
-        <div className="overflow-y-auto space-y-0">
-          {/* Team cards */}
-          {members.length > 0 ? (
-            <ParticipantsSidebar
-              members={members}
-              contributionCounts={contribution_counts}
-              slug={slug}
-              pmIntelligence={pm_intelligence}
-            />
-          ) : (
-            <div className="p-4 text-center">
-              <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">No agents assigned</p>
-            </div>
-          )}
-
-          {/* PM Coordination Card */}
-          {(() => {
-            const latestPmPulse = activities.find(a =>
-              a.event_type === 'pm_pulsed' || (a.event_type === 'agent_pulsed' && a.metadata?.action)
-            );
-            return latestPmPulse ? (
-              <div className="mx-3 mb-3 p-2.5 rounded-lg border border-purple-200 dark:border-purple-800/40 bg-purple-50/50 dark:bg-purple-900/10">
-                <p className="text-[10px] font-medium text-purple-700 dark:text-purple-400 mb-1">PM Coordination</p>
-                <p className="text-[11px] text-foreground/80">{latestPmPulse.summary || String(latestPmPulse.metadata?.reason || 'Monitoring project')}</p>
-              </div>
-            ) : null;
-          })()}
-
-          {/* Work Plan */}
-          {workPlan && (
-            <div className="mx-3 mb-3 p-2.5 rounded-lg border border-border bg-muted/30">
-              <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Work Plan</p>
-              <div className="prose prose-xs dark:prose-invert max-w-none text-[11px] leading-relaxed">
-                <ReactMarkdown>{workPlan.slice(0, 500)}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: 'context',
-      label: 'Files',
-      content: <ContextTab slug={slug} />,
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      content: (
-        <div className="overflow-y-auto">
-          <SettingsTab
-            slug={slug}
-            project={meta}
-            objective={objective}
-            onUpdateObjective={(obj) => setObjective(obj)}
-            onArchive={handleArchive}
-            archiving={archiving}
-          />
-        </div>
-      ),
-    },
-  ];
-
-  // ADR-134: View toggle — Output (default) / Chat
-  const viewToggle = (
-    <div className="flex items-center bg-muted rounded-lg p-0.5">
-      <button
-        onClick={() => setMainView('workfloor')}
-        className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
-          mainView === 'workfloor'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
-      >
-        <FileText className="w-3 h-3" />
-        <span className="hidden sm:inline">Output</span>
-      </button>
-      <button
-        onClick={() => setMainView('meeting-room')}
-        className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors',
-          mainView === 'meeting-room'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
-      >
-        <MessageSquare className="w-3 h-3" />
-        <span className="hidden sm:inline">Chat</span>
-      </button>
-    </div>
-  );
+  // Handler: click agent card → open chat drawer for that agent
+  const handleAgentClick = (agentSlug: string) => {
+    setChatAgentSlug(agentSlug);
+    setChatOpen(true);
+  };
 
   return (
-    <WorkspaceLayout
-      identity={{
-        icon: <FolderKanban className="w-5 h-5" />,
-        label: title,
-        badge: objective?.purpose ? (
-          <span className="text-xs text-muted-foreground truncate max-w-[250px] hidden md:inline">
-            {objective.purpose}
-          </span>
-        ) : objective?.deliverable ? (
-          <span className="text-xs text-muted-foreground truncate max-w-[250px] hidden md:inline">
-            {objective.deliverable}
-          </span>
-        ) : undefined,
-      }}
-      breadcrumb={
-        <Link
-          href="/projects"
-          className="flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">Projects</span>
-        </Link>
-      }
-      headerControls={
-        <div className="flex items-center gap-3">
-          {/* ADR-133: Phase indicator */}
+    <div className="h-full flex flex-col bg-background">
+      {/* ── PROJECT HEADER ── */}
+      <div className="border-b border-border px-4 py-3 shrink-0">
+        <div className="flex items-center gap-3 mb-1">
+          <Link
+            href="/projects"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Link>
+          <h1 className="text-base font-semibold truncate">{title}</h1>
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            <button
+              onClick={() => { setChatAgentSlug(null); setChatOpen(true); }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Chat</span>
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        {/* Objective + Phase */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {objective?.purpose && (
+            <span className="text-xs text-muted-foreground">{objective.purpose}</span>
+          )}
           {phaseNames.length > 0 && (
-            <div className="hidden md:flex items-center gap-1 text-[10px]">
+            <div className="flex items-center gap-1 text-[10px]">
               {phaseNames.map((name, i) => {
                 const status = phases[name]?.status || 'pending';
                 const isCurrent = name === currentPhase;
@@ -2126,52 +2041,134 @@ export default function ProjectDetailPage() {
               })}
             </div>
           )}
-          {viewToggle}
         </div>
-      }
-      panelTabs={rightPanel}
-      panelDefaultOpen={true}
-      panelDefaultPct={30}
-    >
-      {/* ADR-134: Main view — Output (default) or Chat */}
-      {mainView === 'meeting-room' ? (
-        <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
-      ) : (
-        <div className="flex-1 overflow-y-auto">
-          {/* Hero output */}
-          {latestOutput?.composed_html ? (
-            <div className="border-b border-border">
-              <iframe
-                srcDoc={latestOutput.composed_html}
-                className="w-full"
-                style={{ border: 'none', minHeight: '400px', height: '60vh' }}
-                sandbox="allow-same-origin"
-                title="Latest output"
+      </div>
+
+      {/* ── MAIN CONTENT: Workfloor + Output + Chat Drawer ── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Workfloor + Output (always visible) */}
+        <div className={cn(
+          'flex-1 overflow-y-auto transition-all duration-200',
+          chatOpen ? 'mr-0' : ''
+        )}>
+          {/* Workfloor — agent cards */}
+          <div className="p-4">
+            <WorkfloorView
+              members={members}
+              activities={activities}
+              slug={slug}
+              pmCognitiveState={project_cognitive_state}
+              onAgentClick={handleAgentClick}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Latest Output */}
+          <div className="p-4">
+            {latestOutput?.composed_html ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">Latest Output</p>
+                  <p className="text-[10px] text-muted-foreground">{latestOutput.folder}</p>
+                </div>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <iframe
+                    srcDoc={latestOutput.composed_html}
+                    className="w-full"
+                    style={{ border: 'none', minHeight: '300px', height: '50vh' }}
+                    sandbox="allow-same-origin"
+                    title="Latest output"
+                  />
+                </div>
+              </div>
+            ) : latestOutput?.content ? (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Latest Output</p>
+                <div className="border border-border rounded-lg p-4 bg-muted/20">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Package className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">No outputs yet — agents will produce on their next run</p>
+              </div>
+            )}
+
+            {/* Output history */}
+            {assembly_count > 1 && (
+              <div className="mt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Previous outputs</p>
+                <OutputsTab slug={slug} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Chat Drawer (slides in) */}
+        {chatOpen && (
+          <div className="w-[380px] border-l border-border flex flex-col bg-background shrink-0 animate-in slide-in-from-right duration-200">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium">
+                  {chatAgentSlug
+                    ? `Chat with ${members.find(m => m.agent_slug === chatAgentSlug)?.title || chatAgentSlug}`
+                    : 'Project Chat'}
+                </span>
+              </div>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {/* Chat content */}
+            <div className="flex-1 overflow-hidden">
+              <MeetingRoomTab
+                activities={activities}
+                slug={slug}
+                projectTitle={title}
+                contributors={members}
               />
             </div>
-          ) : latestOutput?.content ? (
-            <div className="p-6 border-b border-border">
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Package className="w-10 h-10 text-muted-foreground/20 mb-3" />
-              <p className="text-sm text-muted-foreground">No outputs yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Agents will produce output on their next run</p>
-            </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* Output history */}
-          {assembly_count > 0 && (
-            <div className="p-4">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Previous outputs</p>
-              <OutputsTab slug={slug} />
+      {/* ── SETTINGS MODAL ── */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSettingsOpen(false)}>
+          <div
+            className="bg-background rounded-xl border border-border shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h2 className="text-sm font-semibold">Project Settings</h2>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          )}
+            <SettingsTab
+              slug={slug}
+              project={meta}
+              objective={objective}
+              onUpdateObjective={(obj) => setObjective(obj)}
+              onArchive={handleArchive}
+              archiving={archiving}
+            />
+          </div>
         </div>
       )}
-    </WorkspaceLayout>
+    </div>
   );
 }
