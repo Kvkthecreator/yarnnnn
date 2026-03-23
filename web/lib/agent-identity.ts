@@ -9,17 +9,17 @@
 // Role → Color mapping
 // =============================================================================
 
-/** Avatar background color by role */
+/** Avatar background hex color by role — inline styles, immune to Tailwind purge */
 export function avatarColor(role?: string): string {
   switch (role) {
-    case 'pm': return 'bg-purple-600';
-    case 'digest': return 'bg-blue-500';
-    case 'monitor': return 'bg-amber-500';
-    case 'research': return 'bg-green-500';
-    case 'synthesize': return 'bg-teal-500';
-    case 'prepare': return 'bg-indigo-500';
-    case 'act': return 'bg-rose-500';
-    default: return 'bg-gray-500';
+    case 'pm': return '#9333ea';       // purple-600
+    case 'digest': return '#3b82f6';   // blue-500
+    case 'monitor': return '#f59e0b';  // amber-500
+    case 'research': return '#22c55e'; // green-500
+    case 'synthesize': return '#14b8a6'; // teal-500
+    case 'prepare': return '#6366f1';  // indigo-500
+    case 'act': return '#f43f5e';      // rose-500
+    default: return '#6b7280';         // gray-500
   }
 }
 

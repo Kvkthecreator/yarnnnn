@@ -81,8 +81,8 @@ export function AgentAvatar({
             config.container,
             'rounded-full flex items-center justify-center text-white font-semibold',
             config.text,
-            avatarColor(role),
           )}
+          style={{ backgroundColor: avatarColor(role) }}
         >
           {initials}
         </div>
