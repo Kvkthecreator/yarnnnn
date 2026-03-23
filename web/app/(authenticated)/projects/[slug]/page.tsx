@@ -65,6 +65,7 @@ import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
+import { BrandSection } from '@/components/settings/MemorySection';
 import type {
   ProjectDetail,
   ProjectActivityItem,
@@ -1981,117 +1982,59 @@ export default function ProjectDetailPage() {
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
-  // ADR-134: Context panel as WorkspaceLayout panel tab — resizable, consistent with orchestrator
-  const contextPanelContent = (
-    <div className="overflow-y-auto h-full">
-
-          {/* 1. Objective */}
-          <div className="px-3 py-3 border-b border-border">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Objective</p>
-            {objective?.deliverable ? (
-              <div className="space-y-1 text-xs">
-                <p className="text-foreground font-medium">{objective.deliverable}</p>
-                {objective.audience && <p className="text-muted-foreground">For: {objective.audience}</p>}
-                {objective.purpose && <p className="text-muted-foreground">{objective.purpose}</p>}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">No objective set — refine in settings</p>
-            )}
-          </div>
-
-          {/* 2. Latest Output */}
-          <div className="px-3 py-3 border-b border-border">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Latest Output</p>
-            {latestOutput?.composed_html ? (
-              <div className="border border-border rounded-lg overflow-hidden">
-                <iframe
-                  srcDoc={latestOutput.composed_html}
-                  className="w-full"
-                  style={{ border: 'none', minHeight: '200px', height: '30vh' }}
-                  sandbox="allow-same-origin"
-                  title="Latest output"
-                />
-              </div>
-            ) : latestOutput?.content ? (
-              <div className="border border-border rounded-lg p-2.5 bg-muted/20 max-h-48 overflow-y-auto">
-                <div className="prose prose-xs dark:prose-invert max-w-none">
-                  <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">No outputs yet</p>
-            )}
-            {assembly_count > 1 && (
-              <button className="text-[10px] text-primary hover:underline mt-1.5">
-                View {assembly_count} previous outputs
-              </button>
-            )}
-          </div>
-
-          {/* 3. Team — compact workfloor cards */}
-          <div className="px-3 py-3 border-b border-border">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Team ({members.length})</p>
-            <div className="space-y-2">
-              {members.map((m) => {
-                const name = agentDisplayName(m.title, m.agent_slug);
-                const isPM = m.role === 'pm';
-                return (
-                  <div key={m.agent_slug} className="flex items-center gap-2.5 group">
-                    <AgentAvatar
-                      name={name}
-                      role={m.role}
-                      avatarUrl={m.avatar_url}
-                      size="sm"
-                      status={m.status}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{name}</p>
-                      <p className="text-[10px] text-muted-foreground">{roleDisplayName(m.role)}</p>
-                    </div>
-                    {m.total_runs != null && m.total_runs > 0 && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">{m.total_runs} runs</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 4. Work Plan (if exists) */}
-          {workPlan && (
-            <div className="px-3 py-3 border-b border-border">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Work Plan</p>
-              <div className="prose prose-xs dark:prose-invert max-w-none text-[11px] leading-relaxed max-h-40 overflow-y-auto">
-                <ReactMarkdown>{workPlan.slice(0, 500)}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-
-          {/* 5. PM Coordination (latest pulse) */}
-          {(() => {
-            const pmPulse = activities.find(a => a.event_type === 'pm_pulsed');
-            return pmPulse ? (
-              <div className="px-3 py-3 border-b border-border">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">PM Status</p>
-                <p className="text-[11px] text-foreground/80">{pmPulse.summary || String(pmPulse.metadata?.reason || 'Monitoring')}</p>
-              </div>
-            ) : null;
-          })()}
-
-    </div>
-  );
-
+  // ADR-134: 4-tab right panel — Workfloor | Outputs | Brand | Settings
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'context',
-      label: 'Context',
-      content: contextPanelContent,
+      id: 'workfloor',
+      label: `Workfloor (${members.length})`,
+      content: (
+        <div className="overflow-y-auto h-full">
+          {/* Objective header — what agents are working on */}
+          <div className="px-3 py-3 border-b border-border bg-muted/20">
+            {objective?.deliverable ? (
+              <div className="space-y-0.5">
+                <p className="text-xs font-semibold text-foreground">{objective.deliverable}</p>
+                {objective.audience && <p className="text-[10px] text-muted-foreground">For {objective.audience}</p>}
+                {objective.purpose && <p className="text-[10px] text-muted-foreground">{objective.purpose}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">No objective set</p>
+            )}
+          </div>
+
+          {/* Full workfloor — Sims/Tamagotchi agent cards */}
+          <WorkfloorView
+            members={members}
+            activities={activities}
+            slug={slug}
+            pmCognitiveState={project_cognitive_state}
+          />
+        </div>
+      ),
+    },
+    {
+      id: 'outputs',
+      label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`,
+      content: (
+        <div className="overflow-y-auto h-full">
+          <OutputsTab slug={slug} />
+        </div>
+      ),
+    },
+    {
+      id: 'brand',
+      label: 'Brand',
+      content: (
+        <div className="overflow-y-auto h-full p-3">
+          <BrandSection />
+        </div>
+      ),
     },
     {
       id: 'settings',
       label: 'Settings',
       content: (
-        <div className="overflow-y-auto">
+        <div className="overflow-y-auto h-full">
           <SettingsTab
             slug={slug}
             project={meta}

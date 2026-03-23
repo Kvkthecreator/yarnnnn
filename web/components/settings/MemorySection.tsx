@@ -292,7 +292,7 @@ function ProfileSection({ profile, loading, onUpdate }: {
 // Brand Section (ADR-132 — replaces per-platform Preferences)
 // =============================================================================
 
-function BrandSection() {
+export function BrandSection() {
   const [brandContent, setBrandContent] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
