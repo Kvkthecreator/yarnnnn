@@ -425,7 +425,8 @@ function MeetingRoomTab({
     }
   };
 
-  const timeline = mergeTimeline(activities, messages);
+  // ADR-134: Chat is messages only — activity events live on workfloor tab
+  const timeline = mergeTimeline([], messages);
 
   // Filter mention picker results
   const mentionQuery = (input.match(/@(\S*)$/) || [])[1]?.toLowerCase() || '';
@@ -1998,6 +1999,20 @@ export default function ProjectDetailPage() {
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
+  // ADR-134: Selected agent state for workfloor (PM default)
+  const pmMember = members.find(m => m.role === 'pm');
+  const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null);
+  const effectiveSlug = selectedAgentSlug || pmMember?.agent_slug || members[0]?.agent_slug || null;
+  const selectedMember = members.find(m => m.agent_slug === effectiveSlug);
+
+  // Filter activities for selected agent
+  const filteredActivities = effectiveSlug
+    ? activities.filter(a => {
+        const slug = (a.metadata?.agent_slug as string) || '';
+        return slug === effectiveSlug || a.event_type === 'pm_pulsed';
+      })
+    : activities;
+
   // ADR-134: 4-tab right panel — Workfloor | Outputs | Brand | Settings
   const panelTabs: WorkspacePanelTab[] = [
     {
@@ -2005,7 +2020,7 @@ export default function ProjectDetailPage() {
       label: `Workfloor (${members.length})`,
       content: (
         <div className="overflow-y-auto h-full">
-          {/* Objective — the mission board, editable inline */}
+          {/* Objective — the mission board */}
           <div className="px-3 py-3 border-b border-border bg-muted/20">
             <EditableObjective
               slug={slug}
@@ -2014,13 +2029,92 @@ export default function ProjectDetailPage() {
             />
           </div>
 
-          {/* Full workfloor — Sims/Tamagotchi agent cards */}
-          <WorkfloorView
-            members={members}
-            activities={activities}
-            slug={slug}
-            pmCognitiveState={project_cognitive_state}
-          />
+          {/* Agent card selectors */}
+          <div className="px-3 py-2 border-b border-border">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {members.map((m) => {
+                const name = agentDisplayName(m.title, m.agent_slug);
+                const isSelected = m.agent_slug === effectiveSlug;
+                return (
+                  <button
+                    key={m.agent_slug}
+                    onClick={() => setSelectedAgentSlug(m.agent_slug)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all shrink-0 min-w-[64px]',
+                      isSelected
+                        ? 'bg-primary/10 ring-1 ring-primary/30'
+                        : 'hover:bg-muted/50'
+                    )}
+                  >
+                    <AgentAvatar name={name} role={m.role} avatarUrl={m.avatar_url} size="sm" status={m.status} />
+                    <span className="text-[9px] font-medium truncate max-w-[60px]">{name.split(' ')[0]}</span>
+                    <span className={cn('text-[8px] px-1 rounded', roleBadgeColor(m.role))}>{roleShortLabel(m.role)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Selected agent detail */}
+          {selectedMember && (
+            <div className="px-3 py-3 border-b border-border">
+              <div className="flex items-center gap-2 mb-2">
+                <AgentAvatar name={agentDisplayName(selectedMember.title, selectedMember.agent_slug)} role={selectedMember.role} size="sm" status={selectedMember.status} />
+                <div>
+                  <p className="text-xs font-semibold">{agentDisplayName(selectedMember.title, selectedMember.agent_slug)}</p>
+                  <p className="text-[10px] text-muted-foreground">{roleDisplayName(selectedMember.role)}</p>
+                </div>
+                {selectedMember.total_runs != null && selectedMember.total_runs > 0 && (
+                  <span className="text-[10px] text-muted-foreground ml-auto">{selectedMember.total_runs} runs</span>
+                )}
+              </div>
+              {/* Bio */}
+              {selectedMember.bio && (
+                <p className="text-[10px] text-foreground/70 leading-relaxed mb-2">{selectedMember.bio}</p>
+              )}
+              {/* Cognitive state (if contributor) */}
+              {selectedMember.role !== 'pm' && selectedMember.cognitive_state && (
+                <div className="space-y-1 mb-2">
+                  {(['mandate', 'fitness', 'currency', 'confidence'] as const).map(dim => {
+                    const state = selectedMember.cognitive_state?.[dim];
+                    if (!state) return null;
+                    const level = state.level || 'unknown';
+                    return (
+                      <div key={dim} className="flex items-center gap-2 text-[10px]">
+                        <span className="text-muted-foreground w-14 shrink-0 capitalize">{dim === 'currency' ? 'Context' : dim}</span>
+                        <div className={cn(
+                          'h-1.5 rounded-full flex-1',
+                          level === 'high' ? 'bg-green-400' : level === 'medium' ? 'bg-amber-400' : 'bg-red-400'
+                        )} style={{ width: level === 'high' ? '100%' : level === 'medium' ? '60%' : '30%' }} />
+                        <span className="text-muted-foreground w-8 text-right">{level}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Filtered activity feed */}
+          <div className="px-3 py-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              Activity{selectedMember ? ` · ${agentDisplayName(selectedMember.title, selectedMember.agent_slug)}` : ''}
+            </p>
+            {filteredActivities.length > 0 ? (
+              <div className="space-y-2">
+                {filteredActivities.slice(0, 15).map((a, i) => (
+                  <div key={a.id || i} className="flex gap-2 text-[10px]">
+                    <span className="text-muted-foreground shrink-0 w-12 text-right">
+                      {format(new Date(a.created_at), 'h:mm a')}
+                    </span>
+                    <p className="text-foreground/80 leading-relaxed">{a.summary}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground italic">No activity yet</p>
+            )}
+          </div>
         </div>
       ),
     },
