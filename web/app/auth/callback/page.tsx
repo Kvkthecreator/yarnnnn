@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
-import { HOME_ROUTE } from "@/lib/routes";
+import { HOME_ROUTE, ONBOARDING_ROUTE } from "@/lib/routes";
+import { api } from "@/lib/api/client";
 
 function CallbackHandler() {
   const router = useRouter();
@@ -43,8 +44,20 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // Session exists - redirect to dashboard
-        // Use window.location for full page reload to ensure cookies are set
+        // ADR-132: Check if user has completed onboarding (work index exists)
+        // Only gate if user is heading to HOME_ROUTE (not a specific deep link)
+        if (next === HOME_ROUTE) {
+          try {
+            setStatus("Setting up...");
+            const onboardingState = await api.onboarding.getState();
+            if (!onboardingState.has_work_index && onboardingState.state === "cold_start") {
+              window.location.href = ONBOARDING_ROUTE;
+              return;
+            }
+          } catch {
+            // On error, skip onboarding gate — don't block login
+          }
+        }
         window.location.href = next;
         return;
       }
@@ -57,6 +70,18 @@ function CallbackHandler() {
       const { data: { session: retrySession } } = await supabase.auth.getSession();
 
       if (retrySession) {
+        // ADR-132: Same onboarding check for retry path
+        if (next === HOME_ROUTE) {
+          try {
+            const onboardingState = await api.onboarding.getState();
+            if (!onboardingState.has_work_index && onboardingState.state === "cold_start") {
+              window.location.href = ONBOARDING_ROUTE;
+              return;
+            }
+          } catch {
+            // On error, skip onboarding gate
+          }
+        }
         window.location.href = next;
         return;
       }

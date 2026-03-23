@@ -58,6 +58,8 @@ const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack',
   notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform',
+  workspace: 'Workspace',
+  bounded_deliverable: 'Deliverable',
   custom: 'Custom',
 };
 
@@ -141,7 +143,7 @@ function ProjectsPanel() {
       <div className="p-4 text-center">
         <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No projects yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">Connect a platform or ask yarnnn to set one up</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">Tell yarnnn what you&apos;re working on to get started</p>
       </div>
     );
   }

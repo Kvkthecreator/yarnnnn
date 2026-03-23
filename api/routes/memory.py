@@ -9,6 +9,9 @@ Three files back the Memory page:
   /memory/preferences.md → Per-platform tone/verbosity
   /memory/notes.md       → Facts, instructions, preferences (accumulated)
 
+ADR-132 addition:
+  /memory/WORK.md        → Work index (structure, scopes, project mappings)
+
 Endpoints:
   GET  /profile              - Get profile fields from MEMORY.md
   PATCH /profile             - Update profile fields in MEMORY.md
@@ -21,6 +24,8 @@ Endpoints:
   POST /user/memories/import - Bulk import: extract from text
   DELETE /memories/{id}      - Delete a note by content hash
   GET  /user/onboarding-state - Detect onboarding state
+  POST /user/work            - Save work index (ADR-132)
+  GET  /user/work            - Get work index (ADR-132)
   GET  /activity             - List recent activity from activity_log (ADR-063)
 """
 
@@ -104,6 +109,28 @@ class OnboardingStateResponse(BaseModel):
     memory_count: int
     document_count: int
     has_recent_chat: bool
+    has_work_index: bool = False  # ADR-132: True if /memory/WORK.md exists
+
+
+# ─── ADR-132: Work Index Models ──────────────────────────────────────────────
+
+class WorkScope(BaseModel):
+    name: str
+    lifecycle: str = "persistent"  # 'persistent' | 'bounded'
+    project_slug: Optional[str] = None
+    status: str = "active"  # 'active' | 'completed'
+
+
+class WorkIndexRequest(BaseModel):
+    structure: str  # 'single' | 'multi'
+    scopes: list[WorkScope]
+    name: Optional[str] = None
+
+
+class WorkIndexResponse(BaseModel):
+    structure: Optional[str] = None
+    scopes: list[WorkScope] = []
+    exists: bool = False
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -171,6 +198,10 @@ async def get_onboarding_state(auth: UserClient):
             .execute()
         has_recent_chat = len(session_result.data or []) > 0
 
+        # ADR-132: Check if work index exists
+        work_content = await um.read("WORK.md")
+        has_work_index = bool(work_content and work_content.strip())
+
         if memory_count == 0 and document_count == 0:
             state = "cold_start"
         elif memory_count < 3 and not has_recent_chat:
@@ -183,8 +214,167 @@ async def get_onboarding_state(auth: UserClient):
             memory_count=memory_count,
             document_count=document_count,
             has_recent_chat=has_recent_chat,
+            has_work_index=has_work_index,
         )
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Work Index (ADR-132) ────────────────────────────────────────────────────
+
+def _format_work_md(structure: str, scopes: list[WorkScope]) -> str:
+    """Format WORK.md from structured data."""
+    lines = [
+        "# Work Structure\n",
+        f"structure: {structure}\n",
+        "## Work Units\n",
+    ]
+    for s in scopes:
+        lines.append(f"- **{s.name}**")
+        lines.append(f"  - lifecycle: {s.lifecycle}")
+        if s.project_slug:
+            lines.append(f"  - project_slug: {s.project_slug}")
+        lines.append(f"  - status: {s.status}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _parse_work_md(content: str) -> tuple[Optional[str], list[WorkScope]]:
+    """Parse WORK.md back into structured data."""
+    import re
+    structure = None
+    scopes = []
+
+    struct_match = re.search(r"^structure:\s*(.+)$", content, re.MULTILINE)
+    if struct_match:
+        structure = struct_match.group(1).strip()
+
+    # Parse work units: - **Name** followed by indented properties
+    unit_pattern = re.compile(
+        r"- \*\*(.+?)\*\*\n"
+        r"((?:  - .+\n?)*)",
+        re.MULTILINE,
+    )
+    for match in unit_pattern.finditer(content):
+        name = match.group(1)
+        props_text = match.group(2)
+        lifecycle = "persistent"
+        project_slug = None
+        status = "active"
+        for prop_line in props_text.strip().split("\n"):
+            prop_line = prop_line.strip().lstrip("- ")
+            if prop_line.startswith("lifecycle:"):
+                lifecycle = prop_line.split(":", 1)[1].strip()
+            elif prop_line.startswith("project_slug:"):
+                project_slug = prop_line.split(":", 1)[1].strip()
+            elif prop_line.startswith("status:"):
+                status = prop_line.split(":", 1)[1].strip()
+        scopes.append(WorkScope(
+            name=name, lifecycle=lifecycle,
+            project_slug=project_slug, status=status,
+        ))
+    return structure, scopes
+
+
+class WorkIndexSaveResponse(BaseModel):
+    structure: Optional[str] = None
+    scopes: list[WorkScope] = []
+    exists: bool = False
+    projects_created: list[dict] = []
+
+
+@router.post("/user/work", response_model=WorkIndexSaveResponse)
+async def save_work_index(body: WorkIndexRequest, auth: UserClient):
+    """Save the user's work index and scaffold projects (ADR-132).
+
+    Called from onboarding page on first setup, and by TP for ongoing updates.
+    Scaffolds a project for each scope that doesn't already have one.
+    """
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+
+        # Also update name in profile if provided
+        if body.name:
+            profile = await um.get_profile()
+            if not profile.get("name"):
+                await um.update_profile({"name": body.name})
+
+        # Scaffold projects for each scope
+        from services.project_registry import scaffold_project
+        projects_created = []
+        updated_scopes = []
+
+        for scope in body.scopes:
+            if scope.project_slug:
+                # Already scaffolded — keep as-is
+                updated_scopes.append(scope)
+                continue
+
+            # Determine project type from lifecycle
+            type_key = "bounded_deliverable" if scope.lifecycle == "bounded" else "workspace"
+
+            result = await scaffold_project(
+                client=auth.client,
+                user_id=auth.user_id,
+                type_key=type_key,
+                scope_name=scope.name,
+                execute_now=False,  # Don't run agents yet — no platform sources
+            )
+
+            if result.get("success"):
+                scope_with_slug = WorkScope(
+                    name=scope.name,
+                    lifecycle=scope.lifecycle,
+                    project_slug=result["project_slug"],
+                    status=scope.status,
+                )
+                updated_scopes.append(scope_with_slug)
+                projects_created.append({
+                    "project_slug": result["project_slug"],
+                    "title": result["title"],
+                    "type_key": type_key,
+                    "scope_name": scope.name,
+                })
+                logger.info(f"[WORK_INDEX] Scaffolded project '{result['project_slug']}' for scope '{scope.name}'")
+            else:
+                # Scaffolding failed — keep scope without project_slug
+                updated_scopes.append(scope)
+                logger.warning(f"[WORK_INDEX] Scaffold failed for scope '{scope.name}': {result.get('message')}")
+
+        # Write WORK.md with project_slug backfilled
+        content = _format_work_md(body.structure, updated_scopes)
+        success = await um.write("WORK.md", content, summary="Work index (ADR-132)")
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to write WORK.md")
+
+        return WorkIndexSaveResponse(
+            structure=body.structure,
+            scopes=updated_scopes,
+            exists=True,
+            projects_created=projects_created,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/user/work", response_model=WorkIndexResponse)
+async def get_work_index(auth: UserClient):
+    """Get the user's work index (ADR-132)."""
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+        content = await um.read("WORK.md")
+        if not content or not content.strip():
+            return WorkIndexResponse(exists=False)
+
+        structure, scopes = _parse_work_md(content)
+        return WorkIndexResponse(
+            structure=structure,
+            scopes=scopes,
+            exists=True,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

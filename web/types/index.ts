@@ -185,6 +185,27 @@ export interface OnboardingStateResponse {
   memory_count: number;
   document_count: number;
   has_recent_chat: boolean;
+  has_work_index: boolean;
+}
+
+// Work Index (ADR-132)
+export interface WorkScope {
+  name: string;
+  lifecycle: "persistent" | "bounded";
+  project_slug?: string | null;
+  status: "active" | "completed";
+}
+
+export interface WorkIndexRequest {
+  structure: "single" | "multi";
+  scopes: WorkScope[];
+  name?: string;
+}
+
+export interface WorkIndexResponse {
+  structure: string | null;
+  scopes: WorkScope[];
+  exists: boolean;
 }
 
 // API Response types

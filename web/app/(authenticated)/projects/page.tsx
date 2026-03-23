@@ -25,6 +25,8 @@ const TYPE_LABELS: Record<string, string> = {
   slack_digest: 'Slack',
   notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform',
+  workspace: 'Workspace',
+  bounded_deliverable: 'Deliverable',
   custom: 'Custom',
 };
 

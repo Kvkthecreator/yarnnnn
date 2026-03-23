@@ -22,6 +22,8 @@ import type {
   KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
+  WorkIndexRequest,
+  WorkIndexResponse,
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
@@ -251,6 +253,17 @@ export const api = {
   onboarding: {
     getState: () =>
       request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
+  },
+
+  // Work Index (ADR-132)
+  work: {
+    get: () =>
+      request<WorkIndexResponse>("/api/memory/user/work"),
+    save: (data: WorkIndexRequest) =>
+      request<WorkIndexResponse>("/api/memory/user/work", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Document endpoints (ADR-008: Document Pipeline)

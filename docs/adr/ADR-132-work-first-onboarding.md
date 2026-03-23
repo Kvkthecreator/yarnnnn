@@ -481,18 +481,20 @@ Bootstrap (platform → auto-scaffold) is preserved as a **fallback path**, not 
 
 ## Phases
 
-### Phase 1: Onboarding page + work index
-- New `/onboarding` route with two-step structured form (structure → scopes + name)
-- Store in `/memory/WORK.md` as living work index
-- Redirect logic: signup → onboarding → orchestrator
-- Skip option that preserves current flow
-- Work index visible in Settings → Memory tab (read-only)
+### Phase 1: Onboarding page + work index — IMPLEMENTED
+- `/onboarding` route with two-step structured form (structure → scopes + name)
+- `POST /api/memory/user/work` saves `/memory/WORK.md` as living work index
+- `GET /api/memory/user/work` reads and parses work index
+- Auth callback gate: `cold_start` users without work index → redirect to `/onboarding`
+- Skip option preserves current flow (redirects to `/orchestrator`)
+- `has_work_index` field added to onboarding state endpoint
 
-### Phase 2: Lifecycle classification + project scaffolding
-- Classify each scope's lifecycle (persistent vs. bounded) — heuristics or single Haiku call
-- Work-scoped project types added to registry (`workspace`, `bounded_deliverable`)
-- `scaffold_project()` extended with template interpolation (`{scope_name}`)
+### Phase 2: Lifecycle classification + project scaffolding — IMPLEMENTED
+- `workspace` + `bounded_deliverable` types added to `PROJECT_TYPE_REGISTRY`
+- `scaffold_project()` extended with `scope_name` param + `{scope_name}` template interpolation
+- `objective_template`, `contributors_template`, `assembly_spec_template` on work-scoped types
 - Projects created on onboarding submit, `project_slug` backfilled to WORK.md
+- Orchestrator + projects page updated with new type labels
 
 ### Phase 3: Platform source mapping
 - `sources_from: "work_unit"` resolution in `scaffold_project()`
@@ -556,3 +558,4 @@ Bootstrap (platform → auto-scaffold) is preserved as a **fallback path**, not 
 | 2026-03-23 | v1 — Initial proposal: work-first onboarding, work units, lifecycle inference, platform source mapping |
 | 2026-03-23 | v1.1 — Structured two-step onboarding (single vs. multi-scope) replaces free-text field. User-agnostic language (no "client" assumptions). Registry simplified to `workspace` + `bounded_deliverable`. |
 | 2026-03-23 | v1.2 — `/memory/WORK.md` as living work index (not just onboarding output). Management model: conversation as write path, Settings/Memory as read path. Onboarding page is one-time, not revisitable. TP/Composer/PM read and write the work index. Resolved open questions 1-4. |
+| 2026-03-23 | v1.3 — Phases 1+2 implemented. Frontend: `/onboarding` page, auth callback gate, type labels. Backend: `/api/memory/user/work` GET/POST, `workspace` + `bounded_deliverable` registry types, `scaffold_project()` scope_name interpolation, project scaffolding on submit with WORK.md backfill. |

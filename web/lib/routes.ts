@@ -7,3 +7,5 @@ export function isHomeRoute(pathname: string): boolean {
 
 export const PROJECTS_ROUTE = "/projects";
 export const PROJECTS_LABEL = "Projects";
+
+export const ONBOARDING_ROUTE = "/onboarding";

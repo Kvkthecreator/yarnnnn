@@ -85,6 +85,58 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "version": "2026-03-20",
     },
 
+    # ── Work-scoped types (ADR-132 — scaffolded from user's work description) ──
+
+    "workspace": {
+        "display_name": "Workspace",
+        "category": "work",
+        "platform": None,
+        "lifecycle": "persistent",
+        "description": "Recurring monitoring, tracking, and reporting for an ongoing workstream.",
+        "objective_template": {
+            "deliverable": "Weekly {scope_name} update",
+            "audience": "You",
+            "format": "email",
+            "purpose": "Stay on top of {scope_name} activity and surface what needs attention",
+        },
+        "contributors_template": [
+            {
+                "title_template": "{scope_name} Digest",
+                "role": "digest",
+                "scope": "cross_platform",
+                "frequency": "daily",
+                "sources_from": "work_unit",
+            },
+        ],
+        "pm": True,
+        "assembly_spec_template": "Coordinate {scope_name} updates and deliver summary.",
+        "delivery_default": {"platform": "email"},
+        "version": "2026-03-23",
+    },
+
+    "bounded_deliverable": {
+        "display_name": "Deliverable",
+        "category": "work",
+        "platform": None,
+        "lifecycle": "bounded",
+        "description": "A specific deliverable with a defined end state.",
+        "objective_template": None,
+        "contributors_template": [
+            {
+                "title_template": "{scope_name} Agent",
+                "role": "research",
+                "scope": "knowledge",
+                "frequency": "on_demand",
+                "sources_from": "work_unit",
+            },
+        ],
+        "pm": True,
+        "pm_lightweight": True,
+        "assembly_spec_template": "Produce {scope_name} and deliver when ready.",
+        "delivery_default": {"platform": "email"},
+        "version": "2026-03-23",
+    },
+
     # ── Multi-agent project types ──
 
     "cross_platform_synthesis": {
@@ -214,6 +266,7 @@ async def scaffold_project(
     assembly_spec_override: Optional[str] = None,
     delivery_override: Optional[dict] = None,
     execute_now: bool = False,
+    scope_name: Optional[str] = None,
 ) -> dict:
     """
     Scaffold a project from the registry. Single entry point for all
@@ -251,10 +304,29 @@ async def scaffold_project(
             "message": f"Project of type '{type_key}' already exists: {existing_slug}",
         }
 
+    # ── ADR-132: Template interpolation for work-scoped types ──
+    def _interpolate(val, scope: str):
+        """Replace {scope_name} in strings and dicts."""
+        if isinstance(val, str):
+            return val.replace("{scope_name}", scope)
+        if isinstance(val, dict):
+            return {k: _interpolate(v, scope) for k, v in val.items()}
+        if isinstance(val, list):
+            return [_interpolate(v, scope) for v in val]
+        return val
+
+    sn = scope_name or ""
+
     # ── Resolve project metadata ──
-    title = title_override or ptype["display_name"]
-    objective = objective_override or ptype.get("objective") or {}
-    assembly_spec = assembly_spec_override or ptype.get("assembly_spec") or ""
+    # For work-scoped types, use scope_name as title; resolve templates
+    if scope_name and ptype.get("category") == "work":
+        title = title_override or scope_name
+        objective = objective_override or _interpolate(ptype.get("objective_template") or ptype.get("objective") or {}, sn)
+        assembly_spec = assembly_spec_override or _interpolate(ptype.get("assembly_spec_template") or ptype.get("assembly_spec") or "", sn)
+    else:
+        title = title_override or ptype["display_name"]
+        objective = objective_override or ptype.get("objective") or {}
+        assembly_spec = assembly_spec_override or ptype.get("assembly_spec") or ""
     delivery = delivery_override or {}
 
     # Resolve delivery default — auto-populate email target
@@ -276,7 +348,11 @@ async def scaffold_project(
     project_slug = get_project_slug(title)
 
     # ── Resolve sources for member agents ──
-    contributor_specs = contributors_override or ptype.get("contributors", [])
+    # For work-scoped types, use contributors_template with interpolation
+    if scope_name and ptype.get("category") == "work" and not contributors_override:
+        contributor_specs = _interpolate(ptype.get("contributors_template") or ptype.get("contributors", []), sn)
+    else:
+        contributor_specs = contributors_override or ptype.get("contributors", [])
 
     async def _resolve_sources(spec: dict) -> list:
         sources_from = spec.get("sources_from")
