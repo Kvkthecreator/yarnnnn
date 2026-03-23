@@ -1,20 +1,19 @@
 'use client';
 
 /**
- * ADR-063: Context Page — Four-Layer Model
+ * Context Page — Workspace File Browser
  *
- * Layer 3: Context — What's in the user's platforms right now
+ * Cross-project visibility into the user's workspace data.
+ * Like Finder for YARNNN — not used daily, but essential when you
+ * need to find something or see the big picture across projects.
  *
  * Sections:
- * - Platforms: Connected integrations (Slack, Notion)
+ * - Knowledge: Agent-produced outputs across all projects (cross-project view)
+ * - Platforms: Connected integrations + source management (Slack, Notion)
  * - Documents: Uploaded files (PDF, DOC, TXT, MD)
- * - Knowledge: Agent-produced artifacts in /knowledge/ filesystem
  *
- * Data lives in: platform_connections, platform_content, filesystem_documents, workspace_files(/knowledge/)
- * Written by: OAuth flow, platform_worker sync, document upload
- * Read by: TP via Search tool, agent pipeline via TP execution mode
- *
- * Note: Profile, Styles, and Entries moved to /memory (Memory layer)
+ * ADR-132: Primary surfaces are Orchestrator + Project meeting rooms.
+ * This page is the workspace-level browser for power users and cross-project search.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -508,7 +507,7 @@ function KnowledgeSection({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Knowledge Files</h2>
+          <h2 className="text-lg font-semibold text-foreground">Knowledge</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Agent outputs and user notes organized by content class.
           </p>
@@ -774,9 +773,9 @@ export default function ContextPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Files</h1>
+            <h1 className="text-2xl font-bold">Workspace</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Browse platforms, documents, and knowledge in one filesystem view
+              Browse knowledge, platforms, and documents across all projects
             </p>
           </div>
           <button

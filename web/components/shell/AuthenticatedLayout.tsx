@@ -107,7 +107,7 @@ const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, i
 // Context = platform connections + uploaded files (was "Sources")
 // Agents hidden from nav — accessible via project cross-links and direct URL
 const SECONDARY_PAGES: RouteItem[] = [
-  { id: 'context', label: 'Context', icon: Layers, path: '/context' },
+  { id: 'context', label: 'Workspace', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
