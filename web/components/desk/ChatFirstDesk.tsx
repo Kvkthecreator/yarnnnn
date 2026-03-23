@@ -204,7 +204,76 @@ function ProjectsPanel() {
 }
 
 // =============================================================================
-// (UserContextPanel removed — brand is project-level, not workspace-level)
+// =============================================================================
+// Panel: Context (workspace identity + brand — ADR-133)
+// =============================================================================
+
+function ContextPanel() {
+  const [identity, setIdentity] = useState<{ name?: string; role?: string; company?: string; timezone?: string; summary?: string } | null>(null);
+  const [brandContent, setBrandContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.profile.get().catch(() => null),
+      api.brand.get().catch(() => ({ content: null, exists: false })),
+    ]).then(([profile, brand]) => {
+      if (profile) setIdentity(profile);
+      if (brand.exists) setBrandContent(brand.content);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const hasIdentity = identity && (identity.name || identity.company);
+
+  return (
+    <div className="p-3 space-y-4">
+      {/* Identity */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Identity</p>
+        {hasIdentity ? (
+          <div className="text-sm space-y-0.5">
+            {identity?.name && <div className="font-medium">{identity.name}</div>}
+            {(identity?.role || identity?.company) && (
+              <div className="text-muted-foreground text-xs">
+                {[identity.role, identity.company].filter(Boolean).join(' at ')}
+              </div>
+            )}
+            {identity?.summary && (
+              <div className="text-xs text-muted-foreground/70 mt-1">{identity.summary}</div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground/60">
+            Not set — update in Settings → Profile → Identity
+          </p>
+        )}
+      </div>
+
+      {/* Brand */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand</p>
+        {brandContent ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
+            <ReactMarkdown>{brandContent}</ReactMarkdown>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground/60">
+            Not set — update in Settings → Profile → Brand
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // =============================================================================
 // Panel: Platforms (platform sync status)
@@ -521,6 +590,11 @@ export function ChatFirstDesk() {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsPanel />,
+    },
+    {
+      id: 'context',
+      label: 'Context',
+      content: <ContextPanel />,
     },
     {
       id: 'platforms',
