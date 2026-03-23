@@ -1,9 +1,10 @@
 # User Flow: Project-Native Onboarding (v6)
 
-> **Status**: Current
+> **Status**: Partially superseded by ADR-132 (Work-First Onboarding)
 > **Date**: 2026-03-20
 > **Supersedes**: [Onboarding V5](archive/) (2026-03-16)
 > **Related**: ADR-057 (Streamlined Onboarding), ADR-110 (Onboarding Bootstrap), ADR-113 (Auto Source Selection), ADR-119 (Workspace Filesystem), ADR-122 (Project Type Registry), ADR-124 (Project Meeting Room)
+> **Note (2026-03-23)**: ADR-132 evolves onboarding from platform-first to work-first. The primary input becomes "What are you working on?" — work description → work units → project scaffolding. Platform connections enrich existing work-scoped projects rather than creating generic digests. This document describes the current (v6) flow which becomes the fallback for users who skip the work description step. See ADR-132 for the new primary flow.
 
 ---
 

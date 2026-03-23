@@ -252,14 +252,26 @@ Under the previous swarm framing, proactive and coordinator were agent modes —
 
 ## Axiom 6: Autonomy Is the Product Direction
 
-The product vision is: **sign up, connect, watch it work for you.**
+The product vision is: **sign up, describe your work, watch it work for you.**
+
+### Work-First Onboarding (ADR-132)
+
+The system must know **what to work on** before it can work autonomously. Platform connections are data sources — the user's work description determines what agents to create, how to scope them, and what matters.
+
+The onboarding sequence is:
+1. **User describes their work** — "I run a consulting practice with 3 clients" (primary input)
+2. **System extracts work units** — each discrete scope of recurring attention becomes a project
+3. **User connects platforms** — platform sources get mapped to work units (Slack channels → client projects)
+4. **Agents activate** — scoped to work context, not platform topology
+
+Platform connection without work context produces generic digests (the fallback). Work description without platform connection produces correctly-scoped projects with placeholder agents (enriched when platforms connect). The work description is always more valuable than the platform connection.
 
 ### The Autonomous Flow
 
-**All projects** (platform + multi-agent, unified model):
+**All projects** (work-scoped + platform-scoped, unified model):
 ```
-1. User connects platform (or requests project, or Composer detects opportunity)
-2. scaffold_project() creates project + member agents + PM agent
+1. User describes work (or connects platform, or Composer detects opportunity)
+2. Work units extracted → scaffold_project() creates project + member agents + PM agent
 3. Agent pulses begin (sense→decide cycle on cadence)
 4. Agent pulse decides "generate" → run produces output to workspace
 5. PM pulse senses contributor freshness → coordinates delivery
@@ -269,7 +281,7 @@ The product vision is: **sign up, connect, watch it work for you.**
 8. Recursive: next cycle's pulses are smarter because agents learned, PM learned
 ```
 
-Steps 1-2 are the Composer/Bootstrap capability. Steps 3-6 are pulse-driven execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
+Steps 1-2 are the onboarding/Composer/Bootstrap capability. Steps 3-6 are pulse-driven execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
 
 **Three distinct concerns** (ADR-126):
 - **Pulse cadence**: How often does the agent sense its domain? (scales with seniority)
@@ -289,9 +301,13 @@ Both are valid. The architecture optimizes for the autonomous path while fully s
 
 Over time, the balance shifts toward autonomous. Early users direct more; tenured users supervise more. This is the natural consequence of agents developing expertise (Axiom 3) and the recursive substrate accumulating judgment (Axiom 2).
 
-### Implication: First-Run Quality Over Configuration Breadth
+### Implication: Work Context Over Configuration Breadth
 
-A user who sees one excellent, automatically-generated output within 60 seconds of connecting Slack has more confidence in the system than a user who spends 5 minutes configuring 3 agents manually. The Composer should optimize for first-run quality over coverage.
+A user who describes their work and sees correctly-scoped projects with agents that understand their domain has more confidence than a user who connects Slack and gets a generic recap of everything. The system should optimize for understanding the user's work over maximizing platform coverage.
+
+### Implication: Work Types Carry Lifecycle
+
+Work descriptions carry implicit lifecycle. "I have 3 clients" implies persistent, recurring work. "I need a board deck" implies bounded, deliverable-scoped work. The system infers lifecycle from the work description — the user does not configure it. Persistent work gets full PM coordination. Bounded work gets lightweight PM that dissolves on completion. See ADR-132.
 
 ---
 
@@ -349,7 +365,7 @@ These require further design work before implementation:
 
 5. **Agent evolution mechanics** — When an agent's domain expands (e.g., Slack digest agent starts also monitoring email threads from the same team), does it become a new agent or does the existing agent's scope expand? Who decides?
 
-6. **Composer bootstrapping** — What is the minimum substrate assessment needed to scaffold a high-confidence agent within 30 seconds? This is a product question with architectural implications.
+6. ~~**Composer bootstrapping** — What is the minimum substrate assessment needed to scaffold a high-confidence agent within 30 seconds? This is a product question with architectural implications.~~ → **Addressed by ADR-132.** Work description is the primary onboarding input. Work units extracted → projects scaffolded. Platform connections enrich existing projects rather than creating new ones.
 
 7. **Proactive/coordinator code disposition** — The existing proactive review and coordinator primitives implement TP capabilities as agent modes. Can the mechanics be preserved while reframing conceptually, or does the code need structural changes?
 
@@ -375,3 +391,4 @@ These require further design work before implementation:
 | 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |
 | 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128). Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism — agents accumulate self-awareness, not just outputs. |
 | 2026-03-22 | v3.5 — Agent Capability Substrate (ADR-130). Three-registry architecture: Agent Types (deterministic capability bundles), Capabilities (what each enables + runtime), Runtimes (where compute happens). Seniority-gated capability progression removed — agent development is knowledge depth, not capability breadth. Derived Principle 5 revised: development through knowledge, not capability expansion. Derived Principle 9 revised: types determine capabilities, three registries. Axiom 3 revised: Agent = Type (fixed capabilities) + Instructions (configurable persona). |
+| 2026-03-23 | v3.6 — Work-First Onboarding (ADR-132). Axiom 6 revised: "describe your work" replaces "connect platform" as primary onboarding input. Work description → work units → project scaffolding. Platform connections enrich existing work-scoped projects rather than creating generic digests. Work types carry implicit lifecycle (persistent vs. bounded). Open question 6 (Composer bootstrapping) resolved. |
