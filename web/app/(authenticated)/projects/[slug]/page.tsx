@@ -2005,17 +2005,13 @@ export default function ProjectDetailPage() {
       label: `Workfloor (${members.length})`,
       content: (
         <div className="overflow-y-auto h-full">
-          {/* Objective header — what agents are working on */}
+          {/* Objective — the mission board, editable inline */}
           <div className="px-3 py-3 border-b border-border bg-muted/20">
-            {objective?.deliverable ? (
-              <div className="space-y-0.5">
-                <p className="text-xs font-semibold text-foreground">{objective.deliverable}</p>
-                {objective.audience && <p className="text-[10px] text-muted-foreground">For {objective.audience}</p>}
-                {objective.purpose && <p className="text-[10px] text-muted-foreground">{objective.purpose}</p>}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">No objective set</p>
-            )}
+            <EditableObjective
+              slug={slug}
+              objective={objective}
+              onUpdate={(obj) => setObjective(obj)}
+            />
           </div>
 
           {/* Full workfloor — Sims/Tamagotchi agent cards */}
