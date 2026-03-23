@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.3] - ADR-132: Work-first onboarding — working memory + Composer integration
+
+### Changed
+- `working_memory.py`: TP system prompt now includes "Your work" section — reads `/memory/WORK.md` via `_get_work_index_sync()`, renders active work scopes with project links. TP sees user's declared work landscape in every conversation.
+- `composer.py`: Heartbeat data query reads `/memory/WORK.md` via `_get_work_index()`. `should_composer_act()` gains `work_scope_gap` check — triggers when declared scopes lack corresponding projects.
+- `memory.py` (routes): `OnboardingStateResponse` simplified to `has_work_index` only. Legacy `state`/`memory_count`/`document_count`/`has_recent_chat` fields removed. Endpoint streamlined to single WORK.md existence check.
+- Expected behavior: TP can reference user's work structure in conversation. Composer detects and acts on unscaffolded work scopes. New users without work index are gated to `/onboarding` on login.
+
+### Added
+- `memory.py` (routes): `POST /api/memory/user/work` — saves work index + scaffolds projects per scope. `GET /api/memory/user/work` — reads and parses work index.
+- `onboarding_bootstrap.py`: `_has_work_index()` check — skips generic platform digest when user has work-scoped projects from onboarding.
+- `project_registry.py`: `workspace` + `bounded_deliverable` work-scoped types with `{scope_name}` template interpolation.
+
+### Removed
+- `useOnboardingState` hook (frontend) — dead code, zero consumers
+- `OnboardingState` type (`cold_start | minimal_context | active`) — replaced by `has_work_index`
+- Legacy onboarding state computation (memory counts, document counts, chat history checks)
+
 ## [2026.03.23.2] - ADR-130 Phase 1a: Three-registry architecture + seniority deletion
 
 ### Changed

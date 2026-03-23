@@ -1,7 +1,7 @@
 # Projects as Product Direction
 
 **Date:** 2026-03-18
-**Status:** Partially superseded — Dashboard collapsed into Orchestrator (2026-03-22). All dashboard references below now point to the Orchestrator page. Navigation: Orchestrator (home) + Projects.
+**Status:** Largely superseded — Dashboard collapsed into Orchestrator (2026-03-22). ADR-122 made projects mandatory (every project gets a PM). ADR-132 replaced platform-first onboarding with work-first onboarding (describe your work → projects scaffolded from work scopes). References to "standalone agents", "projects are optional", and "bootstrap creates standalone agents" are stale. See ADR-122, ADR-132, FOUNDATIONS.md v3.6.
 **Related:**
 - [Agent Framework: Scope × Role × Trigger](../architecture/agent-framework.md) — taxonomy + user-facing identity section
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model (extends to project-first)

@@ -163,8 +163,8 @@ Output skills enrich the deliverable. They do not change the agent's identity.
 
 The core loop is:
 
-1. **Connect tools or describe a recurring need**
-2. **TP/Composer creates or configures the right agent**
+1. **Describe your work — connect tools to enrich it**
+2. **System scaffolds the right projects and agents**
 3. **The agent runs and delivers useful work**
 4. **The user reviews, refines, or redirects**
 5. **Context, memory, and preferences compound**

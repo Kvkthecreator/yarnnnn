@@ -60,7 +60,7 @@ Perception is not just external platform data. The perception substrate is **eve
 
 ### Three Layers of Perception
 
-1. **External perception** — platform sync fills `platform_content` from Slack, Gmail, Notion, Calendar. This is the surface area for onboarding and existing work.
+1. **External perception** — platform sync fills `platform_content` from Slack and Notion. This is the surface area for platform data enrichment.
 
 2. **Internal perception** — agent outputs, written to `/knowledge/` files in `workspace_files` (ADR-107, superseding ADR-102's `platform_content` rows), feed back into the shared knowledge layer. An agent's output is another agent's input. TP's observations are part of the substrate.
 

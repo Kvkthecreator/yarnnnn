@@ -31,7 +31,7 @@ But every prior platform cycle felt exactly the same way. In 2008, Google looked
 
 We can't see the future with certainty. But we're making the aggressive bet that this cycle rhymes — not because LLMs are weak (they're extraordinary), but because general-purpose platforms optimize for breadth, and work context requires depth. They build for everyone, which structurally means they build for no one specifically.
 
-Notice which application layer the LLM providers built first: code. Code is the most structured, most verifiable, most legible domain for AI — the easiest layer for a model provider to own because their core capability maps directly to the output. Work context — your clients, your projects, your communication patterns across four platforms — is the opposite: unstructured, personal, cross-platform, and domain-specific. That's why no LLM provider is building it, even as they build coding agents.
+Notice which application layer the LLM providers built first: code. Code is the most structured, most verifiable, most legible domain for AI — the easiest layer for a model provider to own because their core capability maps directly to the output. Work context — your clients, your projects, your communication patterns across platforms — is the opposite: unstructured, personal, cross-platform, and domain-specific. That's why no LLM provider is building it, even as they build coding agents.
 
 The bet: the application layer for work context will emerge the same way every prior application layer has. And no one is building it yet.
 
@@ -67,7 +67,7 @@ Every YARNNN presentation — regardless of surface — follows this sequence. I
 
 We think that's wrong — or more precisely, we think the pattern will rhyme with every prior platform cycle. In 2008, Google looked invincible on the web. In 2012, Facebook looked like it would own social commerce. In 2015, AWS looked like it would own every cloud application. The platform provider always looks like it will do everything — until the application layer emerges and proves that domain-specific value can't be built by a general-purpose platform.
 
-We can't predict the future with certainty. But we can read the structural pattern: general-purpose platforms optimize for breadth. Work context requires depth. They build for everyone, which means they build for no one specifically. And the first application layer they *did* build — coding agents — is the easiest case: structured input, verifiable output, the LLM's core capability mapping directly to the product. Work context (your clients, your projects, your communication patterns across four platforms) is the hard case. That's why no one is building it yet.
+We can't predict the future with certainty. But we can read the structural pattern: general-purpose platforms optimize for breadth. Work context requires depth. They build for everyone, which means they build for no one specifically. And the first application layer they *did* build — coding agents — is the easiest case: structured input, verifiable output, the LLM's core capability mapping directly to the product. Work context (your clients, your projects, your communication patterns across platforms) is the hard case. That's why no one is building it yet.
 
 **Why this works**: It names the elephant in the room that most founders in the AI space avoid. Instead of pretending incumbents aren't a threat, it acknowledges the market uncertainty directly and then makes a specific, historically grounded argument for why the pattern will hold. VCs fund founders who see reality clearly and make informed bets — not founders who ignore the competitive landscape.
 
@@ -93,13 +93,13 @@ We can't predict the future with certainty. But we can read the structural patte
 
 **Role**: Introduce YARNNN and TP as a concrete, living product — the application layer that Beat 1 said was missing.
 
-**The claim**: Meet TP — your autonomous AI agent. It connects to the platforms where your work lives (Slack, Gmail, Notion, Calendar), accumulates context from every sync cycle, and uses that accumulated understanding to operate autonomously. It produces agents on schedule. It gets smarter every cycle. You supervise — it operates.
+**The claim**: Meet TP — your autonomous AI agent. You describe your work, it builds the right team. It connects to the platforms where your work lives (Slack, Notion), accumulates context from every sync cycle, and uses that accumulated understanding to operate autonomously. It produces agents on schedule. It gets smarter every cycle. You supervise — it operates.
 
 This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: your AI, powered by your accumulated context, producing your work.
 
 **Beat 3 has three internal layers** (these can be separate slides or combined depending on surface):
 
-**(a) Product introduction**: What TP is and what it connects to. One agent, two modes — conversation when you need it, autonomous operation when you don't. Four platform integrations live. The emphasis is on identity: this is a working product at yarnnn.com.
+**(a) Product introduction**: What TP is and what it connects to. One agent, two modes — conversation when you need it, autonomous operation when you don't. Two platform integrations live (Slack, Notion). The emphasis is on identity: this is a working product at yarnnn.com.
 
 **(b) Day 1 proof**: TP already knows your work from first sync. Before/after demonstration — the same request with and without accumulated context. The point: value is immediate, not theoretical.
 
@@ -123,7 +123,7 @@ This isn't a better chatbot or a memory add-on for existing LLMs. It's a new lay
 
 But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work. YARNNN is building that substrate.
 
-**The compounding loop**: Connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf. (For the canonical phase-by-phase breakdown of this loop, see [VALUE-CHAIN.md](architecture/VALUE-CHAIN.md).)
+**The compounding loop**: Describe your work → system builds the right team → connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf. (For the canonical phase-by-phase breakdown of this loop, see [VALUE-CHAIN.md](architecture/VALUE-CHAIN.md).)
 
 **Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
 
@@ -138,7 +138,7 @@ But the insight goes deeper. Work itself is shifting from human-first to agent-f
 **Why LLM providers are unlikely to build this**: This is the platform-cycle bet applied specifically. Yes, LLM providers are expanding aggressively — Claude Code, Cowork, ChatGPT plugins, Gemini extensions. They've proven they *can* build application-layer products. But they chose the easiest application layer first (code), and their structural incentive is breadth: serve everyone, improve the general model, expand the platform. Building deep, cross-platform, user-specific work context is an application-layer problem that requires different data models, different feedback loops, and different product priorities than what a foundation model company optimizes for. Google *could* have built Salesforce. The question was never capability — it was priority and structural fit. The same logic applies here.
 
 **Why incumbents face structural headwinds**:
-- **ChatGPT/Claude**: Extraordinary general assistants. Improving memory, expanding tools. But their architecture is model-centric, not context-centric. They accumulate some preferences; they don't accumulate your full work context across four platforms and use it for autonomous scheduled output. They're the engine — we're building the vehicle.
+- **ChatGPT/Claude**: Extraordinary general assistants. Improving memory, expanding tools. But their architecture is model-centric, not context-centric. They accumulate some preferences; they don't accumulate your full work context across platforms and use it for autonomous scheduled output. They're the engine — we're building the vehicle.
 - **Agent startups**: Can execute autonomously, but generically. No persistent understanding of *your* work. Impressive demos, weak on repeat performance for the same user over time.
 - **Workspace AI (Notion AI, etc.)**: Trapped inside one platform. Can't synthesize across tools. Context is siloed by design.
 
@@ -215,7 +215,7 @@ All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensi
 Beat 1 (headline — contrarian or problem statement) → Beat 3 (hero + how it works) → Beat 4 (why it's different / the insight) → Beat 6 (CTA). Proof of demand and moat are secondary sections or social proof elements.
 
 ### Elevator Pitch (30 seconds)
-Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — an autonomous AI agent that connects to your Slack, Gmail, Notion, and Calendar, accumulates your work context, and produces your agents on schedule. It's the application layer for work — and no one else is building it."
+Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — you describe your work, it builds an autonomous AI team that connects to your Slack and Notion, accumulates your work context, and produces on schedule. It's the application layer for work — and no one else is building it."
 
 ### Creative Supplement (1-pager, visual asset)
 Beat 3 + Beat 4 as visual: product screenshot or mockup showing TP pulling from connected sources and producing a agent. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
