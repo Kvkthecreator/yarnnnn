@@ -25,9 +25,9 @@ Additionally, `preferences.md` is redundant — tone belongs in brand, per-platf
 
 ### Two-scope context model
 
-**Workspace scope** (`/workspace/`) — who the user is. Stable. Changed by user directly. Read by TP and Composer. Seeded into projects at scaffold time.
+**Workspace scope** (`/workspace/`) — who the user is. Stable. Changed by user directly. Read by TP, Composer, and all agents at execution time. Shared across all projects.
 
-**Project scope** (`/projects/{slug}/`) — what this work is. Self-contained execution context. Changed by PM and agents. Read by agents during execution.
+**Project scope** (`/projects/{slug}/`) — what this specific work is. Contains only project-unique data. Changed by PM and agents during execution.
 
 ### Workspace: two files
 
@@ -40,23 +40,27 @@ Additionally, `preferences.md` is redundant — tone belongs in brand, per-platf
 - `preferences.md` dissolved — tone absorbed by BRAND.md, verbosity is an IDENTITY.md field if needed
 - `notes.md` stays at `/memory/notes.md` — TP-accumulated knowledge, not user identity
 
-### Project seeding
+### No project seeding — agents read workspace directly
 
-`scaffold_project()` copies workspace files into each new project:
+Workspace files are NOT copied into projects. Agents read `/workspace/IDENTITY.md` and `/workspace/BRAND.md` directly at execution time. This avoids duplication, divergence, and stale snapshots.
+
+Projects contain only project-unique data:
 
 ```
 /projects/{slug}/
-  PROJECT.md     — objective, contributors, delivery
-  IDENTITY.md    — snapshot of workspace IDENTITY.md at creation time
-  BRAND.md       — snapshot of workspace BRAND.md at creation time
-  memory/        — PM state
-  ...
+  PROJECT.md     — objective, contributors, delivery (unique per project)
+  memory/        — PM state, work plan, assessments (unique per project)
+  contributions/ — agent outputs (unique per project)
+  assembly/      — composed deliverables (unique per project)
 ```
 
-### Context flows down, never up
+### Context reads at execution time
 
 ```
-/workspace/IDENTITY.md → seeded into → /projects/{slug}/IDENTITY.md
+Agent execution reads:
+  /workspace/IDENTITY.md    — who they work for (shared, always current)
+  /workspace/BRAND.md       — output styling (shared, always current)
+  /projects/{slug}/PROJECT.md — what to produce (project-specific)
 /workspace/BRAND.md    → seeded into → /projects/{slug}/BRAND.md
 ```
 
@@ -83,3 +87,4 @@ Agents read project-level files. No runtime hierarchy crossing. Projects are sel
 | Date | Change |
 |------|--------|
 | 2026-03-23 | v1 — Initial: two-scope model, preferences dissolved, project seeding |
+| 2026-03-23 | v1.1 — Removed project seeding. Agents read /workspace/ directly at execution time. No IDENTITY.md or BRAND.md in project folders. Projects contain only project-unique data. |

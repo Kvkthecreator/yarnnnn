@@ -44,15 +44,16 @@ Two canonical files. Seeded into projects at scaffold time.
 |------|---------|
 | `notes.md` | Standing instructions, observed facts (extracted nightly from conversations) |
 
-### `/projects/{slug}/` — Project Context (self-contained)
+### `/projects/{slug}/` — Project-Specific Data
 
-Each project is a self-contained execution context. Agents read project-level files only — no hierarchy crossing at runtime.
+Projects contain only project-unique data. Agents read workspace context (`/workspace/`) directly at execution time — no duplication into project folders.
 
 | File | Purpose |
 |------|---------|
 | `PROJECT.md` | Objective, contributors, assembly spec, delivery |
-| `IDENTITY.md` | Snapshot of workspace identity (seeded at scaffold time) |
-| `BRAND.md` | Snapshot of workspace brand (seeded at scaffold time, may diverge) |
+| `memory/` | PM state, work plan, project assessment |
+| `contributions/` | Agent outputs per contributor |
+| `assembly/` | Composed deliverables |
 | `/brand/{name}/BRAND.md` | Topic-specific brand override (e.g., client brand) |
 | `/brand/{name}/assets/` | Topic-specific brand assets |
 
