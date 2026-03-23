@@ -172,7 +172,7 @@ async def _tier2_self_assessment(client, agent: dict) -> PulseDecision:
     from services.workspace import AgentWorkspace, get_agent_slug
 
     title = agent.get("title", "Untitled")
-    role = agent.get("role", "custom")
+    role = agent.get("role", "briefer")
     mode = agent.get("mode", "recurring")
     agent_id = agent["id"]
     user_id = agent["user_id"]
@@ -359,7 +359,7 @@ Respond with ONLY a JSON object:
 ```"""
 
     # Research/synthesize with autonomous scope: signal-driven
-    if role in ("research", "synthesize") and agent.get("scope") == "autonomous":
+    if role in ("research", "researcher", "synthesize", "analyst", "scout") and agent.get("scope") == "autonomous":
         prompt += """
 
 ## Proactive Insights — Signal Detection
@@ -459,7 +459,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     user_id = agent["user_id"]
     title = agent.get("title", "Untitled")
     mode = agent.get("mode", "recurring")
-    role = agent.get("role", "custom")
+    role = agent.get("role", "briefer")
 
     logger.info(f"[PULSE] Starting pulse: {title} ({agent_id}), mode={mode}")
 
@@ -585,7 +585,7 @@ def calculate_next_pulse_at(agent: dict, decision: PulseDecision) -> datetime:
             pass
 
     # 2. Role-based cadence
-    role = agent.get("role", "custom")
+    role = agent.get("role", "briefer")
     cadence = get_pulse_cadence(role)
 
     if isinstance(cadence, timedelta):

@@ -46,23 +46,23 @@ Keep it simple — one question at a time.
         "name": "summary",
         "description": "Create a work summary agent — synthesize activity across platforms",
         "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status agent", "summarize my work", "platform summary"],
-        "role": "synthesize",
+        "role": "analyst",
         "system_prompt_addition": """
 ---
 
 ## Active Command: Work Summary
 
-Create a work summary agent — synthesizes activity across the user's connected platforms into a structured report for a specific audience.
+Create a work summary agent — analyzes activity across the user's connected platforms into a structured report for a specific audience.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="agent:*")`
 2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
 3. Ask frequency preference: `Clarify(question="How often?", options=["Daily", "Weekly", "Biweekly", "Monthly"])`
 4. Confirm: "I'll create a [frequency] Work Summary for [recipient]. Ready?"
-5. On confirmation: `CreateAgent(title="Work Summary", role="synthesize", frequency=..., recipient_name=...)`
+5. On confirmation: `CreateAgent(title="Work Summary", role="analyst", frequency=..., recipient_name=...)`
 6. Offer first draft
 
-**Defaults:** frequency=weekly, role=synthesize
+**Defaults:** frequency=weekly, role=analyst
 """,
     },
 
@@ -70,27 +70,27 @@ Create a work summary agent — synthesizes activity across the user's connected
         "name": "recap",
         "description": "Create a platform recap — catch up on everything across a connected platform",
         "trigger_patterns": ["recap", "platform recap", "slack recap", "notion recap", "slack digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
-        "role": "digest",
+        "role": "briefer",
         "system_prompt_addition": """
 ---
 
 ## Active Command: Recap
 
-Create a recap agent — a platform-wide summary that catches the user up on everything across a connected platform. One recap per platform (not per channel/label/page).
+Create a briefer agent — a platform-wide summary that catches the user up on everything across a connected platform. One briefer per platform (not per channel/label/page).
 
 **Flow:**
-1. Check for duplicates: `List(pattern="agent:*")` — if a recap already exists for the requested platform, offer to edit it instead
+1. Check for duplicates: `List(pattern="agent:*")` — if a briefer already exists for the requested platform, offer to edit it instead
 2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Notion"])`
 3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
 4. Confirm: "I'll create a [frequency] [Platform] Recap project. Ready?"
-5. On confirmation: `CreateAgent(title="[Platform] Agent", role="digest", frequency=..., sources=[all synced sources for platform])`
+5. On confirmation: `CreateAgent(title="[Platform] Briefer", role="briefer", frequency=..., sources=[all synced sources for platform])`
 6. Offer first draft
 
 **Important:**
-- Agent title format: "[Platform] Agent" (e.g., "Slack Agent", "Notion Agent") — the agent is the worker, the project is the deliverable
+- Agent title format: "[Platform] Briefer" (e.g., "Slack Briefer", "Notion Briefer")
 - Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/pages
-- One recap per platform per user — check duplicates before creating
-- Defaults: frequency=daily, role=digest
+- One briefer per platform per user — check duplicates before creating
+- Defaults: frequency=daily, role=briefer
 """,
     },
 
@@ -100,7 +100,7 @@ Create a recap agent — a platform-wide summary that catches the user up on eve
         "name": "research",
         "description": "Set up Proactive Insights — watches your platforms and surfaces what matters",
         "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "what should I know", "investigate", "research this", "look into", "find out about"],
-        "role": "synthesize",
+        "role": "analyst",
         "system_prompt_addition": """
 ---
 

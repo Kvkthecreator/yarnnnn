@@ -523,7 +523,10 @@ def build_role_prompt(
 ) -> str:
     """Build the role-specific synthesis prompt (ADR-109)."""
 
-    template = ROLE_PROMPTS.get(role, ROLE_PROMPTS["custom"])
+    # ADR-130 v2: resolve new type names to existing prompt keys via legacy map
+    from services.agent_framework import resolve_role, LEGACY_ROLE_MAP
+    prompt_role = LEGACY_ROLE_MAP.get(role, role) if role not in ROLE_PROMPTS else role
+    template = ROLE_PROMPTS.get(prompt_role, ROLE_PROMPTS["custom"])
 
     # Common fields present in all templates
     # ADR-104: Inject agent_instructions into user message (dual injection —
@@ -543,7 +546,7 @@ def build_role_prompt(
         "mandate_context": config.get("mandate_context", ""),
     }
 
-    if role == "digest":
+    if prompt_role == "digest":
         source_platform = _infer_source_platform(agent.get("sources", []))
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
@@ -557,7 +560,7 @@ def build_role_prompt(
             "platform_signals": platform_signals,
         })
 
-    elif role == "prepare":
+    elif prompt_role == "prepare":
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
@@ -575,7 +578,7 @@ def build_role_prompt(
             "date_range": date_range,
         })
 
-    elif role == "synthesize":
+    elif prompt_role == "synthesize":
         fields.update({
             "subject": config.get("subject", agent.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
@@ -587,14 +590,14 @@ def build_role_prompt(
             ),
         })
 
-    elif role == "monitor":
+    elif prompt_role == "monitor":
         signals = config.get("signals", [])
         fields.update({
             "domain": config.get("domain", agent.get("title", "domain")),
             "signals": "\n".join(f"- {s}" for s in signals) if signals else "- Notable developments and emerging patterns",
         })
 
-    elif role == "research":
+    elif prompt_role == "research":
         from datetime import datetime
         import pytz
         tz_name = agent.get("schedule", {}).get("timezone", "UTC")
@@ -607,7 +610,7 @@ def build_role_prompt(
             "today_date": today_str,
         })
 
-    elif role == "pm":
+    elif prompt_role == "pm":
         # PM context injected by _load_pm_project_context() via type_config merge
         # PM cognitive model v1.0: layered assessment (commitment → structure → context → quality → readiness)
         # ADR-127: user_shared/ files injected for triage awareness
@@ -678,7 +681,11 @@ def validate_output(role: str, content: str, config: dict) -> dict:
     # PM returns structured JSON, not prose — skip minimum word count
     issues = [] if role == "pm" else _validate_minimum_content(content)
 
-    if role == "synthesize":
+    # ADR-130 v2: map new type names to validation keys
+    from services.agent_framework import LEGACY_ROLE_MAP
+    v_role = LEGACY_ROLE_MAP.get(role, role)
+
+    if v_role in ("synthesize", "analyst"):
         detail_level = config.get("detail_level", "standard")
         min_words_map = {"brief": 150, "standard": 300, "detailed": 600}
         word_count = len(content.split())
@@ -686,17 +693,17 @@ def validate_output(role: str, content: str, config: dict) -> dict:
         if word_count < min_w * 0.7:
             issues.append(f"Too short for {detail_level}: {word_count} words (expected {min_w}+)")
 
-    elif role == "research":
+    elif v_role in ("research", "researcher", "scout"):
         word_count = len(content.split())
         if word_count < 200:
-            issues.append(f"Too short for proactive insights: {word_count} words (expected 200+)")
+            issues.append(f"Too short for research output: {word_count} words (expected 200+)")
         content_lower = content.lower()
         vague_phrases = ["it is important", "various factors", "many aspects", "in general"]
         vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
 
-    elif role == "pm":
+    elif v_role == "pm":
         # PM must return valid JSON with an action field
         import json as _json
         try:
@@ -712,13 +719,13 @@ def validate_output(role: str, content: str, config: dict) -> dict:
         except _json.JSONDecodeError:
             issues.append("PM response is not valid JSON")
 
-    elif role == "digest":
+    elif v_role in ("digest", "briefer"):
         char_count = len(content)
         if char_count > 3000:
-            issues.append(f"Digest may be too long: {char_count} chars")
+            issues.append(f"Briefing may be too long: {char_count} chars")
         has_bullets = "- " in content or "• " in content or "* " in content
         if not has_bullets:
-            issues.append("Digest should use bullet points for scannability")
+            issues.append("Briefing should use bullet points for scannability")
 
     score = max(0, 1.0 - (len(issues) * 0.2))
     return {"valid": len(issues) == 0, "issues": issues, "score": score}

@@ -394,7 +394,7 @@ async def search_knowledge(
         query: Optional text search (topic, person, keyword)
         content_class: Optional filter: digests, analyses, briefs, research, insights
         agent_id: Optional filter by producing agent UUID
-        role: Optional filter by role type: digest, prepare, monitor, research, synthesize
+        role: Optional filter by role type: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
         limit: Max results (default 10, max 30)
     """
     auth = ctx.request_context.lifespan_context["auth"]
@@ -445,7 +445,7 @@ async def discover_agents(
     what agents exist, what domains they cover, and what knowledge they produce.
 
     Args:
-        role: Optional filter: digest, prepare, monitor, research, synthesize
+        role: Optional filter: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
         scope: Optional filter: platform, cross_platform, knowledge, research, autonomous
         status: Optional filter: active (default), paused
     """

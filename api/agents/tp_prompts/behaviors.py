@@ -274,14 +274,16 @@ Don't offer multiple options — just create it. E.g., "Set up Notion" → `noti
 
 **When creating standalone agents** (not part of a project), focus on the 1-2 key questions:
 
-| Role | Ask About | Schedule Default |
+| Type | Ask About | Schedule Default |
 |------|-----------|-----------------|
-| digest | What source to monitor? | daily |
-| monitor | What domain/signals? | recurring |
-| research | What to investigate? | goal (runs once) |
-| synthesize | What to combine? | weekly |
-| prepare | What event/meeting? | weekly |
-| custom | What output? | weekly |
+| briefer | What to stay briefed on? | daily |
+| monitor | What domain/signals? | daily |
+| researcher | What to investigate? | weekly |
+| analyst | What to track/analyze? | weekly |
+| drafter | What deliverable to produce? | weekly |
+| writer | What content to create? | weekly |
+| planner | What to plan/prep for? | daily |
+| scout | What competitors/market to track? | weekly |
 
 If the user provides enough context in their message, skip clarification and create directly.
 Don't ask about delivery destination — email default works. Focus on the user's intent.

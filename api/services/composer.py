@@ -244,7 +244,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         logger.warning(f"[HEARTBEAT] Project coverage check failed: {e}")
         # Fallback: also check agent sources for backward compatibility with pre-ADR-122 agents
         for agent in active_agents:
-            if agent.get("role") == "digest":
+            if agent.get("role") in ("digest", "briefer"):
                 for src in (agent.get("sources") or []):
                     if isinstance(src, dict):
                         provider = src.get("provider") or src.get("platform")
@@ -640,7 +640,7 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     proven = assessment.get("maturity", {}).get("proven_agents", [])
     expandable = [
         m for m in proven
-        if m.get("scope") == "platform" and m.get("role") == "digest"
+        if m.get("scope") == "platform" and m.get("role") in ("digest", "briefer")
         and m.get("total_runs", 0) >= 10
     ]
     if expandable and len(assessment["connected_platforms"]) >= 2:
@@ -672,8 +672,8 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # Multi-platform opportunity: 2+ platforms connected but no cross-platform agent
     if len(assessment["connected_platforms"]) >= 2:
         roles = assessment["agents"]["roles_present"]
-        if "synthesize" not in roles and assessment["agents"]["active"] >= 2:
-            return True, "cross_platform_opportunity: 2+ platforms, no synthesize agent"
+        if "analyst" not in roles and "synthesize" not in roles and assessment["agents"]["active"] >= 2:
+            return True, "cross_platform_opportunity: 2+ platforms, no analyst agent"
 
     # Active feedback suggests engaged user — check for expansion opportunities
     if assessment["feedback"]["recent_count"] >= 5 and assessment["agents"]["active"] <= 2:
@@ -682,9 +682,10 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     # ADR-111 Phase 5: Cross-agent pattern — multiple digest agents producing
     # similar content from overlapping sources (consolidation opportunity)
     signals = assessment.get("maturity", {}).get("signals", [])
-    digest_agents = [s for s in signals if s.get("role") == "digest" and s.get("total_runs", 0) >= 3]
-    if len(digest_agents) >= 3 and "synthesize" not in assessment["agents"]["roles_present"]:
-        return True, f"cross_agent_pattern: {len(digest_agents)} active digest agents — synthesis agent would consolidate insights"
+    briefer_agents = [s for s in signals if s.get("role") in ("digest", "briefer") and s.get("total_runs", 0) >= 3]
+    roles = assessment["agents"]["roles_present"]
+    if len(briefer_agents) >= 3 and "analyst" not in roles and "synthesize" not in roles:
+        return True, f"cross_agent_pattern: {len(briefer_agents)} active briefer agents — analyst agent would consolidate insights"
 
     # ADR-116 Phase 5: Orphaned producers — agents producing knowledge nobody consumes
     orphaned = assessment.get("agent_graph", {}).get("orphaned_producers", [])
@@ -697,10 +698,11 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     by_class = knowledge.get("by_class", {})
     total_knowledge = knowledge.get("total_files", 0)
 
-    # knowledge_gap_analysis: many digests, no analyses, no synthesize agent
+    # knowledge_gap_analysis: many digests, no analyses, no analyst agent
+    roles = assessment["agents"]["roles_present"]
     if (by_class.get("digests", 0) >= 10
             and by_class.get("analyses", 0) == 0
-            and "synthesize" not in assessment["agents"]["roles_present"]):
+            and "analyst" not in roles and "synthesize" not in roles):
         return True, (
             f"knowledge_gap_analysis: {by_class['digests']} digest files but 0 analyses "
             "— system is perceiving but not reasoning"
@@ -805,15 +807,15 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
 # Composer Assessment (LLM — only when warranted)
 # =============================================================================
 
-# Agent templates Composer can create (extends bootstrap templates)
+# Agent templates Composer can create (ADR-130 v2 types)
 COMPOSER_TEMPLATES = {
-    "digest": {
-        "role": "digest",
+    "briefer": {
+        "role": "briefer",
         "mode": "recurring",
         "frequency": "daily",
     },
-    "synthesize": {
-        "role": "synthesize",
+    "analyst": {
+        "role": "analyst",
         "mode": "recurring",
         "frequency": "weekly",
     },
@@ -821,6 +823,11 @@ COMPOSER_TEMPLATES = {
         "role": "monitor",
         "mode": "recurring",
         "frequency": "daily",
+    },
+    "researcher": {
+        "role": "researcher",
+        "mode": "recurring",
+        "frequency": "weekly",
     },
 }
 
@@ -974,7 +981,7 @@ Respond with ONLY a JSON object:
 
 To create an agent:
 ```json
-{"action": "create", "title": "Weekly Cross-Platform Synthesis", "role": "synthesize", "frequency": "weekly", "description": "Connects patterns across Slack and Notion to surface cross-cutting themes.", "instructions": "Synthesize activity across all connected platforms. Lead with cross-platform connections.", "reason": "2+ platforms with active digests producing knowledge"}
+{"action": "create", "title": "Weekly Cross-Platform Analysis", "role": "analyst", "frequency": "weekly", "description": "Connects patterns across Slack and Notion to surface cross-cutting themes.", "instructions": "Analyze activity across all connected platforms. Lead with cross-platform connections and trends.", "reason": "2+ platforms with active briefers producing knowledge"}
 ```
 
 To create a project (combines 2+ agents' outputs into an assembled deliverable):
@@ -997,7 +1004,7 @@ IMPORTANT for create_project actions:
 - contributors is a list of agent slugs (lowercase-hyphenated titles) already in the workspace
 - intent.format determines which skill is used for rendering (pptx, pdf, xlsx, etc.)
 
-Valid roles: digest, prepare, monitor, research, synthesize, custom
+Valid roles: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
 Valid frequencies: daily, weekly, biweekly, monthly
 
 ## Skill Library (8 skills for RuntimeDispatch)
@@ -1184,7 +1191,7 @@ async def _execute_composer_decisions(
 
     # Create the recommended agent
     title = decision.get("title", "").strip()
-    role = decision.get("role", "custom")
+    role = decision.get("role", "briefer")
     frequency = decision.get("frequency", "weekly")
     description = decision.get("description", "").strip() or None
     instructions = decision.get("instructions", "").strip() or None
@@ -1208,8 +1215,8 @@ async def _execute_composer_decisions(
             logger.info(f"[COMPOSER] Agent '{title}' already exists, skipping")
             return []
 
-        # Check 2: role match — one agent per role type (except digest, which is per-platform)
-        if role not in ("digest", "monitor"):
+        # Check 2: role match — one agent per role type (except briefer/monitor, which are per-platform)
+        if role not in ("briefer", "digest", "monitor"):
             role_match = (
                 client.table("agents")
                 .select("id, title")
@@ -1356,15 +1363,15 @@ async def _execute_create_project(
 
 def _infer_sources_for_role(role: str, assessment: dict) -> list:
     """Infer appropriate sources for a new agent based on role and available platforms."""
-    # Synthesize/cross-platform: include all platform sources
-    if role in ("synthesize", "custom"):
+    # Cross-platform types: include all platform sources
+    if role in ("analyst", "researcher", "drafter", "writer", "scout", "synthesize", "custom"):
         all_sources = []
         for p in assessment["platform_details"]:
             all_sources.extend(p.get("selected_sources") or [])
         return all_sources
 
-    # Platform-specific roles: use first platform's sources
-    if role in ("digest", "monitor", "prepare"):
+    # Platform-scoped types: use first platform's sources
+    if role in ("briefer", "monitor", "planner", "digest", "prepare"):
         for p in assessment["platform_details"]:
             sources = p.get("selected_sources") or []
             if sources:
@@ -1455,7 +1462,7 @@ async def run_lifecycle_assessment(
         proven = assessment.get("maturity", {}).get("proven_agents", [])
         expandable = [
             m for m in proven
-            if m.get("scope") == "platform" and m.get("role") == "digest"
+            if m.get("scope") == "platform" and m.get("role") in ("digest", "briefer")
             and m.get("total_runs", 0) >= 10
         ]
         if expandable and assessment["tier"]["can_create"]:

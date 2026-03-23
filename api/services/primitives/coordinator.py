@@ -34,13 +34,13 @@ Optional: agent_instructions, sources, frequency, day, time, timezone,
           recipient_name, recipient_role, audience, tone, detail_level,
           dedup_key (coordinator mode only)
 
-role: digest|prepare|monitor|research|synthesize|act|custom
+role: briefer|monitor|researcher|drafter|analyst|writer|planner|scout
 frequency: daily|weekly|biweekly|monthly (default: weekly)
 
 Examples:
-- CreateAgent(title="Slack Recap", role="digest", frequency="daily")
-- CreateAgent(title="Weekly Status", role="synthesize", frequency="weekly", recipient_name="Sarah")
-- CreateAgent(title="Meeting Prep", role="prepare", frequency="daily", time="08:00")
+- CreateAgent(title="Slack Recap", role="briefer", frequency="daily")
+- CreateAgent(title="Weekly Analysis", role="analyst", frequency="weekly", recipient_name="Sarah")
+- CreateAgent(title="Meeting Prep", role="planner", frequency="daily", time="08:00")
 
 Always use the user's stated frequency — don't override with defaults.""",
     "input_schema": {

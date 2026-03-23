@@ -26,17 +26,28 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-VALID_ROLES = {"digest", "prepare", "monitor", "research", "synthesize", "act", "pm", "custom"}
+# ADR-130 v2: Valid roles derived from AGENT_TYPES registry + legacy names for DB compat
+from services.agent_framework import AGENT_TYPES, LEGACY_ROLE_MAP
+VALID_ROLES = set(AGENT_TYPES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources)
 ROLE_TO_SCOPE = {
+    # v2 types
+    "briefer": "platform",
+    "monitor": "platform",
+    "researcher": "research",
+    "drafter": "cross_platform",
+    "analyst": "cross_platform",
+    "writer": "cross_platform",
+    "planner": "platform",
+    "scout": "research",
+    "pm": "knowledge",
+    # Legacy mappings (DB may still have old values)
     "digest": "platform",
     "prepare": "platform",
-    "monitor": "platform",
     "research": "research",
     "synthesize": "cross_platform",
     "act": "autonomous",
-    "pm": "knowledge",
     "custom": "knowledge",
 }
 
@@ -54,7 +65,7 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
     4. 1 provider → platform
     5. 2+ providers → cross_platform
     """
-    if mode in ("proactive", "coordinator") and role in ("synthesize", "research"):
+    if mode in ("proactive", "coordinator") and role in ("synthesize", "research", "analyst", "researcher"):
         return "autonomous"
 
     # Count distinct providers from integration sources
@@ -65,9 +76,9 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
             providers.add(provider)
 
     if not providers:
-        if role == "research":
+        if role in ("research", "researcher", "scout"):
             return "research"
-        return "knowledge" if role in ("monitor", "research", "custom") else "cross_platform"
+        return "knowledge" if role in ("monitor", "custom") else "cross_platform"
 
     if len(providers) == 1:
         return "platform"
@@ -226,8 +237,9 @@ async def create_agent_record(
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 # ADR-118: Append capability reference for agents that may produce rich outputs
                 agent_md = instructions_text
-                if role in ("synthesize", "research", "monitor", "custom"):
-                    agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PDF documents, PPTX presentations, XLSX spreadsheets, PNG/SVG charts. Use these when structured data or formatted reports would serve the recipient better than plain text."
+                from services.agent_framework import has_asset_capabilities
+                if has_asset_capabilities(role):
+                    agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
                 if role == "pm":
                     project_slug = (type_config or {}).get("project_slug", "unknown")
                     agent_md += f"\n\n## Project Context\nThis PM agent coordinates project `{project_slug}`. Check contributor freshness, trigger assembly when contributions are ready, manage the work plan. Escalate to TP if stuck."

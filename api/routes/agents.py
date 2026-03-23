@@ -44,13 +44,17 @@ Scope = Literal[
 ]
 
 Role = Literal[
-    "digest",      # Compress, summarize — platform recap
-    "prepare",     # Anticipate, assemble — meeting prep
-    "monitor",     # Track, diff, alert — domain watching
-    "research",    # Investigate, analyze — bounded research
-    "synthesize",  # Connect, derive insight — cross-source synthesis
-    "act",         # Execute, respond, post — platform actions (future)
-    "custom",      # User-defined
+    # v2 types (ADR-130)
+    "briefer",     # Keeps you briefed on what's happening
+    "monitor",     # Watches for what matters and alerts you
+    "researcher",  # Investigates topics and produces analysis
+    "drafter",     # Produces deliverables and documents
+    "analyst",     # Tracks metrics and surfaces patterns
+    "writer",      # Crafts communications and content
+    "planner",     # Prepares plans, agendas, and follow-ups
+    "scout",       # Tracks competitors and market movements
+    # Legacy (DB compat)
+    "digest", "prepare", "research", "synthesize", "act", "custom",
 ]
 
 

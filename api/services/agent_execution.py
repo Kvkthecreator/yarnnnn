@@ -2094,8 +2094,8 @@ async def generate_draft_inline(
     # ADR-109: Tool round limit based on scope
     max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(scope, 3)
 
-    # Prepare (meeting prep) needs more rounds for per-attendee research + WebSearch
-    if role == "prepare":
+    # Planner/prepare needs more rounds for per-attendee research + WebSearch
+    if role in ("prepare", "planner"):
         max_tool_rounds = max(max_tool_rounds, 5)
 
     # PM needs tool rounds for project status checks (ADR-120)
@@ -2392,10 +2392,10 @@ def _extract_run_observation(
         parts.append(f"Dense output ({word_count} words)")
 
     # Role-specific signals
-    if role == "digest" and items_fetched < 5:
-        parts.append("Low activity period — few items to digest")
-    elif role == "synthesize" and len(sources_used) < 2:
-        parts.append("Cross-platform synthesis with limited platform coverage")
+    if role in ("digest", "briefer") and items_fetched < 5:
+        parts.append("Low activity period — few items to brief on")
+    elif role in ("synthesize", "analyst") and len(sources_used) < 2:
+        parts.append("Cross-platform analysis with limited platform coverage")
 
     return "; ".join(parts) if parts else f"{role} run completed"
 

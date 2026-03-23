@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.5] - ADR-130 v2: Full codebase migration to v2 agent types
+
+### Changed
+- `composer.py`: Composer prompt v3.0 — valid roles updated to v2 types (briefer, monitor, researcher, drafter, analyst, writer, planner, scout). Templates, heuristics, source inference all migrated. `senior_agents` → `proven_agents` in maturity signals.
+- `tp_prompts/tools.py`: CreateAgent role list updated to v2 types
+- `tp_prompts/behaviors.py`: Agent creation guidance table updated to v2 types with new schedule defaults
+- `primitives/coordinator.py`: CreateAgent tool doc + examples updated to v2 types
+- `agent_pipeline.py`: Role prompt selection uses `resolve_role()` + `LEGACY_ROLE_MAP` for backward compat. Output validation handles both old and new type names.
+- `agent_execution.py`: Strategy selection handles planner/prepare, validation handles briefer/digest and analyst/synthesize
+- `agent_pulse.py`: Default fallback changed from "custom" to "briefer". Autonomous scope check includes new research types.
+- `agent_creation.py`: VALID_ROLES derived from AGENT_TYPES registry. ROLE_TO_SCOPE includes all v2 types. Capability reference uses `has_asset_capabilities()`.
+- `routes/agents.py`: Role Literal type updated with v2 types + legacy compat
+- `commands.py`: All command templates migrated (digest→briefer, synthesize→analyst)
+- `mcp_server/server.py`: Role filter documentation updated to v2 types
+- Expected behavior: all new agent creation uses v2 types. Existing agents with old role values handled via `resolve_role()` / `LEGACY_ROLE_MAP`.
+
 ## [2026.03.23.4] - ADR-130 v2: Agent type registry — 8 product types + multi-agent coordination
 
 ### Changed

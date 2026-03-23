@@ -123,14 +123,14 @@ or make updates.
 **CreateAgent(title, role, ...)** - Create a new agent
 ```
 CreateAgent(
-  title: "Weekly Status",
-  role: "synthesize",
+  title: "Weekly Analysis",
+  role: "analyst",
   frequency: "weekly",
   recipient_name: "Sarah"
 )
 ```
 
-**Roles:** digest, prepare, monitor, research, synthesize, act, custom
+**Roles:** briefer, monitor, researcher, drafter, analyst, writer, planner, scout
 **Frequency:** daily, weekly, biweekly, monthly (default: weekly)
 **Optional:** agent_instructions, sources, day, time, timezone, recipient_name, recipient_role, audience, tone, detail_level
 
