@@ -19,11 +19,14 @@ import {
   User,
   Palette,
   BookOpen,
+  Briefcase,
   Slack,
   FileCode,
   Edit2,
   Trash2,
+  CheckCircle2,
 } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { HOME_ROUTE } from '@/lib/routes';
@@ -32,7 +35,7 @@ import { HOME_ROUTE } from '@/lib/routes';
 // Types
 // =============================================================================
 
-type Section = 'entries' | 'profile' | 'styles';
+type Section = 'entries' | 'profile' | 'work' | 'styles';
 
 interface Profile {
   name?: string;
@@ -84,6 +87,7 @@ const ALL_PLATFORMS = ['slack', 'notion'] as const;
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
+  { id: 'work', label: 'Work', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'styles', label: 'Preferences', icon: <Palette className="w-4 h-4" /> },
 ];
 
@@ -278,6 +282,95 @@ function ProfileSection({ profile, loading, onUpdate }: {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Work Section (ADR-132 — work scopes from onboarding)
+// =============================================================================
+
+function WorkSection() {
+  const [scopes, setScopes] = useState<Array<{ name: string; lifecycle: string; project_slug?: string | null; status: string }>>([]);
+  const [structure, setStructure] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.work.get().then((data) => {
+      if (data.exists) {
+        setScopes(data.scopes);
+        setStructure(data.structure);
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const active = scopes.filter(s => s.status === 'active');
+  const completed = scopes.filter(s => s.status === 'completed');
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Your Work</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {scopes.length === 0
+            ? 'No work scopes defined yet. Tell your orchestrator what you\'re working on.'
+            : `Work structure: ${structure === 'multi' ? 'multiple scopes' : 'single focus'}. Defined during onboarding.`}
+        </p>
+      </div>
+
+      {active.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</p>
+          <div className="space-y-2">
+            {active.map((s, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <div>
+                    <span className="text-sm font-medium">{s.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{s.lifecycle}</span>
+                  </div>
+                </div>
+                {s.project_slug && (
+                  <Link
+                    href={`/projects/${s.project_slug}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View project
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {completed.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</p>
+          <div className="space-y-2">
+            {completed.map((s, i) => (
+              <div key={i} className="flex items-center gap-2.5 p-3 rounded-lg border border-border/50 opacity-60">
+                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                <span className="text-sm">{s.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        To add or change work scopes, tell your orchestrator in chat.
+      </p>
     </div>
   );
 }
@@ -727,6 +820,9 @@ export function MemorySection() {
           loading={false}
           onUpdate={handleProfileUpdate}
         />
+      )}
+      {activeSection === 'work' && (
+        <WorkSection />
       )}
       {activeSection === 'styles' && (
         <StylesSection loading={false} />

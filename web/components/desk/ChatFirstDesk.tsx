@@ -204,6 +204,99 @@ function ProjectsPanel() {
 }
 
 // =============================================================================
+// Panel: Work (ADR-132 — work scopes from onboarding)
+// =============================================================================
+
+function WorkPanel() {
+  const [scopes, setScopes] = useState<Array<{ name: string; lifecycle: string; project_slug?: string | null; status: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.work.get(),
+      api.profile.get().catch(() => null),
+    ]).then(([workData, profile]) => {
+      if (workData.exists) {
+        setScopes(workData.scopes);
+      }
+      if (profile?.name) {
+        setProfileName(profile.name);
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (scopes.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No work scopes defined</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">
+          Tell your orchestrator what you&apos;re working on
+        </p>
+      </div>
+    );
+  }
+
+  const active = scopes.filter(s => s.status === 'active');
+  const completed = scopes.filter(s => s.status === 'completed');
+
+  return (
+    <div className="p-3 space-y-4">
+      {/* Profile summary */}
+      {profileName && (
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{profileName}</span>
+          <span> &middot; {active.length} active scope{active.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+
+      {/* Active scopes */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active work</p>
+        {active.map((s, i) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+            {s.project_slug ? (
+              <Link
+                href={`/projects/${s.project_slug}`}
+                className="text-foreground hover:underline truncate"
+              >
+                {s.name}
+              </Link>
+            ) : (
+              <span className="text-foreground truncate">{s.name}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Completed scopes */}
+      {completed.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</p>
+          {completed.map((s, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{s.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
 // Panel: Context (platform sync status)
 // =============================================================================
 
@@ -544,6 +637,11 @@ export function ChatFirstDesk() {
   const identityLabel = activeCommand ? formatCommandName(activeCommand) : 'Orchestrator';
 
   const panelTabs: WorkspacePanelTab[] = [
+    {
+      id: 'work',
+      label: 'Work',
+      content: <WorkPanel />,
+    },
     {
       id: 'projects',
       label: 'Projects',
