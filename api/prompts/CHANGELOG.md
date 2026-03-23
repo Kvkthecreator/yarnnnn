@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.6] - ADR-130 Phase 2: HTML-native compose integration
+
+### Changed
+- `agent_execution.py`: Post-generation compose step — after save_output(), calls `/compose` on yarnnn-render for agents with `compose_html` capability. Stores `output.html` in output folder alongside `output.md`. Non-fatal — agent run succeeds even if compose fails.
+- `delivery.py`: Email delivery prefers composed HTML (`output.html`) when available. Falls back to `generate_email_html()` from markdown if no composed HTML exists. No behavioral change for agents without compose capability.
+- Expected behavior: agents that produce output get styled, branded HTML email bodies instead of basic markdown-to-HTML conversion. Charts/diagrams are inline (via asset URL resolution). Layout mode defaults to `document`.
+
 ## [2026.03.23.5] - ADR-130 v2: Full codebase migration to v2 agent types
 
 ### Changed

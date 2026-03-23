@@ -681,6 +681,9 @@ async def deliver_from_output_folder(
             error_message=f"Output content not found at {output_folder}/output.md",
         )
 
+    # 1b. ADR-130 Phase 2: Check for composed HTML (post-generation compose step)
+    composed_html = await ws.read(f"{output_folder}/output.html")
+
     # 2. Read manifest
     manifest_raw = await ws.read(f"{output_folder}/manifest.json")
     manifest = {}
@@ -720,6 +723,7 @@ async def deliver_from_output_folder(
             role=role,
             agent_id=str(agent.get("id", "")),
             mode=agent.get("mode"),
+            composed_html=composed_html,
         )
     else:
         # Non-email platforms: fall back to existing exporter registry
@@ -903,11 +907,13 @@ async def _deliver_email_from_manifest(
     role: Optional[str],
     agent_id: str,
     mode: Optional[str],
+    composed_html: Optional[str] = None,
 ) -> ExportResult:
-    """ADR-118 D.3: Email delivery sourced from output folder manifest.
+    """ADR-118 D.3 + ADR-130 Phase 2: Email delivery sourced from output folder.
 
-    Generates HTML from text content, includes rendered binary download links
-    from the manifest's files array, and sends via Resend.
+    If composed HTML exists (ADR-130 Phase 2), uses it as the email body.
+    Otherwise, generates HTML from text content via generate_email_html().
+    Includes rendered binary download links from the manifest.
     """
     from jobs.email import send_email
     from services.platform_output import generate_email_html
@@ -927,25 +933,30 @@ async def _deliver_email_from_manifest(
         default_subject = f"{title} — {timestamp_str}"
     subject = options.get("subject", default_subject)
 
-    # Generate HTML from markdown content
-    try:
-        html_body = generate_email_html(
-            content=text_content,
-            variant="default",
-            metadata={
-                "title": title,
-                "recipient": target,
-                "agent_id": agent_id,
-                "version_number": version_number,
-                "mode": mode,
-                "date": options.get("date", ""),
-                "email_count": options.get("email_count", ""),
-                "is_draft": False,
-            },
-        )
-    except Exception as e:
-        logger.warning(f"[DELIVERY] HTML generation failed, using plain: {e}")
-        html_body = f"<html><body><pre style='white-space:pre-wrap;font-family:sans-serif;'>{text_content}</pre></body></html>"
+    # ADR-130 Phase 2: Prefer composed HTML if available
+    if composed_html:
+        html_body = composed_html
+        logger.info(f"[DELIVERY] Using composed HTML ({len(composed_html)} chars)")
+    else:
+        # Fallback: generate HTML from markdown content
+        try:
+            html_body = generate_email_html(
+                content=text_content,
+                variant="default",
+                metadata={
+                    "title": title,
+                    "recipient": target,
+                    "agent_id": agent_id,
+                    "version_number": version_number,
+                    "mode": mode,
+                    "date": options.get("date", ""),
+                    "email_count": options.get("email_count", ""),
+                    "is_draft": False,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"[DELIVERY] HTML generation failed, using plain: {e}")
+            html_body = f"<html><body><pre style='white-space:pre-wrap;font-family:sans-serif;'>{text_content}</pre></body></html>"
 
     # ADR-118 D.3: Include rendered binary attachments from manifest
     files = manifest.get("files", [])

@@ -90,6 +90,81 @@ async def _fetch_skill_docs() -> Optional[str]:
         logger.warning(f"[GENERATE] Failed to fetch skill docs from output gateway: {e}")
     return None
 
+async def _compose_output_html(
+    client, user_id: str, agent_slug: str, output_folder: str,
+    title: str = "Output", pending_renders: list = None,
+) -> Optional[str]:
+    """ADR-130 Phase 2: Post-generation compose step.
+
+    Calls /compose on the render service to convert output.md + asset URLs
+    into styled HTML. Writes output.html to the output folder.
+    Non-fatal — agent run succeeds even if compose fails.
+    """
+    from services.workspace import AgentWorkspace
+
+    ws = AgentWorkspace(client, user_id, agent_slug)
+
+    # Read the output.md from the output folder
+    output_md_path = f"outputs/{output_folder}/output.md"
+    md_content = await ws.read(output_md_path)
+    if not md_content:
+        logger.warning(f"[COMPOSE] No output.md at {output_md_path}")
+        return None
+
+    # Build asset references from pending_renders
+    assets = []
+    for r in (pending_renders or []):
+        url = r.get("output_url") or r.get("content_url")
+        path = r.get("path", "")
+        if url and path:
+            # Extract filename from path for ref matching
+            ref = path.split("/")[-1] if "/" in path else path
+            assets.append({"ref": ref, "url": url})
+
+    # Call /compose endpoint
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            headers = {}
+            render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
+            if render_secret:
+                headers["X-Render-Secret"] = render_secret
+
+            resp = await http.post(
+                f"{RENDER_SERVICE_URL}/compose",
+                json={
+                    "markdown": md_content,
+                    "title": title,
+                    "layout_mode": "document",  # default; future: infer from content/project
+                    "assets": assets,
+                    "user_id": user_id,
+                },
+                headers=headers,
+            )
+
+            if resp.status_code != 200:
+                logger.warning(f"[COMPOSE] HTTP {resp.status_code}: {resp.text[:200]}")
+                return None
+
+            data = resp.json()
+            if not data.get("success"):
+                logger.warning(f"[COMPOSE] Failed: {data.get('error')}")
+                return None
+
+            html = data.get("html", "")
+            if not html:
+                return None
+
+            # Write output.html to workspace
+            html_path = f"outputs/{output_folder}/output.html"
+            await ws.write(html_path, html, summary="Composed HTML output")
+
+            return html
+
+    except Exception as e:
+        logger.warning(f"[COMPOSE] Request failed: {e}")
+        return None
+
+
 async def _load_pm_project_context(client, user_id: str, project_slug: str) -> dict:
     """
     Load project context for PM agent's prompt injection.
@@ -2806,6 +2881,19 @@ async def execute_agent_generation(
             logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
         except Exception as e:
             logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
+
+        # 9b. ADR-130 Phase 2: Compose HTML from output.md + assets (non-fatal)
+        from services.agent_framework import has_capability
+        if output_folder and role != "pm" and has_capability(role, "compose_html"):
+            try:
+                composed_html = await _compose_output_html(
+                    svc_client, user_id, slug, output_folder,
+                    title=title, pending_renders=pending_renders,
+                )
+                if composed_html:
+                    logger.info(f"[EXEC] ADR-130: Composed HTML ({len(composed_html)} chars) for {output_folder}")
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-130: Compose failed (non-fatal): {e}")
 
         # 10. ADR-118 D.3: Deliver from output folder (unified output substrate)
         final_status = "delivered"

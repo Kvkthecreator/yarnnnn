@@ -1,6 +1,6 @@
 # ADR-130: HTML-Native Output Substrate — Three-Registry Architecture
 
-> **Status**: Phase 1 Implemented (registries, seniority deletion, v2 types, caller migration). Phases 2-3 proposed.
+> **Status**: Phases 1-2 Implemented. Phase 3 (export pipeline, skill dissolution, multi-runtime) proposed.
 > **Date**: 2026-03-23 (revised from 2026-03-22)
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-118 Phase D (format-builder skills model), ADR-117 Phase 3 seniority-gated capabilities
