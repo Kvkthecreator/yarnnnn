@@ -484,6 +484,35 @@ async def get_project(slug: str, user: UserClient):
     except Exception:
         pass
 
+    # ADR-133: Phase state + work plan for coordination surfacing
+    phase_state = None
+    work_plan = None
+    try:
+        phase_state_raw = await pw.read("memory/phase_state.json")
+        if phase_state_raw:
+            phase_state = _json.loads(phase_state_raw)
+    except Exception:
+        pass
+    try:
+        work_plan = await pw.read("memory/work_plan.md")
+    except Exception:
+        pass
+
+    # ADR-134: Latest output for hero display
+    latest_output = None
+    if assemblies:
+        latest_folder = assemblies[-1]
+        try:
+            latest_content = await pw.read(f"assembly/{latest_folder}/output.md")
+            latest_html = await pw.read(f"assembly/{latest_folder}/output.html")
+            latest_output = {
+                "folder": latest_folder,
+                "content": (latest_content or "")[:2000],
+                "composed_html": latest_html,
+            }
+        except Exception:
+            pass
+
     return {
         "project_slug": slug,
         "project": project,
@@ -491,6 +520,9 @@ async def get_project(slug: str, user: UserClient):
         "assembly_count": len(assemblies),
         "pm_intelligence": pm_intelligence if pm_intelligence else None,
         "project_cognitive_state": project_cognitive_state,
+        "phase_state": phase_state,
+        "work_plan": work_plan,
+        "latest_output": latest_output,
     }
 
 

@@ -1968,38 +1968,67 @@ export default function ProjectDetailPage() {
   const title = meta.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const members = meta.contributors || [];
 
-  // Right panel tabs: Participants, Context, Outputs, Settings
-  const panelTabs: WorkspacePanelTab[] = [
+  // ADR-134: Phase state + work plan from API
+  const phaseState = (project as any).phase_state as { current_phase?: string; phases?: Record<string, { status: string }> } | null;
+  const workPlan = (project as any).work_plan as string | null;
+  const latestOutput = (project as any).latest_output as { folder: string; content: string; composed_html?: string } | null;
+
+  // ADR-133: Derive phase progression for header
+  const phases = phaseState?.phases || {};
+  const phaseNames = Object.keys(phases);
+  const currentPhase = phaseState?.current_phase || '';
+
+  // ADR-134: Right panel — Team + PM State + Work Plan (continuous, not tabs)
+  const rightPanel: WorkspacePanelTab[] = [
     {
-      id: 'participants',
+      id: 'team',
       label: `Team (${members.length})`,
-      content: members.length > 0 ? (
-        <ParticipantsSidebar
-          members={members}
-          contributionCounts={contribution_counts}
-          slug={slug}
-          pmIntelligence={pm_intelligence}
-        />
-      ) : (
-        <div className="p-4 text-center">
-          <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground">No agents assigned</p>
+      content: (
+        <div className="overflow-y-auto space-y-0">
+          {/* Team cards */}
+          {members.length > 0 ? (
+            <ParticipantsSidebar
+              members={members}
+              contributionCounts={contribution_counts}
+              slug={slug}
+              pmIntelligence={pm_intelligence}
+            />
+          ) : (
+            <div className="p-4 text-center">
+              <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">No agents assigned</p>
+            </div>
+          )}
+
+          {/* PM Coordination Card */}
+          {(() => {
+            const latestPmPulse = activities.find(a =>
+              a.event_type === 'pm_pulsed' || (a.event_type === 'agent_pulsed' && a.metadata?.action)
+            );
+            return latestPmPulse ? (
+              <div className="mx-3 mb-3 p-2.5 rounded-lg border border-purple-200 dark:border-purple-800/40 bg-purple-50/50 dark:bg-purple-900/10">
+                <p className="text-[10px] font-medium text-purple-700 dark:text-purple-400 mb-1">PM Coordination</p>
+                <p className="text-[11px] text-foreground/80">{latestPmPulse.summary || String(latestPmPulse.metadata?.reason || 'Monitoring project')}</p>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Work Plan */}
+          {workPlan && (
+            <div className="mx-3 mb-3 p-2.5 rounded-lg border border-border bg-muted/30">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Work Plan</p>
+              <div className="prose prose-xs dark:prose-invert max-w-none text-[11px] leading-relaxed">
+                <ReactMarkdown>{workPlan.slice(0, 500)}</ReactMarkdown>
+              </div>
+            </div>
+          )}
         </div>
       ),
     },
     {
       id: 'context',
-      label: 'Context',
+      label: 'Files',
       content: <ContextTab slug={slug} />,
-    },
-    {
-      id: 'outputs',
-      label: `Outputs${assembly_count > 0 ? ` (${assembly_count})` : ''}`,
-      content: (
-        <div className="overflow-y-auto">
-          <OutputsTab slug={slug} />
-        </div>
-      ),
     },
     {
       id: 'settings',
@@ -2019,7 +2048,7 @@ export default function ProjectDetailPage() {
     },
   ];
 
-  // View toggle controls — Workfloor is primary (default), Chat is secondary
+  // ADR-134: View toggle — Output (default) / Chat
   const viewToggle = (
     <div className="flex items-center bg-muted rounded-lg p-0.5">
       <button
@@ -2031,8 +2060,8 @@ export default function ProjectDetailPage() {
             : 'text-muted-foreground hover:text-foreground'
         )}
       >
-        <Activity className="w-3 h-3" />
-        <span className="hidden sm:inline">Workfloor</span>
+        <FileText className="w-3 h-3" />
+        <span className="hidden sm:inline">Output</span>
       </button>
       <button
         onClick={() => setMainView('meeting-room')}
@@ -2054,8 +2083,12 @@ export default function ProjectDetailPage() {
       identity={{
         icon: <FolderKanban className="w-5 h-5" />,
         label: title,
-        badge: objective?.deliverable ? (
-          <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden md:inline">
+        badge: objective?.purpose ? (
+          <span className="text-xs text-muted-foreground truncate max-w-[250px] hidden md:inline">
+            {objective.purpose}
+          </span>
+        ) : objective?.deliverable ? (
+          <span className="text-xs text-muted-foreground truncate max-w-[250px] hidden md:inline">
             {objective.deliverable}
           </span>
         ) : undefined,
@@ -2069,16 +2102,75 @@ export default function ProjectDetailPage() {
           <span className="hidden sm:inline">Projects</span>
         </Link>
       }
-      headerControls={viewToggle}
-      panelTabs={panelTabs}
+      headerControls={
+        <div className="flex items-center gap-3">
+          {/* ADR-133: Phase indicator */}
+          {phaseNames.length > 0 && (
+            <div className="hidden md:flex items-center gap-1 text-[10px]">
+              {phaseNames.map((name, i) => {
+                const status = phases[name]?.status || 'pending';
+                const isCurrent = name === currentPhase;
+                return (
+                  <span key={name} className="flex items-center gap-0.5">
+                    {i > 0 && <span className="text-muted-foreground mx-0.5">→</span>}
+                    <span className={cn(
+                      'px-1.5 py-0.5 rounded',
+                      status === 'complete' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      isCurrent ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium' :
+                      'bg-muted text-muted-foreground'
+                    )}>
+                      {name.replace(/^Phase \d+:\s*/, '')}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {viewToggle}
+        </div>
+      }
+      panelTabs={rightPanel}
       panelDefaultOpen={true}
       panelDefaultPct={30}
     >
-      {/* Main view — Meeting Room or Workfloor */}
+      {/* ADR-134: Main view — Output (default) or Chat */}
       {mainView === 'meeting-room' ? (
         <MeetingRoomTab activities={activities} slug={slug} projectTitle={title} contributors={members} />
       ) : (
-        <WorkfloorView members={members} activities={activities} slug={slug} pmCognitiveState={project_cognitive_state} />
+        <div className="flex-1 overflow-y-auto">
+          {/* Hero output */}
+          {latestOutput?.composed_html ? (
+            <div className="border-b border-border">
+              <iframe
+                srcDoc={latestOutput.composed_html}
+                className="w-full"
+                style={{ border: 'none', minHeight: '400px', height: '60vh' }}
+                sandbox="allow-same-origin"
+                title="Latest output"
+              />
+            </div>
+          ) : latestOutput?.content ? (
+            <div className="p-6 border-b border-border">
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Package className="w-10 h-10 text-muted-foreground/20 mb-3" />
+              <p className="text-sm text-muted-foreground">No outputs yet</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Agents will produce output on their next run</p>
+            </div>
+          )}
+
+          {/* Output history */}
+          {assembly_count > 0 && (
+            <div className="p-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Previous outputs</p>
+              <OutputsTab slug={slug} />
+            </div>
+          )}
+        </div>
       )}
     </WorkspaceLayout>
   );
