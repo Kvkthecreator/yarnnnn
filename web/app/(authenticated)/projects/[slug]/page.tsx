@@ -1909,9 +1909,9 @@ export default function ProjectDetailPage() {
   const [activities, setActivities] = useState<ProjectActivityItem[]>([]);
   const [archiving, setArchiving] = useState(false);
   const [objective, setObjective] = useState<{ deliverable?: string; audience?: string; format?: string; purpose?: string } | undefined>(undefined);
-  // ADR-134: Chat drawer state
+  // ADR-134: Chat drawer state — one conversation, @-mention routes to agent
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatAgentSlug, setChatAgentSlug] = useState<string | null>(null); // null = group chat
+  const [mentionAgent, setMentionAgent] = useState<string | null>(null); // pre-fill @-mention
   // ADR-134: Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -1981,9 +1981,9 @@ export default function ProjectDetailPage() {
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
-  // Handler: click agent card → open chat drawer for that agent
+  // Handler: click agent card → open chat drawer with @-mention pre-filled
   const handleAgentClick = (agentSlug: string) => {
-    setChatAgentSlug(agentSlug);
+    setMentionAgent(agentSlug);
     setChatOpen(true);
   };
 
@@ -2001,7 +2001,7 @@ export default function ProjectDetailPage() {
           <h1 className="text-base font-semibold truncate">{title}</h1>
           <div className="flex items-center gap-2 ml-auto shrink-0">
             <button
-              onClick={() => { setChatAgentSlug(null); setChatOpen(true); }}
+              onClick={() => { setMentionAgent(null); setChatOpen(true); }}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <MessageSquare className="w-3.5 h-3.5" />
@@ -2112,15 +2112,16 @@ export default function ProjectDetailPage() {
         {/* Right: Chat Drawer (slides in) */}
         {chatOpen && (
           <div className="w-[380px] border-l border-border flex flex-col bg-background shrink-0 animate-in slide-in-from-right duration-200">
-            {/* Drawer header */}
+            {/* Drawer header — one group chat, @-mention to direct */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium">
-                  {chatAgentSlug
-                    ? `Chat with ${members.find(m => m.agent_slug === chatAgentSlug)?.title || chatAgentSlug}`
-                    : 'Project Chat'}
-                </span>
+                <span className="text-xs font-medium">Project Chat</span>
+                {mentionAgent && (
+                  <span className="text-[10px] text-primary">
+                    @{members.find(m => m.agent_slug === mentionAgent)?.title || mentionAgent}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setChatOpen(false)}
