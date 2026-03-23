@@ -434,6 +434,7 @@ export function ChatFirstDesk() {
   // ADR-132: Topics — macro context baskets from onboarding
   const [topics, setTopics] = useState<Array<{ name: string; projects: string[]; status: string }>>([]);
   const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
+  const [hasBrand, setHasBrand] = useState(false);
   const hasTopics = topics.length > 0;
   useEffect(() => {
     api.topics.get().then((data) => {
@@ -443,6 +444,9 @@ export function ChatFirstDesk() {
     }).catch(() => {});
     api.projects.list().then((data) => {
       setMainProjects(data.projects);
+    }).catch(() => {});
+    api.brand.get().then((data) => {
+      setHasBrand(data.exists);
     }).catch(() => {});
   }, []);
 
@@ -850,9 +854,25 @@ export function ChatFirstDesk() {
                           </div>
                         </>
                       )}
-                      {/* Contextual action cards based on project state */}
+                      {/* Priority-based contextual action cards */}
+                      {/* 1. Brand gap — set up brand if missing */}
+                      {!hasBrand && (
+                        <button
+                          onClick={() => {
+                            setInput('Help me set up my brand — company name, colors, and tone for my outputs');
+                            textareaRef.current?.focus();
+                          }}
+                          className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                        >
+                          <FileText className="w-5 h-5 shrink-0 text-muted-foreground" />
+                          <div>
+                            <span className="text-sm font-medium">Set up your brand</span>
+                            <span className="text-xs text-muted-foreground block">Define colors, tone, and style for your outputs</span>
+                          </div>
+                        </button>
+                      )}
+                      {/* 2. Objective gap — refine project with boilerplate objective */}
                       {(() => {
-                        // Find first project needing objective refinement
                         const needsObjective = mainProjects.find(
                           p => ['workspace', 'bounded_deliverable'].includes(p.type_key || '') && !p.objective_set
                         );
@@ -869,19 +889,18 @@ export function ChatFirstDesk() {
                           </Link>
                         ) : null;
                       })()}
+                      {/* 3. Add more topics */}
                       <button
                         onClick={() => {
-                          setInput('I want to add another project to my workspace');
+                          setInput('I want to add a new topic to my workspace');
                           textareaRef.current?.focus();
                         }}
                         className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
                       >
-                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
-                          <Command className="w-full h-full" />
-                        </span>
+                        <Briefcase className="w-5 h-5 shrink-0 text-muted-foreground" />
                         <div>
-                          <span className="text-sm font-medium">Add more work</span>
-                          <span className="text-xs text-muted-foreground block">Set up another project or add agents to existing ones</span>
+                          <span className="text-sm font-medium">Add a topic</span>
+                          <span className="text-xs text-muted-foreground block">Add another area of work to your workspace</span>
                         </div>
                       </button>
                       <p className="text-xs text-muted-foreground/60 text-center px-1">

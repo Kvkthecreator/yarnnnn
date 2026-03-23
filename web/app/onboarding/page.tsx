@@ -43,12 +43,14 @@ function getPlaceholder(index: number): string {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [structure, setStructure] = useState<WorkStructure>(null);
   const [scopes, setScopes] = useState<ScopeEntry[]>([
     { id: '1', name: '' },
   ]);
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [brandTone, setBrandTone] = useState('');
   const [loading, setLoading] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
 
@@ -98,12 +100,19 @@ export default function OnboardingPage() {
     );
   };
 
+  const handleTopicsNext = () => {
+    const validScopes = scopes.filter((s) => s.name.trim());
+    if (validScopes.length === 0 || !structure) return;
+    setStep(3);
+  };
+
   const handleSubmit = async () => {
     const validScopes = scopes.filter((s) => s.name.trim());
     if (validScopes.length === 0 || !structure) return;
 
     setLoading(true);
     try {
+      // Save topics + scaffold projects
       await api.topics.save({
         structure,
         topics: validScopes.map((s) => ({
@@ -114,9 +123,19 @@ export default function OnboardingPage() {
         })),
         name: name.trim() || undefined,
       });
+
+      // Save brand if provided (non-fatal — brand is optional)
+      if (companyName.trim() || brandTone.trim()) {
+        const brandLines = [`# Brand: ${companyName.trim() || 'Default'}`, ''];
+        if (brandTone.trim()) {
+          brandLines.push('## Tone', brandTone.trim(), '');
+        }
+        await api.brand.save(brandLines.join('\n')).catch(() => null);
+      }
+
       router.push(HOME_ROUTE);
     } catch (err) {
-      console.error('Failed to save work index:', err);
+      console.error('Failed to save onboarding data:', err);
       setLoading(false);
     }
   };
@@ -149,9 +168,11 @@ export default function OnboardingPage() {
           <p className="mt-2 text-[#1a1a1a]/60">
             {step === 1
               ? 'How is your work structured?'
-              : structure === 'single'
-                ? 'What are you working on?'
-                : 'What are the things you\'re juggling?'}
+              : step === 2
+                ? (structure === 'single'
+                    ? 'What are you working on?'
+                    : 'What are the things you\'re juggling?')
+                : 'Tell us about your brand'}
           </p>
         </div>
 
@@ -264,7 +285,73 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {/* Submit */}
+            {/* Next → Brand step */}
+            <Button
+              onClick={handleTopicsNext}
+              disabled={!scopes.some((s) => s.name.trim())}
+              className="w-full"
+            >
+              <ArrowRight className="w-4 h-4 mr-2" />
+              Next
+            </Button>
+
+            <div className="text-center">
+              <button
+                onClick={handleSkip}
+                className="text-sm text-[#1a1a1a]/40 hover:text-[#1a1a1a]/60 transition-colors"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Brand basics (optional) */}
+        {step === 3 && (
+          <div className="glass-card-light p-8 space-y-5">
+            <button
+              onClick={() => setStep(2)}
+              className="text-sm text-[#1a1a1a]/40 hover:text-[#1a1a1a]/60 transition-colors"
+            >
+              &larr; Back
+            </button>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-[#1a1a1a]/70 mb-1.5 block">
+                  Company or brand name
+                </label>
+                <Input
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g., Acme Corp"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-[#1a1a1a]/70 mb-1.5 block">
+                  How should your outputs sound?
+                </label>
+                <Input
+                  value={brandTone}
+                  onChange={(e) => setBrandTone(e.target.value)}
+                  placeholder="e.g., Professional and concise"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-[#1a1a1a]/70 mb-1.5 block">
+                  Your name
+                </label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                />
+              </div>
+            </div>
+
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit}

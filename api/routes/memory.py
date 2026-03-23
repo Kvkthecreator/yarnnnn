@@ -375,6 +375,32 @@ async def get_brand(auth: UserClient, name: str = "default"):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class BrandSaveRequest(BaseModel):
+    content: str
+    name: str = "default"
+
+
+@router.post("/user/brand")
+async def save_brand(body: BrandSaveRequest, auth: UserClient):
+    """Save brand file. Writes /brand/{name}/BRAND.md to workspace."""
+    try:
+        path = f"/brand/{body.name}/BRAND.md"
+        from datetime import timezone as _tz
+        data = {
+            "user_id": auth.user_id,
+            "path": path,
+            "content": body.content,
+            "summary": f"Brand: {body.name}",
+            "updated_at": datetime.now(_tz.utc).isoformat(),
+        }
+        auth.client.table("workspace_files").upsert(
+            data, on_conflict="user_id,path"
+        ).execute()
+        return {"exists": True, "brand_name": body.name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Profile ──────────────────────────────────────────────────────────────────
 
 @router.get("/profile", response_model=ProfileResponse)

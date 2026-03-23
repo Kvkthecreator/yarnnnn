@@ -272,6 +272,11 @@ export const api = {
       request<{ content: string | null; exists: boolean; brand_name: string }>(
         `/api/memory/user/brand?name=${name}`
       ),
+    save: (content: string, name = "default") =>
+      request<{ exists: boolean; brand_name: string }>(
+        "/api/memory/user/brand",
+        { method: "POST", body: JSON.stringify({ content, name }) },
+      ),
   },
 
   // Document endpoints (ADR-008: Document Pipeline)
