@@ -651,14 +651,18 @@ export function ChatFirstDesk() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'context',
-      label: 'Context',
-      content: <UserContextPanel />,
-    },
-    {
       id: 'projects',
       label: 'Projects',
-      content: <ProjectsPanel />,
+      content: (
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto">
+            <ProjectsPanel />
+          </div>
+          <div className="border-t border-border">
+            <UserContextPanel />
+          </div>
+        </div>
+      ),
     },
     {
       id: 'platforms',
