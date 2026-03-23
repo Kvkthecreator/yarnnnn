@@ -992,7 +992,7 @@ function OutputsTab({ slug }: { slug: string }) {
         ))}
       </div>
 
-      {/* Output info */}
+      {/* Output info + export */}
       {selectedOutput && (
         <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-muted-foreground border-b border-border shrink-0">
           <span>{format(new Date(selectedOutput.created_at), 'MMM d, yyyy h:mm a')}</span>
@@ -1006,6 +1006,27 @@ function OutputsTab({ slug }: { slug: string }) {
               <span>{selectedOutput.files.filter(f => f.content_url).length} assets</span>
             </>
           )}
+          {/* Export buttons */}
+          <div className="ml-auto flex items-center gap-1">
+            {(['pdf', 'xlsx'] as const).map((fmt) => (
+              <button
+                key={fmt}
+                onClick={async () => {
+                  try {
+                    const result = await api.projects.exportOutput(slug, selectedOutput.folder, fmt);
+                    if (result.download_url) {
+                      window.open(result.download_url, '_blank');
+                    }
+                  } catch (err) {
+                    console.error(`Export ${fmt} failed:`, err);
+                  }
+                }}
+                className="px-1.5 py-0.5 rounded text-[9px] font-medium uppercase hover:bg-muted transition-colors"
+              >
+                {fmt}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

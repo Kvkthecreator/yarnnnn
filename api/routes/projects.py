@@ -671,6 +671,76 @@ async def update_project(slug: str, body: UpdateProjectRequest, user: UserClient
     return {"project_slug": slug, "title": title, "updated": True}
 
 
+class ExportRequest(BaseModel):
+    folder: str
+    format: str = "pdf"  # pdf | xlsx
+
+
+@router.post("/{slug}/export")
+async def export_output(slug: str, body: ExportRequest, user: UserClient):
+    """ADR-130 Phase 3: Export composed HTML output as PDF or XLSX.
+
+    Reads output.html from the output folder, sends to render service
+    for conversion, returns the download URL.
+    """
+    import os
+    import httpx
+    from services.workspace import ProjectWorkspace
+
+    pw = ProjectWorkspace(user.client, user.user_id, slug)
+
+    # Read composed HTML
+    html_content = await pw.read(f"assembly/{body.folder}/output.html")
+    if not html_content:
+        # Fallback: read markdown and use as-is
+        md_content = await pw.read(f"assembly/{body.folder}/output.md")
+        if not md_content:
+            raise HTTPException(status_code=404, detail="Output not found")
+        html_content = f"<html><body><pre>{md_content}</pre></body></html>"
+
+    # Call render service for export
+    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
+
+    headers = {}
+    if render_secret:
+        headers["X-Render-Secret"] = render_secret
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{render_url}/render",
+                json={
+                    "type": body.format,  # "pdf" or "xlsx"
+                    "input": {"html": html_content, "markdown": html_content},
+                    "output_format": body.format,
+                    "user_id": user.user_id,
+                },
+                headers=headers,
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"Render service error: {resp.status_code}")
+
+            result = resp.json()
+            if not result.get("success"):
+                raise HTTPException(status_code=502, detail=result.get("error", "Export failed"))
+
+            return {
+                "success": True,
+                "download_url": result.get("output_url"),
+                "format": body.format,
+                "content_type": result.get("content_type"),
+                "size_bytes": result.get("size_bytes"),
+            }
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Export timed out")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[EXPORT] Failed: {e}")
+        raise HTTPException(status_code=500, detail="Export failed")
+
+
 @router.delete("/{slug}")
 async def archive_project(slug: str, user: UserClient):
     """Archive a project (set lifecycle=archived on all project files)."""

@@ -613,6 +613,13 @@ export const api = {
     getOutput: (slug: string, folder: string) =>
       request<ProjectOutputDetail>(`/api/projects/${slug}/outputs/${folder}`),
 
+    // ADR-130 Phase 3: Export output as PDF/XLSX
+    exportOutput: (slug: string, folder: string, format: string) =>
+      request<{ success: boolean; download_url: string; format: string }>(
+        `/api/projects/${slug}/export`,
+        { method: "POST", body: JSON.stringify({ folder, format }) }
+      ),
+
     getContributions: (slug: string, agentSlug: string) =>
       request<{ agent_slug: string; files: ContributionFile[] }>(
         `/api/projects/${slug}/contributions/${agentSlug}`
