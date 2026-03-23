@@ -44,8 +44,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         },
         "contributors": [
             {
-                "title_template": "Slack Agent",
-                "role": "digest",
+                "title_template": "Slack Briefer",
+                "role": "briefer",
                 "scope": "platform",
                 "frequency": "daily",
                 "sources_from": "platform",
@@ -72,8 +72,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         },
         "contributors": [
             {
-                "title_template": "Notion Agent",
-                "role": "digest",
+                "title_template": "Notion Briefer",
+                "role": "briefer",
                 "scope": "platform",
                 "frequency": "daily",
                 "sources_from": "platform",
@@ -101,8 +101,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         },
         "contributors_template": [
             {
-                "title_template": "{scope_name} Digest",
-                "role": "digest",
+                "title_template": "{scope_name} Briefer",
+                "role": "briefer",
                 "scope": "cross_platform",
                 "frequency": "daily",
                 "sources_from": "work_unit",
@@ -152,8 +152,8 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         },
         "contributors": [
             {
-                "title_template": "Cross-Platform Synthesizer",
-                "role": "synthesize",
+                "title_template": "Cross-Platform Analyst",
+                "role": "analyst",
                 "scope": "cross_platform",
                 "frequency": "weekly",
                 "sources_from": "all_platforms",

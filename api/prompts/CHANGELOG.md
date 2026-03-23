@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.4] - ADR-130 v2: Agent type registry — 8 product types + multi-agent coordination
+
+### Changed
+- `agent_framework.py`: **AGENT_TYPES v2** — 8 user-facing types (briefer, monitor, researcher, drafter, analyst, writer, planner, scout) + PM infrastructure. Each type has `display_name`, `tagline`, capabilities, description. Types are product offerings, not internal taxonomy. `resolve_role()` maps legacy names (digest→briefer, synthesize→analyst, research→researcher, prepare→planner, custom→briefer). `list_agent_types()` for TP prompt injection.
+- `agent-identity.ts`: **v2** — `resolveRole()` frontend mapping. New display names, avatar colors, badge colors, taglines for all 8 types. Legacy roles transparently mapped.
+- `agent_pipeline.py`: `DEFAULT_INSTRUCTIONS` extended with v2 type entries. `ROLE_PROMPTS` aliases: briefer→digest template, analyst→synthesize, researcher→research, scout→research, drafter/writer/planner→custom (TODO: type-specific prompts).
+- `project_registry.py`: Contributor templates updated — `"Slack Agent"→"Slack Briefer"`, `"Notion Agent"→"Notion Briefer"`, `"Cross-Platform Synthesizer"→"Cross-Platform Analyst"`, `"{scope_name} Digest"→"{scope_name} Briefer"`. Role values: `digest→briefer`, `synthesize→analyst`.
+- `output-substrate.md`: Agent type registry section rewritten for v2 types + multi-agent coordination model.
+- Expected behavior: all new agents created with v2 type names. Existing DB agents with legacy role values work via `resolve_role()` / `resolveRole()` mappings. No DB migration needed — soft migration at read time.
+
+### Dissolved
+- `synthesize` type → `analyst` (cross-referencing is what analysts do)
+- `prepare` type → `planner` (broader: plans, agendas, follow-ups, not just meeting prep)
+- `custom` type → `briefer` (safe default; every agent should have a real type)
+- `digest` type → `briefer` (product name: "keeps you briefed", not "recaps")
+
 ## [2026.03.23.3] - ADR-132: Work-first onboarding — working memory + Composer integration
 
 ### Changed

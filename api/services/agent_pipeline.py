@@ -54,11 +54,21 @@ _PLATFORM_DIGEST_SIGNALS = {
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
 # ADR-109: Keyed by role name
 DEFAULT_INSTRUCTIONS = {
-    "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
-    "synthesize": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
-    "monitor": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
-    "research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
-    "pm": "Coordinate this project: track contributor freshness, trigger assembly when contributions are ready, manage work plan. Escalate to TP if stuck.",
+    # v2 types (ADR-130)
+    "briefer": "Keep the user briefed on their domain. Lead with highlights, then break down by source. Prioritize decisions, action items, and what needs attention. Keep it scannable.",
+    "monitor": "Watch for changes that matter and alert the user. Compare against previous state. Surface escalations, anomalies, and threshold breaches. Be specific about what changed and why it matters.",
+    "researcher": "Investigate the assigned topic with depth. Use workspace context and web search. Produce structured analysis with evidence. Prioritize insights the user hasn't seen elsewhere.",
+    "drafter": "Produce the assigned deliverable. Structure it for the target audience. Use charts and diagrams where they add clarity. Focus on quality and completeness.",
+    "analyst": "Track patterns and metrics over time. Cross-reference multiple sources. Produce data-rich analysis with charts. Flag trends, anomalies, and inflection points.",
+    "writer": "Craft communications for the target audience. Match tone and style to context. Focus on clarity, persuasion, and professionalism.",
+    "planner": "Prepare plans, agendas, and follow-ups. Read platform context for preparation material. Track action items and deadlines. Structure for quick scanning.",
+    "scout": "Track the competitive and market landscape. Monitor external sources for changes. Flag new entrants, pricing shifts, feature launches, and strategic moves.",
+    "pm": "Coordinate this project: track contributor freshness, steer via contribution briefs, gate quality, trigger assembly when contributions are ready, manage work plan. Escalate to TP if stuck.",
+    # Legacy mappings (DB may still have old role values)
+    "digest": "Keep the user briefed on their domain. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
+    "synthesize": "Track patterns across sources and produce analysis. Cross-reference data. Flag trends and anomalies.",
+    "research": "Investigate the assigned topic with depth. Use workspace context and web search. Produce structured analysis.",
+    "prepare": "Prepare plans and agendas. Read platform context for preparation material. Track action items.",
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
@@ -427,6 +437,16 @@ Decision Rules (in prerequisite order):
 """,
 
 }  # end ROLE_PROMPTS
+
+# ADR-130 v2: Map new type names to prompt templates.
+# New types reuse existing prompt structures until type-specific prompts are written.
+ROLE_PROMPTS["briefer"]    = ROLE_PROMPTS["digest"]       # same summarization prompt
+ROLE_PROMPTS["analyst"]    = ROLE_PROMPTS["synthesize"]    # same cross-reference prompt
+ROLE_PROMPTS["researcher"] = ROLE_PROMPTS["research"]      # same investigation prompt
+ROLE_PROMPTS["drafter"]    = ROLE_PROMPTS["custom"]        # deliverable-focused (TODO: custom prompt)
+ROLE_PROMPTS["writer"]     = ROLE_PROMPTS["custom"]        # content-focused (TODO: custom prompt)
+ROLE_PROMPTS["planner"]    = ROLE_PROMPTS["custom"]        # planning-focused (TODO: custom prompt)
+ROLE_PROMPTS["scout"]      = ROLE_PROMPTS["research"]      # competitive intel uses research prompt
 
 
 # ADR-121/123: Assembly composition prompt (v3.0 — objective-aware)

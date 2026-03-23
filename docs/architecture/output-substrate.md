@@ -21,24 +21,34 @@ Three concerns, separated:
 
 ### 1. Agent Type Registry
 
-Each agent type is a deterministic capability bundle. Type = capability set. Personification comes from instructions (user-configurable), not capability gating.
+Each agent type is a **product offering** — a role the user "hires" for their project team. Type = capability set + display identity. 8 user-facing types + PM infrastructure:
 
 ```
-digest:     [read_platforms, synthesize, produce_markdown, compose_html]
+briefer:    [read_platforms, summarize, produce_markdown, compose_html]
+            "Keeps you briefed on what's happening"
 monitor:    [read_platforms, detect_change, alert, produce_markdown, compose_html]
-research:   [read_platforms, web_search, investigate, produce_markdown,
-             chart, mermaid, compose_html]
-synthesize: [read_platforms, cross_reference, data_analysis, chart, mermaid,
-             produce_markdown, compose_html]
-prepare:    [read_platforms, calendar_access, profile_attendees,
-             produce_markdown, compose_html]
-pm:         [read_workspace, check_freshness, steer_contributors,
-             trigger_assembly, manage_work_plan]
+            "Watches for what matters and alerts you"
+researcher: [read_platforms, web_search, investigate, produce_markdown, chart, mermaid, compose_html]
+            "Investigates topics and produces analysis"
+drafter:    [read_platforms, produce_markdown, chart, mermaid, compose_html]
+            "Produces deliverables and documents for you"
+analyst:    [read_platforms, data_analysis, cross_reference, chart, mermaid, produce_markdown, compose_html]
+            "Tracks metrics and surfaces patterns"
+writer:     [read_platforms, produce_markdown, compose_html]
+            "Crafts communications and content"
+planner:    [read_platforms, produce_markdown, compose_html]
+            "Prepares plans, agendas, and follow-ups"
+scout:      [read_platforms, web_search, produce_markdown, chart, compose_html]
+            "Tracks competitors and market movements"
+pm:         [read_workspace, check_freshness, steer_contributors, trigger_assembly, manage_work_plan]
+            Coordinates project team (infrastructure, not user-facing)
 ```
 
-Each type also defines: default instructions, pulse cadence, prompt template.
+Each type also defines: display_name, tagline, default instructions, pulse cadence, prompt template.
 
-New types (video, slack_writer, etc.) are added by extending this registry + deploying runtimes. No framework changes required.
+Multi-agent coordination: projects are teams (1 PM + 1..N contributors). Lean start at scaffold (1 contributor), team grows via Composer/TP/user request. PM orchestrates via work plan.
+
+New types added by extending the registry + deploying runtimes. No framework changes required. Legacy roles (digest, synthesize, research, prepare, custom) mapped to new types via `resolve_role()`.
 
 ### 2. Capability Registry
 
