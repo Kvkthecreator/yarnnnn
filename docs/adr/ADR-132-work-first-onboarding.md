@@ -496,18 +496,15 @@ Bootstrap (platform → auto-scaffold) is preserved as a **fallback path**, not 
 - Projects created on onboarding submit, `project_slug` backfilled to WORK.md
 - Orchestrator + projects page updated with new type labels
 
-### Phase 3: Platform source mapping
-- `sources_from: "work_unit"` resolution in `scaffold_project()`
-- Bootstrap checks work index before creating generic digests
-- Platform connection enriches existing work-scoped projects
-- Channel/page → work scope mapping (TP-assisted or heuristic)
+### Phase 3: Platform source mapping — PARTIALLY IMPLEMENTED
+- Bootstrap (`maybe_bootstrap_project()`) checks work index — skips generic digest when WORK.md exists
+- `sources_from: "work_unit"` defined in registry but source resolution deferred (requires TP-assisted channel→scope mapping)
+- Channel/page → work scope mapping deferred to future iteration
 
-### Phase 4: Orchestrator + TP integration
-- Empty state cards updated for work-scopes-present vs. absent states
-- "Connect {platform} to power your {project_name}" informed cards
-- TP reads/writes `/memory/WORK.md` for ongoing work management (add, complete, restructure)
-- Composer reads work index during heartbeat for gap detection
-- Chat-based work setup for users who skipped onboarding
+### Phase 4: Orchestrator + TP integration — PARTIALLY IMPLEMENTED
+- Work index injected into TP working memory (`build_working_memory()` reads WORK.md, `format_for_prompt()` renders "Your work" section)
+- TP sees active scopes + project links in system prompt → can reference work context in conversation
+- Remaining: Composer heartbeat integration, chat-based work setup for skip-onboarding users, informed action cards
 
 ---
 
@@ -559,3 +556,4 @@ Bootstrap (platform → auto-scaffold) is preserved as a **fallback path**, not 
 | 2026-03-23 | v1.1 — Structured two-step onboarding (single vs. multi-scope) replaces free-text field. User-agnostic language (no "client" assumptions). Registry simplified to `workspace` + `bounded_deliverable`. |
 | 2026-03-23 | v1.2 — `/memory/WORK.md` as living work index (not just onboarding output). Management model: conversation as write path, Settings/Memory as read path. Onboarding page is one-time, not revisitable. TP/Composer/PM read and write the work index. Resolved open questions 1-4. |
 | 2026-03-23 | v1.3 — Phases 1+2 implemented. Frontend: `/onboarding` page, auth callback gate, type labels. Backend: `/api/memory/user/work` GET/POST, `workspace` + `bounded_deliverable` registry types, `scaffold_project()` scope_name interpolation, project scaffolding on submit with WORK.md backfill. |
+| 2026-03-23 | v1.4 — Phases 3+4 partially implemented. Bootstrap skips generic digest when work index exists. TP working memory reads WORK.md and injects "Your work" section into system prompt. Source mapping (channel→scope) and Composer integration deferred. |

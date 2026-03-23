@@ -5,7 +5,7 @@ Single source of truth for all project scaffolding. All project creation
 flows (bootstrap, Composer, TP, API routes) go through scaffold_project().
 
 Registry is curated, code-side, deploy-time. Follows the pattern of
-PLATFORM_REGISTRY, ROLE_PORTFOLIOS, ROLE_PROMPTS.
+PLATFORM_REGISTRY and AGENT_TYPES (ADR-130).
 
 Design axiom: every project gets a PM. No exceptions. PM is project
 infrastructure, not a user-facing agent — excluded from tier agent limits.

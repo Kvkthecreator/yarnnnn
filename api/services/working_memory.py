@@ -90,10 +90,16 @@ async def build_working_memory(
         _get_user_shared_files_sync, user_id, _make_client()
     )
 
+    # ADR-132: Read work index alongside other memory files
+    work_index = await asyncio.to_thread(
+        _get_work_index_sync, user_id, _make_client()
+    )
+
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
+        "work_index": work_index,
         "agents": agents,
         "platforms": platforms,
         "recent_sessions": sessions,
@@ -120,6 +126,51 @@ def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
     from services.workspace import UserMemory
     um = UserMemory(client, user_id)
     return um.read_all_sync()
+
+
+def _get_work_index_sync(user_id: str, client: Any) -> Optional[list[dict]]:
+    """Read /memory/WORK.md and parse work scopes (sync, for thread pool). ADR-132."""
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", "/memory/WORK.md")
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows or not rows[0].get("content", "").strip():
+            return None
+
+        content = rows[0]["content"]
+        # Parse work units — simple extraction of **Name** entries
+        import re
+        scopes = []
+        unit_pattern = re.compile(
+            r"- \*\*(.+?)\*\*\n((?:  - .+\n?)*)",
+            re.MULTILINE,
+        )
+        for match in unit_pattern.finditer(content):
+            name = match.group(1)
+            props = match.group(2)
+            status = "active"
+            project_slug = None
+            for line in props.strip().split("\n"):
+                line = line.strip().lstrip("- ")
+                if line.startswith("status:"):
+                    status = line.split(":", 1)[1].strip()
+                elif line.startswith("project_slug:"):
+                    project_slug = line.split(":", 1)[1].strip()
+            scopes.append({
+                "name": name,
+                "status": status,
+                "project_slug": project_slug,
+            })
+        return scopes if scopes else None
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to read work index: {e}")
+        return None
 
 
 def _extract_profile_from_file(content: Optional[str]) -> dict:
@@ -305,11 +356,11 @@ def _build_system_reference(platforms: list) -> dict:
 
     Generated from:
       - project_registry.py (PROJECT_TYPE_REGISTRY)
-      - agent_framework.py (ROLE_PORTFOLIOS, SKILL_ENABLED_ROLES)
+      - agent_framework.py (AGENT_TYPES — capability bundles per type)
       - Connected platforms (from working memory query)
     """
     from services.project_registry import PROJECT_TYPE_REGISTRY
-    from services.agent_framework import ROLE_PORTFOLIOS, SKILL_ENABLED_ROLES
+    from services.agent_framework import AGENT_TYPES, has_asset_capabilities
 
     # --- Project types ---
     project_types = []
@@ -327,14 +378,14 @@ def _build_system_reference(platforms: list) -> dict:
         entry["agents_count"] = len(ptype.get("members", ptype.get("agents", [])))
         project_types.append(entry)
 
-    # --- Agent roles ---
+    # --- Agent types (ADR-130: deterministic capability bundles) ---
     roles = []
-    for role_name, tracks in ROLE_PORTFOLIOS.items():
-        duties_at_senior = [d["duty"] for d in tracks.get("senior", [])]
+    for type_name, type_def in AGENT_TYPES.items():
         roles.append({
-            "role": role_name,
-            "duties": duties_at_senior,
-            "has_output_skills": role_name in SKILL_ENABLED_ROLES,
+            "role": type_name,
+            "capabilities": type_def["capabilities"],
+            "has_asset_capabilities": has_asset_capabilities(type_name),
+            "description": type_def.get("description", ""),
         })
 
     # --- Connected platform names (derived from already-fetched platforms) ---
@@ -674,6 +725,19 @@ def format_for_prompt(working_memory: dict) -> str:
             # Flat preferences list
             for p in pref.get("preferences", []):
                 lines.append(f"- Prefers: {p}")
+
+    # ADR-132: Work index — what the user is working on
+    work_index = working_memory.get("work_index")
+    if work_index:
+        lines.append("\n### Your work")
+        active = [s for s in work_index if s.get("status") == "active"]
+        completed = [s for s in work_index if s.get("status") == "completed"]
+        for s in active:
+            slug = s.get("project_slug")
+            slug_note = f" → /projects/{slug}" if slug else " (no project yet)"
+            lines.append(f"- **{s['name']}**{slug_note}")
+        if completed:
+            lines.append(f"- _Completed: {', '.join(s['name'] for s in completed)}_")
 
     # Known facts / instructions
     known = working_memory.get("known", [])

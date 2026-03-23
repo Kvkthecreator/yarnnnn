@@ -1,14 +1,14 @@
 """
-Onboarding Bootstrap — ADR-110, rewritten ADR-122
+Onboarding Bootstrap — ADR-110, rewritten ADR-122, updated ADR-132
 
 Deterministic project scaffolding on platform connection.
 No LLM involved. Registry lookup, not intelligence.
 
 Trigger: platform sync completion (called from platform_worker.py)
-Action: Scaffold matching platform project if conditions met
 
-ADR-122 rewrites the bootstrap path to create projects (not standalone agents)
-via the unified scaffold_project() function from project_registry.py.
+ADR-132 update: If user has a work index (/memory/WORK.md), skip generic
+platform digest creation — the user already has work-scoped projects.
+Fallback to platform digest only when no work index exists.
 """
 
 from __future__ import annotations
@@ -17,6 +17,23 @@ import logging
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+async def _has_work_index(client: Any, user_id: str) -> bool:
+    """Check if user has a work index (ADR-132 onboarding completed)."""
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", "/memory/WORK.md")
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return bool(rows and rows[0].get("content", "").strip())
+    except Exception:
+        return False
 
 
 async def maybe_bootstrap_project(
@@ -31,15 +48,26 @@ async def maybe_bootstrap_project(
 
     Returns project_slug if created, None if skipped.
 
+    ADR-132: If user has a work index, skip generic platform digest creation.
+    The user's work-scoped projects already exist — platform sources will be
+    mapped to those projects in a future phase. Creating a generic "Slack Digest"
+    alongside work-scoped projects would be redundant.
+
     Conditions checked:
-    1. Platform has a project type in the registry (calendar excluded)
-    2. No existing project of this type for this user (uniqueness via type_key)
-    3. User is under their tier agent limit
-    4. Platform has at least one synced source with content
+    1. User does NOT have a work index (ADR-132 — if they do, skip generic digest)
+    2. Platform has a project type in the registry
+    3. No existing project of this type for this user (uniqueness via type_key)
+    4. User is under their tier agent limit
+    5. Platform has at least one synced source with content
     """
     from services.project_registry import (
         get_platform_project_type, scaffold_project, _has_synced_content,
     )
+
+    # ADR-132: Skip generic digest if user already has work-scoped projects
+    if await _has_work_index(client, user_id):
+        logger.info(f"[BOOTSTRAP] User has work index, skipping generic {platform} digest")
+        return None
 
     type_info = get_platform_project_type(platform)
     if not type_info:
