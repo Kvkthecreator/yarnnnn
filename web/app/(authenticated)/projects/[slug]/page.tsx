@@ -1523,20 +1523,6 @@ function SettingsTab({
 }) {
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8">
-      {/* Assembly Spec */}
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Assembly Configuration</h3>
-        {project.assembly_spec ? (
-          <div className="text-sm bg-muted/30 rounded-lg p-3 border border-border">
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
-              <ReactMarkdown>{project.assembly_spec}</ReactMarkdown>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No assembly configuration set. The PM will define how outputs are combined.</p>
-        )}
-      </section>
-
       {/* Delivery */}
       <section>
         <h3 className="text-sm font-semibold mb-2">Delivery</h3>
@@ -2061,6 +2047,13 @@ export default function ProjectDetailPage() {
               {/* Bio */}
               {selectedMember.bio && (
                 <p className="text-[10px] text-foreground/70 leading-relaxed mb-2">{selectedMember.bio}</p>
+              )}
+              {/* PM: Assembly config (how the team's work gets combined) */}
+              {selectedMember.role === 'pm' && meta.assembly_spec && (
+                <div className="mb-2 p-2 rounded border border-purple-200 dark:border-purple-800/30 bg-purple-50/30 dark:bg-purple-900/10">
+                  <p className="text-[9px] font-medium text-purple-600 dark:text-purple-400 mb-1">Assembly</p>
+                  <p className="text-[10px] text-foreground/80">{meta.assembly_spec}</p>
+                </div>
               )}
               {/* Cognitive state (if contributor) */}
               {selectedMember.role !== 'pm' && selectedMember.cognitive_state && (
