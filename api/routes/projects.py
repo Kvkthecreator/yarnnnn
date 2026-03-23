@@ -50,16 +50,26 @@ def _extract_type_key(content: str) -> str | None:
 
 def _extract_purpose(content: str) -> str | None:
     """Extract Purpose from PROJECT.md Objective section."""
+    fields = _extract_objective_fields(content)
+    return fields.get("purpose")
+
+
+def _extract_objective_fields(content: str) -> dict[str, str]:
+    """Extract all Objective fields from PROJECT.md content."""
     in_objective = False
+    fields: dict[str, str] = {}
     for line in (content or "").split("\n"):
-        if line.strip().startswith("## Objective"):
+        if line.strip().startswith("## Objective") or line.strip().startswith("## Intent"):
             in_objective = True
             continue
         if in_objective and line.strip().startswith("## "):
             break
-        if in_objective and "**Purpose**:" in line:
-            return line.split("**Purpose**:", 1)[1].strip()
-    return None
+        if in_objective and line.strip().startswith("- **") and "**:" in line:
+            key_end = line.index("**:", 4)
+            key = line[line.index("**") + 2:key_end].lower()
+            value = line[key_end + 3:].strip()
+            fields[key] = value
+    return fields
 
 
 # =============================================================================
@@ -289,6 +299,29 @@ async def list_projects(user: UserClient):
             .execute()
         )
 
+        # ADR-132: Also fetch agent counts per project for enriched panel
+        agent_project_map: dict[str, int] = {}
+        agent_has_sources: dict[str, bool] = {}
+        try:
+            agents_result = (
+                user.client.table("agents")
+                .select("id, type_config, sources, role")
+                .eq("user_id", user.user_id)
+                .neq("status", "archived")
+                .execute()
+            )
+            for agent in (agents_result.data or []):
+                tc = agent.get("type_config") or {}
+                ps = tc.get("project_slug")
+                role = agent.get("role", "")
+                if ps and role != "pm":  # exclude PM from contributor count
+                    agent_project_map[ps] = agent_project_map.get(ps, 0) + 1
+                    sources = agent.get("sources") or []
+                    if sources:
+                        agent_has_sources[ps] = True
+        except Exception:
+            pass  # Non-fatal — panel still works without enrichment
+
         projects = []
         for row in (result.data or []):
             # Extract slug from path: /projects/{slug}/PROJECT.md
@@ -297,12 +330,22 @@ async def list_projects(user: UserClient):
             if len(parts) >= 3:
                 slug = parts[2]
                 content = row.get("content", "")
+                objective = _extract_objective_fields(content)
+                # Objective is "set" if deliverable + purpose are non-template
+                obj_set = bool(
+                    objective.get("purpose")
+                    and "stay on top of" not in (objective.get("purpose") or "").lower()
+                    and "surface what needs attention" not in (objective.get("purpose") or "").lower()
+                )
                 projects.append({
                     "project_slug": slug,
                     "title": _extract_title(content),
                     "type_key": _extract_type_key(content),
                     "purpose": _extract_purpose(content),
                     "updated_at": row.get("updated_at"),
+                    "contributor_count": agent_project_map.get(slug, 0),
+                    "has_sources": agent_has_sources.get(slug, False),
+                    "objective_set": obj_set,
                 })
 
         return {"projects": projects, "count": len(projects)}

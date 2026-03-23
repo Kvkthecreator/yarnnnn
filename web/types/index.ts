@@ -799,6 +799,10 @@ export interface ProjectSummary {
   type_key: string | null;
   purpose: string | null;
   updated_at: string;
+  // ADR-132: Enriched project status for work-aware Orchestrator panel
+  contributor_count?: number;
+  has_sources?: boolean;
+  objective_set?: boolean;
 }
 
 /** ADR-128 Phase 6: Contributor cognitive assessment (from self_assessment.md) */

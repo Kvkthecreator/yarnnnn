@@ -101,9 +101,14 @@ Behavior:
 
 **Panel tabs:** Projects | Platforms
 
-Panel defaults open. Projects tab shows compact project list linking to `/projects/[slug]`. Platforms tab shows connected platforms + sync status + document uploads. Empty state shows platform connect cards (Slack, Notion) for cold-start onboarding.
+Panel defaults open. Projects tab shows enriched project cards with scope status: agent count, platform connection status, objective refinement hints. Work-scoped projects (from ADR-132 onboarding) show title as primary identity (no generic "Workspace" badge). Platform projects show platform badge (Slack, Notion). Platforms tab shows connected platforms + sync status + document uploads.
 
-Dashboard page removed (2026-03-22) — Orchestrator is the single landing page. Post-login and post-OAuth both redirect here.
+Empty state has three modes (ADR-132):
+1. **Post-onboarding** (has work index): "Your workspace is ready" — scope count, platform connect cards if needed, contextual action cards (e.g., "Refine {project} objective"), "Add more work"
+2. **Cold start** (no work index, no platforms): Welcome + platform connect buttons + New Project
+3. **Platforms connected** (no work index): "Tell me about your work" — nudges toward describing work
+
+Dashboard page removed (2026-03-22) — Orchestrator is the single landing page. Post-login and post-OAuth both redirect here. New users gated to `/onboarding` first (ADR-132).
 
 ### 4.3 `/agents/[id]` — Agent Workspace
 

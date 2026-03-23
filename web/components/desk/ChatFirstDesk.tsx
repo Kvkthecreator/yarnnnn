@@ -151,38 +151,53 @@ function ProjectsPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="divide-y divide-border flex-1 overflow-y-auto">
-        {projects.map((p) => (
-          <Link
-            key={p.project_slug}
-            href={`/projects/${p.project_slug}`}
-            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors group"
-          >
-            <div className="shrink-0">
-              {getProjectIcon(p.type_key)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-medium truncate">
-                  {p.title || p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                </span>
-                {/* Show type badge only for platform projects — work-scoped project titles already carry identity */}
-                {p.type_key && TYPE_LABELS[p.type_key] && !['workspace', 'bounded_deliverable'].includes(p.type_key) && (
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                    {TYPE_LABELS[p.type_key]}
-                  </span>
-                )}
+        {projects.map((p) => {
+          const isWorkScoped = ['workspace', 'bounded_deliverable'].includes(p.type_key || '');
+          const needsSetup = isWorkScoped && (!p.has_sources || !p.objective_set);
+          return (
+            <Link
+              key={p.project_slug}
+              href={`/projects/${p.project_slug}`}
+              className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors group"
+            >
+              <div className="shrink-0">
+                {getProjectIcon(p.type_key)}
               </div>
-              {p.purpose && (
-                <span className="text-xs text-muted-foreground truncate block">{p.purpose}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium truncate">
+                    {p.title || p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </span>
+                  {/* Platform type badge */}
+                  {p.type_key && TYPE_LABELS[p.type_key] && !isWorkScoped && (
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                      {TYPE_LABELS[p.type_key]}
+                    </span>
+                  )}
+                </div>
+                {/* Status line: agent count + setup hints */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+                  {p.contributor_count != null && (
+                    <span>{p.contributor_count} agent{p.contributor_count !== 1 ? 's' : ''}</span>
+                  )}
+                  {needsSetup && (
+                    <span className="text-amber-500/80">
+                      {!p.has_sources ? 'needs data' : 'refine objective'}
+                    </span>
+                  )}
+                  {!needsSetup && p.purpose && (
+                    <span className="truncate">{p.purpose}</span>
+                  )}
+                </div>
+              </div>
+              {p.updated_at && (
+                <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                  {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
+                </span>
               )}
-            </div>
-            {p.updated_at && (
-              <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
-                {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
-              </span>
-            )}
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
@@ -276,12 +291,17 @@ export function ChatFirstDesk() {
 
   // ADR-132: Work index state — post-onboarding users have work scopes
   const [workScopes, setWorkScopes] = useState<Array<{ name: string; project_slug?: string | null; status: string }>>([]);
+  const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
   const hasWorkIndex = workScopes.length > 0;
   useEffect(() => {
     api.work.get().then((data) => {
       if (data.exists && data.scopes.length > 0) {
         setWorkScopes(data.scopes);
       }
+    }).catch(() => {});
+    // Also fetch projects for contextual action cards
+    api.projects.list().then((data) => {
+      setMainProjects(data.projects);
     }).catch(() => {});
   }, []);
 
@@ -676,7 +696,25 @@ export function ChatFirstDesk() {
                           </div>
                         </>
                       )}
-                      {/* Add more work */}
+                      {/* Contextual action cards based on project state */}
+                      {(() => {
+                        // Find first project needing objective refinement
+                        const needsObjective = mainProjects.find(
+                          p => ['workspace', 'bounded_deliverable'].includes(p.type_key || '') && !p.objective_set
+                        );
+                        return needsObjective ? (
+                          <Link
+                            href={`/projects/${needsObjective.project_slug}`}
+                            className="w-full flex items-center gap-3 p-4 rounded-lg border border-amber-200 hover:border-amber-300 bg-amber-50/50 transition-colors text-left"
+                          >
+                            <Briefcase className="w-5 h-5 shrink-0 text-amber-600" />
+                            <div>
+                              <span className="text-sm font-medium">Refine {needsObjective.title}</span>
+                              <span className="text-xs text-muted-foreground block">Set a clear objective so your agents know what to produce</span>
+                            </div>
+                          </Link>
+                        ) : null;
+                      })()}
                       <button
                         onClick={() => {
                           setInput('I want to add another project to my workspace');
