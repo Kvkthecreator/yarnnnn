@@ -1981,61 +1981,9 @@ export default function ProjectDetailPage() {
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
-  return (
-    <div className="h-full flex flex-col bg-background">
-      {/* ── PROJECT HEADER ── */}
-      <div className="border-b border-border px-4 py-2.5 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/projects" className="text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeft className="w-4 h-4" />
-          </Link>
-          <h1 className="text-sm font-semibold truncate">{title}</h1>
-          {/* Phase stepper */}
-          {phaseNames.length > 0 && (
-            <div className="hidden md:flex items-center gap-1 text-[10px] ml-2">
-              {phaseNames.map((name, i) => {
-                const status = phases[name]?.status || 'pending';
-                const isCurrent = name === currentPhase;
-                return (
-                  <span key={name} className="flex items-center gap-0.5">
-                    {i > 0 && <span className="text-muted-foreground mx-0.5">→</span>}
-                    <span className={cn(
-                      'px-1.5 py-0.5 rounded',
-                      status === 'complete' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                      isCurrent ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium' :
-                      'bg-muted text-muted-foreground'
-                    )}>
-                      {name.replace(/^Phase \d+:\s*/, '')}
-                    </span>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-auto"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── MAIN: Chat (left) + Context Panel (right) ── */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* LEFT: Chat / Meeting Room (primary surface) */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <MeetingRoomTab
-            activities={activities}
-            slug={slug}
-            projectTitle={title}
-            contributors={members}
-          />
-        </div>
-
-        {/* RIGHT: Context Panel — objective → output → team (35% width, matches orchestrator) */}
-        <div className="w-[35%] min-w-[300px] max-w-[480px] border-l border-border overflow-y-auto shrink-0 hidden md:block">
+  // ADR-134: Context panel as WorkspaceLayout panel tab — resizable, consistent with orchestrator
+  const contextPanelContent = (
+    <div className="overflow-y-auto h-full">
 
           {/* 1. Objective */}
           <div className="px-3 py-3 border-b border-border">
@@ -2130,36 +2078,79 @@ export default function ProjectDetailPage() {
             ) : null;
           })()}
 
-        </div>
-      </div>
-
-      {/* ── SETTINGS MODAL ── */}
-      {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSettingsOpen(false)}>
-          <div
-            className="bg-background rounded-xl border border-border shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold">Project Settings</h2>
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="p-1 rounded text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <SettingsTab
-              slug={slug}
-              project={meta}
-              objective={objective}
-              onUpdateObjective={(obj) => setObjective(obj)}
-              onArchive={handleArchive}
-              archiving={archiving}
-            />
-          </div>
-        </div>
-      )}
     </div>
+  );
+
+  const panelTabs: WorkspacePanelTab[] = [
+    {
+      id: 'context',
+      label: 'Context',
+      content: contextPanelContent,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      content: (
+        <div className="overflow-y-auto">
+          <SettingsTab
+            slug={slug}
+            project={meta}
+            objective={objective}
+            onUpdateObjective={(obj) => setObjective(obj)}
+            onArchive={handleArchive}
+            archiving={archiving}
+          />
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <WorkspaceLayout
+      identity={{
+        icon: <FolderKanban className="w-5 h-5" />,
+        label: title,
+        badge: phaseNames.length > 0 ? (
+          <div className="hidden md:flex items-center gap-1 text-[10px]">
+            {phaseNames.map((name, i) => {
+              const status = phases[name]?.status || 'pending';
+              const isCurrent = name === currentPhase;
+              return (
+                <span key={name} className="flex items-center gap-0.5">
+                  {i > 0 && <span className="text-muted-foreground mx-0.5">→</span>}
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded',
+                    status === 'complete' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                    isCurrent ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium' :
+                    'bg-muted text-muted-foreground'
+                  )}>
+                    {name.replace(/^Phase \d+:\s*/, '')}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        ) : objective?.purpose ? (
+          <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden md:inline">{objective.purpose}</span>
+        ) : undefined,
+      }}
+      breadcrumb={
+        <Link href="/projects" className="flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Projects</span>
+        </Link>
+      }
+      panelTabs={panelTabs}
+      panelDefaultOpen={true}
+      panelDefaultPct={35}
+    >
+      {/* Chat / Meeting Room — primary surface */}
+      <MeetingRoomTab
+        activities={activities}
+        slug={slug}
+        projectTitle={title}
+        contributors={members}
+      />
+    </WorkspaceLayout>
   );
 }
