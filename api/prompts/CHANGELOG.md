@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.10] - ADR-133 Phase 1: PM-coordinated phase dispatch
+
+### Changed
+- `agent_pulse.py`: Refactored `run_agent_pulse()` with three-mode routing:
+  - PM agents → Tier 1 + Tier 3 (new PM coordination pulse)
+  - Project contributors → PM-dispatched (Tier 1 safety gates, then generate)
+  - Standalone agents → Tier 1 + Tier 2 (independent pulse, unchanged)
+- New: `_tier3_pm_coordination()` — PM reads work plan, phase_state.json, contributor assessments. Decides: dispatch, advance_phase, generate, escalate, or wait. Dispatches contributors by setting `next_pulse_at`.
+- New: `_dispatch_contributors()` — sets `next_pulse_at` on target contributors, logs `contributor_dispatched` events.
+- New: `_build_tier3_prompt()` — PM coordination prompt with project objective, work plan, phase state, contributor status.
+- Expected behavior: PM is the sole heartbeat for project-scoped work. Contributors run when PM dispatches. Standalone agents unaffected.
+
 ## [2026.03.23.9] - ADR-130 v2: Type-specific prompt templates
 
 ### Added
