@@ -425,7 +425,7 @@ def _parse_pulse_response(text: str) -> dict:
         # Normalize sleep → wait (ADR-126 taxonomy)
         if action == "sleep":
             parsed["action"] = "wait"
-        if parsed["action"] not in ("generate", "observe", "wait", "escalate"):
+        if parsed["action"] not in ("generate", "observe", "wait", "escalate", "dispatch", "advance_phase"):
             return {"action": "observe", "note": f"Unknown action '{action}' in pulse response."}
         return parsed
     except json.JSONDecodeError as e:
