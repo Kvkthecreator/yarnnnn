@@ -914,7 +914,7 @@ function ContextTab({ slug }: { slug: string }) {
 function OutputsTab({ slug }: { slug: string }) {
   const [outputs, setOutputs] = useState<OutputManifest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [composedHtml, setComposedHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -922,27 +922,27 @@ function OutputsTab({ slug }: { slug: string }) {
   useEffect(() => {
     api.projects.getOutputs(slug).then((res) => {
       setOutputs(res.outputs);
+      // Auto-load latest version
+      if (res.outputs.length > 0) {
+        const latest = res.outputs[res.outputs.length - 1];
+        loadVersion(latest.folder);
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [slug]);
 
-  const handleExpand = async (folder: string) => {
-    if (expandedFolder === folder) {
-      setExpandedFolder(null);
-      setPreviewContent(null);
-      return;
-    }
-    setExpandedFolder(folder);
+  const loadVersion = async (folder: string) => {
+    setSelectedVersion(folder);
     setPreviewLoading(true);
     setComposedHtml(null);
+    setPreviewContent(null);
     try {
       const detail = await api.projects.getOutput(slug, folder);
       setPreviewContent(detail.content);
-      // ADR-130 Phase 2: Prefer composed HTML when available
       if (detail.composed_html) {
         setComposedHtml(detail.composed_html);
       }
     } catch {
-      setPreviewContent('Failed to load preview.');
+      setPreviewContent('Failed to load output.');
     } finally {
       setPreviewLoading(false);
     }
@@ -960,105 +960,84 @@ function OutputsTab({ slug }: { slug: string }) {
     return (
       <div className="text-center py-12">
         <Package className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">No assemblies yet — the PM will trigger one when contributions are ready.</p>
+        <p className="text-sm text-muted-foreground">No outputs yet — agents will produce on their next run.</p>
       </div>
     );
   }
 
+  const selectedOutput = outputs.find(o => o.folder === selectedVersion);
+
   return (
-    <div className="divide-y divide-border">
-      {outputs.map((o) => (
-        <div key={o.folder} className="px-4 py-3">
+    <div className="flex flex-col h-full">
+      {/* Version selector bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0 overflow-x-auto">
+        {[...outputs].reverse().map((o) => (
           <button
-            onClick={() => handleExpand(o.folder)}
-            className="w-full flex items-center gap-2 text-left group"
-          >
-            {expandedFolder === o.folder ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            key={o.folder}
+            onClick={() => loadVersion(o.folder)}
+            className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded text-xs shrink-0 transition-colors',
+              o.folder === selectedVersion
+                ? 'bg-primary/10 text-primary font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium group-hover:text-primary transition-colors">
-                v{o.version}
-              </span>
-              {o.created_at && (
-                <span className="text-xs text-muted-foreground ml-2">
-                  {format(new Date(o.created_at), 'MMM d, yyyy h:mm a')}
-                </span>
-              )}
-            </div>
+          >
+            <span>v{o.version}</span>
             <span className={cn(
-              'text-xs px-2 py-0.5 rounded',
-              o.status === 'delivered' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-              o.status === 'active' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-              'bg-muted text-muted-foreground'
-            )}>
-              {o.status}
-            </span>
+              'w-1.5 h-1.5 rounded-full',
+              o.status === 'delivered' ? 'bg-green-500' :
+              o.status === 'active' ? 'bg-blue-500' : 'bg-gray-400'
+            )} />
           </button>
+        ))}
+      </div>
 
-          {/* Expanded: file list + preview */}
-          {expandedFolder === o.folder && (
-            <div className="mt-3 ml-6 space-y-3">
-              {/* File list */}
-              {o.files.length > 0 && (
-                <div className="space-y-1">
-                  {o.files.map((f, fi) => (
-                    <div key={fi} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <FileText className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{f.path}</span>
-                      {f.content_url && (
-                        <a
-                          href={f.content_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline shrink-0"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Sources */}
-              {o.sources.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Sources: {o.sources.join(', ')}
-                </p>
-              )}
-
-              {/* Output preview — composed HTML (ADR-130) or markdown fallback */}
-              {previewLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Loading preview...
-                </div>
-              ) : composedHtml ? (
-                <div className="border border-border rounded-lg overflow-hidden max-h-[32rem] overflow-y-auto">
-                  <iframe
-                    srcDoc={composedHtml}
-                    className="w-full min-h-[20rem]"
-                    style={{ border: 'none', height: '100%' }}
-                    sandbox="allow-same-origin"
-                    title="Composed output"
-                  />
-                </div>
-              ) : previewContent ? (
-                <div className="border border-border rounded-lg p-3 bg-muted/30 max-h-80 overflow-y-auto">
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
-                    <ReactMarkdown>{previewContent}</ReactMarkdown>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+      {/* Output info */}
+      {selectedOutput && (
+        <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-muted-foreground border-b border-border shrink-0">
+          <span>{format(new Date(selectedOutput.created_at), 'MMM d, yyyy h:mm a')}</span>
+          <span>·</span>
+          <span className={cn(
+            selectedOutput.status === 'delivered' ? 'text-green-600' : ''
+          )}>{selectedOutput.status}</span>
+          {selectedOutput.files.filter(f => f.content_url).length > 0 && (
+            <>
+              <span>·</span>
+              <span>{selectedOutput.files.filter(f => f.content_url).length} assets</span>
+            </>
           )}
         </div>
-      ))}
+      )}
+
+      {/* Full-height output rendering */}
+      <div className="flex-1 overflow-hidden">
+        {previewLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : composedHtml ? (
+          <iframe
+            srcDoc={composedHtml}
+            className="w-full h-full"
+            style={{ border: 'none' }}
+            sandbox="allow-same-origin"
+            title="Output"
+          />
+        ) : previewContent ? (
+          <div className="p-4 overflow-y-auto h-full">
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown>{previewContent}</ReactMarkdown>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            Select a version to preview
+          </div>
+        )}
+      </div>
     </div>
   );
+
 }
 
 // =============================================================================
