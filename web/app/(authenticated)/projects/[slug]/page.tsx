@@ -1892,6 +1892,8 @@ export default function ProjectDetailPage() {
   const [mentionAgent, setMentionAgent] = useState<string | null>(null); // pre-fill @-mention
   // ADR-134: Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // ADR-134: Selected agent on workfloor (PM default)
+  const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null);
 
   const loadProject = useCallback(async () => {
     try {
@@ -1977,7 +1979,6 @@ export default function ProjectDetailPage() {
 
   // ADR-134: Selected agent state for workfloor (PM default)
   const pmMember = members.find(m => m.role === 'pm');
-  const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null);
   const effectiveSlug = selectedAgentSlug || pmMember?.agent_slug || members[0]?.agent_slug || null;
   const selectedMember = members.find(m => m.agent_slug === effectiveSlug);
 
