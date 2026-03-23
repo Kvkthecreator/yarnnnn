@@ -275,19 +275,20 @@ async def save_topics(body: TopicsRequest, auth: UserClient):
             if not profile.get("name"):
                 await um.update_profile({"name": body.name})
 
-        # Scaffold projects for each topic
-        from services.project_registry import scaffold_project
+        # Scaffold projects for each topic with type inference
+        from services.project_registry import scaffold_project, infer_topic_type
         projects_created = []
         updated_topics = []
 
         for topic in body.topics:
             if topic.projects:
-                # Already has projects — keep as-is
                 updated_topics.append(topic)
                 continue
 
-            # Determine project type from lifecycle
-            type_key = "bounded_deliverable" if topic.lifecycle == "bounded" else "workspace"
+            # Infer agent type and lifecycle from topic name
+            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(topic.name)
+            lifecycle = topic.lifecycle if topic.lifecycle != "persistent" else inferred_lifecycle
+            type_key = "bounded_deliverable" if lifecycle == "bounded" else "workspace"
 
             result = await scaffold_project(
                 client=auth.client,
@@ -295,6 +296,20 @@ async def save_topics(body: TopicsRequest, auth: UserClient):
                 type_key=type_key,
                 scope_name=topic.name,
                 execute_now=False,
+                # Override contributor template with inferred type
+                contributors_override=[{
+                    "title_template": f"{{scope_name}} {inferred_type.title()}",
+                    "role": inferred_type,
+                    "scope": "cross_platform",
+                    "frequency": "weekly" if lifecycle == "persistent" else "on_demand",
+                    "sources_from": "work_unit",
+                }] if inferred_type != "briefer" else None,  # briefer is already the default
+                objective_override={
+                    "deliverable": f"{topic.name} {'deliverable' if lifecycle == 'bounded' else 'update'}",
+                    "audience": "You",
+                    "format": "email",
+                    "purpose": inferred_purpose,
+                } if inferred_purpose else None,
             )
 
             if result.get("success"):

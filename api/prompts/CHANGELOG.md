@@ -59,6 +59,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `mcp_server/server.py`: Role filter documentation updated to v2 types
 - Expected behavior: all new agent creation uses v2 types. Existing agents with old role values handled via `resolve_role()` / `LEGACY_ROLE_MAP`.
 
+## [2026.03.23.5] - ADR-132: Topic → agent type inference + DB migration 127
+
+### Changed
+- `project_registry.py`: `infer_topic_type()` heuristic — topic name keywords → agent type + lifecycle + objective purpose. No LLM call.
+- `memory.py` (routes): `save_topics()` uses `infer_topic_type()` to select agent type per topic. Passes `contributors_override` + `objective_override`.
+- `project_registry.py`: `scaffold_project()` interpolates `{scope_name}` in contributor overrides.
+- Expected behavior: "Fundraising" → drafter (bounded), "Competitive tracking" → scout (persistent), "Client: Acme" → briefer (persistent).
+
+### Database
+- Migration 127: `agents_role_check` expanded with v2 types. Existing agents migrated: digest→briefer, research→researcher.
+
 ## [2026.03.23.4] - ADR-130 v2: Agent type registry — 8 product types + multi-agent coordination
 
 ### Changed

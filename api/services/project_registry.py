@@ -94,10 +94,10 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "lifecycle": "persistent",
         "description": "Recurring monitoring, tracking, and reporting for an ongoing workstream.",
         "objective_template": {
-            "deliverable": "Weekly {scope_name} update",
+            "deliverable": "Recurring {scope_name} updates",
             "audience": "You",
             "format": "email",
-            "purpose": "Stay on top of {scope_name} activity and surface what needs attention",
+            "purpose": "Stay on top of {scope_name} and surface what needs attention",
         },
         "contributors_template": [
             {
@@ -120,11 +120,16 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
         "platform": None,
         "lifecycle": "bounded",
         "description": "A specific deliverable with a defined end state.",
-        "objective_template": None,
+        "objective_template": {
+            "deliverable": "{scope_name}",
+            "audience": "You",
+            "format": "document",
+            "purpose": "Produce {scope_name} and deliver when ready",
+        },
         "contributors_template": [
             {
-                "title_template": "{scope_name} Agent",
-                "role": "research",
+                "title_template": "{scope_name} Drafter",
+                "role": "drafter",
                 "scope": "knowledge",
                 "frequency": "on_demand",
                 "sources_from": "work_unit",
@@ -187,6 +192,65 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
 def get_project_type(type_key: str) -> Optional[dict]:
     """Look up a project type definition."""
     return PROJECT_TYPE_REGISTRY.get(type_key)
+
+
+# =============================================================================
+# ADR-132: Topic → agent type + lifecycle inference
+# =============================================================================
+
+# Heuristic keywords for lifecycle classification
+_BOUNDED_KEYWORDS = {
+    "deck", "report", "presentation", "memo", "document", "proposal",
+    "review", "audit", "assessment", "analysis", "board", "pitch",
+    "q1", "q2", "q3", "q4", "fundrais", "launch", "event",
+}
+
+# Heuristic keywords for agent type inference
+_TYPE_SIGNALS: list[tuple[set[str], str, str]] = [
+    # (keywords, agent_type, objective_verb)
+    ({"competitor", "competitive", "market", "watch", "track", "monitor", "scout", "intel"},
+     "scout", "Track and surface intelligence on"),
+    ({"research", "investigate", "analyze", "deep dive", "study"},
+     "researcher", "Research and produce analysis on"),
+    ({"draft", "write", "create", "produce", "prepare", "deck", "report", "memo", "pitch", "presentation", "document"},
+     "drafter", "Produce deliverables for"),
+    ({"metric", "data", "number", "kpi", "dashboard", "trend", "analytics"},
+     "analyst", "Track metrics and surface patterns for"),
+    ({"newsletter", "email", "content", "blog", "social", "update", "communication"},
+     "writer", "Craft communications for"),
+    ({"plan", "agenda", "meeting", "follow-up", "action item", "schedule"},
+     "planner", "Prepare plans and agendas for"),
+    ({"alert", "notify", "flag", "escalat", "watch for"},
+     "monitor", "Watch for changes and alert on"),
+]
+
+
+def infer_topic_type(topic_name: str) -> tuple[str, str, str]:
+    """Infer agent type and lifecycle from a topic name.
+
+    Returns (agent_type, lifecycle, objective_purpose).
+    Heuristic-based — no LLM call. Falls back to briefer/persistent.
+    """
+    name_lower = topic_name.lower()
+
+    # Lifecycle: bounded if matches deliverable keywords
+    lifecycle = "persistent"
+    for kw in _BOUNDED_KEYWORDS:
+        if kw in name_lower:
+            lifecycle = "bounded"
+            break
+
+    # Agent type: check keyword signals
+    for keywords, agent_type, verb in _TYPE_SIGNALS:
+        for kw in keywords:
+            if kw in name_lower:
+                purpose = f"{verb} {topic_name}"
+                return agent_type, lifecycle, purpose
+
+    # Default: briefer for persistent, drafter for bounded
+    if lifecycle == "bounded":
+        return "drafter", lifecycle, f"Produce deliverables for {topic_name}"
+    return "briefer", lifecycle, f"Stay on top of {topic_name} activity"
 
 
 def get_platform_project_type(platform: str) -> Optional[tuple[str, dict]]:
@@ -348,11 +412,14 @@ async def scaffold_project(
     project_slug = get_project_slug(title)
 
     # ── Resolve sources for member agents ──
-    # For work-scoped types, use contributors_template with interpolation
-    if scope_name and ptype.get("category") == "work" and not contributors_override:
+    if contributors_override:
+        # Override provided — interpolate scope_name if available
+        contributor_specs = _interpolate(contributors_override, sn) if sn else contributors_override
+    elif scope_name and ptype.get("category") == "work":
+        # Work-scoped type — use contributors_template with interpolation
         contributor_specs = _interpolate(ptype.get("contributors_template") or ptype.get("contributors", []), sn)
     else:
-        contributor_specs = contributors_override or ptype.get("contributors", [])
+        contributor_specs = ptype.get("contributors", [])
 
     async def _resolve_sources(spec: dict) -> list:
         sources_from = spec.get("sources_from")
