@@ -729,15 +729,21 @@ def format_for_prompt(working_memory: dict) -> str:
     # ADR-132: Work index — what the user is working on
     work_index = working_memory.get("work_index")
     if work_index:
-        lines.append("\n### Your work")
         active = [s for s in work_index if s.get("status") == "active"]
         completed = [s for s in work_index if s.get("status") == "completed"]
+        lines.append("\n### Your work")
+        lines.append("The user described these work scopes during onboarding. Each is a project with agents.")
         for s in active:
             slug = s.get("project_slug")
             slug_note = f" → /projects/{slug}" if slug else " (no project yet)"
             lines.append(f"- **{s['name']}**{slug_note}")
         if completed:
             lines.append(f"- _Completed: {', '.join(s['name'] for s in completed)}_")
+        # Guidance for TP
+        has_no_platforms = not working_memory.get("platforms")
+        if has_no_platforms:
+            lines.append("\n_No platforms connected yet. Suggest connecting Slack or Notion to give agents real data._")
+        lines.append("_To add more work scopes or agents, the user can ask here. Click into a project to refine its objective._")
 
     # Known facts / instructions
     known = working_memory.get("known", [])

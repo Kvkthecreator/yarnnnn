@@ -104,7 +104,8 @@ export default function ProjectsPage() {
                     <span className="text-sm font-medium truncate">
                       {project.title || project.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </span>
-                    {project.type_key && TYPE_LABELS[project.type_key] && (
+                    {/* Show type badge only for platform projects — work-scoped titles carry identity */}
+                    {project.type_key && TYPE_LABELS[project.type_key] && !['workspace', 'bounded_deliverable'].includes(project.type_key) && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                         {TYPE_LABELS[project.type_key]}
                       </span>

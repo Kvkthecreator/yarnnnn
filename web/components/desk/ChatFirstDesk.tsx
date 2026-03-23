@@ -165,7 +165,8 @@ function ProjectsPanel() {
                 <span className="text-sm font-medium truncate">
                   {p.title || p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                 </span>
-                {p.type_key && TYPE_LABELS[p.type_key] && (
+                {/* Show type badge only for platform projects — work-scoped project titles already carry identity */}
+                {p.type_key && TYPE_LABELS[p.type_key] && !['workspace', 'bounded_deliverable'].includes(p.type_key) && (
                   <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                     {TYPE_LABELS[p.type_key]}
                   </span>
@@ -272,6 +273,17 @@ export function ChatFirstDesk() {
   // Platform onboarding state — for cold-start empty state
   const { state: onboardingState } = usePlatformOnboardingState();
   const [connecting, setConnecting] = useState<string | null>(null);
+
+  // ADR-132: Work index state — post-onboarding users have work scopes
+  const [workScopes, setWorkScopes] = useState<Array<{ name: string; project_slug?: string | null; status: string }>>([]);
+  const hasWorkIndex = workScopes.length > 0;
+  useEffect(() => {
+    api.work.get().then((data) => {
+      if (data.exists && data.scopes.length > 0) {
+        setWorkScopes(data.scopes);
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleConnect = useCallback(async (platform: string) => {
     setConnecting(platform);
@@ -620,20 +632,82 @@ export function ChatFirstDesk() {
 
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
-                <div className="text-center mb-8">
-                  <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                  <h2 className="text-lg font-medium mb-1">
-                    {onboardingState === 'no_platforms' ? 'Welcome to YARNNN' : 'What would you like to work on?'}
-                  </h2>
-                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    {onboardingState === 'no_platforms'
-                      ? 'Connect a work platform to get started, or create a project from scratch.'
-                      : 'Set up a project, search your platforms, or just ask anything.'}
-                  </p>
-                </div>
-                <div className="max-w-md mx-auto space-y-3">
-                  {onboardingState === 'no_platforms' && (
-                    <>
+                {/* ADR-132: Three empty states based on onboarding + work index */}
+
+                {hasWorkIndex ? (
+                  /* POST-ONBOARDING: User has work scopes and projects */
+                  <>
+                    <div className="text-center mb-8">
+                      <Briefcase className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                      <h2 className="text-lg font-medium mb-1">Your workspace is ready</h2>
+                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                        {workScopes.filter(s => s.status === 'active').length} active project{workScopes.filter(s => s.status === 'active').length !== 1 ? 's' : ''} set up from your work scopes.
+                        {onboardingState === 'no_platforms' ? ' Connect a platform to power your agents.' : ''}
+                      </p>
+                    </div>
+                    <div className="max-w-md mx-auto space-y-3">
+                      {/* Show platform connect if no platforms yet */}
+                      {onboardingState === 'no_platforms' && (
+                        <>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connect a platform to enrich your projects</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {(['slack', 'notion'] as const).map((platform) => (
+                              <button
+                                key={platform}
+                                onClick={() => handleConnect(platform)}
+                                disabled={connecting !== null}
+                                className={cn(
+                                  "flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/30 transition-colors text-left",
+                                  connecting === platform && "opacity-70",
+                                )}
+                              >
+                                {connecting === platform
+                                  ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                  : getPlatformIcon(platform, 'w-5 h-5')
+                                }
+                                <span className="text-sm font-medium capitalize">{platform}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3 py-1">
+                            <div className="flex-1 border-t border-border" />
+                            <span className="text-xs text-muted-foreground">or</span>
+                            <div className="flex-1 border-t border-border" />
+                          </div>
+                        </>
+                      )}
+                      {/* Add more work */}
+                      <button
+                        onClick={() => {
+                          setInput('I want to add another project to my workspace');
+                          textareaRef.current?.focus();
+                        }}
+                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                      >
+                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                          <Command className="w-full h-full" />
+                        </span>
+                        <div>
+                          <span className="text-sm font-medium">Add more work</span>
+                          <span className="text-xs text-muted-foreground block">Set up another project or add agents to existing ones</span>
+                        </div>
+                      </button>
+                      <p className="text-xs text-muted-foreground/60 text-center px-1">
+                        Click into a project to refine its objective, or ask me anything here.
+                      </p>
+                    </div>
+                  </>
+                ) : onboardingState === 'no_platforms' ? (
+                  /* COLD START: No work index, no platforms */
+                  <>
+                    <div className="text-center mb-8">
+                      <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                      <h2 className="text-lg font-medium mb-1">Welcome to YARNNN</h2>
+                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                        Connect a work platform to get started, or create a project from scratch.
+                      </p>
+                    </div>
+                    <div className="max-w-md mx-auto space-y-3">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connect a platform</p>
                       <div className="grid grid-cols-2 gap-3">
                         {(['slack', 'notion'] as const).map((platform) => (
@@ -659,27 +733,53 @@ export function ChatFirstDesk() {
                         <span className="text-xs text-muted-foreground">or</span>
                         <div className="flex-1 border-t border-border" />
                       </div>
-                    </>
-                  )}
-                  <button
-                    onClick={() => {
-                      setInput(NEW_PROJECT_PROMPT);
-                      textareaRef.current?.focus();
-                    }}
-                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                  >
-                    <span className="w-5 h-5 shrink-0 text-muted-foreground">
-                      <Command className="w-full h-full" />
-                    </span>
-                    <div>
-                      <span className="text-sm font-medium">New Project</span>
-                      <span className="text-xs text-muted-foreground block">Start a custom project from scratch</span>
+                      <button
+                        onClick={() => {
+                          setInput(NEW_PROJECT_PROMPT);
+                          textareaRef.current?.focus();
+                        }}
+                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                      >
+                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                          <Command className="w-full h-full" />
+                        </span>
+                        <div>
+                          <span className="text-sm font-medium">New Project</span>
+                          <span className="text-xs text-muted-foreground block">Start a custom project from scratch</span>
+                        </div>
+                      </button>
                     </div>
-                  </button>
-                  {onboardingState !== 'no_platforms' && (
-                    <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
-                  )}
-                </div>
+                  </>
+                ) : (
+                  /* PLATFORMS CONNECTED, NO WORK INDEX: returning user or skip-onboarding */
+                  <>
+                    <div className="text-center mb-8">
+                      <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                      <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
+                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                        Tell me about your work and I&apos;ll set up the right projects and agents.
+                      </p>
+                    </div>
+                    <div className="max-w-md mx-auto space-y-3">
+                      <button
+                        onClick={() => {
+                          setInput(NEW_PROJECT_PROMPT);
+                          textareaRef.current?.focus();
+                        }}
+                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                      >
+                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                          <Command className="w-full h-full" />
+                        </span>
+                        <div>
+                          <span className="text-sm font-medium">New Project</span>
+                          <span className="text-xs text-muted-foreground block">Set up a project, search your platforms, or just ask anything</span>
+                        </div>
+                      </button>
+                      <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
