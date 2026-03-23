@@ -1,6 +1,6 @@
 # ADR-121: PM as Project Intelligence Director
 
-> **Status**: Phase 1-2 Implemented, Steer Path Validated
+> **Status**: Phase 1-2 Implemented, Steer Path Validated. **Evolved by ADR-133** — steering becomes phase-aware (briefs carry cross-phase context from prior phase outputs).
 > **Date**: 2026-03-19
 > **Authors**: KVK, Claude
 > **Extends**: ADR-120 (Project Execution & Work Budget)

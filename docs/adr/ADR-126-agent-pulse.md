@@ -1,6 +1,6 @@
 # ADR-126: Agent Pulse — Autonomous Awareness Engine
 
-> **Status**: Implemented (Phases 1-6). Phase 5: role-based cadence in agent_framework.py + Composer pulse integration. Phase 6: frontend surfacing across all surfaces.
+> **Status**: Implemented (Phases 1-6). **Partially superseded by ADR-133** — independent contributor pulse replaced by PM-coordinated phase dispatch for project-scoped agents. Standalone agents + PM agents retain pulse. Tier 3 (PM coordination) implemented as phase dispatch in ADR-133.
 > **Date**: 2026-03-20
 > **Authors**: KVK, Claude
 > **Scope**: Foundational re-architecture of agent execution from top-down scheduling to bottom-up autonomous awareness.

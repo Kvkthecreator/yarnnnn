@@ -1,6 +1,6 @@
 # ADR-128: Multi-Agent Coherence Protocol
 
-> **Status**: Implemented (Phases 0-6)
+> **Status**: Implemented (Phases 0-6). **Extended by ADR-133** — cross-phase context injection added as fifth coherence flow (PM curates prior phase outputs into briefs for next phase contributors).
 > **Date**: 2026-03-21
 > **Authors**: KVK, Claude
 > **Scope**: How intelligence flows between conversation, filesystem, and agent cognition substrates
