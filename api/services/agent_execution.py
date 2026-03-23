@@ -3017,6 +3017,30 @@ async def execute_agent_generation(
                 logger.warning(f"[EXEC] ADR-116: Agent card generation failed: {e}")
                 # Non-fatal
 
+        # ADR-133: Nudge project PM when contributor completes a run
+        # Sets PM's next_pulse_at to now so it picks up the completion
+        if final_status == "delivered" and role != "pm":
+            try:
+                tc = agent.get("type_config") or {}
+                project_slug = tc.get("project_slug")
+                if project_slug:
+                    # Find PM agent for this project
+                    pm_result = svc_client.table("agents").select("id").eq(
+                        "user_id", user_id
+                    ).eq("role", "pm").eq("status", "active").execute()
+                    for pm in (pm_result.data or []):
+                        pm_tc = pm.get("type_config") or {}
+                        # Check all PMs, set next_pulse_at on the one matching this project
+                        pm_full = svc_client.table("agents").select("id, type_config").eq("id", pm["id"]).single().execute()
+                        if pm_full.data and (pm_full.data.get("type_config") or {}).get("project_slug") == project_slug:
+                            svc_client.table("agents").update({
+                                "next_pulse_at": datetime.now(timezone.utc).isoformat(),
+                            }).eq("id", pm["id"]).execute()
+                            logger.info(f"[EXEC] ADR-133: Nudged PM for project {project_slug} after {title} completed")
+                            break
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-133: PM nudge failed (non-fatal): {e}")
+
         logger.info(
             f"[EXEC] Complete: {title}, version={next_version}, "
             f"status={final_status}, strategy={strategy.strategy_name}"

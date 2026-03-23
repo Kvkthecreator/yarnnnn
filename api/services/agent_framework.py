@@ -327,7 +327,7 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
 
 ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
     "monitor":    timedelta(hours=1),
-    "pm":         timedelta(hours=2),
+    "pm":         timedelta(minutes=30),
     "briefer":    timedelta(hours=12),
     "analyst":    "schedule",
     "researcher": "schedule",
