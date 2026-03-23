@@ -686,7 +686,7 @@ def build_role_prompt(
         "mandate_context": config.get("mandate_context", ""),
     }
 
-    if prompt_role == "digest":
+    if prompt_role in ("digest", "briefer"):
         source_platform = _infer_source_platform(agent.get("sources", []))
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
@@ -700,7 +700,7 @@ def build_role_prompt(
             "platform_signals": platform_signals,
         })
 
-    elif prompt_role == "prepare":
+    elif prompt_role in ("prepare", "planner"):
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
@@ -718,7 +718,7 @@ def build_role_prompt(
             "date_range": date_range,
         })
 
-    elif prompt_role == "synthesize":
+    elif prompt_role in ("synthesize", "analyst"):
         fields.update({
             "subject": config.get("subject", agent.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
@@ -737,7 +737,7 @@ def build_role_prompt(
             "signals": "\n".join(f"- {s}" for s in signals) if signals else "- Notable developments and emerging patterns",
         })
 
-    elif prompt_role == "research":
+    elif prompt_role in ("research", "researcher", "scout"):
         from datetime import datetime
         import pytz
         tz_name = agent.get("schedule", {}).get("timezone", "UTC")

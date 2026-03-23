@@ -97,7 +97,7 @@ When the user makes a **project-level decision** during this conversation — ob
 
 **What to persist**: Decisions that affect future work — "focus on action items not summaries", "switch to weekly delivery", "add a research contributor", "deprioritize calendar data". NOT ephemeral discussion, questions, or status inquiries.
 
-**Format**: Append a dated entry: `## {date} — {decision summary}` followed by a brief description. Never overwrite — decisions accumulate.
+**Format**: Append a dated entry: `## [date] — [decision summary]` followed by a brief description. Never overwrite — decisions accumulate.
 
 {workspace_context}
 """
@@ -129,7 +129,7 @@ When the user gives you a **durable directive** — focus areas, style preferenc
 
 **What to persist**: Guidance that affects your future work — "focus on action items", "keep it under 500 words", "ignore the #random channel", "always include a TL;DR". NOT ephemeral questions, one-off requests, or status inquiries.
 
-**Format**: Append a dated entry: `## {date} — {directive summary}` followed by a brief description. Never overwrite — directives accumulate.
+**Format**: Append a dated entry: `## [date] — [directive summary]` followed by a brief description. Never overwrite — directives accumulate.
 
 {workspace_context}
 """
@@ -175,24 +175,27 @@ class ChatAgent(BaseAgent):
             parts = []
 
             # Load AGENT.md (identity)
-            agent_md = await ws.read(f"/agents/{slug}/AGENT.md")
+            agent_md = await ws.read("AGENT.md")
             if agent_md:
-                parts.append(f"## Your Identity (AGENT.md)\n{agent_md.get('content', '')[:2000]}")
+                text = agent_md if isinstance(agent_md, str) else agent_md.get("content", "")
+                parts.append(f"## Your Identity (AGENT.md)\n{text[:2000]}")
 
             # Load thesis.md (domain understanding)
-            thesis = await ws.read(f"/agents/{slug}/thesis.md")
+            thesis = await ws.read("thesis.md")
             if thesis:
-                parts.append(f"## Your Domain Thesis\n{thesis.get('content', '')[:2000]}")
+                text = thesis if isinstance(thesis, str) else thesis.get("content", "")
+                parts.append(f"## Your Domain Thesis\n{text[:2000]}")
 
             # Load memory files (observations, preferences)
-            memory_files = await ws.list_files(f"/agents/{slug}/memory/")
+            memory_files = await ws.list("memory/")
             if memory_files:
                 memory_parts = []
-                for mf in memory_files[:5]:  # Cap at 5 memory files
-                    content = await ws.read(mf["path"])
+                for mf_path in memory_files[:5]:  # Cap at 5 memory files
+                    content = await ws.read(mf_path)
                     if content:
-                        filename = mf["path"].split("/")[-1]
-                        memory_parts.append(f"### {filename}\n{content.get('content', '')[:1000]}")
+                        filename = mf_path.split("/")[-1]
+                        text = content if isinstance(content, str) else content.get("content", "")
+                        memory_parts.append(f"### {filename}\n{text[:1000]}")
                 if memory_parts:
                     parts.append("## Your Memory\n" + "\n\n".join(memory_parts))
 
