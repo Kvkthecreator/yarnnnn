@@ -333,7 +333,7 @@ export default function SettingsPage() {
         >
           <span className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
-            Memory
+            Profile
           </span>
         </button>
         <button

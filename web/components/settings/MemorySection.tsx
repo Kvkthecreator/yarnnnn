@@ -61,9 +61,9 @@ interface MemoryEntry {
 // =============================================================================
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" /> },
-  { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
+  { id: 'profile', label: 'Identity', icon: <User className="w-4 h-4" /> },
   { id: 'brand', label: 'Brand', icon: <Palette className="w-4 h-4" /> },
+  { id: 'entries', label: 'Learned', icon: <BookOpen className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -617,9 +617,9 @@ export function MemorySection() {
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Memory</h2>
+          <h2 className="text-lg font-semibold">Profile</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            What YARNNN knows about you — profile, preferences, and learned facts.
+            Your identity, brand, and what YARNNN has learned about you.
           </p>
         </div>
         <button
