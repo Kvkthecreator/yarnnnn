@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.2] - ADR-130 Phase 1a: Three-registry architecture + seniority deletion
+
+### Changed
+- `agent_framework.py`: **Complete rewrite** — three registries (AGENT_TYPES, CAPABILITIES, RUNTIMES) replace seniority system. Agent capabilities are deterministic per type, fixed at creation. No seniority-gated progression. Helper functions: `get_type_capabilities()`, `has_asset_capabilities()`, `get_type_skill_docs()`. Type definitions are v1 (expect revision after ADR-132).
+- `composer.py`: **Composer Prompt v3.0** — removed `promote_duty` action, seniority references. Deleted `_execute_promote_duty()` (~140 lines). Maturity signals renamed: `senior_agents` → `proven_agents` (5+ runs, 60%+ approval). Lifecycle heuristics preserved but rebased on run count/approval instead of seniority classification.
+- `agent_pulse.py`: Tier 2 self-assessment now available to ALL agents (was associate+ only). Removed `classify_seniority` import and eligibility gate. Simplified: Tier 1 passes → Tier 2 always runs.
+- `working_memory.py`: TP system reference now built from `AGENT_TYPES` registry instead of `ROLE_PORTFOLIOS`/`SKILL_ENABLED_ROLES`. Agent roles show capabilities list and asset capability flag.
+- `agent_execution.py`: Skill docs fetch gate changed from `role in SKILL_ENABLED_ROLES` to `has_asset_capabilities(role)` — type-scoped capability check.
+- Expected behavior: agents no longer earn capabilities through feedback. All agents get Tier 2 pulse self-assessment. Composer cannot promote duties. Agent development = knowledge depth (memory, preferences), not capability breadth.
+
+### Removed
+- `agent_framework.py`: `classify_seniority()`, `ROLE_PORTFOLIOS`, `get_eligible_duties()`, `get_promotion_duty()`, `SKILL_ENABLED_ROLES`
+- `composer.py`: `_execute_promote_duty()`, `promote_duty` prompt examples, duty promotion heuristic in `should_composer_act()`, duty promotion handler in `run_lifecycle_assessment()`
+- `test_adr117_p3_duties.py`: Entire seniority test file deleted
+
 ## [2026.03.23.1] - API cost optimization: relaxed pulse cadence + Haiku for extraction
 
 ### Changed

@@ -28,8 +28,6 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
-from services.agent_framework import classify_seniority
-
 logger = logging.getLogger(__name__)
 
 # Composer uses Haiku for cost-efficiency (same as agent_pulse)
@@ -115,6 +113,49 @@ def _get_work_budget_status(client: Any, user_id: str) -> dict:
         return {"used": used, "limit": limit, "exhausted": not budget_ok}
     except Exception:
         return {"used": 0, "limit": -1, "exhausted": False}
+
+
+def _get_work_index(client: Any, user_id: str) -> Optional[list[dict]]:
+    """ADR-132: Read user's work index for heartbeat assessment.
+
+    Returns list of work scopes with name/status/project_slug, or None if no index.
+    """
+    import re
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", "/memory/WORK.md")
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows or not rows[0].get("content", "").strip():
+            return None
+
+        content = rows[0]["content"]
+        scopes = []
+        unit_pattern = re.compile(
+            r"- \*\*(.+?)\*\*\n((?:  - .+\n?)*)",
+            re.MULTILINE,
+        )
+        for match in unit_pattern.finditer(content):
+            name = match.group(1)
+            props = match.group(2)
+            status = "active"
+            project_slug = None
+            for line in props.strip().split("\n"):
+                line = line.strip().lstrip("- ")
+                if line.startswith("status:"):
+                    status = line.split(":", 1)[1].strip()
+                elif line.startswith("project_slug:"):
+                    project_slug = line.split(":", 1)[1].strip()
+            scopes.append({"name": name, "status": status, "project_slug": project_slug})
+        return scopes if scopes else None
+    except Exception as e:
+        logger.warning(f"[COMPOSER] Work index read failed: {e}")
+        return None
 
 
 # =============================================================================
@@ -334,7 +375,8 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                 # Weighted approval: explicit=1.0, auto-delivered=0.5
                 weighted = counts.get("approved", 0) + (counts.get("delivered", 0) * 0.5)
                 approval_rate = weighted / total_runs if total_runs > 0 else 0.0
-                maturity = classify_seniority(total_runs, approval_rate)
+                # ADR-130: no seniority classification. Track run count for lifecycle heuristics.
+                maturity = "proven" if total_runs >= 5 and approval_rate >= 0.6 else "developing"
                 is_underperformer = total_runs >= 5 and approval_rate < 0.4
 
                 maturity_signals.append({
@@ -549,7 +591,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         },
         "maturity": {
             "signals": maturity_signals,
-            "senior_agents": [s for s in maturity_signals if s.get("maturity") == "senior"],
+            "proven_agents": [s for s in maturity_signals if s.get("maturity") == "proven"],
             "underperformers": [s for s in maturity_signals if s.get("is_underperformer")],
         },
         "feedback": {
@@ -567,6 +609,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "projects": projects_health,  # ADR-120 Phase 1
         "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
         "pulse_health": pulse_health,  # ADR-126: agent self-reported health from pulse events
+        "work_index": _get_work_index(client, user_id),  # ADR-132: user's declared work scopes
     }
 
 
@@ -593,16 +636,16 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
         titles = [u["title"] for u in underperformers[:3]]
         return True, f"lifecycle_underperformer: {len(underperformers)} agents underperforming (<40% approval): {titles}"
 
-    # ADR-111 Phase 5: Lifecycle — senior agents ready for scope expansion
-    seniors = assessment.get("maturity", {}).get("senior_agents", [])
+    # ADR-111 Phase 5: Lifecycle — proven agents ready for scope expansion
+    proven = assessment.get("maturity", {}).get("proven_agents", [])
     expandable = [
-        m for m in seniors
+        m for m in proven
         if m.get("scope") == "platform" and m.get("role") == "digest"
         and m.get("total_runs", 0) >= 10
     ]
     if expandable and len(assessment["connected_platforms"]) >= 2:
         titles = [e["title"] for e in expandable[:2]]
-        return True, f"lifecycle_expansion: {len(expandable)} senior digest agents may warrant cross-platform synthesis: {titles}"
+        return True, f"lifecycle_expansion: {len(expandable)} proven digest agents may warrant cross-platform synthesis: {titles}"
 
     # Can't create agents if at tier limit (but lifecycle checks above still fire)
     if not assessment["tier"]["can_create"]:
@@ -730,38 +773,23 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     if no_pm_count > 0:
         return True, f"project_no_pm: {no_pm_count} project(s) exist without a PM agent"
 
-    # ADR-120 Phase 5: Composition opportunity — 2+ senior agents with different
+    # ADR-120 Phase 5: Composition opportunity — 2+ proven agents with different
     # roles and no project linking them suggests outputs could be assembled.
     total_projects = projects.get("total_projects", 0)
     if total_projects == 0:
-        senior_agents = assessment.get("maturity", {}).get("senior_agents", [])
-        if len(senior_agents) >= 2:
-            senior_roles = {m.get("role") for m in senior_agents if m.get("role")}
+        proven_agents = assessment.get("maturity", {}).get("proven_agents", [])
+        if len(proven_agents) >= 2:
+            proven_roles = {m.get("role") for m in proven_agents if m.get("role")}
             # Different roles = complementary outputs (e.g., digest + analyst)
             # Exclude PM-role agents — they don't produce combinable content
-            senior_roles.discard("pm")
-            if len(senior_roles) >= 2:
-                titles = [m["title"] for m in senior_agents[:3]]
+            proven_roles.discard("pm")
+            if len(proven_roles) >= 2:
+                titles = [m["title"] for m in proven_agents[:3]]
                 return True, (
-                    f"composition_opportunity: {len(senior_agents)} senior agents with "
-                    f"roles {sorted(senior_roles)} but no project — outputs may benefit "
+                    f"composition_opportunity: {len(proven_agents)} proven agents with "
+                    f"roles {sorted(proven_roles)} but no project — outputs may benefit "
                     f"from assembly: {titles}"
                 )
-
-    # ADR-117 Phase 3: Duty promotion — senior agents eligible for expanded duties
-    from services.agent_framework import get_promotion_duty, ROLE_PORTFOLIOS
-    senior_agents = assessment.get("maturity", {}).get("senior_agents", [])
-    for sa in senior_agents:
-        agent_role = sa.get("role")
-        if not agent_role or agent_role not in ROLE_PORTFOLIOS:
-            continue
-        current_duties = sa.get("duties") or [{"duty": agent_role}]
-        promo = get_promotion_duty(agent_role, "senior", current_duties)
-        if promo:
-            return True, (
-                f"duty_promotion: {sa['title']} is senior ({sa.get('total_runs', 0)} runs, "
-                f"{sa.get('approval_rate', 0):.0%} approval) — eligible for {promo['duty']} duty"
-            )
 
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
@@ -916,7 +944,8 @@ async def _llm_composer_assessment(
         return []
 
 
-# Composer Prompt v2.1 — promote_duty action, seniority rename (ADR-117 P3).
+# Composer Prompt v3.0 — ADR-130: removed promote_duty action + seniority gating.
+# v2.1: promote_duty action, seniority rename (ADR-117 P3) — REMOVED.
 # v2.0: project awareness, skill library, PM delegation (ADR-120 P5).
 # Changes require: version bump, CHANGELOG entry, expected behavior delta.
 COMPOSER_SYSTEM_PROMPT = """You are TP's Composer capability — the meta-cognitive layer that decides what agents and projects should exist for a user's workspace.
@@ -946,21 +975,10 @@ To create a project (combines 2+ agents' outputs into an assembled deliverable):
 {"action": "create_project", "title": "Q2 Business Review", "objective": {"deliverable": "Executive presentation", "audience": "Leadership", "format": "pptx", "purpose": "Quarterly review"}, "contributors": ["agent-slug-1", "agent-slug-2"], "assembly_spec": "Combine analyst data with writer narrative into slide deck", "delivery": {"channel": "email", "target": "user@example.com"}, "reason": "These agents produce complementary outputs ideal for assembly"}
 ```
 
-To promote an agent's duties (expand responsibilities for a senior agent):
-```json
-{"action": "promote_duty", "agent_id": "uuid", "new_duty": "monitor", "reason": "Senior digest agent with 80%+ approval — ready for monitoring capability"}
-```
-
 To observe (no action):
 ```json
 {"action": "observe", "reason": "Workforce is healthy. No clear gaps."}
 ```
-
-IMPORTANT for promote_duty actions:
-- Only promote agents marked as "senior" in the maturity signals
-- The new duty must be part of the agent's role portfolio (pre-configured career track)
-- Valid duty promotions: digest→monitor, synthesize→research, research→monitor, monitor→act
-- Do NOT promote if the agent already has the duty
 
 IMPORTANT for create actions:
 - "description" (required): One sentence explaining what this agent does and why it's valuable. Shown to the user on the dashboard.
@@ -1153,10 +1171,6 @@ async def _execute_composer_decisions(
     if action == "create_project":
         return await _execute_create_project(client, user_id, decision, assessment)
 
-    # ADR-117 Phase 3: Handle promote_duty action
-    if action == "promote_duty":
-        return await _execute_promote_duty(client, user_id, decision, assessment)
-
     if action != "create":
         logger.info(f"[COMPOSER] LLM decided: {action} — {decision.get('reason', '')}")
         return []
@@ -1333,149 +1347,6 @@ async def _execute_create_project(
     }]
 
 
-async def _execute_promote_duty(
-    client: Any, user_id: str, decision: dict, assessment: dict
-) -> list[dict]:
-    """ADR-117 Phase 3: Execute Composer's promote_duty decision.
-
-    Validates against ROLE_PORTFOLIOS, writes duties JSONB, workspace file,
-    and updates AGENT.md with new capabilities section.
-    """
-    from services.agent_framework import ROLE_PORTFOLIOS, get_promotion_duty
-    from services.workspace import AgentWorkspace
-    from services.workspace import get_agent_slug
-    from services.activity_log import write_activity
-
-    agent_id = decision.get("agent_id")
-    new_duty = decision.get("new_duty")
-    reason = decision.get("reason", "")
-
-    if not agent_id or not new_duty:
-        logger.warning("[COMPOSER] promote_duty missing agent_id or new_duty")
-        return []
-
-    # Fetch agent
-    try:
-        result = client.table("agents").select(
-            "id, title, role, duties, user_id"
-        ).eq("id", agent_id).single().execute()
-        agent = result.data
-    except Exception as e:
-        logger.warning(f"[COMPOSER] promote_duty: agent fetch failed: {e}")
-        return []
-
-    role = agent.get("role", "custom")
-    current_duties = agent.get("duties") or [{"duty": role, "trigger": "recurring", "status": "active"}]
-
-    # Validate: new_duty must be in the role's portfolio for senior level
-    portfolio = ROLE_PORTFOLIOS.get(role, {})
-    senior_duties = portfolio.get("senior", [])
-    valid_duty_names = {d["duty"] for d in senior_duties}
-
-    if new_duty not in valid_duty_names:
-        logger.warning(
-            f"[COMPOSER] promote_duty rejected: {new_duty} not in {role} portfolio "
-            f"(valid: {valid_duty_names})"
-        )
-        return []
-
-    # Check not already held
-    if any(d.get("duty") == new_duty for d in current_duties):
-        logger.info(f"[COMPOSER] promote_duty: {agent['title']} already has {new_duty} duty")
-        return []
-
-    # Find the duty spec from portfolio
-    duty_spec = next((d for d in senior_duties if d["duty"] == new_duty), None)
-    if not duty_spec:
-        return []
-
-    # Build updated duties list
-    new_duty_entry = {
-        "duty": new_duty,
-        "trigger": duty_spec.get("trigger", "reactive"),
-        "status": "active",
-        "added_at": datetime.now(timezone.utc).isoformat(),
-        "added_by": "composer",
-    }
-    updated_duties = current_duties + [new_duty_entry]
-
-    # Write to agents.duties JSONB
-    try:
-        client.table("agents").update(
-            {"duties": updated_duties}
-        ).eq("id", agent_id).execute()
-    except Exception as e:
-        logger.error(f"[COMPOSER] promote_duty: JSONB update failed: {e}")
-        return []
-
-    # Write workspace duty file
-    try:
-        slug = get_agent_slug(agent)
-        ws = AgentWorkspace(client, user_id, slug)
-        duty_content = (
-            f"# Duty: {new_duty}\n\n"
-            f"**Trigger:** {duty_spec.get('trigger', 'reactive')}\n"
-            f"**Added:** {datetime.now(timezone.utc).strftime('%Y-%m-%d')}\n"
-            f"**Reason:** {reason}\n\n"
-            f"This duty expands your responsibilities. When this duty fires, "
-            f"you operate as a {new_duty} agent within your domain.\n"
-        )
-        await ws.write_duty(new_duty, duty_content)
-
-        # Update AGENT.md with duties section
-        agent_md = await ws.read("AGENT.md") or ""
-        duties_section = "\n\n## Duties & Capabilities\n"
-        for d in updated_duties:
-            marker = " (primary)" if d["duty"] == role else " (earned)"
-            duties_section += f"- **{d['duty']}** — {d.get('trigger', 'recurring')}{marker}\n"
-        # Replace existing section or append
-        if "## Duties & Capabilities" in agent_md:
-            import re as _re
-            agent_md = _re.sub(
-                r"## Duties & Capabilities.*?(?=\n## |\Z)",
-                duties_section.strip() + "\n",
-                agent_md,
-                flags=_re.DOTALL,
-            )
-        else:
-            agent_md = agent_md.rstrip() + duties_section
-        await ws.write("AGENT.md", agent_md, summary="Updated duties after promotion")
-    except Exception as e:
-        logger.warning(f"[COMPOSER] promote_duty: workspace write failed (non-fatal): {e}")
-
-    # Write activity event (Step 5 integration)
-    try:
-        await write_activity(
-            client=client,
-            user_id=user_id,
-            event_type="duty_promoted",
-            summary=f"{agent['title']} earned {new_duty} duty",
-            event_ref=agent_id,
-            metadata={
-                "agent_id": agent_id,
-                "role": role,
-                "new_duty": new_duty,
-                "seniority": "senior",
-                "reason": reason,
-            },
-        )
-    except Exception as e:
-        logger.warning(f"[COMPOSER] promote_duty: activity write failed (non-fatal): {e}")
-
-    logger.info(
-        f"[COMPOSER] Duty promoted: {agent['title']} gained {new_duty} duty "
-        f"(role={role}, reason={reason})"
-    )
-
-    return [{
-        "action_type": "promote_duty",
-        "agent_id": agent_id,
-        "title": agent["title"],
-        "new_duty": new_duty,
-        "reason": reason,
-    }]
-
-
 def _infer_sources_for_role(role: str, assessment: dict) -> list:
     """Infer appropriate sources for a new agent based on role and available platforms."""
     # Synthesize/cross-platform: include all platform sources
@@ -1572,11 +1443,11 @@ async def run_lifecycle_assessment(
                 except Exception as e:
                     logger.warning(f"[COMPOSER] Supervisor notes failed for {title}: {e}")
 
-    # Scope expansion: senior platform digest → scaffold cross-platform synthesis project (ADR-122)
+    # Scope expansion: proven platform digest → scaffold cross-platform synthesis project (ADR-122)
     elif reason.startswith("lifecycle_expansion"):
-        seniors = assessment.get("maturity", {}).get("senior_agents", [])
+        proven = assessment.get("maturity", {}).get("proven_agents", [])
         expandable = [
-            m for m in seniors
+            m for m in proven
             if m.get("scope") == "platform" and m.get("role") == "digest"
             and m.get("total_runs", 0) >= 10
         ]
@@ -1593,7 +1464,7 @@ async def run_lifecycle_assessment(
                         "title": ca["title"],
                         "role": ca["role"],
                         "project_slug": scaffold_result["project_slug"],
-                        "reason": f"Lifecycle expansion: {len(expandable)} senior digest agents warrant synthesis",
+                        "reason": f"Lifecycle expansion: {len(expandable)} proven digest agents warrant synthesis",
                     })
                 logger.info(f"[COMPOSER] Lifecycle expansion: scaffolded synthesis project "
                             f"({scaffold_result['project_slug']})")
@@ -1601,29 +1472,9 @@ async def run_lifecycle_assessment(
                 result["observations"].append("Cross-platform synthesis project already exists")
         else:
             result["observations"].append(
-                f"{len(expandable)} senior digest agents detected but can't expand "
+                f"{len(expandable)} proven digest agents detected but can't expand "
                 f"(tier limit: {not assessment['tier']['can_create']})"
             )
-
-    # ADR-117 Phase 3: Duty promotion — deterministic, no LLM needed
-    elif reason.startswith("duty_promotion"):
-        from services.agent_framework import get_promotion_duty, ROLE_PORTFOLIOS
-        senior_agents = assessment.get("maturity", {}).get("senior_agents", [])
-        for sa in senior_agents:
-            agent_role = sa.get("role")
-            if not agent_role or agent_role not in ROLE_PORTFOLIOS:
-                continue
-            current_duties = sa.get("duties") or [{"duty": agent_role}]
-            promo = get_promotion_duty(agent_role, "senior", current_duties)
-            if promo:
-                promo_result = await _execute_promote_duty(
-                    client, user_id,
-                    {"agent_id": sa["agent_id"], "new_duty": promo["duty"],
-                     "reason": f"Senior agent eligible for {promo['duty']} duty per role portfolio"},
-                    assessment,
-                )
-                result["actions_taken"].extend(promo_result)
-                break  # One promotion per heartbeat cycle
 
     # Cross-agent pattern: multiple digests → scaffold synthesis project (ADR-122)
     elif reason.startswith("cross_agent_pattern"):
@@ -1681,7 +1532,7 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
             "active_agents": assessment["agents"]["active"],
             "coverage_gaps": len(assessment["coverage"]["platforms_without_coverage"]),
             "stale_agents": len(assessment["health"]["stale_agents"]),
-            "senior_agents": len(assessment.get("maturity", {}).get("senior_agents", [])),
+            "proven_agents": len(assessment.get("maturity", {}).get("proven_agents", [])),
             "underperformers": len(assessment.get("maturity", {}).get("underperformers", [])),
             "knowledge_files": assessment.get("knowledge", {}).get("total_files", 0),
             "workspace_density": assessment.get("workspace_density", "developing"),

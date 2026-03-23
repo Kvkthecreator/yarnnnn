@@ -7,7 +7,7 @@ and produces a decision: generate | observe | wait | escalate.
 
 Three-tier funnel (cheap-first):
   Tier 1: Deterministic gates (zero LLM) — resolves ~80% of pulses
-  Tier 2: Agent self-assessment (Haiku) — associate+ seniority only
+  Tier 2: Agent self-assessment (Haiku) — all agents eligible (ADR-130)
   Tier 3: PM coordination pulse (Haiku) — PM agents only
 
 Absorbs:
@@ -160,7 +160,7 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
 
 async def _tier2_self_assessment(client, agent: dict) -> PulseDecision:
     """
-    Agent self-assessment via Haiku LLM. Associate+ seniority only.
+    Agent self-assessment via Haiku LLM. All agents eligible (ADR-130).
 
     Agent reads its workspace + fresh content, decides whether to generate.
     Generalizes proactive_review.py to all agent modes.
@@ -444,8 +444,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
 
     Three-tier funnel:
       Tier 1: Deterministic gates (zero LLM) — resolves ~80%
-      Tier 2: Agent self-assessment (Haiku) — associate+ seniority only
-      Default: If Tier 1 passes and agent not eligible for Tier 2 → generate
+      Tier 2: Agent self-assessment (Haiku) — all agents eligible (ADR-130)
 
     All decisions logged as 'agent_pulsed' activity events.
 
@@ -456,9 +455,6 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     Returns:
         PulseDecision with action, reason, tier, observations, metadata
     """
-    from services.agent_framework import classify_seniority
-    from services.feedback_engine import get_agent_feedback_metrics
-
     agent_id = agent["id"]
     user_id = agent["user_id"]
     title = agent.get("title", "Untitled")
@@ -475,41 +471,12 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
         await _apply_pulse_decision(client, agent, t1_decision)
         return t1_decision
 
-    # --- Tier 2: Agent Self-Assessment (associate+ only) ---
-    # Determine seniority for Tier 2 eligibility
-    try:
-        metrics = await get_agent_feedback_metrics(client, agent_id)
-        total_runs = metrics.get("total_runs", 0)
-        approval_rate = metrics.get("approval_rate", 0.0)
-        seniority = classify_seniority(total_runs, approval_rate)
-    except Exception:
-        seniority = "new"
-
-    # Proactive agents always get Tier 2 (self-assessment is their core character)
-    # Associate+ agents in any mode get Tier 2
-    eligible_for_tier2 = (
-        seniority in ("associate", "senior")
-        or mode == "proactive"
-    )
-
-    if eligible_for_tier2:
-        t2_decision = await _tier2_self_assessment(client, agent)
-        logger.info(f"[PULSE] Tier 2 resolved: {title} → {t2_decision.action} ({t2_decision.reason})")
-        await _log_pulse_event(client, user_id, agent_id, title, t2_decision, agent=agent)
-        await _apply_pulse_decision(client, agent, t2_decision)
-        return t2_decision
-
-    # --- Default: Tier 1 passed, not eligible for Tier 2 → generate ---
-    default_decision = PulseDecision(
-        action="generate",
-        reason="Tier 1 passed, new agent (no self-assessment) — generating",
-        tier=1,
-        metadata={"gate": "default_generate", "seniority": seniority},
-    )
-    logger.info(f"[PULSE] Default generate: {title}")
-    await _log_pulse_event(client, user_id, agent_id, title, default_decision, agent=agent)
-    await _apply_pulse_decision(client, agent, default_decision)
-    return default_decision
+    # --- Tier 2: Agent Self-Assessment (all agents, ADR-130) ---
+    t2_decision = await _tier2_self_assessment(client, agent)
+    logger.info(f"[PULSE] Tier 2 resolved: {title} → {t2_decision.action} ({t2_decision.reason})")
+    await _log_pulse_event(client, user_id, agent_id, title, t2_decision, agent=agent)
+    await _apply_pulse_decision(client, agent, t2_decision)
+    return t2_decision
 
 
 # =============================================================================

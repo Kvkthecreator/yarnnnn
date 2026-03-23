@@ -47,8 +47,8 @@ logger = logging.getLogger(__name__)
 
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
-# ADR-117 Phase 3: Centralized in agent_framework.py (single source of truth)
-from services.agent_framework import SKILL_ENABLED_ROLES as RUNTIME_DISPATCH_ROLES
+# ADR-130: Type-scoped capability check replaces role-based SKILL_ENABLED_ROLES
+from services.agent_framework import has_asset_capabilities
 
 async def _fetch_skill_docs() -> Optional[str]:
     """Fetch SKILL.md content from the output gateway for all available skills.
@@ -2076,9 +2076,9 @@ async def generate_draft_inline(
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
-    # ADR-118 D.1: Fetch SKILL.md content for agents with RuntimeDispatch access
+    # ADR-130: Fetch SKILL.md for agents with asset capabilities (type-scoped)
     skill_docs = None
-    if role in RUNTIME_DISPATCH_ROLES:
+    if has_asset_capabilities(role):
         try:
             skill_docs = await _fetch_skill_docs()
         except Exception as e:

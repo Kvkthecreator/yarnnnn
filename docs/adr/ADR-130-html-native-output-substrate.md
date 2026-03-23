@@ -1,6 +1,6 @@
 # ADR-130: Agent Capability Substrate — Three-Registry Architecture
 
-> **Status**: Proposed
+> **Status**: Phase 1a Implemented (registries + seniority deletion). Phase 1b (RuntimeDispatch→RenderAsset) proposed. Phases 2-3 proposed.
 > **Date**: 2026-03-22 (revised)
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-118 Phase D (format-builder skills model), ADR-117 Phase 3 seniority-gated capabilities
