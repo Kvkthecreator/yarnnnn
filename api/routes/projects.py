@@ -689,14 +689,10 @@ async def export_output(slug: str, body: ExportRequest, user: UserClient):
 
     pw = ProjectWorkspace(user.client, user.user_id, slug)
 
-    # Read composed HTML
-    html_content = await pw.read(f"assembly/{body.folder}/output.html")
-    if not html_content:
-        # Fallback: read markdown and use as-is
-        md_content = await pw.read(f"assembly/{body.folder}/output.md")
-        if not md_content:
-            raise HTTPException(status_code=404, detail="Output not found")
-        html_content = f"<html><body><pre>{md_content}</pre></body></html>"
+    # Read markdown source (for PDF/XLSX export — pandoc works with markdown)
+    md_content = await pw.read(f"assembly/{body.folder}/output.md")
+    if not md_content:
+        raise HTTPException(status_code=404, detail="Output not found")
 
     # Call render service for export
     render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
@@ -712,7 +708,7 @@ async def export_output(slug: str, body: ExportRequest, user: UserClient):
                 f"{render_url}/render",
                 json={
                     "type": body.format,  # "pdf" or "xlsx"
-                    "input": {"html": html_content, "markdown": html_content},
+                    "input": {"markdown": md_content, "title": slug.replace("-", " ").title()},
                     "output_format": body.format,
                     "user_id": user.user_id,
                 },
