@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.11] - ADR-133 Phases 2+3: Cross-phase context + capability-aware coordination
+
+### Changed
+- `agent_pulse.py`: `_write_phase_briefs()` — PM writes phase-aware contribution briefs before dispatching contributors. Briefs include prior phase output previews (cross-phase context injection). Contributors read these via existing `read_brief()` in workspace load_context().
+- `agent_pulse.py`: `_advance_phase_state()` — updates `phase_state.json` when PM advances a phase. Logs `phase_advanced` activity event.
+- `agent_pulse.py`: `_build_tier3_prompt()` — PM coordination prompt now includes contributor capabilities (asset types per role) and available agent types reference. PM can reason about capability gaps and escalate for missing types.
+- Expected behavior: when PM dispatches contributors, they receive briefs with prior phase context. PM advances phases deterministically. PM knows what each contributor can produce (charts, video, etc.) for capability-aware coordination.
+
 ## [2026.03.23.10] - ADR-133 Phase 1: PM-coordinated phase dispatch
 
 ### Changed

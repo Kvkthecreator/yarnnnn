@@ -559,12 +559,18 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
 
     # --- Execute PM dispatch side effects ---
     if action == "dispatch" and dispatch_targets:
+        # ADR-133 Phase 2: Write phase briefs with cross-phase context before dispatching
+        phase_context = parsed.get("phase_context", note)
+        await _write_phase_briefs(
+            client, user_id, project_slug, project_contributors,
+            dispatch_targets, phase_context, phase_state,
+        )
         dispatched = await _dispatch_contributors(
             client, user_id, project_slug, project_contributors, dispatch_targets,
         )
         return PulseDecision(
-            action="generate",  # PM generates (writes briefs, updates phase state)
-            reason=f"Dispatched {len(dispatched)} contributors: {', '.join(dispatched)}",
+            action="generate",  # PM generates (updates phase state)
+            reason=f"Dispatched {len(dispatched)} contributors with phase briefs: {', '.join(dispatched)}",
             tier=3,
             metadata={
                 "pm_action": "dispatch",
@@ -575,8 +581,10 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
 
     if action == "advance_phase":
         phase_name = parsed.get("phase", "")
+        # ADR-133 Phase 2: Update phase_state.json and log event
+        await _advance_phase_state(client, user_id, project_slug, phase_name, phase_state)
         return PulseDecision(
-            action="generate",  # PM generates (advances phase, writes next phase briefs)
+            action="generate",  # PM generates (writes next phase briefs)
             reason=f"Advancing phase: {phase_name}. {note}",
             tier=3,
             metadata={
@@ -658,6 +666,118 @@ async def _dispatch_contributors(
     return dispatched
 
 
+async def _write_phase_briefs(
+    client, user_id: str, project_slug: str,
+    project_contributors: list[dict], dispatch_targets: list[str],
+    phase_context: str, phase_state: dict,
+) -> None:
+    """ADR-133 Phase 2: Write phase-aware briefs for dispatched contributors.
+
+    Each dispatched contributor gets a brief that includes:
+    1. What the PM wants them to do (from the coordination decision)
+    2. Prior phase outputs (cross-phase context injection)
+    """
+    from services.workspace import ProjectWorkspace, AgentWorkspace, get_agent_slug
+
+    pw = ProjectWorkspace(client, user_id, project_slug)
+
+    # Gather prior phase outputs for context injection
+    prior_outputs = []
+    completed_phases = [
+        name for name, state in (phase_state.get("phases", {})).items()
+        if state.get("status") == "complete"
+    ]
+    for phase_name in completed_phases:
+        phase_data = phase_state["phases"][phase_name]
+        for output_path in phase_data.get("outputs", []):
+            # Read the output.md from each prior phase contributor
+            try:
+                # output_path is like "market-researcher/outputs/2026-03-23T1200"
+                parts = output_path.split("/")
+                if len(parts) >= 3:
+                    contributor_slug = parts[0]
+                    cws = AgentWorkspace(client, user_id, contributor_slug)
+                    content = await cws.read(f"outputs/{parts[-1]}/output.md")
+                    if content:
+                        prior_outputs.append({
+                            "phase": phase_name,
+                            "contributor": contributor_slug,
+                            "content_preview": content[:500],
+                            "full_path": output_path,
+                        })
+            except Exception:
+                pass
+
+    # Build phase context section
+    phase_context_section = ""
+    if prior_outputs:
+        phase_context_section = "\n\n## Phase Context (from prior phases)\n\n"
+        for po in prior_outputs:
+            phase_context_section += f"### {po['contributor']} ({po['phase']})\n"
+            phase_context_section += f"{po['content_preview']}\n\n"
+            phase_context_section += f"_Full output: /agents/{po['full_path']}/output.md_\n\n"
+
+    # Write brief for each dispatched contributor
+    for contributor in project_contributors:
+        slug = get_agent_slug(contributor)
+        if slug in dispatch_targets:
+            brief = f"## PM Directive\n\n{phase_context}\n"
+            brief += phase_context_section
+            try:
+                await pw.write_brief(slug, brief)
+                logger.info(f"[PULSE T3] Wrote phase brief for {slug} ({len(brief)} chars)")
+            except Exception as e:
+                logger.warning(f"[PULSE T3] Failed to write brief for {slug}: {e}")
+
+
+async def _advance_phase_state(
+    client, user_id: str, project_slug: str,
+    phase_name: str, current_state: dict,
+) -> None:
+    """ADR-133 Phase 2: Update phase_state.json when PM advances a phase."""
+    from services.workspace import ProjectWorkspace
+    from services.activity_log import write_activity
+    import json as _json
+
+    pw = ProjectWorkspace(client, user_id, project_slug)
+    now = datetime.now(timezone.utc)
+
+    # Update the phase state
+    phases = current_state.get("phases", {})
+    if phase_name in phases:
+        phases[phase_name]["status"] = "complete"
+        phases[phase_name]["completed_at"] = now.isoformat()
+
+    current_state["phases"] = phases
+    current_state["last_advanced_at"] = now.isoformat()
+
+    # Write updated phase state
+    try:
+        await pw.write(
+            "memory/phase_state.json",
+            _json.dumps(current_state, indent=2),
+            summary=f"Phase advanced: {phase_name}",
+        )
+    except Exception as e:
+        logger.warning(f"[PULSE T3] Failed to update phase_state.json: {e}")
+
+    # Log phase_advanced event
+    try:
+        await write_activity(
+            client=client,
+            user_id=user_id,
+            event_type="phase_advanced",
+            summary=f"Project {project_slug}: advanced past {phase_name}",
+            event_ref=project_slug,
+            metadata={
+                "project_slug": project_slug,
+                "phase": phase_name,
+            },
+        )
+    except Exception:
+        pass
+
+
 def _build_tier3_prompt(
     title: str,
     project_slug: str,
@@ -669,12 +789,19 @@ def _build_tier3_prompt(
 ) -> str:
     """Build the PM Tier 3 coordination prompt."""
 
+    from services.agent_framework import AGENT_TYPES, has_asset_capabilities
+
     contributors_text = ""
     for c in contributor_status:
-        status = f"last_run: {c['last_run_at'] or 'never'}"
+        role = c['role']
+        type_def = AGENT_TYPES.get(role, {})
+        caps = type_def.get("capabilities", [])
+        asset_caps = [cap for cap in caps if cap in ("chart", "mermaid", "image", "video_render")]
+        cap_note = f" [assets: {', '.join(asset_caps)}]" if asset_caps else ""
+        status = f"last_run: {c['last_run_at'] or 'never'}{cap_note}"
         if c["has_assessment"]:
             status += f"\n    assessment: {c['assessment_snippet']}"
-        contributors_text += f"  - {c['title']} ({c['role']}, slug: {c['slug']}): {status}\n"
+        contributors_text += f"  - {c['title']} ({role}, slug: {c['slug']}): {status}\n"
 
     phase_state_text = json.dumps(phase_state, indent=2) if phase_state else "No phase state yet."
 
@@ -701,6 +828,16 @@ Current time: {now_iso}
 ## Contributors
 {contributors_text or "  (no contributors)"}
 
+## Available Agent Types (for escalation requests)
+- briefer: summarizes platform activity (no assets)
+- monitor: watches for changes and alerts (no assets)
+- researcher: investigates topics (charts, mermaid, images)
+- drafter: produces deliverables (charts, mermaid, images, video)
+- analyst: tracks metrics and patterns (charts, mermaid)
+- writer: crafts communications (images, video)
+- planner: prepares plans and agendas (no assets)
+- scout: tracks competitors and markets (charts, images)
+
 ## Your Task
 
 Assess the project state and decide what to do:
@@ -717,7 +854,7 @@ Assess the project state and decide what to do:
    Use this when: current phase is in progress and contributors are working.
 
 Respond with ONLY a JSON object:
-{{"action": "dispatch|advance_phase|generate|escalate|wait", "note": "why", "dispatch": ["slug1", "slug2"], "phase": "phase name if advancing"}}
+{{"action": "dispatch|advance_phase|generate|escalate|wait", "note": "why", "dispatch": ["slug1", "slug2"], "phase": "phase name if advancing", "phase_context": "what prior phases found that this phase should build on (for dispatch only)"}}
 """
 
 

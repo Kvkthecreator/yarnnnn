@@ -1,6 +1,6 @@
 # ADR-133: PM-Coordinated Phase Dispatch
 
-> **Status**: Phase 1 Implemented (PM coordination pulse + contributor dispatch routing). Phase 2-3 proposed.
+> **Status**: Phases 1-3 Implemented (PM coordination pulse, cross-phase context injection, capability-aware decomposition).
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-126 (independent contributor pulse), ADR-088 (trigger dispatch — caller changes)
