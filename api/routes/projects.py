@@ -408,6 +408,33 @@ async def get_project(slug: str, user: UserClient):
     except Exception:
         pass
 
+    # ADR-134: Ensure PM appears in contributors list (PM is infrastructure but visible on workfloor)
+    pm_in_list = any(c.get("role") == "pm" for c in enriched_contributors)
+    if not pm_in_list:
+        try:
+            pm_result = user.client.table("agents").select(
+                "id, title, role, scope, mode, status, origin, last_run_at, avatar_url, type_config"
+            ).eq("user_id", user.user_id).eq("role", "pm").eq("status", "active").execute()
+            for pm_agent in (pm_result.data or []):
+                if (pm_agent.get("type_config") or {}).get("project_slug") == slug:
+                    from services.workspace import get_agent_slug as _gas_pm
+                    enriched_contributors.append({
+                        "agent_slug": _gas_pm(pm_agent),
+                        "agent_id": pm_agent.get("id"),
+                        "title": pm_agent.get("title"),
+                        "role": "pm",
+                        "scope": pm_agent.get("scope"),
+                        "mode": pm_agent.get("mode"),
+                        "status": pm_agent.get("status", "active"),
+                        "origin": pm_agent.get("origin"),
+                        "last_run_at": pm_agent.get("last_run_at"),
+                        "avatar_url": pm_agent.get("avatar_url"),
+                        "expected_contribution": "Project coordination",
+                    })
+                    break
+        except Exception:
+            pass
+
     # Enrich contributors with workspace identity data (AGENT.md summary, thesis, seniority)
     try:
         from services.workspace import AgentWorkspace, get_agent_slug as _gas2

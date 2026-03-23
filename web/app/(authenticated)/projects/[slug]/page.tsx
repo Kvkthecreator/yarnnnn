@@ -1523,16 +1523,6 @@ function SettingsTab({
 }) {
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8">
-      {/* Objective */}
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Objective</h3>
-        <EditableObjective
-          slug={slug}
-          objective={objective}
-          onUpdate={onUpdateObjective}
-        />
-      </section>
-
       {/* Assembly Spec */}
       <section>
         <h3 className="text-sm font-semibold mb-2">Assembly Configuration</h3>
