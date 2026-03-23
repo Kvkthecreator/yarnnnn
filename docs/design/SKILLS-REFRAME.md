@@ -1,7 +1,7 @@
 # From Skills to Capabilities: Three-Registry Migration
 
-> **Status**: Design Decision
-> **Date**: 2026-03-22 (revised)
+> **Status**: Phase 1 Implemented. Phase 2-3 design retained for compose + export + multi-runtime.
+> **Date**: 2026-03-23 (revised)
 > **Implements**: ADR-130 (Agent Capability Substrate — Three-Registry Architecture)
 > **Supersedes**: ADR-118's format-builder model, ADR-117's seniority-gated capability progression
 
@@ -36,14 +36,14 @@ No earning. No progression. No seniority-gated capability tiers. Agent developme
 
 | Current | New | Phase |
 |---|---|---|
-| `SKILL_ENABLED_ROLES` | `AGENT_TYPES[type].capabilities` | Phase 1 |
-| `ROLE_PORTFOLIOS` (seniority tiers) | Flattened to single duty set per type | Phase 1 |
-| `classify_seniority()` | Deleted | Phase 1 |
-| `get_eligible_duties()` | Deleted | Phase 1 |
-| `get_promotion_duty()` | Deleted | Phase 1 |
-| `ROLE_PULSE_CADENCE` | `AGENT_TYPES[type].pulse_cadence` | Phase 1 |
-| `_fetch_skill_docs()` (all-or-nothing) | `_fetch_capability_docs(capabilities)` (scoped) | Phase 1 |
-| `RuntimeDispatch` (monolithic tool) | `RenderAsset` (scoped to type's asset capabilities) | Phase 1 |
+| `SKILL_ENABLED_ROLES` | `AGENT_TYPES[type].capabilities` | Phase 1 ✅ |
+| `ROLE_PORTFOLIOS` (seniority tiers) | Deleted entirely | Phase 1 ✅ |
+| `classify_seniority()` | Deleted | Phase 1 ✅ |
+| `get_eligible_duties()` | Deleted | Phase 1 ✅ |
+| `get_promotion_duty()` | Deleted | Phase 1 ✅ |
+| `ROLE_PULSE_CADENCE` | Covers all v2 types + legacy mappings | Phase 1 ✅ |
+| `_fetch_skill_docs()` (all-or-nothing) | Retained (acceptable cost). `has_asset_capabilities()` gates injection | Phase 1 ✅ |
+| `RuntimeDispatch` (monolithic tool) | Retained. Type-scoping via `has_asset_capabilities()` | Phase 1 ✅ |
 | `render/skills/pptx/` | Deleted (HTML presentation mode) | Phase 3 |
 | `render/skills/html/` | Absorbed into compose engine | Phase 3 |
 | `render/skills/data/` | Absorbed into compose engine | Phase 3 |
@@ -156,7 +156,7 @@ Agent Type Registry:
 Capability Registry:
   "video_render": {
     runtime: "node_remotion",
-    tool: "RenderAsset",
+    tool: "RuntimeDispatch",
     skill_docs: "video/SKILL.md",
     output_type: "asset",
   }
@@ -199,7 +199,7 @@ A synthesize-role agent produces a quarterly report:
 A synthesize-type agent produces a quarterly report:
 1. `AGENT_TYPES["synthesize"].capabilities` → includes chart, mermaid, compose_html
 2. `_fetch_capability_docs(["chart", "mermaid"])` → only 2 relevant SKILL.md files
-3. Agent calls `RenderAsset(type="chart", input={data})` → SVG in `assets/`
+3. Agent calls `RuntimeDispatch(type="chart", input={data})` → SVG in `assets/`
 4. Agent references: `![Revenue Trend](assets/revenue-trend.svg)`
 5. Post-generation: compose engine renders markdown + SVG → styled HTML (dashboard mode)
 6. HTML delivered as email body

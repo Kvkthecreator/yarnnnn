@@ -74,7 +74,7 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 - Generate agent content from gathered context
 - Investigate supplementary context via primitives when the gathered context is insufficient
 - Produce structured, formatted output following type-specific templates
-- Via the **unified pulse** (ADR-126): all agents pulse via `agent_pulse.py`. Tier 1 applies deterministic gates (fresh content, budget, cooldown). Tier 2 (associate+ seniority) runs a Haiku self-assessment. Decisions are `generate | observe | wait | escalate`. Proactive self-assessment is generalized to all agents via Tier 2 — not limited to specific modes.
+- Via the **unified pulse** (ADR-126): all agents pulse via `agent_pulse.py`. Tier 1 applies deterministic gates (fresh content, budget, cooldown). Tier 2 runs a Haiku self-assessment (all agents eligible, ADR-130). Decisions are `generate | observe | wait | escalate`. Proactive self-assessment is generalized to all agents via Tier 2 — not limited to specific modes.
 
 **Headless mode explicitly does NOT:**
 - Hold session state or conversation history
@@ -142,7 +142,7 @@ Backend orchestration is NOT agent work. The orchestration pipeline invokes the 
 Pulse Dispatcher (scheduler)
 ├── 1. Agent pulse fires (agent_pulse.py)
 │   ├── Tier 1: Deterministic checks (fresh content? budget? recent run?)
-│   ├── Tier 2: Agent self-assessment (Haiku, associate+ seniority)
+│   ├── Tier 2: Agent self-assessment (Haiku, all agents — ADR-130)
 │   └── Decision: generate | observe | wait | escalate
 ├── 2. If "generate" → dispatch_trigger() routing
 ├── 3. Strategy selection + context gathering (ADR-045)

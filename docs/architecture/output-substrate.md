@@ -1,7 +1,7 @@
 # Agent Capability & Output Substrate
 
-> **Status**: Canonical (ADR-130)
-> **Date**: 2026-03-22 (revised)
+> **Status**: Canonical (ADR-130). Phase 1 implemented. Phase 2 (compose integration) proposed.
+> **Date**: 2026-03-23 (revised)
 > **Rule**: All capability, output, and rendering decisions should be consistent with this document.
 
 ---
@@ -65,10 +65,10 @@ Tool-backed (internal tools):
 └── read_workspace   → tool: ReadWorkspace
 
 Asset production (compute runtimes):
-├── chart            → runtime: python_render, tool: RenderAsset, docs: chart/SKILL.md
-├── mermaid          → runtime: python_render, tool: RenderAsset, docs: mermaid/SKILL.md
-├── image            → runtime: python_render, tool: RenderAsset, docs: image/SKILL.md
-└── video_render     → runtime: node_remotion, tool: RenderAsset, docs: video/SKILL.md
+├── chart            → runtime: python_render, tool: RuntimeDispatch, docs: chart/SKILL.md
+├── mermaid          → runtime: python_render, tool: RuntimeDispatch, docs: mermaid/SKILL.md
+├── image            → runtime: python_render, tool: RuntimeDispatch, docs: image/SKILL.md
+└── video_render     → runtime: node_remotion, tool: RuntimeDispatch, docs: video/SKILL.md
 
 Composition (post-generation pipeline step):
 └── compose_html     → runtime: python_render, post_generation: true
@@ -118,11 +118,11 @@ Agent type → capabilities → for each capability:
 │  Agent type determines available capabilities.       │
 │  Agent produces:                                     │
 │  ├── Structured markdown (output.md)                 │
-│  ├── Asset references via RenderAsset (if type has   │
-│  │   chart/mermaid/image/video capabilities)          │
+│  ├── Asset references via RuntimeDispatch (if type has  │
+│  │   chart/mermaid/image/video capabilities)           │
 │  └── Structured data (JSON for tables/metrics)       │
 │                                                      │
-│  RenderAsset calls:                                  │
+│  RuntimeDispatch calls:                                  │
 │  ├── python_render → chart/mermaid/image → SVG/PNG   │
 │  └── node_remotion → video → MP4 [future]            │
 └──────────────────┬──────────────────────────────────┘

@@ -296,7 +296,7 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
               All agents pulse via agent_pulse.py
                Tier 1: deterministic gates (fresh content? budget? cooldown?)
-               Tier 2: self-assessment (Haiku, associate+ seniority)
+               Tier 2: self-assessment (Haiku, all agents — ADR-130)
                           │
               Decision: generate | observe | wait | escalate
                           │
