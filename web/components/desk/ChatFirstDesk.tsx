@@ -425,8 +425,9 @@ function UserContextPanel() {
             className="text-xs text-muted-foreground/60 hover:text-primary"
           >
             + Set up brand
-        </div>
-      )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
