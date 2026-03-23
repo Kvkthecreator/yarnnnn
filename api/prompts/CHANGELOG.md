@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.7] - ADR-130 Phase 3 (partial): Format-builder skill dissolution
+
+### Changed
+- `primitives/runtime_dispatch.py`: Tool description updated — removed document/presentation/spreadsheet skills. Now lists only asset renderers: chart, mermaid, image. Output format narrowed to png/svg.
+- Expected behavior: agents no longer see pptx/xlsx/pdf as available RuntimeDispatch types. They produce markdown + charts/diagrams. Compose engine handles presentation; export pipeline (future) handles file conversion.
+
+### Removed
+- `render/skills/pptx/` — format-builder dissolved (presentation layout mode replaces)
+- `render/skills/html/` — absorbed into compose engine
+- `render/skills/data/` — absorbed into compose engine
+- `render/skills/pdf/` and `render/skills/xlsx/` retained for future export pipeline (not agent-facing)
+
 ## [2026.03.23.6] - ADR-130 Phase 2: HTML-native compose integration
 
 ### Changed

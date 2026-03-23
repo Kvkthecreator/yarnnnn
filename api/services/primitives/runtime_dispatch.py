@@ -27,30 +27,27 @@ RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 RUNTIME_DISPATCH_TOOL = {
     "name": "RuntimeDispatch",
-    "description": """Invoke an output gateway skill to produce a downloadable file (PDF, PPTX, XLSX, chart image).
+    "description": """Invoke an output gateway skill to produce a visual asset (chart, diagram, image).
 
-Use this when the agent should produce a binary artifact alongside text output.
-The rendered file is uploaded to storage and delivered as an email attachment or download link.
+Use this when the agent should produce a visual artifact alongside text output.
+The rendered file is uploaded to storage and embedded in the output.
 
 Available skills:
-- document: Markdown → PDF or DOCX (via pandoc)
-- presentation: Slide spec → PPTX (via python-pptx)
-- spreadsheet: Table spec → XLSX (via openpyxl)
-- chart: Data spec → PNG or SVG (via matplotlib)
+- chart: Data spec → PNG or SVG data visualization (via matplotlib)
+- mermaid: Mermaid syntax → PNG or SVG diagram (via mermaid-cli)
+- image: Image processing → PNG (via pillow)
 
 Construct the input spec according to the skill's SKILL.md instructions (injected into your context when authorized).
 
 Examples:
-- RuntimeDispatch(type="document", input={"markdown": "# Report\\n...", "title": "Q1 Report"}, output_format="pdf")
-- RuntimeDispatch(type="presentation", input={"title": "Weekly Update", "slides": [{"title": "Highlights", "content": "..."}]}, output_format="pptx")
-- RuntimeDispatch(type="spreadsheet", input={"title": "Metrics", "headers": ["Week", "Users"], "rows": [["W1", 100]]}, output_format="xlsx")
-- RuntimeDispatch(type="chart", input={"chart_type": "bar", "title": "Growth", "labels": ["Jan", "Feb"], "datasets": [{"label": "Users", "data": [100, 200]}]}, output_format="png")""",
+- RuntimeDispatch(type="chart", input={"chart_type": "bar", "title": "Growth", "labels": ["Jan", "Feb"], "datasets": [{"label": "Users", "data": [100, 200]}]}, output_format="png")
+- RuntimeDispatch(type="mermaid", input={"diagram": "graph TD; A-->B; B-->C"}, output_format="svg")""",
     "input_schema": {
         "type": "object",
         "properties": {
             "type": {
                 "type": "string",
-                "description": "Skill type to invoke (e.g., document, presentation, spreadsheet, chart). See SKILL.md docs in your context for available types.",
+                "description": "Skill type to invoke (chart, mermaid, image). See SKILL.md docs in your context.",
             },
             "input": {
                 "type": "object",
@@ -58,7 +55,7 @@ Examples:
             },
             "output_format": {
                 "type": "string",
-                "description": "Desired output format: pdf, docx, pptx, xlsx, png, svg",
+                "description": "Desired output format: png, svg",
             },
             "filename": {
                 "type": "string",
