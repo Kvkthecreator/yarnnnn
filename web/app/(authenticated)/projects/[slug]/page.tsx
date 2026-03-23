@@ -1981,47 +1981,18 @@ export default function ProjectDetailPage() {
   const phaseNames = Object.keys(phases);
   const currentPhase = phaseState?.current_phase || '';
 
-  // Handler: click agent card → open chat drawer with @-mention pre-filled
-  const handleAgentClick = (agentSlug: string) => {
-    setMentionAgent(agentSlug);
-    setChatOpen(true);
-  };
-
   return (
     <div className="h-full flex flex-col bg-background">
       {/* ── PROJECT HEADER ── */}
-      <div className="border-b border-border px-4 py-3 shrink-0">
-        <div className="flex items-center gap-3 mb-1">
-          <Link
-            href="/projects"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
+      <div className="border-b border-border px-4 py-2.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <Link href="/projects" className="text-muted-foreground hover:text-foreground transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </Link>
-          <h1 className="text-base font-semibold truncate">{title}</h1>
-          <div className="flex items-center gap-2 ml-auto shrink-0">
-            <button
-              onClick={() => { setMentionAgent(null); setChatOpen(true); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Chat</span>
-            </button>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-        {/* Objective + Phase */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {objective?.purpose && (
-            <span className="text-xs text-muted-foreground">{objective.purpose}</span>
-          )}
+          <h1 className="text-sm font-semibold truncate">{title}</h1>
+          {/* Phase stepper */}
           {phaseNames.length > 0 && (
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="hidden md:flex items-center gap-1 text-[10px] ml-2">
               {phaseNames.map((name, i) => {
                 const status = phases[name]?.status || 'pending';
                 const isCurrent = name === currentPhase;
@@ -2041,106 +2012,125 @@ export default function ProjectDetailPage() {
               })}
             </div>
           )}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-auto"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* ── MAIN CONTENT: Workfloor + Output + Chat Drawer ── */}
+      {/* ── MAIN: Chat (left) + Context Panel (right) ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Workfloor + Output (always visible) */}
-        <div className={cn(
-          'flex-1 overflow-y-auto transition-all duration-200',
-          chatOpen ? 'mr-0' : ''
-        )}>
-          {/* Workfloor — agent cards */}
-          <div className="p-4">
-            <WorkfloorView
-              members={members}
-              activities={activities}
-              slug={slug}
-              pmCognitiveState={project_cognitive_state}
-              onAgentClick={handleAgentClick}
-            />
+
+        {/* LEFT: Chat / Meeting Room (primary surface) */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <MeetingRoomTab
+            activities={activities}
+            slug={slug}
+            projectTitle={title}
+            contributors={members}
+          />
+        </div>
+
+        {/* RIGHT: Context Panel — objective → output → team → files */}
+        <div className="w-[340px] lg:w-[380px] border-l border-border overflow-y-auto shrink-0 hidden md:block">
+
+          {/* 1. Objective */}
+          <div className="px-3 py-3 border-b border-border">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Objective</p>
+            {objective?.deliverable ? (
+              <div className="space-y-1 text-xs">
+                <p className="text-foreground font-medium">{objective.deliverable}</p>
+                {objective.audience && <p className="text-muted-foreground">For: {objective.audience}</p>}
+                {objective.purpose && <p className="text-muted-foreground">{objective.purpose}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">No objective set — refine in settings</p>
+            )}
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-border" />
-
-          {/* Latest Output */}
-          <div className="p-4">
+          {/* 2. Latest Output */}
+          <div className="px-3 py-3 border-b border-border">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Latest Output</p>
             {latestOutput?.composed_html ? (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">Latest Output</p>
-                  <p className="text-[10px] text-muted-foreground">{latestOutput.folder}</p>
-                </div>
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <iframe
-                    srcDoc={latestOutput.composed_html}
-                    className="w-full"
-                    style={{ border: 'none', minHeight: '300px', height: '50vh' }}
-                    sandbox="allow-same-origin"
-                    title="Latest output"
-                  />
-                </div>
+              <div className="border border-border rounded-lg overflow-hidden">
+                <iframe
+                  srcDoc={latestOutput.composed_html}
+                  className="w-full"
+                  style={{ border: 'none', minHeight: '200px', height: '30vh' }}
+                  sandbox="allow-same-origin"
+                  title="Latest output"
+                />
               </div>
             ) : latestOutput?.content ? (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Latest Output</p>
-                <div className="border border-border rounded-lg p-4 bg-muted/20">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
-                  </div>
+              <div className="border border-border rounded-lg p-2.5 bg-muted/20 max-h-48 overflow-y-auto">
+                <div className="prose prose-xs dark:prose-invert max-w-none">
+                  <ReactMarkdown>{latestOutput.content}</ReactMarkdown>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Package className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">No outputs yet — agents will produce on their next run</p>
-              </div>
+              <p className="text-xs text-muted-foreground italic">No outputs yet</p>
             )}
-
-            {/* Output history */}
             {assembly_count > 1 && (
-              <div className="mt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Previous outputs</p>
-                <OutputsTab slug={slug} />
-              </div>
+              <button className="text-[10px] text-primary hover:underline mt-1.5">
+                View {assembly_count} previous outputs
+              </button>
             )}
           </div>
-        </div>
 
-        {/* Right: Chat Drawer (slides in) */}
-        {chatOpen && (
-          <div className="w-[380px] border-l border-border flex flex-col bg-background shrink-0 animate-in slide-in-from-right duration-200">
-            {/* Drawer header — one group chat, @-mention to direct */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium">Project Chat</span>
-                {mentionAgent && (
-                  <span className="text-[10px] text-primary">
-                    @{members.find(m => m.agent_slug === mentionAgent)?.title || mentionAgent}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {/* Chat content */}
-            <div className="flex-1 overflow-hidden">
-              <MeetingRoomTab
-                activities={activities}
-                slug={slug}
-                projectTitle={title}
-                contributors={members}
-              />
+          {/* 3. Team — compact workfloor cards */}
+          <div className="px-3 py-3 border-b border-border">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Team ({members.length})</p>
+            <div className="space-y-2">
+              {members.map((m) => {
+                const name = agentDisplayName(m.title, m.agent_slug);
+                const isPM = m.role === 'pm';
+                return (
+                  <div key={m.agent_slug} className="flex items-center gap-2.5 group">
+                    <AgentAvatar
+                      name={name}
+                      role={m.role}
+                      avatarUrl={m.avatar_url}
+                      size="sm"
+                      status={m.status}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{name}</p>
+                      <p className="text-[10px] text-muted-foreground">{roleDisplayName(m.role)}</p>
+                    </div>
+                    {m.total_runs != null && m.total_runs > 0 && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">{m.total_runs} runs</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {/* 4. Work Plan (if exists) */}
+          {workPlan && (
+            <div className="px-3 py-3 border-b border-border">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Work Plan</p>
+              <div className="prose prose-xs dark:prose-invert max-w-none text-[11px] leading-relaxed max-h-40 overflow-y-auto">
+                <ReactMarkdown>{workPlan.slice(0, 500)}</ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {/* 5. PM Coordination (latest pulse) */}
+          {(() => {
+            const pmPulse = activities.find(a => a.event_type === 'pm_pulsed');
+            return pmPulse ? (
+              <div className="px-3 py-3 border-b border-border">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">PM Status</p>
+                <p className="text-[11px] text-foreground/80">{pmPulse.summary || String(pmPulse.metadata?.reason || 'Monitoring')}</p>
+              </div>
+            ) : null;
+          })()}
+
+        </div>
       </div>
 
       {/* ── SETTINGS MODAL ── */}
