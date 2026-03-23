@@ -915,6 +915,7 @@ function OutputsTab({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [composedHtml, setComposedHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
@@ -931,9 +932,14 @@ function OutputsTab({ slug }: { slug: string }) {
     }
     setExpandedFolder(folder);
     setPreviewLoading(true);
+    setComposedHtml(null);
     try {
       const detail = await api.projects.getOutput(slug, folder);
       setPreviewContent(detail.content);
+      // ADR-130 Phase 2: Prefer composed HTML when available
+      if (detail.composed_html) {
+        setComposedHtml(detail.composed_html);
+      }
     } catch {
       setPreviewContent('Failed to load preview.');
     } finally {
@@ -1023,11 +1029,21 @@ function OutputsTab({ slug }: { slug: string }) {
                 </p>
               )}
 
-              {/* Inline markdown preview */}
+              {/* Output preview — composed HTML (ADR-130) or markdown fallback */}
               {previewLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Loading preview...
+                </div>
+              ) : composedHtml ? (
+                <div className="border border-border rounded-lg overflow-hidden max-h-[32rem] overflow-y-auto">
+                  <iframe
+                    srcDoc={composedHtml}
+                    className="w-full min-h-[20rem]"
+                    style={{ border: 'none', height: '100%' }}
+                    sandbox="allow-same-origin"
+                    title="Composed output"
+                  />
                 </div>
               ) : previewContent ? (
                 <div className="border border-border rounded-lg p-3 bg-muted/30 max-h-80 overflow-y-auto">
@@ -1145,13 +1161,6 @@ function InlineProfileCard({
   const name = agentDisplayName(member.title, member.agent_slug);
   const si = statusIndicator(member.status);
 
-  // Seniority display
-  const seniorityLabel = member.seniority === 'senior' ? 'Senior'
-    : member.seniority === 'associate' ? 'Associate' : 'New';
-  const seniorityColor = member.seniority === 'senior' ? 'text-green-600 dark:text-green-400'
-    : member.seniority === 'associate' ? 'text-blue-600 dark:text-blue-400'
-    : 'text-muted-foreground';
-
   return (
     <div className="px-3 py-3 space-y-3">
       {/* Identity header */}
@@ -1187,12 +1196,9 @@ function InlineProfileCard({
         <p className="text-[11px] text-foreground/80 leading-relaxed">{member.bio}</p>
       )}
 
-      {/* Developmental state — seniority + track record */}
+      {/* Track record */}
       {member.total_runs != null && member.total_runs > 0 && (
         <div className="flex items-center gap-3 text-[11px]">
-          <span className={cn('font-medium', seniorityColor)}>
-            {seniorityLabel}
-          </span>
           <span className="text-muted-foreground">
             {member.total_runs} run{member.total_runs !== 1 ? 's' : ''}
           </span>

@@ -743,9 +743,13 @@ async def get_project_output(slug: str, folder: str, user: UserClient):
         except _json.JSONDecodeError:
             pass
 
+    # ADR-130 Phase 2: Also return composed HTML if available
+    composed_html = await pw.read(f"assembly/{folder}/output.html")
+
     return {
         "folder": folder,
         "content": content or "",
+        "composed_html": composed_html,
         "manifest": manifest,
     }
 
