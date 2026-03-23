@@ -76,9 +76,8 @@ def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
             providers.add(provider)
 
     if not providers:
-        if role in ("research", "researcher", "scout"):
-            return "research"
-        return "knowledge" if role in ("monitor", "custom") else "cross_platform"
+        # No platform sources — fall back to the role's default scope
+        return ROLE_TO_SCOPE.get(role, "knowledge")
 
     if len(providers) == 1:
         return "platform"
