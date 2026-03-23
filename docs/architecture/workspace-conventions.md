@@ -72,6 +72,18 @@ Topics can reference a brand folder — if none specified, `/brand/default/` is 
 - assets/logo.png
 ```
 
+### Context Input Modalities (ADR-132)
+
+Three modalities for populating topics and brand:
+
+1. **Direct edit** — user types into fields in the Context panel (Orchestrator right panel). Add/rename/remove topics. Edit brand markdown inline. Immediate save.
+
+2. **Upload + infer** (planned) — user drops a file (pitch deck PDF, brand guidelines, website screenshot). System extracts: company name, brand colors/tone, workstreams (→ topics), audience, positioning. Populates fields for user review. Accelerates onboarding — a single file upload can populate topics + brand in one action.
+
+3. **Conversational** — user tells TP in chat ("add a topic called Fundraising", "my brand tone is professional"). TP updates WORK.md / BRAND.md via working memory. Already works.
+
+These are not competing approaches — they're three input paths to the same data (workspace files).
+
 ---
 
 ## Industry Alignment

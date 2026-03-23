@@ -216,19 +216,64 @@ function UserContextPanel() {
   const [brandContent, setBrandContent] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [addingTopic, setAddingTopic] = useState(false);
+  const [newTopicName, setNewTopicName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editingBrand, setEditingBrand] = useState(false);
+  const [brandDraft, setBrandDraft] = useState('');
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     Promise.all([
       api.topics.get(),
       api.brand.get(),
       api.profile.get().catch(() => null),
     ]).then(([topicsData, brandData, profile]) => {
       if (topicsData.exists) setTopicsList(topicsData.topics);
-      if (brandData.exists) setBrandContent(brandData.content);
+      else setTopicsList([]);
+      setBrandContent(brandData.exists ? brandData.content : null);
       if (profile?.name) setProfileName(profile.name);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleAddTopic = async () => {
+    if (!newTopicName.trim() || saving) return;
+    setSaving(true);
+    try {
+      const result = await api.topics.add(newTopicName.trim());
+      if (result.exists) setTopicsList(result.topics);
+      setNewTopicName('');
+      setAddingTopic(false);
+    } catch (err) {
+      console.error('Failed to add topic:', err);
+    } finally { setSaving(false); }
+  };
+
+  const handleRemoveTopic = async (name: string) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const result = await api.topics.remove(name);
+      if (result.exists) setTopicsList(result.topics);
+      else setTopicsList([]);
+    } catch (err) {
+      console.error('Failed to remove topic:', err);
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveBrand = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.brand.save(brandDraft);
+      setBrandContent(brandDraft);
+      setEditingBrand(false);
+    } catch (err) {
+      console.error('Failed to save brand:', err);
+    } finally { setSaving(false); }
+  };
 
   if (loading) {
     return (
@@ -243,18 +288,6 @@ function UserContextPanel() {
   const hasTopicsData = topicsList.length > 0;
   const hasBrandData = !!brandContent;
 
-  if (!hasTopicsData && !hasBrandData) {
-    return (
-      <div className="p-4 text-center">
-        <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No context yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Tell your orchestrator what you&apos;re working on
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-3 space-y-5">
       {/* Profile header */}
@@ -267,56 +300,131 @@ function UserContextPanel() {
         </div>
       )}
 
-      {/* Topics */}
-      {hasTopicsData && (
-        <div className="space-y-2">
+      {/* Topics — editable */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Topics</p>
-          {active.map((t, i) => (
-            <div key={i} className="space-y-0.5">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                <span className="text-foreground font-medium truncate">{t.name}</span>
-              </div>
-              {t.projects.length > 0 && (
-                <div className="ml-4 space-y-0.5">
-                  {t.projects.map((slug) => (
-                    <Link
-                      key={slug}
-                      href={`/projects/${slug}`}
-                      className="text-xs text-muted-foreground hover:text-foreground hover:underline block truncate"
-                    >
-                      {slug.replace(/-/g, ' ')}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {completed.length > 0 && (
-            <div className="space-y-0.5 mt-2">
-              {completed.map((t, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{t.name}</span>
-                </div>
-              ))}
-            </div>
+          {!addingTopic && (
+            <button
+              onClick={() => setAddingTopic(true)}
+              className="text-xs text-primary hover:underline"
+            >
+              + Add
+            </button>
           )}
         </div>
-      )}
 
-      {/* Brand */}
-      {hasBrandData && (
-        <div className="space-y-2">
+        {/* Add topic inline */}
+        {addingTopic && (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={newTopicName}
+              onChange={(e) => setNewTopicName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddTopic(); if (e.key === 'Escape') setAddingTopic(false); }}
+              placeholder="Topic name..."
+              autoFocus
+              className="flex-1 text-sm px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+            />
+            <button onClick={handleAddTopic} disabled={saving || !newTopicName.trim()} className="text-xs text-primary hover:underline disabled:opacity-50">
+              {saving ? '...' : 'Add'}
+            </button>
+            <button onClick={() => { setAddingTopic(false); setNewTopicName(''); }} className="text-xs text-muted-foreground hover:text-foreground">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Active topics */}
+        {active.map((t, i) => (
+          <div key={i} className="group">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+              <span className="text-foreground font-medium truncate flex-1">{t.name}</span>
+              <button
+                onClick={() => handleRemoveTopic(t.name)}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
+                title="Remove topic"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            {/* Projects under this topic — secondary */}
+            {t.projects.length > 0 && (
+              <div className="ml-4 mt-0.5 space-y-0.5">
+                {t.projects.map((slug) => (
+                  <Link
+                    key={slug}
+                    href={`/projects/${slug}`}
+                    className="text-[11px] text-muted-foreground/70 hover:text-foreground hover:underline block truncate"
+                  >
+                    → {slug.replace(/-/g, ' ')}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Completed topics */}
+        {completed.length > 0 && (
+          <div className="space-y-0.5 mt-2 pt-2 border-t border-border/30">
+            {completed.map((t, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground/60">
+                <CheckCircle2 className="w-3 h-3 shrink-0" />
+                <span className="truncate text-xs">{t.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!hasTopicsData && !addingTopic && (
+          <p className="text-xs text-muted-foreground/60">No topics yet</p>
+        )}
+      </div>
+
+      {/* Brand — editable */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand</p>
+          {hasBrandData && !editingBrand && (
+            <button
+              onClick={() => { setBrandDraft(brandContent || ''); setEditingBrand(true); }}
+              className="text-xs text-primary hover:underline"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {editingBrand ? (
+          <div className="space-y-2">
+            <textarea
+              value={brandDraft}
+              onChange={(e) => setBrandDraft(e.target.value)}
+              rows={8}
+              className="w-full text-xs px-2 py-1.5 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30 font-mono"
+            />
+            <div className="flex items-center gap-2">
+              <button onClick={handleSaveBrand} disabled={saving} className="text-xs text-primary hover:underline disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button onClick={() => setEditingBrand(false)} className="text-xs text-muted-foreground hover:text-foreground">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : hasBrandData ? (
           <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
             <ReactMarkdown>{brandContent}</ReactMarkdown>
           </div>
-        </div>
-      )}
-      {!hasBrandData && hasTopicsData && (
-        <div className="text-xs text-muted-foreground/60">
-          No brand set up yet — tell your orchestrator about your brand.
+        ) : (
+          <button
+            onClick={() => { setBrandDraft('# Brand: My Company\n\n## Tone\nProfessional and concise\n'); setEditingBrand(true); }}
+            className="text-xs text-muted-foreground/60 hover:text-primary"
+          >
+            + Set up brand
         </div>
       )}
     </div>

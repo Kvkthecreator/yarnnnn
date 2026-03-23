@@ -367,6 +367,97 @@ async def get_topics(auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class TopicAction(BaseModel):
+    """Single topic mutation."""
+    action: str  # 'add' | 'rename' | 'remove' | 'complete'
+    name: str
+    new_name: Optional[str] = None  # for rename
+
+
+@router.patch("/user/work")
+async def update_topic(body: TopicAction, auth: UserClient):
+    """Mutate a single topic in the work index.
+
+    Actions: add (creates topic + scaffolds project), rename, remove, complete.
+    """
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+        content = await um.read("WORK.md")
+
+        if not content or not content.strip():
+            # No work index yet — create one for 'add' action
+            if body.action != "add":
+                raise HTTPException(status_code=404, detail="No topics exist yet")
+            structure = "multi"
+            topics = []
+        else:
+            structure, topics = _parse_topics_md(content)
+            structure = structure or "multi"
+
+        if body.action == "add":
+            # Check for duplicate
+            if any(t.name.lower() == body.name.lower() for t in topics):
+                raise HTTPException(status_code=409, detail=f"Topic '{body.name}' already exists")
+
+            # Infer type and scaffold
+            from services.project_registry import scaffold_project, infer_topic_type
+            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(body.name)
+            type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
+
+            result = await scaffold_project(
+                client=auth.client, user_id=auth.user_id,
+                type_key=type_key, scope_name=body.name, execute_now=False,
+                contributors_override=[{
+                    "title_template": f"{{scope_name}} {inferred_type.title()}",
+                    "role": inferred_type,
+                    "scope": "cross_platform",
+                    "frequency": "weekly" if inferred_lifecycle == "persistent" else "on_demand",
+                    "sources_from": "work_unit",
+                }] if inferred_type != "briefer" else None,
+                objective_override={
+                    "deliverable": f"{body.name} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
+                    "audience": "You", "format": "email", "purpose": inferred_purpose,
+                } if inferred_purpose else None,
+            )
+
+            projects = [result["project_slug"]] if result.get("success") else []
+            topics.append(Topic(name=body.name, lifecycle=inferred_lifecycle, projects=projects, status="active"))
+
+        elif body.action == "rename":
+            if not body.new_name:
+                raise HTTPException(status_code=400, detail="new_name required for rename")
+            found = False
+            for t in topics:
+                if t.name.lower() == body.name.lower():
+                    t.name = body.new_name.strip()
+                    found = True
+                    break
+            if not found:
+                raise HTTPException(status_code=404, detail=f"Topic '{body.name}' not found")
+
+        elif body.action == "remove":
+            topics = [t for t in topics if t.name.lower() != body.name.lower()]
+
+        elif body.action == "complete":
+            for t in topics:
+                if t.name.lower() == body.name.lower():
+                    t.status = "completed"
+                    break
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+
+        # Write updated WORK.md
+        new_content = _format_topics_md(structure, topics)
+        await um.write("WORK.md", new_content, summary="Topics (ADR-132)")
+
+        return TopicsResponse(structure=structure, topics=topics, exists=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Brand (ADR-132 — user/topic-level brand context) ────────────────────────
 
 @router.get("/user/brand")

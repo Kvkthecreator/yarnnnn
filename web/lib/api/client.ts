@@ -264,6 +264,26 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    add: (name: string) =>
+      request<TopicsResponse>("/api/memory/user/work", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "add", name }),
+      }),
+    rename: (name: string, newName: string) =>
+      request<TopicsResponse>("/api/memory/user/work", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "rename", name, new_name: newName }),
+      }),
+    remove: (name: string) =>
+      request<TopicsResponse>("/api/memory/user/work", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "remove", name }),
+      }),
+    complete: (name: string) =>
+      request<TopicsResponse>("/api/memory/user/work", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "complete", name }),
+      }),
   },
 
   // Brand — user/topic-level brand context
