@@ -77,15 +77,24 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
   const addFiles = useCallback(
     (files: File[]) => {
       const valid: File[] = [];
+      let hasRejected = false;
       for (const file of files) {
-        if (!ACCEPTED_TYPES.includes(file.type)) continue;
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+          hasRejected = true;
+          continue;
+        }
         if (file.size > MAX_FILE_SIZE) {
           showError('Images must be under 5MB');
           continue;
         }
         valid.push(file);
       }
-      if (valid.length === 0) return;
+      if (valid.length === 0) {
+        if (hasRejected) {
+          showError('Only images supported here. Use "Share a file" for documents.');
+        }
+        return;
+      }
       valid.forEach((f) => addPreview(f, setAttachmentPreviews));
       setAttachments((prev) => [...prev, ...valid]);
     },
