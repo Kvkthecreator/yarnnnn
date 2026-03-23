@@ -70,7 +70,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "tagline": "Investigates topics and produces analysis",
         "capabilities": [
             "read_platforms", "web_search", "investigate",
-            "produce_markdown", "chart", "mermaid", "compose_html",
+            "produce_markdown", "chart", "mermaid", "image", "compose_html",
         ],
         "description": "Deep investigation on focused topics. Uses workspace context + web search. "
                        "Produces research reports, comparisons, due diligence.",
@@ -83,7 +83,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "tagline": "Produces deliverables and documents for you",
         "capabilities": [
             "read_platforms", "produce_markdown",
-            "chart", "mermaid", "compose_html",
+            "chart", "mermaid", "image", "video_render", "compose_html",
         ],
         "description": "Creates specific work products: reports, decks, client updates, "
                        "quarterly reviews. Recurring or bounded (produce and done).",
@@ -108,7 +108,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Writer",
         "tagline": "Crafts communications and content",
         "capabilities": [
-            "read_platforms", "produce_markdown", "compose_html",
+            "read_platforms", "produce_markdown",
+            "image", "video_render", "compose_html",
         ],
         "description": "Produces external-facing content: newsletters, investor updates, "
                        "client emails, social posts. Tone-aware, audience-scoped.",
@@ -133,7 +134,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "tagline": "Tracks competitors and market movements",
         "capabilities": [
             "read_platforms", "web_search",
-            "produce_markdown", "chart", "compose_html",
+            "produce_markdown", "chart", "image", "compose_html",
         ],
         "description": "Continuous competitive and market monitoring. Tracks external sources, "
                        "flags changes, produces periodic intelligence reports.",
@@ -149,6 +150,7 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "capabilities": [
             "read_workspace", "check_freshness", "steer_contributors",
             "trigger_assembly", "manage_work_plan",
+            "write_slack", "write_notion",
         ],
         "description": "Coordinates project contributors. Manages work plan, steers via "
                        "contribution briefs, gates quality, assembles deliverables, delivers.",
@@ -196,24 +198,40 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Asset production (compute runtimes) --
     "chart":   {
         "category": "asset", "runtime": "python_render",
-        "tool": "RenderAsset", "skill_docs": "chart/SKILL.md",
+        "tool": "RuntimeDispatch", "skill_docs": "chart/SKILL.md",
         "output_type": "image/png",
     },
     "mermaid": {
         "category": "asset", "runtime": "python_render",
-        "tool": "RenderAsset", "skill_docs": "mermaid/SKILL.md",
+        "tool": "RuntimeDispatch", "skill_docs": "mermaid/SKILL.md",
         "output_type": "image/svg+xml",
     },
     "image":   {
         "category": "asset", "runtime": "python_render",
-        "tool": "RenderAsset", "skill_docs": "image/SKILL.md",
+        "tool": "RuntimeDispatch", "skill_docs": "image/SKILL.md",
         "output_type": "image/png",
+    },
+    "video_render": {
+        "category": "asset", "runtime": "python_render",
+        "tool": "RuntimeDispatch", "skill_docs": "video/SKILL.md",
+        "output_type": "video/mp4",
+        "timeout": 180,  # extended timeout for video rendering
     },
 
     # -- Composition (post-generation pipeline step) --
     "compose_html": {
         "category": "composition", "runtime": "python_render",
         "post_generation": True,
+    },
+
+    # -- Platform write-backs (user-authorized, PM only) --
+    "write_slack": {
+        "category": "platform_write", "runtime": "external:slack",
+        "requires_auth": True,
+    },
+    "write_notion": {
+        "category": "platform_write", "runtime": "external:notion",
+        "requires_auth": True,
     },
 
     # -- PM coordination --
@@ -230,8 +248,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 
 RUNTIMES: dict[str, dict[str, Any]] = {
     "internal":       {"description": "In-process, no HTTP call"},
-    "python_render":  {"description": "yarnnn-render service (Docker: Python + matplotlib + pandoc + pillow + mermaid-cli)"},
-    "node_remotion":  {"description": "yarnnn-video service (Docker: Node.js + Remotion + Chrome) [future]"},
+    "python_render":  {"description": "yarnnn-render service (Docker: Python + Node.js + Chromium + matplotlib + Remotion)"},
     "external:slack": {"description": "Slack API via user OAuth token"},
     "external:notion":{"description": "Notion API via user OAuth token"},
 }

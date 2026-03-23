@@ -27,7 +27,7 @@ RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 RUNTIME_DISPATCH_TOOL = {
     "name": "RuntimeDispatch",
-    "description": """Invoke an output gateway skill to produce a visual asset (chart, diagram, image).
+    "description": """Invoke an output gateway skill to produce a visual or media asset.
 
 Use this when the agent should produce a visual artifact alongside text output.
 The rendered file is uploaded to storage and embedded in the output.
@@ -36,18 +36,20 @@ Available skills:
 - chart: Data spec → PNG or SVG data visualization (via matplotlib)
 - mermaid: Mermaid syntax → PNG or SVG diagram (via mermaid-cli)
 - image: Image processing → PNG (via pillow)
+- video: Scene spec → MP4 short-form video clip (via Remotion, max 30s)
 
 Construct the input spec according to the skill's SKILL.md instructions (injected into your context when authorized).
 
 Examples:
 - RuntimeDispatch(type="chart", input={"chart_type": "bar", "title": "Growth", "labels": ["Jan", "Feb"], "datasets": [{"label": "Users", "data": [100, 200]}]}, output_format="png")
-- RuntimeDispatch(type="mermaid", input={"diagram": "graph TD; A-->B; B-->C"}, output_format="svg")""",
+- RuntimeDispatch(type="mermaid", input={"diagram": "graph TD; A-->B; B-->C"}, output_format="svg")
+- RuntimeDispatch(type="video", input={"title": "Metrics", "scenes": [{"type": "metric", "label": "Users", "value": "12K", "duration": 5}], "duration_seconds": 15}, output_format="mp4")""",
     "input_schema": {
         "type": "object",
         "properties": {
             "type": {
                 "type": "string",
-                "description": "Skill type to invoke (chart, mermaid, image). See SKILL.md docs in your context.",
+                "description": "Skill type to invoke (chart, mermaid, image, video). See SKILL.md docs in your context.",
             },
             "input": {
                 "type": "object",
@@ -55,7 +57,7 @@ Examples:
             },
             "output_format": {
                 "type": "string",
-                "description": "Desired output format: png, svg",
+                "description": "Desired output format: png, svg, mp4",
             },
             "filename": {
                 "type": "string",
@@ -109,8 +111,10 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     headers = {}
     if RENDER_SERVICE_SECRET:
         headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
+    # Video renders need extended timeout (up to 180s for Remotion)
+    request_timeout = 180.0 if skill_type == "video" else 60.0
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=request_timeout) as client:
             resp = await client.post(
                 f"{RENDER_SERVICE_URL}/render",
                 json={
@@ -125,7 +129,7 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
             resp.raise_for_status()
             result = resp.json()
     except httpx.TimeoutException:
-        return {"success": False, "error": "render_timeout", "message": "Output gateway timed out (60s)"}
+        return {"success": False, "error": "render_timeout", "message": f"Output gateway timed out ({request_timeout:.0f}s)"}
     except Exception as e:
         logger.error(f"[RUNTIME_DISPATCH] Output gateway call failed: {e}")
         return {"success": False, "error": "render_failed", "message": str(e)}

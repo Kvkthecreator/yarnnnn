@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.23.8] - ADR-130: Capability redistribution + video skill + platform write-backs
+
+### Changed
+- `agent_framework.py`: Capability redistribution across types:
+  - Added `image` to: researcher, drafter, writer, scout (visual content producers)
+  - Added `video_render` to: drafter, writer (media content producers)
+  - Added `write_slack`, `write_notion` to: pm (delivery agent, user-authorized)
+  - `video_render` capability runs on `python_render` runtime (same service, Remotion added to Docker)
+  - `node_remotion` runtime deleted — collapsed into `python_render`
+  - `write_slack`/`write_notion` capabilities added with `requires_auth: True` (user-authorized per agent)
+- `primitives/runtime_dispatch.py`: Tool definition updated — added video skill (type="video", max 30s, MP4). Extended timeout to 180s for video renders. Chart/mermaid/image unchanged at 60s.
+- `render/Dockerfile`: Added `@remotion/cli` and `remotion` npm packages for video rendering.
+- Expected behavior: drafter/writer agents get video SKILL.md injected, can produce short-form MP4 clips. PM agents declare platform write-back capability (tools not yet implemented — capability declared for future wiring).
+
+### Added
+- `render/skills/video/SKILL.md`: Short-form video skill specification — scene-based JSON input, 30s max, silent MP4 output. Scene types: title, metric, comparison, text, chart.
+- `render/skills/video/scripts/render.py`: Python wrapper for Remotion CLI (`npx remotion render`). Validates constraints (duration, scene count), writes props JSON, calls subprocess.
+
 ## [2026.03.23.7] - ADR-130 Phase 3 (partial): Format-builder skill dissolution
 
 ### Changed
