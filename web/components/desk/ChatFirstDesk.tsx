@@ -625,10 +625,10 @@ export function ChatFirstDesk() {
 
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
-                {/* ADR-132: Three empty states based on onboarding + work index */}
+                {/* ADR-132/133: Empty states based on project + platform status */}
 
                 {hasProjects ? (
-                  /* POST-ONBOARDING: User has work scopes and projects */
+                  /* POST-ONBOARDING: User has projects */
                   <>
                     <div className="text-center mb-8">
                       <Briefcase className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
@@ -688,7 +688,7 @@ export function ChatFirstDesk() {
                           </Link>
                         ) : null;
                       })()}
-                      {/* 3. Add more topics */}
+                      {/* 2. New project */}
                       <button
                         onClick={() => {
                           setInput('I want to create a new project');

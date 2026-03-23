@@ -120,11 +120,10 @@ export default function OnboardingPage() {
           brandLines.push('## Tone', brandTone.trim(), '');
         }
         brandContent = brandLines.join('\n');
-        // Also save as default brand template
-        await api.brand.save(brandContent).catch(() => null);
+        // Backend saves to /workspace/BRAND.md and seeds into projects
       }
 
-      // Scaffold projects — brand gets seeded into each project folder
+      // Scaffold projects — identity + brand seeded from /workspace/ by scaffold_project()
       await api.onboardingScaffold.save(
         validScopes.map((s) => ({ name: s.name.trim() })),
         name.trim() || undefined,

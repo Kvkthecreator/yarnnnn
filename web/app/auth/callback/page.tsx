@@ -44,7 +44,7 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // ADR-132: Check if user has completed onboarding (work index exists)
+        // ADR-132: Gate new users to /onboarding if no projects exist
         // Only gate if user is heading to HOME_ROUTE (not a specific deep link)
         if (next === HOME_ROUTE) {
           try {
