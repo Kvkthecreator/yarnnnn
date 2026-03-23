@@ -913,6 +913,7 @@ export interface OutputManifest {
 export interface ProjectOutputDetail {
   folder: string;
   content: string;
+  composed_html?: string | null;  // ADR-130 Phase 2: composed HTML output
   manifest: OutputManifest | null;
 }
 
