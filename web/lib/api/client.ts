@@ -180,7 +180,7 @@ export const api = {
       }),
   },
 
-  // ADR-108: Profile — reads/writes /memory/MEMORY.md
+  // ADR-133: Profile — reads/writes /workspace/IDENTITY.md
   profile: {
     get: () =>
       request<{
@@ -209,43 +209,7 @@ export const api = {
       }),
   },
 
-  // ADR-108: Styles — tone/verbosity per platform, stored in /memory/preferences.md
-  styles: {
-    list: () =>
-      request<{
-        styles: Array<{
-          platform: string;
-          tone?: string;
-          verbosity?: string;
-        }>;
-      }>("/api/memory/styles"),
-    get: (platform: string) =>
-      request<{
-        platform: string;
-        tone?: string;
-        verbosity?: string;
-      }>(`/api/memory/styles/${platform}`),
-    update: (platform: string, data: {
-      tone?: string;
-      verbosity?: string;
-    }) =>
-      request<{
-        platform: string;
-        tone?: string;
-        verbosity?: string;
-      }>(`/api/memory/styles/${platform}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-    delete: (platform: string) =>
-      request<{
-        platform: string;
-        tone?: string;
-        verbosity?: string;
-      }>(`/api/memory/styles/${platform}`, {
-        method: "DELETE",
-      }),
-  },
+  // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
   // Onboarding state
   onboarding: {
@@ -262,16 +226,16 @@ export const api = {
       ),
   },
 
-  // Brand — user/topic-level brand context
+  // ADR-133: Brand — reads/writes /workspace/BRAND.md
   brand: {
-    get: (name = "default") =>
-      request<{ content: string | null; exists: boolean; brand_name: string }>(
-        `/api/memory/user/brand?name=${name}`
+    get: () =>
+      request<{ content: string | null; exists: boolean }>(
+        "/api/memory/user/brand"
       ),
-    save: (content: string, name = "default") =>
-      request<{ exists: boolean; brand_name: string }>(
+    save: (content: string) =>
+      request<{ exists: boolean }>(
         "/api/memory/user/brand",
-        { method: "POST", body: JSON.stringify({ content, name }) },
+        { method: "POST", body: JSON.stringify({ content }) },
       ),
   },
 
