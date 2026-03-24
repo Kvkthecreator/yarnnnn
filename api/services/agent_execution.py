@@ -3033,10 +3033,12 @@ async def execute_agent_generation(
                         # Check all PMs, set next_pulse_at on the one matching this project
                         pm_full = svc_client.table("agents").select("id, type_config").eq("id", pm["id"]).single().execute()
                         if pm_full.data and (pm_full.data.get("type_config") or {}).get("project_slug") == project_slug:
+                            # Nudge PM to 5 min from now (batches multiple contributor completions)
+                            nudge_time = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
                             svc_client.table("agents").update({
-                                "next_pulse_at": datetime.now(timezone.utc).isoformat(),
+                                "next_pulse_at": nudge_time,
                             }).eq("id", pm["id"]).execute()
-                            logger.info(f"[EXEC] ADR-133: Nudged PM for project {project_slug} after {title} completed")
+                            logger.info(f"[EXEC] ADR-133: Nudged PM for project {project_slug} (+5m) after {title} completed")
                             break
             except Exception as e:
                 logger.warning(f"[EXEC] ADR-133: PM nudge failed (non-fatal): {e}")

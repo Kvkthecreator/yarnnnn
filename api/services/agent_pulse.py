@@ -98,7 +98,22 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
                 metadata={"gate": "parse_error"},
             )
 
-    # Gate 2: Work budget
+    # Gate 2: Minimum cooldown — prevent runaway execution loops
+    # No agent should run more than once per 30 minutes
+    MIN_RUN_INTERVAL = timedelta(minutes=30)
+    now = datetime.now(timezone.utc)
+    if isinstance(last_run_at, datetime):
+        time_since_last = now - last_run_at
+        if time_since_last < MIN_RUN_INTERVAL:
+            remaining = MIN_RUN_INTERVAL - time_since_last
+            return PulseDecision(
+                action="wait",
+                reason=f"Cooldown: ran {int(time_since_last.total_seconds() / 60)}m ago (min interval: {int(MIN_RUN_INTERVAL.total_seconds() / 60)}m)",
+                tier=1,
+                metadata={"gate": "cooldown", "minutes_since_last": int(time_since_last.total_seconds() / 60)},
+            )
+
+    # Gate 3: Work budget
     try:
         from services.platform_limits import check_work_budget
         budget_ok, wu_used, wu_limit = check_work_budget(client, user_id)
