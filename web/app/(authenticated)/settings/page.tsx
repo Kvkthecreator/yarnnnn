@@ -44,7 +44,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "memory" | "system" | "notifications" | "account";
+type SettingsTab = "billing" | "usage" | "memory" | "system" | "connectors" | "account";
 type DangerAction =
   | "workspace"
   | "integrations"
@@ -61,7 +61,7 @@ export default function SettingsPage() {
     tabParam === "usage" ? "usage" :
     tabParam === "memory" ? "memory" :
     tabParam === "system" ? "system" :
-    tabParam === "notifications" ? "notifications" :
+    tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
     "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
@@ -110,7 +110,7 @@ export default function SettingsPage() {
 
   // Fetch notification preferences when notifications tab is active
   useEffect(() => {
-    if (activeTab === "notifications" && !notificationPrefs) {
+    if (activeTab === "account" && !notificationPrefs) {
       loadNotificationPreferences();
     }
   }, [activeTab, notificationPrefs]);
@@ -350,16 +350,16 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab("notifications")}
+          onClick={() => setActiveTab("connectors")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "notifications"
+            activeTab === "connectors"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <span className="flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Notifications
+            <Link2 className="w-4 h-4" />
+            Connectors
           </span>
         </button>
         <button
@@ -532,88 +532,37 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {activeTab === "notifications" && (
+      {/* Connectors Tab — platform connections (ADR-133: moved from Workspace) */}
+      {activeTab === "connectors" && (
         <section className="mb-8">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Bell className="w-5 h-5" />
-            Email Notifications
+            <Link2 className="w-5 h-5" />
+            Connectors
           </h2>
           <p className="text-sm text-muted-foreground mb-6">
-            Control which email notifications you receive from yarnnn.
+            Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically.
           </p>
-
-          {isLoadingNotifications ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : notificationPrefs ? (
-            <div className="space-y-4">
-              {/* Agent Ready */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">Agent Ready</div>
-                      <div className="text-sm text-muted-foreground">
-                        Get notified when a scheduled agent is ready for review
-                      </div>
+          <div className="space-y-3">
+            {[{ platform: 'slack', label: 'Slack' }, { platform: 'notion', label: 'Notion' }].map(({ platform, label }) => (
+              <div key={platform} className="p-4 border border-border rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Database className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <div className="font-medium">{label}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Manage connection and sources in the platform settings page
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleNotificationToggle("email_agent_ready", !notificationPrefs.email_agent_ready)}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_agent_ready ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_agent_ready ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
                 </div>
+                <a
+                  href={`/context/${platform}`}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Manage →
+                </a>
               </div>
-
-              {/* Agent Failed */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">Agent Failed</div>
-                      <div className="text-sm text-muted-foreground">
-                        Get notified when a agent fails to generate
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleNotificationToggle("email_agent_failed", !notificationPrefs.email_agent_failed)}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_agent_failed ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_agent_failed ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {isSavingNotifications && (
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="text-muted-foreground">Failed to load notification preferences</div>
-          )}
+            ))}
+          </div>
         </section>
       )}
 
@@ -769,6 +718,64 @@ export default function SettingsPage() {
           ) : (
             <div className="text-muted-foreground">Failed to load account stats</div>
           )}
+
+          {/* Notifications (nested under Account) */}
+          <div className="mt-8 pt-8 border-t border-border">
+            <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Email Notifications
+            </h3>
+            {isLoadingNotifications ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : notificationPrefs ? (
+              <div className="space-y-3">
+                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">Agent Ready</div>
+                      <div className="text-xs text-muted-foreground">Notified when a scheduled agent is ready</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_agent_ready", !notificationPrefs.email_agent_ready)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_agent_ready ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      notificationPrefs.email_agent_ready ? "translate-x-4" : "translate-x-0.5"
+                    }`} />
+                  </button>
+                </div>
+                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">Agent Failed</div>
+                      <div className="text-xs text-muted-foreground">Notified when an agent fails to generate</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_agent_failed", !notificationPrefs.email_agent_failed)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_agent_failed ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      notificationPrefs.email_agent_failed ? "translate-x-4" : "translate-x-0.5"
+                    }`} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Failed to load preferences</div>
+            )}
+          </div>
         </section>
       )}
 
