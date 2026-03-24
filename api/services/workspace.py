@@ -1928,6 +1928,30 @@ class ProjectWorkspace:
         # ADR-136: Enrich from TEAM.md if exists
         if team_content:
             result["team_raw"] = team_content
+            # Parse contributors from TEAM.md (overrides PROJECT.md ## Contributors if empty)
+            if not result["contributors"]:
+                team_contributors = []
+                current_slug = None
+                current_contribution = ""
+                for line in team_content.split("\n"):
+                    s = line.strip()
+                    if s.startswith("## ") and s != "## Project Manager":
+                        if current_slug:
+                            team_contributors.append({
+                                "agent_slug": current_slug,
+                                "expected_contribution": current_contribution or "contributor output",
+                            })
+                        current_slug = s[3:].strip()
+                        current_contribution = ""
+                    elif current_slug and s.startswith("- **Role in project**:"):
+                        current_contribution = s.split(":", 1)[1].strip()
+                if current_slug:
+                    team_contributors.append({
+                        "agent_slug": current_slug,
+                        "expected_contribution": current_contribution or "contributor output",
+                    })
+                if team_contributors:
+                    result["contributors"] = team_contributors
 
         # ADR-136: Enrich from PROCESS.md if exists
         if process_content:
