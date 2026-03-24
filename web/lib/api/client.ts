@@ -219,10 +219,10 @@ export const api = {
 
   // Onboarding (ADR-132) — scaffold projects from declared workstreams
   onboardingScaffold: {
-    save: (projects: Array<{ name: string }>, name?: string, brandContent?: string) =>
+    save: (projects: Array<{ name: string }>, name?: string, brandContent?: string, documentIds?: string[]) =>
       request<{ projects_created: Array<{ project_slug: string; title: string; type_key: string }>; count: number }>(
         "/api/memory/user/onboarding",
-        { method: "POST", body: JSON.stringify({ projects, name, brand_content: brandContent }) },
+        { method: "POST", body: JSON.stringify({ projects, name, brand_content: brandContent, document_ids: documentIds }) },
       ),
   },
 

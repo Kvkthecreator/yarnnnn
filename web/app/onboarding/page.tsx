@@ -11,7 +11,7 @@
  * On skip: redirects to /orchestrator (current platform-first bootstrap as fallback)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { GrainOverlay } from '@/components/landing/GrainOverlay';
 import { HOME_ROUTE } from '@/lib/routes';
 import { api } from '@/lib/api/client';
-import { Briefcase, Layers, Plus, X, ArrowRight, Loader2 } from 'lucide-react';
+import { Briefcase, Layers, Plus, X, ArrowRight, Loader2, Upload, FileText } from 'lucide-react';
 
 type WorkStructure = 'single' | 'multi' | null;
 
@@ -53,6 +53,9 @@ export default function OnboardingPage() {
   const [brandTone, setBrandTone] = useState('');
   const [loading, setLoading] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  // ADR-136: File upload for context inference
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; id?: string; status: 'uploading' | 'done' | 'error' }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auth guard — redirect to login if not authenticated
   useEffect(() => {
@@ -68,6 +71,24 @@ export default function OnboardingPage() {
       }
     });
   }, [router]);
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      const entry = { name: file.name, status: 'uploading' as const };
+      setUploadedFiles(prev => [...prev, entry]);
+      try {
+        const result = await api.documents.upload(file);
+        setUploadedFiles(prev =>
+          prev.map(f => f.name === file.name ? { ...f, id: result.document_id, status: 'done' as const } : f)
+        );
+      } catch {
+        setUploadedFiles(prev =>
+          prev.map(f => f.name === file.name ? { ...f, status: 'error' as const } : f)
+        );
+      }
+    }
+  };
 
   const handleStructureSelect = (s: WorkStructure) => {
     setStructure(s);
@@ -124,10 +145,12 @@ export default function OnboardingPage() {
       }
 
       // Scaffold projects — identity + brand seeded from /workspace/ by scaffold_project()
+      const documentIds = uploadedFiles.filter(f => f.status === 'done' && f.id).map(f => f.id!);
       await api.onboardingScaffold.save(
         validScopes.map((s) => ({ name: s.name.trim() })),
         name.trim() || undefined,
         brandContent,
+        documentIds.length > 0 ? documentIds : undefined,
       );
 
       router.push(HOME_ROUTE);
@@ -141,10 +164,8 @@ export default function OnboardingPage() {
     router.push(HOME_ROUTE);
   };
 
-  const canSubmit =
-    structure &&
-    scopes.some((s) => s.name.trim()) &&
-    !loading;
+  const hasContent = scopes.some((s) => s.name.trim()) || uploadedFiles.some(f => f.status === 'done');
+  const canSubmit = structure && hasContent && !loading;
 
   if (authChecking) {
     return (
@@ -222,6 +243,51 @@ export default function OnboardingPage() {
               &larr; Back
             </button>
 
+            {/* File upload zone — share existing docs for context */}
+            <div
+              className="border-2 border-dashed border-[#1a1a1a]/15 rounded-xl p-6 text-center hover:border-[#1a1a1a]/30 transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileUpload(e.dataTransfer.files); }}
+            >
+              <Upload className="w-6 h-6 text-[#1a1a1a]/30 mx-auto mb-2" />
+              <p className="text-sm text-[#1a1a1a]/50">
+                Drop files here to share context
+              </p>
+              <p className="text-xs text-[#1a1a1a]/30 mt-1">
+                Pitch decks, project briefs, docs — we&apos;ll figure out the rest
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md,.docx"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+            </div>
+
+            {/* Uploaded files */}
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-1">
+                {uploadedFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-[#1a1a1a]/60">
+                    <FileText className="w-3 h-3" />
+                    <span className="truncate">{f.name}</span>
+                    {f.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {f.status === 'done' && <span className="text-green-600">✓</span>}
+                    {f.status === 'error' && <span className="text-red-500">✗</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="relative flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-[#1a1a1a]/10" />
+              <span className="text-xs text-[#1a1a1a]/30">or describe your work</span>
+              <div className="flex-1 h-px bg-[#1a1a1a]/10" />
+            </div>
+
             {/* Scope inputs */}
             <div className="space-y-3">
               {structure === 'single' ? (
@@ -285,7 +351,7 @@ export default function OnboardingPage() {
             {/* Next → Brand step */}
             <Button
               onClick={handleTopicsNext}
-              disabled={!scopes.some((s) => s.name.trim())}
+              disabled={!hasContent}
               className="w-full"
             >
               <ArrowRight className="w-4 h-4 mr-2" />
