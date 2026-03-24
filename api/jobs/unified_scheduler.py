@@ -399,66 +399,53 @@ async def run_unified_scheduler():
     try:
         from services.pipeline_executor import advance_pipeline, mark_step_completed
 
-        # Find all projects with pipeline definitions
-        project_files = supabase.table("workspace_files").select("path").like(
-            "path", "/projects/%/PROCESS.md"
-        ).execute()
+        # Find all active agents with project_slug → derive project list + user_ids
+        all_project_agents = supabase.table("agents").select(
+            "user_id, type_config"
+        ).eq("status", "active").execute()
 
-        project_slugs = set()
-        for pf in (project_files.data or []):
-            parts = pf["path"].split("/")
-            if len(parts) >= 3:
-                project_slugs.add(parts[2])
+        # Build: {(user_id, project_slug)} set
+        project_user_pairs = set()
+        for a in (all_project_agents.data or []):
+            tc = a.get("type_config") or {}
+            ps = tc.get("project_slug")
+            uid_agent = a.get("user_id")
+            if ps and uid_agent:
+                project_user_pairs.add((uid_agent, ps))
 
-        # Get user_id for each project (from any agent in the project)
-        for slug in project_slugs:
+        for uid, slug in project_user_pairs:
             try:
-                # Find user_id from a project agent
-                agent_result = supabase.table("agents").select("user_id").eq(
-                    "status", "active"
-                ).execute()
-                user_ids_for_slug = set()
-                for a in (agent_result.data or []):
-                    tc = a.get("type_config") or {}
-                    if tc.get("project_slug") == slug:
-                        user_ids_for_slug.add(a.get("user_id"))
+                result = await advance_pipeline(supabase, uid, slug)
+                if result.get("action") == "execute":
+                    step = result
+                    logger.info(f"[PIPELINE] Executing {slug}/{step['step_name']} ({step['agent_slug']})")
 
-                for uid in user_ids_for_slug:
-                    result = await advance_pipeline(supabase, uid, slug)
-                    if result.get("action") == "execute":
-                        step = result
-                        logger.info(f"[PIPELINE] Executing {slug}/{step['step_name']} ({step['agent_slug']})")
+                    # Find the agent and run it
+                    agents_result = supabase.table("agents").select("*").eq(
+                        "user_id", uid
+                    ).eq("status", "active").execute()
 
-                        # Find the agent and run it
-                        agents_result = supabase.table("agents").select("*").eq(
-                            "user_id", uid
-                        ).eq("status", "active").execute()
+                    from services.workspace import get_agent_slug
+                    target_agent = None
+                    for a in (agents_result.data or []):
+                        if get_agent_slug(a) == step["agent_slug"]:
+                            target_agent = a
+                            break
 
-                        from services.workspace import get_agent_slug
-                        target_agent = None
-                        for a in (agents_result.data or []):
-                            if get_agent_slug(a) == step["agent_slug"]:
-                                target_agent = a
-                                break
-
-                        if target_agent:
-                            if step.get("mode") == "compose":
-                                # PM assembly — use process_agent which handles PM decision flow
-                                if await process_agent(supabase, target_agent):
-                                    await mark_step_completed(supabase, uid, slug, step["step_name"])
-                                    pipeline_steps_run += 1
-                            elif step.get("mode") == "evaluate":
-                                # PM quality gate — for now, auto-pass (implement in Phase 3)
-                                await mark_step_completed(supabase, uid, slug, step["step_name"], "quality: auto-pass")
+                    if target_agent:
+                        if step.get("mode") == "compose":
+                            if await process_agent(supabase, target_agent):
+                                await mark_step_completed(supabase, uid, slug, step["step_name"])
                                 pipeline_steps_run += 1
-                            else:
-                                # Contributor agent — run generation
-                                if await process_agent(supabase, target_agent):
-                                    draft = ""  # TODO: capture output preview
-                                    await mark_step_completed(supabase, uid, slug, step["step_name"], draft[:200] if draft else "")
-                                    pipeline_steps_run += 1
+                        elif step.get("mode") == "evaluate":
+                            await mark_step_completed(supabase, uid, slug, step["step_name"], "quality: auto-pass")
+                            pipeline_steps_run += 1
                         else:
-                            logger.warning(f"[PIPELINE] Agent not found: {step['agent_slug']} for {slug}")
+                            if await process_agent(supabase, target_agent):
+                                await mark_step_completed(supabase, uid, slug, step["step_name"])
+                                pipeline_steps_run += 1
+                    else:
+                        logger.warning(f"[PIPELINE] Agent not found: {step['agent_slug']} for {slug}")
             except Exception as e:
                 logger.error(f"[PIPELINE] Error advancing {slug}: {e}")
 
