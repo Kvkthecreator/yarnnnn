@@ -393,12 +393,89 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # ADR-126: Pulse Dispatch — give each agent its turn to sense and decide
+    # ADR-137: Pipeline Execution — advance project pipelines mechanically
+    # -------------------------------------------------------------------------
+    pipeline_steps_run = 0
+    try:
+        from services.pipeline_executor import advance_pipeline, mark_step_completed
+
+        # Find all projects with pipeline definitions
+        project_files = supabase.table("workspace_files").select("path").like(
+            "path", "/projects/%/PROCESS.md"
+        ).execute()
+
+        project_slugs = set()
+        for pf in (project_files.data or []):
+            parts = pf["path"].split("/")
+            if len(parts) >= 3:
+                project_slugs.add(parts[2])
+
+        # Get user_id for each project (from any agent in the project)
+        for slug in project_slugs:
+            try:
+                # Find user_id from a project agent
+                agent_result = supabase.table("agents").select("user_id").eq(
+                    "status", "active"
+                ).execute()
+                user_ids_for_slug = set()
+                for a in (agent_result.data or []):
+                    tc = a.get("type_config") or {}
+                    if tc.get("project_slug") == slug:
+                        user_ids_for_slug.add(a.get("user_id"))
+
+                for uid in user_ids_for_slug:
+                    result = await advance_pipeline(supabase, uid, slug)
+                    if result.get("action") == "execute":
+                        step = result
+                        logger.info(f"[PIPELINE] Executing {slug}/{step['step_name']} ({step['agent_slug']})")
+
+                        # Find the agent and run it
+                        agents_result = supabase.table("agents").select("*").eq(
+                            "user_id", uid
+                        ).eq("status", "active").execute()
+
+                        from services.workspace import get_agent_slug
+                        target_agent = None
+                        for a in (agents_result.data or []):
+                            if get_agent_slug(a) == step["agent_slug"]:
+                                target_agent = a
+                                break
+
+                        if target_agent:
+                            if step.get("mode") == "compose":
+                                # PM assembly — use process_agent which handles PM decision flow
+                                if await process_agent(supabase, target_agent):
+                                    await mark_step_completed(supabase, uid, slug, step["step_name"])
+                                    pipeline_steps_run += 1
+                            elif step.get("mode") == "evaluate":
+                                # PM quality gate — for now, auto-pass (implement in Phase 3)
+                                await mark_step_completed(supabase, uid, slug, step["step_name"], "quality: auto-pass")
+                                pipeline_steps_run += 1
+                            else:
+                                # Contributor agent — run generation
+                                if await process_agent(supabase, target_agent):
+                                    draft = ""  # TODO: capture output preview
+                                    await mark_step_completed(supabase, uid, slug, step["step_name"], draft[:200] if draft else "")
+                                    pipeline_steps_run += 1
+                        else:
+                            logger.warning(f"[PIPELINE] Agent not found: {step['agent_slug']} for {slug}")
+            except Exception as e:
+                logger.error(f"[PIPELINE] Error advancing {slug}: {e}")
+
+        if pipeline_steps_run > 0:
+            logger.info(f"[PIPELINE] Executed {pipeline_steps_run} pipeline steps")
+    except Exception as e:
+        logger.error(f"[PIPELINE] Pipeline execution failed: {e}")
+
+    # -------------------------------------------------------------------------
+    # ADR-126: Pulse Dispatch — standalone agents only (project agents use pipeline)
     # -------------------------------------------------------------------------
     from services.agent_pulse import run_agent_pulse, calculate_next_pulse_at
 
     all_due_agents = await get_due_pulse_agents(supabase)
-    logger.info(f"[PULSE] Found {len(all_due_agents)} agents due for pulse")
+    # Filter out project contributors — they're handled by pipeline
+    standalone_agents = [a for a in all_due_agents if not (a.get("type_config") or {}).get("project_slug") or a.get("role") == "pm"]
+    logger.info(f"[PULSE] Found {len(standalone_agents)} standalone agents due for pulse (filtered from {len(all_due_agents)})")
 
     pulse_generated = 0
     pulse_observed = 0
@@ -406,7 +483,7 @@ async def run_unified_scheduler():
     pulse_escalated = 0
     agent_success = 0
 
-    for agent in all_due_agents:
+    for agent in standalone_agents:
         try:
             # Agent decides via pulse (Tier 1 deterministic → Tier 2 self-assessment)
             decision = await run_agent_pulse(supabase, agent)

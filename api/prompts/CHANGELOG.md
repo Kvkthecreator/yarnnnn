@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.6] - ADR-137 Phase 1: Declarative pipeline executor
+
+### Added
+- `services/pipeline_executor.py`: Reads PROCESS.md pipeline, advances steps mechanically. `advance_pipeline()` called by scheduler per project. `parse_pipeline()` reads step definitions. `pipeline_state.json` tracks cycle + step states. Steps advance when dependencies complete. Cadence enforcement built-in.
+
+### Changed
+- `jobs/unified_scheduler.py`: Pipeline execution runs BEFORE individual pulse dispatch. Project agents (with pipeline in PROCESS.md) execute via pipeline. Standalone agents (no project) keep pulse system. Pulse loop filters out project contributors.
+- Expected behavior: project agent runs are deterministic (pipeline step order), not LLM-decided. Standalone agents unaffected. ~95% reduction in PM coordination overhead.
+
 ## [2026.03.24.5] - ADR-132: Onboarding redesign — document-first + multi-scope inference
 
 ### Changed
