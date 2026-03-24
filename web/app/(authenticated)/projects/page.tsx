@@ -21,13 +21,14 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 import { formatDistanceToNow } from 'date-fns';
 import type { ProjectSummary } from '@/types';
 
+// ADR-133: Only workspace + bounded_deliverable are active types.
 const TYPE_LABELS: Record<string, string> = {
-  slack_digest: 'Slack',
-  notion_digest: 'Notion',
-  cross_platform_synthesis: 'Cross-Platform',
   workspace: 'Workspace',
   bounded_deliverable: 'Deliverable',
-  custom: 'Custom',
+  slack_digest: 'Slack',         // legacy
+  notion_digest: 'Notion',       // legacy
+  cross_platform_synthesis: 'Cross-Platform', // legacy
+  custom: 'Custom',              // legacy
 };
 
 function getProjectIcon(typeKey: string | null): React.ReactNode {

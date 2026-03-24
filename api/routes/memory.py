@@ -1,32 +1,23 @@
 """
-Memory routes — ADR-108: User Memory Filesystem Migration
+Memory routes — ADR-133: Workspace Context Architecture
 
-Mounted at /api/memory. Reads/writes /memory/ files in workspace_files.
-Replaces the user_memory key-value table (ADR-059).
-
-Three files back the Memory page:
-  /memory/MEMORY.md      → Profile (name, role, company, timezone, summary)
-  /memory/preferences.md → Per-platform tone/verbosity
-  /memory/notes.md       → Facts, instructions, preferences (accumulated)
-
-ADR-132 addition:
-  /memory/WORK.md        → Work index (structure, scopes, project mappings)
+Mounted at /api/memory. Reads/writes workspace context files:
+  /workspace/IDENTITY.md  → User identity (name, role, company, industry)
+  /workspace/BRAND.md     → Brand identity (colors, tone, voice)
+  /memory/notes.md        → TP-accumulated knowledge (facts, instructions)
 
 Endpoints:
-  GET  /profile              - Get profile fields from MEMORY.md
-  PATCH /profile             - Update profile fields in MEMORY.md
-  GET  /styles               - Get tone/verbosity from preferences.md
-  GET  /styles/{platform}    - Get tone/verbosity for one platform
-  PATCH /styles/{platform}   - Set tone/verbosity for a platform
-  DELETE /styles/{platform}  - Clear tone/verbosity for a platform
-  GET  /user/memories        - List notes from notes.md
-  POST /user/memories        - Add a note to notes.md
-  POST /user/memories/import - Bulk import: extract from text
-  DELETE /memories/{id}      - Delete a note by content hash
-  GET  /user/onboarding-state - Detect onboarding state
-  POST /user/work            - Save work index (ADR-132)
-  GET  /user/work            - Get work index (ADR-132)
-  GET  /activity             - List recent activity from activity_log (ADR-063)
+  GET  /profile              - Get identity from /workspace/IDENTITY.md
+  PATCH /profile             - Update identity fields
+  GET  /user/brand           - Get brand from /workspace/BRAND.md
+  POST /user/brand           - Save brand
+  GET  /user/memories        - List notes from /memory/notes.md
+  POST /user/memories        - Add a note
+  POST /user/memories/import - Bulk import from text
+  DELETE /memories/{id}      - Delete a note
+  GET  /user/onboarding-state - Check if user has projects
+  POST /user/onboarding      - Scaffold projects from onboarding
+  GET  /activity             - List recent activity
 """
 
 import hashlib

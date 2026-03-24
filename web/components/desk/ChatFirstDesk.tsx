@@ -35,7 +35,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import { usePlatformOnboardingState } from '@/hooks/usePlatformOnboardingState';
+// (usePlatformOnboardingState removed — ADR-133: platforms are Settings-level)
 import { Todo } from '@/types/desk';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
@@ -44,7 +44,7 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { PlatformSyncStatus } from './PlatformSyncStatus';
+// (PlatformSyncStatus removed — ADR-133: platforms moved to Settings)
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -54,12 +54,15 @@ import type { ProjectSummary } from '@/types';
 // Panel: Projects (compact entry cards — ADR-122/124 project-first model)
 // =============================================================================
 
+// ADR-133: Only workspace + bounded_deliverable are active types.
+// Legacy labels kept for existing projects in DB that still have old type_keys.
 const TYPE_LABELS: Record<string, string> = {
+  workspace: 'Workspace',
+  bounded_deliverable: 'Deliverable',
+  // Legacy (display only — these types no longer created)
   slack_digest: 'Slack',
   notion_digest: 'Notion',
   cross_platform_synthesis: 'Cross-Platform',
-  workspace: 'Workspace',
-  bounded_deliverable: 'Deliverable',
   custom: 'Custom',
 };
 
@@ -275,17 +278,7 @@ function ContextPanel() {
   );
 }
 
-// =============================================================================
-// Panel: Platforms (platform sync status)
-// =============================================================================
-
-function PlatformsPanel() {
-  return (
-    <div className="overflow-y-auto min-h-0">
-      <PlatformSyncStatus />
-    </div>
-  );
-}
+// (PlatformsPanel deleted — ADR-133: platforms moved to Settings)
 
 // =============================================================================
 // Helpers
@@ -353,10 +346,6 @@ export function ChatFirstDesk() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Platform onboarding state — for cold-start empty state
-  const { state: onboardingState } = usePlatformOnboardingState();
-  const [connecting, setConnecting] = useState<string | null>(null);
-
   // Project state for contextual action cards
   const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
   const hasProjects = mainProjects.length > 0;
@@ -364,17 +353,6 @@ export function ChatFirstDesk() {
     api.projects.list().then((data) => {
       setMainProjects(data.projects);
     }).catch(() => {});
-  }, []);
-
-  const handleConnect = useCallback(async (platform: string) => {
-    setConnecting(platform);
-    try {
-      const result = await api.integrations.getAuthorizationUrl(platform);
-      window.location.href = result.authorization_url;
-    } catch (err) {
-      console.error(`Failed to initiate ${platform} OAuth:`, err);
-      setConnecting(null);
-    }
   }, []);
 
   const {
@@ -746,34 +724,8 @@ export function ChatFirstDesk() {
                       </p>
                     </div>
                   </>
-                ) : onboardingState === 'no_platforms' ? (
-                  /* COLD START: No projects */
-                  <>
-                    <div className="text-center mb-8">
-                      <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                      <h2 className="text-lg font-medium mb-1">Welcome to YARNNN</h2>
-                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        Tell me what you&apos;re working on and I&apos;ll set up the right team.
-                      </p>
-                    </div>
-                    <div className="max-w-md mx-auto space-y-3">
-                      <button
-                        onClick={() => {
-                          setInput(NEW_PROJECT_PROMPT);
-                          textareaRef.current?.focus();
-                        }}
-                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                      >
-                        <Briefcase className="w-5 h-5 shrink-0 text-muted-foreground" />
-                        <div>
-                          <span className="text-sm font-medium">New Project</span>
-                          <span className="text-xs text-muted-foreground block">Create a project with the right agents</span>
-                        </div>
-                      </button>
-                    </div>
-                  </>
                 ) : (
-                  /* PLATFORMS CONNECTED, NO WORK INDEX: returning user or skip-onboarding */
+                  /* NO PROJECTS: new user or returning without projects */
                   <>
                     <div className="text-center mb-8">
                       <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
