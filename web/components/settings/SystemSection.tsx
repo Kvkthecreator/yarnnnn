@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * System section for Settings page — absorbed from standalone /system page.
+ * System section for Settings page.
  *
  * Shows:
- * - Connected platforms (via ConnectedIntegrationsSection)
- * - Sync schedule observability
  * - Background job status (Platform Sync, Memory & Analysis)
+ * - Sync schedule observability
+ *
+ * ADR-133: Connected platforms moved to Connectors tab.
  */
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { ConnectedIntegrationsSection } from '@/components/settings/ConnectedIntegrationsSection';
+// (ConnectedIntegrationsSection moved to Connectors tab — ADR-133)
 
 // =============================================================================
 // Types
@@ -222,7 +223,7 @@ export function SystemSection() {
         <div>
           <h2 className="text-lg font-semibold">System</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Connected platforms, sync status, and background processing.
+            Sync status and background processing.
           </p>
         </div>
         <button
@@ -241,12 +242,7 @@ export function SystemSection() {
         </div>
       ) : (
         <div className="space-y-8">
-          {/* Connected Platforms */}
-          <ConnectedIntegrationsSection
-            title="Connected Platforms"
-            description="Connect platforms to sync context. Manage sources and trigger syncs from each platform's context page."
-            redirectTo="/settings?tab=system"
-          />
+          {/* ADR-133: Connected Platforms moved to Connectors tab */}
 
           {/* Background Activity */}
           <section>
