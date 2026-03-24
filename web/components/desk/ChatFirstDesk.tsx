@@ -156,7 +156,8 @@ function ProjectsPanel() {
       <div className="divide-y divide-border flex-1 overflow-y-auto">
         {projects.map((p) => {
           const isWorkScoped = ['workspace', 'bounded_deliverable'].includes(p.type_key || '');
-          const needsSetup = isWorkScoped && (!p.has_sources || !p.objective_set);
+          // Only show setup hints if objective is clearly not set (generic template)
+          const needsSetup = isWorkScoped && !p.objective_set;
           return (
             <Link
               key={p.project_slug}
@@ -185,7 +186,7 @@ function ProjectsPanel() {
                   )}
                   {needsSetup && (
                     <span className="text-amber-500/80">
-                      {!p.has_sources ? 'needs data' : 'refine objective'}
+                      refine objective
                     </span>
                   )}
                   {!needsSetup && p.purpose && (
