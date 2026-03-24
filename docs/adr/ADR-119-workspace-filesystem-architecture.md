@@ -1,6 +1,6 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phases 1-4 Implemented (Phase 4a: dashboard + projects frontend. Phase 4b: AgentOutputsPanel — agent output history tab.)
+> **Status**: Phases 1-4 Implemented. **Evolved by ADR-136**: PROJECT.md split into PROJECT.md + TEAM.md + PROCESS.md (charter vs. memory separation).
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)

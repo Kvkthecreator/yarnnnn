@@ -60,10 +60,28 @@ Perception agents bridge external data (platforms, web) into the project's knowl
 
 Projects contain only project-unique data. Agents read workspace context (`/workspace/`) directly at execution time — no duplication into project folders.
 
+**Charter files** (what the project IS — constitution, user-defined):
+
+| File | Purpose | Written By |
+|------|---------|-----------|
+| `PROJECT.md` | Objective + success criteria | User, TP, Composer |
+| `TEAM.md` | Contributor roster + types + capabilities | scaffold_project(), Composer |
+| `PROCESS.md` | Output spec + cadence + delivery + phases | scaffold_project(), user, PM |
+
+**Memory files** (what the project has LEARNED — working state, agent-accumulated):
+
+| File | Purpose | Written By |
+|------|---------|-----------|
+| `memory/pm_log.md` | PM decision history (append) | PM |
+| `memory/project_assessment.md` | PM's latest view (overwrite) | PM |
+| `memory/quality_assessment.md` | Quality scores (overwrite) | PM |
+| `memory/phase_state.json` | Phase tracking (overwrite) | PM Tier 3 |
+| `memory/decisions.md` | User decisions from chat (append) | Chat PM |
+
+**Operational files**:
+
 | File | Purpose |
 |------|---------|
-| `PROJECT.md` | Objective, contributors, assembly spec, delivery |
-| `memory/` | PM state, work plan, project assessment |
 | `contributions/` | Agent outputs per contributor |
 | `assembly/` | Composed deliverables |
 | `/brand/{name}/BRAND.md` | Topic-specific brand override (e.g., client brand) |
@@ -184,10 +202,20 @@ These files are archived to `/history/{filename}/v{N}.md` on overwrite (max 5 ve
 ```
 /projects/{slug}/
 │
-├── PROJECT.md                      # Project charter (ADR-119 Phase 2, ADR-123)
-│                                   # Title, type_key, objective, contributors,
-│                                   # assembly_spec, delivery
-│                                   # Mutable by: User, Composer, TP (not PM)
+├── PROJECT.md                      # CHARTER: Objective + success criteria (ADR-136)
+│                                   # What we're making, for whom, why, how good
+│                                   # Append-to-top versioning (history preserved)
+│                                   # Mutable by: User, Composer, TP
+│
+├── TEAM.md                         # CHARTER: Contributor roster (ADR-136)
+│                                   # Who's on the team, types, capabilities
+│                                   # Maps to AGENT_TYPES registry (ADR-130)
+│                                   # Mutable by: scaffold_project(), Composer
+│
+├── PROCESS.md                      # CHARTER: Operating model (ADR-136)
+│                                   # Output spec, cadence, delivery, phases
+│                                   # Cadence enforcement reads this (Tier 1)
+│                                   # Mutable by: scaffold_project(), User, PM
 │
 ├── contributions/                  # Per-agent contribution folders
 │   └── {agent-slug}/              # Scoped to each contributor
@@ -385,9 +413,9 @@ Max 5 versions kept per file. Oldest auto-deleted when limit exceeded.
 
 ## File Semantics
 
-### Identity: AGENT.md / PROJECT.md
+### Identity: AGENT.md / PROJECT.md / TEAM.md / PROCESS.md
 
-Root identity files. `AGENT.md` mirrors `CLAUDE.md`. `PROJECT.md` is the project charter.
+Root identity files. `AGENT.md` mirrors `CLAUDE.md`. Project charter is split into three files (ADR-136): `PROJECT.md` (objective), `TEAM.md` (roster), `PROCESS.md` (operations).
 
 | File | Contains | Written by | Read by |
 |------|----------|-----------|---------|
