@@ -1,6 +1,6 @@
 # ADR-136: Project Charter Architecture — Separated Concerns
 
-> **Status**: Proposed
+> **Status**: Phases 1-4 Implemented
 > **Date**: 2026-03-24
 > **Authors**: KVK, Claude
 > **Supersedes**: Single PROJECT.md model (ADR-119, ADR-122, ADR-123)
