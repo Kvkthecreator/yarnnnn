@@ -1,7 +1,7 @@
 # yarnnn Monetization Strategy
 
-> **Status**: Updated for ADR-100 (2-tier model)
-> **Date**: 2026-03-09
+> **Status**: Updated for ADR-136 (cadence-bounded execution). See [COST-MODEL.md](COST-MODEL.md) for per-project economics.
+> **Date**: 2026-03-24 (revised from 2026-03-09)
 > **Related**: ADR-100 (Simplified Monetization), ADR-053 (Platform Sync Monetization)
 
 ## Overview
