@@ -1523,6 +1523,16 @@ function SettingsTab({
 }) {
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8">
+      {/* Cadence (from PROCESS.md) */}
+      {(project as any).cadence && (
+        <section>
+          <h3 className="text-sm font-semibold mb-2">Cadence</h3>
+          <span className="text-sm px-2 py-1 rounded bg-primary/10 text-primary font-medium">
+            {(project as any).cadence}
+          </span>
+        </section>
+      )}
+
       {/* Delivery */}
       <section>
         <h3 className="text-sm font-semibold mb-2">Delivery</h3>
