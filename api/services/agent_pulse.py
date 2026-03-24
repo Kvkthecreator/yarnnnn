@@ -528,9 +528,11 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
     # 2. Read work plan
     work_plan = await pw.read("memory/work_plan.md") or ""
 
-    # 3. Read project objective
+    # 3. Read project charter (objective + cadence from PROCESS.md)
     project = await pw.read_project()
     objective = project.get("objective", {}) if project else {}
+    cadence = project.get("cadence", "") if project else ""
+    process_raw = project.get("process_raw", "") if project else ""
 
     # 4. Get contributor agents for this project
     try:
@@ -581,6 +583,8 @@ async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
         contributor_status=contributor_status,
         now_iso=now.isoformat(),
         pm_log=pm_log,
+        cadence=cadence,
+        process_raw=process_raw,
     )
 
     # --- Call Haiku for PM coordination decision ---
@@ -847,6 +851,8 @@ def _build_tier3_prompt(
     contributor_status: list[dict],
     now_iso: str,
     pm_log: str = "",
+    cadence: str = "",
+    process_raw: str = "",
 ) -> str:
     """Build the PM Tier 3 coordination prompt."""
 
@@ -888,6 +894,12 @@ Current time: {now_iso}
 
 ## Contributors
 {contributors_text or "  (no contributors)"}
+
+## Cadence
+{cadence or "(Not defined — consider establishing a delivery rhythm.)"}
+
+## Process
+{process_raw[:500] if process_raw else "(No PROCESS.md — output spec, delivery config not yet defined.)"}
 
 ## Your Recent Decisions
 {pm_log or "(No prior decisions — this is your first assessment.)"}

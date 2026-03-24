@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.1] - ADR-136: Charter file split + cadence enforcement + PM process awareness
+
+### Changed
+- `workspace.py`: `write_project()` now writes 3 charter files (PROJECT.md + TEAM.md + PROCESS.md). `read_project()` reads all three and merges. TEAM.md maps contributors to AGENT_TYPES capabilities. PROCESS.md defines cadence, output spec, delivery, phases.
+- `project_registry.py`: `scaffold_project()` passes frequency + role to `write_project()`. Contributor records include role for TEAM.md.
+- `agent_pulse.py`: Tier 1 Gate 3 (cadence enforcement) reads PROCESS.md cadence, blocks if already ran in cadence window. PM Tier 3 prompt includes cadence + process context for coordination decisions.
+- Expected behavior: weekly projects run once/week. Cadence gate prevents duplicate runs. PM knows the delivery rhythm and output spec.
+
 ## [2026.03.23.14] - ADR-133: Perception/Production/Coordination agent model
 
 ### Changed
