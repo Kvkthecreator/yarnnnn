@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.2] - TP→PM handoff + onboarding file upload
+
+### Changed
+- `project_registry.py`: `scaffold_project()` now writes a PM handoff message to the project chat session via `pm_announce()`. Message includes: title, objective summary, team names, cadence. PM reads this on first pulse for context.
+- `onboarding/page.tsx`: Step 2 now has file upload drop zone alongside text inputs. Users can share docs (pitch decks, briefs) for context inference. Document IDs passed to scaffold API.
+- `api/client.ts`: `onboardingScaffold.save()` accepts optional `documentIds` parameter.
+- Expected behavior: PM's first chat message is the handoff — "Project created: X. Team: Y. Cadence: Z." User sees this when they open the project. Onboarding accepts files OR text OR both.
+
 ## [2026.03.24.1] - ADR-136: Charter file split + cadence enforcement + PM process awareness
 
 ### Changed

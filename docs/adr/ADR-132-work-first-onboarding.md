@@ -1,6 +1,6 @@
 # ADR-132: Work-First Onboarding & Project Scaffolding
 
-> **Status**: Proposed
+> **Status**: Partially Implemented. File upload on onboarding page (ADR-136). scaffold_project() writes 3 charter files + TP→PM handoff message. Backend inference from uploaded docs pending.
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Extends**: ADR-122 (Project Type Registry), ADR-130 (Agent Capability Substrate)

@@ -66,6 +66,27 @@ Tier 3 runs Haiku for quick dispatch decisions. If it decides "generate," the he
 
 ---
 
+## Project Creation Handoff (ADR-135/136)
+
+When `scaffold_project()` creates a project, PM writes a handoff message to the project chat session:
+
+> "Project created: AI Competitive Intel. Objective: Weekly competitive intelligence briefing. Team: Competitive Watch Scout. Cadence: weekly. I'll start coordinating on my first pulse."
+
+This gives PM decision context from creation. PM reads this (and pm_log.md) on first pulse to understand why the project exists and what it should do.
+
+## PM First Pulse Behavior
+
+On first pulse (no pm_log.md entries), PM should:
+1. Read PROJECT.md (objective + success criteria)
+2. Read TEAM.md (who's on the team + capabilities)
+3. Read PROCESS.md (cadence + output spec + phases)
+4. Create work_plan.md from PROCESS.md phases
+5. Write contribution briefs for Phase 1 contributors
+6. Dispatch Phase 1 contributors
+7. Announce to chat: "Setting up. Dispatching [contributor] for initial run."
+
+This is instructed in the Tier 3 prompt via the "Your Recent Decisions" section — if empty, PM knows it's the first assessment and should bootstrap the project.
+
 ## PM Execution Flow (What Actually Happens)
 
 ```

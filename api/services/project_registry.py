@@ -474,6 +474,26 @@ async def scaffold_project(
     except Exception as e:
         logger.warning(f"[REGISTRY] Failed to seed project_assessment.md for {project_slug}: {e}")
 
+    # ADR-135/136: TP→PM handoff — write creation context to project chat session
+    if pm_agent_id:
+        try:
+            from services.pm_coordination import pm_announce
+            pm_agent = {"id": pm_agent_id, "title": f"Project Manager: {title}", "role": "pm"}
+            contributor_names = [c.get("title", c.get("agent_slug", "?")) for c in created_contributors]
+            obj_summary = objective.get("deliverable", title) if isinstance(objective, dict) else title
+            cadence_text = project_frequency if project_frequency != "daily" else "daily"
+
+            handoff_msg = (
+                f"Project created: {title}. "
+                f"Objective: {obj_summary}. "
+                f"Team: {', '.join(contributor_names) if contributor_names else 'no contributors yet'}. "
+                f"Cadence: {cadence_text}. "
+                f"I'll start coordinating on my first pulse."
+            )
+            await pm_announce(client, user_id, project_slug, pm_agent, handoff_msg, decision_type="project_created")
+        except Exception as e:
+            logger.warning(f"[REGISTRY] Handoff message failed (non-fatal): {e}")
+
     # ADR-133: No seeding of IDENTITY.md or BRAND.md into projects.
     # Agents read /workspace/ directly at execution time. No duplication.
 
