@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.5] - ADR-132: Onboarding redesign — document-first + multi-scope inference
+
+### Changed
+- `onboarding/page.tsx`: Complete rewrite. Removed 3-step flow (single/multi → scopes → brand). Now 2-step: (1) share context (files + text), (2) brand + name. File upload zone with drag-drop. Text description as textarea. Submit sends everything for inference.
+- `project_inference.py`: Complete rewrite. `infer_work_scopes()` — single Sonnet call reads ALL uploaded docs + text → extracts MULTIPLE scopes with rich specs (objective, success_criteria, output_spec, team, cadence). `read_uploaded_documents()` reads doc content from filesystem_chunks.
+- `routes/memory.py`: Onboarding endpoint redesigned. Phase 1: LLM inference extracts scopes. Phase 2: scaffold per scope with inferred overrides. Fallback: lightweight type inference if Sonnet fails.
+- Expected behavior: user drops pitch deck → system infers "Competitive Intel (weekly, scout)" + "Product Development (daily, briefer)" → scaffolds 2 projects with rich charter content.
+
+### Removed
+- Single/multi step from onboarding (conceptually wrong question)
+- Per-scope text inputs (replaced by single text description)
+- `enrich_scaffold_params()` (replaced by multi-scope `infer_work_scopes()`)
+
 ## [2026.03.24.4] - Cost optimization: Tier 2 pre-screen + PM prompt modes
 
 ### Changed

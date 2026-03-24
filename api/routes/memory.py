@@ -179,17 +179,18 @@ async def get_onboarding_state(auth: UserClient):
 
 @router.post("/user/onboarding")
 async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
-    """Onboarding endpoint — scaffold projects from user's declared workstreams (ADR-132).
+    """Onboarding endpoint — infer + scaffold projects from user context (ADR-132/136).
 
-    Each project name gets type-inferred (briefer/scout/drafter/etc.) and scaffolded.
-    Called from the /onboarding page. Projects are the workstreams — no separate
-    "topics" layer.
+    Two-phase flow:
+    1. Inference: reads user's text + uploaded docs → extracts work scopes
+    2. Scaffold: creates projects with rich charter content per scope
+
+    If inference fails, falls back to lightweight type inference per scope name.
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
 
-        # ADR-133: Write workspace context first (identity + brand)
-        # so scaffold_project() can seed it into projects
+        # Save identity + brand first
         if body.name:
             profile = await um.get_profile()
             if not profile.get("name"):
@@ -198,63 +199,97 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         if body.brand_content:
             await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
-        # Scaffold projects with LLM inference (ADR-136)
         from services.project_registry import scaffold_project, infer_topic_type
-        from services.project_inference import enrich_scaffold_params
+        from services.project_inference import infer_work_scopes, read_uploaded_documents
+        from services.agent_framework import AGENT_TYPES
+
         projects_created = []
+        doc_ids = body.document_ids or []
 
-        # Gather document IDs if provided
-        doc_ids = getattr(body, 'document_ids', None) or []
+        # Phase 1: LLM inference — read docs + text → extract scopes
+        text_parts = [p.name.strip() for p in body.projects if p.name.strip()]
+        text_description = ". ".join(text_parts) if text_parts else ""
 
-        for proj in body.projects:
-            name = proj.name.strip()
-            if not name:
-                continue
+        doc_contents = []
+        if doc_ids:
+            doc_contents = await read_uploaded_documents(auth.client, auth.user_id, doc_ids)
 
-            # ADR-136: Enrich with LLM inference (specific objective, success criteria, output spec)
-            overrides = await enrich_scaffold_params(
-                auth.client, auth.user_id, name,
-                description="",  # Could be enriched from user text
-                document_ids=doc_ids,
-            )
+        inferred = await infer_work_scopes(text_description, doc_contents)
+        inferred_scopes = inferred.get("scopes", [])
 
-            # Fallback to lightweight type inference if LLM fails
-            inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(name)
-            type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
+        # Save brand from inference if not provided by user
+        if not body.brand_content and inferred.get("brand", {}).get("name"):
+            brand = inferred["brand"]
+            brand_md = f"# Brand: {brand.get('name', '')}\n\n## Tone\n{brand.get('tone', 'Professional')}\n"
+            await um.write("BRAND.md", brand_md, summary="Brand from inference")
 
-            result = await scaffold_project(
-                client=auth.client,
-                user_id=auth.user_id,
-                type_key=type_key,
-                scope_name=name,
-                execute_now=False,
-                contributors_override=overrides.get("contributors_override") or ([{
-                    "title_template": f"{{scope_name}} {inferred_type.title()}",
-                    "role": inferred_type,
-                    "scope": "cross_platform",
-                    "frequency": overrides.get("frequency", "weekly" if inferred_lifecycle == "persistent" else "on_demand"),
-                    "sources_from": "work_unit",
-                }] if inferred_type != "briefer" else None),
-                objective_override=overrides.get("objective_override") or ({
-                    "deliverable": f"{name} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
-                    "audience": "You",
-                    "format": "email",
-                    "purpose": inferred_purpose,
-                } if inferred_purpose else None),
-                assembly_spec_override=overrides.get("assembly_spec_override"),
-                success_criteria=overrides.get("_success_criteria"),
-                output_spec=overrides.get("_output_spec"),
-            )
+        # Phase 2: Scaffold projects
+        if inferred_scopes:
+            # Use inferred scopes (rich content)
+            for scope in inferred_scopes:
+                name = scope.get("name", "")
+                if not name:
+                    continue
 
-            if result.get("success"):
-                slug = result["project_slug"]
-                projects_created.append({
-                    "project_slug": slug,
-                    "title": result["title"],
-                    "type_key": type_key,
-                })
-                # ADR-133: IDENTITY.md + BRAND.md seeded automatically by scaffold_project()
-                logger.info(f"[ONBOARDING] Scaffolded '{slug}' from '{name}'")
+                # Build contributors from inferred team
+                contributors = None
+                if scope.get("team"):
+                    contributors = []
+                    for t in scope["team"]:
+                        role = t.get("role", "briefer")
+                        if role not in AGENT_TYPES:
+                            role = "briefer"
+                        contributors.append({
+                            "title_template": f"{{scope_name}} {AGENT_TYPES[role]['display_name']}",
+                            "role": role,
+                            "scope": "cross_platform",
+                            "frequency": scope.get("cadence", "weekly"),
+                            "expected_contribution": t.get("reason", f"{role} output"),
+                        })
+
+                result = await scaffold_project(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    type_key="workspace",
+                    scope_name=name,
+                    execute_now=False,
+                    objective_override=scope.get("objective"),
+                    contributors_override=contributors,
+                    assembly_spec_override=scope.get("assembly_spec"),
+                    success_criteria=scope.get("success_criteria"),
+                    output_spec=scope.get("output_spec"),
+                )
+                if result.get("success"):
+                    projects_created.append({
+                        "project_slug": result["project_slug"],
+                        "title": result.get("title", name),
+                        "type_key": "workspace",
+                    })
+                    logger.info(f"[ONBOARDING] Scaffolded '{result['project_slug']}' from inferred scope '{name}'")
+        else:
+            # Fallback: use text scope names with lightweight inference
+            for proj in body.projects:
+                name = proj.name.strip()
+                if not name:
+                    continue
+
+                inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(name)
+                type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
+
+                result = await scaffold_project(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    type_key=type_key,
+                    scope_name=name,
+                    execute_now=False,
+                )
+                if result.get("success"):
+                    projects_created.append({
+                        "project_slug": result["project_slug"],
+                        "title": result.get("title", name),
+                        "type_key": type_key,
+                    })
+                    logger.info(f"[ONBOARDING] Scaffolded '{result['project_slug']}' (fallback) from '{name}'")
             else:
                 logger.warning(f"[ONBOARDING] Scaffold failed for '{name}': {result.get('message')}")
 

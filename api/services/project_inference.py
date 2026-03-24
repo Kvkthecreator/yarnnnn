@@ -1,18 +1,16 @@
 """
-Project Inference — ADR-136
+Project Inference — ADR-132/136
 
-Single Haiku call that enriches generic project templates with specific,
-actionable content based on user input (text description + uploaded docs).
+Single Sonnet call that reads user context (uploaded docs + text description)
+and infers complete project scaffolding: multiple scopes, objectives,
+success criteria, team composition, output specs.
 
-Called between user input and scaffold_project(). Produces:
-- Specific objective (not template interpolation)
-- Success criteria (measurable, PM can evaluate against)
-- Output specification (components, quality bar)
-- Team recommendation (which agent types and why)
-- Suggested cadence
+This is the brain of onboarding. One call extracts everything needed to
+scaffold N projects with rich, specific charter content.
 
-Input: user's scope name + optional text description + optional document content
-Output: enriched overrides for scaffold_project()
+Callers:
+  - POST /api/memory/user/onboarding (onboarding submit)
+  - Could also be called from TP CreateProject for conversation-driven creation
 """
 
 import json
@@ -21,160 +19,157 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-INFERENCE_MODEL = "claude-haiku-4-5-20251001"
-INFERENCE_MAX_TOKENS = 1024
+# Use Sonnet for onboarding inference — quality matters more than speed here
+INFERENCE_MODEL = "claude-sonnet-4-20250514"
+INFERENCE_MAX_TOKENS = 2048
 
 
-async def infer_project_spec(
-    scope_name: str,
-    description: str = "",
-    document_context: str = "",
+async def infer_work_scopes(
+    text_description: str = "",
+    document_contents: list[dict] = None,
 ) -> dict:
-    """Infer specific project specification from user input.
+    """Infer complete project scaffolding from user context.
 
-    Returns overrides for scaffold_project():
+    Single Sonnet call. Reads text + document contents → produces
+    multiple work scopes with rich specifications.
+
+    Args:
+        text_description: What the user typed about their work
+        document_contents: [{filename, content}] from uploaded docs
+
+    Returns:
         {
-            objective: {deliverable, audience, format, purpose},
-            success_criteria: [str, ...],
-            output_spec: {layout_mode, components: [{name, producer, description}], quality_bar: [str, ...]},
-            team: [{role, reason}],
-            cadence: str,
-            assembly_spec: str,
+            scopes: [{name, objective, success_criteria, output_spec, team, cadence, assembly_spec}],
+            brand: {name, tone},
+            user_context: str (1-sentence summary of what user does)
         }
-
-    Falls back to generic defaults if inference fails.
     """
     from services.anthropic import chat_completion
 
-    context_section = ""
-    if description:
-        context_section += f"\nUser's description: {description}"
-    if document_context:
-        context_section += f"\nFrom uploaded documents:\n{document_context[:2000]}"
+    # Build context from all inputs
+    context_parts = []
+    if text_description.strip():
+        context_parts.append(f"User's description:\n{text_description.strip()}")
+    if document_contents:
+        for doc in document_contents[:5]:  # Cap at 5 docs
+            name = doc.get("filename", "document")
+            content = doc.get("content", "")[:3000]  # Cap per doc
+            if content:
+                context_parts.append(f"--- Uploaded: {name} ---\n{content}")
 
-    prompt = f"""You are helping set up a recurring work project for a solo founder.
+    if not context_parts:
+        return {"scopes": [], "brand": {}, "user_context": ""}
 
-The user wants to track: "{scope_name}"
-{context_section}
+    context = "\n\n".join(context_parts)
 
-Based on this, define a specific, actionable project specification. Be concrete — use real names, numbers, and formats.
+    prompt = f"""You are helping a solo founder set up their autonomous work management system.
+
+Read their context carefully and extract the distinct workstreams they need to track.
+
+USER CONTEXT:
+{context}
+
+Based on this, identify 1-5 distinct work scopes (projects). Each scope is a recurring area of attention that needs its own team of AI agents.
+
+For each scope, provide a SPECIFIC, ACTIONABLE specification. Use real names, numbers, and formats from the user's context.
 
 Respond with ONLY a JSON object:
 {{
-  "objective": {{
-    "deliverable": "specific deliverable name (e.g., 'Weekly AI Competitive Intelligence Briefing')",
-    "audience": "who receives this (e.g., 'Founder', 'Board', 'Team')",
-    "format": "output format (e.g., 'Document with charts', 'Email summary', 'Dashboard')",
-    "purpose": "why this matters — 1 sentence"
-  }},
-  "success_criteria": [
-    "specific measurable criterion 1",
-    "specific measurable criterion 2",
-    "specific measurable criterion 3"
+  "scopes": [
+    {{
+      "name": "short project name",
+      "objective": {{
+        "deliverable": "specific deliverable (e.g., 'Weekly AI Competitive Intelligence Briefing')",
+        "audience": "who receives this",
+        "format": "document or dashboard or presentation",
+        "purpose": "why this matters — 1 sentence using user's actual context"
+      }},
+      "success_criteria": [
+        "specific measurable criterion from their context",
+        "another criterion",
+        "quality bar statement"
+      ],
+      "output_spec": {{
+        "layout_mode": "document or dashboard or presentation",
+        "components": [
+          {{"name": "section name", "description": "what this contains"}}
+        ]
+      }},
+      "team": [
+        {{"role": "briefer|scout|researcher|analyst|drafter|writer|planner", "reason": "why this type fits"}}
+      ],
+      "cadence": "daily or weekly or biweekly or monthly",
+      "assembly_spec": "1-2 sentence instruction for how to combine outputs"
+    }}
   ],
-  "output_spec": {{
-    "layout_mode": "document or dashboard or presentation",
-    "components": [
-      {{"name": "section name", "description": "what this section contains"}}
-    ],
-    "quality_bar": [
-      "minimum quality requirement 1",
-      "minimum quality requirement 2"
-    ]
+  "brand": {{
+    "name": "company or brand name (if mentioned)",
+    "tone": "communication tone (inferred from context)"
   }},
-  "team": [
-    {{"role": "briefer or scout or researcher or analyst or drafter or writer or planner", "reason": "why this type"}}
-  ],
-  "cadence": "daily or weekly or biweekly or monthly",
-  "assembly_spec": "1-2 sentence instruction for how to combine contributor outputs"
-}}"""
+  "user_context": "1-sentence summary of what this user does"
+}}
+
+IMPORTANT:
+- Extract REAL names, competitors, projects, metrics from their documents
+- Each scope should have 2-4 success criteria that are SPECIFIC to their context
+- Choose agent types that match the work: scout for external tracking, briefer for platform monitoring, researcher for deep investigation, analyst for data tracking, drafter for deliverable production, writer for communications
+- If only 1 scope is clear, return just 1 — don't invent scopes that aren't in the context
+- Cadence should match the work rhythm (daily for platform monitoring, weekly for analysis, etc.)"""
 
     try:
         response = await chat_completion(
-            messages=[{"role": "user", "content": "Generate the project specification."}],
+            messages=[{"role": "user", "content": "Analyze the context and extract work scopes."}],
             system=prompt,
             model=INFERENCE_MODEL,
             max_tokens=INFERENCE_MAX_TOKENS,
         )
 
-        # Parse JSON from response
+        # Parse JSON
         text = response.strip()
-        # Find JSON object
         start = text.find("{")
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
-            spec = json.loads(text[start:end])
-            logger.info(f"[INFERENCE] Inferred project spec for '{scope_name}': {list(spec.keys())}")
-            return spec
-        else:
-            logger.warning(f"[INFERENCE] No JSON found in response for '{scope_name}'")
+            result = json.loads(text[start:end])
+            logger.info(f"[INFERENCE] Extracted {len(result.get('scopes', []))} scopes")
+            return result
+
+        logger.warning("[INFERENCE] No JSON found in response")
     except Exception as e:
-        logger.warning(f"[INFERENCE] Failed for '{scope_name}': {e}")
+        logger.error(f"[INFERENCE] Failed: {e}")
 
-    # Fallback: return empty (scaffold_project will use registry defaults)
-    return {}
+    return {"scopes": [], "brand": {}, "user_context": ""}
 
 
-async def enrich_scaffold_params(
+async def read_uploaded_documents(
     client: Any,
     user_id: str,
-    scope_name: str,
-    description: str = "",
-    document_ids: list[str] = None,
-) -> dict:
-    """Enrich scaffold_project() parameters with inferred spec.
+    document_ids: list[str],
+) -> list[dict]:
+    """Read content from uploaded documents by ID.
 
-    Reads uploaded documents if provided, runs inference, returns
-    overrides that scaffold_project() accepts.
+    Returns [{filename, content}] for inference input.
     """
-    # Gather document context if provided
-    doc_context = ""
-    if document_ids:
+    docs = []
+    for doc_id in document_ids[:5]:  # Cap at 5
         try:
-            for doc_id in document_ids[:3]:  # Cap at 3 docs
-                result = client.table("filesystem_documents").select(
-                    "filename, content"
-                ).eq("id", doc_id).eq("user_id", user_id).single().execute()
-                if result.data and result.data.get("content"):
-                    doc_context += f"\n--- {result.data['filename']} ---\n{result.data['content'][:1000]}\n"
+            result = client.table("filesystem_documents").select(
+                "filename, file_type"
+            ).eq("id", doc_id).eq("user_id", user_id).single().execute()
+            if not result.data:
+                continue
+
+            # Read content from chunks (documents are chunked on upload)
+            chunks_result = client.table("filesystem_chunks").select(
+                "content"
+            ).eq("document_id", doc_id).order("chunk_index").execute()
+
+            content = "\n".join(c["content"] for c in (chunks_result.data or []) if c.get("content"))
+            if content:
+                docs.append({
+                    "filename": result.data.get("filename", "document"),
+                    "content": content,
+                })
         except Exception as e:
-            logger.warning(f"[INFERENCE] Document read failed: {e}")
+            logger.warning(f"[INFERENCE] Failed to read doc {doc_id}: {e}")
 
-    spec = await infer_project_spec(scope_name, description, doc_context)
-    if not spec:
-        return {}
-
-    overrides = {}
-
-    if spec.get("objective"):
-        overrides["objective_override"] = spec["objective"]
-
-    if spec.get("cadence"):
-        overrides["frequency"] = spec["cadence"]
-
-    if spec.get("assembly_spec"):
-        overrides["assembly_spec_override"] = spec["assembly_spec"]
-
-    # Build enriched team from spec
-    if spec.get("team"):
-        from services.agent_framework import AGENT_TYPES
-        contributors = []
-        for t in spec["team"]:
-            role = t.get("role", "briefer")
-            if role not in AGENT_TYPES:
-                role = "briefer"
-            contributors.append({
-                "title_template": f"{scope_name} {AGENT_TYPES[role]['display_name']}",
-                "role": role,
-                "scope": "cross_platform",
-                "frequency": spec.get("cadence", "weekly"),
-                "expected_contribution": t.get("reason", f"{role} output"),
-            })
-        if contributors:
-            overrides["contributors_override"] = contributors
-
-    # Store success criteria and output spec for write_project to use
-    overrides["_success_criteria"] = spec.get("success_criteria", [])
-    overrides["_output_spec"] = spec.get("output_spec", {})
-
-    return overrides
+    return docs
