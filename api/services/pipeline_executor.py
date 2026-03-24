@@ -1,5 +1,5 @@
 """
-Pipeline Executor — ADR-137
+Pipeline Executor — ADR-137 (v1)
 
 Reads PROCESS.md pipeline definition and executes steps mechanically.
 No LLM coordination — steps advance based on dependencies.
