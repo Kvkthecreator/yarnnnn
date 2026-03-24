@@ -1,6 +1,6 @@
 # ADR-133: PM-Coordinated Phase Dispatch
 
-> **Status**: Phases 1-3 Implemented (PM coordination pulse, cross-phase context injection, capability-aware decomposition).
+> **Status**: Phases 1-3 Implemented. **Superseded by ADR-137** — PM coordination pulse replaced by declarative pipeline execution. Pipeline steps are declared in PROCESS.md, executed mechanically by scheduler. PM becomes pipeline-embedded evaluate/compose/reflect steps.
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-126 (independent contributor pulse), ADR-088 (trigger dispatch — caller changes)

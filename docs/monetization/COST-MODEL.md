@@ -1,7 +1,7 @@
 # Cost Model — Per-Project Economics
 
-> **Status**: Canonical
-> **Date**: 2026-03-24
+> **Status**: Canonical — updated for ADR-137 (declarative pipeline, no PM coordination overhead)
+> **Date**: 2026-03-24 (revised)
 > **Related**: ADR-100 (tier model), ADR-130 (capabilities), ADR-136 (charter architecture)
 
 ---

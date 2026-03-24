@@ -1,6 +1,6 @@
 # PM Orchestration Model
 
-> **Status**: Canonical. Honest assessment of implemented vs. gap state.
+> **Status**: Evolving. **ADR-137 supersedes PM coordination model** — PM becomes pipeline-embedded steps (evaluate/compose/reflect), not autonomous coordinator. Pipeline declared in PROCESS.md, executed mechanically. See ADR-137 for new model.
 > **Date**: 2026-03-23
 > **Rule**: All PM coordination decisions should be consistent with this document.
 > **Related**: ADR-120 (PM role), ADR-121 (intelligence director), ADR-128 (coherence), ADR-133 (phase dispatch), ADR-135 (chat as coordination substrate), ADR-136 (charter architecture — PROJECT.md + TEAM.md + PROCESS.md split)
