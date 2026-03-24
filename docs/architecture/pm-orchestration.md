@@ -3,7 +3,7 @@
 > **Status**: Canonical. Honest assessment of implemented vs. gap state.
 > **Date**: 2026-03-23
 > **Rule**: All PM coordination decisions should be consistent with this document.
-> **Related**: ADR-120 (PM role), ADR-121 (intelligence director), ADR-128 (coherence), ADR-133 (phase dispatch), ADR-135 (chat as coordination substrate)
+> **Related**: ADR-120 (PM role), ADR-121 (intelligence director), ADR-128 (coherence), ADR-133 (phase dispatch), ADR-135 (chat as coordination substrate), ADR-136 (charter architecture — PROJECT.md + TEAM.md + PROCESS.md split)
 
 ---
 
