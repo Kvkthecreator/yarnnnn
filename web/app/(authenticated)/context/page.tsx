@@ -1,19 +1,17 @@
 'use client';
 
 /**
- * Context Page — Workspace File Browser
+ * Workspace Page — Cross-Project File Browser
  *
- * Cross-project visibility into the user's workspace data.
- * Like Finder for YARNNN — not used daily, but essential when you
- * need to find something or see the big picture across projects.
+ * Finder-style browser for the user's workspace data across all projects.
+ * Not the primary surface — Orchestrator + Project meeting rooms are primary.
  *
  * Sections:
- * - Knowledge: Agent-produced outputs across all projects (cross-project view)
- * - Platforms: Connected integrations + source management (Slack, Notion)
+ * - Knowledge: Agent-produced outputs across all projects
  * - Documents: Uploaded files (PDF, DOC, TXT, MD)
  *
- * ADR-132: Primary surfaces are Orchestrator + Project meeting rooms.
- * This page is the workspace-level browser for power users and cross-project search.
+ * ADR-133: Platforms moved to Settings (infrastructure).
+ * Platform agents (briefer, monitor) bridge external data into projects.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -47,8 +45,8 @@ import ReactMarkdown from 'react-markdown';
 // Types
 // =============================================================================
 
-type Section = 'platforms' | 'documents' | 'knowledge';
-const VALID_SECTIONS: readonly Section[] = ['platforms', 'documents', 'knowledge'] as const;
+type Section = 'knowledge' | 'documents';
+const VALID_SECTIONS: readonly Section[] = ['knowledge', 'documents'] as const;
 
 function normalizeSection(value: string | null): Section {
   return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'knowledge';
@@ -95,9 +93,9 @@ const ALL_PLATFORMS = ['slack', 'notion'] as const;
 // Section Navigation
 // =============================================================================
 
+// ADR-133: Platforms moved to Settings (infrastructure). Workspace page shows knowledge + documents.
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'knowledge', label: 'Knowledge', icon: <FolderTree className="w-4 h-4" /> },
-  { id: 'platforms', label: 'Platforms', icon: <Layers className="w-4 h-4" /> },
   { id: 'documents', label: 'Documents', icon: <FolderOpen className="w-4 h-4" /> },
 ];
 
@@ -509,7 +507,7 @@ function KnowledgeSection({
         <div>
           <h2 className="text-lg font-semibold text-foreground">Knowledge</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Agent outputs and user notes organized by content class.
+            Agent outputs across all projects.
           </p>
         </div>
         <button
@@ -809,15 +807,7 @@ export default function ContextPage() {
           ))}
         </div>
 
-        {/* Content */}
-        {activeSection === 'platforms' && (
-          <PlatformsSection
-            platforms={platforms}
-            loading={false}
-            onNavigate={(platform) => router.push(`/context/${platform}`)}
-          />
-        )}
-
+        {/* Content — ADR-133: Platforms moved to Settings */}
         {activeSection === 'documents' && (
           <DocumentsSection
             documents={documents}

@@ -82,9 +82,37 @@ Agents read project-level files. No runtime hierarchy crossing. Projects are sel
 | `/brand/default/BRAND.md` | `/workspace/BRAND.md` | Brand template |
 | `/memory/notes.md` | `/memory/notes.md` | Unchanged — TP-accumulated knowledge |
 
+## Agent Categories (v2)
+
+Three categories with different data access patterns:
+
+| Category | Types | External data? | Internal data? | Recursive? |
+|----------|-------|----------------|----------------|------------|
+| **Perception** | briefer, monitor, scout | Yes (platforms, web) | Via search_knowledge | No — one-way bridge |
+| **Production** | researcher, drafter, analyst, writer, planner | No | Yes (knowledge, contributions) | Yes — PM-orchestrated |
+| **Coordination** | pm | No | Yes (all contributions) | Yes — orchestrates loop |
+
+Perception agents bridge external data into the project. Production agents work within the recursive PM loop. Platform data enters projects exclusively through perception agents — production agents never read `platform_content` directly.
+
+### Source selection at agent level
+
+Perception agents own their source configuration via the `sources` field on the agents table. This determines which specific channels/pages each agent reads from the global `platform_content` data lake.
+
+```
+Sync pipeline: pulls ALL connected channels → platform_content (global)
+Agent execution: reads platform_content WHERE source IN agent.sources (scoped)
+```
+
+Source selection is per-agent, not per-project or global. The agent's `sources` is set at scaffold time and can be refined by the user or PM.
+
+### Platforms as infrastructure
+
+Platform connections and sync are infrastructure — not a primary user surface. Managed in Settings, not on the Orchestrator. The Workspace page (cross-project browser) shows Knowledge and Documents, not Platforms.
+
 ## Revision History
 
 | Date | Change |
 |------|--------|
 | 2026-03-23 | v1 — Initial: two-scope model, preferences dissolved, project seeding |
-| 2026-03-23 | v1.1 — Removed project seeding. Agents read /workspace/ directly at execution time. No IDENTITY.md or BRAND.md in project folders. Projects contain only project-unique data. |
+| 2026-03-23 | v1.1 — Removed project seeding. Agents read /workspace/ directly. |
+| 2026-03-24 | v2 — Perception/production/coordination agent model. Platform types deleted. Source selection at agent level. Platforms moved to Settings. |
