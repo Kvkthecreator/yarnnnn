@@ -29,6 +29,7 @@ import { useTP } from "@/contexts/TPContext";
 import { HOME_ROUTE } from "@/lib/routes";
 import { MemorySection } from "@/components/settings/MemorySection";
 import { SystemSection } from "@/components/settings/SystemSection";
+import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -534,36 +535,11 @@ export default function SettingsPage() {
       {/* Notifications Tab */}
       {/* Connectors Tab — platform connections (ADR-133: moved from Workspace) */}
       {activeTab === "connectors" && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Link2 className="w-5 h-5" />
-            Connectors
-          </h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically.
-          </p>
-          <div className="space-y-3">
-            {[{ platform: 'slack', label: 'Slack' }, { platform: 'notion', label: 'Notion' }].map(({ platform, label }) => (
-              <div key={platform} className="p-4 border border-border rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Database className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <div className="font-medium">{label}</div>
-                    <div className="text-sm text-muted-foreground">
-                      Manage connection and sources in the platform settings page
-                    </div>
-                  </div>
-                </div>
-                <a
-                  href={`/context/${platform}`}
-                  className="text-sm text-primary hover:underline"
-                >
-                  Manage →
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
+        <ConnectedIntegrationsSection
+          title="Connectors"
+          description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
+          redirectTo="/settings?tab=connectors"
+        />
       )}
 
       {/* Account Tab - Data & Privacy */}
