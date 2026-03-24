@@ -37,7 +37,7 @@ import { ROLE_LABELS } from '@/lib/constants/agents';
 import type { Role } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
+import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion, ProjectSummary } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import ReactMarkdown from 'react-markdown';
 
@@ -45,11 +45,11 @@ import ReactMarkdown from 'react-markdown';
 // Types
 // =============================================================================
 
-type Section = 'knowledge' | 'documents';
-const VALID_SECTIONS: readonly Section[] = ['knowledge', 'documents'] as const;
+type Section = 'projects' | 'knowledge' | 'documents';
+const VALID_SECTIONS: readonly Section[] = ['projects', 'knowledge', 'documents'] as const;
 
 function normalizeSection(value: string | null): Section {
-  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'knowledge';
+  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'projects';
 }
 
 const VALID_KNOWLEDGE_CLASSES: readonly KnowledgeContentClass[] = [
@@ -93,10 +93,11 @@ const ALL_PLATFORMS = ['slack', 'notion'] as const;
 // Section Navigation
 // =============================================================================
 
-// ADR-133: Platforms moved to Settings (infrastructure). Workspace page shows knowledge + documents.
+// ADR-133: Project-first workspace browser
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: 'knowledge', label: 'Knowledge', icon: <FolderTree className="w-4 h-4" /> },
-  { id: 'documents', label: 'Documents', icon: <FolderOpen className="w-4 h-4" /> },
+  { id: 'projects', label: 'Projects', icon: <FolderTree className="w-4 h-4" /> },
+  { id: 'knowledge', label: 'Outputs', icon: <Layers className="w-4 h-4" /> },
+  { id: 'documents', label: 'Uploads', icon: <FolderOpen className="w-4 h-4" /> },
 ];
 
 // =============================================================================
@@ -505,9 +506,9 @@ function KnowledgeSection({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Knowledge</h2>
+          <h2 className="text-lg font-semibold text-foreground">Outputs</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Agent outputs across all projects.
+            Agent-produced files across all projects.
           </p>
         </div>
         <button
@@ -679,10 +680,11 @@ export default function ContextPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
   const [knowledgeClassCounts, setKnowledgeClassCounts] = useState<Record<string, number>>({});
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [platformsResult, documentsResult, knowledgeResult, knowledgeSummary] = await Promise.all([
+      const [platformsResult, documentsResult, knowledgeResult, knowledgeSummary, projectsResult] = await Promise.all([
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.documents.list().catch(() => ({ documents: [] })),
         api.knowledge.listFiles({
@@ -690,9 +692,11 @@ export default function ContextPage() {
           limit: 60,
         }).catch(() => ({ files: [] })),
         api.knowledge.summary().catch(() => ({ classes: [] })),
+        api.projects.list().catch(() => ({ projects: [] })),
       ]);
 
       setPlatforms(platformsResult?.platforms || []);
+      setProjects(projectsResult?.projects || []);
       setDocuments(documentsResult?.documents || []);
       setKnowledgeFiles(knowledgeResult?.files || []);
 
@@ -773,7 +777,7 @@ export default function ContextPage() {
           <div>
             <h1 className="text-2xl font-bold">Workspace</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Browse knowledge, platforms, and documents across all projects
+              Browse projects, outputs, and uploads
             </p>
           </div>
           <button
@@ -807,7 +811,45 @@ export default function ContextPage() {
           ))}
         </div>
 
-        {/* Content — ADR-133: Platforms moved to Settings */}
+        {/* Content */}
+        {activeSection === 'projects' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Projects</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Your projects and their workspace files.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {projects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No projects yet. Create one from the Orchestrator.</p>
+              ) : (
+                projects.map((p) => (
+                  <a
+                    key={p.project_slug}
+                    href={`/projects/${p.project_slug}`}
+                    className="block p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium">{p.title || p.project_slug}</span>
+                        {p.purpose && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{p.purpose}</p>
+                        )}
+                      </div>
+                      {p.updated_at && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {activeSection === 'documents' && (
           <DocumentsSection
             documents={documents}
