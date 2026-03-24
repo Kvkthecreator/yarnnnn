@@ -91,7 +91,7 @@ export function ContextSidebar() {
           ))}
         </div>
 
-        {/* Knowledge — cross-project view */}
+        {/* All Files — cross-project output view */}
         <button
           onClick={() => router.push('/context?section=knowledge')}
           className={cn(
@@ -103,7 +103,7 @@ export function ContextSidebar() {
         >
           <span className="flex items-center gap-2">
             <FolderTree className="w-4 h-4" />
-            Knowledge
+            All Files
           </span>
           {totalKnowledge > 0 && (
             <span className="text-muted-foreground text-xs">{totalKnowledge}</span>
@@ -121,7 +121,7 @@ export function ContextSidebar() {
           )}
         >
           <FileText className="w-4 h-4" />
-          Documents
+          Uploads
         </button>
       </div>
     </nav>
