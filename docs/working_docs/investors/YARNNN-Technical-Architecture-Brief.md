@@ -1,50 +1,69 @@
 # YARNNN Technical Architecture Brief
 
-**Supplemental to IR Deck — March 2026**
+**Supplemental to IR Deck — March 2026 (v2)**
 **Kevin Kim · kvkthecreator@gmail.com · yarnnn.com**
 
 ---
 
-## The Core Insight: Claude Code Online
+## The Core Insight: Claude Code Online — For Teams
 
-Claude Code demonstrated that structured instructions (SKILL.md) + local tools + a filesystem = indefinitely expandable agent capabilities. YARNNN applies this exact model — but persistent, autonomous, and cloud-native.
+Claude Code proved that structured instructions (SKILL.md) + local tools + a filesystem = indefinitely expandable agent capabilities. YARNNN applies this exact model — but persistent, autonomous, multi-agent, and cloud-native.
 
 **Two-filesystem architecture:**
 
-The capability filesystem lives on the output gateway (a Docker service with pandoc, python-pptx, matplotlib, pillow installed). Skills are folders: `render/skills/pptx/SKILL.md`, `render/skills/chart/scripts/render.py`. Adding a new output format means adding a skill folder — same expansion model as Claude Code.
+The capability filesystem lives on the output gateway (a Docker service with pandoc, python-pptx, matplotlib, pillow). Skills are folders: `render/skills/chart/SKILL.md`, `render/skills/mermaid/scripts/render.py`. Adding a new output capability means adding a skill folder — same expansion model as Claude Code. Eight skills are live today.
 
-The content filesystem lives in a virtual filesystem over Postgres (`workspace_files`). Each agent has a workspace: `AGENT.md` (behavioral identity), `memory/preferences.md` (learned from edits), `thesis.md` (accumulated understanding), output folders with manifests. This is the accumulating substrate — every run reads from it, every run writes to it.
+The content filesystem lives in a virtual filesystem over Postgres (`workspace_files`). Each agent has a workspace: `AGENT.md` (behavioral identity), `memory/preferences.md` (learned from edits), `thesis.md` (accumulated understanding), output folders with manifests. Each project has a charter: `PROJECT.md` (objective), `TEAM.md` (roster + capabilities), `PROCESS.md` (output spec, cadence, phases). This is the accumulating substrate — every pulse reads from it, every run writes to it.
 
-The deliberate separation matters: capabilities are platform-wide and curated; content is user-scoped and accumulating. Same interface pattern, different services, different lifecycles. Agents read SKILL.md to learn how to construct high-quality output specs, then the gateway renders them. The agent never knows whether a skill runs locally in the container or calls an external API.
+The deliberate separation: capabilities are platform-wide and curated; content is user-scoped and accumulating. Same interface pattern, different services, different lifecycles.
 
-**What this means for investors:** YARNNN's capability surface expands the same way Claude Code's does — structurally, not through custom engineering per feature. Eight skills are live today (PDF, PPTX, XLSX, chart, diagram, HTML, data export, image). Each new skill is a folder, not a project.
+**What this means for investors:** YARNNN's capability surface expands the same way Claude Code's does — structurally, not through custom engineering per feature. And the filesystem convention is marketplace-compatible: imported skills (MCP tools, Claude Code marketplace, external APIs) plug in via the same SKILL.md interface.
 
 ---
 
-## Autonomous Orchestration: The Composer Heartbeat
+## Agent Types: The Product Catalog
 
-Most "AI agent" products require a human to create, configure, and manage agents. YARNNN's Composer is an autonomous management layer that runs the knowledge workforce without human prompting.
+Every agent is one of 8 specialist types — a "hire" the user adds to their project team. Three registries define the capability substrate:
 
-**How it works:**
+1. **Agent Type Registry** — 8 user-facing types (briefer, monitor, researcher, analyst, drafter, writer, planner, scout) + PM infrastructure. Each type is a deterministic bundle of capabilities. No earning, no progression, no seniority gates.
 
-A cron-triggered heartbeat periodically assesses the entire agent workforce. The assessment is substrate-aware — it reads:
+2. **Capability Registry** — maps each capability to its category, runtime, tool, and skill docs. `chart` → Python runtime → matplotlib → `render/skills/chart/SKILL.md`.
 
-- Platform content freshness (what's been synced, what's stale)
-- Agent maturity signals (run count, approval rate, edit distance trend)
-- Cross-agent consumption patterns (agent A's output appearing in agent B's manifest)
-- Knowledge corpus gaps (platforms connected but underserved by agents)
+3. **Runtime Registry** — where compute happens. Internal (API service), Python render (Docker gateway), Node Remotion (future), external APIs.
 
-Based on this assessment, Composer takes autonomous actions:
+Capabilities are fixed at creation by type. Development is knowledge depth — accumulated memory, learned preferences, refined domain expertise — not capability breadth. An analyst on its 50th run doesn't gain new tools; it has 50 cycles of accumulated observations about what matters in this user's data.
 
-- **Creates agents** when it detects unserved patterns ("You have recurring 1:1s but no meeting prep agent")
-- **Pauses underperformers** when edit distance stays high after multiple runs
-- **Dissolves unused agents** when outputs go unread
-- **Coaches via supervisor notes** written to agent workspaces (steering without reconfiguring)
-- **Proposes projects** when cross-agent composition opportunities emerge
+**What this means for investors:** The type system is the product offering. Users "hire" agent types the way they'd hire team members. New types can be added to the registry without framework changes — the registries are the expansion path.
 
-**Five bounded contexts:** Bootstrap (deterministic agent creation on platform connect), Heartbeat (periodic assessment), Composer (assessment + creation/adjustment), Project creation (multi-agent coordination), and Lifecycle management (pause/dissolve/promote).
+---
 
-**What this means for investors:** The system manages itself. User effort decreases over time while output quality increases — the inverse of every SaaS tool that requires ongoing configuration.
+## Coordinated Execution: PM Phase Dispatch
+
+Most "AI agent" products run agents independently. YARNNN coordinates them as a team.
+
+**The execution model:**
+
+Every project has a PM agent that owns the heartbeat. Contributors don't pulse independently — the PM dispatches them in structured phases:
+
+```
+PM pulses every 2h
+  → Reads work plan (phases with dependencies)
+  → Checks: what phase are we in? What's blocking?
+  → Dispatches contributor(s) for current phase
+  → Injects cross-phase context (prior phase outputs → next phase briefs)
+  → Contributors execute within phase context
+  → PM reads contributor self-assessments
+  → PM advances phase, re-steers, or triggers assembly
+```
+
+**Three-tier pulse funnel (cheap-first):**
+- Tier 1 (deterministic): Fresh content? Budget? Cadence met? Zero LLM cost. ~80% of pulses resolve here.
+- Tier 2 (Haiku self-assessment): Agent reads own workspace, decides whether to generate. ~$0.001/pulse.
+- Tier 3 (PM coordination): PM reads contributor state, dispatches phases, gates quality. ~$0.01/pulse.
+
+**Charter-driven cadence enforcement** prevents runaway execution. The `PROCESS.md` file specifies cadence (e.g., "weekly on Monday"); Tier 1 enforces it deterministically. Result: predictable cost — ~$0.50/month per project at steady state.
+
+**What this means for investors:** This is coordination intelligence, not just individual agent quality. A weekly competitive brief where researcher → analyst → writer → PM assembly is structurally different from three independent agents producing uncoordinated outputs. And the coordination improves with tenure — PM learns which handoffs work, which contributors need steering, what assembly cadence produces the best deliverable.
 
 ---
 
@@ -52,39 +71,36 @@ Based on this assessment, Composer takes autonomous actions:
 
 The claim that "agents improve with tenure" is structural, not aspirational. Three concrete mechanisms:
 
-**1. Edit distillation (ADR-117):** When a user edits an agent's output, the system categorizes the edit (tone, structure, content, emphasis), extracts the implicit preference, and writes it to `memory/preferences.md`. Next run, these preferences are injected into the agent's system prompt. The agent literally learns "this user prefers bullet points over paragraphs" or "always lead with revenue numbers." This is implemented and running in production.
+**1. Edit distillation (ADR-117):** When a user edits an agent's output, the system categorizes the edit (tone, structure, content, emphasis), extracts the implicit preference, and writes it to `memory/preferences.md`. Next run, these preferences are injected into the agent's system prompt. The agent literally learns "this user prefers bullet points over paragraphs" or "always lead with revenue numbers." Implemented and running in production.
 
-**2. Agent self-reflection:** After every headless run, the agent writes observations to `memory/observations.md` — what it noticed about the content landscape, what seemed important, what was uncertain. These observations accumulate and inform future runs. An agent that's run 50 times has 50 runs worth of accumulated observations about the user's work context.
+**2. Agent self-reflection (ADR-128):** After every run, the agent writes a self-assessment to `memory/self_assessment.md` — mandate fitness, domain fitness, context currency, output confidence. These assessments form a rolling trajectory (5 most recent). The PM reads contributor trajectories to inform steering decisions. An agent that repeatedly flags "low context currency" gets dispatched with richer context next cycle.
 
-**3. Seniority progression:** Agents progress through levels — new, associate, senior — based on run count, approval rate, and edit distance trend. Senior agents earn expanded duty portfolios (additional responsibilities within their role). This is a concrete mechanism for capability expansion gated on demonstrated competence, not just time.
+**3. Multi-agent coherence protocol (ADR-128):** Four flows keep conversation, filesystem, and agent cognition in sync: contributors write self-assessments → PM reads trajectories → chat directives persist to `memory/directives.md` → contributors read PM project assessments. The team stays aligned without human coordination.
 
-**What this means for investors:** Week 12 outputs require zero corrections not because the LLM got smarter, but because 12 weeks of structural feedback shaped the agent's behavior. This is the mechanism behind the switching cost — a competitor's agent starts from Week 1.
+**What this means for investors:** Week 12 outputs require zero corrections not because the LLM got smarter, but because 12 weeks of structural feedback shaped every team member's behavior and the PM's coordination patterns. This is the mechanism behind the switching cost — a competitor's team starts from Week 1.
 
 ---
 
-## Multi-Agent Project Coordination
+## Work-First Onboarding: Describe, Don't Configure
 
-YARNNN is evolving from a collection of independent agents to a coordinated agent workforce that produces assembled deliverables.
+Most AI tools start with "connect your platforms." YARNNN starts with "describe your work."
 
-**The coordination model:**
+A two-step onboarding (completable in 60 seconds): (1) "How is your work structured?" — single-focus vs. multi-scope, (2) define work scopes with context. A single Sonnet inference extracts structured work units. Each work unit becomes a project via `scaffold_project()` — deterministic creation of PM + typed contributors + three-file charter.
 
-- **Projects** are containers for multi-agent work. A project has intent (what it produces, for whom), contributors (which agents feed into it), an assembly spec (how parts combine), and delivery settings.
-- **PM agents** are domain-cognitive coordinators. They assess contribution quality against project intent, steer contributors via briefs (`/contributions/{slug}/brief.md`), gate assembly on quality thresholds, and manage work budgets.
-- **Assembly** is Composer-driven. When contributions have meaningfully changed, Composer reads the project's assembly spec, invokes output gateway skills (PPTX, PDF, charts), and writes the assembled output to the project's assembly folder with a manifest.
-- **Work budgets** bound autonomous compute. Free tier: 60 work units/month. Pro: 1,000. Each agent run, assembly, or render consumes units. The system self-governs within budget constraints.
+Platform connections happen after (or in parallel) and enrich existing work-scoped projects. Slack channels map to client projects. Notion pages map to knowledge domains. The platform is the data source; the work description is the organizing principle.
 
-**What this means for investors:** This is the composition story — the moat beyond individual agent quality. A "Monday Executive Brief" project that pulls from Slack digest, Gmail digest, and market research agents, assembled into a PDF deck, is a deliverable no single-platform AI can produce. And it improves every week because every contributing agent improves every week.
+**What this means for investors:** The user describes "3 clients and a product launch" and gets 4 correctly-scoped projects with coordinated agent teams — not a generic Slack recap. The system understands work structure, not just platform topology. And work descriptions carry implicit lifecycle: "3 clients" implies persistent recurring work; "board deck" implies bounded deliverable. The system infers this — the user doesn't configure it.
 
 ---
 
 ## Engineering Velocity & Rigor
 
-**122 Architecture Decision Records** document every significant design choice — from memory architecture (ADR-059) to project coordination (ADR-122). Each ADR captures context, alternatives considered, decision rationale, and implementation status. This isn't documentation for documentation's sake — it's the substrate that enables a solo founder to maintain architectural coherence across 8,000+ lines of backend logic, 4 platform integrations, 5 Render services, and a React frontend.
+**136 Architecture Decision Records** document every significant design choice — from memory architecture (ADR-059) to project charter separation (ADR-136). Each ADR captures context, alternatives, rationale, and implementation status. This is the substrate that enables a solo founder to maintain architectural coherence across a complex multi-service system.
 
 **Full-stack implementation by a single technical founder:**
-Next.js frontend, FastAPI backend, Supabase (Postgres), Claude API, Docker output gateway. Four platform integrations (Slack, Gmail, Notion, Calendar) with OAuth, paginated sync, and tier-based rate limiting. MCP server with OAuth 2.1 for Claude.ai/ChatGPT interop. Nine MCP tools exposing agent discovery, knowledge search, and cross-agent reading.
+Next.js frontend, FastAPI backend, Supabase (Postgres), Claude API, Docker output gateway. Two platform integrations (Slack, Notion) with OAuth, paginated sync, and tier-based rate limiting. MCP server with OAuth 2.1 for Claude.ai/ChatGPT interop (9 tools). Five Render services. HTML compose engine with 8-skill library. Work budget governor. PM-coordinated phase dispatch. Three-tier pulse architecture.
 
-**What this signals:** The architecture isn't a prototype that needs to be rebuilt. It's production infrastructure with the engineering rigor of a team — built by one person who made 122 deliberate decisions instead of 122 shortcuts.
+**What this signals:** The architecture isn't a prototype that needs to be rebuilt. It's production infrastructure with the engineering rigor of a team — built by one person who made 136 deliberate decisions instead of 136 shortcuts.
 
 ---
 

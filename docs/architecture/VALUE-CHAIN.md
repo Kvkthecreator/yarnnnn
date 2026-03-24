@@ -1,8 +1,9 @@
 # YARNNN Value Realization Chain
 
-> **Status**: Canonical
-> **Date**: 2026-03-16
-> **Related**: [FOUNDATIONS.md](FOUNDATIONS.md) (Axioms 2, 4, 5), [NARRATIVE.md](../NARRATIVE.md) (Beats 3-5), [ADR-110](../adr/ADR-110-onboarding-bootstrap.md), [ADR-111](../adr/ADR-111-agent-composer.md), [ADR-113](../adr/ADR-113-auto-source-selection.md)
+> **Status**: Canonical (v2 — Era 3 rewrite)
+> **Date**: 2026-03-24
+> **Previous**: v1 (2026-03-16, platform-first model)
+> **Related**: [FOUNDATIONS.md](FOUNDATIONS.md) (Axioms 2, 4, 5, 6), [NARRATIVE.md](../NARRATIVE.md) (Beats 3-5), [ADR-132](../adr/ADR-132-work-first-onboarding.md), [ADR-122](../adr/ADR-122-project-type-registry.md), [ADR-133](../adr/ADR-133-pm-coordinated-phase-dispatch.md)
 > **Audience**: Engineering (canonical pipeline reference), IR/Strategy (value compounding narrative)
 
 ---
@@ -10,165 +11,167 @@
 ## The Chain
 
 ```
-CONNECT  →  PERCEIVE  →  BOOTSTRAP  →  FIRST VALUE  →  ACCUMULATE  →  COMPOSE  →  COMPOUND
-  │            │             │              │               │             │            │
-  ▼            ▼             ▼              ▼               ▼             ▼            ▼
-OAuth +      Smart        Auto-create    First agent     Outputs       Composer     Second-order
-auto-select  defaults +   platform       run delivers    feed back     identifies   agents build
-sources      first sync   digest agent   within minutes  as content    new patterns on first-order
-                                                                                    outputs
+DESCRIBE  →  SCAFFOLD  →  CONNECT  →  FIRST VALUE  →  ACCUMULATE  →  COORDINATE  →  COMPOUND
+   │            │            │             │               │              │              │
+   ▼            ▼            ▼             ▼               ▼              ▼              ▼
+User shares  Projects +   Platforms     First agent    Outputs feed   PM phases      Team intel
+work context PM + team    enrich work-  run delivers   back, prefs    get smarter,   compounds:
+             scaffolded   scoped        within         distill,       cross-phase    deeper
+             from work    projects      minutes        domains        handoffs       expertise,
+             description                               deepen         refine         better output
 ```
 
 Each phase's output is the next phase's input. This is the product's compounding mechanism — and the reason a competitor starting from zero cannot replicate a tenured YARNNN instance.
 
 ---
 
-## Phase 1: Connect (seconds)
+## Phase 1: Describe (seconds)
 
-**What happens**: User clicks a platform card on the dashboard. OAuth completes. The system takes over.
+**What happens**: User completes two-step onboarding: (1) "How is your work structured?" — single-focus vs. multi-scope, (2) define work scopes with context (text description + optional files). A single Sonnet inference extracts structured work units with rich specs.
 
-**Who does it**: OAuth callback (`api/routes/integrations.py`)
+**Who does it**: Onboarding page (`web/app/(authenticated)/onboarding/`) → inference endpoint → `scaffold_project()` for each work unit
+
+**What it produces**:
+- Work units extracted from user description (each with scope, deliverable type, implied audience, cadence)
+- Work structure stored in `/memory/WORK.md`
+- Ready for project scaffolding
+
+**Design principle**: The most valuable input at onboarding is "what are you working on?" — not "which platform do you use." Work context determines project structure, agent types, scoping, and cadence. Platform connections are data enrichment, not the organizing principle (FOUNDATIONS.md Axiom 6).
+
+**Why this matters**: A solo founder who says "I have 3 clients and a product launch" gets 4 correctly-scoped projects. Under the old platform-first model, connecting Slack would have produced one generic digest of everything.
+
+**ADRs**: ADR-132 (work-first onboarding), ADR-122 (project type registry)
+
+---
+
+## Phase 2: Scaffold (seconds, immediate after Phase 1)
+
+**What happens**: Each work unit becomes a project via `scaffold_project()`. The system creates a PM agent, typed contributor agents, and a three-file charter.
+
+**Who does it**: Project type registry (`api/services/project_registry.py`)
+
+**What it produces**:
+- Project with charter files: `PROJECT.md` (objective, success criteria), `TEAM.md` (roster, capabilities), `PROCESS.md` (output spec, cadence, delivery)
+- PM agent scoped to the project
+- Contributor agents typed from the work description (briefer, analyst, researcher, etc.)
+- Agent workspaces seeded: `AGENT.md`, `memory/self_assessment.md`, `memory/preferences.md`
+- Cognitive files seeded for coherence protocol
+
+**Design principle**: Deterministic scaffolding. No LLM needed to know that "track competitor pricing weekly" warrants a project with a scout + analyst + PM. Speed and reliability over sophistication. The PM and Composer handle the sophisticated decisions later.
+
+**ADRs**: ADR-122 (project type registry + `scaffold_project()`), ADR-136 (three charter files), ADR-130 (agent type registry)
+
+---
+
+## Phase 3: Connect (seconds — can happen before, during, or after Phases 1-2)
+
+**What happens**: User connects platforms via OAuth. Sources are auto-selected and mapped to work-scoped projects. Sync begins.
+
+**Who does it**: OAuth callback (`api/routes/integrations.py`) → `compute_smart_defaults()` → platform sync worker
 
 **What it produces**:
 - Platform connection with encrypted credentials
-- Landscape discovery (all available channels, labels, pages, calendars)
-- Smart source auto-selection via `compute_smart_defaults()` (ADR-113)
-- First sync kicked off as a background task
-- Redirect to `/dashboard` — not a configuration page
+- Landscape discovery (all available channels, pages)
+- Smart source auto-selection mapped to existing projects (Slack channels → matching work scopes)
+- First sync kicked off as background task
+- `platform_content` rows — Slack messages, Notion pages — tagged with TTL-based retention
 
-**Design principle**: Zero decisions required from the user. Source selection is automatic, informed by multi-signal heuristics (channel purpose, name patterns, type, recency). Manual curation is available later as optional refinement, never as a prerequisite.
+**Design principle**: Platform connections enrich existing work-scoped projects rather than creating new generic digests. A platform connection without work context falls back to bootstrap behavior (generic platform digest project). A platform connection *with* work context maps sources to the right projects.
 
-**ADRs**: ADR-113 (auto source selection), ADR-057 (onboarding flow), ADR-112 (sync efficiency)
-
----
-
-## Phase 2: Perceive (seconds to minutes)
-
-**What happens**: Platform sync fetches content from auto-selected sources. Raw work data flows into the knowledge base.
-
-**Who does it**: Platform sync worker (`api/workers/platform_worker.py`)
-
-**What it produces**:
-- `platform_content` rows — Slack messages, Gmail threads, Notion pages, Calendar events
-- Paginated, incremental, platform-specific extraction (thread expansion, user resolution, deduplication)
-- Content tagged with TTL-based retention (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d)
-
-**Design principle**: The perception pipeline is the onramp. It meets users where their work already lives. But it is not the engine — the engine is what agents do with this substrate (Phases 4-7).
-
-**ADRs**: ADR-077 (sync overhaul), ADR-072 (unified content layer), ADR-112 (sync efficiency)
+**ADRs**: ADR-113 (auto source selection), ADR-132 (platform → work unit mapping), ADR-112 (sync efficiency)
 
 ---
 
-## Phase 3: Bootstrap (immediate, post-sync)
+## Phase 4: First Value (minutes after scaffolding)
 
-**What happens**: Sync completes. The system deterministically creates a matching digest agent for the platform.
+**What happens**: The PM dispatches the first contributor run. The user sees a real output — a digest, analysis, or briefing of their actual work data — within minutes.
 
-**Who does it**: Onboarding bootstrap (`api/services/onboarding_bootstrap.py`)
-
-**What it produces**:
-- Platform-specific digest agent: Slack Recap, Gmail Digest, Notion Summary, Calendar Brief
-- Agent created with `origin=system_bootstrap`, pre-configured skill, schedule, and sources
-- First agent run triggered immediately
-
-**Design principle**: Deterministic, zero-LLM. No intelligence needed to know that connecting Slack warrants a Slack digest. Speed and reliability over sophistication. The Composer (Phase 6) handles the sophisticated decisions.
-
-**ADRs**: ADR-110 (onboarding bootstrap), ADR-109 (agent framework)
-
----
-
-## Phase 4: First Value (minutes after connection)
-
-**What happens**: The bootstrapped agent executes its first run. The user sees a real output — a digest of their actual work data — within minutes of connecting.
-
-**Who does it**: Agent execution pipeline (`api/services/agent_execution.py`, `api/services/agent_pipeline.py`)
+**Who does it**: PM pulse (Tier 3) → contributor dispatch → agent execution pipeline (`api/services/agent_execution.py`)
 
 **What it produces**:
-- Agent run with generated content (draft or delivered)
-- Output written to `/knowledge/` filesystem as structured, searchable workspace files (ADR-107, supersedes ADR-102)
-- Delivery via configured channel (in-app, email, Slack)
+- Agent run with generated content (structured markdown + asset references)
+- Output written to workspace: `/agents/{slug}/outputs/{date}/output.md` + `manifest.json`
+- Output composed to HTML via compose engine
+- Delivery via configured channel (in-app, email)
 
-**Why this matters**: This is the moment of first value. The user connected a platform and received a useful output without configuring anything. Every subsequent phase builds on this moment. If this output is poor, the chain stalls. If it's good, the user trusts the system to do more.
+**Why this matters**: This is the moment of first value. The user described their work, the system scaffolded a team, and now they see a real deliverable produced by that team. If this output is good, the user trusts the system to do more. Every subsequent phase builds on this moment.
 
-**Design principle**: First-run quality over configuration breadth (FOUNDATIONS.md Axiom 6). One excellent auto-generated output beats three manually configured mediocre ones.
+**Design principle**: First-run quality over configuration breadth (FOUNDATIONS.md Axiom 6). One correctly-scoped, well-structured output from a work-aware project beats three generic platform digests.
 
-**ADRs**: ADR-101 (intelligence model), ADR-107 (knowledge filesystem), ADR-080 (unified agent modes)
+**ADRs**: ADR-133 (PM dispatch), ADR-130 (HTML-native output), ADR-118 (compose engine)
 
 ---
 
 ## Phase 5: Accumulate (days)
 
-**What happens**: The recursive loop begins. Three things compound simultaneously:
+**What happens**: The recursive loop begins. Four things compound simultaneously:
 
-1. **Platform sync continues** — new messages, emails, pages, events flow in on schedule (daily for free, hourly for pro)
-2. **Agent outputs feed back** — each digest run's output is written to `/knowledge/` as structured workspace files (ADR-107), becoming searchable input for future agent runs and for other agents via `QueryKnowledge`
-3. **User feedback refines** — edits, approvals, and dismissals become learned preferences injected into future agent prompts
+1. **Platform sync continues** — new messages, pages flow in on schedule (daily for free, hourly for pro)
+2. **Agent outputs feed back** — each run's output is written to workspace, becoming searchable input for future runs and for other agents via `QueryKnowledge`
+3. **User feedback refines** — edits, approvals, and dismissals become learned preferences distilled into `memory/preferences.md`
+4. **Agent self-reflection deepens** — post-run observations accumulate in `memory/observations.md`; self-assessments track mandate fitness over time in `memory/self_assessment.md`
 
-**Who does it**: Platform sync scheduler, agent execution pipeline, memory extraction service
+**Who does it**: Platform sync scheduler, agent execution pipeline, feedback distillation service, memory extraction service
 
 **What it produces**:
 - Growing knowledge base: raw platform data + agent-generated insights + user feedback signals
-- Per-agent memory: observations, domain notes, goal progress
-- Learned preferences: format choices, content priorities, tone adjustments extracted from edit history
+- Per-agent workspace state: observations, domain thesis, learned preferences, self-assessments
+- PM coordination state: quality assessments, contribution briefs, phase tracking
 
-**Why this matters**: This is where the product's moat forms. A Slack digest on day 30 knows what the user edited out of the last 4 digests, which channels consistently produce signal, and what format the user prefers. A competitor starting from zero produces a generic summary. The gap widens with every cycle.
+**Why this matters**: This is where the moat forms. A briefer on day 30 knows what the user edited out of the last 4 briefings, which channels consistently produce signal, and what format the user prefers. A competitor starting from zero produces a generic summary. The gap widens with every cycle.
 
-**Design principle**: Optimize for accumulation, not extraction (FOUNDATIONS.md Axiom 2). The internal/reflexive perception layers (agent outputs, user feedback) are more valuable long-term than the external layer (platform sync).
+**Design principle**: Optimize for accumulation, not extraction (FOUNDATIONS.md Axiom 2). The internal/reflexive perception layers (agent outputs, user feedback, self-assessments) are more valuable long-term than the external layer (platform sync).
 
-**ADRs**: ADR-072 (retention-based accumulation), ADR-087 (agent-scoped context), ADR-101 (intelligence model — feedback layer)
+**ADRs**: ADR-072 (retention-based accumulation), ADR-117 (feedback distillation), ADR-128 (coherence protocol)
 
 ---
 
-## Phase 6: Compose (days to weeks)
+## Phase 6: Coordinate (days to weeks)
 
-**What happens**: The Composer — TP exercising judgment about what attention the user's work requires — assesses the enriched substrate and identifies opportunities for new agents.
+**What happens**: PM coordination matures. Three mechanisms deepen project execution quality:
 
-**Who does it**: TP's Composer capability (ADR-111, FOUNDATIONS.md Axiom 5)
+1. **Phase dispatch refines** — PM learns which contributors need to run first, which handoffs work, which phases can parallelize
+2. **Quality gating strengthens** — PM assesses contribution quality against project objective before triggering assembly. Low-quality contributions get steering via contribution briefs
+3. **Cross-phase context injection** — PM curates prior phase outputs into briefs for next phase contributors. The researcher's findings become the analyst's context. The analyst's charts become the writer's evidence
 
-**Triggers**:
-- Periodic heartbeat (self-assessment on cadence)
-- Platform connection event (new substrate available)
-- Agent feedback patterns (maturity signals, user corrections)
-- Sufficient accumulated substrate (enough runs, enough data to reason over)
+**Who does it**: PM agent Tier 3 pulse, contribution briefs (`/contributions/{slug}/brief.md`), phase state tracking
 
 **What it produces**:
-- High-confidence agents auto-created (with "Auto" badge on dashboard) — coverage gap fills are deterministic, no LLM
-- Cross-platform synthesis agents created when mature digests exist (lifecycle expansion)
-- LLM-assessed agents (Haiku) for non-obvious opportunities — engaged user patterns, cross-platform synthesis
-- Lifecycle actions: underperformer pausing (<30% approval, 8+ runs), cross-agent consolidation
+- Refined work plans with structured phases and dependencies
+- Quality-gated assembly: deliverables only assemble when contributions meet the bar
+- Cross-phase context: each contributor benefits from prior phases' work
+- PM coordination intelligence: which contributors are reliable, what assembly cadence works
 
-**Design principle**: The Composer reasons about the full substrate — not just "which platforms are connected" but what agent outputs exist, what patterns emerge across platforms, what the user's feedback signals indicate they care about. Platform content is the onramp; accumulated agent work is the signal.
+**Why this matters**: This is where YARNNN becomes a coordinated team, not just co-located agents. A quarterly review where the researcher gathers data → analyst finds patterns → writer crafts narrative → PM assembles is structurally different from three agents producing independently.
 
-**ADRs**: ADR-111 (Agent Composer), ADR-109 (scope × skill × trigger taxonomy)
+**ADRs**: ADR-133 (phase dispatch), ADR-121 (PM as intelligence director), ADR-128 (coherence protocol)
 
 ---
 
 ## Phase 7: Compound (weeks to months)
 
-**What happens**: Second-order agents build on first-order outputs. The information hierarchy (FOUNDATIONS.md Axiom 4) deepens:
+**What happens**: Team intelligence compounds across the information hierarchy:
 
 | Level | What | Example | Typical Phase |
 |-------|------|---------|---------------|
-| L0 | Raw signals | Slack messages, email threads | Phase 2 (Perceive) |
+| L0 | Raw signals | Slack messages, Notion pages | Phase 3 (Connect) |
 | L1 | Digests | "Here's what happened in #engineering today" | Phase 4 (First Value) |
 | L2 | Insights | "The team discussed migration 3 times this week" | Phase 5 (Accumulate) |
-| L3 | Analysis | "Eng and product are misaligned on migration timeline" | Phase 7 (Compound) |
-| L4 | User knowledge | Learned preferences, domain theses, standing instructions | Accumulated across all phases |
+| L3 | Analysis | "Eng and product are misaligned on the migration timeline" | Phase 6 (Coordinate) |
+| L4 | Team knowledge | Learned preferences, domain theses, PM coordination patterns | Accumulated across all phases |
 
 **What it looks like**:
-- A Slack Recap agent (L1) produces daily digests
-- Those digests accumulate as `/knowledge/digests/` files (ADR-107)
-- The Composer identifies a pattern: engineering discussions span Slack and Gmail
-- It creates an "Engineering Week in Review" agent (L2-L3) that reads digest outputs + raw platform content
-- That agent's outputs feed back into the substrate
-- Months later, enough accumulated L2-L3 outputs exist for quarterly trend analysis or board prep synthesis
+- A project's contributors each develop deep domain expertise — the briefer understands communication patterns, the analyst knows which metrics matter, the scout knows which competitor moves warrant attention
+- PM coordination patterns mature — the PM knows when to dispatch, how to steer, what assembly quality looks like
+- Cross-project intelligence: Composer identifies new project opportunities from mature single-project outputs
+- User's work structure evolves: bounded projects complete and dissolve, persistent projects deepen, new scopes emerge
 
-**The compounding property**: Each level's output is the next level's input. Higher-level agents don't re-read raw Slack messages — they read curated digests and prior analyses. This means:
-- Quality improves with every layer (signal-to-noise ratio increases)
-- Coverage widens (cross-platform synthesis becomes possible)
-- Cost decreases (higher-level agents process distilled content, not raw firehose)
-- Switching costs deepen (accumulated L2-L4 content is irreplaceable)
+**The compounding property**: Each cycle's output is the next cycle's context. Every team member's output improves every other team member's context. PM coordination intelligence compounds independently of individual agent improvement. This creates three compounding loops running simultaneously:
+- Agent-level: deeper domain expertise per contributor
+- Project-level: better coordination, handoffs, assembly quality
+- System-level: Composer creates new projects from mature outputs
 
-**ADRs**: ADR-107 (knowledge filesystem), ADR-106 (workspace architecture), ADR-072 (retention model)
+**ADRs**: ADR-111 (Composer lifecycle), ADR-120 (project execution), ADR-126 (agent pulse)
 
 ---
 
@@ -178,40 +181,42 @@ Each phase's output is the next phase's input. This is the product's compounding
         ┌──────────────────────────────────────────────────────┐
         │                                                      │
         ▼                                                      │
-   [Connect] → [Perceive] → [Bootstrap] → [First Value]       │
-                                               │               │
-                                               ▼               │
-                                          [Accumulate]         │
-                                               │               │
-                                               ▼               │
-                                          [Compose]            │
-                                               │               │
-                                               ▼               │
-                                          [Compound] ──────────┘
-                                               │          (outputs feed back
-                                               │           as perception)
-                                               ▼
-                                          User feedback
-                                          refines all layers
+   [Describe] → [Scaffold] → [Connect] → [First Value]        │
+                                              │                │
+                                              ▼                │
+                                         [Accumulate]          │
+                                              │                │
+                                              ▼                │
+                                         [Coordinate]          │
+                                              │                │
+                                              ▼                │
+                                         [Compound] ───────────┘
+                                              │     (outputs + team
+                                              │      intelligence
+                                              │      feed back as
+                                              │      perception)
+                                              ▼
+                                         User feedback
+                                         refines all layers
 ```
 
 The loop is self-reinforcing:
-- More platform data → better digest agents → richer substrate → smarter Composer decisions → higher-level agents → outputs feed back as content → even richer substrate
-- User feedback at any point improves all downstream outputs — editing a digest teaches the agent preferences that compound across every future run
+- Work description → correctly-scoped projects → PM-coordinated teams → better deliverables → richer substrate → smarter Composer decisions → new projects → deeper compounding
+- User feedback at any point improves all downstream outputs — editing a briefing teaches a preference that propagates through the PM's quality gating to every contributor that reads that briefing's output
 
 ---
 
 ## Timeline: What the User Experiences
 
-| Time | What happens | What the user sees |
+| Time | What Happens | What the User Sees |
 |------|-------------|-------------------|
-| **T+0s** | OAuth completes, sources auto-selected | Dashboard: "Slack connected" |
-| **T+10s** | Sync begins fetching content | Dashboard: "Syncing..." |
-| **T+60s** | Sync completes, bootstrap creates digest agent, first run executes | Dashboard: first agent appears, first output delivered |
-| **Day 2-7** | Daily syncs accumulate content, digest agent runs daily | Digests arrive on schedule, improving with each run |
-| **Week 2** | Composer heartbeat assesses substrate | Dashboard: Composer suggests cross-platform agent or auto-creates one |
-| **Month 1** | Multiple agents running, user has given feedback on several outputs | Agents noticeably tailored to user's preferences and priorities |
-| **Month 3** | L2-L3 agents producing insights from accumulated digest outputs | System understands the user's work at a level no fresh start can replicate |
+| **T+0s** | User describes work, projects scaffold | Orchestrator: "I've set up 3 projects for your client work" |
+| **T+30s** | Platform connects, sources mapped to projects | Dashboard: "Slack connected — channels mapped to Client X, Client Y" |
+| **T+90s** | PM dispatches first contributor runs | Dashboard: first deliverables appear per project |
+| **Day 2-7** | Daily pulse cycles, agents accumulate observations | Deliverables arrive on schedule, improving with each cycle |
+| **Week 2** | PM coordination matures, phases sequence properly | Cross-phase handoffs visible — analyst references researcher's findings |
+| **Month 1** | Feedback loop has shaped every contributor | Outputs noticeably tailored — minimal edits needed |
+| **Month 3** | Composer identifies cross-project opportunities | New projects suggested: "Your 3 client projects share patterns — want a Portfolio Overview?" |
 
 ---
 
@@ -221,13 +226,13 @@ Each phase has a single owner. No phase duplicates another's responsibility.
 
 | Phase | Owner | Decides | Does NOT decide |
 |-------|-------|---------|----------------|
-| **Connect** | OAuth callback + `compute_smart_defaults()` | Which sources to sync | What agents to create |
-| **Perceive** | Platform sync worker | What content to extract and store | What's important in that content |
-| **Bootstrap** | Onboarding bootstrap | Which deterministic digest agent to create | Whether this is the right agent for the user |
-| **First Value** | Agent execution pipeline | What to include in the output, based on its intelligence model | Which sources to sync or which agents to create |
-| **Accumulate** | Sync scheduler + memory extraction | When to sync, what feedback to extract | What to do with accumulated knowledge |
-| **Compose** | TP Composer capability | What new agents are warranted by the substrate | How those agents execute (that's the agent's job) |
-| **Compound** | Second-order agent execution | What higher-level insights to produce | What first-order agents should do differently |
+| **Describe** | Onboarding + inference | What work scopes exist, what projects to scaffold | Which platform sources to sync |
+| **Scaffold** | Project type registry + `scaffold_project()` | What charter, PM, and contributors each project gets | How those agents execute (that's the PM/agent's job) |
+| **Connect** | OAuth callback + `compute_smart_defaults()` | Which sources to sync, which projects they map to | What agents to create |
+| **First Value** | PM dispatch → agent execution pipeline | What to include in output, based on intelligence model | Which sources to sync or which projects to create |
+| **Accumulate** | Sync scheduler + feedback distillation + memory extraction | When to sync, what feedback to distill, what to observe | What to do with accumulated knowledge (that's the agent's job) |
+| **Coordinate** | PM pulse (Tier 3) | When to dispatch, how to steer, when to assemble | What content agents produce (that's the contributor's job) |
+| **Compound** | Composer heartbeat + mature agent teams | What new projects are warranted, what lifecycle actions to take | How existing projects execute (that's the PM's job) |
 
 ---
 
@@ -235,48 +240,41 @@ Each phase has a single owner. No phase duplicates another's responsibility.
 
 A competitor building a Slack digest tool can match Phase 4 on day one. What they cannot match:
 
-- **Phases 5-7 require time.** Accumulated feedback, agent memory, learned preferences, and layered outputs are a function of tenure. There is no shortcut.
-- **Each layer depends on the previous.** A cross-platform synthesis agent (Phase 7) requires weeks of digest outputs (Phase 5) to reason over. You cannot skip to L3 analysis without L1 digests.
-- **User feedback compounds across all layers.** An edit to a Slack digest teaches a preference that propagates to every agent that reads that digest's output. The correction is amplified, not isolated.
-- **The substrate is personal.** It reflects this user's work, this user's platforms, this user's feedback history. It cannot be transferred or replicated from another user's data.
+- **Phases 5-7 require time.** Accumulated feedback, agent memory, PM coordination intelligence, and cross-phase handoff quality are a function of tenure. There is no shortcut.
+- **Team intelligence is multi-dimensional.** It's not just "better outputs" — it's better coordination, better phasing, better quality gating, better context injection between team members. These compound independently.
+- **Each layer depends on the previous.** A coordinated quarterly review (Phase 7) requires weeks of individual contributor maturation (Phase 5) and PM coordination learning (Phase 6). You cannot skip to L3 analysis without L1 digests and L2 insights.
+- **User feedback compounds across the team.** An edit to one contributor's output teaches a preference that propagates through PM quality gating to every contributor that reads that output. The correction is amplified, not isolated.
+- **The substrate is personal.** It reflects this user's work structure, platforms, feedback history, and coordination preferences. It cannot be transferred or replicated.
 
-This is FOUNDATIONS.md Axiom 4 in practice: value comes from accumulated attention. The agent is how it's delivered. The accumulated intelligence is the product.
+This is FOUNDATIONS.md Axiom 4 in practice: value comes from accumulated attention. The coordinated agent team is how it's delivered. The accumulated team intelligence is the product.
 
 ---
 
 ## Code Reference
 
-| Phase | Key files | ADRs |
+| Phase | Key Files | ADRs |
 |-------|-----------|------|
-| Connect | `api/routes/integrations.py`, `api/services/landscape.py`, `api/integrations/core/oauth.py` | ADR-113, ADR-057 |
-| Perceive | `api/workers/platform_worker.py`, `api/integrations/core/{slack,google,notion}_client.py` | ADR-077, ADR-072, ADR-112 |
-| Bootstrap | `api/services/onboarding_bootstrap.py` | ADR-110 |
-| First Value | `api/services/agent_execution.py`, `api/services/agent_pipeline.py` | ADR-101, ADR-107, ADR-080 |
-| Accumulate | `api/jobs/platform_sync_scheduler.py`, `api/services/memory.py`, `api/services/workspace.py` | ADR-072, ADR-087, ADR-107 |
-| Compose | TP Composer capability (`api/services/composer.py`) | ADR-111, ADR-109 |
-| Compound | Agent execution (same pipeline, higher-level agents) + `QueryKnowledge` primitive | ADR-107, ADR-106 |
+| Describe | `web/app/(authenticated)/onboarding/`, `api/routes/onboarding.py` | ADR-132 |
+| Scaffold | `api/services/project_registry.py`, `api/services/agent_creation.py` | ADR-122, ADR-136, ADR-130 |
+| Connect | `api/routes/integrations.py`, `api/services/landscape.py`, `api/integrations/core/oauth.py` | ADR-113, ADR-112 |
+| First Value | `api/services/agent_execution.py`, `api/services/agent_pipeline.py`, `api/services/agent_pulse.py` | ADR-133, ADR-130, ADR-126 |
+| Accumulate | `api/jobs/platform_sync_scheduler.py`, `api/services/feedback_distillation.py`, `api/services/memory.py` | ADR-072, ADR-117, ADR-128 |
+| Coordinate | `api/services/agent_pulse.py` (Tier 3), `api/services/workspace.py` (ProjectWorkspace) | ADR-133, ADR-121, ADR-120 |
+| Compound | `api/services/composer.py`, mature agent execution (same pipeline) | ADR-111, ADR-126 |
 
 ---
 
-## Implementation Status (2026-03-16)
+## Implementation Status (2026-03-24)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| **1. Connect** | **Shipped** | ADR-113 auto-select + sync in OAuth callback |
-| **2. Perceive** | **Shipped** | All 4 platforms, paginated, incremental, tier-gated |
-| **3. Bootstrap** | **Shipped** | Deterministic digest creation + inline first-run execution |
-| **4. First Value** | **Shipped** | Bootstrap executes first run inline (not waiting for scheduler) |
-| **5. Accumulate** | **Shipped** | Agent outputs → `/knowledge/` (ADR-107). Feedback → learned preferences (ADR-101). Sync continues on schedule. |
-| **6. Compose** | **Shipped** | All three bounded contexts active: Bootstrap (deterministic, ADR-110), Heartbeat (scheduled in `unified_scheduler.py`, tier-gated: Free=daily, Pro=every 5min), Lifecycle (underperformer pausing, scope expansion, cross-agent consolidation). LLM reasoning (Haiku) fires only when `should_composer_act()` identifies actionable gaps. |
-| **7. Compound** | **Infrastructure ready** | `QueryKnowledge` primitive lets agents search `/knowledge/`. Cross-platform and synthesis agents auto-created by Composer when mature digests exist. Second-order agent creation is autonomous — depends on sufficient L1 digest accumulation (typically week 2+). |
-
-### Composer Bounded Contexts (ADR-111)
-
-1. **Bootstrap** — deterministic agent creation on platform connect. Inline first-run execution. **Shipped.**
-2. **Heartbeat** — periodic TP self-assessment on cadence. `run_heartbeat()` called from `unified_scheduler.py` per user. Free=midnight UTC only, Pro=every 5-min cycle. 7 trigger conditions: coverage gaps, underperformers, lifecycle expansion, cross-platform opportunity, stale agents, engaged user, cross-agent patterns. **Shipped.**
-3. **Lifecycle** — underperformer pausing (auto-pause at <30% approval, 8+ runs), scope expansion (mature digests → synthesis agent), cross-agent consolidation. **Shipped.**
-
-Phase 7 readiness depends on Phase 6 creating second-order agents, which requires sufficient accumulated L1 outputs — a function of time, not missing code.
+| **1. Describe** | **Shipped** | 2-step onboarding, Sonnet inference, work unit extraction |
+| **2. Scaffold** | **Shipped** | Project type registry, `scaffold_project()`, three charter files, PM + contributor creation |
+| **3. Connect** | **Shipped** | Slack + Notion OAuth, auto-select, source-to-project mapping |
+| **4. First Value** | **Shipped** | PM dispatch, compose engine, HTML-native output |
+| **5. Accumulate** | **Shipped** | Feedback distillation, agent self-reflection, workspace accumulation |
+| **6. Coordinate** | **Shipped** | PM phase dispatch, quality assessment, contribution steering, cross-phase context |
+| **7. Compound** | **Infrastructure ready** | Composer heartbeat, project lifecycle. Cross-project composition depends on sufficient L1-L2 accumulation (typically month 2+). |
 
 ---
 

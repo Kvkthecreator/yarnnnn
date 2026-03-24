@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-03-24
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -19,6 +19,7 @@
 | 6 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
 | 7 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
 | 8 | P2S (Pre-Seed to Succeed) | Pre-seed | 2026-03-06 | Submitted | Edda Dealflow form via p2s.vc/apply; AI/B2B/SaaS focus, deck uploaded (IR Deck v16). Confirmation: "Looking forward to meet your project" |
+| 9 | Sazze Partners | Pre-seed | 2026-03-13 | **Rejected** | LinkedIn outreach → Kathy Ku meeting 2026-03-17 → deck sent for team review → rejected 2026-03-24: portfolio conflict with existing fund company. Korean-American founder thesis was a perfect fit but conflict is a non-negotiable blocker. |
 
 ---
 
@@ -29,7 +30,7 @@
 | Betaworks AI Camp | Pre-seed | Fall 2026 | Spring '26 cohort in session; signed up for mailing list. Check back for Fall '26 cohort application opening |
 | Techstars (Fall '26) | Accelerator | May–June 2026 | $220K ($20K for 5% + $200K uncapped MFN SAFE). Applications typically open May–June for Sept start. Target: Anywhere (remote) or NYC program. Apply after traction sprint |
 | HF0 Residency | Residency | Fall 2026 | $500K–$1M for 5%. Requires repeat founders — may be hard filter, applying anyway. 12-week SF residency |
-| Sazze Partners | Pre-seed | **NOW — priority** | $500K–$3M checks. Seoul + San Jose. Thesis: Korean-American founders, AI/SaaS. Perfect thesis match. Direct outreach via sazze.vc/contact |
+| Entrepreneurs First (EF) | Pre-seed | **May 1, 2026** | $125K for 8% (post-money SAFE) + optional $125K uncapped MFN SAFE if SF relocation + Delaware C-corp. Apply: apply.joinef.com. Rolling review. Cofounder matching model but accepts solo founders with ideas. SF Demo Day → 200+ VCs. |
 | YC (Summer 2026) | Accelerator | **May 4, 2026** | $500K ($125K for 7% + $375K uncapped SAFE). Application draft saved at apply.ycombinator.com. **Remaining before submit: founder video (1 min), complete profile, demo video (optional), update traction numbers closer to deadline.** Batch: July–September in SF. |
 
 ---
@@ -70,9 +71,7 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **Bee Partners**: Retry web application form (deferred)
 - [ ] **Betaworks reCAPTCHA**: User needs to manually complete CAPTCHA on mailing list signup
 - [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet. **No DM reply as of 2026-03-13 — liked a post but no engagement. Cold, no further follow-up.**
-- [ ] **Sazze Partners (Kiha Lee)**: LinkedIn connection accepted, no message sent. Deprioritized — trying other partners first
-- [x] **Sazze Partners (Greg Kim)**: LinkedIn connection request sent 2026-03-13. Note: "안녕하세요! — Korean founder heading to LA/SF (US citizen), Building yarnnn.com, raising Pre-seed, targeting US market. Thought Sazze's Korean founder thesis would be a great fit. Would love to connect!" Awaiting acceptance → then send longer DM
-- [x] **Sazze Partners (Kathy Ku)**: Meeting held 2026-03-17. Kathy requested deck to review with team. **Deck sent — awaiting team review.**
+- [x] **Sazze Partners**: **CLOSED — passed due to portfolio conflict (2026-03-24).** Kathy Ku meeting held 2026-03-17, deck reviewed by team. Clean no — conflict in existing fund/portfolio, not a fit issue.
 - [x] **Lorimer Ventures (Zach Magdovitz @magdovitz)**: He followed Kevin on X. Operator-investor, $50K–$300K checks, seed-stage, B2B/SaaS. Built tools at Attentive, Yext, Mailchimp. **DM sent 2026-03-17 — awaiting reply.**
 - [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18. Joan replied 2026-03-19 at 4:21 AM PT — "I'd love to find time to chat!" **Meeting booked: Tuesday 3pm–4pm PT.** Kevin replied with Google Meet link.
 - [ ] **Mischief VC**: Researched 2026-03-17. Jack Altman's fund, SF, $1–5M checks, seed/Series A, AI/software focus. Strong sector fit — finding contact method to pitch
@@ -82,6 +81,40 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **YC S26**: Draft saved 2026-03-18. Deadline May 4, 8pm PT. **TODO before submit**: (1) record 1-min founder video, (2) complete founder profile, (3) optional: record 3-min demo video, (4) update traction numbers with user data from sprint. Revisit in late April.
 - [ ] **a16z Speedrun SR007**: All answers drafted 2026-03-19, saved to `A16Z_SPEEDRUN_DRAFT.md`. $500K for 10% + $500K follow-on + $5M credits. <1% acceptance. No save/draft — one-shot submission. **WAIT for traction data before submitting (target: late April).** Early apps open now, formal window April 2026. TODO: (1) get Sam Kim's email for referral, (2) upload deck, (3) update traction numbers, (4) trim description to 100 words.
 - [ ] **South Park Commons (SPC) Founder Fellowship — Fall 2026**: $400K for 7% SAFE + $600K guaranteed follow-on = $1M total. $900K+ in credits (Anthropic, OpenAI, Azure, GCP, AWS, Render). SF/NYC/Bangalore. Spring 2026 deadline passed (Feb 1). **Watch for Fall 2026 cohort — best terms of any program researched.** ~$5.7M implied valuation, above our $5M target. Apply: southparkcommons.com/apply
+
+---
+
+## Network / Strategic Opportunities
+
+### Memento AI (m24ai.com) — Coffee Chat April 7, 3pm, Gangnam
+
+**Origin**: Kathy Ku (Sazze Partners) intro on 2026-03-22. Sazze passed on yarnnn (portfolio conflict) but connected Kevin with Erick as "building in similar spaces."
+
+**Contact**: Erick Jisan Kim (김지산), CEO & Co-Founder. erick@m24ai.com · +82-10-2944-8706
+
+**Their product**: M24 — voice-first AI journaling app. Record voice → AI transcribes (95%+ accuracy, KR/EN/JP) → searchable text → conversational AI over your own recordings. "Second brain" from personal capture. Live on Google Play. Seoul-based, targeting US market.
+
+**How they relate to yarnnn**: Same 30,000-foot thesis (AI that accumulates personal/work context over time), opposite approach. Memento = consumer, voice-first, personal capture (bottom-up). yarnnn = B2B, platform integrations, autonomous agents, work output (top-down). Not competitors — adjacent.
+
+**Kevin's strategic play**: Explore a hybrid working arrangement — employment at Memento AI while maintaining yarnnn as own venture. Possible mirror equity structure (vesting on both sides).
+
+**Why this matters for Kevin**:
+1. **Paycheck** — personal/family expenses need covering while VC fundraise is slow
+2. **US pathway** — Memento targeting LA/SF; riding that wave gets Kevin to his end-goal geography
+3. **Legitimacy signal** — "working at a funded AI startup" changes how future VCs perceive Kevin vs. "solo founder, pre-revenue"
+4. **Domain cross-pollination** — voice capture + platform sensing could genuinely inform each other
+
+**How to play the April 7 meeting**:
+- **First 30-40 min: discovery only.** Learn about them — funding status, team size, current struggles, US market entry plan, hiring needs. Don't pitch the arrangement yet.
+- **Key questions to ask**: How big is the team? Are they funded (and by whom)? What's their US expansion timeline? What roles are they hiring for? What's their biggest bottleneck?
+- **If they're a 2-person team burning savings**: paycheck angle doesn't work. Keep it as a peer founder relationship.
+- **If they have seed money and are actively hiring/growing**: toward end of meeting, float the idea: *"I'm building something adjacent, not competitive — would you ever consider a hybrid arrangement where I contribute to Memento while maintaining my own venture? I've seen mirror equity structures work for early-stage founders in overlapping spaces."*
+- **Feel the room before pitching the structure.** This meeting is discovery, not negotiation.
+
+**Risks to manage if it progresses**:
+- **IP separation**: Must be crystal clear in writing — yarnnn IP is Kevin's, Memento work is theirs. Any investor looking at yarnnn later will ask who owns what.
+- **Non-compete**: Get explicit carve-out for yarnnn in any employment agreement. Korean labor law is more founder-friendly on side ventures than US, but still get it written.
+- **Time**: Full-time at Memento means yarnnn dev slows. The traction sprint for YC/a16z (late April) gets harder. May need to negotiate part-time or flexible hours.
 
 ---
 
