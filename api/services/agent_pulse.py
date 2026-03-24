@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Tier 2 uses Haiku — lightweight, cost-efficient
 PULSE_MODEL = "claude-haiku-4-5-20251001"
 PULSE_MAX_TOKENS = 1024
-PULSE_MAX_TOOL_ROUNDS = 5
+PULSE_MAX_TOOL_ROUNDS = 2  # ADR-136: reduced from 5 — quick domain check, not deep investigation
 
 
 # =============================================================================
@@ -360,8 +360,9 @@ def _build_tier2_prompt(
 
     prompt = f"""You are performing a pulse check for agent: "{title}" (role: {role}, mode: {mode}).
 
-Your job is NOT to generate content. Your job is to assess whether conditions in your domain
-warrant generating content right now.
+Your job is NOT to generate content. Your job is to quickly assess whether conditions in your
+domain have changed enough to warrant producing a new output. Be efficient — one quick search
+is usually enough to decide. Don't investigate deeply; that's for the generation phase.
 
 ## Your Domain Instructions
 {instructions if instructions else "No specific instructions set. Use your judgment based on agent role and available context."}

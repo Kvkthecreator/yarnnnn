@@ -174,6 +174,41 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
     },
 }
 
+# =============================================================================
+# PM Prompt Modes — layered decision strategy
+# =============================================================================
+# Each mode uses a different model and prompt, matched to the decision complexity.
+# This enables cost-efficient PM intelligence: cheap checks most of the time,
+# expensive reasoning only when needed.
+
+PM_MODES: dict[str, dict[str, Any]] = {
+    "coordinate": {
+        "model": "claude-haiku-4-5-20251001",
+        "description": "Quick coordination — dispatch, wait, advance phase",
+        "when": "Every PM pulse (Tier 3)",
+        "cost": "~$0.001",
+    },
+    "evaluate": {
+        "model": "claude-haiku-4-5-20251001",
+        "description": "Quality check — does contributor output meet success criteria?",
+        "when": "After contributor completes a run",
+        "cost": "~$0.001",
+    },
+    "reflect": {
+        "model": "claude-sonnet-4-20250514",
+        "description": "Spec refinement — update success criteria, team fitness, process",
+        "when": "After delivery (once per cadence window)",
+        "cost": "~$0.03",
+    },
+    "compose": {
+        "model": "claude-sonnet-4-20250514",
+        "description": "Assembly — arrange components, apply layout, produce deliverable",
+        "when": "At assembly time",
+        "cost": "~$0.05",
+    },
+}
+
+
 # Legacy role → new type mapping (for DB migration / backward compat reads)
 LEGACY_ROLE_MAP: dict[str, str] = {
     "digest": "briefer",

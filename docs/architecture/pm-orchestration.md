@@ -66,6 +66,23 @@ Tier 3 runs Haiku for quick dispatch decisions. If it decides "generate," the he
 
 ---
 
+## PM Prompt Modes — Layered Decision Strategy
+
+PM uses different models for different decisions, matching cost to complexity:
+
+| Mode | Model | When | What | Cost |
+|------|-------|------|------|------|
+| **coordinate** | Haiku | Every PM pulse | dispatch, wait, advance phase | ~$0.001 |
+| **evaluate** | Haiku | After contributor completes | Does output meet success criteria? | ~$0.001 |
+| **reflect** | Sonnet | After delivery (1x per cadence) | Refine spec, update criteria, team fitness | ~$0.03 |
+| **compose** | Sonnet | At assembly | Arrange components, apply layout, deliver | ~$0.05 |
+
+Most PM decisions are Haiku-cheap. Only composition and reflection use Sonnet. This enables ~$0.12-0.15/week per project total cost.
+
+Defined in `agent_framework.py: PM_MODES`. Each mode has a dedicated prompt template and model selection.
+
+---
+
 ## Project Creation Handoff (ADR-135/136)
 
 When `scaffold_project()` creates a project, PM writes a handoff message to the project chat session:

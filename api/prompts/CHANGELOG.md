@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.4] - Cost optimization: Tier 2 pre-screen + PM prompt modes
+
+### Changed
+- `agent_pulse.py`: Tier 2 tool rounds reduced from 5 to 2 (quick domain check, not deep investigation). Prompt updated: "Be efficient — one quick search is usually enough." Saves ~60% on Haiku pre-screen calls.
+- `agent_framework.py`: Added `PM_MODES` registry — 4 prompt modes (coordinate/evaluate/reflect/compose) with model + cost + when metadata. Enables cost-aware PM intelligence: Haiku for coordination, Sonnet for composition.
+- Expected behavior: contributors pre-screen faster (2 tool rounds vs 5). PM mode selection enables ~$0.12-0.15/week per project instead of unbounded.
+
 ## [2026.03.24.3] - ADR-136: Project inference — LLM-enriched charter content
 
 ### Added
