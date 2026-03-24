@@ -91,7 +91,7 @@ export function ContextSidebar() {
           ))}
         </div>
 
-        {/* All Files — cross-project output view */}
+        {/* Outputs — agent-produced files across all projects */}
         <button
           onClick={() => router.push('/context?section=knowledge')}
           className={cn(
@@ -103,7 +103,7 @@ export function ContextSidebar() {
         >
           <span className="flex items-center gap-2">
             <FolderTree className="w-4 h-4" />
-            All Files
+            Outputs
           </span>
           {totalKnowledge > 0 && (
             <span className="text-muted-foreground text-xs">{totalKnowledge}</span>
