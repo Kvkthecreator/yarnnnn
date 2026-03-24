@@ -2017,6 +2017,37 @@ export default function ProjectDetailPage() {
             />
           </div>
 
+          {/* ADR-137: Pipeline visualization */}
+          {(() => {
+            const pSteps = (project as any).pipeline_steps as Array<{name: string; agent_slug: string; mode?: string; description?: string}> | null;
+            const pState = (project as any).pipeline_state as {cycle?: number; status?: string; steps?: Record<string, {state: string}>} | null;
+            if (!pSteps || pSteps.length === 0) return null;
+            return (
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Pipeline{pState?.cycle ? ` · cycle ${pState.cycle}` : ''}</p>
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  {pSteps.map((step, i) => {
+                    const stepState = pState?.steps?.[step.name]?.state || 'waiting';
+                    const stateIcon = stepState === 'completed' ? '✓' : stepState === 'running' ? '●' : '○';
+                    const stateColor = stepState === 'completed' ? 'text-green-600' : stepState === 'running' ? 'text-blue-500' : 'text-muted-foreground/40';
+                    return (
+                      <span key={step.name} className="flex items-center gap-1 shrink-0">
+                        {i > 0 && <span className="text-muted-foreground/30 text-[10px]">→</span>}
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded border', stateColor,
+                          stepState === 'running' ? 'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30' :
+                          stepState === 'completed' ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30' :
+                          'border-border'
+                        )}>
+                          {stateIcon} {step.name.replace(/-/g, ' ').split(' ').slice(-1)[0]}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Agent card selectors */}
           <div className="px-3 py-2 border-b border-border">
             <div className="flex gap-2 overflow-x-auto pb-1">

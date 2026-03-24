@@ -525,6 +525,23 @@ async def get_project(slug: str, user: UserClient):
     except Exception:
         pass
 
+    # ADR-137: Pipeline state
+    pipeline_state = None
+    try:
+        pipeline_raw = await pw.read("memory/pipeline_state.json")
+        if pipeline_raw:
+            pipeline_state = _json.loads(pipeline_raw)
+    except Exception:
+        pass
+
+    # ADR-137: Pipeline definition from PROCESS.md
+    pipeline_steps = None
+    try:
+        from services.pipeline_executor import parse_pipeline
+        pipeline_steps = await parse_pipeline(user.client, user.user_id, slug)
+    except Exception:
+        pass
+
     # ADR-134: Latest output for hero display
     latest_output = None
     if assemblies:
@@ -550,6 +567,8 @@ async def get_project(slug: str, user: UserClient):
         "phase_state": phase_state,
         "work_plan": work_plan,
         "latest_output": latest_output,
+        "pipeline_state": pipeline_state,
+        "pipeline_steps": pipeline_steps,
     }
 
 
