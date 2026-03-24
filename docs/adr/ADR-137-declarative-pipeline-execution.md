@@ -1,6 +1,6 @@
 # ADR-137: Declarative Pipeline Execution
 
-> **Status**: Proposed
+> **Status**: Phases 1-2, 4 Implemented. Phase 3 (quality gate + reflection) pending.
 > **Date**: 2026-03-24
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-133 (PM-coordinated phase dispatch — PM as coordinator)
