@@ -113,7 +113,36 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
                 metadata={"gate": "cooldown", "minutes_since_last": int(time_since_last.total_seconds() / 60)},
             )
 
-    # Gate 3: Work budget
+    # Gate 3: Cadence enforcement (ADR-136) — has this project already delivered in the current window?
+    tc = agent.get("type_config") or {}
+    project_slug = tc.get("project_slug")
+    if project_slug and isinstance(last_run_at, datetime):
+        try:
+            from services.workspace import ProjectWorkspace
+            pw = ProjectWorkspace(client, user_id, project_slug)
+            project = await pw.read_project()
+            cadence = (project or {}).get("cadence", "")
+            if cadence:
+                # Calculate cadence window
+                cadence_delta = {
+                    "daily": timedelta(hours=20),    # Allow re-run after 20h
+                    "weekly": timedelta(days=6),     # Allow re-run after 6 days
+                    "biweekly": timedelta(days=13),
+                    "monthly": timedelta(days=28),
+                }.get(cadence.lower().strip())
+                if cadence_delta and isinstance(last_run_at, datetime):
+                    time_since = now - last_run_at
+                    if time_since < cadence_delta:
+                        return PulseDecision(
+                            action="wait",
+                            reason=f"Cadence: {cadence} — ran {time_since.days}d ago, next window in {(cadence_delta - time_since).days}d",
+                            tier=1,
+                            metadata={"gate": "cadence", "cadence": cadence, "days_since": time_since.days},
+                        )
+        except Exception as e:
+            logger.warning(f"[PULSE] Cadence check failed (proceeding): {e}")
+
+    # Gate 4: Work budget
     try:
         from services.platform_limits import check_work_budget
         budget_ok, wu_used, wu_limit = check_work_budget(client, user_id)
