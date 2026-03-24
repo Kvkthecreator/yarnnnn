@@ -138,59 +138,7 @@ export function ContextSidebar() {
           })}
         </div>
 
-        {/* Platforms */}
-        <button
-          onClick={() => router.push('/context?section=platforms')}
-          className={cn(
-            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors mt-1",
-            isPlatformsSection
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Platforms
-          </span>
-        </button>
-
-        {/* Per-platform sub-items */}
-        <div className="ml-3 space-y-0.5">
-          {ALL_PLATFORMS.map((platformKey) => {
-            const config = PLATFORM_CONFIG[platformKey];
-            const summary = platformStatus[platformKey];
-            const isConnected = summary?.status === 'active';
-            const isActive = activePlatform === platformKey;
-
-            return (
-              <button
-                key={platformKey}
-                onClick={() => router.push(`/context/${platformKey}`)}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : isConnected
-                      ? "text-foreground hover:bg-muted"
-                      : "text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <span className={cn(
-                    "shrink-0",
-                    isConnected ? "opacity-100" : "opacity-40"
-                  )}>
-                    {getPlatformIcon(platformKey, 'w-3.5 h-3.5')}
-                  </span>
-                  {config.label}
-                </span>
-                {isConnected && summary && summary.resource_count > 0 && (
-                  <span className="text-muted-foreground">{summary.resource_count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {/* ADR-133: Platforms moved to Settings — removed from sidebar */}
 
         {/* Documents */}
         <button
