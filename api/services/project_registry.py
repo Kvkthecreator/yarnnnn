@@ -248,6 +248,7 @@ async def scaffold_project(
     scope_name: Optional[str] = None,
     success_criteria: Optional[list[str]] = None,
     output_spec: Optional[dict] = None,
+    pipeline: Optional[list[dict]] = None,
 ) -> dict:
     """
     Scaffold a project from the registry. Single entry point for all
@@ -447,6 +448,7 @@ async def scaffold_project(
         frequency=project_frequency,
         success_criteria=success_criteria,
         output_spec=output_spec,
+        pipeline=pipeline,
     )
 
     if not success:

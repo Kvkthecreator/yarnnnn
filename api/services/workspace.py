@@ -2012,6 +2012,7 @@ class ProjectWorkspace:
         frequency: str = "weekly",
         success_criteria: list[str] = None,
         output_spec: dict = None,
+        pipeline: list[dict] = None,
     ) -> bool:
         """Write project charter files: PROJECT.md + TEAM.md + PROCESS.md (ADR-136).
 
@@ -2126,19 +2127,26 @@ class ProjectWorkspace:
             ])
         process_lines.append("")
 
-        # Phases (default 2-phase)
-        process_lines.extend([
-            "## Phases",
-            "",
-            "### Phase 1: Production",
-        ])
-        for c in contributors:
-            process_lines.append(f"- {c.get('agent_slug', '?')}: {c.get('expected_contribution', 'contribute')}")
-        process_lines.extend([
-            "",
-            "### Phase 2: Assembly + Delivery",
-            "- pm: compose output per spec, deliver",
-        ])
+        # Pipeline / Phases (ADR-137: declarative pipeline)
+        if pipeline:
+            process_lines.extend(["## Pipeline", ""])
+            phase_num = 0
+            for step in pipeline:
+                agent = step.get("agent_type", step.get("step", "?"))
+                desc = step.get("description", "")
+                mode = step.get("mode", "")
+                # Group into phases by agent category
+                if mode in ("evaluate", "compose", "reflect"):
+                    slug = "pm"
+                else:
+                    slug = f"{title.lower().replace(' ', '-')}-{agent}" if agent != "pm" else "pm"
+                process_lines.append(f"- {slug}: {desc or step.get('step', agent)}")
+        else:
+            # Default 2-phase pipeline
+            process_lines.extend(["## Phases", "", "### Phase 1: Production"])
+            for c in contributors:
+                process_lines.append(f"- {c.get('agent_slug', '?')}: {c.get('expected_contribution', 'contribute')}")
+            process_lines.extend(["", "### Phase 2: Assembly + Delivery", "- pm: compose output per spec, deliver"])
 
         await self.write(
             "PROCESS.md",

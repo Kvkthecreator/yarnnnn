@@ -258,6 +258,7 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
                     assembly_spec_override=scope.get("assembly_spec"),
                     success_criteria=scope.get("success_criteria"),
                     output_spec=scope.get("output_spec"),
+                    pipeline=scope.get("pipeline"),
                 )
                 if result.get("success"):
                     projects_created.append({

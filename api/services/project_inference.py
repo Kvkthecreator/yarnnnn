@@ -98,6 +98,11 @@ Respond with ONLY a JSON object:
       "team": [
         {{"role": "briefer|scout|researcher|analyst|drafter|writer|planner", "reason": "why this type fits"}}
       ],
+      "pipeline": [
+        {{"step": "step_name", "agent_type": "role", "description": "what this step does"}},
+        {{"step": "evaluate", "agent_type": "pm", "mode": "evaluate", "description": "check quality"}},
+        {{"step": "deliver", "agent_type": "pm", "mode": "compose", "description": "assemble and deliver"}}
+      ],
       "cadence": "daily or weekly or biweekly or monthly",
       "assembly_spec": "1-2 sentence instruction for how to combine outputs"
     }}
