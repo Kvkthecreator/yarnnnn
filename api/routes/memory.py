@@ -109,7 +109,8 @@ class OnboardingProject(BaseModel):
 class OnboardingRequest(BaseModel):
     projects: list[OnboardingProject]
     name: Optional[str] = None
-    brand_content: Optional[str] = None  # default brand markdown
+    brand_content: Optional[str] = None
+    document_ids: Optional[list[str]] = None  # ADR-136: uploaded doc IDs for inference
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -197,15 +198,27 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         if body.brand_content:
             await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
-        # Scaffold projects with type inference
+        # Scaffold projects with LLM inference (ADR-136)
         from services.project_registry import scaffold_project, infer_topic_type
+        from services.project_inference import enrich_scaffold_params
         projects_created = []
+
+        # Gather document IDs if provided
+        doc_ids = getattr(body, 'document_ids', None) or []
 
         for proj in body.projects:
             name = proj.name.strip()
             if not name:
                 continue
 
+            # ADR-136: Enrich with LLM inference (specific objective, success criteria, output spec)
+            overrides = await enrich_scaffold_params(
+                auth.client, auth.user_id, name,
+                description="",  # Could be enriched from user text
+                document_ids=doc_ids,
+            )
+
+            # Fallback to lightweight type inference if LLM fails
             inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(name)
             type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
 
@@ -215,19 +228,22 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
                 type_key=type_key,
                 scope_name=name,
                 execute_now=False,
-                contributors_override=[{
+                contributors_override=overrides.get("contributors_override") or ([{
                     "title_template": f"{{scope_name}} {inferred_type.title()}",
                     "role": inferred_type,
                     "scope": "cross_platform",
-                    "frequency": "weekly" if inferred_lifecycle == "persistent" else "on_demand",
+                    "frequency": overrides.get("frequency", "weekly" if inferred_lifecycle == "persistent" else "on_demand"),
                     "sources_from": "work_unit",
-                }] if inferred_type != "briefer" else None,
-                objective_override={
+                }] if inferred_type != "briefer" else None),
+                objective_override=overrides.get("objective_override") or ({
                     "deliverable": f"{name} {'deliverable' if inferred_lifecycle == 'bounded' else 'update'}",
                     "audience": "You",
                     "format": "email",
                     "purpose": inferred_purpose,
-                } if inferred_purpose else None,
+                } if inferred_purpose else None),
+                assembly_spec_override=overrides.get("assembly_spec_override"),
+                success_criteria=overrides.get("_success_criteria"),
+                output_spec=overrides.get("_output_spec"),
             )
 
             if result.get("success"):

@@ -1986,6 +1986,8 @@ class ProjectWorkspace:
         delivery: dict = None,
         type_key: str = None,
         frequency: str = "weekly",
+        success_criteria: list[str] = None,
+        output_spec: dict = None,
     ) -> bool:
         """Write project charter files: PROJECT.md + TEAM.md + PROCESS.md (ADR-136).
 
@@ -2008,10 +2010,15 @@ class ProjectWorkspace:
             if key in objective:
                 label = key.capitalize()
                 project_lines.append(f"- **{label}**: {objective[key]}")
-        project_lines.extend(["", "## Success Criteria",
-            "- Relevant to the stated audience",
-            "- Actionable insights (not just summaries)",
-        ])
+        if success_criteria:
+            project_lines.extend(["", "## Success Criteria"])
+            for c in success_criteria:
+                project_lines.append(f"- {c}")
+        else:
+            project_lines.extend(["", "## Success Criteria",
+                "- Relevant to the stated audience",
+                "- Actionable insights (not just summaries)",
+            ])
 
         await self.write(
             "PROJECT.md",
@@ -2075,13 +2082,25 @@ class ProjectWorkspace:
         if assembly_spec:
             process_lines.extend(["## Assembly Spec", assembly_spec, ""])
 
-        # Output spec (default — PM will refine)
-        process_lines.extend([
-            "## Output Specification",
-            f"- **Layout mode**: document",
-            f"- **Export formats**: PDF, email body",
-            "",
-        ])
+        # Output spec
+        process_lines.append("## Output Specification")
+        if output_spec:
+            process_lines.append(f"- **Layout mode**: {output_spec.get('layout_mode', 'document')}")
+            if output_spec.get("components"):
+                process_lines.append("- **Components**:")
+                for comp in output_spec["components"]:
+                    process_lines.append(f"  - {comp.get('name', '?')}: {comp.get('description', '')}")
+            if output_spec.get("quality_bar"):
+                process_lines.append("- **Quality bar**:")
+                for q in output_spec["quality_bar"]:
+                    process_lines.append(f"  - {q}")
+            process_lines.append(f"- **Export formats**: PDF, email body")
+        else:
+            process_lines.extend([
+                f"- **Layout mode**: document",
+                f"- **Export formats**: PDF, email body",
+            ])
+        process_lines.append("")
 
         # Phases (default 2-phase)
         process_lines.extend([

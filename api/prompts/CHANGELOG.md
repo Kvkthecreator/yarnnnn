@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.24.3] - ADR-136: Project inference — LLM-enriched charter content
+
+### Added
+- `services/project_inference.py`: Single Haiku call that enriches generic project templates with specific content. `infer_project_spec()` takes scope name + description + document context → returns specific objective, success criteria, output spec, team recommendation, cadence. `enrich_scaffold_params()` reads uploaded docs and produces scaffold_project() overrides.
+- Charter files now contain specific, actionable content instead of template interpolation.
+
+### Changed
+- `routes/memory.py`: Onboarding endpoint calls `enrich_scaffold_params()` before `scaffold_project()`. Accepts `document_ids` parameter. Falls back to lightweight `infer_topic_type()` if LLM inference fails.
+- `project_registry.py`: `scaffold_project()` accepts `success_criteria` and `output_spec` params, passes to `write_project()`.
+- `workspace.py`: `write_project()` accepts `success_criteria` and `output_spec` params. PROJECT.md success criteria and PROCESS.md output spec populated from inference results.
+- Expected behavior: "AI Competitive Intel" → PROJECT.md with "Cover top 5 AI competitors, include pricing comparison" instead of "Relevant to stated audience."
+
 ## [2026.03.24.2] - TP→PM handoff + onboarding file upload
 
 ### Changed

@@ -246,6 +246,8 @@ async def scaffold_project(
     delivery_override: Optional[dict] = None,
     execute_now: bool = False,
     scope_name: Optional[str] = None,
+    success_criteria: Optional[list[str]] = None,
+    output_spec: Optional[dict] = None,
 ) -> dict:
     """
     Scaffold a project from the registry. Single entry point for all
@@ -443,6 +445,8 @@ async def scaffold_project(
         delivery=delivery,
         type_key=type_key,
         frequency=project_frequency,
+        success_criteria=success_criteria,
+        output_spec=output_spec,
     )
 
     if not success:
