@@ -1807,18 +1807,23 @@ class ProjectWorkspace:
     # =========================================================================
 
     async def read_project(self) -> Optional[dict]:
-        """Parse PROJECT.md into structured dict.
+        """Parse project charter files into structured dict (ADR-136).
+
+        Reads PROJECT.md + TEAM.md + PROCESS.md (split charter files).
+        Falls back to single PROJECT.md for legacy projects.
 
         Returns:
-            {title, objective: {deliverable, audience, format, purpose},
-             contributors: [{agent_slug, expected_contribution}],
-             assembly_spec, delivery: {channel, target}, status,
-             legacy_intentions: [...] (if migrating from pre-ADR-123)}
+            {title, objective, contributors, assembly_spec, delivery, status,
+             cadence, output_spec, phases, team_capabilities}
             or None if PROJECT.md doesn't exist.
         """
         content = await self.read("PROJECT.md")
         if not content:
             return None
+
+        # ADR-136: Also read TEAM.md and PROCESS.md if they exist
+        team_content = await self.read("TEAM.md")
+        process_content = await self.read("PROCESS.md")
 
         result = {
             "title": "",
@@ -1920,6 +1925,56 @@ class ProjectWorkspace:
         if current_section == "assembly_spec":
             result["assembly_spec"] = "\n".join(buffer_lines).strip()
 
+        # ADR-136: Enrich from TEAM.md if exists
+        if team_content:
+            result["team_raw"] = team_content
+
+        # ADR-136: Enrich from PROCESS.md if exists
+        if process_content:
+            result["process_raw"] = process_content
+            # Parse cadence
+            for line in process_content.split("\n"):
+                s = line.strip()
+                if s.startswith("- **Contributor runs**:"):
+                    result["cadence"] = s.split(":", 1)[1].strip()
+                elif s.startswith("- **Assembly**:"):
+                    result["assembly_cadence"] = s.split(":", 1)[1].strip()
+                elif s.startswith("- **Delivery**:") and "cadence" not in s.lower():
+                    # Don't confuse with ## Delivery section
+                    pass
+                elif s.startswith("- **Layout mode**:"):
+                    result["layout_mode"] = s.split(":", 1)[1].strip()
+            # Parse delivery from PROCESS.md if not in PROJECT.md
+            if not result.get("delivery"):
+                in_delivery = False
+                for line in process_content.split("\n"):
+                    s = line.strip()
+                    if s == "## Delivery":
+                        in_delivery = True
+                        continue
+                    if in_delivery and s.startswith("## "):
+                        break
+                    if in_delivery and s.startswith("- **") and "**:" in s:
+                        key_end = s.index("**:", 4)
+                        key = s[4:key_end].lower()
+                        value = s[key_end + 3:].strip()
+                        result["delivery"][key] = value
+            # Parse assembly spec from PROCESS.md if not in PROJECT.md
+            if not result.get("assembly_spec"):
+                in_asm = False
+                asm_lines = []
+                for line in process_content.split("\n"):
+                    s = line.strip()
+                    if s == "## Assembly Spec":
+                        in_asm = True
+                        continue
+                    if in_asm and s.startswith("## "):
+                        break
+                    if in_asm:
+                        asm_lines.append(line)
+                if asm_lines:
+                    result["assembly_spec"] = "\n".join(asm_lines).strip()
+
         return result
 
     async def write_project(
@@ -1930,49 +1985,126 @@ class ProjectWorkspace:
         assembly_spec: str = "",
         delivery: dict = None,
         type_key: str = None,
+        frequency: str = "weekly",
     ) -> bool:
-        """Write PROJECT.md from structured data (ADR-123: charter format).
+        """Write project charter files: PROJECT.md + TEAM.md + PROCESS.md (ADR-136).
 
-        PROJECT.md is the project charter — owned by User/Composer/TP.
-        Operational planning lives in PM's memory/work_plan.md, not here.
+        Three charter files, separated by concern:
+        - PROJECT.md: objective + success criteria (what + how good)
+        - TEAM.md: contributor roster + types + capabilities
+        - PROCESS.md: output spec + cadence + delivery + phases
 
-        Args:
-            title: Project title
-            objective: {deliverable, audience, format, purpose} — mutable north star
-            contributors: [{agent_slug, expected_contribution}]
-            assembly_spec: How contributions combine
-            delivery: {channel, target}
-            type_key: ADR-122 project type registry key (immutable after creation)
+        Charter = constitution (user-defined). Memory = working state (agent-accumulated).
         """
-        lines = [f"# {title}"]
+        from datetime import datetime, timezone
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        # ── PROJECT.md — objective only ──
+        project_lines = [f"# {title}"]
         if type_key:
-            lines.extend(["", f"**Type**: {type_key}"])
-        lines.extend(["", "## Objective"])
+            project_lines.extend(["", f"**Type**: {type_key}"])
+        project_lines.extend(["", f"## Objective (created {now_str})"])
         for key in ["deliverable", "audience", "format", "purpose"]:
             if key in objective:
                 label = key.capitalize()
-                lines.append(f"- **{label}**: {objective[key]}")
+                project_lines.append(f"- **{label}**: {objective[key]}")
+        project_lines.extend(["", "## Success Criteria",
+            "- Relevant to the stated audience",
+            "- Actionable insights (not just summaries)",
+        ])
 
-        lines.extend(["", "## Contributors"])
-        for c in contributors:
-            lines.append(f"- {c['agent_slug']}: {c.get('expected_contribution', '')}")
-
-        if assembly_spec:
-            lines.extend(["", "## Assembly Spec", assembly_spec])
-
-        if delivery:
-            lines.extend(["", "## Delivery"])
-            for key in ["channel", "target", "cadence"]:
-                if key in delivery:
-                    label = key.capitalize()
-                    lines.append(f"- **{label}**: {delivery[key]}")
-
-        return await self.write(
+        await self.write(
             "PROJECT.md",
-            "\n".join(lines),
-            summary=f"Project charter: {title}",
-            tags=["project", "charter"],
+            "\n".join(project_lines),
+            summary=f"Project objective: {title}",
+            tags=["project", "charter", "objective"],
         )
+
+        # ── TEAM.md — roster + capabilities ──
+        from services.agent_framework import AGENT_TYPES, get_type_capabilities
+        team_lines = ["# Team", ""]
+        for c in contributors:
+            slug = c.get("agent_slug", "?")
+            # Infer role from agent creation context
+            role = c.get("role", "briefer")
+            type_def = AGENT_TYPES.get(role, {})
+            caps = get_type_capabilities(role)
+            asset_caps = [cap for cap in caps if cap in ("chart", "mermaid", "image", "video_render")]
+
+            team_lines.append(f"## {slug}")
+            team_lines.append(f"- **Type**: {type_def.get('display_name', role)}")
+            team_lines.append(f"- **Capabilities**: {', '.join(caps)}")
+            if asset_caps:
+                team_lines.append(f"- **Asset production**: {', '.join(asset_caps)}")
+            team_lines.append(f"- **Role in project**: {c.get('expected_contribution', 'contributor output')}")
+            team_lines.append("")
+
+        team_lines.extend(["## Project Manager",
+            "- **Coordinates**: assembly + delivery",
+            "- **Capabilities**: read_workspace, steer_contributors, trigger_assembly, manage_work_plan",
+        ])
+
+        await self.write(
+            "TEAM.md",
+            "\n".join(team_lines),
+            summary=f"Team roster: {len(contributors)} contributors + PM",
+            tags=["project", "charter", "team"],
+        )
+
+        # ── PROCESS.md — operations ──
+        process_lines = ["# Process", ""]
+
+        # Cadence
+        process_lines.extend([
+            "## Cadence",
+            f"- **Contributor runs**: {frequency}",
+            f"- **Assembly**: {frequency} (after contributors)",
+            f"- **Delivery**: {frequency} (after assembly)",
+            "",
+        ])
+
+        # Delivery
+        if delivery:
+            process_lines.append("## Delivery")
+            for key in ["channel", "target"]:
+                if key in delivery:
+                    process_lines.append(f"- **{key.capitalize()}**: {delivery[key]}")
+            process_lines.append("")
+
+        # Assembly spec
+        if assembly_spec:
+            process_lines.extend(["## Assembly Spec", assembly_spec, ""])
+
+        # Output spec (default — PM will refine)
+        process_lines.extend([
+            "## Output Specification",
+            f"- **Layout mode**: document",
+            f"- **Export formats**: PDF, email body",
+            "",
+        ])
+
+        # Phases (default 2-phase)
+        process_lines.extend([
+            "## Phases",
+            "",
+            "### Phase 1: Production",
+        ])
+        for c in contributors:
+            process_lines.append(f"- {c.get('agent_slug', '?')}: {c.get('expected_contribution', 'contribute')}")
+        process_lines.extend([
+            "",
+            "### Phase 2: Assembly + Delivery",
+            "- pm: compose output per spec, deliver",
+        ])
+
+        await self.write(
+            "PROCESS.md",
+            "\n".join(process_lines),
+            summary=f"Process: {frequency} cadence, {len(contributors)} contributors",
+            tags=["project", "charter", "process"],
+        )
+
+        return True  # All three charter files written
 
     # =========================================================================
     # Contributions — per-agent scoped writes

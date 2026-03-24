@@ -92,7 +92,6 @@ PROJECT_TYPE_REGISTRY: dict[str, dict] = {
 
     # cross_platform_synthesis + custom DELETED — subsumed by workspace type
     # All projects use workspace (persistent) or bounded_deliverable (finite)
-    },
 }
 
 
@@ -386,6 +385,7 @@ async def scaffold_project(
             contributor_records.append({
                 "agent_slug": agent_slug,
                 "agent_id": result["agent_id"],
+                "role": agent_role,
                 "expected_contribution": spec.get("expected_contribution", f"{agent_role} output"),
             })
         else:
@@ -430,6 +430,11 @@ async def scaffold_project(
 
     # ── Write PROJECT.md (functional contributors only, PM excluded) ──
     pw = ProjectWorkspace(client, user_id, project_slug)
+    # Resolve frequency from first contributor spec (or default weekly)
+    project_frequency = "weekly"
+    if contributor_specs:
+        project_frequency = contributor_specs[0].get("frequency", "weekly")
+
     success = await pw.write_project(
         title=title,
         objective=objective,
@@ -437,6 +442,7 @@ async def scaffold_project(
         assembly_spec=assembly_spec,
         delivery=delivery,
         type_key=type_key,
+        frequency=project_frequency,
     )
 
     if not success:
