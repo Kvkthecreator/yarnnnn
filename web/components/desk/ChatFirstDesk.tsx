@@ -735,6 +735,18 @@ export function ChatFirstDesk() {
                       </p>
                     </div>
                     <div className="max-w-md mx-auto space-y-3">
+                      <Link
+                        href="/onboarding"
+                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                      >
+                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                          <Upload className="w-full h-full" />
+                        </span>
+                        <div>
+                          <span className="text-sm font-medium">Set up your team</span>
+                          <span className="text-xs text-muted-foreground block">Upload files or describe your work — we&apos;ll create the right projects</span>
+                        </div>
+                      </Link>
                       <button
                         onClick={() => {
                           setInput(NEW_PROJECT_PROMPT);
@@ -746,8 +758,8 @@ export function ChatFirstDesk() {
                           <Command className="w-full h-full" />
                         </span>
                         <div>
-                          <span className="text-sm font-medium">New Project</span>
-                          <span className="text-xs text-muted-foreground block">Set up a project, search your platforms, or just ask anything</span>
+                          <span className="text-sm font-medium">Or just tell me</span>
+                          <span className="text-xs text-muted-foreground block">Describe what you need and I&apos;ll set it up</span>
                         </div>
                       </button>
                       <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
