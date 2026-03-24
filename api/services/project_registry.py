@@ -571,7 +571,7 @@ async def scaffold_project(
             user_id=user_id,
             event_type="project_scaffolded",
             summary=f"Created project '{title}' (type: {type_key}) with {len(created_contributors)} member(s)",
-            event_ref=project_slug,
+            event_ref=pm_agent_id or (created_contributors[0]["agent_id"] if created_contributors else None),
             metadata={
                 "type_key": type_key,
                 "category": ptype["category"],

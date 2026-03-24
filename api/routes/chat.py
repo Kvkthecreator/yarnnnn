@@ -50,7 +50,7 @@ router = APIRouter()
 # ADR-125: Agent → Project Resolution
 # =============================================================================
 
-async def resolve_agent_project(client, user_id: str, agent_id: str) -> str | None:
+async def resolve_agent_project(client, user_id: str, agent_id: str) -> Optional[str]:
     """
     ADR-125: Resolve an agent_id to its project_slug.
 
@@ -128,7 +128,7 @@ async def get_or_create_session(
     user_id: str,
     session_type: str = "thinking_partner",
     scope: str = "daily",  # "conversation", "daily"
-    agent_id: str | None = None,  # DEPRECATED by ADR-125: use project sessions with thread_agent_id
+    agent_id: Optional[str] = None,  # DEPRECATED by ADR-125: use project sessions with thread_agent_id
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
