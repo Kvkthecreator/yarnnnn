@@ -630,18 +630,28 @@ Steps:
 ### Phase 5: Frontend
 **Goal**: User sees agents (team) and tasks (work). No project references anywhere.
 
-Steps:
-1. Create `/tasks` page — task list with status, cadence, last run, assigned agent
-2. Create `/tasks/[slug]` page — task detail: objective, latest output, delivery history
-3. Update `/agents` page — agent list showing identity, expertise, assigned tasks
-4. Update `/agents/[id]` page — agent detail: identity, memory, chat, task assignments
-5. Update orchestrator panel — shows agents + tasks (not projects)
-6. Update navigation — replace projects with tasks
-7. Update API client (`web/lib/api/client.ts`) — add tasks endpoints, remove projects
-8. Update types — add Task types, remove Project types
-9. Verify all routes and links work
+> **Detailed specification**: [ADR-139](ADR-139-workfloor-task-surface-architecture.md) + [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md)
 
-**Commit**: `feat(ADR-138): Phase 5 — frontend (agents + tasks surfaces)`
+**Three surfaces** (ADR-139):
+- `/workfloor` — Home. Agents display (left) + TP chat + Tasks/Workspace tabs (right). Replaces `/orchestrator`.
+- `/tasks/{slug}` — Task working page. Output tab (left, hero) + Chat tab (left, task-scoped TP) + Task details (right).
+- `/agents/{slug}` — Agent identity page. AGENT.md + memory browser (left) + assigned tasks + actions (right). Read-only reference, no dedicated chat.
+
+Steps:
+1. Create `/workfloor` page — agent cards grid, TP chat, right panel with Tasks + Workspace tabs
+2. Create `/tasks/[slug]` page — output/chat tabs (left), task details + run history (right)
+3. Update `/agents/[slug]` page — identity display, memory browser, assigned tasks, no chat
+4. Add `task_slug` column to `chat_sessions` (migration) for task-scoped sessions
+5. Update `chat.py` session routing — task-scoped sessions via `surface_context.taskSlug`
+6. Update `load_surface_content()` for workfloor, task-detail, agent-identity surface types
+7. Update navigation sidebar — Workfloor (home), Activity, Integrations, Settings
+8. Fold `/context` into workfloor Workspace tab
+9. Update API client (`web/lib/api/client.ts`) — add tasks endpoints, remove projects
+10. Update `HOME_ROUTE` in `routes.ts` to `/workfloor`, redirect `/orchestrator` → `/workfloor`
+11. Delete `ChatAgent` class and agent_chat mode (dormant, never wired into routing)
+12. Verify all routes and links work
+
+**Commit**: `feat(ADR-138): Phase 5 — frontend (workfloor + task surfaces, ADR-139)`
 
 ### Phase 6: Documentation alignment
 **Goal**: All docs reflect the new architecture. No stale project references.
