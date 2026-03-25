@@ -99,14 +99,14 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-139: Navigation — Workfloor (home), then browse pages, then system pages
+// ADR-139: Navigation — Workfloor (home), browse pages, then system pages
 const BROWSE_PAGES: RouteItem[] = [
   { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks' },
   { id: 'agents', label: 'Agents', icon: Users, path: '/agents' },
+  { id: 'context', label: 'Context', icon: FolderOpen, path: '/context' },
 ];
 
 const SECONDARY_PAGES: RouteItem[] = [
-  { id: 'context', label: 'Context', icon: FolderOpen, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
