@@ -222,6 +222,9 @@ export default function SettingsPage() {
           result = await api.account.clearWorkspace();
           setPurgeSuccess(result.message);
           clearMessages();
+          // ADR-140: Re-scaffold default roster after workspace purge
+          await api.onboarding.getState().catch(() => null);
+          setTimeout(() => router.push(HOME_ROUTE), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -231,7 +234,9 @@ export default function SettingsPage() {
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
           clearMessages();
-          setTimeout(() => router.push(HOME_ROUTE), 2000);
+          // ADR-140: Re-scaffold default roster after full reset
+          await api.onboarding.getState().catch(() => null);
+          setTimeout(() => router.push(HOME_ROUTE), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();
@@ -570,11 +575,11 @@ export default function SettingsPage() {
           ) : dangerStats ? (
             <>
               {/* Data Summary Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="p-4 border border-border rounded-lg text-center">
                   <FolderKanban className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.projects}</div>
-                  <div className="text-xs text-muted-foreground">Projects</div>
+                  <div className="text-2xl font-bold">{dangerStats.agents}</div>
+                  <div className="text-xs text-muted-foreground">Tasks</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
                   <Database className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
@@ -594,9 +599,9 @@ export default function SettingsPage() {
               </div>
 
               {/* Purge Actions */}
-              <div className="space-y-3 mb-6">
+              <div className="border-t border-border pt-6 space-y-3 mb-6">
                 {/* Clear Workspace */}
-                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium flex items-center gap-2">
@@ -604,13 +609,13 @@ export default function SettingsPage() {
                         Clear Workspace
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Delete {dangerStats.agents} agents, {dangerStats.projects} projects, {dangerStats.workspace_files} workspace files, and all activity
+                        Delete {dangerStats.agents} agents, {dangerStats.workspace_files} workspace files, and all activity
                       </div>
                     </div>
                     <button
                       onClick={() => initiateDangerAction("workspace")}
                       disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0}
-                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Clear
                     </button>
@@ -618,7 +623,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Disconnect Platforms */}
-                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium flex items-center gap-2">
@@ -632,7 +637,7 @@ export default function SettingsPage() {
                     <button
                       onClick={() => initiateDangerAction("integrations")}
                       disabled={dangerStats.platform_connections === 0 && dangerStats.platform_content === 0}
-                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Disconnect
                     </button>
@@ -641,14 +646,14 @@ export default function SettingsPage() {
               </div>
 
               {/* Danger Zone */}
-              <div className="mb-6">
+              <div className="border-t border-destructive/30 pt-6 mb-6">
                 <h3 className="text-sm font-medium text-destructive mb-3 uppercase tracking-wide flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
                   Danger Zone
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-3 border border-destructive/40 rounded-lg p-4">
                   {/* Full Data Reset */}
-                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
+                  <div className="p-4 border border-destructive/30 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium flex items-center gap-2">
@@ -669,7 +674,7 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Deactivate Account */}
-                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
+                  <div className="p-4 border border-destructive/30 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium flex items-center gap-2">
@@ -784,7 +789,6 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.agents} agents and all their runs</li>
-                    <li>{dangerStats?.projects} projects and all outputs</li>
                     <li>{dangerStats?.workspace_files} workspace files (memory, knowledge, outputs)</li>
                     <li>All activity history and work budget records</li>
                   </ul>
@@ -810,7 +814,7 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.workspace_files} workspace files</li>
-                    <li>{dangerStats?.agents} agents and {dangerStats?.projects} projects</li>
+                    <li>{dangerStats?.agents} agents and all tasks</li>
                     <li>{dangerStats?.platform_connections} platform connections</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>All memories, documents, activity, and sync data</li>
