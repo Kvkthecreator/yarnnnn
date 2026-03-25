@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Workfloor — ADR-139 v2: Agent-First Living Office
+ * Workfloor — ADR-139 v3: Agent Grid + TP Chat Panel
  *
- * Left: Agent roster as living office rooms — spatial cards with desk metaphor
- * Right: Tabbed panel (Tasks | Context | Platforms) — fully rendered with empty states
- * Chat: Drawer (FAB + ⌘K)
+ * Left: Agent roster (living office) + tabbed data (Tasks | Context | Platforms)
+ * Right: TP Chat (always visible, resizable via WorkspaceLayout)
+ * No drawer — chat is the right panel.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -21,33 +21,44 @@ import {
   LayoutGrid,
   Cog,
   MessageCircle,
+  Send,
+  Upload,
+  Search,
+  Globe,
+  RefreshCw,
+  Bookmark,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
+import { useDesk } from '@/contexts/DeskContext';
+import { useFileAttachments } from '@/hooks/useFileAttachments';
 import type { Agent, Task } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { ChatDrawer } from '@/components/desk/ChatDrawer';
 import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
+import { CommandPicker } from '@/components/tp/CommandPicker';
+import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
+import { MessageBlocks } from '@/components/tp/InlineToolCall';
+import { ToolResultList } from '@/components/tp/ToolResultCard';
+import ReactMarkdown from 'react-markdown';
 
 // =============================================================================
-// Agent type config (ADR-140)
+// Agent type config
 // =============================================================================
 
-const TYPE_CONFIG: Record<string, { hex: string; accent: string; bgRoom: string; short: string; label: string }> = {
-  research:   { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  content:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  marketing:  { hex: '#ec4899', accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   short: 'Mkt', label: 'Marketing' },
-  crm:        { hex: '#f97316', accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', short: 'CRM', label: 'CRM' },
-  slack_bot:  { hex: '#14b8a6', accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   short: 'Slk', label: 'Slack Bot' },
-  notion_bot: { hex: '#6366f1', accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', short: 'Ntn', label: 'Notion Bot' },
-  // Legacy
-  briefer:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  researcher: { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  analyst:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  drafter:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  writer:     { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  custom:     { hex: '#6b7280', accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   short: 'Cst', label: 'Custom' },
+const TYPE_CONFIG: Record<string, { hex: string; accent: string; bgRoom: string; label: string }> = {
+  research:   { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  content:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  marketing:  { hex: '#ec4899', accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   label: 'Marketing' },
+  crm:        { hex: '#f97316', accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', label: 'CRM' },
+  slack_bot:  { hex: '#14b8a6', accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   label: 'Slack Bot' },
+  notion_bot: { hex: '#6366f1', accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', label: 'Notion Bot' },
+  briefer:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  researcher: { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  analyst:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  drafter:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  writer:     { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  custom:     { hex: '#6b7280', accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   label: 'Custom' },
 };
 
 function getType(role: string) {
@@ -68,7 +79,7 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 // =============================================================================
-// Agent Office Room Card
+// Agent Room Card (with avatar)
 // =============================================================================
 
 function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
@@ -76,17 +87,12 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const isRunning = agent.latest_version_status === 'generating';
   const isPaused = agent.status === 'paused';
   const hasFailed = agent.latest_version_status === 'failed';
-
   const statusDot = isRunning ? 'bg-blue-500 animate-pulse' : isPaused ? 'bg-amber-400' : hasFailed ? 'bg-red-500' : 'bg-emerald-500';
 
-  // Find tasks assigned to this agent
   const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
-  const assignedTasks = tasks.filter(t =>
-    t.status !== 'archived' && t.agent_slugs?.includes(agentSlug)
-  );
-  const activeTask = assignedTasks[0]; // Show the first/primary task on the desk
+  const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
+  const activeTask = assignedTasks[0];
 
-  // Avatar state
   const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
     isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
@@ -94,126 +100,43 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
     <Link
       href={`/agents/${agent.id}`}
       className={cn(
-        'relative flex flex-col items-center rounded-2xl border-2 p-4 pt-2 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden min-h-[180px]',
+        'relative flex flex-col items-center rounded-2xl border-2 p-3 pt-2 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden',
         config.accent, config.bgRoom,
       )}
     >
-      {/* Status light */}
-      <div className="absolute top-3 right-3">
-        <span className={cn('block w-2.5 h-2.5 rounded-full', statusDot)} />
+      <div className="absolute top-2 right-2">
+        <span className={cn('block w-2 h-2 rounded-full', statusDot)} />
       </div>
-
-      {/* Animated avatar — the "employee" at their desk */}
-      <AgentAvatar state={avatarState} color={config.hex} size={80} />
-
-      {/* Name + type below avatar */}
-      <span className="text-xs font-semibold text-center mt-1 truncate w-full">{agent.title}</span>
-      <span className="text-[9px] text-muted-foreground/50">{config.label}</span>
-
-      {/* What's on the desk — live task */}
-      <div className="mt-auto">
-        {isRunning && activeTask ? (
-          <div className="px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">
-              Working: {activeTask.title}
-            </p>
-          </div>
-        ) : activeTask ? (
-          <div className="px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
-            <p className="text-[10px] text-muted-foreground/60 truncate">
-              {activeTask.title}
-            </p>
-            {activeTask.last_run_at && (
-              <p className="text-[9px] text-muted-foreground/30">{formatRelativeTime(activeTask.last_run_at)}</p>
-            )}
-          </div>
-        ) : (
-          <div className="px-2 py-1.5 rounded-lg border border-dashed border-border/30">
-            <p className="text-[10px] text-muted-foreground/25 italic">No task assigned</p>
-          </div>
-        )}
-      </div>
+      <AgentAvatar state={avatarState} color={config.hex} size={56} />
+      <span className="text-[11px] font-semibold text-center mt-1 truncate w-full">{agent.title}</span>
+      {/* Live task on desk */}
+      {activeTask ? (
+        <span className="text-[8px] text-muted-foreground/50 truncate w-full text-center mt-0.5">{activeTask.title}</span>
+      ) : (
+        <span className="text-[8px] text-muted-foreground/25 italic mt-0.5">No task</span>
+      )}
     </Link>
   );
 }
 
 // =============================================================================
-// TP Room Card — The Orchestrator's Office
-// Distinct from AgentRoomCard: opens chat drawer, not a detail page.
-// =============================================================================
-
-function TPRoomCard({ onOpenChat }: { onOpenChat: () => void }) {
-  return (
-    <button
-      onClick={onOpenChat}
-      className={cn(
-        'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden text-left',
-        'border-primary/20 from-primary/5 to-primary/10',
-      )}
-    >
-      {/* Always-on indicator */}
-      <div className="absolute top-3 right-3 flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-        <span className="text-[9px] font-medium text-primary/60 uppercase tracking-wider">Online</span>
-      </div>
-
-      <TPAvatar size={72} />
-
-      <span className="text-sm font-semibold leading-tight mt-1">Orchestrator</span>
-      <span className="text-[11px] text-muted-foreground/70 mt-0.5">Your thinking partner</span>
-
-      <div className="mt-auto pt-2 text-[10px] text-primary/50">
-        ⌘K to chat
-      </div>
-    </button>
-  );
-}
-
-// Empty desk placeholder
-function EmptyRoomCard({ label }: { label: string }) {
-  return (
-    <div className="agent-empty flex flex-col rounded-2xl border-2 border-dashed border-border/30 p-4 opacity-25">
-      <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border/30 flex items-center justify-center mb-3 mt-1">
-        <Cog className="w-5 h-5 text-muted-foreground/30" />
-      </div>
-      <span className="text-sm font-medium text-muted-foreground/40">{label}</span>
-      <span className="text-[11px] text-muted-foreground/25 mt-0.5">Empty desk</span>
-    </div>
-  );
-}
-
-// =============================================================================
-// Right Panel Tabs
+// Tabs below agent grid
 // =============================================================================
 
 function TasksTab({ tasks }: { tasks: Task[] }) {
   const active = tasks.filter(t => t.status !== 'archived');
   return (
-    <div className="p-3 space-y-2">
-      {active.length > 0 ? (
-        <div className="space-y-1">
-          {active.map(task => (
-            <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
-                  <span className="text-sm truncate">{task.title}</span>
-                </div>
-                <div className="flex items-center gap-3 ml-[14px] mt-0.5 text-[10px] text-muted-foreground/60">
-                  {task.schedule && <span>{task.schedule}</span>}
-                  {task.last_run_at && <span>{formatRelativeTime(task.last_run_at)}</span>}
-                </div>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/20 shrink-0" />
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="py-8 text-center">
-          <ListChecks className="w-6 h-6 text-muted-foreground/10 mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground/40">No tasks yet</p>
-          <p className="text-[10px] text-muted-foreground/25 mt-0.5">⌘K → &ldquo;create a task&rdquo;</p>
-        </div>
+    <div className="space-y-1">
+      {active.length > 0 ? active.map(task => (
+        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
+            <span className="truncate">{task.title}</span>
+          </div>
+          {task.schedule && <span className="text-muted-foreground/40 shrink-0 ml-2">{task.schedule}</span>}
+        </Link>
+      )) : (
+        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No tasks — use chat to create one</p>
       )}
     </div>
   );
@@ -235,25 +158,23 @@ function ContextTab() {
     });
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
 
   const files = [
-    { name: 'IDENTITY.md', content: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}` : null },
-    { name: 'BRAND.md', content: brand ? brand.slice(0, 80) + (brand.length > 80 ? '...' : '') : null },
+    { name: 'IDENTITY.md', content: identity?.name || null },
+    { name: 'BRAND.md', content: brand ? brand.slice(0, 60) : null },
     { name: 'CONTEXT.md', content: null },
-    { name: 'preferences.md', content: null },
-    { name: 'notes.md', content: null },
   ];
 
   return (
-    <div className="p-3 space-y-1.5">
+    <div className="space-y-1">
       {files.map(f => (
-        <div key={f.name} className={cn('px-3 py-2 rounded-lg text-xs', f.content ? 'bg-background border border-border' : 'border border-dashed border-border/30')}>
-          <span className={cn('font-medium', f.content ? '' : 'text-muted-foreground/30')}>{f.name}</span>
-          {f.content ? <p className="text-muted-foreground truncate mt-0.5">{f.content}</p> : <p className="text-muted-foreground/20 mt-0.5">Empty</p>}
+        <div key={f.name} className={cn('px-2 py-1.5 rounded text-[10px]', f.content ? '' : 'text-muted-foreground/25')}>
+          <span className="font-medium">{f.name}</span>
+          {f.content ? <span className="text-muted-foreground/60 ml-1.5">— {f.content}</span> : <span className="ml-1.5">Empty</span>}
         </div>
       ))}
-      <Link href="/context" className="block text-center px-3 py-2 text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-2">
+      <Link href="/context" className="block text-center text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 pt-1">
         Browse full context →
       </Link>
     </div>
@@ -261,45 +182,198 @@ function ContextTab() {
 }
 
 function PlatformsTab() {
-  const [platforms, setPlatforms] = useState<Array<{ provider: string; status: string; workspace_name: string | null; resource_count: number }>>([]);
+  const [platforms, setPlatforms] = useState<Array<{ provider: string; status: string; resource_count: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.integrations.getSummary().then(res => setPlatforms(res.platforms)).catch(() => []).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
 
   return (
-    <div className="p-3 space-y-1.5">
+    <div className="space-y-1">
       {['slack', 'notion'].map(provider => {
         const p = platforms.find(pl => pl.provider === provider);
         const connected = p && (p.status === 'active' || p.status === 'connected');
         return (
-          <Link key={provider} href={connected ? `/context/${provider}` : '/settings?tab=connectors'} className={cn('flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors', connected ? 'bg-background border border-border hover:bg-muted/50' : 'border border-dashed border-border/30 hover:bg-muted/10')}>
-            <div className="flex items-center gap-2.5">
-              <Link2 className={cn('w-4 h-4', connected ? 'text-muted-foreground' : 'text-muted-foreground/20')} />
-              <div>
-                <span className={cn('text-sm capitalize', connected ? 'font-medium' : 'text-muted-foreground/30')}>{provider}</span>
-                {p?.workspace_name && <span className="text-[10px] text-muted-foreground block">{p.workspace_name}</span>}
-              </div>
-            </div>
+          <Link key={provider} href={connected ? `/context/${provider}` : '/settings?tab=connectors'} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/30 transition-colors text-xs">
             <div className="flex items-center gap-1.5">
-              {connected && <span className="text-[10px] text-muted-foreground">{p?.resource_count} sources</span>}
-              <span className={cn('w-2 h-2 rounded-full', connected ? 'bg-emerald-500' : 'bg-gray-300')} />
+              <span className={cn('w-1.5 h-1.5 rounded-full', connected ? 'bg-emerald-500' : 'bg-gray-300')} />
+              <span className={cn('capitalize', connected ? '' : 'text-muted-foreground/30')}>{provider}</span>
             </div>
+            {connected && <span className="text-[10px] text-muted-foreground/40">{p?.resource_count} sources</span>}
           </Link>
         );
       })}
-      <Link href="/settings?tab=connectors" className="block text-center px-3 py-2 text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-2">
-        Manage connections →
-      </Link>
     </div>
   );
 }
 
 // =============================================================================
-// Main Page
+// Chat Panel (right side — always visible)
+// =============================================================================
+
+function ChatPanel() {
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    status,
+    pendingClarification,
+    respondToClarification,
+    tokenUsage,
+  } = useTP();
+  const { surface } = useDesk();
+
+  const [input, setInput] = useState('');
+  const [commandPickerOpen, setCommandPickerOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const {
+    attachments,
+    attachmentPreviews,
+    handleFileSelect,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+    getImagesForAPI,
+    fileInputRef,
+  } = useFileAttachments();
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, status]);
+
+  const adjustHeight = useCallback(() => {
+    const ta = textareaRef.current;
+    if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; }
+  }, []);
+  useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
+
+  const commandQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
+  useEffect(() => { setCommandPickerOpen(commandQuery !== null && !input.includes(' ')); }, [commandQuery, input]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if ((!input.trim() && attachments.length === 0) || isLoading) return;
+    const images = await getImagesForAPI();
+    sendMessage(input, { surface, images: images.length > 0 ? images : undefined });
+    setInput('');
+    clearAttachments();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
+  };
+
+  const plusMenuActions: PlusMenuAction[] = [
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
+    { id: 'search-platforms', label: 'Search platforms', icon: Search, verb: 'prompt', onSelect: () => { setInput('Search across my connected platforms for '); textareaRef.current?.focus(); } },
+    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
+    { id: 'run-task', label: 'Run a task now', icon: RefreshCw, verb: 'prompt', onSelect: () => { setInput('Run my '); textareaRef.current?.focus(); } },
+    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
+  ];
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+        {messages.length === 0 && !isLoading && (
+          <div className="text-center py-6">
+            <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
+            <p className="text-[11px] text-muted-foreground/40">Ask anything or type / for commands</p>
+          </div>
+        )}
+
+        {messages.map(msg => (
+          <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
+            <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
+              {msg.role === 'user' ? 'You' : 'yarnnn'}
+            </span>
+            {msg.blocks && msg.blocks.length > 0 ? (
+              <MessageBlocks blocks={msg.blocks} />
+            ) : msg.role === 'assistant' && !msg.content && isLoading ? (
+              <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+            ) : (
+              <>
+                {msg.role === 'assistant' ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
+                {msg.toolResults && msg.toolResults.length > 0 && <ToolResultList results={msg.toolResults} compact />}
+              </>
+            )}
+          </div>
+        ))}
+
+        {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
+          <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+        )}
+
+        {status.type === 'clarify' && pendingClarification && (
+          <div className="space-y-2 bg-muted/50 rounded-lg p-3 border border-border">
+            <p className="text-xs font-medium">{pendingClarification.question}</p>
+            {pendingClarification.options?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {pendingClarification.options.map((opt, i) => (
+                  <button key={i} onClick={() => respondToClarification(opt)} className="px-2.5 py-1 text-[11px] rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 font-medium">{opt}</button>
+                ))}
+              </div>
+            ) : <p className="text-[10px] text-muted-foreground">Type your response below</p>}
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
+        <CommandPicker query={commandQuery ?? ''} onSelect={(cmd) => { setInput(cmd + ' '); setCommandPickerOpen(false); textareaRef.current?.focus(); }} onClose={() => setCommandPickerOpen(false)} isOpen={commandPickerOpen} />
+
+        {attachmentPreviews.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
+            {attachmentPreviews.map((preview, i) => (
+              <div key={i} className="relative group">
+                <img src={preview} alt="" className="h-10 w-10 object-cover rounded border border-border" />
+                <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100"><X className="w-2 h-2" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
+            <PlusMenu actions={plusMenuActions} disabled={isLoading} />
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              disabled={isLoading}
+              enterKeyHint="send"
+              placeholder="Ask anything or type / ..."
+              rows={1}
+              className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+            />
+            <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">
+            <span>Enter to send, Shift+Enter for new line</span>
+            {tokenUsage && <span className="font-mono">{tokenUsage.totalTokens >= 1000 ? `${(tokenUsage.totalTokens / 1000).toFixed(1)}k` : tokenUsage.totalTokens} tokens</span>}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main Workfloor Page
 // =============================================================================
 
 export default function WorkfloorPage() {
@@ -312,35 +386,24 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'context' | 'platforms'>('tasks');
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
-  // Data refresh — initial load + 30s polling + tab focus
   const refreshData = useCallback(() => {
     api.agents.list().then(setAgents).catch(() => []);
     api.tasks.list().then(setTasks).catch(() => []);
   }, []);
 
   useEffect(() => {
-    // Initial load
     api.agents.list().then(setAgents).catch(() => []).finally(() => setAgentsLoading(false));
     api.tasks.list().then(setTasks).catch(() => []).finally(() => setTasksLoading(false));
-
-    // Poll every 30s (pause when chat drawer is open)
-    const interval = setInterval(() => {
-      if (!chatOpen) refreshData();
-    }, 30000);
-
-    // Refresh on tab focus
+    const interval = setInterval(refreshData, 30000);
     const onFocus = () => { if (document.visibilityState === 'visible') refreshData(); };
     document.addEventListener('visibilitychange', onFocus);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
+  }, [refreshData]);
 
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [refreshData, chatOpen]);
   useEffect(() => {
     const provider = searchParams?.get('provider');
     if (provider && searchParams?.get('status') === 'connected') {
@@ -351,91 +414,101 @@ export default function WorkfloorPage() {
 
   const activeAgents = agents.filter(a => a.status !== 'archived');
 
+  // Right panel = TP Chat
   const panelTabs: WorkspacePanelTab[] = [
-    { id: 'tasks', label: 'Tasks', content: <TasksTab tasks={tasks} /> },
-    { id: 'context', label: 'Context', content: <ContextTab /> },
-    { id: 'platforms', label: 'Platforms', content: <PlatformsTab /> },
+    { id: 'chat', label: 'Chat', content: <ChatPanel /> },
   ];
 
   return (
-    <>
-      <WorkspaceLayout
-        identity={{ icon: <LayoutGrid className="w-5 h-5" />, label: 'Workfloor' }}
-        panelTabs={panelTabs}
-        panelDefaultOpen={true}
-        panelDefaultPct={35}
-      >
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto">
-            {/* Bootstrap banner */}
-            {bootstrapProvider && (
-              <div className="flex items-center gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5 mb-6">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!</p>
-                  <p className="text-xs text-muted-foreground">Syncing your data...</p>
-                </div>
-                <button onClick={() => setBootstrapProvider(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+    <WorkspaceLayout
+      identity={{ icon: <LayoutGrid className="w-5 h-5" />, label: 'Workfloor' }}
+      panelTabs={panelTabs}
+      panelDefaultOpen={true}
+      panelDefaultPct={40}
+    >
+      <div className="flex-1 overflow-y-auto p-5">
+        <div className="max-w-2xl mx-auto">
+          {/* Bootstrap banner */}
+          {bootstrapProvider && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-5">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!</p>
+                <p className="text-xs text-muted-foreground">Syncing...</p>
               </div>
-            )}
-
-            {/* TP — Orchestrator's Office (distinct from agent grid) */}
-            <div className="mb-6">
-              <TPRoomCard onOpenChat={() => setChatOpen(true)} />
+              <button onClick={() => setBootstrapProvider(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
+          )}
 
-            {/* Agent Floor — status bar + grid */}
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Agents {activeAgents.length > 0 && <span className="opacity-50">({activeAgents.length})</span>}
+          {/* TP Card */}
+          <div className="mb-5">
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/15 bg-primary/5">
+              <TPAvatar size={40} />
+              <div>
+                <span className="text-sm font-semibold">Orchestrator</span>
+                <span className="text-[10px] text-muted-foreground block">Your thinking partner — always online</span>
+              </div>
+              <span className="ml-auto w-2 h-2 rounded-full bg-primary animate-pulse" />
+            </div>
+          </div>
+
+          {/* Agent Grid */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Agents {activeAgents.length > 0 && `(${activeAgents.length})`}
               </p>
-              {activeAgents.length > 0 && (
-                <div className="flex items-center gap-3 text-[10px]">
-                  {(() => {
-                    const working = activeAgents.filter(a => a.latest_version_status === 'generating').length;
-                    const ready = activeAgents.filter(a => a.status === 'active' && a.latest_version_status !== 'generating').length;
-                    const paused = activeAgents.filter(a => a.status === 'paused').length;
-                    return (
-                      <>
-                        {working > 0 && <span className="flex items-center gap-1 text-blue-500 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />{working} working</span>}
-                        {ready > 0 && <span className="flex items-center gap-1 text-emerald-500"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{ready} ready</span>}
-                        {paused > 0 && <span className="flex items-center gap-1 text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />{paused} paused</span>}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
+              {activeAgents.length > 0 && (() => {
+                const w = activeAgents.filter(a => a.latest_version_status === 'generating').length;
+                const r = activeAgents.filter(a => a.status === 'active' && a.latest_version_status !== 'generating').length;
+                return (
+                  <div className="flex items-center gap-2.5 text-[9px]">
+                    {w > 0 && <span className="flex items-center gap-1 text-blue-500"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />{w} working</span>}
+                    {r > 0 && <span className="flex items-center gap-1 text-emerald-500"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{r} ready</span>}
+                  </div>
+                );
+              })()}
             </div>
 
             {agentsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex items-center justify-center py-10"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
             ) : activeAgents.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-2.5">
                 {activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} tasks={tasks} />)}
               </div>
             ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {['Research', 'Content', 'Marketing', 'CRM', 'Slack Bot', 'Notion Bot'].map(name => (
-                  <EmptyRoomCard key={name} label={name} />
+              <div className="grid grid-cols-3 gap-2.5">
+                {['Research', 'Content', 'Marketing', 'CRM', 'Slack', 'Notion'].map(name => (
+                  <div key={name} className="agent-empty flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-dashed border-border/30 opacity-25">
+                    <Cog className="w-4 h-4 text-muted-foreground/30 mb-1" />
+                    <span className="text-[10px] text-muted-foreground/30">{name}</span>
+                  </div>
                 ))}
               </div>
             )}
+          </div>
 
-            {/* Stats + hint */}
-            <div className="mt-6 text-center text-[10px] text-muted-foreground/40">
-              {tasks.filter(t => t.status !== 'archived').length > 0 ? (
-                <span>{activeAgents.length} agents · {tasks.filter(t => t.status !== 'archived').length} tasks · {tasks.filter(t => t.last_run_at).length} outputs</span>
-              ) : activeAgents.length > 0 ? (
-                <p>
-                  Team is ready. Press <kbd className="px-1.5 py-0.5 text-[9px] border border-border rounded bg-muted font-mono">⌘K</kbd> to create tasks.
-                </p>
-              ) : null}
+          {/* Tabs: Tasks | Context | Platforms */}
+          <div className="border-t border-border pt-3">
+            <div className="flex gap-1 mb-2">
+              {(['tasks', 'context', 'platforms'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    'px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors capitalize',
+                    activeTab === tab ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-muted-foreground'
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
+            {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
+            {activeTab === 'context' && <ContextTab />}
+            {activeTab === 'platforms' && <PlatformsTab />}
           </div>
         </div>
-      </WorkspaceLayout>
-      <ChatDrawer isOpen={chatOpen} onOpenChange={setChatOpen} />
-    </>
+      </div>
+    </WorkspaceLayout>
   );
 }

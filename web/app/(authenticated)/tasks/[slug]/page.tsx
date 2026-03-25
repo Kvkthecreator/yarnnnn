@@ -163,8 +163,8 @@ export default function TaskPage() {
     ]).then(([taskData, outputsData, latestOutput]) => {
       if (!taskData) { setError('Task not found'); setLoading(false); return; }
       setTask(taskData);
-      setOutputs(outputsData.outputs);
-      setSelectedOutput(latestOutput);
+      setOutputs(outputsData?.outputs || []);
+      setSelectedOutput(latestOutput || null);
       setLoading(false);
     }).catch(() => { setError('Failed to load task'); setLoading(false); });
   }, [slug]);
