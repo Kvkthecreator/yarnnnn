@@ -330,14 +330,14 @@ function PlatformsPanel() {
         <div className="text-center py-8">
           <Link2 className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground mb-1">No platforms connected</p>
-          <Link href="/integrations" className="text-xs text-primary hover:underline">
+          <Link href="/settings?tab=connectors" className="text-xs text-primary hover:underline">
             Connect Slack or Notion
           </Link>
         </div>
       )}
 
       <Link
-        href="/integrations"
+        href="/settings?tab=connectors"
         className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <RefreshCw className="w-3 h-3" />
