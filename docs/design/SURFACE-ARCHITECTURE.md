@@ -467,9 +467,27 @@ Workfloor > Market Intelligence     → /agents/{slug}
 
 ---
 
+## 9. Workfloor Liveness
+
+The workfloor agent grid uses ambient CSS animations to communicate state without reading labels. Full spec: [WORKFLOOR-LIVENESS.md](WORKFLOOR-LIVENESS.md).
+
+| State | Visual signal | Animation |
+|-------|--------------|-----------|
+| Working | Glow ring + shimmer sweep | `desk-glow` + `shimmer` keyframes |
+| Ready | Calm presence, subtle breathing | `breathe` keyframe (scale 1.0→1.003) |
+| Paused | Dimmed, desaturated | opacity 60% + grayscale |
+| Empty | Dashed placeholder | Subtle border pulse (6s) |
+| Error | Red border accent | Color transition only |
+| TP | Always-on icon pulse | Distinct from agent states |
+
+Polling: 30-second interval refreshes agent + task status. Immediate refresh on tab focus. No WebSockets.
+
+---
+
 ## Revision History
 
 | Date | Change |
 |------|--------|
 | 2026-03-25 | v1 — Initial: agent cards (left) + TP chat (left) + tasks/workspace tabs (right). Chat as left panel. |
 | 2026-03-25 | v2 — Output-first redesign. Workfloor: output feed (left hero) + agent roster grid (right, OpenClaw-inspired living office). Task page: latest output (left hero) + trajectory + meta (right). Chat becomes drawer (both surfaces) instead of panel/tab. Agent roster as 2×3 spatial grid with liveness indicators. Run trajectory with self-assessment confidence and trend indicators. Success criteria as checklist with eval status. Mode labels on task metadata. |
+| 2026-03-25 | v2.1 — Agent-first workfloor (revised). Left panel: agent roster as hero (living office, birds-eye view) with TP as distinct orchestrator card. Right panel: tabbed (Tasks/Context/Platforms). Live task on each agent desk. Liveness spec added (WORKFLOOR-LIVENESS.md). |
