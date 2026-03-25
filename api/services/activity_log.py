@@ -28,7 +28,6 @@ Read points:
   - system_state.py: Aggregates operational state for TP GetSystemState primitive (ADR-072)
 """
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -38,58 +37,17 @@ logger = logging.getLogger(__name__)
 
 def resolve_agent_project_slug(agent: dict) -> Optional[str]:
     """
-    ADR-129: Resolve project_slug from an agent dict for activity metadata enrichment.
-
-    Two resolution paths (no workspace reads):
-    1. PM agents: type_config.project_slug (always set at scaffold time)
-    2. All agents: type_config.project_slug (set for PM, may be set for others)
-
-    Returns None for agents not in a project. Non-fatal — callers should
-    default to None and continue.
+    Stub — projects table dropped (migration 129). Always returns None.
+    Kept for callers that pass result into metadata (harmless None).
     """
-    try:
-        tc = agent.get("type_config") or {}
-        slug = tc.get("project_slug")
-        if slug:
-            return slug
-    except Exception:
-        pass
     return None
 
 
 async def resolve_agent_project_slug_full(client, user_id: str, agent: dict) -> Optional[str]:
     """
-    ADR-129: Resolve project_slug with workspace fallback.
-
-    1. Check type_config.project_slug (PM agents, fast)
-    2. Fallback: read workspace memory/projects.json (single DB query)
-
-    Returns None for agents not in a project.
+    Stub — projects table dropped (migration 129). Always returns None.
+    Kept for callers that pass result into metadata (harmless None).
     """
-    # Fast path: type_config
-    slug = resolve_agent_project_slug(agent)
-    if slug:
-        return slug
-
-    # Workspace fallback: read memory/projects.json
-    try:
-        from services.workspace import get_agent_slug
-        agent_slug = get_agent_slug(agent)
-        path = f"/agents/{agent_slug}/memory/projects.json"
-        result = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        )
-        if result.data and result.data[0].get("content"):
-            projects = json.loads(result.data[0]["content"])
-            if projects and isinstance(projects, list):
-                return projects[0].get("project_slug")
-    except Exception:
-        pass
     return None
 
 VALID_EVENT_TYPES = frozenset({

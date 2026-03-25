@@ -1,12 +1,9 @@
 """
-YARNNN v5 - Unified Scheduler (Pulse Dispatcher — ADR-126)
-
-Gives each agent its turn to pulse (sense→decide), then acts on the decision.
-The scheduler dispatches pulses — agents decide whether to generate.
+YARNNN v5 - Unified Scheduler (ADR-138: Clean Slate)
 
 Consolidates:
-- Agent pulse dispatch (ADR-126) — all modes, all agents
-- TP Composer Heartbeat (ADR-111 Phase 3, being thinned by ADR-126)
+- Task-based scheduling (ADR-138 Phase 3 — stub, no task execution yet)
+- TP Composer Heartbeat (ADR-111 Phase 3)
 - Import jobs
 - Nightly conversation analysis + memory extraction
 - Platform content cleanup (ADR-072)
@@ -24,7 +21,6 @@ import logging
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from uuid import UUID
 
 from croniter import croniter
 
@@ -214,156 +210,31 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 
 
 # =============================================================================
-# Agent Processing (ADR-018)
+# Task Scheduling (ADR-138)
 # =============================================================================
 
-async def get_due_pulse_agents(supabase_client) -> list[dict]:
+async def get_due_tasks(supabase_client) -> list[dict]:
     """
-    ADR-126: Query ALL active agents due for pulse.
+    ADR-138: Query tasks table for due tasks.
 
-    Returns active agents where next_pulse_at <= now, regardless of mode.
-    Every agent gets a pulse — the pulse decides whether to generate.
+    Returns active tasks where next_run_at <= now.
+    Stub for Phase 3 — tasks exist but no execution pipeline yet.
     """
     now = datetime.now(timezone.utc)
 
-    result = (
-        supabase_client.table("agents")
-        .select("id, user_id, title, scope, role, type_config, schedule, sources, destination, recipient_context, last_run_at, agent_instructions, mode, trigger_config, project_id")
-        .eq("status", "active")
-        .lte("next_pulse_at", now.isoformat())
-        .execute()
-    )
-
-    return result.data or []
-
-
-def resolve_due_duties(agent: dict) -> list[dict]:
-    """ADR-117 Phase 3: Resolve which duties are due for this agent.
-
-    Returns list of {duty, trigger} dicts to execute. When duties is null
-    (pre-ADR-117 agent), returns a synthetic single duty matching the seed role.
-    """
-    duties = agent.get("duties")
-    role = agent.get("role", "custom")
-
-    if not duties:
-        # Backwards compat: single-duty agent uses seed role
-        return [{"duty": role, "trigger": "recurring"}]
-
-    # Filter to active duties only
-    return [
-        d for d in duties
-        if d.get("status", "active") == "active"
-    ]
-
-
-async def process_agent(supabase_client, agent: dict) -> bool:
-    """
-    Process a single agent: generate version, send email, update schedule.
-
-    ADR-042: Uses simplified execute_agent_generation() instead of 3-step pipeline.
-    ADR-117 Phase 3: Iterates over due duties when agent has multi-duty portfolio.
-
-    Returns True if successful.
-    """
-    from services.trigger_dispatch import dispatch_trigger
-    from services.activity_log import write_activity, resolve_agent_project_slug
-
-    agent_id = agent["id"]
-    user_id = agent["user_id"]
-    title = agent["title"]
-    role = agent.get("role", "custom")
-    schedule = agent.get("schedule", {})
-
-    # ADR-129: Resolve project_slug once for all activity events
-    _proj_slug = resolve_agent_project_slug(agent)
-
-    # ADR-117 Phase 3: Resolve duties to execute
-    duties = resolve_due_duties(agent)
-    logger.info(f"[AGENT] Processing: {title} ({agent_id}), duties={[d['duty'] for d in duties]}")
-
-    # ADR-072: Write agent_scheduled event when queued for execution
     try:
-        next_run = calculate_next_pulse_from_schedule(schedule)
-        _sched_meta = {
-            "agent_id": agent_id,
-            "scheduled_for": datetime.now(timezone.utc).isoformat(),
-            "trigger_reason": "schedule",
-            "role": role,
-            "duties": [d["duty"] for d in duties],
-        }
-        # ADR-129: Enrich with project_slug
-        _proj_slug = resolve_agent_project_slug(agent)
-        if _proj_slug:
-            _sched_meta["project_slug"] = _proj_slug
-        await write_activity(
-            client=supabase_client,
-            user_id=user_id,
-            event_type="agent_scheduled",
-            summary=f"Queued: {title}",
-            event_ref=agent_id,
-            metadata=_sched_meta,
+        result = (
+            supabase_client.table("tasks")
+            .select("id, user_id, slug, status, schedule, next_run_at, last_run_at")
+            .eq("status", "active")
+            .lte("next_run_at", now.isoformat())
+            .execute()
         )
+        return result.data or []
     except Exception as e:
-        logger.warning(f"[AGENT] Failed to write scheduled event: {e}")
-
-    all_success = True
-
-    for duty in duties:
-        duty_name = duty["duty"]
-        try:
-            # ADR-088: Route through dispatch — schedule triggers always generate (high)
-            # ADR-117 Phase 3: Pass duty in trigger_context for effective_role resolution
-            result = await dispatch_trigger(
-                client=supabase_client,
-                agent=agent,
-                trigger_type="schedule",
-                trigger_context={"type": "schedule", "duty": duty_name},
-                signal_strength="high",
-            )
-
-            success = result.get("success", False)
-
-            if success:
-                logger.info(f"[AGENT] ✓ Complete: {title} (duty={duty_name})")
-                try:
-                    _gen_meta = {
-                        "role": role,
-                        "duty": duty_name,
-                        "run_id": result.get("run_id"),
-                    }
-                    # ADR-129: Enrich with project_slug
-                    if _proj_slug:
-                        _gen_meta["project_slug"] = _proj_slug
-                    await write_activity(
-                        client=supabase_client,
-                        user_id=user_id,
-                        event_type="agent_generated",
-                        summary=f"Generated: {title}" + (f" ({duty_name})" if duty_name != role else ""),
-                        event_ref=agent_id,
-                        metadata=_gen_meta,
-                    )
-                except Exception as e:
-                    logger.debug(f"[AGENT] Activity log write failed for {title}: {e}")
-            else:
-                logger.warning(f"[AGENT] ✗ Failed: {title} (duty={duty_name}) - {result.get('error')}")
-                all_success = False
-
-        except Exception as e:
-            logger.error(f"[AGENT] ✗ Error processing {title} (duty={duty_name}): {e}")
-            all_success = False
-
-    # Calculate and update next_pulse_at (once, after all duties processed)
-    try:
-        next_run = calculate_next_pulse_from_schedule(schedule)
-        supabase_client.table("agents").update({
-            "last_run_at": datetime.now(timezone.utc).isoformat(),
-            "next_pulse_at": next_run.isoformat(),
-        }).eq("id", agent_id).execute()
-    except Exception as e:
-        logger.warning(f"[AGENT] Failed to update next_pulse_at for {title}: {e}")
-
-    return all_success
+        # tasks table may not exist yet or be empty — graceful degradation
+        logger.debug(f"[TASKS] Query failed (expected if no tasks yet): {e}")
+        return []
 
 
 # =============================================================================
@@ -372,9 +243,9 @@ async def process_agent(supabase_client, agent: dict) -> bool:
 
 async def run_unified_scheduler():
     """
-    Main scheduler entry point — pulse dispatcher (ADR-126).
+    Main scheduler entry point (ADR-138: clean slate).
 
-    Dispatches agent pulses, processes imports, runs Composer heartbeat,
+    Queries due tasks (stub — Phase 3), processes imports, runs Composer heartbeat,
     and handles nightly memory extraction. Called by Render cron every 5 minutes.
     """
     from supabase import create_client
@@ -393,45 +264,14 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # ADR-126: Pulse Dispatch — all agents (pipeline execution removed)
+    # ADR-138: Task-based scheduling (stub — Phase 3 will add execution)
     # -------------------------------------------------------------------------
-    from services.agent_pulse import run_agent_pulse, calculate_next_pulse_at
+    due_tasks = await get_due_tasks(supabase)
+    tasks_found = len(due_tasks)
+    logger.info(f"[TASKS] Found {tasks_found} due tasks (execution not yet implemented — Phase 3)")
 
-    all_due_agents = await get_due_pulse_agents(supabase)
-    standalone_agents = all_due_agents  # No project filtering — all agents pulse independently
-    logger.info(f"[PULSE] Found {len(standalone_agents)} agents due for pulse")
-
-    pulse_generated = 0
-    pulse_observed = 0
-    pulse_waited = 0
-    pulse_escalated = 0
+    # Stub counters for summary (will be populated when task execution is built)
     agent_success = 0
-
-    for agent in standalone_agents:
-        try:
-            # Agent decides via pulse (Tier 1 deterministic → Tier 2 self-assessment)
-            decision = await run_agent_pulse(supabase, agent)
-
-            if decision.action == "generate":
-                pulse_generated += 1
-                # Existing execution pipeline — unchanged
-                if await process_agent(supabase, agent):
-                    agent_success += 1
-            elif decision.action == "observe":
-                pulse_observed += 1
-            elif decision.action == "wait":
-                pulse_waited += 1
-            elif decision.action == "escalate":
-                pulse_escalated += 1
-
-            # Update next_pulse_at for next cycle
-            next_pulse = calculate_next_pulse_at(agent, decision)
-            supabase.table("agents").update({
-                "next_pulse_at": next_pulse.isoformat(),
-            }).eq("id", agent["id"]).execute()
-
-        except Exception as e:
-            logger.error(f"[PULSE] Unexpected error for {agent.get('title', '?')}: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-072: Cleanup Expired Platform Content (hourly)
@@ -606,18 +446,18 @@ async def run_unified_scheduler():
     if now.hour == 0 and now.minute < 5:  # Only in first 5 minutes of midnight UTC
         try:
             from services.memory import process_conversation
-            from services.session_continuity import generate_session_summary, generate_project_session_summary
+            from services.session_continuity import generate_session_summary
 
-            # Get sessions from yesterday (both global TP and project sessions — ADR-125)
+            # Get TP sessions from yesterday
             yesterday = (now - timedelta(days=1)).date().isoformat()
             today = now.date().isoformat()
 
             sessions_result = (
                 supabase.table("chat_sessions")
-                .select("id, user_id, created_at, session_type, project_slug")
+                .select("id, user_id, created_at, session_type")
                 .gte("created_at", yesterday)
                 .lt("created_at", today)
-                .in_("session_type", ["thinking_partner", "project"])
+                .eq("session_type", "thinking_partner")
                 .execute()
             )
             sessions = sessions_result.data or []
@@ -630,7 +470,6 @@ async def run_unified_scheduler():
                     session_date = session.get("created_at", yesterday)[:10]
 
                     # Get messages for this session
-                    # ADR-125: Include metadata for author attribution in project sessions
                     messages_result = (
                         supabase.table("session_messages")
                         .select("role, content, metadata")
@@ -658,22 +497,13 @@ async def run_unified_scheduler():
                                 memory_users += 1
                                 logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
 
-                        # Session summary (ADR-067 Phase 1 + ADR-125)
+                        # Session summary (ADR-067 Phase 1)
                         # Requires ≥ 5 user messages — substantive sessions only
                         if user_msg_count >= 5:
-                            project_slug = session.get("project_slug")
-                            if session_type == "project" and project_slug:
-                                # ADR-125: Author-aware summary for project sessions
-                                summary = await generate_project_session_summary(
-                                    messages=messages,
-                                    session_date=session_date,
-                                    project_slug=project_slug,
-                                )
-                            else:
-                                summary = await generate_session_summary(
-                                    messages=messages,
-                                    session_date=session_date,
-                                )
+                            summary = await generate_session_summary(
+                                messages=messages,
+                                session_date=session_date,
+                            )
                         else:
                             summary = None
                         if summary:
@@ -722,14 +552,8 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
-    total_pulsed = len(all_due_agents)
-    pulse_summary = f"pulse={total_pulsed} (gen={pulse_generated} obs={pulse_observed} wait={pulse_waited}"
-    if pulse_escalated > 0:
-        pulse_summary += f" esc={pulse_escalated}"
-    pulse_summary += f") runs={agent_success}"
-
     summary_parts = [
-        pulse_summary,
+        f"tasks_due={tasks_found}",
         f"imports={import_success}/{import_count}",
     ]
     if memory_extracted > 0:
@@ -752,17 +576,12 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        heartbeat_summary = f"Pulse dispatch: {total_pulsed} pulsed, {agent_success} generated"
+        heartbeat_summary = f"Scheduler cycle: tasks_due={tasks_found}, imports={import_success}/{import_count}"
 
         # Write per-user heartbeat for all users with active connections
         # so the system page can show scheduler status per user
         heartbeat_metadata = {
-            "agents_pulsed": total_pulsed,
-            "pulse_generated": pulse_generated,
-            "pulse_observed": pulse_observed,
-            "pulse_waited": pulse_waited,
-            "pulse_escalated": pulse_escalated,
-            "agents_generated": agent_success,
+            "tasks_due": tasks_found,
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "composer_users": composer_users,

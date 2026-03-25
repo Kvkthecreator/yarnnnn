@@ -126,35 +126,9 @@ function getModeStatusLine(d: Agent): string {
       const count = d.agent_memory?.observations?.length || 0;
       return pulseStr || (count > 0 ? `${count} observation${count === 1 ? '' : 's'}` : 'Watching');
     }
-    case 'proactive':
-    case 'coordinator': {
-      return pulseStr || (d.mode === 'coordinator' ? 'Coordinator' : 'Proactive');
-    }
     default: {
-      // recurring — show schedule, but prefer pulse timing if available
       if (pulseStr) return pulseStr;
-      const s = d.schedule;
-      if (!s?.frequency) return 'No schedule';
-      const time = s.time || '09:00';
-      let timeStr = time;
-      try {
-        const [hour, minute] = time.split(':').map(Number);
-        const ampm = hour >= 12 ? 'pm' : 'am';
-        const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-        timeStr = `${h12}:${minute.toString().padStart(2, '0')}${ampm}`;
-      } catch {
-        // keep original
-      }
-      switch (s.frequency) {
-        case 'daily': return `Daily ${timeStr}`;
-        case 'weekly': {
-          const day = s.day ? s.day.charAt(0).toUpperCase() + s.day.slice(1, 3) : 'Mon';
-          return `${day} ${timeStr}`;
-        }
-        case 'biweekly': return 'Biweekly';
-        case 'monthly': return 'Monthly';
-        default: return s.frequency || 'Custom';
-      }
+      return 'Active';
     }
   }
 }

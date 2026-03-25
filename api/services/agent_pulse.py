@@ -143,7 +143,8 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
             from services.workspace import AgentWorkspace, get_agent_slug
             ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
             observations = await ws.get_observations()
-            threshold = (agent.get("trigger_config") or {}).get("observation_threshold", 5)
+            # trigger_config column dropped (migration 129). Default threshold.
+            threshold = 5
             if len(observations) < threshold:
                 return PulseDecision(
                     action="wait",

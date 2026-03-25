@@ -163,8 +163,8 @@ async def _dispatch_medium_reactive(
     agent_id = agent.get("id")
     user_id = agent.get("user_id")
     title = agent.get("title", "Untitled")
-    trigger_config = agent.get("trigger_config") or {}
-    threshold = trigger_config.get("observation_threshold", 5)
+    # trigger_config column dropped (migration 129). Default threshold.
+    threshold = 5
 
     logger.info(f"[DISPATCH] reactive medium: {title} ({agent_id}), threshold={threshold}")
 

@@ -58,8 +58,7 @@ Role = Literal[
 ]
 
 
-# ADR-111: Scope inference moved to shared agent_creation module
-from services.agent_creation import infer_scope
+# ADR-111: Scope inference in shared agent_creation module (used by create_agent_record)
 
 
 # =============================================================================
@@ -208,143 +207,54 @@ def get_default_config(role: str) -> dict:
 # Request/Response Models
 # =============================================================================
 
-class RecipientContext(BaseModel):
-    """Who receives the agent and what they care about."""
-    name: Optional[str] = None
-    role: Optional[str] = None
-    priorities: list[str] = Field(default_factory=list)
-    notes: Optional[str] = None
-
-
-class ScheduleConfig(BaseModel):
-    """Schedule configuration for recurring execution."""
-    frequency: Literal["daily", "weekly", "biweekly", "monthly", "custom"]
-    day: Optional[str] = None  # e.g., "monday", "1", "15"
-    time: Optional[str] = None  # e.g., "09:00"
-    timezone: str = "America/Los_Angeles"
-    cron: Optional[str] = None  # For custom frequency
-
-
-# =============================================================================
-# ADR-031 Phase 4: Event Trigger Definitions
-# =============================================================================
-
-class CooldownConfig(BaseModel):
-    """Cooldown configuration to prevent rapid re-triggering."""
-    type: Literal["per_thread", "per_channel", "per_sender", "global"] = "global"
-    duration_minutes: int = 5
-    max_triggers_per_duration: int = 1
-
-
-class EventTriggerConfig(BaseModel):
-    """
-    Event trigger configuration for agents.
-
-    Used when trigger_type='event'.
-    """
-    platform: Literal["slack", "notion"]
-    event_types: list[str] = Field(default_factory=list)  # ["app_mention", "message_im"]
-    resource_ids: list[str] = Field(default_factory=list)  # ["C123", "D456"]
-    cooldown: Optional[CooldownConfig] = None
-    # ADR-092: Reactive mode — number of observations before generating a version
-    observation_threshold: int = 5
-    # Optional filters
-    sender_filter: Optional[list[str]] = None  # Only trigger for specific senders
-    keyword_filter: Optional[list[str]] = None  # Only trigger if content contains keywords
-
-
-class DataSource(BaseModel):
-    """A source of information for the agent.
-
-    ADR-104: scope and filters fields removed — never consumed by execution pipeline.
-    Targeting is handled entirely by agent_instructions.
-    """
-    type: Literal["url", "document", "description", "integration_import"]
-    value: str  # URL, document_id, or description text
-    label: Optional[str] = None
-    # Integration source fields
-    provider: Optional[Literal["slack", "notion"]] = None
-    source: Optional[str] = None  # inbox, query:..., channel_id, page_id
-
-
 class AgentCreate(BaseModel):
-    """Create agent request — ADR-109 Scope × Role × Trigger."""
+    """Create agent request — ADR-138: identity-only agent schema."""
     title: str
     # ADR-109: Role is user-selected, scope is auto-inferred
     role: Role = "custom"
     type_config: Optional[dict] = None  # Role-specific config, validated per role
-    recipient_context: Optional[RecipientContext] = None
-    # Trigger configuration
-    trigger_type: Literal["schedule", "event", "manual"] = "schedule"
-    schedule: Optional[ScheduleConfig] = None  # Required if trigger_type='schedule'
-    trigger_config: Optional[EventTriggerConfig] = None  # Required if trigger_type='event'
-    sources: list[DataSource] = Field(default_factory=list)
-    # ADR-028: Destination-first agents
-    destination: Optional[dict] = None  # { platform, target, format, options }
     # ADR-092: Mode taxonomy (trigger axis in ADR-109)
     mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
-    description: Optional[str] = None
 
 
 class AgentUpdate(BaseModel):
-    """Update agent request — ADR-109."""
+    """Update agent request — ADR-138: identity-only agent schema."""
     title: Optional[str] = None
     role: Optional[Role] = None
     type_config: Optional[dict] = None
-    recipient_context: Optional[RecipientContext] = None
-    trigger_type: Optional[Literal["schedule", "event", "manual"]] = None
-    schedule: Optional[ScheduleConfig] = None
-    trigger_config: Optional[EventTriggerConfig] = None
-    sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
-    destination: Optional[dict] = None
     agent_instructions: Optional[str] = None
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
-    description: Optional[str] = None
 
 
 class AgentResponse(BaseModel):
-    """Agent response — ADR-109 Scope × Role × Trigger."""
+    """Agent response — ADR-138: identity-only agent schema."""
     id: str
     title: str
-    # ADR-109: Scope × Role (replaces agent_type + type_classification)
+    # ADR-109: Scope × Role
     scope: str = "cross_platform"
     role: str = "custom"
     type_config: Optional[dict] = None
-    project_id: Optional[str] = None
-    project_name: Optional[str] = None  # For UI display
-    recipient_context: Optional[dict] = None
-    # ADR-031 Phase 4: Trigger configuration
-    trigger_type: str = "schedule"  # schedule, event, manual
-    schedule: Optional[dict] = None
-    trigger_config: Optional[dict] = None  # Event trigger config
-    sources: list[dict] = Field(default_factory=list)
     status: str
     created_at: str
     updated_at: str
-    last_run_at: Optional[str] = None
-    next_pulse_at: Optional[str] = None
-    last_triggered_at: Optional[str] = None  # ADR-031: Last event trigger
     version_count: int = 0
     latest_version_status: Optional[str] = None
-    # ADR-028: Destination-first agents
-    destination: Optional[dict] = None  # { platform, target, format, options }
     # Quality metrics (ADR-018: feedback loop)
     quality_score: Optional[float] = None
     quality_trend: Optional[str] = None
     avg_edit_distance: Optional[float] = None
-    # ADR-030: Source freshness
-    source_freshness: Optional[list[dict]] = None
     # ADR-068: Agent origin
     origin: str = "user_configured"  # user_configured | coordinator_created
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
     agent_memory: Optional[dict] = None
-    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
-    mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
-    description: Optional[str] = None
+    # ADR-092: Mode taxonomy
+    mode: str = "recurring"
+    # ADR-118: Avatar
+    avatar_url: Optional[str] = None
 
 
 class SourceFetchSummary(BaseModel):
@@ -473,32 +383,22 @@ async def create_agent(
     # Handle type_config - use provided or get defaults
     type_config = request.type_config
     if type_config is None:
-        if request.role == "custom" and request.description:
-            type_config = {"description": request.description or ""}
-        else:
-            type_config = get_default_config(request.role)
+        type_config = get_default_config(request.role)
 
     # Validate type_config against the role
     validated_config = validate_role_config(request.role, type_config)
 
-    sources_raw = [s.model_dump() for s in request.sources]
-
     # ADR-111: Single creation path via create_agent_record()
+    # ADR-138: Identity-only — no schedule, sources, destination, recipient_context
     result = await create_agent_record(
         client=auth.client,
         user_id=auth.user_id,
         title=request.title,
         role=request.role,
         origin="user_configured",
-        description=request.description,
         agent_instructions=request.agent_instructions,
-        sources=sources_raw,
-        schedule=request.schedule.model_dump() if request.schedule else None,
         mode=request.mode,
-        trigger_type=request.trigger_type if request.trigger_type != "schedule" else None,
-        recipient_context=request.recipient_context.model_dump() if request.recipient_context else None,
         type_config=validated_config,
-        destination=request.destination,
     )
 
     if not result["success"]:
@@ -516,21 +416,14 @@ async def create_agent(
         scope=agent.get("scope", "cross_platform"),
         role=agent.get("role", "custom"),
         type_config=agent.get("type_config"),
-
-        project_id=None,  # ADR-034: Deprecated
-        recipient_context=agent.get("recipient_context"),
-        schedule=agent["schedule"],
-        sources=agent.get("sources", []),
         status=agent["status"],
         created_at=agent["created_at"],
         updated_at=agent["updated_at"],
-        next_pulse_at=agent.get("next_pulse_at"),
-        destination=agent.get("destination"),
         origin=agent.get("origin", "user_configured"),
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
         mode=agent.get("mode", "recurring"),
-        description=agent.get("description"),
+        avatar_url=agent.get("avatar_url"),
     )
 
 
@@ -641,37 +534,25 @@ async def list_agents(
 
         intel = intelligence_map.get(d["id"], {})
 
-        # ADR-034: Projects removed, agents are user-scoped
         responses.append(AgentResponse(
             id=d["id"],
             title=d["title"],
             scope=d.get("scope", "cross_platform"),
             role=d.get("role", "custom"),
             type_config=d.get("type_config"),
-            project_id=None,  # ADR-034: Deprecated
-            project_name=None,  # ADR-034: Deprecated
-            recipient_context=d.get("recipient_context"),
-            schedule=d["schedule"],
-            sources=d.get("sources", []),
             status=d["status"],
             created_at=d["created_at"],
             updated_at=d["updated_at"],
-            last_run_at=d.get("last_run_at"),
-            next_pulse_at=d.get("next_pulse_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
-            # ADR-028: Destination-first agents
-            destination=d.get("destination"),
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
-            # ADR-068: Agent origin
             origin=d.get("origin", "user_configured"),
-            # ADR-106: Workspace is source of truth
             agent_instructions=intel.get("agent_instructions"),
             agent_memory=intel.get("agent_memory"),
             mode=d.get("mode", "recurring"),
-            description=d.get("description"),
+            avatar_url=d.get("avatar_url"),
         ))
 
     return responses
@@ -765,30 +646,17 @@ async def get_agent(
             id=agent["id"],
             title=agent["title"],
             scope=agent.get("scope", "cross_platform"),
-        role=agent.get("role", "custom"),
+            role=agent.get("role", "custom"),
             type_config=agent.get("type_config"),
-            # ADR-031: Platform-native variants
-    
-            project_id=None,  # ADR-034: Deprecated
-            project_name=None,  # ADR-034: Deprecated
-            recipient_context=agent.get("recipient_context"),
-            schedule=agent["schedule"],
-            sources=agent.get("sources", []),
             status=agent["status"],
             created_at=agent["created_at"],
             updated_at=agent["updated_at"],
-            last_run_at=agent.get("last_run_at"),
-            next_pulse_at=agent.get("next_pulse_at"),
             version_count=len(versions),
-            # ADR-028: Destination-first agents
-            destination=agent.get("destination"),
-            # ADR-068: Agent origin
             origin=agent.get("origin", "user_configured"),
-            # ADR-106: Workspace is source of truth
             agent_instructions=intelligence.get("agent_instructions"),
             agent_memory=intelligence.get("agent_memory"),
             mode=agent.get("mode", "recurring"),
-            description=agent.get("description"),
+            avatar_url=agent.get("avatar_url"),
         ),
         "versions": [
             VersionResponse(
@@ -861,28 +729,11 @@ async def update_agent(
         # Validate against current or new role
         target_role = request.role or check.data.get("role", "custom")
         update_data["type_config"] = validate_role_config(target_role, request.type_config)
-    if request.recipient_context is not None:
-        update_data["recipient_context"] = request.recipient_context.model_dump()
-    if request.schedule is not None:
-        update_data["schedule"] = request.schedule.model_dump()
-        update_data["next_pulse_at"] = calculate_next_run(request.schedule)
-    if request.sources is not None:
-        update_data["sources"] = [s.model_dump() for s in request.sources]
-        # ADR-109: Re-infer scope when sources change
-        new_role = request.role or check.data.get("role", "custom")
-        new_mode = request.mode or check.data.get("mode", "recurring")
-        update_data["scope"] = infer_scope(update_data["sources"], new_role, new_mode)
     if request.status is not None:
         update_data["status"] = request.status
-    # ADR-028: Destination-first agents
-    if request.destination is not None:
-        update_data["destination"] = request.destination
     # ADR-106: agent_instructions written to workspace only (not DB column)
     if request.mode is not None:
         update_data["mode"] = request.mode
-    # Legacy fields
-    if request.description is not None:
-        update_data["description"] = request.description
 
     result = (
         auth.client.table("agents")
@@ -911,25 +762,14 @@ async def update_agent(
         scope=d.get("scope", "cross_platform"),
         role=d.get("role", "custom"),
         type_config=d.get("type_config"),
-        project_id=None,  # ADR-034: Deprecated
-        recipient_context=d.get("recipient_context"),
-        schedule=d["schedule"],
-        sources=d.get("sources", []),
         status=d["status"],
         created_at=d["created_at"],
         updated_at=d["updated_at"],
-        last_run_at=d.get("last_run_at"),
-        next_pulse_at=d.get("next_pulse_at"),
-        # ADR-028: Destination-first agents
-        destination=d.get("destination"),
-        # ADR-068: Agent origin
         origin=d.get("origin", "user_configured"),
-        # ADR-106: Workspace is source of truth
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
         mode=d.get("mode", "recurring"),
-        # Legacy: description still consumed by Research/Hybrid strategies
-        description=d.get("description"),
+        avatar_url=d.get("avatar_url"),
     )
 
 
@@ -1014,109 +854,8 @@ async def trigger_run(
 # ADR-030: Source Freshness Routes
 # =============================================================================
 
-class SourceFreshnessItem(BaseModel):
-    """ADR-030: Freshness info for a single source."""
-    source_index: int
-    source_type: str
-    provider: Optional[str] = None
-    last_fetched_at: Optional[str] = None
-    last_status: Optional[str] = None
-    items_fetched: int = 0
-    is_stale: bool = True
 
-
-@router.get("/{agent_id}/sources/freshness")
-async def get_source_freshness(
-    agent_id: UUID,
-    auth: UserClient,
-) -> list[SourceFreshnessItem]:
-    """
-    ADR-030: Get freshness info for all sources of an agent.
-
-    Returns when each source was last fetched, how many items were retrieved,
-    and whether the source is considered stale (>7 days since last fetch).
-    """
-    # Verify ownership
-    check = (
-        auth.client.table("agents")
-        .select("id, sources")
-        .eq("id", str(agent_id))
-        .eq("user_id", auth.user_id)
-        .single()
-        .execute()
-    )
-
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    agent = check.data
-    sources = agent.get("sources", [])
-
-    # Get latest source run for each source
-    runs_result = (
-        auth.client.table("agent_source_runs")
-        .select("source_index, source_type, provider, completed_at, status, items_fetched")
-        .eq("agent_id", str(agent_id))
-        .order("completed_at", desc=True)
-        .execute()
-    )
-
-    runs = runs_result.data or []
-
-    # Group by source_index, taking the most recent
-    latest_by_index: dict[int, dict] = {}
-    for run in runs:
-        idx = run["source_index"]
-        if idx not in latest_by_index:
-            latest_by_index[idx] = run
-
-    # Build response for all sources
-    result = []
-    from datetime import datetime, timedelta, timezone
-
-    stale_threshold = datetime.now(timezone.utc) - timedelta(days=7)
-
-    for idx, source in enumerate(sources):
-        source_type = source.get("type", "description")
-
-        # Only integration sources have freshness tracking
-        if source_type != "integration_import":
-            continue
-
-        latest = latest_by_index.get(idx)
-        if latest:
-            completed_at = latest.get("completed_at")
-            is_stale = True
-            if completed_at:
-                try:
-                    from dateutil import parser as dateparser
-                    completed_dt = dateparser.parse(completed_at)
-                    is_stale = completed_dt < stale_threshold
-                except Exception as e:
-                    logger.debug(f"Failed to parse completed_at '{completed_at}': {e}")
-
-            result.append(SourceFreshnessItem(
-                source_index=idx,
-                source_type=source_type,
-                provider=source.get("provider") or source.get("platform"),
-                last_fetched_at=completed_at,
-                last_status=latest.get("status"),
-                items_fetched=latest.get("items_fetched", 0),
-                is_stale=is_stale,
-            ))
-        else:
-            # No run yet - definitely stale
-            result.append(SourceFreshnessItem(
-                source_index=idx,
-                source_type=source_type,
-                provider=source.get("provider") or source.get("platform"),
-                last_fetched_at=None,
-                last_status=None,
-                items_fetched=0,
-                is_stale=True,
-            ))
-
-    return result
+# ADR-138: Source freshness route removed — sources column dropped from agents table
 
 
 # =============================================================================
@@ -1259,7 +998,7 @@ async def update_run(
     # Verify ownership through agent
     check = (
         auth.client.table("agents")
-        .select("id, title, role, scope, destination, type_config")
+        .select("id, title, role, scope, type_config")
         .eq("id", str(agent_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1323,7 +1062,7 @@ async def update_run(
 
     v = result.data[0]
 
-    logger.info(f"[AGENT] Version updated: {version_id} -> {v['status']}")
+    logger.info(f"[AGENT] Version updated: {run_id} -> {v['status']}")
 
     # Activity log: record approval or rejection (ADR-063)
     if request.status in ("approved", "rejected"):
@@ -1547,14 +1286,5 @@ def validate_role_config(role: str, config: dict) -> dict:
         return get_default_config(role)
 
 
-def calculate_next_run(schedule: ScheduleConfig) -> str:
-    """
-    Calculate the next pulse timestamp based on schedule configuration.
 
-    Delegates to the unified scheduler's calculate_next_pulse_from_schedule()
-    to ensure consistency across all creation and update paths (ADR-126).
-    """
-    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
-
-    sched_dict = schedule.model_dump()
-    return calculate_next_pulse_from_schedule(sched_dict).isoformat()
+# ADR-138: calculate_next_run() removed — schedule/next_pulse_at columns dropped from agents table
