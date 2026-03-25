@@ -78,11 +78,26 @@ function getArchetype(role: string) {
 // Agent Card — OpenClaw-inspired status display
 // =============================================================================
 
+// Archetype accent colors for card borders and backgrounds
+const ARCHETYPE_ACCENTS: Record<string, { border: string; bg: string; glow: string }> = {
+  researcher: { border: 'border-blue-500/30', bg: 'bg-blue-500/5', glow: 'hover:shadow-blue-500/10' },
+  monitor: { border: 'border-green-500/30', bg: 'bg-green-500/5', glow: 'hover:shadow-green-500/10' },
+  producer: { border: 'border-purple-500/30', bg: 'bg-purple-500/5', glow: 'hover:shadow-purple-500/10' },
+  operator: { border: 'border-orange-500/30', bg: 'bg-orange-500/5', glow: 'hover:shadow-orange-500/10' },
+  custom: { border: 'border-border', bg: 'bg-muted/30', glow: '' },
+};
+
+function getAccent(role: string) {
+  const archetype = getArchetype(role);
+  return ARCHETYPE_ACCENTS[archetype.label.toLowerCase()] || ARCHETYPE_ACCENTS.custom;
+}
+
 function AgentCard({ agent }: { agent: Agent }) {
   const archetype = getArchetype(agent.role);
+  const accent = getAccent(agent.role);
   const Icon = archetype.icon;
 
-  // Status derivation
+  // Status derivation — OpenClaw-inspired prominent status
   const isRunning = agent.latest_version_status === 'generating';
   const hasFailed = agent.latest_version_status === 'failed';
   const isPaused = agent.status === 'paused';
@@ -91,32 +106,52 @@ function AgentCard({ agent }: { agent: Agent }) {
   const statusColor = isRunning ? 'text-blue-500' : isPaused ? 'text-amber-500' : hasFailed ? 'text-red-500' : 'text-green-500';
   const statusDot = isRunning ? 'bg-blue-500 animate-pulse' : isPaused ? 'bg-amber-500' : hasFailed ? 'bg-red-500' : 'bg-green-500';
 
-  // Last activity
   const lastRunLabel = agent.last_run_at
     ? formatRelativeTime(agent.last_run_at)
-    : 'Never run';
+    : 'Awaiting first run';
 
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className="group flex flex-col p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-all"
+      className={cn(
+        'group flex flex-col rounded-xl border p-4 transition-all hover:shadow-md',
+        accent.border,
+        accent.bg,
+        accent.glow,
+      )}
     >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Icon className={cn('w-4 h-4', archetype.color)} />
-          <span className="text-sm font-medium truncate">{agent.title}</span>
-        </div>
+      {/* Status bar — prominent, OpenClaw-style */}
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5">
           <span className={cn('w-2 h-2 rounded-full shrink-0', statusDot)} />
-          <span className={cn('text-[10px] font-medium uppercase tracking-wider', statusColor)}>
+          <span className={cn('text-[10px] font-semibold uppercase tracking-widest', statusColor)}>
             {statusLabel}
           </span>
         </div>
+        <span className="text-[10px] text-muted-foreground/50">{lastRunLabel}</span>
       </div>
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>{archetype.label}</span>
-        <span>{lastRunLabel}</span>
+
+      {/* Agent identity — icon + name prominent */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className={cn(
+          'w-9 h-9 rounded-lg flex items-center justify-center border',
+          accent.border,
+          'bg-background',
+        )}>
+          <Icon className={cn('w-5 h-5', archetype.color)} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium truncate">{agent.title}</div>
+          <div className="text-[11px] text-muted-foreground">{archetype.label}</div>
+        </div>
       </div>
+
+      {/* Description / tagline from agent instructions (first line) */}
+      {agent.description && (
+        <p className="text-[11px] text-muted-foreground/70 line-clamp-2 mt-1">
+          {agent.description}
+        </p>
+      )}
     </Link>
   );
 }
@@ -469,17 +504,47 @@ export default function WorkfloorPage() {
               </div>
             )}
 
-            {/* Agent cards grid */}
-            {!agentsLoading && agents.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Your Team</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {agents.filter(a => a.status !== 'archived').map(agent => (
-                    <AgentCard key={agent.id} agent={agent} />
-                  ))}
+            {/* Agent cards grid — OpenClaw-inspired team overview */}
+            {!agentsLoading && agents.length > 0 && (() => {
+              const active = agents.filter(a => a.status !== 'archived');
+              const working = active.filter(a => a.latest_version_status === 'generating');
+              const ready = active.filter(a => a.status === 'active' && a.latest_version_status !== 'generating');
+              const paused = active.filter(a => a.status === 'paused');
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Your Team <span className="opacity-50">({active.length})</span>
+                    </p>
+                    {/* Status summary — OpenClaw-style quick counts */}
+                    <div className="flex items-center gap-3 text-[10px]">
+                      {working.length > 0 && (
+                        <span className="flex items-center gap-1 text-blue-500">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          {working.length} working
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-green-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        {ready.length} ready
+                      </span>
+                      {paused.length > 0 && (
+                        <span className="flex items-center gap-1 text-amber-500">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          {paused.length} paused
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {active.map(agent => (
+                      <AgentCard key={agent.id} agent={agent} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Empty state */}
             {!hasAgentsOrMessages && !isLoading && !agentsLoading && (

@@ -328,10 +328,6 @@ function getNavigationTarget(
     case 'agent_rejected':
     case 'agent_generated':
     case 'agent_scheduled':
-      // ADR-129: Prefer project link when agent is project-scoped
-      if (metadata.project_slug) {
-        return { href: `/projects/${metadata.project_slug}`, label: 'View project' };
-      }
       if (metadata.agent_id) {
         return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
       }
@@ -350,6 +346,7 @@ function getNavigationTarget(
       return null;
     case 'chat_session':
       return { href: HOME_ROUTE, label: 'Open Agent' };
+    // Legacy project events — link to workfloor (projects deleted in ADR-138)
     case 'project_heartbeat':
     case 'project_assembled':
     case 'project_escalated':
@@ -357,18 +354,13 @@ function getNavigationTarget(
     case 'project_quality_assessed':
     case 'project_contributor_steered':
     case 'project_file_triaged':
-    case 'project_scaffolded': {
-      const projectSlug = (metadata.project_slug || item.event_ref) as string | undefined;
-      if (projectSlug) return { href: `/projects/${projectSlug}`, label: 'View project' };
+    case 'project_scaffolded':
       return null;
-    }
     case 'agent_bootstrapped':
     case 'duty_promoted':
       if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
       return null;
     case 'agent_pulsed':
-      // ADR-129: Prefer project link when agent is project-scoped
-      if (metadata.project_slug) return { href: `/projects/${metadata.project_slug}`, label: 'View project' };
       if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
       return null;
     case 'pm_pulsed': {
