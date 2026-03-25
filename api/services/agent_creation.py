@@ -51,49 +51,27 @@ ROLE_TO_SCOPE = {
 }
 
 
-def infer_scope(sources: list, role: str, mode: str = "recurring") -> str:
+def infer_scope(role: str, mode: str = "recurring") -> str:
     """
-    ADR-109: Auto-infer scope from sources + role + mode.
+    ADR-109: Auto-infer scope from role + mode.
 
-    Scope is never user-configured — it's derived from what the agent knows about.
-
-    Rules:
-    1. proactive/coordinator mode with synthesis/research role → autonomous
-    2. research role with no platform sources → research
-    3. 0 platform sources → knowledge (or cross_platform fallback)
-    4. 1 provider → platform
-    5. 2+ providers → cross_platform
+    Scope is never user-configured — it's derived from the agent's role.
     """
     if mode in ("proactive", "coordinator") and role in ("synthesize", "research", "analyst", "researcher"):
         return "autonomous"
 
-    # Count distinct providers from integration sources
-    providers = set()
-    for s in sources:
-        provider = (s.get("provider") or s.get("platform")) if isinstance(s, dict) else None
-        if provider:
-            providers.add(provider)
-
-    if not providers:
-        # No platform sources — fall back to the role's default scope
-        return ROLE_TO_SCOPE.get(role, "knowledge")
-
-    if len(providers) == 1:
-        return "platform"
-
-    return "cross_platform"
+    return ROLE_TO_SCOPE.get(role, "knowledge")
 
 # Columns allowed in agents table INSERT (prevents Supabase 400)
 # NOTE: agent_instructions and agent_memory EXCLUDED — deprecated by ADR-106.
 # Workspace AGENT.md and memory/*.md are the sole authority for new agents.
 # DB columns kept in schema for lazy migration of pre-workspace agents.
 AGENT_COLUMNS = {
-    "id", "user_id", "project_id", "title", "description",
-    "recipient_context", "schedule", "sources",
-    "status", "created_at", "updated_at", "last_run_at", "next_pulse_at",
-    "type_config", "destination", "origin",
-    "mode", "trigger_type",
-    "trigger_config", "last_triggered_at", "scope", "role",
+    "id", "user_id", "title",
+    "status", "created_at", "updated_at",
+    "type_config", "origin",
+    "agent_instructions", "agent_memory",
+    "mode", "scope", "role",
     "avatar_url",
 }
 
@@ -109,22 +87,10 @@ async def create_agent_record(
     role: str = "custom",
     origin: str = "user_configured",
     *,
-    scope: Optional[str] = None,
-    description: Optional[str] = None,
     agent_instructions: Optional[str] = None,
-    sources: Optional[list] = None,
-    schedule: Optional[dict] = None,
-    frequency: Optional[str] = None,
-    day: Optional[str] = None,
-    time: Optional[str] = None,
-    timezone_str: Optional[str] = None,
     mode: str = "recurring",
-    trigger_type: Optional[str] = None,
-    recipient_context: Optional[dict] = None,
     type_config: Optional[dict] = None,
-    destination: Optional[dict] = None,
-    execute_now: bool = False,
-    extra_fields: Optional[dict] = None,
+    avatar_url: Optional[str] = None,
 ) -> dict:
     """
     Create an agent record in the database with workspace seeding.
@@ -139,8 +105,6 @@ async def create_agent_record(
         {"success": True, "agent_id": str, "agent": dict, "message": str}
         or {"success": False, "error": str, "message": str}
     """
-    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
-
     if not title or not title.strip():
         return {"success": False, "error": "missing_title", "message": "title is required"}
 
@@ -148,33 +112,8 @@ async def create_agent_record(
     if role not in VALID_ROLES:
         role = "custom"
 
-    # Infer scope from sources + role + mode if not provided or invalid
-    if not scope or scope not in VALID_SCOPES:
-        scope = infer_scope(sources or [], role, mode)
-
-    # Build schedule JSONB
-    sched = schedule.copy() if schedule else {}
-    if frequency and "frequency" not in sched:
-        sched["frequency"] = frequency
-    if day and "day" not in sched:
-        sched["day"] = day
-    if time and "time" not in sched:
-        sched["time"] = time
-    if timezone_str and "timezone" not in sched:
-        sched["timezone"] = timezone_str
-
-    # Apply schedule defaults
-    sched.setdefault("frequency", "weekly")
-    sched.setdefault("time", "09:00")
-    sched.setdefault("timezone", "UTC")
-
-    # Calculate next_pulse_at
-    now = datetime.now(timezone.utc)
-    if execute_now:
-        next_pulse_at = now.isoformat()
-    else:
-        next_pulse = calculate_next_pulse_from_schedule(sched)
-        next_pulse_at = next_pulse.isoformat()
+    # Infer scope from role + mode
+    scope = infer_scope(role, mode)
 
     # Resolve instructions
     instructions_text = agent_instructions
@@ -182,6 +121,7 @@ async def create_agent_record(
         from services.agent_pipeline import DEFAULT_INSTRUCTIONS
         instructions_text = DEFAULT_INSTRUCTIONS.get(role, DEFAULT_INSTRUCTIONS.get("custom", ""))
 
+    now = datetime.now(timezone.utc)
     entity_id = str(uuid4())
 
     agent_data = {
@@ -193,29 +133,13 @@ async def create_agent_record(
         "mode": mode,
         "origin": origin,
         "status": "active",
-        "sources": sources or [],
-        "schedule": sched,
-        "next_pulse_at": next_pulse_at,
-        "recipient_context": recipient_context or {},
         "type_config": type_config or {},
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
     }
 
-    # NOTE: agent_instructions DB column is DEPRECATED (ADR-106).
-    # Workspace AGENT.md is the sole authority. DB column kept for lazy migration
-    # of pre-workspace agents via ensure_seeded() but NOT written for new agents.
-    if description:
-        agent_data["description"] = description
-
-    if trigger_type:
-        agent_data["trigger_type"] = trigger_type
-    if destination:
-        agent_data["destination"] = destination
-
-    # Merge extra fields (e.g., coordinator-specific fields)
-    if extra_fields:
-        agent_data.update(extra_fields)
+    if avatar_url:
+        agent_data["avatar_url"] = avatar_url
 
     # Strip to valid columns only
     agent_data = {k: v for k, v in agent_data.items() if k in AGENT_COLUMNS}
@@ -267,7 +191,7 @@ async def create_agent_record(
             "success": True,
             "agent_id": entity_id,
             "agent": agent,
-            "message": f"Created agent '{title}' — {'queued for immediate generation' if execute_now else 'scheduled ' + sched.get('frequency', 'weekly')}.",
+            "message": f"Created agent '{title}'.",
         }
 
     except Exception as e:

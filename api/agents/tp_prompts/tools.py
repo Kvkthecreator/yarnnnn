@@ -80,98 +80,75 @@ Format: `<type>:<identifier>`
 
 ---
 
-## Domain Terms
+## Domain Terms (ADR-138)
 
-- "agent" = recurring automated content (reports, digests, updates)
-- "version" = generated agent content (output of a generation run)
-- "memory" = context/knowledge about user (read-only; updated implicitly)
-- "platform" = connected integration (Slack, Notion)
-
----
-
-## Agent Workspace
-
-Each agent has its own workspace. In an agent-scoped chat, you are its steward —
-see "Agent Workspace Management" in Behaviors for when to proactively update these.
-
-**Instructions** — living behavioral config (like a SKILLS.md per agent).
-Persists across generation runs and shapes both chat and headless output.
-- `Edit(ref="agent:{id}", changes={agent_instructions: "Focus on action items. Keep under 5 bullets."})`
-
-**Audience** — who receives this agent and what they care about.
-- `Edit(ref="agent:{id}", changes={recipient_context: {name: "Sarah", role: "CTO", priorities: ["velocity", "blockers"]}})`
-
-**Observations** — append-only log of notable events, feedback, and learnings.
-- `Edit(ref="agent:{id}", changes={append_observation: {note: "User found v3 too long — prefers concise format"}})`
-
-**Goal** — for goal-mode agents, tracks progress toward a defined objective.
-- `Edit(ref="agent:{id}", changes={set_goal: {description: "Ship Q2 report", status: "in_progress", milestones: ["Draft", "Review", "Publish"]}})`
-
-**Versions** — read generated content to discuss, compare, or refine.
-- `Search(query="latest", scope="version", agent_id="{id}")` - find versions
-- `Read(ref="version:latest?agent_id={id}")` - read latest generated output
-- `Read(ref="version:{version_uuid}")` - read a specific version
-
-**When in an agent-scoped chat**, your working memory already includes the latest
-version preview, instructions, observations, and goal. Use the tools above to dig deeper
-or make updates.
+- **agent** = persistent domain expert (WHO — identity, expertise, memory)
+- **task** = defined work unit (WHAT — objective, cadence, delivery, output spec)
+- **run** = a single execution of a task (output produced by an agent)
+- **memory** = context/knowledge about user (read-only; updated implicitly)
+- **platform** = connected integration (Slack, Notion)
+- **workspace** = shared filesystem (knowledge, identity, agent workspaces, task outputs)
 
 ---
 
-## Creating Agents
+## Creating Agents (ADR-138)
 
-**CreateAgent(title, role, ...)** - Create a new agent
+**CreateAgent(title, role)** — Create a persistent domain expert.
+Agents are WHO — they have identity, domain expertise, and accumulated memory.
+They don't have schedules or delivery targets. Those belong to tasks.
+
 ```
 CreateAgent(
-  title: "Weekly Analysis",
-  role: "analyst",
-  frequency: "weekly",
-  recipient_name: "Sarah"
+  title: "Market Intelligence",
+  role: "researcher",
+  agent_instructions: "Expert in AI agent platform competitive landscape"
 )
 ```
 
-**Roles:** briefer, monitor, researcher, drafter, analyst, writer, planner, scout
-**Frequency:** daily, weekly, biweekly, monthly (default: weekly)
-**Optional:** agent_instructions, sources, day, time, timezone, recipient_name, recipient_role, audience, tone, detail_level
+**Archetypes:** monitor, researcher, producer, operator
+**Optional:** agent_instructions (domain expertise description)
 
-**Always use user's stated frequency** — don't override with defaults.
-Always confirm the agent config with the user before calling CreateAgent.
+Always confirm the agent identity with the user before calling CreateAgent.
 
 ---
 
-## Creating Projects (ADR-120/122)
+## Creating Tasks (ADR-138)
 
-**CreateProject(title, type_key, ...)** - Create a project from the registry
+**CreateTask(title, agent_slug)** — Create a work unit assigned to an agent.
+Tasks are WHAT — they define objective, cadence, delivery, and success criteria.
 
-All projects go through the Project Type Registry. Your System Reference (in working memory)
-lists all available types. Use `type_key` to scaffold the right project — the registry handles
-agent creation, PM setup, source resolution, and delivery defaults automatically.
-
-**For platform-specific projects** (user connects a platform or asks for a digest):
 ```
-CreateProject(type_key: "slack_digest")
-CreateProject(type_key: "notion_digest")
-```
-These are 1:1 with platform. Don't create duplicates — registry enforces uniqueness.
-
-**For multi-agent projects:**
-```
-CreateProject(
-  type_key: "cross_platform_synthesis",
-  title: "Weekly Intelligence Report",
-  intent: {deliverable: "Weekly presentation", audience: "Founder", format: "pptx", purpose: "Stakeholder update"},
-  contributors: [{agent_id: "uuid", expected_contribution: "Cross-platform trends"}],
-  assembly_spec: "Combine synthesis and analysis into a structured deck"
+CreateTask(
+  title: "Weekly Competitive Briefing",
+  agent_slug: "market-intelligence",
+  objective: {deliverable: "Weekly briefing", audience: "Founder", purpose: "Track competitors", format: "Document with charts"},
+  schedule: "weekly",
+  delivery: "kvkthecreator@gmail.com",
+  success_criteria: ["Cover key competitors", "Include pricing", "Actionable recommendations"],
+  output_spec: ["Executive summary", "Competitor analysis", "Pricing chart", "Recommendations"]
 )
 ```
 
-**For anything else:** Use `type_key: "custom"` with title/intent overrides.
+**Required:** title, agent_slug (must be an existing agent)
+**Optional:** objective, schedule, delivery, success_criteria, output_spec
 
-**When to use CreateProject vs CreateAgent:**
-- User wants a platform digest → CreateProject (with platform type_key)
-- User wants a multi-agent deliverable → CreateProject (with type_key)
-- User wants a standalone agent added to existing project → CreateAgent
-- User wants a one-off custom agent → CreateAgent
+**When to use CreateAgent vs CreateTask:**
+- User wants a new domain expert → CreateAgent (then CreateTask for its work)
+- User wants new work from an existing agent → CreateTask
+- User wants recurring output → CreateTask with schedule
+- User wants a one-off output → CreateTask with schedule="once", then TriggerTask
+
+---
+
+## Triggering Tasks
+
+**TriggerTask(task_slug)** — Run a task immediately, outside its normal cadence.
+
+```
+TriggerTask(task_slug: "weekly-competitive-briefing", context: "Focus on CrewAI's new pricing")
+```
+
+**Optional:** context (injected for this run only)
 
 ---
 

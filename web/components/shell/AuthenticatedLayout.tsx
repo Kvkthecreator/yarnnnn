@@ -15,7 +15,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Command, ChevronDown, Settings, Activity, Link2 } from 'lucide-react';
+import { Command, ChevronDown, Settings, Activity, Link2, ListChecks, Users } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -99,7 +99,12 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-139: Simplified navigation — Workfloor is home, secondary pages below
+// ADR-139: Navigation — Workfloor (home), then browse pages, then system pages
+const BROWSE_PAGES: RouteItem[] = [
+  { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks' },
+  { id: 'agents', label: 'Agents', icon: Users, path: '/agents' },
+];
+
 const SECONDARY_PAGES: RouteItem[] = [
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
@@ -108,8 +113,6 @@ const SECONDARY_PAGES: RouteItem[] = [
 
 // Routes accessible via direct URL but not in nav dropdown
 const HIDDEN_ROUTES: RouteItem[] = [
-  { id: 'agents', label: 'Agents', icon: Command, path: '/agents' },
-  { id: 'tasks', label: 'Tasks', icon: Command, path: '/tasks' },
   { id: 'context', label: 'Context', icon: Command, path: '/context' },
 ];
 
@@ -119,6 +122,11 @@ const PRIMARY_ROUTES: RouteItem[] = [];
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
   for (const route of PRIMARY_ROUTES) {
+    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
+      return route;
+    }
+  }
+  for (const route of BROWSE_PAGES) {
     if (pathname === route.path || pathname.startsWith(route.path + '/')) {
       return route;
     }
@@ -290,10 +298,32 @@ function AuthenticatedLayoutInner({
                   <Command className="w-4 h-4" />
                   {HOME_LABEL}
                 </button>
-                {/* Divider — secondary pages below */}
+                {/* Browse pages — Tasks, Agents */}
                 <div className="border-t border-border my-1" />
+                {BROWSE_PAGES.map((route) => {
+                  const Icon = route.icon;
+                  const isActive = currentRoute?.id === route.id;
+                  return (
+                    <button
+                      key={route.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(route.path);
+                        setDropdownOpen(false);
+                      }}
+                      className={cn(
+                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                        isActive && 'bg-primary/5 text-primary'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {route.label}
+                    </button>
+                  );
+                })}
 
-                {/* Secondary pages */}
+                {/* System pages */}
+                <div className="border-t border-border my-1" />
                 {SECONDARY_PAGES.map((route) => {
                   const Icon = route.icon;
                   const isActive = currentRoute?.id === route.id;

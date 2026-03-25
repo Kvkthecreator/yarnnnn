@@ -31,7 +31,6 @@ import {
   Sparkles,
   FolderSearch,
   Brain,
-  CalendarClock,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { MessageBlock } from '@/types/desk';
@@ -54,7 +53,9 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Clarify: FileText,
   // Agent lifecycle (ADR-111)
   CreateAgent: Sparkles,
-  AdvanceAgentSchedule: CalendarClock,
+  // Task primitives (ADR-138)
+  CreateTask: Sparkles,
+  TriggerTask: Play,
   // Intelligence (ADR-087/106)
   SaveMemory: Bookmark,
   GetSystemState: Monitor,

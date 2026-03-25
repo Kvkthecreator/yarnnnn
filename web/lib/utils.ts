@@ -32,7 +32,10 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
 
   // Agent lifecycle (ADR-111)
   CreateAgent: "Creating agent",
-  AdvanceAgentSchedule: "Advancing schedule",
+
+  // Task primitives (ADR-138)
+  CreateTask: "Creating task",
+  TriggerTask: "Triggering task",
 
   // Intelligence (ADR-087/106)
   SaveMemory: "Saving to memory",

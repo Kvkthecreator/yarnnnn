@@ -1010,8 +1010,6 @@ async def _execute_composer_decisions(
     # Create the recommended agent
     title = decision.get("title", "").strip()
     role = decision.get("role", "briefer")
-    frequency = decision.get("frequency", "weekly")
-    description = decision.get("description", "").strip() or None
     instructions = decision.get("instructions", "").strip() or None
 
     if not title:
@@ -1053,31 +1051,13 @@ async def _execute_composer_decisions(
     except Exception:
         pass
 
-    # Infer sources for the new agent
-    sources = _infer_sources_for_role(role, assessment)
-
-    # ADR-118: Default email delivery
-    destination = None
-    try:
-        from services.agent_execution import get_user_email
-        user_email = get_user_email(client, user_id)
-        if user_email:
-            destination = {"platform": "email", "target": user_email, "format": "send"}
-    except Exception:
-        pass
-
     result = await create_agent_record(
         client=client,
         user_id=user_id,
         title=title,
         role=role,
         origin="composer",
-        description=description,
         agent_instructions=instructions,
-        frequency=frequency,
-        sources=sources,
-        destination=destination,
-        execute_now=True,
     )
 
     if not result.get("success"):

@@ -24,7 +24,10 @@ from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import (
     CREATE_AGENT_TOOL, handle_create_agent,
-    ADVANCE_AGENT_SCHEDULE_TOOL, handle_advance_agent_schedule,
+)
+from .task import (
+    CREATE_TASK_TOOL, handle_create_task,
+    TRIGGER_TASK_TOOL, handle_trigger_task,
 )
 from .workspace import (
     READ_WORKSPACE_TOOL, handle_read_workspace,
@@ -155,7 +158,9 @@ PRIMITIVES = [
     CLARIFY_TOOL,
     # Coordinator write primitives — headless only (ADR-092)
     CREATE_AGENT_TOOL,
-    ADVANCE_AGENT_SCHEDULE_TOOL,
+    # Task primitives — chat + headless (ADR-138)
+    CREATE_TASK_TOOL,
+    TRIGGER_TASK_TOOL,
     # Workspace primitives — headless only (ADR-106)
     READ_WORKSPACE_TOOL,
     WRITE_WORKSPACE_TOOL,
@@ -187,7 +192,8 @@ HANDLERS: dict[str, Callable] = {
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
     "CreateAgent": handle_create_agent,
-    "AdvanceAgentSchedule": handle_advance_agent_schedule,
+    "CreateTask": handle_create_task,
+    "TriggerTask": handle_trigger_task,
     "ReadWorkspace": handle_read_workspace,
     "WriteWorkspace": handle_write_workspace,
     "SearchWorkspace": handle_search_workspace,
@@ -255,7 +261,6 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
 # Which primitives are available in each mode.
 # "chat" = full TP session (streaming, user present)
 # "headless" = background generation (non-streaming, no user)
-# "agent_chat" = agent participating in meeting room conversation (ADR-124)
 PRIMITIVE_MODES: dict[str, list[str]] = {
     # Read-only investigation — both modes
     "Search":           ["chat", "headless"],
@@ -269,34 +274,27 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Edit":             ["chat"],
     "Execute":          ["chat"],
     "RefreshPlatformContent": ["chat", "headless"],  # ADR-085, extended by ADR-092
-    "Clarify":          ["chat", "agent_chat"],  # ADR-124: agents can ask clarifying questions
+    "Clarify":          ["chat"],
     "list_integrations": ["chat"],
     # Agent creation — chat + headless (ADR-111: unified CreateAgent)
     "CreateAgent":            ["chat", "headless"],
-    # Coordinator-only primitives — headless only (ADR-092)
-    "AdvanceAgentSchedule":   ["headless"],
-    # Workspace primitives — headless + agent_chat (ADR-106, ADR-124)
-    "ReadWorkspace":          ["headless", "agent_chat"],
-    "WriteWorkspace":         ["headless", "agent_chat"],
-    "SearchWorkspace":        ["headless", "agent_chat"],
-    "QueryKnowledge":         ["headless", "agent_chat"],
-    "ListWorkspace":          ["headless", "agent_chat"],
-    # Inter-agent discovery — headless + agent_chat (ADR-116, ADR-124)
-    "DiscoverAgents":         ["headless", "agent_chat"],
-    # Cross-agent workspace reading — headless + agent_chat (ADR-116 Phase 3, ADR-124)
-    "ReadAgentContext":       ["headless", "agent_chat"],
+    # Task primitives — chat + headless (ADR-138)
+    "CreateTask":             ["chat", "headless"],
+    "TriggerTask":            ["chat", "headless"],
+    # Workspace primitives — headless only (ADR-106)
+    "ReadWorkspace":          ["headless"],
+    "WriteWorkspace":         ["headless"],
+    "SearchWorkspace":        ["headless"],
+    "QueryKnowledge":         ["headless"],
+    "ListWorkspace":          ["headless"],
+    # Inter-agent discovery — headless only (ADR-116)
+    "DiscoverAgents":         ["headless"],
+    # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
+    "ReadAgentContext":       ["headless"],
     # User memory — chat only (ADR-108)
     "SaveMemory":             ["chat"],
     # Runtime dispatch — headless only (ADR-118)
     "RuntimeDispatch":        ["headless"],
-    # Project primitives — chat + headless (ADR-119 Phase 2)
-    "CreateProject":          ["chat", "headless"],
-    "ReadProject":            ["chat", "headless", "agent_chat"],  # ADR-124: agents can read project
-    # PM project execution — headless + agent_chat for PM role (ADR-120, ADR-124)
-    "CheckContributorFreshness":  ["headless", "agent_chat"],
-    "ReadProjectStatus":          ["headless", "agent_chat"],
-    "RequestContributorAdvance":  ["headless", "agent_chat"],
-    "UpdateWorkPlan":              ["headless", "agent_chat"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.

@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.1] - ADR-138: Agents as Work Units — Project Layer Collapse
+
+### Added
+- `services/primitives/task.py`: CreateTask + TriggerTask primitives. CreateTask writes TASK.md, creates DB row, assigns agent. TriggerTask sets next_run_at to now for immediate execution.
+- `services/task_workspace.py`: TaskWorkspace class for /tasks/{slug}/ filesystem operations.
+- `routes/tasks.py`: CRUD API routes (list, get, create, update, archive) at /api/tasks.
+
+### Changed
+- `agents/tp_prompts/tools.py`: Complete rewrite of Domain Terms, Creating Agents, and Creating Tasks sections. Agents are WHO (identity, expertise). Tasks are WHAT (objective, cadence, delivery). Removed all project/PM language. Removed CreateProject documentation. Added CreateTask and TriggerTask documentation.
+- `services/primitives/coordinator.py`: Simplified CreateAgent to identity-only (title, role, agent_instructions). Removed schedule, sources, destination, recipient_context, trigger_context, dedup_key parameters. Deleted AdvanceAgentSchedule primitive entirely.
+- `services/primitives/registry.py`: Removed 7 stale project primitives (CreateProject, ReadProject, CheckContributorFreshness, ReadProjectStatus, RequestContributorAdvance, UpdateWorkPlan, AdvanceAgentSchedule). Added CreateTask, TriggerTask. Removed `agent_chat` from all PRIMITIVE_MODES. 23 primitives total.
+- `services/agent_creation.py`: Simplified create_agent_record() — removed schedule, sources, destination, recipient_context, next_pulse_at params. Agents are identity-only (title, role, scope, mode, instructions, type_config).
+- Expected behavior: TP uses CreateAgent for domain experts (WHO) and CreateTask for work definitions (WHAT). No project creation. No PM agents. Scheduling lives on tasks, not agents.
+
+### Removed
+- `services/primitives/project.py`: CreateProject, ReadProject primitives (deleted in Phase 2)
+- `services/primitives/project_execution.py`: PM execution primitives (deleted in Phase 2)
+- `services/pm_coordination.py`: PM chat coordination (deleted in Phase 2)
+- `services/pipeline_executor.py`: Declarative pipeline execution (deleted in Phase 2)
+- `services/project_registry.py`: Project type registry + scaffold_project() (deleted in Phase 2)
+- PM prompt v6.0 from agent_pipeline.py (~200 lines)
+- PM Tier 3 coordination from agent_pulse.py (~330 lines)
+- PM decision interpreter from agent_execution.py (~500 lines)
+- ProjectWorkspace class from workspace.py (~400 lines)
+- Total: ~11,544 lines of project/PM code removed
+
 ## [2026.03.24.6] - ADR-137 Phase 1: Declarative pipeline executor
 
 ### Added
