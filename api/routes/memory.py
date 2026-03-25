@@ -15,8 +15,8 @@ Endpoints:
   POST /user/memories        - Add a note
   POST /user/memories/import - Bulk import from text
   DELETE /memories/{id}      - Delete a note
-  GET  /user/onboarding-state - Check if user has projects
-  POST /user/onboarding      - Scaffold projects from onboarding
+  GET  /user/onboarding-state - Check if user has agents
+  POST /user/onboarding      - Scaffold agents + tasks from onboarding
   GET  /activity             - List recent activity
 """
 
@@ -96,8 +96,8 @@ class BulkImportResponse(BaseModel):
 
 
 class OnboardingStateResponse(BaseModel):
-    """ADR-132: Check if user has completed onboarding (has any projects)."""
-    has_projects: bool = False
+    """ADR-138: Check if user has completed onboarding (has any agents)."""
+    has_agents: bool = False
 
 
 # ─── ADR-132: Onboarding — scaffold projects directly ──
@@ -152,24 +152,24 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
 async def get_onboarding_state(auth: UserClient):
-    """Check if user has completed onboarding (ADR-132).
+    """Check if user has completed onboarding (ADR-138).
 
-    Returns has_projects: True if user has any projects.
+    Returns has_agents: True if user has any agents.
     Used by auth callback to gate new users to /onboarding.
     """
     try:
         result = (
-            auth.client.table("workspace_files")
-            .select("path")
+            auth.client.table("agents")
+            .select("id")
             .eq("user_id", auth.user_id)
-            .like("path", "/projects/%/PROJECT.md")
+            .neq("status", "archived")
             .limit(1)
             .execute()
         )
-        has_projects = len(result.data or []) > 0
+        has_agents = len(result.data or []) > 0
 
         return OnboardingStateResponse(
-            has_projects=has_projects,
+            has_agents=has_agents,
         )
 
     except Exception as e:
@@ -179,13 +179,10 @@ async def get_onboarding_state(auth: UserClient):
 
 @router.post("/user/onboarding")
 async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
-    """Onboarding endpoint — infer + scaffold projects from user context (ADR-132/136).
+    """Onboarding endpoint — infer + scaffold agents and tasks (ADR-138).
 
-    Two-phase flow:
-    1. Inference: reads user's text + uploaded docs → extracts work scopes
-    2. Scaffold: creates projects with rich charter content per scope
-
-    If inference fails, falls back to lightweight type inference per scope name.
+    Saves user identity/brand, then creates agents + tasks from user context.
+    Currently a stub — agent/task creation will be implemented in ADR-138 Phase 3.
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
@@ -199,12 +196,12 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         if body.brand_content:
             await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
-        # Onboarding scaffold — project scaffolding removed, stub returns empty.
-        # Will be rewritten in Phase 3 for direct agent creation without projects.
-        projects_created = []
-        logger.info(f"[ONBOARDING] Onboarding scaffold stub — project scaffolding removed")
+        # ADR-138: Stub — agent/task creation from onboarding context.
+        # Phase 3 will: infer agent archetype + task from description,
+        # create agent via create_agent(), create task via create_task().
+        logger.info("[ONBOARDING] Stub — identity/brand saved, agent creation pending Phase 3")
 
-        return {"projects_created": projects_created, "count": len(projects_created)}
+        return {"projects_created": [], "count": 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

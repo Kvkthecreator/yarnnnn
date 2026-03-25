@@ -44,7 +44,7 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // ADR-132: Gate new users to /onboarding if no projects exist
+        // ADR-138: Gate new users to /onboarding if no agents exist
         // Only gate if user is heading to HOME_ROUTE (not a specific deep link)
         if (next === HOME_ROUTE) {
           try {
@@ -70,7 +70,7 @@ function CallbackHandler() {
       const { data: { session: retrySession } } = await supabase.auth.getSession();
 
       if (retrySession) {
-        // ADR-132: Same onboarding check for retry path
+        // ADR-138: Same onboarding check for retry path
         if (next === HOME_ROUTE) {
           try {
             const onboardingState = await api.onboarding.getState();

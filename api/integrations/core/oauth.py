@@ -305,9 +305,9 @@ def get_frontend_redirect_url(
     """
     Get the URL to redirect the user to after OAuth.
 
-    Default redirect to /orchestrator with provider + status params.
+    Default redirect to /workfloor with provider + status params (ADR-139).
     Auto-selection + sync already kicked off in callback — user lands on
-    orchestrator to see bootstrap progress. If redirect_to is provided,
+    workfloor to see bootstrap progress. If redirect_to is provided,
     return there instead — this handles reconnects from other pages.
     On error, redirects to settings page.
     """
@@ -319,8 +319,8 @@ def get_frontend_redirect_url(
             "provider": redirect_provider,
             "status": "connected",
         }
-        # Use caller-specified path if provided, otherwise default to /orchestrator
-        target_path = redirect_to if redirect_to else "/orchestrator"
+        # Use caller-specified path if provided, otherwise default to /workfloor
+        target_path = redirect_to if redirect_to else "/workfloor"
         return f"{base_url}{target_path}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
