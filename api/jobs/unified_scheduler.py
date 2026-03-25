@@ -393,76 +393,13 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # ADR-137: Pipeline Execution — advance project pipelines mechanically
-    # -------------------------------------------------------------------------
-    pipeline_steps_run = 0
-    try:
-        from services.pipeline_executor import advance_pipeline, mark_step_completed
-
-        # Find all active agents with project_slug → derive project list + user_ids
-        all_project_agents = supabase.table("agents").select(
-            "user_id, type_config"
-        ).eq("status", "active").execute()
-
-        # Build: {(user_id, project_slug)} set
-        project_user_pairs = set()
-        for a in (all_project_agents.data or []):
-            tc = a.get("type_config") or {}
-            ps = tc.get("project_slug")
-            uid_agent = a.get("user_id")
-            if ps and uid_agent:
-                project_user_pairs.add((uid_agent, ps))
-
-        for uid, slug in project_user_pairs:
-            try:
-                result = await advance_pipeline(supabase, uid, slug)
-                if result.get("action") == "execute":
-                    step = result
-                    logger.info(f"[PIPELINE] Executing {slug}/{step['step_name']} ({step['agent_slug']})")
-
-                    # Find the agent and run it
-                    agents_result = supabase.table("agents").select("*").eq(
-                        "user_id", uid
-                    ).eq("status", "active").execute()
-
-                    from services.workspace import get_agent_slug
-                    target_agent = None
-                    for a in (agents_result.data or []):
-                        if get_agent_slug(a) == step["agent_slug"]:
-                            target_agent = a
-                            break
-
-                    if target_agent:
-                        if step.get("mode") == "compose":
-                            if await process_agent(supabase, target_agent):
-                                await mark_step_completed(supabase, uid, slug, step["step_name"])
-                                pipeline_steps_run += 1
-                        elif step.get("mode") == "evaluate":
-                            await mark_step_completed(supabase, uid, slug, step["step_name"], "quality: auto-pass")
-                            pipeline_steps_run += 1
-                        else:
-                            if await process_agent(supabase, target_agent):
-                                await mark_step_completed(supabase, uid, slug, step["step_name"])
-                                pipeline_steps_run += 1
-                    else:
-                        logger.warning(f"[PIPELINE] Agent not found: {step['agent_slug']} for {slug}")
-            except Exception as e:
-                logger.error(f"[PIPELINE] Error advancing {slug}: {e}")
-
-        if pipeline_steps_run > 0:
-            logger.info(f"[PIPELINE] Executed {pipeline_steps_run} pipeline steps")
-    except Exception as e:
-        logger.error(f"[PIPELINE] Pipeline execution failed: {e}")
-
-    # -------------------------------------------------------------------------
-    # ADR-126: Pulse Dispatch — standalone agents only (project agents use pipeline)
+    # ADR-126: Pulse Dispatch — all agents (pipeline execution removed)
     # -------------------------------------------------------------------------
     from services.agent_pulse import run_agent_pulse, calculate_next_pulse_at
 
     all_due_agents = await get_due_pulse_agents(supabase)
-    # Filter out project contributors — they're handled by pipeline
-    standalone_agents = [a for a in all_due_agents if not (a.get("type_config") or {}).get("project_slug") or a.get("role") == "pm"]
-    logger.info(f"[PULSE] Found {len(standalone_agents)} standalone agents due for pulse (filtered from {len(all_due_agents)})")
+    standalone_agents = all_due_agents  # No project filtering — all agents pulse independently
+    logger.info(f"[PULSE] Found {len(standalone_agents)} agents due for pulse")
 
     pulse_generated = 0
     pulse_observed = 0

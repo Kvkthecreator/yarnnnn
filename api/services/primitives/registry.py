@@ -37,16 +37,6 @@ from .workspace import (
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
-from .project import (
-    CREATE_PROJECT_TOOL, handle_create_project,
-    READ_PROJECT_TOOL, handle_read_project,
-)
-from .project_execution import (
-    CHECK_CONTRIBUTOR_FRESHNESS_TOOL, handle_check_contributor_freshness,
-    READ_PROJECT_STATUS_TOOL, handle_read_project_status,
-    REQUEST_CONTRIBUTOR_ADVANCE_TOOL, handle_request_contributor_advance,
-    UPDATE_WORK_PLAN_TOOL, handle_update_work_plan,
-)
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -180,14 +170,6 @@ PRIMITIVES = [
     SAVE_MEMORY_TOOL,
     # Runtime dispatch — headless only (ADR-118)
     RUNTIME_DISPATCH_TOOL,
-    # Project primitives — chat + headless (ADR-119 Phase 2)
-    CREATE_PROJECT_TOOL,
-    READ_PROJECT_TOOL,
-    # PM project execution primitives — headless only (ADR-120 Phase 1 + P4)
-    CHECK_CONTRIBUTOR_FRESHNESS_TOOL,
-    READ_PROJECT_STATUS_TOOL,
-    REQUEST_CONTRIBUTOR_ADVANCE_TOOL,
-    UPDATE_WORK_PLAN_TOOL,
 ]
 
 
@@ -215,12 +197,6 @@ HANDLERS: dict[str, Callable] = {
     "ReadAgentContext": handle_read_agent_context,
     "SaveMemory": handle_save_memory,
     "RuntimeDispatch": handle_runtime_dispatch,
-    "CreateProject": handle_create_project,
-    "ReadProject": handle_read_project,
-    "CheckContributorFreshness": handle_check_contributor_freshness,
-    "ReadProjectStatus": handle_read_project_status,
-    "RequestContributorAdvance": handle_request_contributor_advance,
-    "UpdateWorkPlan": handle_update_work_plan,
 }
 
 

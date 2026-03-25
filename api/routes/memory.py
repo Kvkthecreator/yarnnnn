@@ -199,100 +199,10 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         if body.brand_content:
             await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
-        from services.project_registry import scaffold_project, infer_topic_type
-        from services.project_inference import infer_work_scopes, read_uploaded_documents
-        from services.agent_framework import AGENT_TYPES
-
+        # Onboarding scaffold — project scaffolding removed, stub returns empty.
+        # Will be rewritten in Phase 3 for direct agent creation without projects.
         projects_created = []
-        doc_ids = body.document_ids or []
-
-        # Phase 1: LLM inference — read docs + text → extract scopes
-        text_parts = [p.name.strip() for p in body.projects if p.name.strip()]
-        text_description = ". ".join(text_parts) if text_parts else ""
-
-        doc_contents = []
-        if doc_ids:
-            doc_contents = await read_uploaded_documents(auth.client, auth.user_id, doc_ids)
-
-        inferred = await infer_work_scopes(text_description, doc_contents)
-        inferred_scopes = inferred.get("scopes", [])
-
-        # Save brand from inference if not provided by user
-        if not body.brand_content and inferred.get("brand", {}).get("name"):
-            brand = inferred["brand"]
-            brand_md = f"# Brand: {brand.get('name', '')}\n\n## Tone\n{brand.get('tone', 'Professional')}\n"
-            await um.write("BRAND.md", brand_md, summary="Brand from inference")
-
-        # Phase 2: Scaffold projects
-        if inferred_scopes:
-            # Use inferred scopes (rich content)
-            for scope in inferred_scopes:
-                name = scope.get("name", "")
-                if not name:
-                    continue
-
-                # Build contributors from inferred team
-                contributors = None
-                if scope.get("team"):
-                    contributors = []
-                    for t in scope["team"]:
-                        role = t.get("role", "briefer")
-                        if role not in AGENT_TYPES:
-                            role = "briefer"
-                        contributors.append({
-                            "title_template": f"{{scope_name}} {AGENT_TYPES[role]['display_name']}",
-                            "role": role,
-                            "scope": "cross_platform",
-                            "frequency": scope.get("cadence", "weekly"),
-                            "expected_contribution": t.get("reason", f"{role} output"),
-                        })
-
-                result = await scaffold_project(
-                    client=auth.client,
-                    user_id=auth.user_id,
-                    type_key="workspace",
-                    scope_name=name,
-                    execute_now=False,
-                    objective_override=scope.get("objective"),
-                    contributors_override=contributors,
-                    assembly_spec_override=scope.get("assembly_spec"),
-                    success_criteria=scope.get("success_criteria"),
-                    output_spec=scope.get("output_spec"),
-                    pipeline=scope.get("pipeline"),
-                )
-                if result.get("success"):
-                    projects_created.append({
-                        "project_slug": result["project_slug"],
-                        "title": result.get("title", name),
-                        "type_key": "workspace",
-                    })
-                    logger.info(f"[ONBOARDING] Scaffolded '{result['project_slug']}' from inferred scope '{name}'")
-        else:
-            # Fallback: use text scope names with lightweight inference
-            for proj in body.projects:
-                name = proj.name.strip()
-                if not name:
-                    continue
-
-                inferred_type, inferred_lifecycle, inferred_purpose = infer_topic_type(name)
-                type_key = "bounded_deliverable" if inferred_lifecycle == "bounded" else "workspace"
-
-                result = await scaffold_project(
-                    client=auth.client,
-                    user_id=auth.user_id,
-                    type_key=type_key,
-                    scope_name=name,
-                    execute_now=False,
-                )
-                if result.get("success"):
-                    projects_created.append({
-                        "project_slug": result["project_slug"],
-                        "title": result.get("title", name),
-                        "type_key": type_key,
-                    })
-                    logger.info(f"[ONBOARDING] Scaffolded '{result['project_slug']}' (fallback) from '{name}'")
-            else:
-                logger.warning(f"[ONBOARDING] Scaffold failed for '{name}': {result.get('message')}")
+        logger.info(f"[ONBOARDING] Onboarding scaffold stub — project scaffolding removed")
 
         return {"projects_created": projects_created, "count": len(projects_created)}
     except Exception as e:

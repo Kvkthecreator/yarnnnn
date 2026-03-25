@@ -300,15 +300,7 @@ async def _sync_platform_inner(
         except Exception:
             pass  # Non-fatal — never block sync
 
-        # ADR-122: Onboarding Bootstrap — scaffold platform digest project on first sync
-        if sync_success and not has_error:
-            try:
-                from services.onboarding_bootstrap import maybe_bootstrap_project
-                project_slug = await maybe_bootstrap_project(client, user_id, provider)
-                if project_slug:
-                    logger.info(f"[PLATFORM_WORKER] Bootstrap project created: {project_slug}")
-            except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Bootstrap check failed (non-fatal): {e}")
+        # Bootstrap disabled — project scaffolding removed. Will be rewritten in Phase 3.
 
         # ADR-114: Event-driven Composer heartbeat after sync with new content
         items_synced = sync_result.get("items_synced", 0)

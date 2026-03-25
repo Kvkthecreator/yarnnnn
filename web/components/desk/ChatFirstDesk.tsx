@@ -8,8 +8,7 @@
  * No agent scope. Chat is the primary interface.
  *
  * Panel tabs:
- * - Projects: compact entry cards linking to /projects/[slug]
- * - Platforms: connected platforms + document uploads (PlatformSyncStatus component)
+ * - Context: workspace identity + brand
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -27,7 +26,6 @@ import {
   Upload,
   Search,
   Globe,
-  Briefcase,
   RefreshCw,
   Bookmark,
   FileText,
@@ -47,165 +45,7 @@ import { getPlatformIcon } from '@/components/ui/PlatformIcons';
 // (PlatformSyncStatus removed — ADR-133: platforms moved to Settings)
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
-import { formatDistanceToNow } from 'date-fns';
-import type { ProjectSummary } from '@/types';
 
-// =============================================================================
-// Panel: Projects (compact entry cards — ADR-122/124 project-first model)
-// =============================================================================
-
-// ADR-133: Only workspace + bounded_deliverable are active types.
-// Legacy labels kept for existing projects in DB that still have old type_keys.
-const TYPE_LABELS: Record<string, string> = {
-  workspace: 'Workspace',
-  bounded_deliverable: 'Deliverable',
-  // Legacy (display only — these types no longer created)
-  slack_digest: 'Slack',
-  notion_digest: 'Notion',
-  cross_platform_synthesis: 'Cross-Platform',
-  custom: 'Custom',
-};
-
-function getProjectIcon(typeKey: string | null): React.ReactNode {
-  if (typeKey === 'slack_digest') return getPlatformIcon('slack', 'w-4 h-4');
-  if (typeKey === 'notion_digest') return getPlatformIcon('notion', 'w-4 h-4');
-  return <Briefcase className="w-4 h-4 text-muted-foreground" />;
-}
-
-function ProjectsPanel() {
-  const { isLoading } = useTP();
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const hasLoadedOnceRef = useRef(false);
-  const mountedRef = useRef(true);
-  const requestSeqRef = useRef(0);
-
-  const loadProjects = useCallback(async (silent = false) => {
-    const requestSeq = ++requestSeqRef.current;
-
-    if (!silent && !hasLoadedOnceRef.current && mountedRef.current) {
-      setLoading(true);
-    }
-
-    try {
-      const data = await api.projects.list();
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
-      setProjects(data.projects);
-    } catch (err) {
-      console.error('Failed to load projects:', err);
-    } finally {
-      if (!hasLoadedOnceRef.current && mountedRef.current) {
-        hasLoadedOnceRef.current = true;
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    void loadProjects();
-    return () => { mountedRef.current = false; };
-  }, [loadProjects]);
-
-  // Refresh after each TP turn completes.
-  useEffect(() => {
-    if (!isLoading) { void loadProjects(true); }
-  }, [isLoading, loadProjects]);
-
-  // Poll while TP is actively working.
-  useEffect(() => {
-    if (!isLoading) return;
-    const intervalId = window.setInterval(() => { void loadProjects(true); }, 4000);
-    return () => window.clearInterval(intervalId);
-  }, [isLoading, loadProjects]);
-
-  // Refresh on focus/visibility.
-  useEffect(() => {
-    const onFocus = () => void loadProjects(true);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') void loadProjects(true);
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [loadProjects]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (projects.length === 0) {
-    return (
-      <div className="p-4 text-center">
-        <Briefcase className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No projects yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">Tell yarnnn what you&apos;re working on to get started</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="divide-y divide-border flex-1 overflow-y-auto">
-        {projects.map((p) => {
-          const isWorkScoped = ['workspace', 'bounded_deliverable'].includes(p.type_key || '');
-          // Only show setup hints if objective is clearly not set (generic template)
-          const needsSetup = isWorkScoped && !p.objective_set;
-          return (
-            <Link
-              key={p.project_slug}
-              href={`/projects/${p.project_slug}`}
-              className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors group"
-            >
-              <div className="shrink-0">
-                {getProjectIcon(p.type_key)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium truncate">
-                    {p.title || p.project_slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  </span>
-                  {/* Platform type badge */}
-                  {p.type_key && TYPE_LABELS[p.type_key] && !isWorkScoped && (
-                    <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                      {TYPE_LABELS[p.type_key]}
-                    </span>
-                  )}
-                </div>
-                {/* Status line: agent count + setup hints */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                  {p.contributor_count != null && (
-                    <span>{p.contributor_count} agent{p.contributor_count !== 1 ? 's' : ''}</span>
-                  )}
-                  {needsSetup && (
-                    <span className="text-amber-500/80">
-                      refine objective
-                    </span>
-                  )}
-                  {!needsSetup && p.purpose && (
-                    <span className="truncate">{p.purpose}</span>
-                  )}
-                </div>
-              </div>
-              {p.updated_at && (
-                <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
-                  {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // =============================================================================
 // =============================================================================
@@ -296,20 +136,10 @@ function formatTokenCount(tokens: number): string {
 }
 
 // =============================================================================
-// Starter templates — project creation + TP capabilities
+// Starter templates
 // =============================================================================
 
-/**
- * Starter prompt — single "New Project" card.
- *
- * ADR-132: Primary onboarding is work-first (/onboarding page). Users who
- * completed onboarding already have work-scoped projects. Users who skipped
- * onboarding fall back to platform bootstrap (ADR-110/122) on OAuth connect.
- * This card serves users who want to create additional projects via chat.
- */
-const NEW_PROJECT_PROMPT = 'I want to create a new project';
-
-/** "Just chat" — single open-ended prompt for everything that isn't project creation */
+/** Open-ended prompt for general usage */
 const CHAT_PROMPT = 'Ask me anything — search your platforms, research the web, manage your agents, or just chat.';
 
 // =============================================================================
@@ -347,14 +177,6 @@ export function ChatFirstDesk() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Project state for contextual action cards
-  const [mainProjects, setMainProjects] = useState<ProjectSummary[]>([]);
-  const hasProjects = mainProjects.length > 0;
-  useEffect(() => {
-    api.projects.list().then((data) => {
-      setMainProjects(data.projects);
-    }).catch(() => {});
-  }, []);
 
   const {
     attachments,
@@ -370,19 +192,17 @@ export function ChatFirstDesk() {
     fileInputRef,
   } = useFileAttachments();
 
-  // Handle ?create param — pre-fill input for project creation handoff
+  // Handle ?create param — pre-fill input for creation handoff
   useEffect(() => {
     if (searchParams?.has('create')) {
-      setInput('I want to set up a new project');
+      setInput('I want to set up new agents');
       textareaRef.current?.focus();
       router.replace(HOME_ROUTE, { scroll: false });
     }
   }, [searchParams, router]);
 
   // ADR-110/122: Detect post-OAuth redirect — ?provider=X&status=connected
-  // Bootstrap now creates projects (not standalone agents), so poll projects by type_key.
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [bootstrapProject, setBootstrapProject] = useState<ProjectSummary | null>(null);
 
   useEffect(() => {
     const provider = searchParams?.get('provider');
@@ -390,32 +210,6 @@ export function ChatFirstDesk() {
     if (provider && status === 'connected') {
       setBootstrapProvider(provider);
       router.replace(HOME_ROUTE, { scroll: false });
-
-      // Map OAuth provider to registry type_key
-      const BOOTSTRAP_TYPE_KEYS: Record<string, string> = {
-        slack: 'slack_digest',
-        notion: 'notion_digest',
-      };
-      const expectedTypeKey = BOOTSTRAP_TYPE_KEYS[provider];
-      if (!expectedTypeKey) return;
-
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const data = await api.projects.list();
-          const found = data.projects.find(
-            (p) => p.type_key === expectedTypeKey
-          );
-          if (found) {
-            setBootstrapProject(found);
-            clearInterval(poll);
-          }
-        } catch { /* ignore */ }
-        if (attempts >= 12) clearInterval(poll); // Stop after ~60s
-      }, 5000);
-
-      return () => clearInterval(poll);
     }
   }, [searchParams, router]);
 
@@ -493,16 +287,6 @@ export function ChatFirstDesk() {
   // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
-      id: 'new-project',
-      label: 'New project',
-      icon: Briefcase,
-      verb: 'prompt',
-      onSelect: () => {
-        setInput('I want to create a new project');
-        textareaRef.current?.focus();
-      },
-    },
-    {
       id: 'upload-file',
       label: 'Upload file',
       icon: Upload,
@@ -564,13 +348,7 @@ export function ChatFirstDesk() {
 
   const identityLabel = activeCommand ? formatCommandName(activeCommand) : 'Orchestrator';
 
-  // ADR-133: Platforms moved to Settings (infrastructure, not daily workspace concern)
   const panelTabs: WorkspacePanelTab[] = [
-    {
-      id: 'projects',
-      label: 'Projects',
-      content: <ProjectsPanel />,
-    },
     {
       id: 'context',
       label: 'Context',
@@ -628,42 +406,23 @@ export function ChatFirstDesk() {
         {/* Messages — centered with max-width */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
           <div className="max-w-3xl mx-auto w-full space-y-3">
-            {/* ADR-110/122: Bootstrap banner — shown after OAuth redirect */}
+            {/* Bootstrap banner — shown after OAuth redirect */}
             {bootstrapProvider && (
               <div className="max-w-2xl mx-auto mb-4">
                 <div className="flex items-center gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
                   <span className="w-5 h-5 shrink-0 text-primary">
                     {getPlatformIcon(bootstrapProvider, 'w-full h-full')}
                   </span>
-                  {bootstrapProject ? (
-                    <div className="flex-1 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {bootstrapProject.title} is ready!
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Your first digest will generate on schedule, or you can run it now.
-                        </p>
-                      </div>
-                      <Link
-                        href={`/projects/${bootstrapProject.project_slug}`}
-                        className="text-xs font-medium text-primary hover:underline shrink-0 ml-3"
-                      >
-                        View project →
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Syncing your data and setting up your project...
-                      </p>
-                    </div>
-                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Syncing your data...
+                    </p>
+                  </div>
                   <button
-                    onClick={() => { setBootstrapProvider(null); setBootstrapProject(null); }}
+                    onClick={() => { setBootstrapProvider(null); }}
                     className="text-muted-foreground hover:text-foreground shrink-0"
                   >
                     <X className="w-4 h-4" />
@@ -674,99 +433,43 @@ export function ChatFirstDesk() {
 
             {messages.length === 0 && !isLoading && (
               <div className="py-8">
-                {/* ADR-132/133: Empty states based on project + platform status */}
-
-                {hasProjects ? (
-                  /* POST-ONBOARDING: User has projects */
-                  <>
-                    <div className="text-center mb-8">
-                      <Briefcase className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                      <h2 className="text-lg font-medium mb-1">Your workspace is ready</h2>
-                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        {mainProjects.length} project{mainProjects.length !== 1 ? 's' : ''} set up.
-                      </p>
+                <div className="text-center mb-8">
+                  <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                  <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    Tell me about your work and I&apos;ll set up the right agents.
+                  </p>
+                </div>
+                <div className="max-w-md mx-auto space-y-3">
+                  <Link
+                    href="/onboarding"
+                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                      <Upload className="w-full h-full" />
+                    </span>
+                    <div>
+                      <span className="text-sm font-medium">Set up your team</span>
+                      <span className="text-xs text-muted-foreground block">Upload files or describe your work</span>
                     </div>
-                    <div className="max-w-md mx-auto space-y-3">
-                      {/* Contextual action cards — priority-ordered */}
-                      {/* 1. Objective gap — refine project with boilerplate objective */}
-                      {(() => {
-                        const needsObjective = mainProjects.find(
-                          p => ['workspace', 'bounded_deliverable'].includes(p.type_key || '') && !p.objective_set
-                        );
-                        return needsObjective ? (
-                          <Link
-                            href={`/projects/${needsObjective.project_slug}`}
-                            className="w-full flex items-center gap-3 p-4 rounded-lg border border-amber-200 hover:border-amber-300 bg-amber-50/50 transition-colors text-left"
-                          >
-                            <Briefcase className="w-5 h-5 shrink-0 text-amber-600" />
-                            <div>
-                              <span className="text-sm font-medium">Refine {needsObjective.title}</span>
-                              <span className="text-xs text-muted-foreground block">Set a clear objective so your agents know what to produce</span>
-                            </div>
-                          </Link>
-                        ) : null;
-                      })()}
-                      {/* 2. New project */}
-                      <button
-                        onClick={() => {
-                          setInput('I want to create a new project');
-                          textareaRef.current?.focus();
-                        }}
-                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                      >
-                        <Briefcase className="w-5 h-5 shrink-0 text-muted-foreground" />
-                        <div>
-                          <span className="text-sm font-medium">New project</span>
-                          <span className="text-xs text-muted-foreground block">Set up a new project with the right agents</span>
-                        </div>
-                      </button>
-                      <p className="text-xs text-muted-foreground/60 text-center px-1">
-                        Click into a project to refine its objective, or ask me anything here.
-                      </p>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setInput(CHAT_PROMPT);
+                      textareaRef.current?.focus();
+                    }}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="w-5 h-5 shrink-0 text-muted-foreground">
+                      <Command className="w-full h-full" />
+                    </span>
+                    <div>
+                      <span className="text-sm font-medium">Or just tell me</span>
+                      <span className="text-xs text-muted-foreground block">Describe what you need and I&apos;ll set it up</span>
                     </div>
-                  </>
-                ) : (
-                  /* NO PROJECTS: new user or returning without projects */
-                  <>
-                    <div className="text-center mb-8">
-                      <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                      <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
-                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                        Tell me about your work and I&apos;ll set up the right projects and agents.
-                      </p>
-                    </div>
-                    <div className="max-w-md mx-auto space-y-3">
-                      <Link
-                        href="/onboarding"
-                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                      >
-                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
-                          <Upload className="w-full h-full" />
-                        </span>
-                        <div>
-                          <span className="text-sm font-medium">Set up your team</span>
-                          <span className="text-xs text-muted-foreground block">Upload files or describe your work — we&apos;ll create the right projects</span>
-                        </div>
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setInput(NEW_PROJECT_PROMPT);
-                          textareaRef.current?.focus();
-                        }}
-                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                      >
-                        <span className="w-5 h-5 shrink-0 text-muted-foreground">
-                          <Command className="w-full h-full" />
-                        </span>
-                        <div>
-                          <span className="text-sm font-medium">Or just tell me</span>
-                          <span className="text-xs text-muted-foreground block">Describe what you need and I&apos;ll set it up</span>
-                        </div>
-                      </button>
-                      <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
-                    </div>
-                  </>
-                )}
+                  </button>
+                  <p className="text-xs text-muted-foreground/60 text-center px-1">{CHAT_PROMPT}</p>
+                </div>
               </div>
             )}
 
@@ -864,14 +567,14 @@ export function ChatFirstDesk() {
               isOpen={commandPickerOpen}
             />
 
-            {/* Create project cards — show verb */}
+            {/* Create cards */}
             {showCreateCards && (
               <div
                 ref={createCardsRef}
                 className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-muted-foreground">What kind of project?</p>
+                  <p className="text-xs font-medium text-muted-foreground">What would you like?</p>
                   <button
                     type="button"
                     onClick={() => setShowCreateCards(false)}
@@ -882,7 +585,7 @@ export function ChatFirstDesk() {
                 </div>
                 <button
                   onClick={() => {
-                    sendMessage(NEW_PROJECT_PROMPT, { surface });
+                    sendMessage('I want to set up new agents', { surface });
                     setShowCreateCards(false);
                   }}
                   className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
@@ -891,8 +594,8 @@ export function ChatFirstDesk() {
                     <Command className="w-full h-full" />
                   </span>
                   <div>
-                    <span className="text-sm font-medium">New Project</span>
-                    <span className="text-[11px] text-muted-foreground block">Start a custom project from scratch</span>
+                    <span className="text-sm font-medium">New agent</span>
+                    <span className="text-[11px] text-muted-foreground block">Set up agents for your work</span>
                   </div>
                 </button>
               </div>

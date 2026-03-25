@@ -544,7 +544,6 @@ export interface AgentDetail {
   versions: AgentRun[];
   feedback_summary?: FeedbackSummary;
   rendered_outputs?: RenderedOutput[];
-  project_memberships?: ProjectMembership[];
 }
 
 export interface VersionUpdate {
@@ -771,111 +770,7 @@ export interface TierLimits {
   next_sync?: string | null;
 }
 
-// =============================================================================
-// ADR-119 Phase 4: Projects
-// =============================================================================
-
-export interface ProjectSummary {
-  project_slug: string;
-  title: string;
-  type_key: string | null;
-  purpose: string | null;
-  updated_at: string;
-  // ADR-132: Enriched project status for work-aware Orchestrator panel
-  contributor_count?: number;
-  has_sources?: boolean;
-  objective_set?: boolean;
-}
-
-/** ADR-128 Phase 6: Contributor cognitive assessment (from self_assessment.md) */
-export interface CognitiveAssessmentDimension {
-  level: 'high' | 'medium' | 'low';
-  reason?: string;
-}
-
-export interface CognitiveAssessment {
-  mandate: CognitiveAssessmentDimension;
-  fitness: CognitiveAssessmentDimension;
-  currency: CognitiveAssessmentDimension;
-  confidence: CognitiveAssessmentDimension;
-  /** Most recent 5 output confidence levels (newest first) */
-  confidence_trajectory?: ('high' | 'medium' | 'low')[];
-}
-
-/** ADR-128 Phase 6: PM cognitive state (from project_assessment.md) */
-export interface PMCognitiveState {
-  layers: {
-    commitment: 'satisfied' | 'broken' | 'unknown';
-    structure: 'satisfied' | 'broken' | 'unknown';
-    context: 'satisfied' | 'broken' | 'unknown';
-    quality: 'satisfied' | 'broken' | 'unknown';
-    readiness: 'satisfied' | 'broken' | 'unknown';
-  };
-  constraint_summary?: string;
-  raw_assessment?: string;
-}
-
-/** ADR-124: Project member — enriched agent data for personified display */
-export interface ProjectMember {
-  agent_slug: string;
-  agent_id?: string;
-  expected_contribution?: string;
-  // Enriched from agents table
-  title?: string;
-  role?: string;
-  scope?: string;
-  mode?: string;
-  status?: 'active' | 'paused' | 'archived';
-  origin?: string;
-  schedule?: Record<string, unknown>;
-  last_run_at?: string;
-  created_at?: string;
-  avatar_url?: string | null;
-  // Agent identity enrichment (workspace-derived)
-  bio?: string | null;
-  thesis_snippet?: string | null;
-  seniority?: 'new' | 'associate' | 'senior';
-  total_runs?: number;
-  approval_rate?: number;
-  // ADR-128 Phase 6: Cognitive state (contributors only)
-  cognitive_state?: CognitiveAssessment | null;
-}
-
-// ADR-123 Phase 3: PM intelligence surfacing
-export interface PMIntelligence {
-  quality_assessment?: string;  // markdown from memory/quality_assessment.md
-  briefs?: Record<string, string>;  // agent_slug → brief markdown
-}
-
-export interface ProjectDetail {
-  project_slug: string;
-  project: {
-    title: string;
-    objective?: {
-      deliverable?: string;
-      audience?: string;
-      format?: string;
-      purpose?: string;
-    };
-    contributors?: ProjectMember[];
-    assembly_spec?: string;
-    delivery?: Record<string, unknown>;
-  };
-  contribution_counts: Record<string, number>;
-  assembly_count: number;
-  pm_intelligence?: PMIntelligence | null;  // ADR-123 Phase 3
-  project_cognitive_state?: PMCognitiveState | null;  // ADR-128 Phase 6
-}
-
-export interface ProjectActivityItem {
-  id: string;
-  event_type: string;
-  summary: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
-
-// ADR-119 Phase 4b: Output + Contribution types
+// ADR-119 Phase 4b: Output manifest (used by agent outputs)
 export interface OutputManifest {
   folder: string;
   version: number;
@@ -890,33 +785,4 @@ export interface OutputManifest {
   }>;
   sources: string[];
   delivery?: Record<string, unknown>;
-}
-
-export interface ProjectOutputDetail {
-  folder: string;
-  content: string;
-  composed_html?: string | null;  // ADR-130 Phase 2: composed HTML output
-  manifest: OutputManifest | null;
-}
-
-export interface ContributionFile {
-  path: string;
-  content: string;
-  updated_at?: string;
-}
-
-export interface ProjectMembership {
-  project_slug: string;
-  title: string;
-  expected_contribution?: string;
-}
-
-/** ADR-124 Phase 4: Workspace file entry for project file browser */
-export interface ProjectWorkspaceFile {
-  path: string;
-  relative_path: string;
-  summary?: string;
-  content_type?: string;
-  updated_at?: string;
-  lifecycle?: string;
 }

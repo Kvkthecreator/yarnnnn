@@ -26,7 +26,6 @@ import {
   FileText,
   Globe,
   Brain,
-  FolderKanban,
   HeartPulse,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -40,7 +39,7 @@ import { RunsPanel } from '@/components/agents/AgentRunDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/agents/AgentDrawerPanels';
 import { AgentChatArea } from '@/components/agents/AgentChatArea';
 import { AgentOutputsPanel } from '@/components/agents/AgentOutputsPanel';
-import type { Agent, AgentRun, AgentSession, RenderedOutput, ProjectMembership } from '@/types';
+import type { Agent, AgentRun, AgentSession, RenderedOutput } from '@/types';
 
 // =============================================================================
 // Helpers: platform icon (source-first, AGENT-PRESENTATION-PRINCIPLES.md)
@@ -108,7 +107,6 @@ export default function AgentWorkspacePage() {
   const [versions, setVersions] = useState<AgentRun[]>([]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [renderedOutputs, setRenderedOutputs] = useState<RenderedOutput[]>([]);
-  const [projectMemberships, setProjectMemberships] = useState<ProjectMembership[]>([]);
 
   // UI
   const [running, setRunning] = useState(false);
@@ -126,7 +124,6 @@ export default function AgentWorkspacePage() {
       setVersions(detail.versions);
       setSessions(sessionData);
       setRenderedOutputs(detail.rendered_outputs || []);
-      setProjectMemberships(detail.project_memberships || []);
     } catch (err) {
       console.error('Failed to load agent:', err);
     } finally {
@@ -316,21 +313,6 @@ export default function AgentWorkspacePage() {
         {agent.status === 'paused' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
         {agent.status === 'paused' ? 'Paused' : 'Active'}
       </button>
-      {projectMemberships.length > 0 && (
-        <>
-          <span className="select-none">·</span>
-          {projectMemberships.map((pm) => (
-            <Link
-              key={pm.project_slug}
-              href={`/projects/${pm.project_slug}`}
-              className="inline-flex items-center gap-1 text-primary hover:underline"
-            >
-              <FolderKanban className="w-3 h-3" />
-              {pm.title || pm.project_slug}
-            </Link>
-          ))}
-        </>
-      )}
     </span>
   );
 

@@ -63,7 +63,6 @@ DEFAULT_INSTRUCTIONS = {
     "writer": "Craft communications for the target audience. Match tone and style to context. Focus on clarity, persuasion, and professionalism.",
     "planner": "Prepare plans, agendas, and follow-ups. Read platform context for preparation material. Track action items and deadlines. Structure for quick scanning.",
     "scout": "Track the competitive and market landscape. Monitor external sources for changes. Flag new entrants, pricing shifts, feature launches, and strategic moves.",
-    "pm": "Coordinate this project: track contributor freshness, steer via contribution briefs, gate quality, trigger assembly when contributions are ready, manage work plan. Escalate to TP if stuck.",
     # Legacy mappings (DB may still have old role values)
     "digest": "Keep the user briefed on their domain. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
     "synthesize": "Track patterns across sources and produce analysis. Cross-reference data. Flag trends and anomalies.",
@@ -315,126 +314,6 @@ INSTRUCTIONS:
 - If the description specifies a format (bullets, narrative, tables), use it exactly
 
 Write the agent now:""" + _ASSESSMENT_POSTAMBLE,
-
-    # pm: v6.0 (2026.03.21) — Layered cognitive model + project_assessment output
-    # v3.0: Intelligence Director with assess/steer/assemble (ADR-121)
-    # v4.0: intent→objective rename, intentions field removed (ADR-123)
-    # v5.0: user_shared/ file awareness + triage_file action (ADR-127)
-    # v6.0: prerequisite-layer reasoning, context-objective fitness, project_assessment.md
-    "pm": """You are the Project Manager for "{title}".
-
-You reason through prerequisite layers. Each layer MUST be satisfied before the next matters. Your first job on every pulse is to identify which layer is the current constraint.
-
-== LAYER 1: COMMITMENT — Is the objective clear? ==
-A project is a commitment to produce a deliverable for an audience. If the objective is incomplete (missing deliverable, audience, format, or purpose), NOTHING ELSE MATTERS. Escalate to get it defined.
-
-Commitment: {commitment_assessment}
-
-== LAYER 2: STRUCTURE — Do we have the right team? ==
-Given the objective, do the current members have the right roles and scopes to fulfill it? A cross-platform synthesis with one platform-scoped agent is structurally incomplete — it CANNOT succeed regardless of execution quality. Think like a Composer scoped to this project.
-
-Structure: {structural_assessment}
-
-== LAYER 3: CONTEXT — Do we have the right inputs? ==
-Given the objective, what context is REQUIRED? Platform connections are available supply, NOT assumed demand. If Slack is connected but the objective doesn't need Slack data, that connection has no relevance to this project. Evaluate context-objective fit from first principles. Missing required context is a blocker. Irrelevant available context is noise.
-
-Context: {context_assessment}
-
-== LAYER 4: OUTPUT QUALITY — Is what we're producing good enough? ==
-Only reason about this if Layers 1-3 are satisfied. Contributor output, freshness, coverage, depth.
-
-{contributor_status}
-
-== LAYER 5: DELIVERY READINESS — Can we assemble and deliver? ==
-Work plan, budget, assembly readiness. Only after Layer 4.
-
-Work Plan: {work_plan}
-Budget: {budget_status}
-
-== YOUR PRIOR ASSESSMENT ==
-{prior_assessment}
-
-== PROJECT CHARTER ==
-{project_context}
-
-{user_shared_files}
-
-{user_instructions}
-
-INSTRUCTIONS:
-You run periodically. On every pulse, walk the layers top-down. Stop at the first broken layer. Your action must address the CURRENT CONSTRAINT, not a downstream concern.
-
-Every decision MUST include a "project_assessment" field — your layered evaluation of the project. This persists in your memory as your evolving understanding.
-
-Decide ONE action:
-
-1. **assess_quality** — Layer 4: Evaluate contributions against the objective. Score each for coverage, depth, and differentiation.
-2. **steer_contributor** — Layer 4: A contributor's output is thin, off-topic, or overlapping. Write a directive brief and advance them.
-3. **assemble** — Layer 5: Contributions are qualitatively sufficient. Trigger assembly.
-4. **advance_contributor** — Layer 4: Contributor is stale but last output was adequate. Refresh without steering.
-5. **wait** — Any layer: Conditions not yet met for action. Specify WHICH layer you're waiting on.
-6. **escalate** — Any layer: Something is structurally wrong that you cannot fix (incomplete objective, wrong team composition, missing platforms, budget exhausted, repeated failures). Specify the broken layer.
-7. **update_work_plan** — Layer 5: Decompose the objective into an operational plan with contributor cadences, focus areas, assembly schedule, budget allocation.
-8. **triage_file** — User shared a file in user_shared/. Decide destination: contributions/, memory/, knowledge/, or ignore.
-
-CRITICAL: Your ENTIRE response must be a single valid JSON object. No markdown, no headers, no prose, no fences — ONLY JSON.
-
-EVERY response MUST include these two top-level fields:
-- "project_assessment": your layered evaluation (written to memory/project_assessment.md)
-- "action": your chosen action
-
-Project assessment format:
-"project_assessment": {{
-  "constraint_layer": 1|2|3|4|5,
-  "constraint_summary": "one-line description of the current constraint",
-  "layer_1_commitment": "clear|incomplete — brief note",
-  "layer_2_structure": "adequate|gap — brief note",
-  "layer_3_context": "adequate|missing|irrelevant — brief note",
-  "layer_4_quality": "sufficient|thin|unassessed — brief note",
-  "layer_5_readiness": "ready|not_ready|blocked — brief note"
-}}
-
-Output format by action:
-
-For assess_quality:
-{{"project_assessment": {{...}}, "action": "assess_quality", "reason": "why assessing now", "assessments": [{{"agent_slug": "slug", "coverage": "adequate|thin|missing", "depth": "sufficient|shallow", "differentiation": "unique|overlapping", "verdict": "ready|needs_steering|inadequate", "notes": "what's good, what's missing"}}]}}
-
-For steer_contributor:
-{{"project_assessment": {{...}}, "action": "steer_contributor", "reason": "why steering", "target_agent": "agent-slug", "brief": "Specific directive: what to focus on, what questions to answer, what's missing."}}
-
-For assemble:
-{{"project_assessment": {{...}}, "action": "assemble", "reason": "why ready now", "quality_notes": "brief summary of contribution quality"}}
-
-For advance_contributor:
-{{"project_assessment": {{...}}, "action": "advance_contributor", "reason": "why advancing", "target_agent": "agent-slug"}}
-
-For wait:
-{{"project_assessment": {{...}}, "action": "wait", "reason": "what we're waiting for and which layer"}}
-
-For escalate:
-{{"project_assessment": {{...}}, "action": "escalate", "reason": "what's wrong", "details": "which layer is broken and why PM cannot fix it"}}
-
-For update_work_plan:
-{{"project_assessment": {{...}}, "action": "update_work_plan", "reason": "why updating", "work_plan": {{"contributors": [{{"slug": "agent-slug", "expected_cadence": "weekly", "focus_areas": ["topic1", "topic2"], "skills": ["spreadsheet"]}}], "assembly_cadence": "biweekly", "budget_per_cycle": 8, "skill_sequence": ["spreadsheet", "presentation"], "notes": "operational notes"}}}}
-
-For triage_file:
-{{"project_assessment": {{...}}, "action": "triage_file", "reason": "what this file is and why it belongs here", "source_file": "user_shared/filename.md", "destination": "contributions/agent-slug/filename.md", "action_type": "promote"}}
-Use destination paths like: contributions/{{agent-slug}}/{{filename}} (contributor reference), memory/{{filename}} (project memory), or "ignore" as action_type to skip.
-
-Decision Rules (in prerequisite order):
-- ALWAYS include project_assessment. This is your evolving cognitive state.
-- Walk layers 1→5. Stop at the first gap. Your action must address THAT layer.
-- If commitment is incomplete (Layer 1), escalate — you cannot define success without a clear objective.
-- If structure is wrong (Layer 2), escalate — wrong team cannot produce right output.
-- If required context is missing (Layer 3), escalate — agents cannot produce quality output without relevant inputs.
-- If no work plan exists and Layers 1-3 are clear, your first action MUST be update_work_plan.
-- If user_shared/ files are present, triage them before other Layer 4-5 actions.
-- If contributions exist but you haven't assessed quality yet this cycle, prefer assess_quality before assemble.
-- If a contribution is thin or off-topic, steer_contributor with a specific brief.
-- Be decisive. If quality is sufficient, assemble. Don't over-optimize.
-- If budget is exhausted, escalate with reason "work budget exhausted".
-- Keep reasons concise — 1-2 sentences max.
-""",
 
 }  # end ROLE_PROMPTS
 
@@ -766,26 +645,6 @@ def build_role_prompt(
 
     # drafter, writer, planner use only common fields (no special handling needed)
 
-    elif prompt_role == "pm":
-        # PM context injected by _load_pm_project_context() via type_config merge
-        # PM cognitive model v1.0: layered assessment (commitment → structure → context → quality → readiness)
-        # ADR-127: user_shared/ files injected for triage awareness
-        user_shared = config.get("user_shared_files", "")
-        user_shared_section = f"USER-SHARED FILES (triage needed):\n{user_shared}" if user_shared else ""
-        prior_assessment = config.get("prior_assessment", "")
-        prior_section = f"Your last project assessment:\n{prior_assessment}" if prior_assessment else "No prior assessment — this is your first evaluation."
-        fields.update({
-            "project_context": config.get("project_context", "No project context available."),
-            "commitment_assessment": config.get("commitment_assessment", "Unknown."),
-            "structural_assessment": config.get("structural_assessment", "Unknown."),
-            "context_assessment": config.get("context_assessment", "Unknown."),
-            "contributor_status": config.get("contributor_status", "No contributor status available."),
-            "work_plan": config.get("work_plan", "No work plan set."),
-            "budget_status": config.get("budget_status", "Unknown"),
-            "user_shared_files": user_shared_section,
-            "prior_assessment": prior_section,
-        })
-
     else:  # custom and any unknown types
         fields.update({
             "description": config.get("description", agent.get("description", "")),
@@ -834,8 +693,7 @@ def validate_output(role: str, content: str, config: dict) -> dict:
     if not content:
         return {"valid": False, "issues": ["No content generated"], "score": 0.0}
 
-    # PM returns structured JSON, not prose — skip minimum word count
-    issues = [] if role == "pm" else _validate_minimum_content(content)
+    issues = _validate_minimum_content(content)
 
     # ADR-130 v2: map new type names to validation keys
     from services.agent_framework import LEGACY_ROLE_MAP
@@ -858,22 +716,6 @@ def validate_output(role: str, content: str, config: dict) -> dict:
         vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)
         if vague_count > 3:
             issues.append("Content may be too generic — add more specific insights")
-
-    elif v_role == "pm":
-        # PM must return valid JSON with an action field
-        import json as _json
-        try:
-            parsed = _json.loads(content.strip())
-            if "action" not in parsed:
-                issues.append("PM response missing 'action' field")
-            elif parsed["action"] not in ("assemble", "advance_contributor", "wait", "escalate", "update_work_plan"):
-                issues.append(f"Invalid PM action: {parsed['action']}")
-            if parsed.get("action") == "update_work_plan" and not parsed.get("work_plan"):
-                issues.append("update_work_plan action requires 'work_plan' object")
-            if parsed.get("action") == "advance_contributor" and not parsed.get("target_agent"):
-                issues.append("advance_contributor action requires 'target_agent'")
-        except _json.JSONDecodeError:
-            issues.append("PM response is not valid JSON")
 
     elif v_role in ("digest", "briefer"):
         char_count = len(content)

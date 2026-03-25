@@ -303,6 +303,8 @@ No PM pulse (Tier 3 deleted). No pipeline executor. No phase dispatch. The sched
 
 /tasks/{slug}/
   ├── TASK.md             (work definition — WHAT)
+  ├── memory/
+  │   └── run_log.md      (append-only: date, outcome, observations per run)
   └── outputs/{date}/
       ├── output.md
       ├── output.html     (composed)
@@ -319,7 +321,12 @@ No PM pulse (Tier 3 deleted). No pipeline executor. No phase dispatch. The sched
   └── notes.md            (TP-extracted)
 ```
 
-Key change: agent workspace has NO outputs — outputs belong to tasks. Agent workspace is pure identity + memory. Task workspace is pure work definition + outputs. Clean separation.
+Key changes:
+- Agent workspace has NO outputs — outputs belong to tasks. Agent workspace is pure identity + domain memory.
+- Task workspace has TASK.md (definition) + `memory/run_log.md` (task-level continuity) + `outputs/` (delivery history).
+- `memory/run_log.md` is append-only, written by post-run self-check: date, outcome, observations. Agent self-assessment is domain growth; run_log is task-specific learning ("this week's briefing missed pricing data because Notion sync was stale").
+- Multi-agent handoff: intermediate outputs go to `/tasks/{slug}/outputs/{date}/step-{N}-{agent-slug}.md`. Final composed output is `output.md`. All in the same dated folder.
+- Knowledge base writes still happen: agent output → `/knowledge/` for workspace-level accumulation.
 
 ### Onboarding (post-collapse)
 

@@ -3,13 +3,12 @@
 /**
  * ADR-037: Chat-First Surface Architecture
  *
- * Navigation model (simplified 2026-03-22):
- * Primary:   Orchestrator | Projects
+ * Navigation model:
+ * Primary:   Orchestrator
  * Secondary: Context | Activity | Settings
  *
  * Dashboard collapsed into Orchestrator (single landing page).
- * Agents hidden from nav (ADR-122: all agents belong to projects).
- * Agent pages still accessible via direct URL and project cross-links.
+ * Agent pages still accessible via direct URL.
  * Context = platform connections + uploaded files (was "Sources").
  */
 
@@ -23,7 +22,7 @@ import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_LABEL, HOME_ROUTE, isHomeRoute, PROJECTS_ROUTE, PROJECTS_LABEL } from '@/lib/routes';
+import { HOME_LABEL, HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -100,23 +99,18 @@ interface RouteItem {
   path: string;
 }
 
-// Primary: Orchestrator (home) + Projects
-const PROJECTS_ROUTE_NAV: RouteItem = { id: 'projects', label: PROJECTS_LABEL, icon: Briefcase, path: PROJECTS_ROUTE };
-
 // Secondary: Context + Activity + Settings
-// Context = platform connections + uploaded files (was "Sources")
-// Agents hidden from nav — accessible via project cross-links and direct URL
 const SECONDARY_PAGES: RouteItem[] = [
   { id: 'context', label: 'Workspace', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
-// Agents route kept for pathname matching (still accessible, just not in nav)
+// Agents route kept for pathname matching (accessible via direct URL)
 const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Agents', icon: Briefcase, path: '/agents' };
 
 // All primary routes for pathname matching
-const PRIMARY_ROUTES = [PROJECTS_ROUTE_NAV];
+const PRIMARY_ROUTES: RouteItem[] = [];
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
@@ -275,7 +269,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary: Orchestrator (home) + Projects */}
+                {/* Primary: Orchestrator (home) */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -292,21 +286,6 @@ function AuthenticatedLayoutInner({
                   <Command className="w-4 h-4" />
                   {HOME_LABEL}
                 </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(PROJECTS_ROUTE_NAV.path);
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    currentRoute?.id === PROJECTS_ROUTE_NAV.id && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  {PROJECTS_ROUTE_NAV.label}
-                </button>
-
                 {/* Divider — secondary pages below */}
                 <div className="border-t border-border my-1" />
 

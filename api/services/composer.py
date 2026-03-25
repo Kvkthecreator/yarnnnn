@@ -216,44 +216,20 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     # 3. Agent roles coverage map
     roles_present = set(a.get("role", "custom") for a in active_agents)
 
-    # 4. Platform coverage — which platforms have project coverage? (ADR-122)
-    # Check workspace_files for projects with platform type_key
-    from services.project_registry import get_platform_project_type
-    platforms_with_project = set()
-    try:
-        project_files = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .like("path", "/projects/%/PROJECT.md")
-            .execute()
-        )
-        for row in (project_files.data or []):
-            content = row.get("content", "")
-            # Parse type_key from PROJECT.md
-            for line in content.split("\n"):
-                if line.strip().startswith("**Type**:"):
-                    tk = line.strip()[9:].strip()
-                    # Map type_key back to platform
-                    from services.project_registry import get_project_type
-                    ptype = get_project_type(tk)
-                    if ptype and ptype.get("platform"):
-                        platforms_with_project.add(ptype["platform"])
-                    break
-    except Exception as e:
-        logger.warning(f"[HEARTBEAT] Project coverage check failed: {e}")
-        # Fallback: also check agent sources for backward compatibility with pre-ADR-122 agents
-        for agent in active_agents:
-            if agent.get("role") in ("digest", "briefer"):
-                for src in (agent.get("sources") or []):
-                    if isinstance(src, dict):
-                        provider = src.get("provider") or src.get("platform")
-                        if provider:
-                            platforms_with_project.add(provider)
+    # 4. Platform coverage — which platforms have agent coverage?
+    # Check agent sources for platform coverage
+    platforms_with_coverage = set()
+    for agent in active_agents:
+        if agent.get("role") in ("digest", "briefer", "monitor"):
+            for src in (agent.get("sources") or []):
+                if isinstance(src, dict):
+                    provider = src.get("provider") or src.get("platform")
+                    if provider:
+                        platforms_with_coverage.add(provider)
 
     platforms_without_coverage = [
         p for p in connected_platforms
-        if p not in platforms_with_project
+        if p not in platforms_with_coverage
     ]
 
     # 5. Stale agents — active but haven't run in 2x their schedule frequency
@@ -507,62 +483,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         maturity_signals=maturity_signals,
     )
 
-    # 12. ADR-120: Project health signals — active projects + PM status
-    projects_health = {
-        "total_projects": 0,
-        "active_pms": 0,
-        "stale_projects": [],
-        "projects_without_pm": [],
-    }
-    try:
-        project_files = (
-            client.table("workspace_files")
-            .select("path, updated_at")
-            .eq("user_id", user_id)
-            .like("path", "/projects/%/PROJECT.md")
-            .execute()
-        )
-        project_slugs = []
-        for f in (project_files.data or []):
-            # Extract slug from path: /projects/{slug}/PROJECT.md
-            parts = f["path"].split("/")
-            if len(parts) >= 3:
-                project_slugs.append(parts[2])
-
-        projects_health["total_projects"] = len(project_slugs)
-
-        # Check PM agents for each project
-        pm_agents = [a for a in active_agents if a.get("role") == "pm"]
-        pm_project_slugs = set()
-        for pm in pm_agents:
-            # PM's project_slug is in type_config — but we don't have type_config in the select above
-            # So look it up if PM agents exist
-            pass
-
-        # Simpler approach: count PM role agents and check staleness
-        projects_health["active_pms"] = len(pm_agents)
-
-        for pm in pm_agents:
-            last_run = pm.get("last_run_at")
-            if last_run:
-                try:
-                    last_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
-                    if now - last_dt > timedelta(days=7):
-                        projects_health["stale_projects"].append({
-                            "pm_agent_id": pm["id"],
-                            "pm_title": pm["title"],
-                            "last_run_at": last_run,
-                        })
-                except (ValueError, TypeError):
-                    pass
-
-        # Projects without PM: total_projects > active_pms
-        if projects_health["total_projects"] > projects_health["active_pms"]:
-            projects_health["projects_without_pm_count"] = (
-                projects_health["total_projects"] - projects_health["active_pms"]
-            )
-    except Exception as e:
-        logger.warning(f"[COMPOSER] Project health query failed: {e}")
+    # 12. (Project health signals removed — PM/project architecture dissolved)
 
     return {
         "user_id": user_id,
@@ -580,7 +501,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
             ],
         },
         "coverage": {
-            "platforms_with_coverage": list(platforms_with_project),
+            "platforms_with_coverage": list(platforms_with_coverage),
             "platforms_without_coverage": platforms_without_coverage,
         },
         "health": {
@@ -606,7 +527,6 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "total_agent_runs": total_runs,  # ADR-115 — surfaced for prompt/logging
         "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
         "agent_graph": agent_graph,  # ADR-116 Phase 5
-        "projects": projects_health,  # ADR-120 Phase 1
         "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
         "pulse_health": pulse_health,  # ADR-126: agent self-reported health from pulse events
         # (work_index removed — topics layer dissolved, projects are workstreams directly)
@@ -767,35 +687,6 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
                     "— propose agents for missing skills"
                 )
 
-    # ADR-120: Project health heuristics
-    projects = assessment.get("projects", {})
-    stale_pms = projects.get("stale_projects", [])
-    if stale_pms:
-        titles = [p["pm_title"] for p in stale_pms[:3]]
-        return True, f"project_pm_stale: {len(stale_pms)} PM agents haven't run in 7+ days: {titles}"
-
-    no_pm_count = projects.get("projects_without_pm_count", 0)
-    if no_pm_count > 0:
-        return True, f"project_no_pm: {no_pm_count} project(s) exist without a PM agent"
-
-    # ADR-120 Phase 5: Composition opportunity — 2+ proven agents with different
-    # roles and no project linking them suggests outputs could be assembled.
-    total_projects = projects.get("total_projects", 0)
-    if total_projects == 0:
-        proven_agents = assessment.get("maturity", {}).get("proven_agents", [])
-        if len(proven_agents) >= 2:
-            proven_roles = {m.get("role") for m in proven_agents if m.get("role")}
-            # Different roles = complementary outputs (e.g., digest + analyst)
-            # Exclude PM-role agents — they don't produce combinable content
-            proven_roles.discard("pm")
-            if len(proven_roles) >= 2:
-                titles = [m["title"] for m in proven_agents[:3]]
-                return True, (
-                    f"composition_opportunity: {len(proven_agents)} proven agents with "
-                    f"roles {sorted(proven_roles)} but no project — outputs may benefit "
-                    f"from assembly: {titles}"
-                )
-
     return False, "HEARTBEAT_OK: workforce healthy, no gaps detected"
 
 
@@ -827,8 +718,7 @@ COMPOSER_TEMPLATES = {
     },
 }
 
-# ADR-122: Platform digest gap-filling now uses project_registry.scaffold_project()
-# PLATFORM_DIGEST_TITLES — DELETED (ADR-122). Use get_platform_project_type() instead.
+# PLATFORM_DIGEST_TITLES — DELETED (ADR-122). Project registry dissolved.
 
 
 async def run_composer_assessment(
@@ -860,28 +750,8 @@ async def run_composer_assessment(
         "observations": [],
     }
 
-    # Fast path: deterministic gap-filling via project registry (ADR-122, no LLM needed)
-    gaps = assessment["coverage"]["platforms_without_coverage"]
-    if gaps and reason.startswith("coverage_gap"):
-        from services.project_registry import get_platform_project_type, scaffold_project
-        for platform in gaps:
-            type_info = get_platform_project_type(platform)
-            if not type_info:
-                continue
-            type_key, _ = type_info
-            scaffold_result = await scaffold_project(client, user_id, type_key, execute_now=True)
-            if scaffold_result.get("success"):
-                for cm in scaffold_result.get("contributors_created", []):
-                    result["contributors_created"].append({
-                        "agent_id": cm["agent_id"],
-                        "platform": platform,
-                        "role": cm["role"],
-                        "reason": "coverage_gap",
-                        "project_slug": scaffold_result["project_slug"],
-                    })
-        if result["contributors_created"]:
-            result["action"] = "created"
-        return result
+    # Coverage gap: route to LLM assessment (project scaffolding removed)
+    # Fall through to lifecycle or LLM path below.
 
     # ADR-111 Phase 5: Lifecycle assessment path (no LLM — deterministic)
     if reason.startswith(("lifecycle_", "cross_agent_")):
@@ -911,10 +781,6 @@ async def run_composer_assessment(
         result["observations"].append(f"Assessment error: {e}")
 
     return result
-
-
-    # _create_digest_for_platform — DELETED (ADR-122).
-    # Gap-filling now uses scaffold_project() in run_composer_assessment().
 
 
 async def _llm_composer_assessment(
@@ -980,11 +846,6 @@ To create an agent:
 {"action": "create", "title": "Weekly Cross-Platform Analysis", "role": "analyst", "frequency": "weekly", "description": "Connects patterns across Slack and Notion to surface cross-cutting themes.", "instructions": "Analyze activity across all connected platforms. Lead with cross-platform connections and trends.", "reason": "2+ platforms with active briefers producing knowledge"}
 ```
 
-To create a project (combines 2+ agents' outputs into an assembled deliverable):
-```json
-{"action": "create_project", "title": "Q2 Business Review", "objective": {"deliverable": "Executive presentation", "audience": "Leadership", "format": "pptx", "purpose": "Quarterly review"}, "contributors": ["agent-slug-1", "agent-slug-2"], "assembly_spec": "Combine analyst data with writer narrative into slide deck", "delivery": {"channel": "email", "target": "user@example.com"}, "reason": "These agents produce complementary outputs ideal for assembly"}
-```
-
 To observe (no action):
 ```json
 {"action": "observe", "reason": "Workforce is healthy. No clear gaps."}
@@ -993,12 +854,6 @@ To observe (no action):
 IMPORTANT for create actions:
 - "description" (required): One sentence explaining what this agent does and why it's valuable. Shown to the user on the dashboard.
 - "instructions" (required): Specific behavioral directives for the agent — what to focus on, how to structure output, what to prioritize. Be specific to this workspace's context, not generic.
-
-IMPORTANT for create_project actions:
-- A project combines outputs from 2+ existing agents into assembled deliverables (e.g., deck, report)
-- A PM (Project Manager) agent is auto-created to coordinate the project
-- contributors is a list of agent slugs (lowercase-hyphenated titles) already in the workspace
-- intent.format determines which skill is used for rendering (pptx, pdf, xlsx, etc.)
 
 Valid roles: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
 Valid frequencies: daily, weekly, biweekly, monthly
@@ -1016,33 +871,7 @@ Agents produce rich outputs via these skills:
 
 All agents default to email delivery. When scaffolding agents, consider whether rich outputs would serve the user better than plain text. Include this in the agent's instructions if appropriate.
 
-## Projects (ADR-120)
-Projects are cross-agent collaboration spaces. When 2+ agents produce complementary outputs (e.g., data + narrative → deck), a project assembles them into a unified deliverable. A PM agent coordinates the project: tracks contributor freshness, triggers assembly when all contributions are ready, manages work plan and budget.
-
-Only recommend create_project when:
-- 2+ senior agents exist with complementary roles (e.g., digest + synthesize, analyst + writer)
-- Their outputs would clearly benefit from assembly into a richer format (deck, report)
-- No existing project already covers this combination"""
-
-
-def _format_projects_section(assessment: dict) -> str:
-    """ADR-120 P5: Format project portfolio for Composer LLM prompt."""
-    projects = assessment.get("projects", {})
-    total = projects.get("total_projects", 0)
-    if total == 0:
-        return "No active projects."
-
-    lines = [f"{total} project(s):"]
-    pms = projects.get("active_pms", 0)
-    lines.append(f"- PM agents: {pms}")
-    stale = projects.get("stale_projects", [])
-    if stale:
-        titles = [p.get("pm_title", "?") for p in stale[:3]]
-        lines.append(f"- Stale PMs (7+ days): {', '.join(titles)}")
-    no_pm = projects.get("projects_without_pm_count", 0)
-    if no_pm:
-        lines.append(f"- Projects without PM: {no_pm}")
-    return "\n".join(lines)
+All agents default to email delivery. When creating agents, consider whether rich outputs would serve the user better than plain text. Include this in the agent's instructions if appropriate."""
 
 
 def _format_budget_section(assessment: dict) -> str:
@@ -1131,9 +960,6 @@ def _build_composer_prompt(assessment: dict, reason: str) -> str:
 ## Agent Maturity
 {chr(10).join(maturity_summary) if maturity_summary else 'No maturity data yet'}
 
-## Active Projects
-{_format_projects_section(assessment)}
-
 ## Work Budget
 {_format_budget_section(assessment)}
 
@@ -1176,10 +1002,6 @@ async def _execute_composer_decisions(
         return []
 
     action = decision.get("action", "observe")
-
-    # ADR-120 P5: Handle create_project action
-    if action == "create_project":
-        return await _execute_create_project(client, user_id, decision, assessment)
 
     if action != "create":
         logger.info(f"[COMPOSER] LLM decided: {action} — {decision.get('reason', '')}")
@@ -1270,90 +1092,6 @@ async def _execute_composer_decisions(
         "title": title,
         "role": role,
         "reason": decision.get("reason", ""),
-    }]
-
-
-async def _execute_create_project(
-    client: Any,
-    user_id: str,
-    decision: dict,
-    assessment: dict,
-) -> list[dict]:
-    """
-    ADR-120 P5: Execute Composer's create_project decision.
-
-    Resolves contributor slugs → agent_ids, then calls handle_create_project()
-    which auto-creates the PM agent and seeds contributor workspaces.
-    """
-    from services.primitives.project import handle_create_project
-    from services.workspace import get_agent_slug
-
-    title = decision.get("title", "").strip()
-    if not title:
-        logger.warning("[COMPOSER] create_project but no title provided")
-        return []
-
-    objective = decision.get("objective", decision.get("intent", {}))  # ADR-123: accept both during transition
-    contributor_slugs = decision.get("contributors", [])
-    assembly_spec = decision.get("assembly_spec", "")
-    delivery = decision.get("delivery", {})
-    reason = decision.get("reason", "")
-
-    # Resolve slugs to agent_ids
-    contributors = []
-    active_agents = assessment.get("agents", {}).get("active_list", [])
-    for slug in contributor_slugs:
-        for a in active_agents:
-            a_slug = get_agent_slug(a)
-            if a_slug == slug:
-                contributors.append({
-                    "agent_id": a["id"],
-                    "expected_contribution": f"{a.get('role', 'custom')} output",
-                })
-                break
-        else:
-            logger.warning(f"[COMPOSER] Contributor slug '{slug}' not found in active agents")
-
-    if len(contributors) < 2:
-        logger.warning(f"[COMPOSER] create_project needs 2+ contributors, got {len(contributors)}")
-        return []
-
-    # Build auth-like object for the primitive
-    class _ComposerAuth:
-        def __init__(self, c, uid):
-            self.client = c
-            self.user_id = uid
-
-    result = await handle_create_project(
-        _ComposerAuth(client, user_id),
-        {
-            "title": title,
-            "objective": objective,
-            "contributors": contributors,
-            "assembly_spec": assembly_spec,
-            "delivery": delivery,
-            "type_key": "custom",  # ADR-122: LLM-driven projects use custom type
-        },
-    )
-
-    if not result.get("success"):
-        logger.warning(f"[COMPOSER] Project creation failed: {result.get('message')}")
-        return []
-
-    project_slug = result.get("project_slug", "")
-    pm_agent_id = result.get("pm_agent_id")
-    logger.info(
-        f"[COMPOSER] Created project '{title}' ({project_slug}), "
-        f"PM={pm_agent_id}, contributors={len(contributors)}, reason={reason}"
-    )
-
-    return [{
-        "project_slug": project_slug,
-        "title": title,
-        "pm_agent_id": pm_agent_id,
-        "contributors": len(contributors),
-        "reason": reason,
-        "action_type": "create_project",
     }]
 
 
@@ -1453,7 +1191,7 @@ async def run_lifecycle_assessment(
                 except Exception as e:
                     logger.warning(f"[COMPOSER] Supervisor notes failed for {title}: {e}")
 
-    # Scope expansion: proven platform digest → scaffold cross-platform synthesis project (ADR-122)
+    # Scope expansion: proven platform digest → create cross-platform analyst
     elif reason.startswith("lifecycle_expansion"):
         proven = assessment.get("maturity", {}).get("proven_agents", [])
         expandable = [
@@ -1462,47 +1200,22 @@ async def run_lifecycle_assessment(
             and m.get("total_runs", 0) >= 10
         ]
         if expandable and assessment["tier"]["can_create"]:
-            from services.project_registry import scaffold_project
-            scaffold_result = await scaffold_project(
-                client, user_id, "cross_platform_synthesis",
+            # Route to LLM assessment for cross-platform agent creation
+            result["observations"].append(
+                f"{len(expandable)} proven digest agents — routing to LLM for expansion assessment"
             )
-            if scaffold_result.get("success"):
-                for ca in scaffold_result.get("contributors_created", []):
-                    result["actions_taken"].append({
-                        "action": "created",
-                        "agent_id": ca["agent_id"],
-                        "title": ca["title"],
-                        "role": ca["role"],
-                        "project_slug": scaffold_result["project_slug"],
-                        "reason": f"Lifecycle expansion: {len(expandable)} proven digest agents warrant synthesis",
-                    })
-                logger.info(f"[COMPOSER] Lifecycle expansion: scaffolded synthesis project "
-                            f"({scaffold_result['project_slug']})")
-            elif scaffold_result.get("reason") == "duplicate":
-                result["observations"].append("Cross-platform synthesis project already exists")
         else:
             result["observations"].append(
                 f"{len(expandable)} proven digest agents detected but can't expand "
                 f"(tier limit: {not assessment['tier']['can_create']})"
             )
 
-    # Cross-agent pattern: multiple digests → scaffold synthesis project (ADR-122)
+    # Cross-agent pattern: multiple digests → route to LLM for analyst creation
     elif reason.startswith("cross_agent_pattern"):
         if assessment["tier"]["can_create"]:
-            from services.project_registry import scaffold_project
-            scaffold_result = await scaffold_project(
-                client, user_id, "cross_platform_synthesis",
+            result["observations"].append(
+                "Multiple digest agents detected — routing to LLM for consolidation assessment"
             )
-            if scaffold_result.get("success"):
-                for ca in scaffold_result.get("contributors_created", []):
-                    result["actions_taken"].append({
-                        "action": "created",
-                        "agent_id": ca["agent_id"],
-                        "title": ca["title"],
-                        "role": ca["role"],
-                        "project_slug": scaffold_result["project_slug"],
-                        "reason": "Cross-agent pattern: consolidating multiple digests into synthesis project",
-                    })
 
     return result
 

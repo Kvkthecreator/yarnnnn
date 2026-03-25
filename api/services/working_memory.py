@@ -51,7 +51,7 @@ async def build_working_memory(
     user_id: str,
     client: Any,
     agent: Optional[dict] = None,
-    project_slug: Optional[str] = None,  # ADR-119 P4b
+    project_slug: Optional[str] = None,  # Deprecated — kept for call-site compat, ignored
 ) -> dict:
     """
     Build the working memory object for TP system prompt injection.
@@ -62,11 +62,11 @@ async def build_working_memory(
         agent: Optional agent dict for scoped context (ADR-087).
                      Expected keys: id, title, scope, role, user_id.
                      agent_instructions/agent_memory used only for lazy workspace migration.
-        project_slug: Optional project slug for project-scoped context (ADR-119 P4b).
+        project_slug: Deprecated — ignored. Kept for call-site compatibility.
 
     Returns:
         Dict structured for JSON serialization into the prompt.
-        Designed to stay under ~2,000 tokens (+ ~500 for agent/project scope).
+        Designed to stay under ~2,000 tokens (+ ~500 for agent scope).
     """
     # Parallelize independent DB queries via thread pool.
     # Each thread gets its own Supabase client to avoid httpx connection pool
@@ -105,12 +105,6 @@ async def build_working_memory(
     # ADR-087: Inject agent-scoped context if session is scoped
     if agent:
         working_memory["scoped_agent"] = await _extract_agent_scope(agent, client)
-
-    # ADR-119 P4b: Inject project-scoped context if session is project-scoped
-    if project_slug:
-        working_memory["scoped_project"] = await _extract_project_scope(
-            project_slug, client, user_id
-        )
 
     return working_memory
 
@@ -299,82 +293,25 @@ async def _extract_agent_scope(agent: dict, client: Any) -> dict:
     return scope
 
 
-async def _extract_project_scope(project_slug: str, client: Any, user_id: str) -> dict:
-    """
-    ADR-119 P4b: Extract project-scoped context for working memory injection.
-
-    Returns structured dict with project title, intent, contributor status,
-    recent activity, and work plan snippet.
-    """
-    from services.workspace import ProjectWorkspace
-
-    pw = ProjectWorkspace(client, user_id, project_slug)
-    project = await pw.read_project()
-    if not project:
-        return {"slug": project_slug, "error": "not_found"}
-
-    scope: dict[str, Any] = {
-        "slug": project_slug,
-        "title": project.get("title", ""),
-        "objective": project.get("objective", {}),
-        "contributors": project.get("contributors", []),
-        "status": project.get("status", "active"),
-    }
-
-    # Recent assemblies (last 3 date-folder names)
-    try:
-        assemblies = await pw.list_assemblies()
-        if assemblies:
-            scope["recent_assemblies"] = assemblies[-3:]
-    except Exception:
-        pass
-
-    # Work plan snippet (if PM has written one)
-    try:
-        work_plan = await pw.read("memory/work_plan.md")
-        if work_plan:
-            scope["work_plan"] = work_plan[:500]
-    except Exception:
-        pass
-
-    return scope
-
-
 def _build_system_reference(platforms: list) -> dict:
     """
     Build TP's system reference — programmatic self-awareness of YARNNN capabilities.
 
     Analogous to Claude Code reading CLAUDE.md at session start. This gives TP
-    recursive awareness of what project types exist, what agent roles are available,
-    and what the connected platforms can do. Maintained by code, not by hand.
+    recursive awareness of what agent roles are available and what the connected
+    platforms can do. Maintained by code, not by hand.
 
     Generated from:
-      - project_registry.py (PROJECT_TYPE_REGISTRY)
       - agent_framework.py (AGENT_TYPES — capability bundles per type)
       - Connected platforms (from working memory query)
     """
-    from services.project_registry import PROJECT_TYPE_REGISTRY
     from services.agent_framework import AGENT_TYPES, has_asset_capabilities
-
-    # --- Project types ---
-    project_types = []
-    for key, ptype in PROJECT_TYPE_REGISTRY.items():
-        entry: dict[str, Any] = {
-            "key": key,
-            "name": ptype["display_name"],
-            "category": ptype["category"],
-        }
-        if ptype.get("platform"):
-            entry["platform"] = ptype["platform"]
-        if ptype.get("description"):
-            entry["description"] = ptype["description"]
-        entry["pm"] = ptype.get("pm", False)
-        entry["agents_count"] = len(ptype.get("members", ptype.get("agents", [])))
-        project_types.append(entry)
 
     # --- Agent types (ADR-130: deterministic capability bundles) ---
     roles = []
     for type_name, type_def in AGENT_TYPES.items():
+        if type_name == "pm":
+            continue  # PM type removed
         roles.append({
             "role": type_name,
             "capabilities": type_def["capabilities"],
@@ -385,18 +322,9 @@ def _build_system_reference(platforms: list) -> dict:
     # --- Connected platform names (derived from already-fetched platforms) ---
     connected = [p.get("platform") for p in platforms if p.get("status") in ("active", "connected")]
 
-    # --- Platform → project type mapping ---
-    platform_project_map = {}
-    for key, ptype in PROJECT_TYPE_REGISTRY.items():
-        plat = ptype.get("platform")
-        if plat:
-            platform_project_map[plat] = key
-
     return {
-        "project_types": project_types,
         "agent_roles": roles,
         "connected_platforms": connected,
-        "platform_project_map": platform_project_map,
     }
 
 
@@ -821,34 +749,6 @@ def format_for_prompt(working_memory: dict) -> str:
             if preview:
                 lines.append(f"```\n{preview}\n```")
 
-    # ADR-119 P4b: Scoped project context
-    scoped_project = working_memory.get("scoped_project")
-    if scoped_project and not scoped_project.get("error"):
-        title = scoped_project.get("title", "Untitled")
-        lines.append(f"\n### Current project: {title}")
-
-        objective = scoped_project.get("objective", {})
-        if objective.get("purpose"):
-            lines.append(f"**Purpose:** {objective['purpose']}")
-        if objective.get("deliverable"):
-            lines.append(f"**Deliverable:** {objective['deliverable']}")
-
-        contributors = scoped_project.get("contributors", [])
-        if contributors:
-            lines.append(f"\n**Contributors:** {len(contributors)}")
-            for c in contributors[:5]:
-                slug = c.get("agent_slug", "?")
-                contrib = c.get("expected_contribution", "")
-                lines.append(f"- {slug}{f': {contrib}' if contrib else ''}")
-
-        assemblies = scoped_project.get("recent_assemblies", [])
-        if assemblies:
-            lines.append(f"\n**Recent assemblies:** {', '.join(assemblies)}")
-
-        work_plan = scoped_project.get("work_plan")
-        if work_plan:
-            lines.append(f"\n**Work plan:**\n{work_plan}")
-
     # ADR-127: User-shared files (global staging area)
     user_shared = working_memory.get("user_shared_files", [])
     if user_shared:
@@ -863,35 +763,13 @@ def format_for_prompt(working_memory: dict) -> str:
     if system_ref:
         lines.append("\n### System reference")
 
-        # Project types
-        project_types = system_ref.get("project_types", [])
-        if project_types:
-            lines.append("\n**Project types** (use these with CreateProject — don't improvise):")
-            for pt in project_types:
-                pm_tag = " [has PM]" if pt.get("pm") else ""
-                plat_tag = f" (platform: {pt['platform']})" if pt.get("platform") else ""
-                lines.append(f"- `{pt['key']}`: {pt['name']}{plat_tag}{pm_tag} — {pt.get('description', '')}")
-
-        # Platform → project type mapping
-        ppm = system_ref.get("platform_project_map", {})
-        connected = system_ref.get("connected_platforms", [])
-        if ppm and connected:
-            lines.append("\n**Connected platform → project type:**")
-            for plat in connected:
-                ptype_key = ppm.get(plat)
-                if ptype_key:
-                    lines.append(f"- {plat} → `{ptype_key}`")
-                else:
-                    lines.append(f"- {plat} → no platform-specific type (use `custom`)")
-
         # Agent roles
         agent_roles = system_ref.get("agent_roles", [])
         if agent_roles:
             lines.append("\n**Agent roles:**")
             for r in agent_roles:
-                skills_tag = " [output skills]" if r.get("has_output_skills") else ""
-                duties = ", ".join(r["duties"]) if r.get("duties") else r["role"]
-                lines.append(f"- `{r['role']}`: duties at senior = {duties}{skills_tag}")
+                caps = ", ".join(r.get("capabilities", [])[:4])
+                lines.append(f"- `{r['role']}`: {r.get('description', '')[:80]}")
 
     # System Summary (ADR-072) — structured operational state
     system_summary = working_memory.get("system_summary", {})

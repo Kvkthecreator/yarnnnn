@@ -156,57 +156,10 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_frequency": "weekly",
     },
 
-    # ── Infrastructure type (not user-facing) ──
-
-    "pm": {
-        "category": "coordination",
-        "display_name": "Project Manager",
-        "tagline": "Coordinates your project team",
-        "capabilities": [
-            "read_workspace", "check_freshness", "steer_contributors",
-            "trigger_assembly", "manage_work_plan",
-            "write_slack", "write_notion",
-        ],
-        "description": "Coordinates project contributors. Manages work plan, steers via "
-                       "contribution briefs, gates quality, assembles deliverables, delivers.",
-        "default_trigger": "proactive",
-        "default_frequency": "daily",
-    },
+    # PM type removed — project/PM architecture dissolved
 }
 
-# =============================================================================
-# PM Prompt Modes — layered decision strategy
-# =============================================================================
-# Each mode uses a different model and prompt, matched to the decision complexity.
-# This enables cost-efficient PM intelligence: cheap checks most of the time,
-# expensive reasoning only when needed.
-
-PM_MODES: dict[str, dict[str, Any]] = {
-    "coordinate": {
-        "model": "claude-haiku-4-5-20251001",
-        "description": "Quick coordination — dispatch, wait, advance phase",
-        "when": "Every PM pulse (Tier 3)",
-        "cost": "~$0.001",
-    },
-    "evaluate": {
-        "model": "claude-haiku-4-5-20251001",
-        "description": "Quality check — does contributor output meet success criteria?",
-        "when": "After contributor completes a run",
-        "cost": "~$0.001",
-    },
-    "reflect": {
-        "model": "claude-sonnet-4-20250514",
-        "description": "Spec refinement — update success criteria, team fitness, process",
-        "when": "After delivery (once per cadence window)",
-        "cost": "~$0.03",
-    },
-    "compose": {
-        "model": "claude-sonnet-4-20250514",
-        "description": "Assembly — arrange components, apply layout, produce deliverable",
-        "when": "At assembly time",
-        "cost": "~$0.05",
-    },
-}
+# PM_MODES — REMOVED (PM/project architecture dissolved)
 
 
 # Legacy role → new type mapping (for DB migration / backward compat reads)
@@ -275,21 +228,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "post_generation": True,
     },
 
-    # -- Platform write-backs (user-authorized, PM only) --
-    "write_slack": {
-        "category": "platform_write", "runtime": "external:slack",
-        "requires_auth": True,
-    },
-    "write_notion": {
-        "category": "platform_write", "runtime": "external:notion",
-        "requires_auth": True,
-    },
-
-    # -- PM coordination --
-    "check_freshness":    {"category": "pm", "runtime": "internal", "tool": "CheckContributorFreshness"},
-    "steer_contributors": {"category": "pm", "runtime": "internal", "tool": "WriteWorkspace"},
-    "trigger_assembly":   {"category": "pm", "runtime": "internal"},
-    "manage_work_plan":   {"category": "pm", "runtime": "internal", "tool": "UpdateWorkPlan"},
+    # PM coordination capabilities removed — PM/project architecture dissolved
 }
 
 
@@ -378,7 +317,6 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
 
 ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
     "monitor":    timedelta(hours=1),
-    "pm":         timedelta(minutes=30),
     "briefer":    timedelta(hours=12),
     "analyst":    "schedule",
     "researcher": "schedule",

@@ -46,44 +46,6 @@ from agents.thinking_partner import ThinkingPartnerAgent
 router = APIRouter()
 
 
-# =============================================================================
-# ADR-125: Agent → Project Resolution
-# =============================================================================
-
-async def resolve_agent_project(client, user_id: str, agent_id: str) -> Optional[str]:
-    """
-    ADR-125: Resolve an agent_id to its project_slug.
-
-    Reads the agent's memory/projects.json workspace file to find the project
-    it belongs to. Returns the first project_slug, or None if not in a project.
-    """
-    try:
-        from services.workspace import get_agent_slug
-        # Fetch agent to get slug
-        agent_result = client.table("agents").select(
-            "id, title"
-        ).eq("id", agent_id).eq("user_id", user_id).single().execute()
-        if not agent_result.data:
-            return None
-        slug = get_agent_slug(agent_result.data)
-
-        # Read projects.json from agent workspace
-        import json as _json
-        projects_file = client.table("workspace_files").select(
-            "content"
-        ).eq("user_id", user_id).eq(
-            "path", f"/agents/{slug}/memory/projects.json"
-        ).single().execute()
-
-        if projects_file.data and projects_file.data.get("content"):
-            projects_list = _json.loads(projects_file.data["content"])
-            if projects_list and isinstance(projects_list, list):
-                return projects_list[0].get("project_slug")
-    except Exception as e:
-        logger.debug(f"[SESSION] Failed to resolve agent {agent_id} to project: {e}")
-    return None
-
-
 class ChatHistoryMessage(BaseModel):
     role: str
     content: str
@@ -223,76 +185,7 @@ async def get_or_create_session(
         return None
 
 
-async def get_or_create_project_session(
-    client,
-    user_id: str,
-    project_slug: str,
-    session_type: str = "thinking_partner",
-) -> dict:
-    """
-    ADR-125: Get or create a project-scoped chat session.
-
-    Project sessions rotate on 24h inactivity (ADR-125, replacing lifetime
-    persistence from ADR-119 P4b). Uses project_slug TEXT column.
-    """
-    from datetime import timedelta, timezone
-    inactivity_cutoff = (
-        datetime.now(timezone.utc) - timedelta(hours=24)
-    ).isoformat()
-
-    try:
-        # Find active project session within 24h inactivity window
-        existing = (
-            client.table("chat_sessions")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("project_slug", project_slug)
-            .eq("session_type", session_type)
-            .eq("status", "active")
-            .gte("updated_at", inactivity_cutoff)
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if existing.data:
-            return {**existing.data[0], "is_new": False}
-    except Exception as e:
-        logger.debug(f"[SESSION] Project session lookup failed: {e}")
-
-    # ADR-125: Find previous session for summary generation
-    previous_session_id = None
-    try:
-        prev = (
-            client.table("chat_sessions")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("project_slug", project_slug)
-            .eq("session_type", session_type)
-            .is_("summary", "null")
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if prev.data:
-            previous_session_id = prev.data[0]["id"]
-    except Exception as e:
-        logger.debug(f"[SESSION] Failed to find previous project session: {e}")
-
-    # Create new session
-    data = {
-        "user_id": user_id,
-        "project_slug": project_slug,
-        "session_type": session_type,
-        "status": "active",
-    }
-    result = client.table("chat_sessions").insert(data).execute()
-    if result.data:
-        return {
-            **result.data[0],
-            "is_new": True,
-            "previous_session_id": previous_session_id,
-        }
-    return None
+# get_or_create_project_session — REMOVED (project sessions dissolved)
 
 
 async def append_message(
@@ -899,23 +792,6 @@ Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """
 
-        elif surface_type == "project-detail" and surface.projectSlug:
-            # ADR-119 P4b: User is viewing a project page
-            from services.workspace import ProjectWorkspace
-            pw = ProjectWorkspace(client, user_id, surface.projectSlug)
-            project = await pw.read_project()
-            if project:
-                title = project.get("title", surface.projectSlug)
-                contributors = project.get("contributors", [])
-                objective = project.get("objective", {})
-                status = project.get("status", "active")
-                parts = [f'## Currently Viewing: Project "{title}"']
-                if objective.get("purpose"):
-                    parts.append(f"Purpose: {objective['purpose']}")
-                parts.append(f"Status: {status}")
-                parts.append(f"Contributors: {len(contributors)} agents")
-                return "\n".join(parts)
-
         elif surface_type == "context-browser":
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
@@ -954,43 +830,20 @@ async def global_chat(
     if request.surface_context and request.surface_context.agentId:
         request_agent_id = request.surface_context.agentId
 
-    request_project_slug = None
-    if request.surface_context and request.surface_context.projectSlug:
-        request_project_slug = request.surface_context.projectSlug
-
-    # ADR-125: Two-path session routing (project or global TP)
-    # Agent requests resolve to their project session with thread_agent_id on messages.
-    # thread_agent_id tracks which agent thread this message belongs to within the project session.
+    # Session routing: Global TP or agent-scoped
+    # Project session routing removed — all sessions are TP or agent-scoped.
     thread_agent_id = None
 
-    if request_project_slug or request_agent_id:
-        # Path 1: Project session (explicit project_slug or agent → resolve to project)
-        if not request_project_slug and request_agent_id:
-            # ADR-125: Agent requests resolve to project
-            request_project_slug = await resolve_agent_project(
-                auth.client, auth.user_id, request_agent_id
-            )
-        if request_project_slug:
-            session = await get_or_create_project_session(
-                auth.client,
-                auth.user_id,
-                project_slug=request_project_slug,
-            )
-            # ADR-125: Set thread_agent_id for 1:1 agent thread messages
-            # (only when coming from agent page, not meeting room group chat)
-            if request_agent_id and not (request.surface_context and request.surface_context.projectSlug):
-                thread_agent_id = request_agent_id
-        else:
-            # Fallback: agent not in any project yet — use legacy agent-scoped session
-            # This gracefully handles agents that haven't been wrapped in projects
-            session = await get_or_create_session(
-                auth.client,
-                auth.user_id,
-                scope="daily",
-                agent_id=request_agent_id,
-            )
+    if request_agent_id:
+        # Agent-scoped session
+        session = await get_or_create_session(
+            auth.client,
+            auth.user_id,
+            scope="daily",
+            agent_id=request_agent_id,
+        )
     else:
-        # Path 2: Global TP session (no project, no agent)
+        # Global TP session (no agent)
         session = await get_or_create_session(
             auth.client,
             auth.user_id,
@@ -1100,68 +953,8 @@ async def global_chat(
         if surface_content:
             logger.info(f"[TP] Loaded surface content ({len(surface_content)} chars)")
 
-    # =================================================================
-    # ADR-124: Agent Chat Routing
-    # =================================================================
-    # In a project session, messages can be routed to a specific agent
-    # (via target_agent_id or @-mention) or default to the PM agent.
-    # Outside project sessions, all messages go to TP as usual.
-    target_agent = None  # The agent dict if routing to ChatAgent
-    use_chat_agent = False
-
-    if request_project_slug and (request.target_agent_id or not request_agent_id):
-        # Project meeting room: route to target agent or PM
-        from services.workspace import ProjectWorkspace, get_agent_slug
-        target_id = request.target_agent_id
-
-        if not target_id:
-            # Default to PM agent for this project
-            # Primary: pm_agent.json (written by scaffold_project)
-            # Fallback: title-match query (for pre-scaffold projects)
-            try:
-                pw = ProjectWorkspace(auth.client, auth.user_id, request_project_slug)
-                pm_json = await pw.read("memory/pm_agent.json")
-                if pm_json:
-                    import json as _json
-                    pm_data = _json.loads(pm_json)
-                    pm_id = pm_data.get("pm_agent_id", "")
-                    if pm_id:
-                        target_id = pm_id
-                if not target_id:
-                    # Fallback: find PM agent whose title contains the project name
-                    project = await pw.read_project()
-                    project_title = project.get("title", "") if project else ""
-                    if project_title:
-                        pm_result = auth.client.table("agents").select("id").eq(
-                            "user_id", auth.user_id
-                        ).eq("role", "pm").ilike("title", f"%{project_title}%").limit(1).execute()
-                        if pm_result.data:
-                            target_id = pm_result.data[0]["id"]
-            except Exception as e:
-                logger.warning(f"[CHAT] Failed to find PM for project {request_project_slug}: {e}")
-
-        if target_id:
-            try:
-                agent_result = auth.client.table("agents").select(
-                    "id, user_id, title, scope, role, agent_instructions, agent_memory, sources"
-                ).eq("id", target_id).eq("user_id", auth.user_id).single().execute()
-                if agent_result.data:
-                    target_agent = agent_result.data
-                    use_chat_agent = True
-            except Exception as e:
-                logger.warning(f"[CHAT] Failed to fetch target agent {target_id}: {e}")
-
-    if use_chat_agent and target_agent:
-        from agents.chat_agent import ChatAgent, ChatAgentAuth
-        agent = ChatAgent(
-            agent=target_agent,
-            project_slug=request_project_slug,
-        )
-        chat_agent_auth = ChatAgentAuth(auth.client, auth.user_id, target_agent)
-        logger.info(f"[CHAT-AGENT] Routing to {target_agent['title']} ({target_agent['role']}) in project {request_project_slug}")
-    else:
-        agent = ThinkingPartnerAgent()
-        chat_agent_auth = None
+    # All messages route to TP (ChatAgent/project meeting room routing removed)
+    agent = ThinkingPartnerAgent()
 
     async def response_stream():
         full_response = ""
@@ -1197,45 +990,19 @@ async def global_chat(
                 ]
                 logger.info(f"[TP] Processing {len(images_for_api)} image attachment(s)")
 
-            # ADR-124: Route to ChatAgent or TP based on context
-            if use_chat_agent and chat_agent_auth:
-                # Fetch project title for prompt
-                _project_title = request_project_slug
-                try:
-                    from services.workspace import ProjectWorkspace
-                    _pw = ProjectWorkspace(auth.client, auth.user_id, request_project_slug)
-                    _proj = await _pw.read_project()
-                    if _proj:
-                        _project_title = _proj.get("title", request_project_slug)
-                except Exception:
-                    pass
-
-                stream_params = {
-                    "history": history,
-                    "project_title": _project_title,
-                }
-                stream_auth = chat_agent_auth
-            else:
-                stream_params = {
+            stream_params = {
                     "include_context": request.include_context,
                     "history": history,
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
-                    "scoped_project_slug": request_project_slug,  # ADR-119 P4b
                 }
-                stream_auth = auth
-
-            # ADR-124: Send author attribution at stream start for frontend rendering
-            if use_chat_agent and target_agent:
-                from services.workspace import get_agent_slug as _gas2
-                yield f"data: {json.dumps({'stream_start': True, 'author_agent_id': target_agent['id'], 'author_agent_slug': _gas2(target_agent), 'author_role': target_agent.get('role'), 'author_name': target_agent.get('title')})}\n\n"
 
             async for event in agent.execute_stream_with_tools(
                 task=request.content,
                 context=context,
-                auth=stream_auth,
+                auth=auth,
                 parameters=stream_params,
             ):
                 if event.type == "text":
@@ -1321,12 +1088,6 @@ async def global_chat(
                 "input_tokens": last_token_usage.get("input_tokens", 0),
                 "output_tokens": last_token_usage.get("output_tokens", 0),
             }
-            if use_chat_agent and target_agent:
-                from services.workspace import get_agent_slug as _gas
-                assistant_metadata["author_agent_id"] = target_agent["id"]
-                assistant_metadata["author_agent_slug"] = _gas(target_agent)
-                assistant_metadata["author_role"] = target_agent.get("role", "unknown")
-
             await append_message(
                 auth.client,
                 session_id,
@@ -1336,13 +1097,7 @@ async def global_chat(
                 thread_agent_id=thread_agent_id,
             )
 
-            # ADR-124: Include author attribution in done event for frontend rendering
             done_payload = {'done': True, 'session_id': session_id, 'tools_used': tools_used}
-            if use_chat_agent and target_agent:
-                done_payload['author_agent_id'] = target_agent["id"]
-                done_payload['author_agent_slug'] = assistant_metadata.get("author_agent_slug")
-                done_payload['author_role'] = target_agent.get("role")
-
             yield f"data: {json.dumps(done_payload)}\n\n"
 
             # Activity log: record chat turn completion (ADR-063)
@@ -1392,25 +1147,17 @@ async def get_global_chat_history(
     ADR-125: Two-path routing. agent_id resolves to project session.
     thread_agent_id filters messages to a specific agent's 1:1 thread.
     """
-    # ADR-125: Agent requests resolve to project session
-    if agent_id and not project_slug:
-        resolved_slug = await resolve_agent_project(auth.client, auth.user_id, agent_id)
-        if resolved_slug:
-            project_slug = resolved_slug
-            thread_agent_id = thread_agent_id or agent_id
-
-    # Fetch recent sessions
+    # Fetch recent sessions — agent-scoped or global TP
     q = (
         auth.client.table("chat_sessions")
         .select("*")
         .eq("user_id", auth.user_id)
         .eq("session_type", "thinking_partner")
     )
-    if project_slug:
+    if agent_id:
+        q = q.eq("agent_id", agent_id)
+    elif project_slug:
         q = q.eq("project_slug", project_slug)
-    elif agent_id:
-        # Fallback: legacy agent-scoped sessions for agents not yet in projects
-        q = q.eq("agent_id", agent_id).is_("project_slug", "null")
     else:
         q = q.is_("agent_id", "null").is_("project_slug", "null")
     sessions_result = q.order("created_at", desc=True).limit(limit).execute()

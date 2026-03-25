@@ -1,22 +1,13 @@
 """
-Agent Pulse — ADR-126 + ADR-133
+Agent Pulse — ADR-126
 
-Three execution modes (ADR-133):
-  1. Standalone agents (no project): independent pulse (Tier 1 + Tier 2)
-  2. Project contributors: PM-dispatched (no independent pulse)
-  3. PM agents: coordination pulse (Tier 1 + Tier 3)
-
-Three-tier funnel:
+Two-tier funnel:
   Tier 1: Deterministic gates (zero LLM) — budget, freshness, cooldown
-  Tier 2: Agent self-assessment (Haiku) — standalone agents only
-  Tier 3: PM coordination pulse (Haiku) — PM reads work plan, dispatches phases
+  Tier 2: Agent self-assessment (Haiku)
 
 Write points:
-  - activity_log: 'agent_pulsed' for standalone agents
-  - activity_log: 'pm_pulsed' for PM coordination pulse
-  - activity_log: 'contributor_dispatched' when PM dispatches a contributor
-  - activity_log: 'phase_advanced' when PM advances project to next phase
-  - workspace: observations, review log, phase_state.json
+  - activity_log: 'agent_pulsed'
+  - workspace: observations, review log
 """
 
 from __future__ import annotations
@@ -44,7 +35,7 @@ class PulseDecision:
     """Result of an agent's pulse cycle."""
     action: str  # generate | observe | wait | escalate
     reason: str  # Human-readable explanation
-    tier: int  # 1, 2, or 3 — which tier resolved the decision
+    tier: int  # 1 or 2 — which tier resolved the decision
     observations: list[str] = field(default_factory=list)  # Notes to write to workspace
     metadata: dict = field(default_factory=dict)  # Structured data for activity log
 
@@ -113,36 +104,7 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
                 metadata={"gate": "cooldown", "minutes_since_last": int(time_since_last.total_seconds() / 60)},
             )
 
-    # Gate 3: Cadence enforcement (ADR-136) — has this project already delivered in the current window?
-    tc = agent.get("type_config") or {}
-    project_slug = tc.get("project_slug")
-    if project_slug and isinstance(last_run_at, datetime):
-        try:
-            from services.workspace import ProjectWorkspace
-            pw = ProjectWorkspace(client, user_id, project_slug)
-            project = await pw.read_project()
-            cadence = (project or {}).get("cadence", "")
-            if cadence:
-                # Calculate cadence window
-                cadence_delta = {
-                    "daily": timedelta(hours=20),    # Allow re-run after 20h
-                    "weekly": timedelta(days=6),     # Allow re-run after 6 days
-                    "biweekly": timedelta(days=13),
-                    "monthly": timedelta(days=28),
-                }.get(cadence.lower().strip())
-                if cadence_delta and isinstance(last_run_at, datetime):
-                    time_since = now - last_run_at
-                    if time_since < cadence_delta:
-                        return PulseDecision(
-                            action="wait",
-                            reason=f"Cadence: {cadence} — ran {time_since.days}d ago, next window in {(cadence_delta - time_since).days}d",
-                            tier=1,
-                            metadata={"gate": "cadence", "cadence": cadence, "days_since": time_since.days},
-                        )
-        except Exception as e:
-            logger.warning(f"[PULSE] Cadence check failed (proceeding): {e}")
-
-    # Gate 4: Work budget
+    # Gate 3: Work budget
     try:
         from services.platform_limits import check_work_budget
         budget_ok, wu_used, wu_limit = check_work_budget(client, user_id)
@@ -156,7 +118,7 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
     except Exception as e:
         logger.warning(f"[PULSE] Budget check failed (proceeding): {e}")
 
-    # Gate 3: Fresh content
+    # Gate 4: Fresh content
     if sources:
         try:
             has_fresh, fresh_count = await has_fresh_content_since(
@@ -175,7 +137,7 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
         except Exception as e:
             logger.warning(f"[PULSE] Freshness check failed (proceeding): {e}")
 
-    # Gate 4: Reactive mode — check observation threshold
+    # Gate 5: Reactive mode — check observation threshold
     if mode == "reactive":
         try:
             from services.workspace import AgentWorkspace, get_agent_slug
@@ -470,7 +432,7 @@ def _parse_pulse_response(text: str) -> dict:
         # Normalize sleep → wait (ADR-126 taxonomy)
         if action == "sleep":
             parsed["action"] = "wait"
-        if parsed["action"] not in ("generate", "observe", "wait", "escalate", "dispatch", "advance_phase"):
+        if parsed["action"] not in ("generate", "observe", "wait", "escalate"):
             return {"action": "observe", "note": f"Unknown action '{action}' in pulse response."}
         return parsed
     except json.JSONDecodeError as e:
@@ -478,489 +440,16 @@ def _parse_pulse_response(text: str) -> dict:
 
 
 # =============================================================================
-# Tier 3: PM Coordination Pulse (ADR-133)
-# =============================================================================
-
-async def _tier3_pm_coordination(client, agent: dict) -> PulseDecision:
-    """
-    PM coordination pulse — sense project state, decide next action.
-
-    The PM reads: work plan phases, phase_state.json, contributor assessments.
-    Decides: dispatch contributors, advance phase, steer, escalate, or wait.
-
-    Actions the PM can take (returned in decision.metadata):
-      - dispatch: set next_pulse_at on contributors to trigger their run
-      - advance_phase: mark current phase complete, prepare next phase
-      - steer: write updated contribution brief
-      - escalate: flag for Composer attention
-      - wait: project is healthy, no action needed
-      - generate: PM itself should run (assembly, assessment)
-    """
-    from services.workspace import ProjectWorkspace, AgentWorkspace, get_agent_slug
-    from services.activity_log import write_activity
-
-    agent_id = agent["id"]
-    user_id = agent["user_id"]
-    title = agent.get("title", "Untitled")
-    tc = agent.get("type_config") or {}
-    project_slug = tc.get("project_slug")
-
-    if not project_slug:
-        # PM without a project — shouldn't happen, fall back to wait
-        return PulseDecision(
-            action="wait",
-            reason="PM has no project_slug — cannot coordinate",
-            tier=3,
-        )
-
-    pw = ProjectWorkspace(client, user_id, project_slug)
-
-    # --- Gather project state ---
-    # 1. Read phase state
-    import json as _json
-    phase_state_raw = await pw.read("memory/phase_state.json")
-    phase_state = {}
-    if phase_state_raw:
-        try:
-            phase_state = _json.loads(phase_state_raw)
-        except _json.JSONDecodeError:
-            pass
-
-    # 2. Read work plan
-    work_plan = await pw.read("memory/work_plan.md") or ""
-
-    # 3. Read project charter (objective + cadence from PROCESS.md)
-    project = await pw.read_project()
-    objective = project.get("objective", {}) if project else {}
-    cadence = project.get("cadence", "") if project else ""
-    process_raw = project.get("process_raw", "") if project else ""
-
-    # 4. Get contributor agents for this project
-    try:
-        contributors_result = (
-            client.table("agents")
-            .select("id, title, role, last_run_at, status, type_config, next_pulse_at")
-            .eq("user_id", user_id)
-            .eq("status", "active")
-            .neq("role", "pm")
-            .execute()
-        )
-        project_contributors = [
-            a for a in (contributors_result.data or [])
-            if (a.get("type_config") or {}).get("project_slug") == project_slug
-        ]
-    except Exception:
-        project_contributors = []
-
-    # 5. Read contributor assessments (latest from each)
-    contributor_status = []
-    for c in project_contributors:
-        slug = get_agent_slug(c)
-        cws = AgentWorkspace(client, user_id, slug)
-        assessment = await cws.read("memory/self_assessment.md")
-        last_output = c.get("last_run_at")
-        contributor_status.append({
-            "title": c.get("title", "?"),
-            "role": c.get("role", "?"),
-            "slug": slug,
-            "agent_id": c["id"],
-            "last_run_at": last_output,
-            "has_assessment": bool(assessment and "Not yet assessed" not in assessment),
-            "assessment_snippet": (assessment or "")[:300],
-        })
-
-    # ADR-135: Read PM decision log for continuity across contexts
-    from services.pm_coordination import read_pm_log
-    pm_log = await read_pm_log(client, user_id, project_slug, max_entries=5)
-
-    # --- Build Tier 3 prompt ---
-    now = datetime.now(timezone.utc)
-    prompt = _build_tier3_prompt(
-        title=title,
-        project_slug=project_slug,
-        objective=objective,
-        work_plan=work_plan,
-        phase_state=phase_state,
-        contributor_status=contributor_status,
-        now_iso=now.isoformat(),
-        pm_log=pm_log,
-        cadence=cadence,
-        process_raw=process_raw,
-    )
-
-    # --- Call Haiku for PM coordination decision ---
-    from services.anthropic import chat_completion
-
-    try:
-        response = await chat_completion(
-            messages=[{"role": "user", "content": "Assess the project and decide what to do next."}],
-            system=prompt,
-            model=PULSE_MODEL,
-            max_tokens=PULSE_MAX_TOKENS,
-        )
-        parsed = _parse_pulse_response(response)
-    except Exception as e:
-        logger.warning(f"[PULSE T3] PM coordination LLM failed: {e}")
-        return PulseDecision(
-            action="wait",
-            reason=f"PM coordination failed: {e}",
-            tier=3,
-        )
-
-    action = parsed.get("action", "wait")
-    note = parsed.get("note", "")
-    dispatch_targets = parsed.get("dispatch", [])  # list of contributor slugs to dispatch
-
-    # --- ADR-135: Announce PM decisions to chat session ---
-    from services.pm_coordination import pm_announce
-
-    # --- Execute PM dispatch side effects ---
-    if action == "dispatch" and dispatch_targets:
-        phase_context = parsed.get("phase_context", note)
-        await _write_phase_briefs(
-            client, user_id, project_slug, project_contributors,
-            dispatch_targets, phase_context, phase_state,
-        )
-        dispatched = await _dispatch_contributors(
-            client, user_id, project_slug, project_contributors, dispatch_targets,
-        )
-        # Announce to chat
-        dispatch_names = [c.get("title", s) for c in project_contributors for s in dispatched if get_agent_slug(c) == s]
-        await pm_announce(client, user_id, project_slug, agent,
-            f"Dispatching {', '.join(dispatch_names or dispatched)}. {note}",
-            decision_type="dispatch")
-        return PulseDecision(
-            action="generate",
-            reason=f"Dispatched {len(dispatched)} contributors: {', '.join(dispatched)}",
-            tier=3,
-            metadata={
-                "pm_action": "dispatch",
-                "dispatched": dispatched,
-                "project_slug": project_slug,
-            },
-        )
-
-    if action == "advance_phase":
-        phase_name = parsed.get("phase", "")
-        await _advance_phase_state(client, user_id, project_slug, phase_name, phase_state)
-        await pm_announce(client, user_id, project_slug, agent,
-            f"Phase complete: {phase_name}. {note}",
-            decision_type="advance_phase")
-        return PulseDecision(
-            action="generate",
-            reason=f"Advancing phase: {phase_name}. {note}",
-            tier=3,
-            metadata={"pm_action": "advance_phase", "phase": phase_name, "project_slug": project_slug},
-        )
-
-    if action == "escalate":
-        await pm_announce(client, user_id, project_slug, agent,
-            f"Need help: {note}",
-            decision_type="escalate")
-        return PulseDecision(
-            action="escalate",
-            reason=f"PM escalation: {note}",
-            tier=3,
-            metadata={"pm_action": "escalate", "project_slug": project_slug},
-        )
-
-    if action == "generate":
-        await pm_announce(client, user_id, project_slug, agent,
-            note or "Running project assessment.",
-            decision_type="generate")
-        return PulseDecision(
-            action="generate",
-            reason=f"PM coordination: {note}",
-            tier=3,
-            metadata={"pm_action": "generate", "project_slug": project_slug},
-        )
-
-    # Default: wait
-    return PulseDecision(
-        action="wait",
-        reason=f"Project healthy: {note}" if note else "No coordination needed",
-        tier=3,
-        metadata={"pm_action": "wait", "project_slug": project_slug},
-    )
-
-
-async def _dispatch_contributors(
-    client, user_id: str, project_slug: str,
-    project_contributors: list[dict], dispatch_targets: list[str],
-) -> list[str]:
-    """Set next_pulse_at on target contributors to trigger their run.
-
-    Returns list of slugs that were successfully dispatched.
-    """
-    from services.workspace import get_agent_slug
-    from services.activity_log import write_activity
-
-    now = datetime.now(timezone.utc)
-    # Set next_pulse_at to now (or 1 min from now to let PM finish first)
-    dispatch_time = now + timedelta(minutes=1)
-    dispatched = []
-
-    for contributor in project_contributors:
-        slug = get_agent_slug(contributor)
-        if slug in dispatch_targets:
-            try:
-                client.table("agents").update({
-                    "next_pulse_at": dispatch_time.isoformat(),
-                }).eq("id", contributor["id"]).execute()
-                dispatched.append(slug)
-
-                # Log dispatch event
-                try:
-                    await write_activity(
-                        client=client,
-                        user_id=user_id,
-                        event_type="contributor_dispatched",
-                        summary=f"PM dispatched {contributor.get('title', slug)} for project {project_slug}",
-                        event_ref=contributor["id"],
-                        metadata={
-                            "project_slug": project_slug,
-                            "contributor_slug": slug,
-                            "dispatched_by": "pm_pulse",
-                        },
-                    )
-                except Exception:
-                    pass
-            except Exception as e:
-                logger.warning(f"[PULSE T3] Failed to dispatch {slug}: {e}")
-
-    return dispatched
-
-
-async def _write_phase_briefs(
-    client, user_id: str, project_slug: str,
-    project_contributors: list[dict], dispatch_targets: list[str],
-    phase_context: str, phase_state: dict,
-) -> None:
-    """ADR-133 Phase 2: Write phase-aware briefs for dispatched contributors.
-
-    Each dispatched contributor gets a brief that includes:
-    1. What the PM wants them to do (from the coordination decision)
-    2. Prior phase outputs (cross-phase context injection)
-    """
-    from services.workspace import ProjectWorkspace, AgentWorkspace, get_agent_slug
-
-    pw = ProjectWorkspace(client, user_id, project_slug)
-
-    # Gather prior phase outputs for context injection
-    prior_outputs = []
-    completed_phases = [
-        name for name, state in (phase_state.get("phases", {})).items()
-        if state.get("status") == "complete"
-    ]
-    for phase_name in completed_phases:
-        phase_data = phase_state["phases"][phase_name]
-        for output_path in phase_data.get("outputs", []):
-            # Read the output.md from each prior phase contributor
-            try:
-                # output_path is like "market-researcher/outputs/2026-03-23T1200"
-                parts = output_path.split("/")
-                if len(parts) >= 3:
-                    contributor_slug = parts[0]
-                    cws = AgentWorkspace(client, user_id, contributor_slug)
-                    content = await cws.read(f"outputs/{parts[-1]}/output.md")
-                    if content:
-                        prior_outputs.append({
-                            "phase": phase_name,
-                            "contributor": contributor_slug,
-                            "content_preview": content[:500],
-                            "full_path": output_path,
-                        })
-            except Exception:
-                pass
-
-    # Build phase context section
-    phase_context_section = ""
-    if prior_outputs:
-        phase_context_section = "\n\n## Phase Context (from prior phases)\n\n"
-        for po in prior_outputs:
-            phase_context_section += f"### {po['contributor']} ({po['phase']})\n"
-            phase_context_section += f"{po['content_preview']}\n\n"
-            phase_context_section += f"_Full output: /agents/{po['full_path']}/output.md_\n\n"
-
-    # Write brief for each dispatched contributor
-    for contributor in project_contributors:
-        slug = get_agent_slug(contributor)
-        if slug in dispatch_targets:
-            brief = f"## PM Directive\n\n{phase_context}\n"
-            brief += phase_context_section
-            try:
-                await pw.write_brief(slug, brief)
-                logger.info(f"[PULSE T3] Wrote phase brief for {slug} ({len(brief)} chars)")
-            except Exception as e:
-                logger.warning(f"[PULSE T3] Failed to write brief for {slug}: {e}")
-
-
-async def _advance_phase_state(
-    client, user_id: str, project_slug: str,
-    phase_name: str, current_state: dict,
-) -> None:
-    """ADR-133 Phase 2: Update phase_state.json when PM advances a phase."""
-    from services.workspace import ProjectWorkspace
-    from services.activity_log import write_activity
-    import json as _json
-
-    pw = ProjectWorkspace(client, user_id, project_slug)
-    now = datetime.now(timezone.utc)
-
-    # Update the phase state
-    phases = current_state.get("phases", {})
-    if phase_name in phases:
-        phases[phase_name]["status"] = "complete"
-        phases[phase_name]["completed_at"] = now.isoformat()
-
-    current_state["phases"] = phases
-    current_state["last_advanced_at"] = now.isoformat()
-
-    # Write updated phase state
-    try:
-        await pw.write(
-            "memory/phase_state.json",
-            _json.dumps(current_state, indent=2),
-            summary=f"Phase advanced: {phase_name}",
-        )
-    except Exception as e:
-        logger.warning(f"[PULSE T3] Failed to update phase_state.json: {e}")
-
-    # Log phase_advanced event
-    try:
-        await write_activity(
-            client=client,
-            user_id=user_id,
-            event_type="phase_advanced",
-            summary=f"Project {project_slug}: advanced past {phase_name}",
-            event_ref=project_slug,
-            metadata={
-                "project_slug": project_slug,
-                "phase": phase_name,
-            },
-        )
-    except Exception:
-        pass
-
-
-def _build_tier3_prompt(
-    title: str,
-    project_slug: str,
-    objective: dict,
-    work_plan: str,
-    phase_state: dict,
-    contributor_status: list[dict],
-    now_iso: str,
-    pm_log: str = "",
-    cadence: str = "",
-    process_raw: str = "",
-) -> str:
-    """Build the PM Tier 3 coordination prompt."""
-
-    from services.agent_framework import AGENT_TYPES, has_asset_capabilities
-
-    contributors_text = ""
-    for c in contributor_status:
-        role = c['role']
-        type_def = AGENT_TYPES.get(role, {})
-        caps = type_def.get("capabilities", [])
-        asset_caps = [cap for cap in caps if cap in ("chart", "mermaid", "image", "video_render")]
-        cap_note = f" [assets: {', '.join(asset_caps)}]" if asset_caps else ""
-        status = f"last_run: {c['last_run_at'] or 'never'}{cap_note}"
-        if c["has_assessment"]:
-            status += f"\n    assessment: {c['assessment_snippet']}"
-        contributors_text += f"  - {c['title']} ({role}, slug: {c['slug']}): {status}\n"
-
-    phase_state_text = json.dumps(phase_state, indent=2) if phase_state else "No phase state yet."
-
-    objective_text = ""
-    if objective:
-        for k, v in objective.items():
-            objective_text += f"  - {k}: {v}\n"
-    else:
-        objective_text = "  (not defined)"
-
-    return f"""You are the Project Manager for "{title}" (project: {project_slug}).
-
-Current time: {now_iso}
-
-## Project Objective
-{objective_text}
-
-## Work Plan
-{work_plan or "(No work plan defined yet. Consider creating one with structured phases.)"}
-
-## Phase State
-{phase_state_text}
-
-## Contributors
-{contributors_text or "  (no contributors)"}
-
-## Cadence
-{cadence or "(Not defined — consider establishing a delivery rhythm.)"}
-
-## Process
-{process_raw[:500] if process_raw else "(No PROCESS.md — output spec, delivery config not yet defined.)"}
-
-## Your Recent Decisions
-{pm_log or "(No prior decisions — this is your first assessment.)"}
-
-## Available Agent Types (for escalation requests)
-- briefer: summarizes platform activity (no assets)
-- monitor: watches for changes and alerts (no assets)
-- researcher: investigates topics (charts, mermaid, images)
-- drafter: produces deliverables (charts, mermaid, images, video)
-- analyst: tracks metrics and patterns (charts, mermaid)
-- writer: crafts communications (images, video)
-- planner: prepares plans and agendas (no assets)
-- scout: tracks competitors and markets (charts, images)
-
-## Your Task
-
-Assess the project state and decide what to do:
-
-1. **dispatch** — trigger specific contributors to run now. Return their slugs.
-   Use this when: a phase has unfinished contributor work and context is ready.
-2. **advance_phase** — declare current phase complete, prepare for next phase.
-   Use this when: all contributors in the current phase have produced output.
-3. **generate** — you (the PM) should run to write briefs, update assessments, etc.
-   Use this when: project needs PM work (steering, assembly, work plan updates).
-4. **escalate** — flag this project for Composer attention.
-   Use this when: missing contributors, budget issues, or structural problems.
-5. **wait** — project is healthy, nothing to do right now.
-   Use this when: current phase is in progress and contributors are working.
-
-IMPORTANT: Respond with ONLY a raw JSON object. No explanation, no markdown, no text before or after. Just the JSON.
-
-{{"action": "dispatch|advance_phase|generate|escalate|wait", "note": "why", "dispatch": ["slug1", "slug2"], "phase": "phase name if advancing", "phase_context": "what prior phases found that this phase should build on (for dispatch only)"}}
-"""
-
-
-# =============================================================================
 # Main Entry Point
 # =============================================================================
 
-def _is_project_contributor(agent: dict) -> bool:
-    """Check if this agent is a project contributor (not standalone, not PM)."""
-    role = agent.get("role", "")
-    tc = agent.get("type_config") or {}
-    project_slug = tc.get("project_slug")
-    return bool(project_slug) and role != "pm"
-
-
-def _is_pm(agent: dict) -> bool:
-    """Check if this agent is a PM."""
-    return agent.get("role") == "pm"
-
-
 async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     """
-    Execute an agent's pulse cycle (ADR-133: three execution modes).
+    Execute an agent's pulse cycle.
 
-    Routing:
-      - PM agent → Tier 1 + Tier 3 (coordination pulse)
-      - Project contributor → skip (PM dispatches, return generate immediately)
-      - Standalone agent → Tier 1 + Tier 2 (independent pulse)
+    Two-tier funnel:
+      Tier 1: Deterministic gates (zero LLM cost)
+      Tier 2: Self-assessment (Haiku)
 
     Args:
         client: Supabase service-role client
@@ -975,30 +464,6 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
     mode = agent.get("mode", "recurring")
     role = agent.get("role", "briefer")
 
-    # --- ADR-133: Project contributors are PM-dispatched ---
-    # When PM sets next_pulse_at on a contributor, the scheduler picks it up.
-    # The contributor doesn't "decide" — it just generates. Tier 1 gates still
-    # apply (budget, etc.) but no self-assessment.
-    if _is_project_contributor(agent):
-        logger.info(f"[PULSE] PM-dispatched contributor: {title} ({agent_id}) → generate")
-        # Still run Tier 1 for budget/safety gates
-        t1_decision = await _tier1_deterministic(client, agent)
-        if t1_decision is not None:
-            logger.info(f"[PULSE] Tier 1 blocked dispatched contributor: {title} → {t1_decision.action}")
-            await _log_pulse_event(client, user_id, agent_id, title, t1_decision, agent=agent)
-            await _apply_pulse_decision(client, agent, t1_decision)
-            return t1_decision
-        # Tier 1 passed → generate (PM dispatched this run)
-        decision = PulseDecision(
-            action="generate",
-            reason="PM-dispatched contributor — generating",
-            tier=1,
-            metadata={"gate": "pm_dispatched"},
-        )
-        await _log_pulse_event(client, user_id, agent_id, title, decision, agent=agent)
-        await _apply_pulse_decision(client, agent, decision)
-        return decision
-
     logger.info(f"[PULSE] Starting pulse: {title} ({agent_id}), mode={mode}, role={role}")
 
     # --- Tier 1: Deterministic ---
@@ -1009,16 +474,7 @@ async def run_agent_pulse(client, agent: dict) -> PulseDecision:
         await _apply_pulse_decision(client, agent, t1_decision)
         return t1_decision
 
-    # --- PM agents: Tier 3 coordination pulse ---
-    if _is_pm(agent):
-        t3_decision = await _tier3_pm_coordination(client, agent)
-        event_type = "pm_pulsed"
-        logger.info(f"[PULSE] Tier 3 resolved: {title} → {t3_decision.action} ({t3_decision.reason})")
-        await _log_pulse_event(client, user_id, agent_id, title, t3_decision, agent=agent, event_type=event_type)
-        await _apply_pulse_decision(client, agent, t3_decision)
-        return t3_decision
-
-    # --- Standalone agents: Tier 2 self-assessment ---
+    # --- Tier 2: Self-assessment ---
     t2_decision = await _tier2_self_assessment(client, agent)
     logger.info(f"[PULSE] Tier 2 resolved: {title} → {t2_decision.action} ({t2_decision.reason})")
     await _log_pulse_event(client, user_id, agent_id, title, t2_decision, agent=agent)
@@ -1040,7 +496,7 @@ async def _log_pulse_event(
     event_type: str = "agent_pulsed",
 ) -> None:
     """Log pulse decision to activity_log."""
-    from services.activity_log import write_activity, resolve_agent_project_slug
+    from services.activity_log import write_activity
 
     try:
         meta = {
@@ -1049,11 +505,6 @@ async def _log_pulse_event(
             "tier": decision.tier,
             **decision.metadata,
         }
-        # ADR-129: Enrich with project_slug for project-scoped activity
-        if agent:
-            slug = resolve_agent_project_slug(agent)
-            if slug:
-                meta["project_slug"] = slug
         await write_activity(
             client=client,
             user_id=user_id,

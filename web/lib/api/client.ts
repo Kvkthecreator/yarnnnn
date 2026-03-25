@@ -36,16 +36,8 @@ import type {
   ContextDomainSummary,
   ContextDomainDetail,
   ActiveDomainResponse,
-  // ADR-119 Phase 4: Projects
-  ProjectSummary,
-  ProjectDetail,
-  ProjectActivityItem,
-  // ADR-119 Phase 4b: Outputs + Contributions
+  // ADR-119 Phase 4b: Output manifest (agent outputs)
   OutputManifest,
-  ProjectOutputDetail,
-  ContributionFile,
-  // ADR-124 Phase 4: Workspace file browser
-  ProjectWorkspaceFile,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -333,10 +325,9 @@ export const api = {
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     // Get global chat history
-    globalHistory: (limit: number = 1, agentId?: string, projectSlug?: string) => {
+    globalHistory: (limit: number = 1, agentId?: string) => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (agentId) params.set('agent_id', agentId);
-      if (projectSlug) params.set('project_slug', projectSlug);
       return request<{
         sessions: Array<{
           id: string;
@@ -531,81 +522,6 @@ export const api = {
         `/api/agents/${agentId}/outputs${params}`
       );
     },
-  },
-
-  // ADR-119 Phase 4: Projects
-  projects: {
-    list: () =>
-      request<{ projects: ProjectSummary[]; count: number }>("/api/projects"),
-
-    get: (slug: string) =>
-      request<ProjectDetail>(`/api/projects/${slug}`),
-
-    update: (slug: string, data: {
-      title?: string;
-      objective?: { deliverable?: string; audience?: string; format?: string; purpose?: string };
-      contributors?: Array<{ agent_id: string; expected_contribution: string }>;
-      assembly_spec?: string;
-      delivery?: Record<string, unknown>;
-    }) =>
-      request<{ project_slug: string; title: string; updated: boolean }>(
-        `/api/projects/${slug}`,
-        { method: "PATCH", body: JSON.stringify(data) }
-      ),
-
-    archive: (slug: string) =>
-      request<{ project_slug: string; archived: boolean }>(
-        `/api/projects/${slug}`,
-        { method: "DELETE" }
-      ),
-
-    getActivity: (slug: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<{ activities: ProjectActivityItem[]; total: number }>(
-        `/api/projects/${slug}/activity${params}`
-      );
-    },
-
-    // ADR-119 P4b: Output + contribution endpoints
-    getOutputs: (slug: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<{ outputs: OutputManifest[]; total: number }>(
-        `/api/projects/${slug}/outputs${params}`
-      );
-    },
-
-    getOutput: (slug: string, folder: string) =>
-      request<ProjectOutputDetail>(`/api/projects/${slug}/outputs/${folder}`),
-
-    // ADR-130 Phase 3: Export output as PDF/XLSX
-    exportOutput: (slug: string, folder: string, format: string) =>
-      request<{ success: boolean; download_url: string; format: string }>(
-        `/api/projects/${slug}/export`,
-        { method: "POST", body: JSON.stringify({ folder, format }) }
-      ),
-
-    getContributions: (slug: string, agentSlug: string) =>
-      request<{ agent_slug: string; files: ContributionFile[] }>(
-        `/api/projects/${slug}/contributions/${agentSlug}`
-      ),
-
-    // ADR-124 Phase 4: Workspace file browser
-    getFiles: (slug: string) =>
-      request<{ files: ProjectWorkspaceFile[]; total: number }>(
-        `/api/projects/${slug}/files`
-      ),
-
-    getFileContent: (slug: string, filePath: string) =>
-      request<{ path: string; content: string }>(
-        `/api/projects/${slug}/files/${filePath}`
-      ),
-
-    // ADR-127: Share file to project user_shared/ staging area
-    shareFile: (slug: string, filename: string, content: string) =>
-      request<{ success: boolean; path: string; filename: string; message: string }>(
-        `/api/projects/${slug}/share`,
-        { method: "POST", body: JSON.stringify({ filename, content }) }
-      ),
   },
 
   // Account management

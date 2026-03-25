@@ -25,8 +25,7 @@ from services.anthropic import (
     StreamEvent,
 )
 from services.primitives.registry import get_tools_for_mode, HANDLERS, PRIMITIVE_MODES
-from services.workspace import AgentWorkspace, ProjectWorkspace, get_agent_slug
-from services.agent_execution import _load_pm_project_context
+from services.workspace import AgentWorkspace, get_agent_slug
 
 logger = logging.getLogger(__name__)
 
@@ -291,50 +290,9 @@ class ChatAgent(BaseAgent):
             auth.client, auth.user_id
         )
 
-        # ADR-124 Phase 3: Load project context based on agent role
+        # Load role-specific context
         role = self.agent.get("role", "digest")
         project_context = None
-
-        if role == "pm":
-            # PM gets full project context — reuse headless loader (singular implementation)
-            try:
-                project_context = await _load_pm_project_context(
-                    auth.client, auth.user_id, self.project_slug
-                )
-            except Exception as e:
-                logger.warning(f"[CHAT-AGENT] Failed to load PM project context: {e}")
-        else:
-            # Contributors get project objective + own contribution context
-            try:
-                pw = ProjectWorkspace(auth.client, auth.user_id, self.project_slug)
-                project_data = await pw.read_project()
-                objective = "Not specified."
-                contribution_context = ""
-
-                if project_data:
-                    obj = project_data.get("objective", {})
-                    objective = obj.get("deliverable", "Not specified.")
-                    if obj.get("audience"):
-                        objective += f"\nAudience: {obj['audience']}"
-                    if obj.get("format"):
-                        objective += f"\nFormat: {obj['format']}"
-
-                    # Find this agent's expected contribution
-                    agent_slug = get_agent_slug(self.agent)
-                    for c in project_data.get("contributors", []):
-                        if c.get("agent_slug") == agent_slug:
-                            if c.get("expected_contribution"):
-                                contribution_context = (
-                                    f"## Your Expected Contribution\n{c['expected_contribution']}"
-                                )
-                            break
-
-                project_context = {
-                    "project_objective": objective,
-                    "contribution_context": contribution_context,
-                }
-            except Exception as e:
-                logger.warning(f"[CHAT-AGENT] Failed to load contributor context: {e}")
 
         system = self._build_system_prompt(
             workspace_context=workspace_context,
