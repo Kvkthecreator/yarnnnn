@@ -15,11 +15,13 @@ type AvatarState = 'working' | 'ready' | 'paused' | 'idle' | 'error';
 interface AgentAvatarProps {
   state: AvatarState;
   color: string; // CSS color for body accent
+  /** Lucide icon element to use as the "head" — e.g. <FlaskConical /> */
+  icon?: React.ReactNode;
   size?: number;
   className?: string;
 }
 
-export function AgentAvatar({ state, color, size = 64, className }: AgentAvatarProps) {
+export function AgentAvatar({ state, color, icon, size = 64, className }: AgentAvatarProps) {
   const s = size;
   const cx = s / 2;
   const headR = s * 0.17;
@@ -82,26 +84,30 @@ export function AgentAvatar({ state, color, size = 64, className }: AgentAvatarP
             <rect className={`${id}-armL`} x={leftArmX} y={armY} width={armW} height={armH} rx={armW/2} fill={color} opacity={paused?.15:.4} />
             <rect className={`${id}-armR`} x={rightArmX} y={armY} width={armW} height={armH} rx={armW/2} fill={color} opacity={paused?.15:.4} />
 
-            {/* Head */}
+            {/* Head — icon inside colored circle */}
             <g className={`${id}-head`}>
-              <circle cx={cx} cy={headY} r={headR} fill={color} opacity={paused?.3:.8} />
-              {/* Eyes */}
-              <g className={`${id}-eyes`}>
-                {paused ? (
-                  <>
-                    <line x1={cx-headR*.35} y1={headY+headR*.05} x2={cx-headR*.08} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
-                    <line x1={cx+headR*.08} y1={headY+headR*.05} x2={cx+headR*.35} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
-                  </>
-                ) : (
-                  <>
-                    <circle cx={cx-headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
-                    <circle cx={cx+headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
-                  </>
-                )}
-              </g>
-              {/* Smile for ready state */}
-              {state === 'ready' && (
-                <path d={`M ${cx-headR*.2} ${headY+headR*.25} Q ${cx} ${headY+headR*.42} ${cx+headR*.2} ${headY+headR*.25}`} stroke="white" strokeWidth={1} strokeLinecap="round" fill="none" opacity={.6} />
+              <circle cx={cx} cy={headY} r={headR} fill={color} opacity={paused ? .3 : .8} />
+              {icon ? (
+                <foreignObject x={cx - headR * 0.65} y={headY - headR * 0.65} width={headR * 1.3} height={headR * 1.3}>
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', opacity: paused ? 0.5 : 0.9 }}>
+                    {icon}
+                  </div>
+                </foreignObject>
+              ) : (
+                /* Fallback: dot eyes if no icon */
+                <g className={`${id}-eyes`}>
+                  {paused ? (
+                    <>
+                      <line x1={cx-headR*.35} y1={headY+headR*.05} x2={cx-headR*.08} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
+                      <line x1={cx+headR*.08} y1={headY+headR*.05} x2={cx+headR*.35} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
+                    </>
+                  ) : (
+                    <>
+                      <circle cx={cx-headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
+                      <circle cx={cx+headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
+                    </>
+                  )}
+                </g>
               )}
             </g>
 

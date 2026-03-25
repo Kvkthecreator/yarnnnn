@@ -27,6 +27,11 @@ import {
   Globe,
   RefreshCw,
   Bookmark,
+  FlaskConical,
+  FileText,
+  TrendingUp,
+  Users,
+  BookOpen,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -46,19 +51,19 @@ import ReactMarkdown from 'react-markdown';
 // Agent type config
 // =============================================================================
 
-const TYPE_CONFIG: Record<string, { hex: string; accent: string; bgRoom: string; label: string }> = {
-  research:   { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  content:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  marketing:  { hex: '#ec4899', accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   label: 'Marketing' },
-  crm:        { hex: '#f97316', accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', label: 'CRM' },
-  slack_bot:  { hex: '#14b8a6', accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   label: 'Slack Bot' },
-  notion_bot: { hex: '#6366f1', accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', label: 'Notion Bot' },
-  briefer:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  researcher: { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  analyst:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  drafter:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  writer:     { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  custom:     { hex: '#6b7280', accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   label: 'Custom' },
+const TYPE_CONFIG: Record<string, { hex: string; icon: typeof FlaskConical; accent: string; bgRoom: string; label: string }> = {
+  research:   { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  content:    { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  marketing:  { hex: '#ec4899', icon: TrendingUp,    accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   label: 'Marketing' },
+  crm:        { hex: '#f97316', icon: Users,         accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', label: 'CRM' },
+  slack_bot:  { hex: '#14b8a6', icon: MessageCircle, accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   label: 'Slack Bot' },
+  notion_bot: { hex: '#6366f1', icon: BookOpen,      accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', label: 'Notion Bot' },
+  briefer:    { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  researcher: { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  analyst:    { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
+  drafter:    { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  writer:     { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
+  custom:     { hex: '#6b7280', icon: Cog,           accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   label: 'Custom' },
 };
 
 function getType(role: string) {
@@ -107,7 +112,7 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
       <div className="absolute top-2 right-2">
         <span className={cn('block w-2 h-2 rounded-full', statusDot)} />
       </div>
-      <AgentAvatar state={avatarState} color={config.hex} size={56} />
+      {(() => { const Icon = config.icon; return <AgentAvatar state={avatarState} color={config.hex} size={56} icon={<Icon size={10} strokeWidth={2.5} />} />; })()}
       <span className="text-[11px] font-semibold text-center mt-1 truncate w-full">{agent.title}</span>
       {/* Live task on desk */}
       {activeTask ? (
