@@ -196,8 +196,8 @@ export default function PricingPage() {
               <div className="border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-medium mb-3">What are work units?</h3>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
-                  Work units measure the autonomous work your agents do — each agent run,
-                  report assembly, and rendered output (PDF, slides, etc.) costs one unit.
+                  Work units measure the autonomous work your agents do — each agent run
+                  and rendered output (PDF, slides, etc.) costs one unit.
                   Messages (your conversations with agents) are counted separately.
                 </p>
                 <p className="text-white/40 text-xs">

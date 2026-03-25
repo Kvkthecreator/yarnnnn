@@ -139,8 +139,9 @@ export default function HowItWorksPage() {
                     <div className="border border-white/10 rounded-xl p-6">
                       <div className="text-lg font-medium mb-3">Cross-platform reports</div>
                       <p className="text-white/50 text-sm leading-relaxed">
-                        Multiple agents pull from different sources and combine into one
-                        polished deliverable — PDF, slides, spreadsheet, or email.
+                        Agents pull from different sources and produce polished output —
+                        PDF, slides, spreadsheet, or email. One agent handles the full
+                        chain, or multiple agents collaborate on bigger jobs.
                       </p>
                     </div>
                   </div>
@@ -183,7 +184,7 @@ export default function HowItWorksPage() {
                   </div>
 
                   <p className="text-white/30 text-xs mt-6 max-w-xl">
-                    Talk to any agent directly in its meeting room. Your direction persists
+                    Talk to any agent directly on their page. Your direction persists
                     across sessions — agents remember what you told them.
                   </p>
                 </div>
@@ -196,9 +197,10 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Agents work together</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                For bigger jobs, multiple agents collaborate. One pulls from Slack, another
-                from Notion, another does research — then a coordinator assembles their work
-                into one deliverable. You get a finished product, not fragments.
+                Most work needs one agent handling the full chain — sense context, reason
+                about it, produce output. For bigger jobs, multiple agents collaborate on a
+                shared task, each contributing their domain expertise. You get a finished
+                product, not fragments.
               </p>
 
               <div className="border border-white/10 rounded-xl p-6 bg-white/5">
@@ -206,19 +208,15 @@ export default function HowItWorksPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Slack agent summarizes #engineering and #product activity</p>
+                    <p className="text-white/70 text-sm">Market intelligence agent researches competitor moves</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Notion agent pulls key updates from project pages</p>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">Research agent tracks competitor moves</p>
+                    <p className="text-white/70 text-sm">Team observer agent summarizes Slack and Notion activity</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/40 mt-2 shrink-0" />
-                    <p className="text-white text-sm font-medium">Coordinator assembles into one brief, delivered Monday 8 AM</p>
+                    <p className="text-white text-sm font-medium">Orchestrator combines their work into one brief, delivered Monday 8 AM</p>
                   </div>
                 </div>
               </div>

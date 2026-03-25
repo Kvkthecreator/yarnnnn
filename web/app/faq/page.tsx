@@ -77,12 +77,12 @@ const faqSections: FaqSection[] = [
       {
         question: "Can multiple agents work together?",
         answer:
-          "Yes. For bigger jobs, multiple agents can collaborate — one pulls from Slack, another from Notion, another does research. A coordinator agent assembles their work into one polished deliverable. You get a finished product, not fragments.",
+          "Yes. Most work needs one agent handling the full thinking chain — sense context, reason about it, produce output. For bigger jobs, multiple agents collaborate on a shared task, each contributing their domain expertise. The orchestrator coordinates the sequence and combines the result. You get a finished product, not fragments.",
       },
       {
         question: "Can I talk to agents directly?",
         answer:
-          "Yes. Each agent has a meeting room where you can give direction, ask questions, or redirect their focus. Your instructions persist across sessions — agents remember what you told them.",
+          "Yes. Each agent has its own page where you can review its work, give direction, or redirect its focus. Your instructions persist across sessions — agents remember what you told them.",
       },
       {
         question: "What output formats are available?",
@@ -102,7 +102,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What are work units?",
         answer:
-          "Work units measure autonomous work — agent runs, report assemblies, and rendered output. Free includes 60 work units/month, Pro includes 1,000. This is separate from messages (your conversations with agents).",
+          "Work units measure autonomous work — each agent run and rendered output (PDF, slides, etc.) costs one unit. Free includes 60 work units/month, Pro includes 1,000. This is separate from messages (your conversations with agents).",
       },
       {
         question: "How does sync frequency differ by plan?",

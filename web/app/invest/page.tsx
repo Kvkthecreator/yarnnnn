@@ -129,14 +129,16 @@ export default function InvestPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Multi-agent projects</h3>
+                    <h3 className="text-lg font-medium text-white">Agents and tasks</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
-                      Agents collaborate inside projects — each with a Project Manager agent that
-                      coordinates contributions, assesses quality, and assembles deliverables.
-                      Meeting rooms let users talk to any agent directly. Output ships as
-                      PDF, slides, spreadsheets, and more.
+                      Persistent agents — each a domain expert with memory, expertise, and
+                      capabilities — work on defined tasks that run on cadence. One agent
+                      can handle the full thinking chain: sense context, reason about it,
+                      and produce output. For bigger jobs, multiple agents collaborate with
+                      the orchestrator coordinating the sequence. Output ships as PDF, slides,
+                      spreadsheets, and more.
                     </p>
                   </div>
                 </div>
@@ -156,12 +158,12 @@ export default function InvestPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">125+ ADRs</h3>
+                    <h3 className="text-lg font-medium text-white">135+ ADRs</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
                       Architecture Decision Records documenting every design choice — from the
-                      agent pulse engine to multi-agent coherence and output skills. This is a
+                      agent pulse engine to task execution and output skills. This is a
                       purpose-built work system, not an API wrapper.
                     </p>
                   </div>
@@ -255,8 +257,8 @@ export default function InvestPage() {
                 </p>
                 <p>
                   Shipped the entire MVP solo: full-stack application (Next.js + FastAPI + Supabase),
-                  platform integrations, multi-agent project architecture documented across
-                  125+ Architecture Decision Records, and a working context accumulation engine —
+                  platform integrations, autonomous agent architecture documented across
+                  135+ Architecture Decision Records, and a working context accumulation engine —
                   all before raising a dollar.
                 </p>
               </div>
