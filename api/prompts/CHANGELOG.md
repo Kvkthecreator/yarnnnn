@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.4] - ADR-140: Fix onboarding prompt + task-oriented plus menu
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Complete rewrite. Old prompt guided users to "create agents" (pre-ADR-140). New prompt knows roster exists, guides to task creation. Explicitly forbids "these are generic agents" framing. Maps user work descriptions to specific roster agents.
+- `components/desk/ChatDrawer.tsx`: Plus menu actions updated — "Upload file" → "Create a task", "Refresh platforms" → "Run a task now", "Save to memory" → "Upload file" (demoted). Task-oriented actions are primary.
+- Expected behavior: TP immediately guides new users to create tasks on their existing 6-agent roster. No more "Create specific agents for your domains" advice. Plus menu leads with task creation.
+
+---
+
 ## [2026.03.25.3] - ADR-138: Success Criteria Self-Assessment + CreateTask mode
 
 ### Changed

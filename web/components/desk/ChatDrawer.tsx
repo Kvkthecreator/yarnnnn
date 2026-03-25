@@ -138,11 +138,11 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
   };
 
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
+    { id: 'create-task', label: 'Create a task', icon: Upload, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
     { id: 'search-platforms', label: 'Search platforms', icon: Search, verb: 'prompt', onSelect: () => { setInput('Search across my connected platforms for '); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
-    { id: 'refresh-sync', label: 'Refresh platforms', icon: RefreshCw, verb: 'prompt', onSelect: () => { setInput('Refresh my platform data'); textareaRef.current?.focus(); } },
-    { id: 'save-memory', label: 'Save to memory', icon: Bookmark, verb: 'prompt', onSelect: () => { setInput('Remember that '); textareaRef.current?.focus(); } },
+    { id: 'run-task', label: 'Run a task now', icon: RefreshCw, verb: 'prompt', onSelect: () => { setInput('Run my '); textareaRef.current?.focus(); } },
+    { id: 'upload-file', label: 'Upload file', icon: Bookmark, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
 
   return (
