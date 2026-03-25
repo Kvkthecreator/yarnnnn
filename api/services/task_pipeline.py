@@ -306,13 +306,43 @@ If context says "(No context available)" or tools return no results:
 # Cadence Calculation
 # =============================================================================
 
-def calculate_next_run_at(schedule: dict, last_run_at: Optional[datetime] = None) -> datetime:
-    """Calculate next_run_at from schedule config. Pure math, no LLM.
+def calculate_next_run_at(schedule, last_run_at: Optional[datetime] = None) -> Optional[datetime]:
+    """Calculate next_run_at from schedule string or dict. Pure math, no LLM.
 
-    Delegates to the existing scheduler utility.
+    ADR-138: schedule is stored as a simple string ('daily', 'weekly', 'monthly')
+    or cron expression in the tasks table.
     """
-    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
-    return calculate_next_pulse_from_schedule(schedule, from_time=last_run_at)
+    from datetime import timedelta
+
+    now = last_run_at or datetime.now(timezone.utc)
+
+    # Handle string schedules (ADR-138 tasks table format)
+    if isinstance(schedule, str):
+        s = schedule.lower().strip()
+        if s == "daily":
+            return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        elif s == "weekly":
+            days_ahead = 7 - now.weekday()
+            if days_ahead == 0:
+                days_ahead = 7
+            return (now + timedelta(days=days_ahead)).replace(hour=9, minute=0, second=0, microsecond=0)
+        elif s == "monthly":
+            if now.month == 12:
+                return now.replace(year=now.year + 1, month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
+            return now.replace(month=now.month + 1, day=1, hour=9, minute=0, second=0, microsecond=0)
+        else:
+            # Unknown or cron — default to 24h
+            return now + timedelta(hours=24)
+
+    # Legacy dict format (from old agent scheduling)
+    if isinstance(schedule, dict):
+        try:
+            from jobs.unified_scheduler import calculate_next_pulse_from_schedule
+            return calculate_next_pulse_from_schedule(schedule, from_time=last_run_at)
+        except Exception:
+            return now + timedelta(hours=24)
+
+    return None
 
 
 # =============================================================================
