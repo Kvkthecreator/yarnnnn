@@ -65,13 +65,22 @@ def infer_scope(role: str) -> str:
 # Workspace AGENT.md and memory/*.md are the sole authority for new agents.
 # DB columns kept in schema for lazy migration of pre-workspace agents.
 AGENT_COLUMNS = {
-    "id", "user_id", "title",
+    "id", "user_id", "title", "slug",
     "status", "created_at", "updated_at",
     "type_config", "origin",
     "agent_instructions", "agent_memory",
     "scope", "role",
     "avatar_url",
 }
+
+
+def _slugify_agent(title: str) -> str:
+    """Generate a filesystem-safe slug from agent title."""
+    import re
+    slug = title.lower().strip()
+    slug = re.sub(r"[^a-z0-9-]", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug[:50] or "agent"
 
 
 # =============================================================================
@@ -125,6 +134,7 @@ async def create_agent_record(
         "id": entity_id,
         "user_id": user_id,
         "title": title.strip(),
+        "slug": _slugify_agent(title.strip()),
         "role": role,
         "scope": scope,
         "origin": origin,
