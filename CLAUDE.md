@@ -8,13 +8,13 @@ YARNNN is an **autonomous agent platform for recurring knowledge work**. Persist
 
 **Architecture**: Next.js frontend → FastAPI backend → Supabase (Postgres) → Claude API. Agents (identity) + Tasks (work units) as core model.
 
-**Key terminology** (ADR-103, ADR-126, ADR-138):
-- **Agent** (was: Deliverable) — a persistent, autonomous entity with identity (WHO), domain expertise, memory, and workspace. No scheduling — agents don't run on their own; tasks invoke them.
-- **Task** (ADR-138) — a defined work unit (WHAT) with objective, cadence, delivery, and success criteria. Lives in TASK.md. Thin `tasks` DB table for scheduling. Tasks reference agents.
-- **Agent Run** (was: Deliverable Version) — a single execution of an agent on behalf of a task, producing draft/final content
-- **Orchestrator / TP** — the user-facing conversational agent with full capabilities. Absorbs coordination role (no PM).
-- **Agent Instructions** (was: deliverable_instructions) — user-authored behavioral directives
-- **Agent Memory** (was: deliverable_memory) — system-accumulated state (observations, goals)
+**Key terminology** (ADR-138, ADR-140):
+- **Agent** — persistent domain expert (WHO). Three axes: identity (AGENT.md, evolves), capabilities (type registry, fixed), tasks (assigned, come and go). Pre-scaffolded at sign-up.
+- **Agent Types** (ADR-140) — capability bundles: `research`, `content`, `marketing`, `crm` (agents) + `slack_bot`, `notion_bot` (bots). Two classes: **agent** (domain-cognitive, multi-step) vs **bot** (platform-mechanical).
+- **Task** — defined work unit (WHAT). Objective, cadence, delivery, success criteria. Lives in `/tasks/{slug}/TASK.md`. Assigned to one agent. Thin `tasks` DB table for scheduling.
+- **Agent Run** — a single execution of an agent on behalf of a task, producing draft/final content
+- **Orchestrator / TP** — the user-facing conversational agent. Creates tasks, monitors agents, orchestrates multi-agent work. Absorbs PM coordination role.
+- **Workfloor** — the shared workspace substrate. `/workspace/` (identity), `/agents/` (team), `/tasks/` (work), `/knowledge/` (corpus).
 - **Perception Pipeline** (was: platform sync) — how agents sense the outside world
 - **Knowledge Base** (was: platform_content) — the shared content substrate agents reason over
 
@@ -96,7 +96,9 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 
 - **ADR-137**: **Superseded by ADR-138.** Declarative Pipeline Execution — replaces PM-coordinated dispatch (ADR-133) with declared execution graphs in PROCESS.md. Pipeline steps have dependencies, executed mechanically by scheduler. PM simplified to pipeline-embedded steps: evaluate (quality gate, Haiku), compose (assembly, Sonnet), reflect (learning, Haiku). No PM coordination pulses. Complexity-adaptive: simple (1 agent, direct deliver), standard (3 agents, sequential), complex (3+ agents with retry loops). Inference produces pipeline spec, not just team. Frontend: pipeline visualization (horizontal step flow with state indicators). Cost: ~$0.17/cycle vs ~$0.25 with PM coordination. Supersedes ADR-133. Evolves ADR-136 (PROCESS.md), ADR-132 (inference). (Proposed.)
 
-- **ADR-138**: Agents as Work Units — Project Layer Collapse. Workspace → Agents → Tasks hierarchy. Projects deleted entirely. PM dissolved — TP absorbs coordination. Agents are WHO (identity, domain expertise, memory). Tasks are WHAT (objective, cadence, delivery, output spec). Filesystem-first: TASK.md + memory/run_log.md + outputs/. Thin tasks DB table (scheduling index only). 4 archetypes: monitor, researcher, producer, operator. Cross-agent orchestration via TP (imperative, not pipeline). Clean-slate migration (all test data wiped). Supersedes ADR-120, ADR-121, ADR-122, ADR-123, ADR-124, ADR-125, ADR-133, ADR-134, ADR-136, ADR-137. PM portions of ADR-126, ADR-128 dissolved. Key files: `api/services/task_workspace.py`, `api/routes/tasks.py`, `api/services/primitives/task.py`. (Phases 1-4 Implemented. Phase 5-6 in progress.)
+- **ADR-138**: Agents as Work Units — Project Layer Collapse. Workspace → Agents → Tasks hierarchy. Projects deleted entirely. PM dissolved — TP absorbs coordination. Agents are WHO (identity, domain expertise, memory). Tasks are WHAT (objective, cadence, delivery, output spec). Filesystem-first: TASK.md + memory/run_log.md + outputs/. Thin tasks DB table (scheduling index only). Cross-agent orchestration via TP (imperative, not pipeline). Clean-slate migration (all test data wiped). **Evolves into ADR-140** for agent type definitions. Supersedes ADR-120–125, ADR-133–137. PM portions of ADR-126, ADR-128 dissolved. Key files: `api/services/task_workspace.py`, `api/routes/tasks.py`, `api/services/primitives/task.py`. (Phases 1-4 Implemented. Phase 5-6 in progress.)
+
+- **ADR-140**: Agent Workforce Model — Pre-Scaffolded Roster. Three independent axes per agent: (1) Identity = AGENT.md name + domain, evolves with use; (2) Capabilities = type registry, fixed at creation; (3) Tasks = TASK.md work assignments, come and go. Two classes: **agent** (domain-cognitive, multi-step reasoning) and **bot** (platform-mechanical, scoped to one API). Pre-scaffolded roster at sign-up: 4 agents (Research Agent, Content Agent, Marketing Agent, CRM Agent) + 2 bots (Slack Bot, Notion Bot). Onboarding = context enrichment only (no agent creation); task inference assigns work to existing roster agents. Sign-up creates roster lazily on first onboarding-state check. Bots activated when platform connected. Key files: `api/services/agent_framework.py` (AGENT_TYPES, DEFAULT_ROSTER), `api/routes/memory.py` (_scaffold_default_roster). (Implemented.)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -253,8 +255,8 @@ You MUST:
 - `platform_content` — unified content layer with retention (ADR-072); includes `platform="yarnnn"` for agent outputs (ADR-102)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
-- `agents` — persistent autonomous agents (was `deliverables`, renamed ADR-103). Identity-only after ADR-138: `scope` + `role` (ADR-109), `name`, `slug`, workspace. No schedule, no destination, no project_id, no duties. Agents don't run independently — tasks invoke them.
-- `tasks` — work units (ADR-138). Thin scheduling index: `agent_id` FK, `cadence`, `next_run_at`, `status`. Charter in workspace TASK.md. Each task references one agent.
+- `agents` — persistent workforce roster (ADR-140). Identity-only: `role` (type key: research, content, marketing, crm, slack_bot, notion_bot), `title`, `scope`, `status`, `type_config`, `agent_instructions`, `agent_memory`. No schedule, no destination — those live on tasks. Pre-scaffolded at sign-up (6 agents per workspace).
+- `tasks` — work units (ADR-138). Thin scheduling index: `slug`, `schedule`, `next_run_at`, `status`. Charter in workspace `/tasks/{slug}/TASK.md`. Agent assignment via TASK.md `## Process` section (filesystem, not FK).
 - `agent_runs` — execution audit trail per agent (was `deliverable_versions`, renamed ADR-103). ADR-118 D.3: dual-write (content still written for frontend compat), but delivery reads from workspace_files output folders. Will become pure audit trail when frontend migrates.
 - `agent_type` — column on `agents` table, **DEPRECATED** by ADR-109 — being replaced by `scope` + `role`
 - `agent_instructions` — column on `agents` table, **DEPRECATED** by ADR-106 Phase 2 — migrated to workspace `AGENT.md`. No longer written for new agents. DB column kept only for lazy migration of pre-workspace agents via `ensure_seeded()`. Workspace AGENT.md is sole authority.
@@ -333,7 +335,7 @@ You MUST:
 | Agent Workspace | `api/services/workspace.py` (ADR-106) |
 | Workspace Primitives | `api/services/primitives/workspace.py` (ADR-106) |
 | Agent Framework (canonical) | `docs/architecture/agent-framework.md` (ADR-109) |
-| Agent Framework (code) | `api/services/agent_framework.py` (ADR-130: three registries + helpers) |
+| Agent Framework (code) | `api/services/agent_framework.py` (ADR-140: workforce roster, AGENT_TYPES, DEFAULT_ROSTER, capabilities, runtimes) |
 | Agent Creation (shared) | `api/services/agent_creation.py` (ADR-111 Phase 1) |
 | TP Composer / Heartbeat | `api/services/composer.py` (ADR-111 Phase 3) |
 | Agent Pulse Engine | `api/services/agent_pulse.py` (ADR-126: 3-tier sense→decide cycle) |
