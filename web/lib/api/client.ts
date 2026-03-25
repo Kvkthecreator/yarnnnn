@@ -214,10 +214,11 @@ export const api = {
       request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
   },
 
-  // Onboarding (ADR-138) — infer + scaffold agents and tasks from user context
+  // Onboarding (ADR-138/140) — context enrichment + task inference
+  // Agents pre-scaffolded at sign-up. Onboarding creates tasks assigned to roster agents.
   onboardingScaffold: {
     save: (projects: Array<{ name: string }>, name?: string, brandContent?: string, documentIds?: string[]) =>
-      request<{ agents_created: Array<{ agent_slug: string; agent_title: string; task_slug: string; task_title: string }>; count: number }>(
+      request<{ tasks_created: Array<{ task_slug: string; task_title: string; agent_slug: string; agent_title: string; agent_role: string }>; count: number }>(
         "/api/memory/user/onboarding",
         { method: "POST", body: JSON.stringify({ projects, name, brand_content: brandContent, document_ids: documentIds }) },
       ),

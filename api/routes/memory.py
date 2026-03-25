@@ -152,9 +152,10 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
 async def get_onboarding_state(auth: UserClient):
-    """Check if user has completed onboarding (ADR-138).
+    """Check if user has completed onboarding (ADR-138/140).
 
-    Returns has_agents: True if user has any agents.
+    Lazy scaffolding: if no agents exist, create the default workforce roster.
+    Returns has_agents: True if user has any active agents.
     Used by auth callback to gate new users to /onboarding.
     """
     try:
@@ -168,6 +169,13 @@ async def get_onboarding_state(auth: UserClient):
         )
         has_agents = len(result.data or []) > 0
 
+        # ADR-140: Lazy scaffold default workforce roster on first check
+        if not has_agents:
+            await _scaffold_default_roster(auth.client, auth.user_id)
+            # Roster created but no tasks yet — still gate to onboarding
+            # for context enrichment. Return has_agents=True so they see the team.
+            has_agents = True
+
         return OnboardingStateResponse(
             has_agents=has_agents,
         )
@@ -176,20 +184,49 @@ async def get_onboarding_state(auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _scaffold_default_roster(client, user_id: str):
+    """Create the default 6-agent workforce roster for a new user (ADR-140).
+
+    Called lazily on first onboarding-state check. Idempotent — checks
+    for existing agents before creating.
+    """
+    from services.agent_framework import AGENT_TYPES, DEFAULT_ROSTER
+    from services.agent_creation import create_agent_record
+
+    for agent_def in DEFAULT_ROSTER:
+        try:
+            type_def = AGENT_TYPES.get(agent_def["role"], {})
+            is_bot = type_def.get("class") == "bot"
+
+            await create_agent_record(
+                client=client,
+                user_id=user_id,
+                title=agent_def["title"],
+                role=agent_def["role"],
+                origin="system_bootstrap",
+                agent_instructions=type_def.get("default_instructions", ""),
+            )
+            logger.info(f"[ROSTER] Created {agent_def['title']} for user {user_id[:8]}")
+        except Exception as e:
+            # Skip duplicates or errors — best effort
+            logger.warning(f"[ROSTER] Failed to create {agent_def['title']}: {e}")
+
+
 
 @router.post("/user/onboarding")
 async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
-    """Onboarding endpoint — infer + scaffold agents and tasks (ADR-138).
+    """Onboarding endpoint — context enrichment + task inference (ADR-138/140).
 
+    Agents are pre-scaffolded at sign-up (ADR-140). Onboarding:
     1. Saves user identity/brand
-    2. Reads uploaded documents
-    3. Calls Sonnet to infer agents + tasks from user context
-    4. Creates agents and tasks
+    2. Reads uploaded documents → enriches /knowledge/
+    3. Calls Sonnet to infer tasks from user context
+    4. Creates tasks assigned to existing roster agents
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
 
-        # Save identity + brand first
+        # Save identity + brand
         if body.name:
             profile = await um.get_profile()
             if not profile.get("name"):
@@ -212,10 +249,10 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
 
         # Skip inference if no context at all
         if not text_description.strip() and not document_contents:
-            logger.info("[ONBOARDING] No context provided, skipping inference")
-            return {"agents_created": [], "count": 0}
+            logger.info("[ONBOARDING] No context provided, skipping task inference")
+            return {"tasks_created": [], "count": 0}
 
-        # Infer agents + tasks via Sonnet
+        # Infer tasks via Sonnet
         from services.project_inference import infer_work_scopes
         inference = await infer_work_scopes(text_description, document_contents)
 
@@ -232,38 +269,40 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
             if not profile.get("context"):
                 await um.update_profile({"context": user_context})
 
-        # Create agents + tasks from inferred scopes
-        from services.agent_creation import create_agent_record
+        # Get existing roster agents to assign tasks
+        roster = (
+            auth.client.table("agents")
+            .select("id, title, role")
+            .eq("user_id", auth.user_id)
+            .neq("status", "archived")
+            .execute()
+        ).data or []
+        roster_by_role = {a["role"]: a for a in roster}
+
+        # Create tasks from inferred scopes, assign to existing roster agents
         from services.task_workspace import TaskWorkspace
+        from services.workspace import AgentWorkspace, get_agent_slug
         import re
-        from datetime import datetime, timezone
+        import json as json_mod
 
         created = []
         for scope in inference.get("tasks", []):
             try:
-                agent_title = scope.get("agent_title", scope.get("task_title", "Agent"))
-                agent_role = scope.get("agent_role", "monitor")
-                agent_instructions = scope.get("agent_instructions", "")
-
-                # Create agent
-                agent = await create_agent_record(
-                    client=auth.client,
-                    user_id=auth.user_id,
-                    title=agent_title,
-                    role=agent_role,
-                    origin="system_bootstrap",
-                    agent_instructions=agent_instructions,
-                )
-                agent_id = agent["id"]
-                agent_slug = re.sub(r'[^a-z0-9]+', '-', agent_title.lower()).strip('-')[:60]
-
-                # Create task
-                task_title = scope.get("task_title", f"{agent_title} Task")
+                task_title = scope.get("task_title", "New Task")
                 task_slug = re.sub(r'[^a-z0-9]+', '-', task_title.lower()).strip('-')[:60]
                 cadence = scope.get("cadence", "weekly")
                 objective = scope.get("objective", {})
                 success_criteria = scope.get("success_criteria", [])
                 output_spec = scope.get("output_spec", [])
+
+                # Match inferred agent_role to existing roster agent
+                inferred_role = scope.get("agent_role", "research")
+                agent = roster_by_role.get(inferred_role, roster_by_role.get("research"))
+                if not agent:
+                    logger.warning(f"[ONBOARDING] No agent for role {inferred_role}, skipping")
+                    continue
+
+                agent_slug = get_agent_slug(agent)
 
                 # Insert task DB row
                 task_data = {
@@ -305,29 +344,28 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
                                summary=f"Task definition for {task_title}")
 
                 # Update agent's tasks.json
-                from services.workspace import AgentWorkspace, get_agent_slug
-                ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+                ws = AgentWorkspace(auth.client, auth.user_id, agent_slug)
                 tasks_json = await ws.read("memory/tasks.json")
-                import json as json_mod
                 existing_tasks = json_mod.loads(tasks_json) if tasks_json else []
                 existing_tasks.append({"task_slug": task_slug, "task_title": task_title})
                 await ws.write("memory/tasks.json", json_mod.dumps(existing_tasks, indent=2),
                                summary="Task assignment")
 
                 created.append({
-                    "agent_slug": agent_slug,
-                    "agent_title": agent_title,
                     "task_slug": task_slug,
                     "task_title": task_title,
+                    "agent_slug": agent_slug,
+                    "agent_title": agent["title"],
+                    "agent_role": agent["role"],
                 })
-                logger.info(f"[ONBOARDING] Created agent '{agent_title}' + task '{task_title}'")
+                logger.info(f"[ONBOARDING] Created task '{task_title}' → {agent['title']}")
 
             except Exception as e:
-                logger.error(f"[ONBOARDING] Failed to create scope: {e}")
+                logger.error(f"[ONBOARDING] Failed to create task: {e}")
                 continue
 
-        logger.info(f"[ONBOARDING] Created {len(created)} agents + tasks")
-        return {"agents_created": created, "count": len(created)}
+        logger.info(f"[ONBOARDING] Created {len(created)} tasks")
+        return {"tasks_created": created, "count": len(created)}
 
     except Exception as e:
         logger.error(f"[ONBOARDING] Error: {e}")

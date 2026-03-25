@@ -1,24 +1,21 @@
 """
-Agent Framework — ADR-130 Three-Registry Architecture (v2)
+Agent Framework — ADR-140 Workforce Model (v3)
 
-Canonical registry for agent capabilities. The agent type registry is the
-product catalog — each type is a role a user "hires" for their project team.
-
-Three registries, three concerns:
-  1. AGENT_TYPES  — product catalog: types users hire, capabilities each gets
+Pre-scaffolded agent roster. Three registries, three concerns:
+  1. AGENT_TYPES  — workforce roster: agents + bots, capabilities each gets
   2. CAPABILITIES — implementation: what each capability resolves to
   3. RUNTIMES     — infrastructure: where compute happens
 
-v2 (2026-03-23): 8 user-facing types + PM. Expanded from v1's 5 implementation-
-oriented types. Types are product offerings, not internal taxonomy.
-Dissolves: synthesize (→ analyst/briefer), prepare (→ planner), custom (→ pick a type).
-Adds: drafter, analyst, writer, planner, scout.
+Three independent axes per agent (ADR-140):
+  - Identity (AGENT.md): name, domain, evolves with use
+  - Capabilities (AGENT_TYPES): tool access, fixed at creation
+  - Tasks (TASK.md): work assignments, come and go
 
-Multi-agent coordination model: projects are teams. Each project has 1 PM +
-1..N contributor agents of various types. PM orchestrates via work plan.
-Lean start (1 contributor at scaffold), team grows via Composer/TP/user.
+v3 (2026-03-25): 4 agents + 2 bots. Agents are domain-cognitive (multi-step
+reasoning, deep expertise). Bots are platform-mechanical (read/write one platform).
+All 6 pre-scaffolded at sign-up. Tasks assigned downstream.
 
-Canonical reference: docs/architecture/output-substrate.md
+Canonical reference: docs/adr/ADR-140-agent-workforce-model.md
 """
 
 from __future__ import annotations
@@ -28,147 +25,143 @@ from typing import Any, Union
 
 
 # =============================================================================
-# Registry 1: Agent Types — product catalog
+# Registry 1: Agent Types — workforce roster (ADR-140)
 # =============================================================================
-# Each type is a "hire" — a role the user adds to their project team.
-# Type determines: capabilities, prompt template, pulse cadence, description.
-# Personification (title, scoping) comes from instructions + project context.
+# Pre-scaffolded at sign-up. Two classes:
+#   agent — domain-cognitive, multi-step reasoning, deep expertise
+#   bot   — platform-mechanical, scoped to one platform's API
 #
-# v3 — Three categories:
-#   PERCEPTION (non-recursive): bridge external data into project context
-#     briefer, monitor, scout — read external (platforms, web), write internal
-#   PRODUCTION (recursive, PM-orchestrated): work within project loop
-#     researcher, drafter, analyst, writer, planner — read internal, produce output
-#   COORDINATION (orchestrates recursion):
-#     pm — reads all contributions, steers, assembles, delivers
+# Type determines capabilities (axis 2). Identity (axis 1) and tasks (axis 3)
+# are independent — see ADR-140 for the three-axis model.
 
 AGENT_TYPES: dict[str, dict[str, Any]] = {
 
-    # ── User-facing types (the product catalog) ──
+    # ── Agents (domain-cognitive) ──
 
-    "briefer": {
-        "category": "perception",
-        "display_name": "Briefer",
-        "tagline": "Keeps you briefed on what's happening",
+    "research": {
+        "class": "agent",
+        "display_name": "Research Agent",
+        "tagline": "Investigates and analyzes",
         "capabilities": [
-            "read_platforms", "summarize", "produce_markdown", "compose_html",
+            "web_search", "read_workspace", "search_knowledge", "read_platforms",
+            "investigate", "produce_markdown", "chart", "mermaid", "image", "compose_html",
         ],
-        "description": "Recurring summaries of platform activity scoped to a domain. "
-                       "Reads Slack, Notion, workspace files. Produces daily/weekly briefings.",
-        "default_trigger": "recurring",
-        "default_frequency": "daily",
+        "description": "Deep investigation across web and workspace. Produces structured "
+                       "analysis with evidence. Competitor tracking, market research, due diligence.",
+        "default_instructions": "Investigate assigned topics with depth. Use web search and "
+                                "workspace context. Produce structured analysis with evidence. "
+                                "Prioritize insights the user hasn't seen elsewhere.",
     },
 
-    "monitor": {
-        "category": "perception",
-        "display_name": "Monitor",
-        "tagline": "Watches for what matters and alerts you",
+    "content": {
+        "class": "agent",
+        "display_name": "Content Agent",
+        "tagline": "Creates deliverables",
         "capabilities": [
-            "read_platforms", "detect_change", "alert",
-            "produce_markdown", "compose_html",
-        ],
-        "description": "Continuous monitoring with threshold-based alerts. "
-                       "Detects changes, escalations, anomalies. Always-on sensing.",
-        "default_trigger": "recurring",
-        "default_frequency": "daily",
-    },
-
-    "researcher": {
-        "category": "production",
-        "display_name": "Researcher",
-        "tagline": "Investigates topics and produces analysis",
-        "capabilities": [
-            "search_knowledge", "web_search", "investigate",
-            "produce_markdown", "chart", "mermaid", "image", "compose_html",
-        ],
-        "description": "Deep investigation on focused topics. Uses workspace context + web search. "
-                       "Produces research reports, comparisons, due diligence.",
-        "default_trigger": "recurring",
-        "default_frequency": "weekly",
-    },
-
-    "drafter": {
-        "category": "production",
-        "display_name": "Drafter",
-        "tagline": "Produces deliverables and documents for you",
-        "capabilities": [
-            "search_knowledge", "produce_markdown",
+            "read_workspace", "search_knowledge", "produce_markdown",
             "chart", "mermaid", "image", "video_render", "compose_html",
         ],
-        "description": "Creates specific work products: reports, decks, client updates, "
-                       "quarterly reviews. Recurring or bounded (produce and done).",
-        "default_trigger": "recurring",
-        "default_frequency": "weekly",
+        "description": "Produces polished deliverables from workspace context. Reports, "
+                       "presentations, blog posts, investor updates, documents.",
+        "default_instructions": "Produce polished deliverables for the target audience. "
+                                "Use charts and visuals where they add clarity. Structure for "
+                                "readability. Focus on quality and completeness.",
     },
 
-    "analyst": {
-        "category": "production",
-        "display_name": "Analyst",
-        "tagline": "Tracks metrics and surfaces patterns",
+    "marketing": {
+        "class": "agent",
+        "display_name": "Marketing Agent",
+        "tagline": "Handles go-to-market",
         "capabilities": [
-            "search_knowledge", "data_analysis", "cross_reference",
-            "chart", "mermaid", "produce_markdown", "compose_html",
+            "web_search", "read_workspace", "search_knowledge", "read_platforms",
+            "produce_markdown", "compose_html",
         ],
-        "description": "Tracks patterns over time. Data analysis, trend identification, "
-                       "metric tracking. Produces data-rich reports with charts.",
-        "default_trigger": "recurring",
-        "default_frequency": "weekly",
+        "description": "GTM tracking, content distribution, competitive positioning, "
+                       "campaign analysis. Monitors market signals, produces GTM insights.",
+        "default_instructions": "Track go-to-market activities and competitive positioning. "
+                                "Monitor market signals. Produce actionable GTM insights and content.",
     },
 
-    "writer": {
-        "category": "production",
-        "display_name": "Writer",
-        "tagline": "Crafts communications and content",
+    "crm": {
+        "class": "agent",
+        "display_name": "CRM Agent",
+        "tagline": "Manages relationships",
         "capabilities": [
-            "search_knowledge", "produce_markdown",
-            "image", "video_render", "compose_html",
+            "read_platforms", "read_workspace", "search_knowledge",
+            "produce_markdown", "compose_html",
         ],
-        "description": "Produces external-facing content: newsletters, investor updates, "
-                       "client emails, social posts. Tone-aware, audience-scoped.",
-        "default_trigger": "recurring",
-        "default_frequency": "weekly",
+        "description": "Client tracking, relationship management, follow-ups, meeting "
+                       "preparation. Reads platform context for relationship signals.",
+        "default_instructions": "Track client relationships and interactions. Prepare meeting "
+                                "briefs. Flag follow-ups and action items. Summarize relationship health.",
     },
 
-    "planner": {
-        "category": "production",
-        "display_name": "Planner",
-        "tagline": "Prepares plans, agendas, and follow-ups",
+    # ── Bots (platform-mechanical) ──
+
+    "slack_bot": {
+        "class": "bot",
+        "display_name": "Slack Bot",
+        "tagline": "Reads and writes Slack",
         "capabilities": [
-            "search_knowledge", "produce_markdown", "compose_html",
+            "read_platforms", "write_slack", "summarize", "produce_markdown",
         ],
-        "description": "Event-driven or recurring planning: meeting prep, action item tracking, "
-                       "project planning, follow-up reminders. Reads platform context for prep.",
-        "default_trigger": "recurring",
-        "default_frequency": "daily",
+        "platform": "slack",
+        "description": "Platform bot for Slack. Recaps, summaries, alerts, message posting.",
+        "default_instructions": "Monitor Slack channels. Summarize key discussions. Post updates "
+                                "when directed. Flag action items and decisions.",
     },
 
-    "scout": {
-        "category": "perception",
-        "display_name": "Scout",
-        "tagline": "Tracks competitors and market movements",
+    "notion_bot": {
+        "class": "bot",
+        "display_name": "Notion Bot",
+        "tagline": "Reads and writes Notion",
         "capabilities": [
-            "web_search", "search_knowledge",
-            "produce_markdown", "chart", "image", "compose_html",
+            "read_platforms", "write_notion", "summarize", "produce_markdown",
         ],
-        "description": "Continuous competitive and market monitoring. Tracks external sources, "
-                       "flags changes, produces periodic intelligence reports.",
-        "default_trigger": "recurring",
-        "default_frequency": "weekly",
+        "platform": "notion",
+        "description": "Platform bot for Notion. Knowledge base management, page syncing, "
+                       "content updates.",
+        "default_instructions": "Manage Notion workspace. Sync meeting notes. Update knowledge "
+                                "base pages. Track document changes.",
     },
-
-    # PM type removed — project/PM architecture dissolved
 }
+
+# Default roster created at sign-up (ADR-140)
+DEFAULT_ROSTER = [
+    {"title": "Research Agent", "role": "research"},
+    {"title": "Content Agent", "role": "content"},
+    {"title": "Marketing Agent", "role": "marketing"},
+    {"title": "CRM Agent", "role": "crm"},
+    {"title": "Slack Bot", "role": "slack_bot"},
+    {"title": "Notion Bot", "role": "notion_bot"},
+]
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
 
 
 # Legacy role → new type mapping (for DB migration / backward compat reads)
 LEGACY_ROLE_MAP: dict[str, str] = {
-    "digest": "briefer",
-    "synthesize": "analyst",
-    "research": "researcher",
-    "prepare": "planner",
-    "custom": "briefer",  # safe default
+    # v1 legacy
+    "digest": "research",
+    "synthesize": "research",
+    "prepare": "content",
+    "custom": "research",
+    # v2 legacy (ADR-130)
+    "briefer": "research",
+    "monitor": "research",
+    "scout": "research",
+    "researcher": "research",
+    "analyst": "research",
+    "drafter": "content",
+    "writer": "content",
+    "planner": "content",
+    # v3 current types pass through
+    "research": "research",
+    "content": "content",
+    "marketing": "marketing",
+    "crm": "crm",
+    "slack_bot": "slack_bot",
+    "notion_bot": "notion_bot",
 }
 
 
@@ -253,7 +246,7 @@ def get_type_capabilities(agent_type: str) -> list[str]:
     resolved = resolve_role(agent_type)
     type_def = AGENT_TYPES.get(resolved)
     if not type_def:
-        return AGENT_TYPES["briefer"]["capabilities"]
+        return AGENT_TYPES["research"]["capabilities"]
     return type_def["capabilities"]
 
 
@@ -316,20 +309,13 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
 # =============================================================================
 
 ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
-    "monitor":    timedelta(hours=1),
-    "briefer":    timedelta(hours=12),
-    "analyst":    "schedule",
-    "researcher": "schedule",
-    "drafter":    "schedule",
-    "writer":     "schedule",
-    "planner":    timedelta(hours=12),
-    "scout":      "schedule",
-    # Legacy mappings
-    "digest":     timedelta(hours=12),
-    "synthesize": "schedule",
-    "research":   "schedule",
-    "prepare":    timedelta(hours=12),
-    "custom":     "schedule",
+    # v3 types (ADR-140)
+    "research":   "schedule",   # runs on task cadence
+    "content":    "schedule",   # runs on task cadence
+    "marketing":  "schedule",   # runs on task cadence
+    "crm":        "schedule",   # runs on task cadence
+    "slack_bot":  timedelta(hours=1),   # frequent platform monitoring
+    "notion_bot": timedelta(hours=12),  # daily platform sync
 }
 
 _DEFAULT_PULSE_CADENCE = "schedule"
