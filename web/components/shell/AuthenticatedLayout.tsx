@@ -15,7 +15,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Command, ChevronDown, Settings, Briefcase, Activity, Layers } from 'lucide-react';
+import { Command, ChevronDown, Settings, Activity, Link2 } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -99,15 +99,19 @@ interface RouteItem {
   path: string;
 }
 
-// Secondary: Context + Activity + Settings
+// ADR-139: Simplified navigation — Workfloor is home, secondary pages below
 const SECONDARY_PAGES: RouteItem[] = [
-  { id: 'context', label: 'Workspace', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
+  { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
-// Agents route kept for pathname matching (accessible via direct URL)
-const AGENTS_ROUTE: RouteItem = { id: 'agents', label: 'Agents', icon: Briefcase, path: '/agents' };
+// Routes accessible via direct URL but not in nav dropdown
+const HIDDEN_ROUTES: RouteItem[] = [
+  { id: 'agents', label: 'Agents', icon: Command, path: '/agents' },
+  { id: 'tasks', label: 'Tasks', icon: Command, path: '/tasks' },
+  { id: 'context', label: 'Context', icon: Command, path: '/context' },
+];
 
 // All primary routes for pathname matching
 const PRIMARY_ROUTES: RouteItem[] = [];
@@ -124,13 +128,17 @@ function getRouteFromPathname(pathname: string): RouteItem | null {
       return route;
     }
   }
-  // Agents: hidden from nav but still accessible via direct URL / cross-links
-  if (pathname === AGENTS_ROUTE.path || pathname.startsWith(AGENTS_ROUTE.path + '/')) {
-    return AGENTS_ROUTE;
+  // Hidden routes: accessible via direct URL / cross-links
+  for (const route of HIDDEN_ROUTES) {
+    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
+      return route;
+    }
   }
-  // Legacy routes still accessible but not in nav (memory, system)
+  // Legacy routes redirect to settings
   if (pathname.startsWith('/memory')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
   if (pathname.startsWith('/system')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
+  // Legacy /orchestrator → workfloor
+  if (pathname.startsWith('/orchestrator')) return { id: 'home', label: HOME_LABEL, icon: Command, path: HOME_ROUTE };
   return null;
 }
 
@@ -159,29 +167,25 @@ function AuthenticatedLayoutInner({
       // ADR-039: Route-first navigation with unified Context page
       switch (newSurface.type) {
         case 'agent-list':
-          router.push('/agents');
+          router.push('/workfloor');
           return;
         case 'agent-detail':
           router.push(`/agents/${newSurface.agentId}`);
           return;
         case 'document-list':
-          // ADR-039: Documents now live in unified Context page
           router.push('/context?section=documents');
           return;
         case 'document-viewer':
           router.push(`/docs/${newSurface.documentId}`);
           return;
         case 'platform-list':
-          // ADR-039: Platforms now live in unified Context page
-          router.push('/context?section=platforms');
+          router.push('/integrations');
           return;
         case 'platform-detail':
-          // ADR-039: Specific platform page in Context
           router.push(`/context/${newSurface.platform}`);
           return;
         case 'context-browser':
-          // ADR-039: Now redirects to unified Context page
-          router.push('/context');
+          router.push('/workfloor');
           return;
       }
 

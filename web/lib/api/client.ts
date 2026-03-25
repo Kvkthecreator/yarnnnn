@@ -38,6 +38,11 @@ import type {
   ActiveDomainResponse,
   // ADR-119 Phase 4b: Output manifest (agent outputs)
   OutputManifest,
+  // ADR-138: Tasks
+  Task,
+  TaskDetail,
+  TaskCreate,
+  TaskOutput,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -522,6 +527,54 @@ export const api = {
         `/api/agents/${agentId}/outputs${params}`
       );
     },
+  },
+
+  // ADR-138: Tasks endpoints
+  tasks: {
+    list: (status?: string) => {
+      const params = status ? `?status=${status}` : "";
+      return request<Task[]>(`/api/tasks${params}`);
+    },
+
+    get: (slug: string) =>
+      request<TaskDetail>(`/api/tasks/${slug}`),
+
+    create: (data: TaskCreate) =>
+      request<Task>("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    update: (slug: string, data: Partial<TaskCreate> & { status?: string }) =>
+      request<Task>(`/api/tasks/${slug}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (slug: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/tasks/${slug}`,
+        { method: "DELETE" }
+      ),
+
+    // Get latest output (rendered HTML)
+    getLatestOutput: (slug: string) =>
+      request<TaskOutput>(`/api/tasks/${slug}/outputs/latest`),
+
+    // List output history
+    listOutputs: (slug: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<{ outputs: TaskOutput[]; total: number }>(
+        `/api/tasks/${slug}/outputs${params}`
+      );
+    },
+
+    // Trigger immediate execution
+    run: (slug: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/tasks/${slug}/run`,
+        { method: "POST" }
+      ),
   },
 
   // Account management

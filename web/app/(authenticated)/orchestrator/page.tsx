@@ -1,18 +1,21 @@
 'use client';
 
 /**
- * Orchestrator (TP) — Chat-First Surface
- *
- * The user-facing conversational agent (Orchestrator) with full primitive access.
- * Moved from /dashboard as part of the Supervision Dashboard restructure.
- *
- * Handles:
- * - ?create → pre-fills project creation prompt
- * - ?provider=X&status=connected → post-OAuth bootstrap flow (ADR-110)
+ * Legacy /orchestrator route — redirects to /workfloor (ADR-139)
  */
 
-import { ChatFirstDesk } from '@/components/desk/ChatFirstDesk';
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function OrchestratorPage() {
-  return <ChatFirstDesk />;
+export default function OrchestratorRedirect() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Preserve query params (e.g. ?provider=slack&status=connected)
+    const params = searchParams?.toString();
+    router.replace(`/workfloor${params ? `?${params}` : ''}`);
+  }, [router, searchParams]);
+
+  return null;
 }

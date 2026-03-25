@@ -177,12 +177,10 @@ export interface KnowledgeSummaryResponse {
   }>;
 }
 
-// Onboarding State (ADR-132: check if user has any projects)
+// Onboarding State (ADR-138: check if user has any agents)
 export interface OnboardingStateResponse {
-  has_projects: boolean;
+  has_agents: boolean;
 }
-
-// (Topics layer removed — projects are the workstreams directly)
 
 // API Response types
 export interface DeleteResponse {
@@ -371,8 +369,8 @@ export interface AgentMemory {
   supervisor_notes?: string;   // memory/supervisor-notes.md content (Composer coaching)
 }
 
-// ADR-087: Agent mode (ADR-092: extended with reactive, proactive, coordinator)
-export type AgentMode = 'recurring' | 'goal' | 'reactive' | 'proactive' | 'coordinator';
+// ADR-138: Agent mode (simplified — proactive/coordinator removed)
+export type AgentMode = 'recurring' | 'goal' | 'reactive';
 
 // ADR-087: Scoped chat session
 export interface AgentSession {
@@ -768,6 +766,62 @@ export interface TierLimits {
     active_agents: number;
   };
   next_sync?: string | null;
+}
+
+// =============================================================================
+// ADR-138: Tasks (work definitions)
+// =============================================================================
+
+export type TaskStatus = "active" | "paused" | "completed" | "archived";
+
+export interface Task {
+  id: string;
+  slug: string;
+  title: string;
+  status: TaskStatus;
+  schedule?: string;           // cron or human-readable cadence
+  next_run_at?: string;
+  last_run_at?: string;
+  created_at: string;
+  updated_at: string;
+  // Derived from TASK.md (populated by API)
+  objective?: {
+    deliverable?: string;
+    audience?: string;
+    purpose?: string;
+    format?: string;
+  };
+  agent_slugs?: string[];      // assigned agents (from TASK.md ## Process)
+  delivery?: string;           // delivery channel summary
+}
+
+export interface TaskDetail extends Task {
+  task_md?: string;            // raw TASK.md content
+  run_log?: string;            // memory/run_log.md content
+  success_criteria?: string[];
+  output_spec?: string;
+}
+
+export interface TaskCreate {
+  title: string;
+  agent_slug: string;          // primary assigned agent
+  objective?: {
+    deliverable?: string;
+    audience?: string;
+    purpose?: string;
+    format?: string;
+  };
+  schedule?: string;
+  delivery?: string;
+}
+
+export interface TaskOutput {
+  folder: string;
+  date: string;
+  status: string;
+  html_content?: string;
+  md_content?: string;
+  manifest?: OutputManifest;
 }
 
 // ADR-119 Phase 4b: Output manifest (used by agent outputs)

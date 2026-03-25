@@ -14,8 +14,8 @@ export type DeskSurface =
   | { type: 'agent-review'; agentId: string; runId: string }
   | { type: 'agent-detail'; agentId: string }
   | { type: 'agent-list'; status?: 'active' | 'paused' | 'archived' }
-  // Projects (ADR-119 P4b)
-  | { type: 'project-detail'; projectSlug: string }
+  // Tasks (ADR-139)
+  | { type: 'task-detail'; taskSlug: string }
   // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
   | { type: 'context-browser'; scope: 'user' | 'agent'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
@@ -189,10 +189,10 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
         status: data.status as 'active' | 'paused' | 'archived' | undefined,
       };
 
-    // Projects (ADR-119 P4b)
-    case 'project':
-    case 'project-detail':
-      return { type: 'project-detail', projectSlug: data.projectSlug as string };
+    // Tasks (ADR-139)
+    case 'task':
+    case 'task-detail':
+      return { type: 'task-detail', taskSlug: data.taskSlug as string };
 
     // Context (ADR-034)
     case 'context':
@@ -251,8 +251,8 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
     case 'agent-list':
       if (surface.status) params.set('status', surface.status);
       break;
-    case 'project-detail':
-      params.set('projectSlug', surface.projectSlug);
+    case 'task-detail':
+      params.set('taskSlug', surface.taskSlug);
       break;
     case 'context-browser':
       params.set('scope', surface.scope);
@@ -292,9 +292,9 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     }
     case 'agent-list':
       return { type: 'agent-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
-    case 'project-detail': {
-      const pSlug = params.get('projectSlug');
-      if (pSlug) return { type: 'project-detail', projectSlug: pSlug };
+    case 'task-detail': {
+      const tSlug = params.get('taskSlug');
+      if (tSlug) return { type: 'task-detail', taskSlug: tSlug };
       break;
     }
     case 'context-browser':
