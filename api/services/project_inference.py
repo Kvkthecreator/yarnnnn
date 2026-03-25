@@ -1,16 +1,15 @@
 """
-Project Inference — ADR-132/136
+Work Inference — ADR-138
 
 Single Sonnet call that reads user context (uploaded docs + text description)
-and infers complete project scaffolding: multiple scopes, objectives,
-success criteria, team composition, output specs.
+and infers agents + tasks to create.
 
-This is the brain of onboarding. One call extracts everything needed to
-scaffold N projects with rich, specific charter content.
+Agent = WHO (persistent domain expert with identity + capabilities)
+Task = WHAT (work definition with objective, cadence, delivery)
 
 Callers:
   - POST /api/memory/user/onboarding (onboarding submit)
-  - Could also be called from TP CreateProject for conversation-driven creation
+  - Could also be called from TP CreateTask for conversation-driven creation
 """
 
 import json
@@ -64,47 +63,34 @@ async def infer_work_scopes(
 
     prompt = f"""You are helping a solo founder set up their autonomous work management system.
 
-Read their context carefully and extract the distinct workstreams they need to track.
+The system has two entities:
+- **Agent** = WHO — a persistent domain expert (e.g., "Market Intelligence", "Team Observer")
+- **Task** = WHAT — a defined unit of recurring work assigned to an agent
+
+Read the user's context and infer what agents and tasks to create.
 
 USER CONTEXT:
 {context}
 
-Based on this, identify 1-5 distinct work scopes (projects). Each scope is a recurring area of attention that needs its own team of AI agents.
-
-For each scope, provide a SPECIFIC, ACTIONABLE specification. Use real names, numbers, and formats from the user's context.
+Identify 1-3 tasks the user needs. Each task gets ONE agent.
 
 Respond with ONLY a JSON object:
 {{
-  "scopes": [
+  "tasks": [
     {{
-      "name": "short project name",
+      "task_title": "specific task name (e.g., 'Weekly Competitive Intelligence Briefing')",
+      "agent_title": "agent domain identity (e.g., 'Market Intelligence')",
+      "agent_role": "monitor|researcher|producer|operator",
+      "agent_instructions": "1-2 sentences describing the agent's domain expertise",
       "objective": {{
-        "deliverable": "specific deliverable (e.g., 'Weekly AI Competitive Intelligence Briefing')",
-        "audience": "who receives this",
-        "format": "document or dashboard or presentation",
-        "purpose": "why this matters — 1 sentence using user's actual context"
+        "deliverable": "what gets produced",
+        "audience": "who receives it",
+        "format": "document|briefing|alert|report",
+        "purpose": "why this matters — use the user's actual context"
       }},
-      "success_criteria": [
-        "specific measurable criterion from their context",
-        "another criterion",
-        "quality bar statement"
-      ],
-      "output_spec": {{
-        "layout_mode": "document or dashboard or presentation",
-        "components": [
-          {{"name": "section name", "description": "what this contains"}}
-        ]
-      }},
-      "team": [
-        {{"role": "briefer|scout|researcher|analyst|drafter|writer|planner", "reason": "why this type fits"}}
-      ],
-      "pipeline": [
-        {{"step": "step_name", "agent_type": "role", "description": "what this step does"}},
-        {{"step": "evaluate", "agent_type": "pm", "mode": "evaluate", "description": "check quality"}},
-        {{"step": "deliver", "agent_type": "pm", "mode": "compose", "description": "assemble and deliver"}}
-      ],
-      "cadence": "daily or weekly or biweekly or monthly",
-      "assembly_spec": "1-2 sentence instruction for how to combine outputs"
+      "success_criteria": ["specific criterion", "another criterion"],
+      "output_spec": ["section 1", "section 2", "section 3"],
+      "cadence": "daily|weekly|biweekly|monthly"
     }}
   ],
   "brand": {{
@@ -114,12 +100,18 @@ Respond with ONLY a JSON object:
   "user_context": "1-sentence summary of what this user does"
 }}
 
-IMPORTANT:
-- Extract REAL names, competitors, projects, metrics from their documents
-- Each scope should have 2-4 success criteria that are SPECIFIC to their context
-- Choose agent types that match the work: scout for external tracking, briefer for platform monitoring, researcher for deep investigation, analyst for data tracking, drafter for deliverable production, writer for communications
-- If only 1 scope is clear, return just 1 — don't invent scopes that aren't in the context
-- Cadence should match the work rhythm (daily for platform monitoring, weekly for analysis, etc.)"""
+AGENT ROLES:
+- **monitor**: Watches a domain, alerts on changes (Slack recaps, competitor tracking)
+- **researcher**: Deep investigation, produces analysis (market research, due diligence)
+- **producer**: Creates deliverables from context (reports, updates, presentations)
+- **operator**: Takes actions on platforms (future — don't use yet)
+
+RULES:
+- Extract REAL names, competitors, topics from their documents
+- Each task gets exactly 1 agent — the agent handles the full thinking chain
+- If only 1 task is clear, return just 1 — don't invent work that isn't there
+- Cadence should match the work rhythm (daily for monitoring, weekly for analysis)
+- success_criteria should be SPECIFIC to their context, not generic"""
 
     try:
         response = await chat_completion(

@@ -181,8 +181,10 @@ async def get_onboarding_state(auth: UserClient):
 async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
     """Onboarding endpoint — infer + scaffold agents and tasks (ADR-138).
 
-    Saves user identity/brand, then creates agents + tasks from user context.
-    Currently a stub — agent/task creation will be implemented in ADR-138 Phase 3.
+    1. Saves user identity/brand
+    2. Reads uploaded documents
+    3. Calls Sonnet to infer agents + tasks from user context
+    4. Creates agents and tasks
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
@@ -196,13 +198,139 @@ async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
         if body.brand_content:
             await um.write("BRAND.md", body.brand_content, summary="Brand identity")
 
-        # ADR-138: Stub — agent/task creation from onboarding context.
-        # Phase 3 will: infer agent archetype + task from description,
-        # create agent via create_agent(), create task via create_task().
-        logger.info("[ONBOARDING] Stub — identity/brand saved, agent creation pending Phase 3")
+        # Gather user context for inference
+        text_description = ""
+        if body.projects:
+            text_description = " ".join(p.name for p in body.projects)
 
-        return {"projects_created": [], "count": 0}
+        document_contents = []
+        if body.document_ids:
+            from services.project_inference import read_uploaded_documents
+            document_contents = await read_uploaded_documents(
+                auth.client, auth.user_id, body.document_ids
+            )
+
+        # Skip inference if no context at all
+        if not text_description.strip() and not document_contents:
+            logger.info("[ONBOARDING] No context provided, skipping inference")
+            return {"agents_created": [], "count": 0}
+
+        # Infer agents + tasks via Sonnet
+        from services.project_inference import infer_work_scopes
+        inference = await infer_work_scopes(text_description, document_contents)
+
+        # Save brand if inferred
+        brand = inference.get("brand", {})
+        if brand.get("name") and not body.brand_content:
+            brand_md = f"# {brand['name']}\n\nTone: {brand.get('tone', 'professional')}"
+            await um.write("BRAND.md", brand_md, summary="Inferred brand identity")
+
+        # Save user context
+        user_context = inference.get("user_context", "")
+        if user_context:
+            profile = await um.get_profile()
+            if not profile.get("context"):
+                await um.update_profile({"context": user_context})
+
+        # Create agents + tasks from inferred scopes
+        from services.agent_creation import create_agent_record
+        from services.task_workspace import TaskWorkspace
+        import re
+        from datetime import datetime, timezone
+
+        created = []
+        for scope in inference.get("tasks", []):
+            try:
+                agent_title = scope.get("agent_title", scope.get("task_title", "Agent"))
+                agent_role = scope.get("agent_role", "monitor")
+                agent_instructions = scope.get("agent_instructions", "")
+
+                # Create agent
+                agent = await create_agent_record(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    title=agent_title,
+                    role=agent_role,
+                    origin="system_bootstrap",
+                    agent_instructions=agent_instructions,
+                )
+                agent_id = agent["id"]
+                agent_slug = re.sub(r'[^a-z0-9]+', '-', agent_title.lower()).strip('-')[:60]
+
+                # Create task
+                task_title = scope.get("task_title", f"{agent_title} Task")
+                task_slug = re.sub(r'[^a-z0-9]+', '-', task_title.lower()).strip('-')[:60]
+                cadence = scope.get("cadence", "weekly")
+                objective = scope.get("objective", {})
+                success_criteria = scope.get("success_criteria", [])
+                output_spec = scope.get("output_spec", [])
+
+                # Insert task DB row
+                task_data = {
+                    "user_id": auth.user_id,
+                    "slug": task_slug,
+                    "status": "active",
+                    "schedule": cadence,
+                }
+                auth.client.table("tasks").insert(task_data).execute()
+
+                # Write TASK.md
+                tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
+                task_md_parts = [f"# {task_title}\n"]
+
+                if objective:
+                    task_md_parts.append("## Objective")
+                    for k, v in objective.items():
+                        task_md_parts.append(f"- **{k.title()}**: {v}")
+                    task_md_parts.append("")
+
+                if success_criteria:
+                    task_md_parts.append("## Success Criteria")
+                    for c in success_criteria:
+                        task_md_parts.append(f"- {c}")
+                    task_md_parts.append("")
+
+                task_md_parts.append("## Process")
+                task_md_parts.append(f"- **Agent**: {agent_slug}")
+                task_md_parts.append(f"- **Cadence**: {cadence}")
+                task_md_parts.append("")
+
+                if output_spec:
+                    task_md_parts.append("## Output Specification")
+                    for s in output_spec:
+                        task_md_parts.append(f"- {s}")
+                    task_md_parts.append("")
+
+                await tw.write("TASK.md", "\n".join(task_md_parts),
+                               summary=f"Task definition for {task_title}")
+
+                # Update agent's tasks.json
+                from services.workspace import AgentWorkspace, get_agent_slug
+                ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+                tasks_json = await ws.read("memory/tasks.json")
+                import json as json_mod
+                existing_tasks = json_mod.loads(tasks_json) if tasks_json else []
+                existing_tasks.append({"task_slug": task_slug, "task_title": task_title})
+                await ws.write("memory/tasks.json", json_mod.dumps(existing_tasks, indent=2),
+                               summary="Task assignment")
+
+                created.append({
+                    "agent_slug": agent_slug,
+                    "agent_title": agent_title,
+                    "task_slug": task_slug,
+                    "task_title": task_title,
+                })
+                logger.info(f"[ONBOARDING] Created agent '{agent_title}' + task '{task_title}'")
+
+            except Exception as e:
+                logger.error(f"[ONBOARDING] Failed to create scope: {e}")
+                continue
+
+        logger.info(f"[ONBOARDING] Created {len(created)} agents + tasks")
+        return {"agents_created": created, "count": len(created)}
+
     except Exception as e:
+        logger.error(f"[ONBOARDING] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
