@@ -12,13 +12,52 @@
 
 ---
 
-## The Core Principle
+## The Core Principle: Control Plane / Data Plane
 
-Three layers, clean separation. Mechanical scheduling (zero LLM), generation pipeline (Sonnet per task), TP intelligence (user-present + periodic heartbeat).
+**TP is the control plane. Tasks are the data plane.**
+
+- **TP** (chat or heartbeat) is the only component that creates, modifies, or reprioritizes tasks — changing schedules, adjusting objectives, assigning agents, pausing/resuming work. TP is the only thing that *thinks*.
+- **The scheduler** is a dumb executor — reads `tasks.next_run_at <= now` and runs them. No opinions, no LLM, no decisions.
+- **The task pipeline** is a mechanical generation engine — reads TASK.md, resolves agent, gathers context, generates, delivers. Same pipeline regardless of trigger source.
+
+This means: TP changes the data (task definitions), the scheduler reads the data and executes. All intelligence about *what should happen* lives in TP. All execution of *what was decided* lives in the pipeline.
+
+### Three Layers
 
 **Layer 1 — Mechanical Backend** (zero LLM cost): Cron-triggered, deterministic, SQL-based.
 **Layer 2 — Task Pipeline** (Sonnet per task): Reads TASK.md + AGENT.md → gathers context → generates → delivers.
 **Layer 3 — TP Intelligence** (user-driven): Chat mode + periodic heartbeat. The only component that "thinks about" the system.
+
+---
+
+## Trigger Taxonomy
+
+All triggers end in the same `execute_task()` pipeline. The trigger source determines *when*, not *how*.
+
+| Trigger | Source | Latency | How it works |
+|---------|--------|---------|-------------|
+| **Scheduled** | Cron (5-min cycle) | ≤5 min | Scheduler queries `next_run_at <= now`, calls `execute_task()` |
+| **User-initiated** | Chat / UI button | Instant | TP or route calls `execute_task()` directly (bypasses scheduler) |
+| **Event-driven** | Slack webhook etc. | Instant | `trigger_dispatch` → `execute_agent_run()` → `execute_task()` |
+
+### Why 5-minute cron + instant manual (not faster cron)
+
+The scheduler cron runs every 5 minutes. This is deliberate:
+
+- **Scheduled tasks** (daily briefing, weekly digest) don't need sub-minute precision. ±5 min is invisible.
+- **User-initiated runs** ("run this now") bypass the scheduler entirely — they call `execute_task()` inline. Instant.
+- **Faster cron** (1-min) would only help if user-initiated runs went through the scheduler queue, which they don't.
+- **Cost**: The cron itself is zero LLM cost (SQL query). The only scaling concern is Composer heartbeat (Haiku, ~$0.001/user/cycle), which 5-min keeps bounded at ~$0.30/user/day for Pro.
+
+The hybrid is correct: mechanical cadence for scheduled work, instant execution for interactive work.
+
+### How TP "moves up the queue"
+
+When a user says "run my research briefing now":
+1. TP can call `execute_task()` directly → instant (current implementation via Execute primitive)
+2. TP can set `tasks.next_run_at = now()` → scheduler picks it up within 5 min
+
+Both are valid. Option 1 is the default for interactive "run now" semantics.
 
 ---
 
@@ -197,7 +236,13 @@ User with 5 weekly tasks: ~$0.25/week generation + $0.03/week heartbeats = **~$0
 ## Anti-Patterns
 
 **Using LLM to decide whether to generate**
-If a task is due (next_run_at <= now), run it. No Haiku pre-assessment. The schedule IS the decision.
+If a task is due (next_run_at <= now), run it. No Haiku pre-assessment. The schedule IS the decision. The old pulse model (Tier 2 Haiku self-assessment) was dissolved because it added cost without changing the outcome — if a task is scheduled, it should run.
+
+**Making the scheduler "smart"**
+The scheduler is a dumb loop: query → execute → update next_run_at. All intelligence about what tasks should exist, what their schedules should be, and whether they should be paused belongs in TP (Layer 3). The scheduler never decides — it only executes what TP has already decided.
+
+**Routing user-initiated runs through the scheduler queue**
+When a user says "run this now," call `execute_task()` directly. Don't set `next_run_at = now` and wait for the 5-min cron. The scheduler queue is for autonomous scheduled work; interactive requests deserve instant execution.
 
 **Separate execution paths for different agent types**
 One pipeline (`execute_task`) for all agents. Context gathering adapts to scope, but the pipeline is the same.
