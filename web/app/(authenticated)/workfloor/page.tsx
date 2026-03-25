@@ -75,55 +75,71 @@ function formatRelativeTime(dateStr: string): string {
 // Agent Office Room Card
 // =============================================================================
 
-function AgentRoomCard({ agent }: { agent: Agent }) {
+function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const config = getType(agent.role);
   const Icon = config.icon;
   const isRunning = agent.latest_version_status === 'generating';
   const isPaused = agent.status === 'paused';
   const hasFailed = agent.latest_version_status === 'failed';
 
-  const statusText = isRunning ? 'Working' : isPaused ? 'Paused' : hasFailed ? 'Error' : 'Ready';
   const statusDot = isRunning ? 'bg-blue-500 animate-pulse' : isPaused ? 'bg-amber-400' : hasFailed ? 'bg-red-500' : 'bg-emerald-500';
+
+  // Find tasks assigned to this agent
+  const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
+  const assignedTasks = tasks.filter(t =>
+    t.status !== 'archived' && t.agent_slugs?.includes(agentSlug)
+  );
+  const activeTask = assignedTasks[0]; // Show the first/primary task on the desk
 
   return (
     <Link
       href={`/agents/${agent.id}`}
       className={cn(
-        'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden',
+        'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden min-h-[140px]',
         config.accent, config.bgRoom,
       )}
     >
-      {/* Status light — top-right corner like a room indicator */}
-      <div className="absolute top-3 right-3 flex items-center gap-1.5">
-        <span className={cn('w-2 h-2 rounded-full', statusDot)} />
-        <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">{statusText}</span>
+      {/* Status light */}
+      <div className="absolute top-3 right-3">
+        <span className={cn('block w-2.5 h-2.5 rounded-full', statusDot)} />
       </div>
 
-      {/* Agent "desk" — icon on a surface */}
-      <div className="mb-3 mt-1">
+      {/* Agent identity — icon + name */}
+      <div className="flex items-center gap-2.5 mb-3">
         <div className={cn(
-          'w-12 h-12 rounded-xl flex items-center justify-center bg-background/80 backdrop-blur-sm border shadow-sm',
+          'w-10 h-10 rounded-lg flex items-center justify-center bg-background/80 backdrop-blur-sm border shadow-sm shrink-0',
           config.accent,
         )}>
-          <Icon className={cn('w-6 h-6', config.color)} />
+          <Icon className={cn('w-5 h-5', config.color)} />
+        </div>
+        <div className="min-w-0">
+          <span className="text-sm font-semibold leading-tight block truncate">{agent.title}</span>
+          <span className="text-[10px] text-muted-foreground/60">{config.label}</span>
         </div>
       </div>
 
-      {/* Identity */}
-      <span className="text-sm font-semibold leading-tight">{agent.title}</span>
-      <span className="text-[11px] text-muted-foreground/70 mt-0.5">{config.label}</span>
-
-      {/* Activity line */}
-      <div className="mt-auto pt-3 flex items-center justify-between text-[10px] text-muted-foreground/50">
-        <span>
-          {isRunning ? (
-            <span className="text-blue-500 font-medium">Processing...</span>
-          ) : agent.last_run_at ? (
-            formatRelativeTime(agent.last_run_at)
-          ) : (
-            'Awaiting first task'
-          )}
-        </span>
+      {/* What's on the desk — live task */}
+      <div className="mt-auto">
+        {isRunning && activeTask ? (
+          <div className="px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">
+              Working: {activeTask.title}
+            </p>
+          </div>
+        ) : activeTask ? (
+          <div className="px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
+            <p className="text-[10px] text-muted-foreground/60 truncate">
+              {activeTask.title}
+            </p>
+            {activeTask.last_run_at && (
+              <p className="text-[9px] text-muted-foreground/30">{formatRelativeTime(activeTask.last_run_at)}</p>
+            )}
+          </div>
+        ) : (
+          <div className="px-2 py-1.5 rounded-lg border border-dashed border-border/30">
+            <p className="text-[10px] text-muted-foreground/25 italic">No task assigned</p>
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -352,10 +368,18 @@ export default function WorkfloorPage() {
               </div>
             )}
 
-            {/* Status bar */}
-            {activeAgents.length > 0 && (
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-4 text-[10px]">
+            {/* TP — Orchestrator's Office (distinct from agent grid) */}
+            <div className="mb-6">
+              <TPRoomCard onOpenChat={() => setChatOpen(true)} />
+            </div>
+
+            {/* Agent Floor — status bar + grid */}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Agents {activeAgents.length > 0 && <span className="opacity-50">({activeAgents.length})</span>}
+              </p>
+              {activeAgents.length > 0 && (
+                <div className="flex items-center gap-3 text-[10px]">
                   {(() => {
                     const working = activeAgents.filter(a => a.latest_version_status === 'generating').length;
                     const ready = activeAgents.filter(a => a.status === 'active' && a.latest_version_status !== 'generating').length;
@@ -369,47 +393,35 @@ export default function WorkfloorPage() {
                     );
                   })()}
                 </div>
-                <span className="text-[10px] text-muted-foreground/40">{activeAgents.length} agents</span>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Agent Office Grid */}
             {agentsLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
+            ) : activeAgents.length > 0 ? (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                {activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} tasks={tasks} />)}
+              </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* TP — always first, the orchestrator's office */}
-                <TPRoomCard onOpenChat={() => setChatOpen(true)} />
-                {/* Agent rooms */}
-                {activeAgents.length > 0 ? (
-                  activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} />)
-                ) : (
-                  ['Research', 'Content', 'Marketing', 'CRM', 'Slack Bot', 'Notion Bot'].map(name => (
-                    <EmptyRoomCard key={name} label={name} />
-                  ))
-                )}
+                {['Research', 'Content', 'Marketing', 'CRM', 'Slack Bot', 'Notion Bot'].map(name => (
+                  <EmptyRoomCard key={name} label={name} />
+                ))}
               </div>
             )}
 
-            {/* Stats strip */}
-            <div className="flex items-center justify-center gap-6 mt-8 text-[10px] text-muted-foreground/40">
-              <span>{activeAgents.length} agents</span>
-              <span className="w-px h-3 bg-border" />
-              <span>{tasks.filter(t => t.status !== 'archived').length} tasks</span>
-              <span className="w-px h-3 bg-border" />
-              <span>{tasks.filter(t => t.last_run_at).length} outputs</span>
-            </div>
-
-            {/* Hint */}
-            {activeAgents.length > 0 && tasks.filter(t => t.status !== 'archived').length === 0 && (
-              <div className="mt-6 text-center">
-                <p className="text-xs text-muted-foreground/50">
-                  Your team is ready. Press <kbd className="px-1.5 py-0.5 text-[9px] border border-border rounded bg-muted font-mono">⌘K</kbd> to create tasks.
+            {/* Stats + hint */}
+            <div className="mt-6 text-center text-[10px] text-muted-foreground/40">
+              {tasks.filter(t => t.status !== 'archived').length > 0 ? (
+                <span>{activeAgents.length} agents · {tasks.filter(t => t.status !== 'archived').length} tasks · {tasks.filter(t => t.last_run_at).length} outputs</span>
+              ) : activeAgents.length > 0 ? (
+                <p>
+                  Team is ready. Press <kbd className="px-1.5 py-0.5 text-[9px] border border-border rounded bg-muted font-mono">⌘K</kbd> to create tasks.
                 </p>
-              </div>
-            )}
+              ) : null}
+            </div>
           </div>
         </div>
       </WorkspaceLayout>
