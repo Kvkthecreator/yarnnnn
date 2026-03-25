@@ -27,13 +27,15 @@ CREATE_TASK_TOOL = {
     "description": """Create a new task — a defined unit of work with objective, cadence, and delivery target. Assign an agent to execute it.
 
 Required: title, agent_slug
-Optional: objective, schedule, delivery, success_criteria, output_spec
+Optional: mode, objective, schedule, delivery, success_criteria, output_spec
 
+mode: 'recurring' (default), 'goal' (bounded, completes when done), 'reactive' (on-demand/event-triggered)
 schedule: 'daily', 'weekly', 'monthly', or a cron expression (default: 'weekly')
 
 Examples:
 - CreateTask(title="Weekly Competitive Briefing", agent_slug="competitive-intel", schedule="weekly")
-- CreateTask(title="Daily Slack Recap", agent_slug="slack-digest", schedule="daily", delivery="user@example.com")""",
+- CreateTask(title="Daily Slack Recap", agent_slug="slack-digest", schedule="daily", delivery="user@example.com")
+- CreateTask(title="Acquisition Due Diligence", agent_slug="research-agent", mode="goal", schedule="daily")""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -44,6 +46,11 @@ Examples:
             "agent_slug": {
                 "type": "string",
                 "description": "Slug of the agent to assign. Must exist."
+            },
+            "mode": {
+                "type": "string",
+                "enum": ["recurring", "goal", "reactive"],
+                "description": "Temporal behavior: 'recurring' (indefinite cadence), 'goal' (bounded, completes when criteria met), 'reactive' (on-demand)"
             },
             "objective": {
                 "type": "object",
@@ -123,6 +130,7 @@ def _build_task_md(
     title: str,
     slug: str,
     agent_slug: str,
+    mode: str = "recurring",
     objective: Optional[dict] = None,
     schedule: Optional[str] = None,
     delivery: Optional[str] = None,
@@ -130,7 +138,7 @@ def _build_task_md(
     output_spec: Optional[list] = None,
 ) -> str:
     """Build TASK.md content."""
-    lines = [f"# {title}", "", f"**Slug:** {slug}", f"**Agent:** {agent_slug}"]
+    lines = [f"# {title}", "", f"**Slug:** {slug}", f"**Agent:** {agent_slug}", f"**Mode:** {mode}"]
 
     if schedule:
         lines.append(f"**Schedule:** {schedule}")
@@ -176,11 +184,16 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     """
     title = input.get("title", "").strip()
     agent_slug = input.get("agent_slug", "").strip()
+    mode = input.get("mode", "recurring")
     objective = input.get("objective")
     schedule = input.get("schedule", "weekly")
     delivery = input.get("delivery")
     success_criteria = input.get("success_criteria")
     output_spec = input.get("output_spec")
+
+    # Validate mode
+    if mode not in ("recurring", "goal", "reactive"):
+        mode = "recurring"
 
     if not title:
         return {"success": False, "error": "missing_title", "message": "title is required"}
@@ -219,6 +232,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         row = {
             "user_id": user_id,
             "slug": slug,
+            "mode": mode,
             "status": "active",
             "schedule": schedule,
             "next_run_at": next_run_at,
@@ -248,6 +262,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
             title=title,
             slug=slug,
             agent_slug=agent_slug,
+            mode=mode,
             objective=objective,
             schedule=schedule,
             delivery=delivery,
@@ -310,9 +325,10 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         "task_id": task_id,
         "task_slug": slug,
         "agent_slug": agent_slug,
+        "mode": mode,
         "schedule": schedule,
         "next_run_at": next_run_at,
-        "message": f"Created task '{title}' assigned to agent '{agent_slug}'.",
+        "message": f"Created task '{title}' (mode={mode}) assigned to agent '{agent_slug}'.",
     }
 
 

@@ -82,13 +82,17 @@ _ASSESSMENT_POSTAMBLE = """
 
 ---
 IMPORTANT — SELF-ASSESSMENT (do NOT omit):
-After your main output, include a `## Contributor Assessment` block with these four fields:
-- **Mandate**: What were you asked to contribute? (1 sentence)
+After your main output, include a `## Contributor Assessment` block with these fields:
+- **Mandate**: What were you asked to produce? (1 sentence)
 - **Domain Fitness**: Does your scope/context cover the mandate? (high/medium/low + why)
 - **Context Currency**: Was your input fresh and substantial? (high/medium/low + why)
 - **Output Confidence**: How well does this output address the mandate? (high/medium/low + why)
-
+{criteria_eval}
 This block will be stripped before delivery — the user will never see it. Be honest."""
+
+# Injected when success criteria exist in TASK.md
+_CRITERIA_EVAL_SECTION = """- **Criteria Met**: For each success criterion below, state MET or MISSED with a brief reason.
+{criteria_list}"""
 
 
 # ADR-109: Role prompts. Versions tracked in api/prompts/CHANGELOG.md

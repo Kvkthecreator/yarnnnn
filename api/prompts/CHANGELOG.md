@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.3] - ADR-138: Success Criteria Self-Assessment + CreateTask mode
+
+### Changed
+- `services/agent_pipeline.py`: Assessment postamble updated to include `{criteria_eval}` placeholder. When TASK.md has success criteria, the postamble asks the agent to evaluate each criterion as MET/MISSED with reasons. New `_CRITERIA_EVAL_SECTION` template.
+- `services/task_pipeline.py`: `build_task_execution_prompt()` now injects criteria-aware assessment postamble into system prompt. Run log entries include confidence level and criteria eval from self-assessment.
+- `services/agent_execution.py`: `_extract_contributor_assessment()` now also parses `**Criteria Met**` field from assessment block.
+- `services/primitives/task.py`: `CreateTask` tool schema adds `mode` parameter (recurring/goal/reactive). Handler writes mode to DB and TASK.md.
+- Expected behavior: After generating output, agent self-assesses against task success criteria. Assessment is stripped before delivery, written to run_log.md with confidence level, and stored in agent memory. Task page can show criteria checklist (☑/☐) and confidence trends.
+
+---
+
 ## [2026.03.25.2] - ADR-140: TP Workforce Awareness + Task-Centric Commands
 
 ### Changed

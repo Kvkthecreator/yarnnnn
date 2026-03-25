@@ -263,6 +263,16 @@ If context says "(No context available)" or tools return no results:
 - Note briefly that no recent activity was found.
 - A short, properly formatted output is always better than meta-commentary."""
 
+    # Assessment postamble (ADR-128 + success criteria eval)
+    from services.agent_pipeline import _ASSESSMENT_POSTAMBLE, _CRITERIA_EVAL_SECTION
+    criteria = task_info.get("success_criteria", [])
+    if criteria:
+        criteria_list = "\n".join(f"  - {c}" for c in criteria)
+        criteria_eval = _CRITERIA_EVAL_SECTION.format(criteria_list=criteria_list)
+    else:
+        criteria_eval = ""
+    system += _ASSESSMENT_POSTAMBLE.format(criteria_eval=criteria_eval)
+
     # --- User message ---
     user_parts = [f"# Task: {title}"]
 
@@ -608,11 +618,20 @@ alongside any binary — the text is the feedback surface for user edits."""
         # 14. Post-generation side effects (all non-fatal)
         # =====================================================================
 
-        # Append to task run log
+        # Append to task run log (with self-assessment if available)
         try:
             log_entry = f"v{next_version} {final_status}"
             if delivery_error:
                 log_entry += f" — {delivery_error}"
+            if contributor_assessment:
+                confidence = contributor_assessment.get("output_confidence", "unknown")
+                # Extract level from "high — reason" format
+                level = confidence.split("—")[0].split("–")[0].strip().lower() if confidence else "unknown"
+                log_entry += f" | confidence={level}"
+                # Include criteria eval if present
+                criteria_met = contributor_assessment.get("criteria_met")
+                if criteria_met:
+                    log_entry += f" | criteria: {criteria_met}"
             await tw.append_run_log(log_entry)
         except Exception:
             pass

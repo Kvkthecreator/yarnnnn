@@ -603,12 +603,19 @@ def _extract_contributor_assessment(draft: str) -> tuple[str, Optional[dict]]:
     if not fields_match:
         return clean_draft, None
 
-    return clean_draft, {
+    result = {
         "mandate": fields_match.group(1).strip(),
         "domain_fitness": fields_match.group(2).strip(),
         "context_currency": fields_match.group(3).strip(),
         "output_confidence": fields_match.group(4).strip(),
     }
+
+    # Extract criteria eval if present (ADR-138: success criteria self-assessment)
+    criteria_match = re.search(r"\*\*Criteria Met\*\*:\s*(.+?)(?:\n\n|\n---|\Z)", assessment_text, re.DOTALL)
+    if criteria_match:
+        result["criteria_met"] = criteria_match.group(1).strip()
+
+    return clean_draft, result
 
 
 async def _append_self_assessment(ws, assessment: dict) -> None:
