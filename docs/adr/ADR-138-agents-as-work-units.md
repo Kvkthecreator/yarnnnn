@@ -122,7 +122,7 @@ Workspace (1 per user, implicit)
 - outputs/: delivery history with manifest.json per run
 - A task is lightweight — a definition of work to be done, not an organizational container
 - Simple tasks: 1 agent. Complex tasks: multiple agents with a process spec.
-- Tasks can be recurring (indefinite cadence) or bounded (goal with completion criteria)
+- Task `mode` determines temporal behavior: `recurring` (indefinite cadence), `goal` (bounded, completes when criteria met), `reactive` (event-triggered or on-demand)
 
 **Workfloor = WHERE (shared substrate)**
 - /workspace/: user identity (IDENTITY.md, BRAND.md)
@@ -187,6 +187,7 @@ Self-assessment on each run. Feedback distillation from user edits.
 - Actionable recommendations section
 
 ## Process
+- **Mode**: recurring
 - **Agents**: market-intelligence
 - **Cadence**: weekly
 - **Delivery**: email → kvkthecreator@gmail.com
@@ -196,6 +197,39 @@ Self-assessment on each run. Feedback distillation from user edits.
 - Competitor-by-competitor analysis
 - Pricing comparison chart
 - Strategic recommendations
+```
+
+### Goal task example (bounded, completes when done)
+
+```markdown
+# Acquisition Due Diligence: Acme Corp
+
+## Objective
+- **Deliverable**: Comprehensive due diligence report on Acme Corp acquisition target
+- **Audience**: Founder
+- **Purpose**: Inform acquisition decision
+- **Format**: Document with data tables and risk assessment
+
+## Success Criteria
+- Financial analysis of last 3 years
+- Technology stack assessment
+- Team and culture evaluation
+- Risk matrix with mitigation strategies
+- Go/no-go recommendation with rationale
+
+## Process
+- **Mode**: goal
+- **Agents**: market-intelligence
+- **Cadence**: daily (until complete)
+- **Delivery**: none (review in-app)
+
+## Output Specification
+- Executive summary with recommendation
+- Financial deep dive
+- Technology assessment
+- Team analysis
+- Risk matrix
+- Appendix: data sources
 ```
 
 ### Multi-agent TASK.md example
@@ -216,6 +250,7 @@ Self-assessment on each run. Feedback distillation from user edits.
 - Strategic recommendations
 
 ## Process
+- **Mode**: recurring
 - **Agents**: market-intelligence, content-writer
 - **Sequence**:
   1. market-intelligence: Research competitive landscape, produce analysis
@@ -374,6 +409,7 @@ CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
   slug TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'recurring' CHECK (mode IN ('recurring', 'goal', 'reactive')),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'archived')),
   schedule TEXT,             -- cron or human-readable cadence
   next_run_at TIMESTAMPTZ,
@@ -384,7 +420,7 @@ CREATE TABLE tasks (
 );
 ```
 
-All rich metadata (title, objective, delivery, output spec, success criteria, agent assignments, process) lives in `/tasks/{slug}/TASK.md`. The DB is the scheduler's index only.
+`mode` is on tasks, not agents — it describes temporal behavior of the work, not identity of the worker. A Research Agent can simultaneously have a `recurring` task (weekly briefing) and a `goal` task (investigate this acquisition). All rich metadata (title, objective, delivery, output spec, success criteria, agent assignments, process) lives in `/tasks/{slug}/TASK.md`. The DB is the scheduler's index only.
 
 ### No `task_agents` join table
 
@@ -399,7 +435,8 @@ This is consistent with how project-agent relationships worked (via `type_config
 
 - **Remove**: `schedule`, `next_pulse_at`, `destination` — scheduling moves to tasks table
 - **Remove**: `type_config.project_slug` — no projects
-- **Keep**: `id`, `user_id`, `title`, `slug`, `role` (archetype), `scope`, `mode`, `status`, `type_config` (agent-level config)
+- **Remove**: `mode` — temporal behavior (recurring/goal/reactive) is a property of WHAT (task), not WHO (agent). A Research Agent can simultaneously have a recurring task and a goal task. Mode moves to `tasks` table.
+- **Keep**: `id`, `user_id`, `title`, `slug`, `role` (archetype), `scope`, `status`, `type_config` (agent-level config)
 - **Role CHECK**: remove `pm`, keep/add `monitor`, `researcher`, `producer`, `operator` + legacy values with migration map
 
 ### Deleted: project-related
@@ -547,8 +584,8 @@ Still true. All workspace writes flow through agent execution, not direct user m
 Steps:
 1. Write SQL migration that:
    - TRUNCATEs all data tables (workspace_files, agents, agent_runs, chat_sessions, session_messages, activity_log, render_usage)
-   - Creates `tasks` table (thin: id, user_id, slug, status, schedule, next_run_at, last_run_at, timestamps)
-   - Drops `schedule`, `next_pulse_at`, `destination` columns from `agents`
+   - Creates `tasks` table (thin: id, user_id, slug, mode, status, schedule, next_run_at, last_run_at, timestamps)
+   - Drops `schedule`, `next_pulse_at`, `destination`, `mode` columns from `agents` (mode moves to tasks)
    - Updates `agents.role` CHECK constraint (remove `pm`, add `monitor`, `researcher`, `producer`, `operator`)
    - Drops `chat_sessions.project_slug` column
    - Drops `session_messages.thread_agent_id` column

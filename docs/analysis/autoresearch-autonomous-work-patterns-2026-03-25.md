@@ -126,6 +126,33 @@ What's missing: **a ratchet mechanism for knowledge quality.** Autoresearch keep
 
 4. **Cadence-aware eval** — for recurring work, consistency matters. A daily briefing that's great Monday, mediocre Tuesday, great Wednesday is worse than one that's consistently good. Variance in quality is itself a quality signal.
 
+## Architectural Insight: Mode Belongs on Work, Not Worker
+
+Autoresearch has one mode: loop forever. But its `program.md` could describe different temporal patterns — "run 100 experiments then stop" (goal), "run until metric plateaus" (reactive), "run forever" (recurring). The mode would describe the *work*, not the *agent*.
+
+YARNNN initially placed `mode` (recurring/goal/reactive) on the agent. This is wrong for the same reason it would be wrong for autoresearch to put "loop forever" on the GPU rather than the `program.md`. The Research Agent is the same entity whether it's doing a weekly briefing (recurring) or a one-off investigation (goal). Mode is temporal behavior of the work — it belongs on the task.
+
+**Decision (2026-03-25)**: `mode` moved from `agents` table to `tasks` table. ADR-138 and FOUNDATIONS.md updated. A single agent can now simultaneously have recurring, goal, and reactive tasks.
+
+## Architectural Insight: Reasoning Embedded in Mechanical Process
+
+Autoresearch embeds reasoning (what experiment to try) inside a mechanical loop (edit → run → eval → keep/discard). The loop is dumb. The steps inside are smart. This is a powerful pattern.
+
+YARNNN's equivalent:
+
+```
+MECHANICAL LOOP (scheduler, deterministic):
+  1. Gather context    ← agent reasons here (search, read, select)
+  2. Produce output    ← agent reasons here (draft against output spec)
+  3. Self-assess       ← agent reasons here (evaluate against success criteria)
+  4. Ratchet           ← MECHANICAL (log to run_log.md, update memory, deliver or hold)
+  5. Schedule next     ← MECHANICAL (based on task cadence/mode)
+```
+
+Steps 1-3 are LLM reasoning. Steps 4-5 are mechanical. The TASK.md `## Process` section is our `program.md` — it scaffolds the steps, and TP can rewrite it based on run_log.md trajectory.
+
+The key difference from autoresearch: our eval (step 3) isn't a scalar. It's structured self-assessment against TASK.md success criteria. The ratchet (step 4) isn't "keep/discard the output" — it's "accumulate knowledge in the workspace." The branch tip equivalent is the agent's workspace state: preferences.md, self_assessment.md, observations.md. These monotonically improve even when individual outputs vary.
+
 ## The Deeper Insight
 
 Autoresearch works because **the environment makes the right thing easy and the wrong thing impossible.** The eval can't be gamed. The time budget is fixed. Improvements ratchet. Failures revert. The constraints ARE the coordination mechanism.

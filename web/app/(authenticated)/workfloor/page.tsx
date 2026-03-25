@@ -27,9 +27,11 @@ import {
   Bookmark,
   ChevronRight,
   FlaskConical,
-  Eye,
-  PenTool,
-  Cog,
+  FileText,
+  TrendingUp,
+  Users,
+  MessageCircle,
+  BookOpen,
   Clock,
   AlertCircle,
 } from 'lucide-react';
@@ -52,44 +54,52 @@ import { api } from '@/lib/api/client';
 // =============================================================================
 
 const ARCHETYPE_CONFIG: Record<string, { icon: typeof FlaskConical; color: string; label: string }> = {
-  researcher: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  monitor: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  producer: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  operator: { icon: Cog, color: 'text-orange-500', label: 'Operator' },
+  // Primary ADR-140 types
+  research:   { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  content:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  marketing:  { icon: TrendingUp,     color: 'text-pink-500',   label: 'Marketing Agent' },
+  crm:        { icon: Users,          color: 'text-orange-500', label: 'CRM Agent' },
+  slack_bot:  { icon: MessageCircle,  color: 'text-teal-500',   label: 'Slack Bot' },
+  notion_bot: { icon: BookOpen,       color: 'text-indigo-500', label: 'Notion Bot' },
   // Legacy role mappings
-  digest: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  briefer: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  scout: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  analyst: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  research: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  drafter: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  writer: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  planner: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  synthesize: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  prepare: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  custom: { icon: Cog, color: 'text-gray-500', label: 'Custom' },
+  briefer:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  monitor:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  scout:      { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  digest:     { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  researcher: { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  analyst:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  synthesize: { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  custom:     { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  drafter:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  writer:     { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  planner:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  prepare:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
 };
 
 function getArchetype(role: string) {
-  return ARCHETYPE_CONFIG[role] || ARCHETYPE_CONFIG.custom;
+  return ARCHETYPE_CONFIG[role] || ARCHETYPE_CONFIG.research;
 }
 
 // =============================================================================
 // Agent Card — OpenClaw-inspired status display
 // =============================================================================
 
-// Archetype accent colors for card borders and backgrounds
+// Type accent colors for card borders and backgrounds
 const ARCHETYPE_ACCENTS: Record<string, { border: string; bg: string; glow: string }> = {
-  researcher: { border: 'border-blue-500/30', bg: 'bg-blue-500/5', glow: 'hover:shadow-blue-500/10' },
-  monitor: { border: 'border-green-500/30', bg: 'bg-green-500/5', glow: 'hover:shadow-green-500/10' },
-  producer: { border: 'border-purple-500/30', bg: 'bg-purple-500/5', glow: 'hover:shadow-purple-500/10' },
-  operator: { border: 'border-orange-500/30', bg: 'bg-orange-500/5', glow: 'hover:shadow-orange-500/10' },
-  custom: { border: 'border-border', bg: 'bg-muted/30', glow: '' },
+  // Keyed by resolved label (lowercase) for lookup from getArchetype
+  'research agent':  { border: 'border-blue-500/30',   bg: 'bg-blue-500/5',   glow: 'hover:shadow-blue-500/10' },
+  'content agent':   { border: 'border-purple-500/30', bg: 'bg-purple-500/5', glow: 'hover:shadow-purple-500/10' },
+  'marketing agent': { border: 'border-pink-500/30',   bg: 'bg-pink-500/5',   glow: 'hover:shadow-pink-500/10' },
+  'crm agent':       { border: 'border-orange-500/30', bg: 'bg-orange-500/5', glow: 'hover:shadow-orange-500/10' },
+  'slack bot':       { border: 'border-teal-500/30',   bg: 'bg-teal-500/5',   glow: 'hover:shadow-teal-500/10' },
+  'notion bot':      { border: 'border-indigo-500/30', bg: 'bg-indigo-500/5', glow: 'hover:shadow-indigo-500/10' },
 };
+
+const DEFAULT_ACCENT = { border: 'border-border', bg: 'bg-muted/30', glow: '' };
 
 function getAccent(role: string) {
   const archetype = getArchetype(role);
-  return ARCHETYPE_ACCENTS[archetype.label.toLowerCase()] || ARCHETYPE_ACCENTS.custom;
+  return ARCHETYPE_ACCENTS[archetype.label.toLowerCase()] || DEFAULT_ACCENT;
 }
 
 function AgentCard({ agent }: { agent: Agent }) {

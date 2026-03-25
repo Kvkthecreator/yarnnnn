@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * Agents List — ADR-138/139
+ * Agents List — ADR-140
  *
  * Two sections:
- * 1. Agent archetypes explainer (what kinds of agents exist)
+ * 1. Workforce types explainer (what kinds of agents/bots exist)
  * 2. Your agents (existing agent cards with links to /agents/[id])
  *
- * ADR-138: Four archetypes — monitor, researcher, producer, operator
+ * ADR-140: 6 workforce types — 4 agents (research, content, marketing, crm) + 2 bots (slack_bot, notion_bot)
  */
 
 import { useState, useEffect } from 'react';
@@ -16,68 +16,91 @@ import {
   Users,
   Loader2,
   ChevronRight,
-  Eye,
   FlaskConical,
-  PenTool,
-  Cog,
+  FileText,
+  TrendingUp,
+  MessageCircle,
+  BookOpen,
 } from 'lucide-react';
 import type { Agent } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
 // =============================================================================
-// Archetypes — ADR-138
+// Workforce Types — ADR-140
 // =============================================================================
 
-const ARCHETYPES = [
+const WORKFORCE_TYPES = [
   {
-    name: 'Monitor',
-    icon: Eye,
-    color: 'text-green-500',
-    bg: 'bg-green-500/10',
-    border: 'border-green-500/20',
-    description: 'Watches a domain and surfaces what matters.',
-    examples: 'Slack recaps, competitor alerts, customer feedback tracking',
-    capabilities: ['Read platforms', 'Web search', 'Alert on changes'],
-    roles: ['monitor', 'digest', 'briefer', 'scout'],
-  },
-  {
-    name: 'Researcher',
+    name: 'Research Agent',
     icon: FlaskConical,
     color: 'text-blue-500',
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/20',
-    description: 'Investigates topics with depth across sources.',
-    examples: 'Market analysis, due diligence, trend reports',
-    capabilities: ['Web search', 'Read workspace', 'Charts'],
-    roles: ['researcher', 'analyst', 'research', 'synthesize'],
+    description: 'Investigates and analyzes topics across sources.',
+    examples: 'Market analysis, competitor tracking, trend reports, Slack recaps',
+    capabilities: ['Web search', 'Read platforms', 'Charts'],
+    roles: ['research', 'briefer', 'monitor', 'scout', 'digest', 'researcher', 'analyst', 'synthesize', 'custom'],
   },
   {
-    name: 'Producer',
-    icon: PenTool,
+    name: 'Content Agent',
+    icon: FileText,
     color: 'text-purple-500',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
     description: 'Creates deliverables from accumulated context.',
-    examples: 'Investor updates, board decks, client reports',
+    examples: 'Investor updates, board decks, client reports, plans',
     capabilities: ['Read workspace', 'Charts', 'Compose HTML'],
-    roles: ['producer', 'drafter', 'writer', 'planner', 'prepare'],
+    roles: ['content', 'drafter', 'writer', 'planner', 'prepare'],
   },
   {
-    name: 'Operator',
-    icon: Cog,
+    name: 'Marketing Agent',
+    icon: TrendingUp,
+    color: 'text-pink-500',
+    bg: 'bg-pink-500/10',
+    border: 'border-pink-500/20',
+    description: 'Handles go-to-market activities and campaigns.',
+    examples: 'Campaign briefs, launch plans, market positioning',
+    capabilities: ['Web search', 'Read workspace', 'Compose HTML'],
+    roles: ['marketing'],
+  },
+  {
+    name: 'CRM Agent',
+    icon: Users,
     color: 'text-orange-500',
     bg: 'bg-orange-500/10',
     border: 'border-orange-500/20',
-    description: 'Takes actions on platforms. Coming soon.',
-    examples: 'Post to Slack, update Notion, CRM updates',
-    capabilities: ['Write to platforms', 'Read workspace'],
-    roles: ['operator', 'act'],
+    description: 'Manages relationships and tracks interactions.',
+    examples: 'Customer follow-ups, relationship summaries, deal tracking',
+    capabilities: ['Read platforms', 'Read workspace'],
+    roles: ['crm'],
+  },
+  {
+    name: 'Slack Bot',
+    icon: MessageCircle,
+    color: 'text-teal-500',
+    bg: 'bg-teal-500/10',
+    border: 'border-teal-500/20',
+    description: 'Reads and writes Slack on your behalf.',
+    examples: 'Channel summaries, automated replies, status updates',
+    capabilities: ['Read Slack', 'Write Slack'],
+    roles: ['slack_bot'],
+  },
+  {
+    name: 'Notion Bot',
+    icon: BookOpen,
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-500/10',
+    border: 'border-indigo-500/20',
+    description: 'Reads and writes Notion on your behalf.',
+    examples: 'Page updates, database entries, wiki maintenance',
+    capabilities: ['Read Notion', 'Write Notion'],
+    roles: ['notion_bot'],
   },
 ];
 
-function getArchetypeForRole(role: string) {
-  return ARCHETYPES.find(a => a.roles.includes(role)) || ARCHETYPES[0];
+function getTypeForRole(role: string) {
+  return WORKFORCE_TYPES.find(a => a.roles.includes(role)) || WORKFORCE_TYPES[0];
 }
 
 // =============================================================================
@@ -129,31 +152,31 @@ export default function AgentsListPage() {
         </p>
       </div>
 
-      {/* Archetypes */}
+      {/* Workforce Types */}
       <div className="mb-12">
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
-          Agent Archetypes
+          Workforce Types
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {ARCHETYPES.map(archetype => {
-            const Icon = archetype.icon;
+          {WORKFORCE_TYPES.map(wtype => {
+            const Icon = wtype.icon;
             return (
               <div
-                key={archetype.name}
+                key={wtype.name}
                 className={cn(
                   'border rounded-xl p-5 space-y-3',
-                  archetype.border,
-                  archetype.bg,
+                  wtype.border,
+                  wtype.bg,
                 )}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={cn('w-5 h-5', archetype.color)} />
-                  <h3 className="text-sm font-medium">{archetype.name}</h3>
+                  <Icon className={cn('w-5 h-5', wtype.color)} />
+                  <h3 className="text-sm font-medium">{wtype.name}</h3>
                 </div>
-                <p className="text-sm text-muted-foreground">{archetype.description}</p>
-                <p className="text-xs text-muted-foreground/60">{archetype.examples}</p>
+                <p className="text-sm text-muted-foreground">{wtype.description}</p>
+                <p className="text-xs text-muted-foreground/60">{wtype.examples}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {archetype.capabilities.map(cap => (
+                  {wtype.capabilities.map(cap => (
                     <span
                       key={cap}
                       className="px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-background text-muted-foreground"
@@ -195,8 +218,8 @@ export default function AgentsListPage() {
         ) : (
           <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
             {activeAgents.map(agent => {
-              const archetype = getArchetypeForRole(agent.role);
-              const Icon = archetype.icon;
+              const wtype = getTypeForRole(agent.role);
+              const Icon = wtype.icon;
               const isPaused = agent.status === 'paused';
 
               return (
@@ -207,7 +230,7 @@ export default function AgentsListPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1">
-                      <Icon className={cn('w-4 h-4 shrink-0', archetype.color)} />
+                      <Icon className={cn('w-4 h-4 shrink-0', wtype.color)} />
                       <span className="text-sm font-medium truncate">{agent.title}</span>
                       {isPaused && (
                         <span className="text-[10px] uppercase tracking-wider font-medium text-amber-500">
@@ -216,7 +239,7 @@ export default function AgentsListPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-4 ml-[26px] text-xs text-muted-foreground">
-                      <span>{archetype.name}</span>
+                      <span>{wtype.name}</span>
                       {agent.last_run_at && (
                         <span>Last run: {formatRelativeTime(agent.last_run_at)}</span>
                       )}

@@ -4,8 +4,8 @@
  * Single source of truth for agent colors, display names, badges, and initials.
  * Used by AgentAvatar, project pages, agent lists, dashboard, and chat attribution.
  *
- * v2 (ADR-130): 8 user-facing types + PM. Types are product offerings.
- * Legacy role names (digest, synthesize, research, prepare, custom) mapped to new types.
+ * v3 (ADR-140): 6 workforce types (4 agents + 2 bots). Two classes: agent (domain-cognitive) and bot (platform-mechanical).
+ * Legacy role names mapped to new types via resolveRole().
  */
 
 // =============================================================================
@@ -13,14 +13,31 @@
 // =============================================================================
 
 function resolveRole(role?: string): string {
-  if (!role) return 'briefer';
+  if (!role) return 'research';
   switch (role) {
-    case 'digest': return 'briefer';
-    case 'synthesize': return 'analyst';
-    case 'research': return 'researcher';
-    case 'prepare': return 'planner';
-    case 'custom': return 'briefer';
-    default: return role;
+    // Legacy → research
+    case 'briefer':    return 'research';
+    case 'monitor':    return 'research';
+    case 'scout':      return 'research';
+    case 'digest':     return 'research';
+    case 'researcher': return 'research';
+    case 'analyst':    return 'research';
+    case 'synthesize': return 'research';
+    case 'custom':     return 'research';
+    case 'pm':         return 'research'; // fallback
+    // Legacy → content
+    case 'drafter':    return 'content';
+    case 'writer':     return 'content';
+    case 'planner':    return 'content';
+    case 'prepare':    return 'content';
+    // Primary types pass through
+    case 'research':   return 'research';
+    case 'content':    return 'content';
+    case 'marketing':  return 'marketing';
+    case 'crm':        return 'crm';
+    case 'slack_bot':  return 'slack_bot';
+    case 'notion_bot': return 'notion_bot';
+    default:           return role;
   }
 }
 
@@ -31,15 +48,12 @@ function resolveRole(role?: string): string {
 /** Avatar background hex color by role — inline styles, immune to Tailwind purge */
 export function avatarColor(role?: string): string {
   switch (resolveRole(role)) {
-    case 'pm':         return '#9333ea';  // purple-600
-    case 'briefer':    return '#3b82f6';  // blue-500
-    case 'monitor':    return '#f59e0b';  // amber-500
-    case 'researcher': return '#22c55e';  // green-500
-    case 'drafter':    return '#6366f1';  // indigo-500
-    case 'analyst':    return '#14b8a6';  // teal-500
-    case 'writer':     return '#ec4899';  // pink-500
-    case 'planner':    return '#8b5cf6';  // violet-500
-    case 'scout':      return '#f97316';  // orange-500
+    case 'research':   return '#3b82f6';  // blue-500
+    case 'content':    return '#a855f7';  // purple-500
+    case 'marketing':  return '#ec4899';  // pink-500
+    case 'crm':        return '#f97316';  // orange-500
+    case 'slack_bot':  return '#14b8a6';  // teal-500
+    case 'notion_bot': return '#6366f1';  // indigo-500
     default:           return '#6b7280';  // gray-500
   }
 }
@@ -47,15 +61,12 @@ export function avatarColor(role?: string): string {
 /** Role badge background + text color (light/dark variants) */
 export function roleBadgeColor(role?: string): string {
   switch (resolveRole(role)) {
-    case 'pm':         return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
-    case 'briefer':    return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
-    case 'monitor':    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
-    case 'researcher': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
-    case 'drafter':    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
-    case 'analyst':    return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
-    case 'writer':     return 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300';
-    case 'planner':    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300';
-    case 'scout':      return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
+    case 'research':   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+    case 'content':    return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+    case 'marketing':  return 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300';
+    case 'crm':        return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
+    case 'slack_bot':  return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
+    case 'notion_bot': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
     default:           return 'bg-muted text-muted-foreground';
   }
 }
@@ -63,15 +74,12 @@ export function roleBadgeColor(role?: string): string {
 /** Chat message author accent color */
 export function authorColor(authorRole?: string): string {
   switch (resolveRole(authorRole)) {
-    case 'pm':         return 'text-purple-600 dark:text-purple-400';
-    case 'briefer':    return 'text-blue-600 dark:text-blue-400';
-    case 'monitor':    return 'text-amber-600 dark:text-amber-400';
-    case 'researcher': return 'text-green-600 dark:text-green-400';
-    case 'drafter':    return 'text-indigo-600 dark:text-indigo-400';
-    case 'analyst':    return 'text-teal-600 dark:text-teal-400';
-    case 'writer':     return 'text-pink-600 dark:text-pink-400';
-    case 'planner':    return 'text-violet-600 dark:text-violet-400';
-    case 'scout':      return 'text-orange-600 dark:text-orange-400';
+    case 'research':   return 'text-blue-600 dark:text-blue-400';
+    case 'content':    return 'text-purple-600 dark:text-purple-400';
+    case 'marketing':  return 'text-pink-600 dark:text-pink-400';
+    case 'crm':        return 'text-orange-600 dark:text-orange-400';
+    case 'slack_bot':  return 'text-teal-600 dark:text-teal-400';
+    case 'notion_bot': return 'text-indigo-600 dark:text-indigo-400';
     default:           return 'text-muted-foreground/70';
   }
 }
@@ -83,15 +91,12 @@ export function authorColor(authorRole?: string): string {
 /** Role → user-facing display name (product name) */
 export function roleDisplayName(role?: string): string {
   switch (resolveRole(role)) {
-    case 'pm':         return 'Project Manager';
-    case 'briefer':    return 'Briefer';
-    case 'monitor':    return 'Monitor';
-    case 'researcher': return 'Researcher';
-    case 'drafter':    return 'Drafter';
-    case 'analyst':    return 'Analyst';
-    case 'writer':     return 'Writer';
-    case 'planner':    return 'Planner';
-    case 'scout':      return 'Scout';
+    case 'research':   return 'Research Agent';
+    case 'content':    return 'Content Agent';
+    case 'marketing':  return 'Marketing Agent';
+    case 'crm':        return 'CRM Agent';
+    case 'slack_bot':  return 'Slack Bot';
+    case 'notion_bot': return 'Notion Bot';
     default:           return role || '';
   }
 }
@@ -99,23 +104,21 @@ export function roleDisplayName(role?: string): string {
 /** Short role label for compact displays */
 export function roleShortLabel(role?: string): string {
   switch (resolveRole(role)) {
-    case 'pm': return 'PM';
-    default: return roleDisplayName(role);
+    case 'slack_bot':  return 'Slack';
+    case 'notion_bot': return 'Notion';
+    default:           return roleDisplayName(role);
   }
 }
 
 /** Role → one-line tagline (what it does for the user) */
 export function roleTagline(role?: string): string {
   switch (resolveRole(role)) {
-    case 'briefer':    return 'Keeps you briefed on what\'s happening';
-    case 'monitor':    return 'Watches for what matters and alerts you';
-    case 'researcher': return 'Investigates topics and produces analysis';
-    case 'drafter':    return 'Produces deliverables and documents for you';
-    case 'analyst':    return 'Tracks metrics and surfaces patterns';
-    case 'writer':     return 'Crafts communications and content';
-    case 'planner':    return 'Prepares plans, agendas, and follow-ups';
-    case 'scout':      return 'Tracks competitors and market movements';
-    case 'pm':         return 'Coordinates your project team';
+    case 'research':   return 'Investigates and analyzes';
+    case 'content':    return 'Creates deliverables';
+    case 'marketing':  return 'Handles go-to-market';
+    case 'crm':        return 'Manages relationships';
+    case 'slack_bot':  return 'Reads and writes Slack';
+    case 'notion_bot': return 'Reads and writes Notion';
     default:           return '';
   }
 }

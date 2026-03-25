@@ -153,14 +153,22 @@ The pulse uses a cheap-first funnel:
 
 Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in agent timelines and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
 
-### Objectives at Task Scope (ADR-138)
+### Tasks: Work Definition and Temporal Behavior (ADR-138)
 
-Tasks define what work gets done. A task has an objective — its north star — and exhibits a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
+Tasks define what work gets done. A task has an objective — its north star — and a **mode** that determines its temporal behavior:
+
+- **`recurring`** — runs on fixed cadence (daily, weekly, monthly). Indefinite. The common case.
+- **`goal`** — runs toward a bounded objective, then completes. "Investigate this acquisition" → done when criteria met.
+- **`reactive`** — runs on demand or event-triggered. "Alert me if competitor changes pricing."
+
+Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring task (weekly briefing) and a goal task (one-off investigation). The agent's identity and capabilities don't change — only the temporal shape of the work differs.
+
+A task objective exhibits a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
 
 - "I want a daily recap of #engineering with executive summary" — bounded objective, 1 agent, predictable cadence
 - "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially multiple agents/files/runs
 
-TP's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which agent(s) contribute, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
+TP's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which agent(s) contribute, what mode, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
 
 Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in TASK.md's `## Objective` section — they shape assembly decisions, layout mode selection, and export format. Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
 
@@ -263,7 +271,7 @@ A user who describes their work and sees correctly-scoped agents that understand
 
 ### Implication: Work Types Carry Lifecycle
 
-Work descriptions carry implicit lifecycle. "I have 3 clients" implies persistent, recurring work. "I need a board deck" implies bounded, deliverable-scoped work. The system infers lifecycle from the work description — the user does not configure it. Persistent work gets full task coordination. Bounded work gets lightweight tasks that dissolve on completion.
+Work descriptions carry implicit lifecycle, expressed as task `mode`. "I have 3 clients" implies persistent, recurring work → `recurring` tasks. "I need a board deck" implies bounded, deliverable-scoped work → `goal` task that completes on delivery. "Alert me if competitor changes pricing" → `reactive` task. The system infers mode from the work description — the user does not configure it. Recurring tasks run indefinitely. Goal tasks dissolve on completion. Reactive tasks wait for triggers.
 
 ---
 
@@ -352,3 +360,4 @@ These require further design work before implementation:
 | 2026-03-24 | v3.7 — Project Charter Architecture (ADR-136). Filesystem IS the architecture: PROJECT.md (objective + success criteria) + TEAM.md (roster + capabilities from type registry) + PROCESS.md (output spec + cadence + delivery + phases). Strict charter vs. memory separation. PM workspace = project workspace. Cadence enforcement enables deterministic execution. Output specification enables composition intelligence. Chat as coordination substrate (ADR-135). ~$0.50/month per project cost model. |
 | 2026-03-24 | v3.8 — Declarative Pipeline Execution (ADR-137). PROCESS.md declares execution graphs: ordered steps with dependencies, executed mechanically by scheduler. PM simplified from autonomous coordinator to pipeline-embedded steps (evaluate/compose/reflect). Complexity-adaptive pipelines: simple (1 agent, direct deliver), standard (sequential), complex (retry loops). Inference produces pipeline spec, not just team. ~$0.17/cycle cost. Supersedes PM coordination model (ADR-133). |
 | 2026-03-25 | v4.0 — ADR-138 project layer collapse. PM dissolved into TP. Projects replaced by tasks. Agents are identity-only domain experts. Coherence flows reduced from 4 to 3 (PM assessment flow removed). Pulse tiers simplified (Tier 3 PM coordination removed). TP directly creates agents and tasks, monitors health, orchestrates multi-agent work. Open questions 4, 7 resolved. |
+| 2026-03-25 | v4.1 — Mode moves from agents to tasks (ADR-138 revision). `mode` (recurring/goal/reactive) is temporal behavior of work, not identity of worker. A Research Agent can simultaneously have a recurring task and a goal task. Axiom 3: "Tasks: Work Definition and Temporal Behavior" section added. Axiom 6: "Work Types Carry Lifecycle" updated with mode inference. |

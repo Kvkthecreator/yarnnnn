@@ -20,10 +20,11 @@ import {
   Play,
   Pause,
   Archive,
-  Eye,
   FlaskConical,
-  PenTool,
-  Cog,
+  TrendingUp,
+  Users,
+  MessageCircle,
+  BookOpen,
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
@@ -37,26 +38,30 @@ import type { Agent, AgentRun, AgentMemory } from '@/types';
 // =============================================================================
 
 const ARCHETYPE_CONFIG: Record<string, { icon: typeof FlaskConical; color: string; label: string }> = {
-  researcher: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  monitor: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  producer: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  operator: { icon: Cog, color: 'text-orange-500', label: 'Operator' },
-  // Legacy
-  digest: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  briefer: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  scout: { icon: Eye, color: 'text-green-500', label: 'Monitor' },
-  analyst: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  research: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  drafter: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  writer: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  planner: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  synthesize: { icon: FlaskConical, color: 'text-blue-500', label: 'Researcher' },
-  prepare: { icon: PenTool, color: 'text-purple-500', label: 'Producer' },
-  custom: { icon: Cog, color: 'text-gray-500', label: 'Custom' },
+  // Primary ADR-140 types
+  research:   { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  content:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  marketing:  { icon: TrendingUp,     color: 'text-pink-500',   label: 'Marketing Agent' },
+  crm:        { icon: Users,          color: 'text-orange-500', label: 'CRM Agent' },
+  slack_bot:  { icon: MessageCircle,  color: 'text-teal-500',   label: 'Slack Bot' },
+  notion_bot: { icon: BookOpen,       color: 'text-indigo-500', label: 'Notion Bot' },
+  // Legacy → new type mappings
+  briefer:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  monitor:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  scout:      { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  digest:     { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  researcher: { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  analyst:    { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  synthesize: { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  custom:     { icon: FlaskConical,   color: 'text-blue-500',   label: 'Research Agent' },
+  drafter:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  writer:     { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  planner:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
+  prepare:    { icon: FileText,       color: 'text-purple-500', label: 'Content Agent' },
 };
 
 function getArchetype(role: string) {
-  return ARCHETYPE_CONFIG[role] || ARCHETYPE_CONFIG.custom;
+  return ARCHETYPE_CONFIG[role] || ARCHETYPE_CONFIG.research;
 }
 
 function formatRelativeTime(dateStr: string): string {
