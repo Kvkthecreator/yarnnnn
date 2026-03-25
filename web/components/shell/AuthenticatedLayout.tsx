@@ -15,7 +15,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Command, ChevronDown, Settings, Activity, Link2, ListChecks, Users } from 'lucide-react';
+import { Command, ChevronDown, Settings, Activity, FolderOpen, ListChecks, Users } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -106,14 +106,14 @@ const BROWSE_PAGES: RouteItem[] = [
 ];
 
 const SECONDARY_PAGES: RouteItem[] = [
+  { id: 'context', label: 'Context', icon: FolderOpen, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
-  { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
 // Routes accessible via direct URL but not in nav dropdown
 const HIDDEN_ROUTES: RouteItem[] = [
-  { id: 'context', label: 'Context', icon: Command, path: '/context' },
+  { id: 'integrations', label: 'Integrations', icon: Settings, path: '/integrations' },
 ];
 
 // All primary routes for pathname matching

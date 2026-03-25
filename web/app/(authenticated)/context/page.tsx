@@ -1,840 +1,544 @@
 'use client';
 
 /**
- * Workspace Page — Cross-Project File Browser
+ * Context — yarnnn's Finder
  *
- * Finder-style browser for the user's workspace data across all projects.
- * Not the primary surface — Orchestrator + Project meeting rooms are primary.
- *
- * Sections:
- * - Knowledge: Agent-produced outputs across all projects
- * - Documents: Uploaded files (PDF, DOC, TXT, MD)
- *
- * ADR-133: Platforms moved to Settings (infrastructure).
- * Platform agents (briefer, monitor) bridge external data into projects.
+ * File explorer for the entire yarnnn data model:
+ * - Workspace (IDENTITY.md, BRAND.md, CONTEXT.md)
+ * - Agents (/agents/{slug}/ → AGENT.md, memory/)
+ * - Tasks (/tasks/{slug}/ → TASK.md, outputs/)
+ * - Knowledge (/knowledge/ → digests, analyses, research, insights)
+ * - Platforms (Slack, Notion — connections + sync status)
+ * - Documents (uploaded files)
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Loader2,
+  FolderOpen,
+  FileText,
+  ChevronRight,
+  ChevronDown,
+  Users,
+  ListChecks,
+  Brain,
+  Link2,
   Upload,
   RefreshCw,
-  FileText,
-  Layers,
-  ChevronRight,
-  CheckCircle2,
-  XCircle,
-  FolderOpen,
-  FolderTree,
-  ArrowLeft,
-  Plus,
-  X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { ROLE_LABELS } from '@/lib/constants/agents';
-import type { Role } from '@/types';
-import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Document, KnowledgeFile, KnowledgeFileDetail, KnowledgeContentClass, KnowledgeVersion } from '@/types';
-import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import ReactMarkdown from 'react-markdown';
+import type { Agent, Task, KnowledgeFile, Document } from '@/types';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Section = 'knowledge' | 'documents';
-const VALID_SECTIONS: readonly Section[] = ['knowledge', 'documents'] as const;
-
-function normalizeSection(value: string | null): Section {
-  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'knowledge';
-}
-
-const VALID_KNOWLEDGE_CLASSES: readonly KnowledgeContentClass[] = [
-  'digests',
-  'analyses',
-  'briefs',
-  'research',
-  'insights',
-] as const;
-
-function normalizeKnowledgeClass(value: string | null): KnowledgeContentClass | undefined {
-  return VALID_KNOWLEDGE_CLASSES.includes(value as KnowledgeContentClass)
-    ? (value as KnowledgeContentClass)
-    : undefined;
-}
+type Section = 'workspace' | 'agents' | 'tasks' | 'knowledge' | 'platforms' | 'documents';
 
 // =============================================================================
-// Platform Configuration
+// Sidebar Tree Item
 // =============================================================================
 
-const PLATFORM_CONFIG: Record<string, {
+function TreeSection({
+  icon: Icon,
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  icon: typeof FolderOpen;
   label: string;
-  icon: React.ReactNode;
-  colors: { bg: string; text: string };
-}> = {
-  slack: {
-    label: 'Slack',
-    icon: getPlatformIcon('slack', 'w-4 h-4'),
-    colors: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  },
-  notion: {
-    label: 'Notion',
-    icon: getPlatformIcon('notion', 'w-4 h-4'),
-    colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
-  },
-};
-
-const ALL_PLATFORMS = ['slack', 'notion'] as const;
+  count?: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors text-left',
+        active
+          ? 'bg-primary/10 text-primary font-medium'
+          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+      )}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      <span className="flex-1 truncate">{label}</span>
+      {count !== undefined && (
+        <span className="text-[10px] text-muted-foreground/60">{count}</span>
+      )}
+    </button>
+  );
+}
 
 // =============================================================================
-// Section Navigation
+// Content Panels
 // =============================================================================
 
-const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: 'knowledge', label: 'Outputs', icon: <Layers className="w-4 h-4" /> },
-  { id: 'documents', label: 'Uploads', icon: <FolderOpen className="w-4 h-4" /> },
+function WorkspacePanel() {
+  const [identity, setIdentity] = useState<Record<string, string> | null>(null);
+  const [brand, setBrand] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.profile.get().catch(() => null),
+      api.brand.get().catch(() => ({ content: null, exists: false })),
+    ]).then(([profile, brandData]) => {
+      setIdentity(profile);
+      if (brandData?.exists) setBrand(brandData.content);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <LoadingState />;
+
+  const files = [
+    { name: 'IDENTITY.md', path: '/workspace/IDENTITY.md', content: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}${identity.company ? ` at ${identity.company}` : ''}` : null, summary: identity?.summary },
+    { name: 'BRAND.md', path: '/workspace/BRAND.md', content: brand },
+    { name: 'CONTEXT.md', path: '/workspace/CONTEXT.md', content: null },
+    { name: 'preferences.md', path: '/memory/preferences.md', content: null },
+    { name: 'notes.md', path: '/memory/notes.md', content: null },
+  ];
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
+        /workspace/ — your identity and preferences
+      </p>
+      {files.map(f => (
+        <FileRow key={f.name} name={f.name} path={f.path} preview={f.content} empty={!f.content} />
+      ))}
+    </div>
+  );
+}
+
+function AgentsPanel() {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.agents.list().then(setAgents).catch(() => []).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingState />;
+  if (agents.length === 0) return <EmptyState message="No agents yet" />;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
+        /agents/ — persistent domain experts
+      </p>
+      {agents.filter(a => a.status !== 'archived').map(agent => (
+        <div key={agent.id} className="border border-border rounded-lg overflow-hidden mb-2">
+          <Link
+            href={`/agents/${agent.id}`}
+            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+          >
+            <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-medium truncate block">{agent.title}</span>
+              <span className="text-[11px] text-muted-foreground">/agents/{agent.slug || agent.id}/</span>
+            </div>
+            <span className={cn(
+              'w-2 h-2 rounded-full shrink-0',
+              agent.status === 'active' ? 'bg-green-500' : 'bg-amber-500'
+            )} />
+          </Link>
+          <div className="px-3 pb-2 flex gap-1.5 flex-wrap">
+            <FileChip name="AGENT.md" />
+            <FileChip name="memory/" />
+            {agent.agent_instructions && <FileChip name="instructions" filled />}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TasksPanel() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.tasks.list().then(setTasks).catch(() => []).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingState />;
+  if (tasks.length === 0) return <EmptyState message="No tasks yet" />;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
+        /tasks/ — defined work units
+      </p>
+      {tasks.map(task => (
+        <div key={task.id} className="border border-border rounded-lg overflow-hidden mb-2">
+          <Link
+            href={`/tasks/${task.slug}`}
+            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+          >
+            <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-medium truncate block">{task.title}</span>
+              <span className="text-[11px] text-muted-foreground">/tasks/{task.slug}/</span>
+            </div>
+            <span className={cn(
+              'w-2 h-2 rounded-full shrink-0',
+              task.status === 'active' ? 'bg-green-500' :
+              task.status === 'paused' ? 'bg-amber-500' : 'bg-gray-400'
+            )} />
+          </Link>
+          <div className="px-3 pb-2 flex gap-1.5 flex-wrap">
+            <FileChip name="TASK.md" />
+            <FileChip name="outputs/" />
+            <FileChip name="memory/" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function KnowledgePanel() {
+  const [summary, setSummary] = useState<{ total: number; classes: Array<{ content_class: string; count: number }> } | null>(null);
+  const [files, setFiles] = useState<KnowledgeFile[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.knowledge.summary().then(setSummary).catch(() => null).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (selectedClass) {
+      api.knowledge.listFiles({ content_class: selectedClass as any, limit: 20 })
+        .then(res => setFiles(res.files))
+        .catch(() => setFiles([]));
+    } else {
+      api.knowledge.listFiles({ limit: 20 })
+        .then(res => setFiles(res.files))
+        .catch(() => setFiles([]));
+    }
+  }, [selectedClass]);
+
+  if (loading) return <LoadingState />;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        /knowledge/ — accumulated from platform sync + agent outputs
+      </p>
+
+      {/* Class chips */}
+      {summary && summary.classes.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap px-1">
+          <button
+            onClick={() => setSelectedClass(null)}
+            className={cn(
+              'px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
+              !selectedClass ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+            )}
+          >
+            All ({summary.total})
+          </button>
+          {summary.classes.map(c => (
+            <button
+              key={c.content_class}
+              onClick={() => setSelectedClass(c.content_class)}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
+                selectedClass === c.content_class ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {c.content_class} ({c.count})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* File list */}
+      {files.length > 0 ? (
+        <div className="space-y-1">
+          {files.map(f => (
+            <FileRow
+              key={f.path}
+              name={f.name}
+              path={f.path}
+              preview={f.summary}
+              timestamp={f.updated_at}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState message="No knowledge files yet — they accumulate from platform sync and agent outputs" />
+      )}
+    </div>
+  );
+}
+
+function PlatformsPanel() {
+  const [platforms, setPlatforms] = useState<Array<{ provider: string; status: string; workspace_name: string | null; resource_count: number }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.integrations.getSummary()
+      .then(res => setPlatforms(res.platforms))
+      .catch(() => setPlatforms([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingState />;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        Platform connections — where external data comes from
+      </p>
+
+      {platforms.length > 0 ? (
+        <div className="space-y-2">
+          {platforms.map(p => (
+            <Link
+              key={p.provider}
+              href={`/context/${p.provider}`}
+              className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Link2 className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <span className="text-sm font-medium capitalize">{p.provider}</span>
+                  {p.workspace_name && (
+                    <span className="text-[11px] text-muted-foreground block">{p.workspace_name}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{p.resource_count} sources</span>
+                <span className={cn(
+                  'w-2 h-2 rounded-full',
+                  p.status === 'active' || p.status === 'connected' ? 'bg-green-500' : 'bg-amber-500'
+                )} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <Link2 className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground mb-1">No platforms connected</p>
+          <Link href="/integrations" className="text-xs text-primary hover:underline">
+            Connect Slack or Notion
+          </Link>
+        </div>
+      )}
+
+      <Link
+        href="/integrations"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <RefreshCw className="w-3 h-3" />
+        Manage integrations
+      </Link>
+    </div>
+  );
+}
+
+function DocumentsPanel() {
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.documents.list()
+      .then(res => setDocs(res.documents))
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingState />;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        Uploaded documents — used for onboarding context and agent reference
+      </p>
+
+      {docs.length > 0 ? (
+        <div className="space-y-1">
+          {docs.map(doc => (
+            <FileRow
+              key={doc.id}
+              name={doc.filename}
+              path={`/documents/${doc.id}`}
+              preview={`${doc.file_type} · ${formatFileSize(doc.file_size)}`}
+              timestamp={doc.created_at}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState message="No documents uploaded" />
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Shared Components
+// =============================================================================
+
+function FileRow({ name, path, preview, empty, timestamp }: {
+  name: string;
+  path: string;
+  preview?: string | null;
+  empty?: boolean;
+  timestamp?: string | null;
+}) {
+  return (
+    <div className={cn(
+      'flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors',
+      empty ? 'border border-dashed border-border/50 bg-muted/10' : 'border border-border hover:bg-muted/50',
+    )}>
+      <FileText className={cn('w-4 h-4 shrink-0', empty ? 'text-muted-foreground/30' : 'text-muted-foreground')} />
+      <div className="min-w-0 flex-1">
+        <span className={cn('text-sm truncate block', empty ? 'text-muted-foreground/40' : 'font-medium')}>{name}</span>
+        {preview ? (
+          <span className="text-[11px] text-muted-foreground truncate block">{preview}</span>
+        ) : empty ? (
+          <span className="text-[11px] text-muted-foreground/30">Empty</span>
+        ) : null}
+      </div>
+      {timestamp && (
+        <span className="text-[10px] text-muted-foreground/50 shrink-0">
+          {formatRelativeTime(timestamp)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FileChip({ name, filled }: { name: string; filled?: boolean }) {
+  return (
+    <span className={cn(
+      'px-1.5 py-0.5 text-[10px] rounded border',
+      filled ? 'border-primary/20 bg-primary/5 text-primary/70' : 'border-border/50 text-muted-foreground/50'
+    )}>
+      {name}
+    </span>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-8">
+      <p className="text-xs text-muted-foreground/50">{message}</p>
+    </div>
+  );
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function formatRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+// =============================================================================
+// Section Config
+// =============================================================================
+
+const SECTIONS: Array<{ id: Section; label: string; icon: typeof FolderOpen; path: string }> = [
+  { id: 'workspace', label: 'Workspace', icon: FolderOpen, path: '/workspace/' },
+  { id: 'agents', label: 'Agents', icon: Users, path: '/agents/' },
+  { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks/' },
+  { id: 'knowledge', label: 'Knowledge', icon: Brain, path: '/knowledge/' },
+  { id: 'platforms', label: 'Platforms', icon: Link2, path: '' },
+  { id: 'documents', label: 'Documents', icon: Upload, path: '' },
 ];
 
 // =============================================================================
-// Platforms Section
-// =============================================================================
-
-interface PlatformsSectionProps {
-  platforms: PlatformSummary[];
-  loading: boolean;
-  onNavigate: (platform: string) => void;
-}
-
-function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionProps) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  const platformMap: Record<string, PlatformSummary | undefined> = {};
-  for (const p of platforms) {
-    platformMap[p.provider] = p;
-  }
-
-  const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'active').length;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Connected Platforms</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {connectedCount === 0
-              ? 'Connect platforms to sync your context.'
-              : `${connectedCount} of ${ALL_PLATFORMS.length} connected`}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {ALL_PLATFORMS.map((platformKey) => {
-          const config = PLATFORM_CONFIG[platformKey];
-          const summary = platformMap[platformKey];
-          const isConnected = summary?.status === 'active';
-          const navTarget = platformKey;
-
-          return (
-            <button
-              key={platformKey}
-              onClick={() => onNavigate(navTarget)}
-              className={cn(
-                "rounded-lg border p-4 text-left transition-colors",
-                isConnected
-                  ? "bg-card border-border hover:border-primary/50"
-                  : "bg-muted/30 border-border border-dashed hover:border-muted-foreground/40"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    isConnected ? config.colors.bg : "bg-muted",
-                    isConnected ? config.colors.text : "text-muted-foreground"
-                  )}>
-                    {config.icon}
-                  </div>
-                  <div>
-                    <span className={cn("font-medium text-sm", isConnected ? "text-foreground" : "text-muted-foreground")}>
-                      {config.label}
-                    </span>
-                    {isConnected && summary?.workspace_name && (
-                      <p className="text-xs text-muted-foreground truncate max-w-[140px]">
-                        {summary.workspace_name}
-                      </p>
-                    )}
-                    {!isConnected && (
-                      <p className="text-xs text-muted-foreground/60">Not connected</p>
-                    )}
-                  </div>
-                </div>
-                {isConnected ? (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <span className="text-xs text-primary font-medium">Connect →</span>
-                )}
-              </div>
-
-              {isConnected && summary && (
-                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-green-500" />
-                    Connected
-                  </span>
-                  {summary.resource_count > 0 && (
-                    <span>{summary.resource_count} {summary.resource_type || 'sources'}</span>
-                  )}
-                  {summary.activity_7d > 0 && (
-                    <span>{summary.activity_7d} items (7d)</span>
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// Documents Section
-// =============================================================================
-
-interface DocumentsSectionProps {
-  documents: Document[];
-  loading: boolean;
-  onUpload: () => void;
-}
-
-function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProps) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Uploaded Documents</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            PDFs, docs, and notes you've uploaded for TP to reference.
-          </p>
-        </div>
-        <button
-          onClick={onUpload}
-          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
-        >
-          <Upload className="w-4 h-4" />
-          Upload
-        </button>
-      </div>
-
-      {documents.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground mb-4">
-            No documents uploaded yet. Upload PDFs, docs, or notes to add context.
-          </p>
-          <button
-            onClick={onUpload}
-            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
-          >
-            Upload Document
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-card rounded-lg border border-border p-4 flex items-center gap-3"
-            >
-              <FileText className="w-8 h-8 text-primary" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">{doc.filename}</p>
-                <p className="text-xs text-muted-foreground">
-                  {doc.file_type?.toUpperCase()} · {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {doc.processing_status === 'completed' && (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                )}
-                {doc.processing_status === 'processing' && (
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                )}
-                {doc.processing_status === 'failed' && (
-                  <XCircle className="w-4 h-4 text-red-500" />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Knowledge Section
-// =============================================================================
-
-const KNOWLEDGE_CLASS_LABELS: Record<KnowledgeContentClass, string> = {
-  digests: 'Digests',
-  analyses: 'Analyses',
-  briefs: 'Briefs',
-  research: 'Research',
-  insights: 'Insights',
-};
-
-interface KnowledgeSectionProps {
-  files: KnowledgeFile[];
-  loading: boolean;
-  activeClass?: KnowledgeContentClass;
-  classCounts: Record<string, number>;
-  onClassChange: (contentClass?: KnowledgeContentClass) => void;
-  onFileCreated: () => void;
-}
-
-function KnowledgeSection({
-  files,
-  loading,
-  activeClass,
-  classCounts,
-  onClassChange,
-  onFileCreated,
-}: KnowledgeSectionProps) {
-  const [selectedFile, setSelectedFile] = useState<KnowledgeFileDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [versions, setVersions] = useState<KnowledgeVersion[]>([]);
-  const [canonicalPath, setCanonicalPath] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createTitle, setCreateTitle] = useState('');
-  const [createClass, setCreateClass] = useState<string>('research');
-  const [createContent, setCreateContent] = useState('');
-  const [createSaving, setCreateSaving] = useState(false);
-
-  const handleFileClick = async (file: KnowledgeFile) => {
-    setDetailLoading(true);
-    setCanonicalPath(file.path);
-    try {
-      const [detail, versionsResult] = await Promise.all([
-        api.knowledge.readFile(file.path),
-        api.knowledge.listVersions(file.path).catch(() => ({ versions: [], total: 0, canonical_path: file.path })),
-      ]);
-      setSelectedFile(detail);
-      setVersions(versionsResult.versions || []);
-    } catch (err) {
-      console.error('Failed to read knowledge file:', err);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleVersionClick = async (versionPath: string) => {
-    setDetailLoading(true);
-    try {
-      const detail = await api.knowledge.readFile(versionPath);
-      setSelectedFile(detail);
-    } catch (err) {
-      console.error('Failed to read version:', err);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!createTitle.trim() || !createContent.trim()) return;
-    setCreateSaving(true);
-    try {
-      await api.knowledge.createFile({
-        title: createTitle.trim(),
-        content: createContent.trim(),
-        content_class: createClass,
-      });
-      setShowCreate(false);
-      setCreateTitle('');
-      setCreateContent('');
-      setCreateClass('research');
-      onFileCreated();
-    } catch (err) {
-      console.error('Failed to create knowledge file:', err);
-    } finally {
-      setCreateSaving(false);
-    }
-  };
-
-  // Detail view
-  if (selectedFile) {
-    const detailClass = (selectedFile.content_class in KNOWLEDGE_CLASS_LABELS
-      ? selectedFile.content_class
-      : 'analyses') as KnowledgeContentClass;
-    const detailMeta = (selectedFile.metadata || {}) as Record<string, unknown>;
-
-    return (
-      <div className="space-y-4">
-        <button
-          onClick={() => setSelectedFile(null)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to files
-        </button>
-
-        <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h2 className="text-lg font-semibold text-foreground">{selectedFile.name}</h2>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-              {KNOWLEDGE_CLASS_LABELS[detailClass]}
-            </span>
-            {typeof detailMeta.source === 'string' && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                {detailMeta.source === 'user_upload' ? 'User' : detailMeta.source}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="truncate">{selectedFile.path}</span>
-            {selectedFile.updated_at && (
-              <span className="shrink-0">
-                {formatDistanceToNow(new Date(selectedFile.updated_at), { addSuffix: true })}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-lg border border-border p-5">
-          {selectedFile.path.endsWith('.md') ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-li:my-0">
-              <ReactMarkdown>{selectedFile.content}</ReactMarkdown>
-            </div>
-          ) : (
-            <pre className="text-sm whitespace-pre-wrap break-words text-foreground">
-              {selectedFile.content}
-            </pre>
-          )}
-        </div>
-
-        {/* Version history — ADR-107 Phase 2 */}
-        {versions.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Version History ({versions.length})
-            </h3>
-            {versions.map((v) => {
-              const isViewing = selectedFile.path === v.path;
-              return (
-                <button
-                  key={v.path}
-                  onClick={() => !isViewing && handleVersionClick(v.path)}
-                  disabled={isViewing}
-                  className={cn(
-                    "w-full text-left rounded-lg border p-3 text-sm transition-colors",
-                    isViewing
-                      ? "bg-primary/5 border-primary/30 cursor-default"
-                      : "bg-card border-border hover:border-primary/50"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground">
-                      v{v.version}
-                      {isViewing && <span className="text-xs text-muted-foreground ml-2">(viewing)</span>}
-                    </span>
-                    {v.updated_at && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(v.updated_at), { addSuffix: true })}
-                      </span>
-                    )}
-                  </div>
-                  {v.summary && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{v.summary}</p>
-                  )}
-                </button>
-              );
-            })}
-            {canonicalPath && selectedFile.path !== canonicalPath && (
-              <button
-                onClick={() => handleVersionClick(canonicalPath)}
-                className="text-xs text-primary hover:text-primary/80"
-              >
-                Back to current version
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Loading detail
-  if (detailLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  const totalFiles = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Outputs</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Agent-produced files across all projects.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
-        >
-          <Plus className="w-4 h-4" />
-          Add File
-        </button>
-      </div>
-
-      {/* Create form */}
-      {showCreate && (
-        <div className="bg-card rounded-lg border border-border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground">New Knowledge File</h3>
-            <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="Title"
-              value={createTitle}
-              onChange={(e) => setCreateTitle(e.target.value)}
-              className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <select
-              value={createClass}
-              onChange={(e) => setCreateClass(e.target.value)}
-              className="px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {VALID_KNOWLEDGE_CLASSES.map((cls) => (
-                <option key={cls} value={cls}>{KNOWLEDGE_CLASS_LABELS[cls]}</option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            placeholder="Content (markdown supported)"
-            value={createContent}
-            onChange={(e) => setCreateContent(e.target.value)}
-            rows={6}
-            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-y"
-          />
-          <div className="flex justify-end">
-            <button
-              onClick={handleCreate}
-              disabled={createSaving || !createTitle.trim() || !createContent.trim()}
-              className="px-4 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {createSaving ? 'Saving...' : 'Create'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => onClassChange(undefined)}
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full border transition-colors",
-            !activeClass
-              ? "bg-primary text-primary-foreground border-primary"
-              : "border-border hover:bg-muted"
-          )}
-        >
-          All ({totalFiles})
-        </button>
-        {VALID_KNOWLEDGE_CLASSES.map((contentClass) => (
-          <button
-            key={contentClass}
-            onClick={() => onClassChange(contentClass)}
-            className={cn(
-              "px-2.5 py-1 text-xs rounded-full border transition-colors",
-              activeClass === contentClass
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border hover:bg-muted"
-            )}
-          >
-            {KNOWLEDGE_CLASS_LABELS[contentClass]} ({classCounts[contentClass] || 0})
-          </button>
-        ))}
-      </div>
-
-      {files.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <FolderTree className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground mb-4">
-            {activeClass
-              ? `No ${KNOWLEDGE_CLASS_LABELS[activeClass].toLowerCase()} files yet.`
-              : 'No knowledge files yet. Create one or run an agent to get started.'}
-          </p>
-          {!showCreate && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
-            >
-              Create File
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {files.map((file) => {
-            const metadata = (file.metadata || {}) as Record<string, unknown>;
-            const contentClass = (file.content_class in KNOWLEDGE_CLASS_LABELS
-              ? file.content_class
-              : 'analyses') as KnowledgeContentClass;
-
-            return (
-              <button
-                key={file.path}
-                onClick={() => handleFileClick(file)}
-                className="w-full text-left bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className="font-medium text-foreground truncate">{file.name}</p>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                        {KNOWLEDGE_CLASS_LABELS[contentClass]}
-                      </span>
-                      {typeof metadata.role === 'string' && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {ROLE_LABELS[metadata.role as Role] || metadata.role}
-                        </span>
-                      )}
-                    </div>
-                    {file.summary && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{file.summary}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {file.updated_at && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(file.updated_at), { addSuffix: true })}
-                      </span>
-                    )}
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Main Component
+// Main Page
 // =============================================================================
 
 export default function ContextPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeSection, setActiveSection] = useState<Section>('workspace');
 
-  const sectionParam = normalizeSection(searchParams.get('section'));
-  const knowledgeClassParam = normalizeKnowledgeClass(searchParams.get('class'));
-  const [activeSection, setActiveSection] = useState<Section>(sectionParam);
-
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [platforms, setPlatforms] = useState<PlatformSummary[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
-  const [knowledgeClassCounts, setKnowledgeClassCounts] = useState<Record<string, number>>({});
-
-  const loadData = useCallback(async () => {
-    try {
-      const [platformsResult, documentsResult, knowledgeResult, knowledgeSummary] = await Promise.all([
-        api.integrations.getSummary().catch(() => ({ platforms: [] })),
-        api.documents.list().catch(() => ({ documents: [] })),
-        api.knowledge.listFiles({
-          content_class: knowledgeClassParam,
-          limit: 60,
-        }).catch(() => ({ files: [] })),
-        api.knowledge.summary().catch(() => ({ classes: [] })),
-      ]);
-
-      setPlatforms(platformsResult?.platforms || []);
-      setDocuments(documentsResult?.documents || []);
-      setKnowledgeFiles(knowledgeResult?.files || []);
-
-      const nextCounts: Record<string, number> = {};
-      for (const row of knowledgeSummary?.classes || []) {
-        nextCounts[row.content_class] = row.count;
-      }
-      setKnowledgeClassCounts(nextCounts);
-    } catch (err) {
-      console.error('Failed to load context data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [knowledgeClassParam]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    const s = normalizeSection(searchParams.get('section'));
-    if (s !== activeSection) {
-      setActiveSection(s);
-    }
-  }, [searchParams, activeSection]);
-
-  const handleSectionChange = (section: Section) => {
-    setActiveSection(section);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('section', section);
-    if (section !== 'knowledge') {
-      params.delete('class');
-    }
-    router.replace(`/context?${params.toString()}`, { scroll: false });
-  };
-
-  const handleKnowledgeClassChange = (contentClass?: KnowledgeContentClass) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('section', 'knowledge');
-    if (contentClass) {
-      params.set('class', contentClass);
-    } else {
-      params.delete('class');
-    }
-    router.replace(`/context?${params.toString()}`, { scroll: false });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      await api.documents.upload(file);
-      const result = await api.documents.list();
-      setDocuments(result.documents || []);
-    } catch (err) {
-      console.error('Upload failed:', err);
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const renderPanel = () => {
+    switch (activeSection) {
+      case 'workspace': return <WorkspacePanel />;
+      case 'agents': return <AgentsPanel />;
+      case 'tasks': return <TasksPanel />;
+      case 'knowledge': return <KnowledgePanel />;
+      case 'platforms': return <PlatformsPanel />;
+      case 'documents': return <DocumentsPanel />;
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Workspace</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Browse projects, outputs, and uploads
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setRefreshing(true);
-              loadData().finally(() => setRefreshing(false));
-            }}
-            disabled={refreshing}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-            Refresh
-          </button>
-        </div>
-
-        {/* Mobile section navigation (desktop uses sidebar) */}
-        <div className="md:hidden flex items-center gap-2 mb-6">
-          {SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              onClick={() => handleSectionChange(section.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border ${
-                activeSection === section.id
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:bg-muted'
-              }`}
-            >
-              {section.icon}
-              {section.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        {activeSection === 'documents' && (
-          <DocumentsSection
-            documents={documents}
-            loading={false}
-            onUpload={() => fileInputRef.current?.click()}
+    <div className="h-full flex">
+      {/* Sidebar — tree navigation */}
+      <div className="w-[220px] border-r border-border p-3 space-y-1 shrink-0 overflow-y-auto">
+        <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest px-3 mb-2">
+          Explorer
+        </p>
+        {SECTIONS.map(section => (
+          <TreeSection
+            key={section.id}
+            icon={section.icon}
+            label={section.label}
+            active={activeSection === section.id}
+            onClick={() => setActiveSection(section.id)}
           />
-        )}
-
-        {activeSection === 'knowledge' && (
-          <KnowledgeSection
-            files={knowledgeFiles}
-            loading={false}
-            activeClass={knowledgeClassParam}
-            classCounts={knowledgeClassCounts}
-            onClassChange={handleKnowledgeClassChange}
-            onFileCreated={() => loadData()}
-          />
-        )}
+        ))}
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        accept=".pdf,.doc,.docx,.txt,.md"
-        onChange={handleFileUpload}
-      />
+      {/* Content pane */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-3xl">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Context</span>
+            <ChevronRight className="w-3 h-3" />
+            <span className="text-foreground font-medium">
+              {SECTIONS.find(s => s.id === activeSection)?.label}
+            </span>
+            {SECTIONS.find(s => s.id === activeSection)?.path && (
+              <span className="text-muted-foreground/40 ml-1">
+                {SECTIONS.find(s => s.id === activeSection)?.path}
+              </span>
+            )}
+          </div>
+
+          {renderPanel()}
+        </div>
+      </div>
     </div>
   );
 }
