@@ -1,13 +1,21 @@
 """
-YARNNN v5 - Unified Scheduler (ADR-138: Clean Slate)
+YARNNN v5 - Unified Scheduler (ADR-138 + ADR-141)
 
-Consolidates:
-- Task-based scheduling (ADR-138 Phase 3 — stub, no task execution yet)
-- TP Composer Heartbeat (ADR-111 Phase 3)
-- Import jobs
-- Nightly conversation analysis + memory extraction
+Three-layer execution: mechanical scheduling, LLM generation, TP intelligence.
+
+Layer 1 (this file — zero LLM cost):
+- Task scheduling: SQL query → execute_task() for each due task
 - Platform content cleanup (ADR-072)
 - Workspace ephemeral cleanup (ADR-119)
+- Import jobs
+- Composer heartbeat (ADR-111)
+- Memory extraction (nightly)
+
+Layer 2 (task_execution.py — Sonnet per task):
+- TASK.md → AGENT.md → context → generate → deliver
+
+Layer 3 (thinking_partner.py — user-present + periodic heartbeat):
+- Chat mode + TP heartbeat (reads health flags, orchestrates)
 
 Run every 5 minutes via Render cron:
   schedule: "*/5 * * * *"
@@ -215,10 +223,9 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 
 async def get_due_tasks(supabase_client) -> list[dict]:
     """
-    ADR-138: Query tasks table for due tasks.
+    ADR-141: Query tasks table for due tasks.
 
     Returns active tasks where next_run_at <= now.
-    Stub for Phase 3 — tasks exist but no execution pipeline yet.
     """
     now = datetime.now(timezone.utc)
 
@@ -235,6 +242,40 @@ async def get_due_tasks(supabase_client) -> list[dict]:
         # tasks table may not exist yet or be empty — graceful degradation
         logger.debug(f"[TASKS] Query failed (expected if no tasks yet): {e}")
         return []
+
+
+async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int, int]:
+    """
+    ADR-141: Execute all due tasks. Returns (success_count, fail_count).
+
+    Each task is executed independently — one failure doesn't block others.
+    """
+    from services.task_execution import execute_task
+
+    success = 0
+    failed = 0
+
+    for task in due_tasks:
+        user_id = task.get("user_id")
+        slug = task.get("slug")
+        if not user_id or not slug:
+            logger.warning(f"[TASKS] Skipping task with missing user_id or slug: {task.get('id')}")
+            failed += 1
+            continue
+
+        try:
+            result = await execute_task(supabase_client, user_id, slug)
+            if result.get("success"):
+                success += 1
+                logger.info(f"[TASKS] ✓ {slug}: {result.get('message', 'OK')}")
+            else:
+                failed += 1
+                logger.warning(f"[TASKS] ✗ {slug}: {result.get('message', 'Unknown error')}")
+        except Exception as e:
+            failed += 1
+            logger.error(f"[TASKS] Exception executing {slug}: {e}")
+
+    return success, failed
 
 
 # =============================================================================
@@ -264,14 +305,19 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # ADR-138: Task-based scheduling (stub — Phase 3 will add execution)
+    # ADR-141: Task execution — find and run due tasks
     # -------------------------------------------------------------------------
     due_tasks = await get_due_tasks(supabase)
     tasks_found = len(due_tasks)
-    logger.info(f"[TASKS] Found {tasks_found} due tasks (execution not yet implemented — Phase 3)")
+    task_success = 0
+    task_failed = 0
 
-    # Stub counters for summary (will be populated when task execution is built)
-    agent_success = 0
+    if tasks_found > 0:
+        logger.info(f"[TASKS] Found {tasks_found} due tasks — executing...")
+        task_success, task_failed = await execute_due_tasks(supabase, due_tasks)
+        logger.info(f"[TASKS] Execution complete: {task_success} succeeded, {task_failed} failed")
+    else:
+        logger.info(f"[TASKS] No due tasks")
 
     # -------------------------------------------------------------------------
     # ADR-072: Cleanup Expired Platform Content (hourly)
@@ -553,7 +599,7 @@ async def run_unified_scheduler():
     # Summary
     # -------------------------------------------------------------------------
     summary_parts = [
-        f"tasks_due={tasks_found}",
+        f"tasks={task_success}/{tasks_found}",
         f"imports={import_success}/{import_count}",
     ]
     if memory_extracted > 0:
@@ -576,12 +622,14 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        heartbeat_summary = f"Scheduler cycle: tasks_due={tasks_found}, imports={import_success}/{import_count}"
+        heartbeat_summary = f"Scheduler cycle: tasks={task_success}/{tasks_found}, imports={import_success}/{import_count}"
 
         # Write per-user heartbeat for all users with active connections
         # so the system page can show scheduler status per user
         heartbeat_metadata = {
             "tasks_due": tasks_found,
+            "tasks_succeeded": task_success,
+            "tasks_failed": task_failed,
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "composer_users": composer_users,

@@ -1,6 +1,6 @@
 # ADR-141: Unified Execution Architecture — Mechanical Scheduling, LLM Generation
 
-> **Status**: Proposed
+> **Status**: Phase 1-2 Implemented (scheduler + task execution pipeline live; legacy callers retained for incremental migration)
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-088 (Trigger Dispatch), ADR-126 (Agent Pulse — remaining Tier 1/2)
@@ -288,3 +288,33 @@ Current settings that need review:
 - **Output Gateway**: NONE — unchanged
 
 ### No new env vars needed
+
+---
+
+## Implementation Notes (2026-03-25)
+
+### Phase 1-2: Implemented
+
+**New files:**
+- `api/services/task_execution.py` — complete pipeline: `execute_task(client, user_id, task_slug)`. Reads TASK.md → resolves agent → gathers context → generates (Sonnet, multi-tool) → saves output → delivers → updates scheduling → writes activity.
+  - `parse_task_md()` — structured parser for TASK.md
+  - `gather_task_context()` — unified context gathering (replaces strategy pattern for scheduled tasks)
+  - `build_task_execution_prompt()` — builds system + user prompt from task + agent identity
+  - `_generate()` — headless generation loop (reuses `chat_completion_with_tools`)
+
+**Modified files:**
+- `api/jobs/unified_scheduler.py` — `execute_due_tasks()` calls `execute_task()` for each due task. Stub replaced with live execution. Heartbeat metadata updated with task success/fail counts.
+
+**Deleted files:**
+- `api/services/agent_pulse.py` — zero production callers. Tier 1/2 pulse dissolved into scheduler SQL + task pipeline.
+
+### Deferred (Phase 3-5)
+
+**Legacy callers retained** — `execute_agent_generation()` in `agent_execution.py` has 5 production callers (routes/agents.py, routes/admin.py, mcp_server/server.py, primitives/execute.py, trigger_dispatch.py). These continue working via the old pipeline. Migration plan:
+- Phase 3: Rewire callers to `execute_task()` where task context exists
+- Phase 4: TP heartbeat mode (reads health flags, periodic headless TP)
+- Phase 5: Delete `agent_execution.py`, `trigger_dispatch.py`, `execution_strategies.py`
+
+**Event triggers** — `event_triggers.py` → `trigger_dispatch.py` → `execute_agent_generation()` chain preserved. Reactive task accumulation pattern (observe → threshold → generate) needs separate design for task-native reactive mode.
+
+**Activity events** — `task_executed` event added. Legacy `agent_pulsed` events no longer emitted (agent_pulse.py deleted). `agent_run` events still emitted by legacy callers.
