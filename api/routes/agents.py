@@ -213,8 +213,6 @@ class AgentCreate(BaseModel):
     # ADR-109: Role is user-selected, scope is auto-inferred
     role: Role = "custom"
     type_config: Optional[dict] = None  # Role-specific config, validated per role
-    # ADR-092: Mode taxonomy (trigger axis in ADR-109)
-    mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
 
@@ -226,7 +224,6 @@ class AgentUpdate(BaseModel):
     type_config: Optional[dict] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
     agent_instructions: Optional[str] = None
-    mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
 
 
 class AgentResponse(BaseModel):
@@ -251,8 +248,6 @@ class AgentResponse(BaseModel):
     # ADR-087: Agent-scoped context
     agent_instructions: Optional[str] = None
     agent_memory: Optional[dict] = None
-    # ADR-092: Mode taxonomy
-    mode: str = "recurring"
     # ADR-118: Avatar
     avatar_url: Optional[str] = None
 
@@ -397,7 +392,6 @@ async def create_agent(
         role=request.role,
         origin="user_configured",
         agent_instructions=request.agent_instructions,
-        mode=request.mode,
         type_config=validated_config,
     )
 
@@ -422,7 +416,6 @@ async def create_agent(
         origin=agent.get("origin", "user_configured"),
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
-        mode=agent.get("mode", "recurring"),
         avatar_url=agent.get("avatar_url"),
     )
 
@@ -551,7 +544,6 @@ async def list_agents(
             origin=d.get("origin", "user_configured"),
             agent_instructions=intel.get("agent_instructions"),
             agent_memory=intel.get("agent_memory"),
-            mode=d.get("mode", "recurring"),
             avatar_url=d.get("avatar_url"),
         ))
 
@@ -655,7 +647,6 @@ async def get_agent(
             origin=agent.get("origin", "user_configured"),
             agent_instructions=intelligence.get("agent_instructions"),
             agent_memory=intelligence.get("agent_memory"),
-            mode=agent.get("mode", "recurring"),
             avatar_url=agent.get("avatar_url"),
         ),
         "versions": [
@@ -732,8 +723,7 @@ async def update_agent(
     if request.status is not None:
         update_data["status"] = request.status
     # ADR-106: agent_instructions written to workspace only (not DB column)
-    if request.mode is not None:
-        update_data["mode"] = request.mode
+    # ADR-138: mode removed from agents — mode is on tasks
 
     result = (
         auth.client.table("agents")
@@ -768,7 +758,6 @@ async def update_agent(
         origin=d.get("origin", "user_configured"),
         agent_instructions=intelligence.get("agent_instructions"),
         agent_memory=intelligence.get("agent_memory"),
-        mode=d.get("mode", "recurring"),
         avatar_url=d.get("avatar_url"),
     )
 

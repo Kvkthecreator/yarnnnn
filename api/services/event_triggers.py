@@ -213,15 +213,10 @@ async def get_agents_for_event(
 
     Returns list of matched agents with cooldown status.
     """
-    # Query agents with event triggers for this user
-    result = (
-        db_client.table("agents")
-        .select("id, user_id, title, trigger_type, trigger_config, status")
-        .eq("user_id", event.user_id)
-        .eq("status", "active")
-        .eq("trigger_type", "event")
-        .execute()
-    )
+    # ADR-138: trigger_type/trigger_config columns dropped from agents.
+    # Event triggers are now handled via reactive tasks (mode='reactive' on tasks table).
+    # This legacy path returns empty — no agents have trigger_type anymore.
+    result = type("R", (), {"data": []})()  # Empty result
 
     matches = []
 

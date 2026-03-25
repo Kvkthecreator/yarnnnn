@@ -51,15 +51,13 @@ ROLE_TO_SCOPE = {
 }
 
 
-def infer_scope(role: str, mode: str = "recurring") -> str:
+def infer_scope(role: str) -> str:
     """
-    ADR-109: Auto-infer scope from role + mode.
+    ADR-109: Auto-infer scope from role.
 
     Scope is never user-configured — it's derived from the agent's role.
+    ADR-138: mode removed from agents (proactive/coordinator modes deleted).
     """
-    if mode in ("proactive", "coordinator") and role in ("synthesize", "research", "analyst", "researcher"):
-        return "autonomous"
-
     return ROLE_TO_SCOPE.get(role, "knowledge")
 
 # Columns allowed in agents table INSERT (prevents Supabase 400)
@@ -71,7 +69,7 @@ AGENT_COLUMNS = {
     "status", "created_at", "updated_at",
     "type_config", "origin",
     "agent_instructions", "agent_memory",
-    "mode", "scope", "role",
+    "scope", "role",
     "avatar_url",
 }
 
@@ -88,7 +86,6 @@ async def create_agent_record(
     origin: str = "user_configured",
     *,
     agent_instructions: Optional[str] = None,
-    mode: str = "recurring",
     type_config: Optional[dict] = None,
     avatar_url: Optional[str] = None,
 ) -> dict:
@@ -112,8 +109,8 @@ async def create_agent_record(
     if role not in VALID_ROLES:
         role = "custom"
 
-    # Infer scope from role + mode
-    scope = infer_scope(role, mode)
+    # Infer scope from role (ADR-138: mode removed from agents)
+    scope = infer_scope(role)
 
     # Resolve instructions
     instructions_text = agent_instructions
@@ -130,7 +127,6 @@ async def create_agent_record(
         "title": title.strip(),
         "role": role,
         "scope": scope,
-        "mode": mode,
         "origin": origin,
         "status": "active",
         "type_config": type_config or {},

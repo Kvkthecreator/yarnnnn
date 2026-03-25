@@ -698,25 +698,22 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
 COMPOSER_TEMPLATES = {
     "briefer": {
         "role": "briefer",
-        "mode": "recurring",
         "frequency": "daily",
     },
     "analyst": {
         "role": "analyst",
-        "mode": "recurring",
         "frequency": "weekly",
     },
     "monitor": {
         "role": "monitor",
-        "mode": "recurring",
         "frequency": "daily",
     },
     "researcher": {
         "role": "researcher",
-        "mode": "recurring",
         "frequency": "weekly",
     },
 }
+# ADR-138: mode removed from templates — mode is on tasks, not agents
 
 # PLATFORM_DIGEST_TITLES — DELETED (ADR-122). Project registry dissolved.
 

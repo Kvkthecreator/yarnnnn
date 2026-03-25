@@ -341,22 +341,17 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
         total_count = count_result.count or 0
 
         result = client.table("agents").select(
-            "id, title, status, schedule, recipient_context, next_pulse_at, updated_at"
+            "id, title, status, role, updated_at"
         ).eq("user_id", user_id).eq("status", "active").order(
             "updated_at", desc=True
         ).limit(MAX_AGENTS).execute()
 
         if result.data:
             for d in result.data:
-                schedule = d.get("schedule", {}) or {}
-                recipient = d.get("recipient_context", {}) or {}
-
                 agents.append({
                     "id": d["id"],
                     "title": d.get("title", "Untitled"),
-                    "frequency": schedule.get("frequency", "unknown"),
-                    "recipient": recipient.get("name", "unspecified"),
-                    "next_run": d.get("next_pulse_at"),
+                    "role": d.get("role", "custom"),
                 })
 
         if total_count > MAX_AGENTS:
@@ -668,15 +663,17 @@ def format_for_prompt(working_memory: dict) -> str:
             else:
                 lines.append(f"- {content}")
 
-    # Agents (WORK)
+    # Agents (ROSTER — ADR-140)
     agents = working_memory.get("agents", [])
     if agents:
-        lines.append(f"\n### Active agents")
+        lines.append(f"\n### Your team ({len([a for a in agents if '_note' not in a])} agents)")
         for d in agents:
             if "_note" in d:
                 lines.append(f"  {d['_note']}")
             else:
-                lines.append(f"- {d.get('title')} ({d.get('frequency')}) → {d.get('recipient')}")
+                role = d.get('role', 'custom')
+                title = d.get('title', 'Untitled')
+                lines.append(f"- {title} ({role})")
 
     # Platforms (STATUS)
     platforms = working_memory.get("platforms", [])

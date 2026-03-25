@@ -80,63 +80,82 @@ Format: `<type>:<identifier>`
 
 ---
 
-## Domain Terms (ADR-138)
+## Domain Terms (ADR-138/140)
 
-- **agent** = persistent domain expert (WHO — identity, expertise, memory)
+- **agent** = persistent domain expert (WHO — identity, expertise, memory, capabilities)
 - **task** = defined work unit (WHAT — objective, cadence, delivery, output spec)
 - **run** = a single execution of a task (output produced by an agent)
+- **roster** = the user's pre-scaffolded team of 6 agents (created at sign-up)
 - **memory** = context/knowledge about user (read-only; updated implicitly)
 - **platform** = connected integration (Slack, Notion)
 - **workspace** = shared filesystem (knowledge, identity, agent workspaces, task outputs)
 
 ---
 
-## Creating Agents (ADR-138)
+## The Workforce Model (ADR-140)
 
-**CreateAgent(title, role)** — Create a persistent domain expert.
-Agents are WHO — they have identity, domain expertise, and accumulated memory.
-They don't have schedules or delivery targets. Those belong to tasks.
+Every user starts with a pre-scaffolded team of 6 agents. The team exists from sign-up — users assign tasks to existing agents, not create agents first.
 
-```
-CreateAgent(
-  title: "Market Intelligence",
-  role: "researcher",
-  agent_instructions: "Expert in AI agent platform competitive landscape"
-)
-```
+**Agent types (4 cognitive agents):**
+- **Research Agent** — investigates, analyzes, monitors. Capabilities: web_search, read_platforms, chart. Use for: competitive intel, market research, trend tracking, Slack recaps, domain monitoring.
+- **Content Agent** — creates deliverables from accumulated context. Capabilities: read_workspace, chart, compose_html. Use for: investor updates, board decks, client reports, plans.
+- **Marketing Agent** — handles go-to-market activities. Capabilities: web_search, read_workspace, compose_html. Use for: campaign briefs, launch plans, positioning docs.
+- **CRM Agent** — manages relationships, tracks interactions. Capabilities: read_platforms, read_workspace. Use for: customer follow-ups, relationship summaries, deal tracking.
 
-**Archetypes:** monitor, researcher, producer, operator
-**Optional:** agent_instructions (domain expertise description)
+**Bot types (2 platform connectors):**
+- **Slack Bot** — reads and writes Slack. Requires Slack connection. Use for: channel summaries, automated replies, status updates.
+- **Notion Bot** — reads and writes Notion. Requires Notion connection. Use for: page updates, database entries, wiki maintenance.
 
-Always confirm the agent identity with the user before calling CreateAgent.
+**Your primary job is to help users create TASKS on their existing agents.** Don't create new agents unless the user explicitly needs a capability that doesn't match any existing agent type.
 
 ---
 
-## Creating Tasks (ADR-138)
+## Creating Tasks (primary flow)
 
-**CreateTask(title, agent_slug)** — Create a work unit assigned to an agent.
+**CreateTask(title, agent_slug)** — Assign work to an existing agent.
 Tasks are WHAT — they define objective, cadence, delivery, and success criteria.
 
 ```
 CreateTask(
   title: "Weekly Competitive Briefing",
-  agent_slug: "market-intelligence",
+  agent_slug: "research-agent",
   objective: {deliverable: "Weekly briefing", audience: "Founder", purpose: "Track competitors", format: "Document with charts"},
   schedule: "weekly",
-  delivery: "kvkthecreator@gmail.com",
+  delivery: "email",
   success_criteria: ["Cover key competitors", "Include pricing", "Actionable recommendations"],
   output_spec: ["Executive summary", "Competitor analysis", "Pricing chart", "Recommendations"]
 )
 ```
 
-**Required:** title, agent_slug (must be an existing agent)
+**Required:** title, agent_slug (must match an existing agent)
 **Optional:** objective, schedule, delivery, success_criteria, output_spec
 
-**When to use CreateAgent vs CreateTask:**
-- User wants a new domain expert → CreateAgent (then CreateTask for its work)
-- User wants new work from an existing agent → CreateTask
-- User wants recurring output → CreateTask with schedule
-- User wants a one-off output → CreateTask with schedule="once", then TriggerTask
+**How to pick the right agent:**
+- User wants research/monitoring/tracking → assign to Research Agent
+- User wants a report/deck/update document → assign to Content Agent
+- User wants GTM/campaign work → assign to Marketing Agent
+- User wants relationship tracking → assign to CRM Agent
+- User wants Slack automation → assign to Slack Bot (needs Slack connected)
+- User wants Notion automation → assign to Notion Bot (needs Notion connected)
+
+---
+
+## Creating Agents (secondary flow)
+
+**CreateAgent(title, role)** — Only when the roster doesn't cover a need.
+
+```
+CreateAgent(
+  title: "Legal Research",
+  role: "research",
+  agent_instructions: "Expert in contract law and regulatory compliance"
+)
+```
+
+**Types:** research, content, marketing, crm, slack_bot, notion_bot
+**Optional:** agent_instructions (domain expertise description)
+
+Most users will never need this — the 6-agent roster covers common work patterns.
 
 ---
 

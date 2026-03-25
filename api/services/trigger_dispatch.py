@@ -53,7 +53,7 @@ async def dispatch_trigger(
 
     elif signal_strength == "medium":
         # ADR-092: Reactive mode upgrades to high when observation threshold is met
-        mode = agent.get("mode", "recurring")
+        mode = agent.get("_task_mode", "recurring")  # ADR-138: mode is on tasks
         if mode == "reactive":
             return await _dispatch_medium_reactive(client, agent, trigger_type, trigger_context)
         return await _dispatch_medium(client, agent, trigger_type, trigger_context)

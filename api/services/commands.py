@@ -21,103 +21,118 @@ logger = logging.getLogger(__name__)
 
 COMMANDS: Dict[str, Dict[str, Any]] = {
     # =========================================================================
-    # Agent Creation Commands (ADR-109: Scope × Skill × Trigger)
+    # Task Commands (ADR-138/140: Task-centric workflow)
     # =========================================================================
-    "create": {
-        "name": "create",
-        "description": "Create a new recurring agent",
-        "trigger_patterns": ["/create"],
+    "task": {
+        "name": "task",
+        "description": "Create a new task — assign recurring work to an agent",
+        "trigger_patterns": ["/task", "create a task", "new task", "assign work", "set up a task"],
         "system_prompt_addition": """
 ---
 
-## Active Command: Create Agent
+## Active Command: Create Task
 
-User wants to create an agent. Guide them through setup:
-
-1. Ask what kind: `Clarify(question="What should this agent do?", options=["Platform recap", "Work summary", "Research & insights"])`
-2. Based on choice, ask platform/frequency/recipient as needed
-3. Confirm and create with `CreateAgent(...)`
-
-Keep it simple — one question at a time.
-""",
-    },
-
-    "summary": {
-        "name": "summary",
-        "description": "Create a work summary agent — synthesize activity across platforms",
-        "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status agent", "summarize my work", "platform summary"],
-        "role": "analyst",
-        "system_prompt_addition": """
----
-
-## Active Command: Work Summary
-
-Create a work summary agent — analyzes activity across the user's connected platforms into a structured report for a specific audience.
+User wants to create a task (recurring work assigned to an agent).
 
 **Flow:**
-1. Check for duplicates: `List(pattern="agent:*")`
-2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
-3. Ask frequency preference: `Clarify(question="How often?", options=["Daily", "Weekly", "Biweekly", "Monthly"])`
-4. Confirm: "I'll create a [frequency] Work Summary for [recipient]. Ready?"
-5. On confirmation: `CreateAgent(title="Work Summary", role="analyst", frequency=..., recipient_name=...)`
-6. Offer first draft
+1. Ask what they need: `Clarify(question="What work do you need done?", options=["Weekly recap", "Research report", "Content/document", "Platform monitoring"])`
+2. Based on choice, pick the right agent from their roster:
+   - Research/monitoring/tracking → Research Agent
+   - Reports/updates/decks → Content Agent
+   - GTM/campaigns → Marketing Agent
+   - Relationships/follow-ups → CRM Agent
+   - Slack automation → Slack Bot
+   - Notion automation → Notion Bot
+3. Ask schedule: `Clarify(question="How often?", options=["Daily", "Weekly", "Monthly", "One-time"])`
+4. Ask delivery if relevant: email, Slack, download
+5. Confirm and create with `CreateTask(title=..., agent_slug=..., schedule=..., delivery=...)`
 
-**Defaults:** frequency=weekly, role=analyst
+Keep it simple — one question at a time. The agent already exists in their roster.
 """,
     },
 
     "recap": {
         "name": "recap",
-        "description": "Create a platform recap — catch up on everything across a connected platform",
-        "trigger_patterns": ["recap", "platform recap", "slack recap", "notion recap", "slack digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap agent", "create a digest", "create digest agent", "digest"],
-        "role": "briefer",
+        "description": "Set up a platform recap — daily or weekly catch-up from Slack or Notion",
+        "trigger_patterns": ["recap", "platform recap", "slack recap", "notion recap", "slack digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "digest"],
         "system_prompt_addition": """
 ---
 
 ## Active Command: Recap
 
-Create a briefer agent — a platform-wide summary that catches the user up on everything across a connected platform. One briefer per platform (not per channel/label/page).
+Create a recurring recap task assigned to the Research Agent (or Slack/Notion Bot if platform-specific).
 
 **Flow:**
-1. Check for duplicates: `List(pattern="agent:*")` — if a briefer already exists for the requested platform, offer to edit it instead
-2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Notion"])`
-3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
-4. Confirm: "I'll create a [frequency] [Platform] Recap project. Ready?"
-5. On confirmation: `CreateAgent(title="[Platform] Briefer", role="briefer", frequency=..., sources=[all synced sources for platform])`
-6. Offer first draft
+1. Ask platform: `Clarify(question="Which platform?", options=["Slack", "Notion", "Both"])`
+2. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
+3. Confirm and create:
+   `CreateTask(title="[Platform] Recap", agent_slug="research-agent", schedule=..., objective={deliverable: "Platform recap", audience: "You", purpose: "Stay on top of activity"})`
 
-**Important:**
-- Agent title format: "[Platform] Briefer" (e.g., "Slack Briefer", "Notion Briefer")
-- Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/pages
-- One briefer per platform per user — check duplicates before creating
-- Defaults: frequency=daily, role=briefer
+**Defaults:** frequency=daily, agent=research-agent
 """,
     },
 
-    # ADR-131: "prep" command deleted (Calendar sunset — no meeting prep without calendar data)
-
-    "research": {
-        "name": "research",
-        "description": "Set up Proactive Insights — watches your platforms and surfaces what matters",
-        "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "what should I know", "investigate", "research this", "look into", "find out about"],
-        "role": "analyst",
+    "summary": {
+        "name": "summary",
+        "description": "Create a work summary — synthesize activity into a report",
+        "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "summarize my work"],
         "system_prompt_addition": """
 ---
 
-## Active Command: Proactive Insights
+## Active Command: Work Summary
 
-Set up Proactive Insights — YARNNN watches the user's connected platforms for emerging themes, researches them externally, and delivers intelligence the user didn't ask for.
+Create a recurring summary task assigned to the Content Agent.
 
 **Flow:**
-1. Check for duplicates: `List(pattern="agent:*")` — one per user
-2. If duplicate exists, tell the user they already have Proactive Insights set up and offer to open it
-3. Confirm: "I'll scan your connected platforms regularly and surface emerging themes with external context. Would you like a daily or weekly pulse?"
-4. Ask frequency: `Clarify(question="How often should I check for insights?", options=["Weekly (recommended)", "Daily"])`
-5. On confirmation: `CreateAgent(title="Proactive Insights", role="synthesize", mode="proactive")`
-- Sources: ALL connected platform sources (Slack, Notion) — for cross-platform signal detection
-- One per user — check duplicates before creating
-- Defaults: mode=proactive, role=synthesize, scope=autonomous
-- Do NOT ask for a research topic — topic selection is autonomous from platform signals
+1. Ask audience: `Clarify(question="Who is this for?", options=["Manager", "Team", "Board", "Investors"])`
+2. Ask frequency: `Clarify(question="How often?", options=["Weekly", "Biweekly", "Monthly"])`
+3. Confirm and create:
+   `CreateTask(title="[Frequency] [Audience] Summary", agent_slug="content-agent", schedule=..., objective={deliverable: "Work summary", audience: ..., format: "Document"})`
+
+**Defaults:** frequency=weekly, agent=content-agent
+""",
+    },
+
+    "research": {
+        "name": "research",
+        "description": "Set up research tracking — monitors topics and surfaces insights",
+        "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "investigate", "research this", "look into", "find out about", "track competitors", "competitive intel"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Research
+
+Create a research task assigned to the Research Agent.
+
+**Flow:**
+1. Ask what to research: "What topic or domain should I track?"
+2. Ask frequency: `Clarify(question="How often?", options=["Weekly (recommended)", "Daily", "Monthly"])`
+3. Confirm and create:
+   `CreateTask(title="[Topic] Research", agent_slug="research-agent", schedule=..., objective={deliverable: "Research report", purpose: "Track and analyze [topic]"})`
+
+**Defaults:** frequency=weekly, agent=research-agent
+""",
+    },
+
+    # =========================================================================
+    # Agent Management (secondary — roster usually covers needs)
+    # =========================================================================
+    "create": {
+        "name": "create",
+        "description": "Create a new agent (most users don't need this — your team is pre-built)",
+        "trigger_patterns": ["/create", "create agent", "new agent"],
+        "system_prompt_addition": """
+---
+
+## Active Command: Create Agent
+
+User wants to create a new agent. Most users already have a full roster (6 agents).
+Check their roster first — they probably just need a task on an existing agent.
+
+1. Check roster: `List(pattern="agent:*")`
+2. If all 6 exist, suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
+3. If they insist on a new agent: `Clarify(question="What type?", options=["Research", "Content", "Marketing", "CRM"])`
+4. Create: `CreateAgent(title=..., role=...)`
 """,
     },
 

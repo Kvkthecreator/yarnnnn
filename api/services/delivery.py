@@ -138,9 +138,9 @@ class DeliveryService:
                     error_message="Version not found"
                 )
 
-            # 2. Get agent with destination
+            # 2. Get agent (identity only — destination/mode now on tasks)
             agent = self.client.table("agents").select(
-                "id, title, destination, user_id, scope, role, mode"
+                "id, title, user_id, scope, role"
             ).eq("id", version.data["agent_id"]).single().execute()
 
             if not agent.data:
@@ -149,19 +149,11 @@ class DeliveryService:
                     error_message="Agent not found"
                 )
 
-            # 3. Verify destination is configured
-            destination = agent.data.get("destination")
-            if not destination:
-                return ExportResult(
-                    status=ExportStatus.FAILED,
-                    error_message="No destination configured"
-                )
-
-            platform = destination.get("platform")
-            if not platform:
-                return ExportResult(
-                    status=ExportStatus.FAILED,
-                    error_message="No platform specified in destination"
+            # 3. Delivery is now per-task (ADR-138) — this legacy path is unused
+            # Delivery flows through deliver_from_output_folder() which reads TASK.md
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message="Legacy deliver_version path — use deliver_from_output_folder() instead"
                 )
 
             # 4. Get exporter
@@ -722,7 +714,7 @@ async def deliver_from_output_folder(
             version_number=version_number,
             role=role,
             agent_id=str(agent.get("id", "")),
-            mode=agent.get("mode"),
+            mode=None,  # Mode is on tasks, not agents (ADR-138)
             composed_html=composed_html,
         )
     else:
@@ -753,7 +745,7 @@ async def deliver_from_output_folder(
                 "version_id": version_id,
                 "version_number": version_number,
                 "role": role,
-                "mode": agent.get("mode"),
+                "mode": None,  # Mode is on tasks, not agents (ADR-138)
             },
             context=context,
         )

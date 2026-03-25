@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.2] - ADR-140: TP Workforce Awareness + Task-Centric Commands
+
+### Changed
+- `agents/tp_prompts/tools.py`: Replaced archetype list (monitor/researcher/producer/operator) with ADR-140 workforce model (6 types: research, content, marketing, crm, slack_bot, notion_bot). Added "Workforce Model" section describing the pre-scaffolded 6-agent roster. Task creation is now the primary flow; agent creation is secondary. TP knows agents exist at sign-up.
+- `agents/tp_prompts/base.py`: Updated terminology section — added pre-scaffolded roster awareness, bot/agent distinction, task-first guidance.
+- `services/commands.py`: Added `/task` command (primary). Rewrote `/recap`, `/summary`, `/research` to create tasks on existing roster agents instead of creating new agents. `/create` demoted to secondary (roster usually covers needs). All commands now use CreateTask instead of CreateAgent.
+- `services/working_memory.py`: Agent section in prompt renamed from "Active agents" to "Your team (N agents)" with role display.
+- Expected behavior: TP guides users to assign tasks to their pre-existing 6-agent roster. Only creates new agents when roster doesn't cover the need. Slash commands create tasks, not agents.
+
+---
+
 ## [2026.03.25.1] - ADR-138: Agents as Work Units — Project Layer Collapse
 
 ### Added

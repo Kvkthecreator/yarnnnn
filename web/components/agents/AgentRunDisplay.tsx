@@ -185,7 +185,7 @@ function VersionPreviewFull({
             className="inline-flex items-center gap-1 px-2 py-0.5 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-            <span className="hidden sm:inline">{agent.mode === 'goal' ? 'Generate' : 'Run Now'}</span>
+            <span className="hidden sm:inline">Run Now</span>
           </button>
           {content && (
             <button
@@ -307,7 +307,7 @@ export function RunsPanel({
     versions.length > 0 ? 0 : null
   );
 
-  const isGoalMode = agent.mode === 'goal';
+  const isGoalMode = false; // ADR-138: mode is on tasks, not agents
 
   // Preview mode: show full version
   if (previewIdx !== null && versions[previewIdx]) {

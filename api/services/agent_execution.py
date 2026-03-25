@@ -1399,7 +1399,7 @@ async def execute_agent_generation(
                     "scope": scope,
                     "version_number": next_version,
                 },
-                tags=[role, agent.get("mode", "recurring")],
+                tags=[role],  # ADR-138: mode is on tasks, not agents
             )
             logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
         except Exception as e:
