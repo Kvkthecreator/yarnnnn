@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.8] - Task-Scoped TP: Context-Aware Chat at Task Level
+
+### Added
+- `agents/tp_prompts/task_scope.py`: Task-scoped TP preamble template. Injected when user is on `/tasks/{slug}`. Includes task definition, latest output, run log, assigned agent. Tells TP to steer focus/review output/adjust delivery, not create new entities.
+- `docs/design/TASK-SCOPED-TP.md`: Full specification for task-scoped TP — primitive mapping, session routing, prompt injection, plus menu differences.
+
+### Changed
+- Task page frontend (`tasks/[slug]/page.tsx`): v3 layout — tabbed left (Output/Details/History as full tabs) + task-scoped chat as persistent right panel. Different plus menu from workfloor (Run task, Adjust focus, Search, Web search — no Create agent/task).
+- Expected behavior: TP on task page knows the task context, steers focus, reviews output. TP on workfloor manages workforce. Same TP, different scope.
+
+---
+
 ## [2026.03.25.7] - ADR-143 Phase 2: Feedback Consolidation + WriteAgentFeedback
 
 ### Changed
