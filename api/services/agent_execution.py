@@ -698,7 +698,7 @@ async def generate_draft_inline(
     role = effective_role or agent.get("role", "custom")  # ADR-117 Phase 3: duty override
     scope = agent.get("scope", "cross_platform")
     type_config = agent.get("type_config", {})
-    recipient_context = agent.get("recipient_context", {})
+    recipient_context = {}  # Column dropped — recipient_context no longer on agents table
 
     # Format recipient context
     recipient_str = ""
@@ -812,7 +812,7 @@ async def generate_draft_inline(
     headless_tools = get_tools_for_mode("headless")
     executor = create_headless_executor(
         client, user_id,
-        agent_sources=agent.get("sources"),
+        agent_sources=[],  # Column dropped — sources no longer on agents table
         agent=agent,
     )
 
@@ -1167,14 +1167,14 @@ async def _generate_agent_card(client, user_id: str, agent: dict, version_number
         "scope": agent.get("scope"),
         "description": description,
         "thesis_summary": thesis[:300] if thesis else None,
-        "sources": agent.get("sources", []),
-        "schedule": agent.get("schedule"),
+        "sources": [],  # Column dropped
+        "schedule": None,  # Column dropped
         "maturity": {
             "total_runs": run_count,
             "knowledge_files_produced": knowledge_files_count,
             "latest_version": version_number,
         },
-        "last_run_at": agent.get("last_run_at"),
+        "last_run_at": None,  # Column dropped
         "interop": {
             "mcp_resource": f"workspace://agents/{slug}/",
             "input_format": "platform_content",
@@ -1338,29 +1338,18 @@ async def execute_agent_generation(
         # ADR-049: Record source snapshots for audit trail
         # sources_used is a list of strings like "platform:slack", "other:document"
         # Build snapshot from the agent's source configs
-        sources_for_snapshot = []
-        for source in agent.get("sources", []):
-            if source.get("provider") or source.get("platform"):
-                sources_for_snapshot.append({
-                    "platform": source.get("provider") or source.get("platform"),
-                    "resource_id": source.get("resource_id") or source.get("id"),
-                    "resource_name": source.get("resource_name") or source.get("name"),
-                    "user_id": user_id,
-                })
+        sources_for_snapshot = []  # Column dropped — sources no longer on agents table
         await record_source_snapshots(
             client, version_id, sources_for_snapshot,
             content_ids=gathered_result.platform_content_ids,
         )
 
-        # 6. Update agent last_run_at
-        client.table("agents").update({
-            "last_run_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", agent_id).execute()
+        # 6. last_run_at column dropped — no-op (was: update agent last_run_at)
 
         # 7. Resolve destination — agent destination → email fallback
         from services.supabase import get_service_client as _get_svc
         user_email = get_user_email(_get_svc(), user_id)
-        destination = agent.get("destination")
+        destination = None  # Column dropped — destination no longer on agents table
 
         # Final fallback: email-first (ADR-066)
         destination = normalize_destination_for_delivery(destination, user_email)

@@ -492,7 +492,7 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
     # Query agents table
     query = (
         auth.client.table("agents")
-        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, created_at")
         .eq("user_id", auth.user_id)
         .eq("status", status_filter)
     )
@@ -541,9 +541,7 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
             "title": agent["title"],
             "role": agent.get("role"),
             "scope": agent.get("scope"),
-            "sources": agent.get("sources", []),
             "thesis_summary": thesis_summary,
-            "last_run_at": agent.get("last_run_at"),
             "maturity": {
                 "runs": run_count,
             },

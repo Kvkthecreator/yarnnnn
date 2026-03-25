@@ -30,13 +30,13 @@ router = APIRouter()
 
 class AdminOverviewStats(BaseModel):
     total_users: int
-    total_projects: int
+    total_agents: int
     total_memories: int
     total_documents: int
     total_sessions: int
     # Growth metrics (7-day)
     users_7d: int
-    projects_7d: int
+    agents_7d: int
     memories_7d: int
 
 
@@ -67,7 +67,7 @@ class AdminUserRow(BaseModel):
     id: str
     email: str
     created_at: str
-    project_count: int
+    agent_count: int
     memory_count: int
     session_count: int
     last_activity: Optional[str] = None
@@ -101,16 +101,16 @@ async def get_overview_stats(admin: AdminAuth):
             .execute()
         users_7d = users_7d_result.count or 0
 
-        # Total projects
-        projects_result = client.table("projects").select("id", count="exact").execute()
-        total_projects = projects_result.count or 0
+        # Total agents
+        agents_result = client.table("agents").select("id", count="exact").execute()
+        total_agents = agents_result.count or 0
 
-        # Projects in last 7 days
-        projects_7d_result = client.table("projects")\
+        # Agents in last 7 days
+        agents_7d_result = client.table("agents")\
             .select("id", count="exact")\
             .gte("created_at", seven_days_ago)\
             .execute()
-        projects_7d = projects_7d_result.count or 0
+        agents_7d = agents_7d_result.count or 0
 
         # Total memories (ADR-059: user_memory entry-type keys)
         memories_result = client.table("user_memory")\
@@ -137,12 +137,12 @@ async def get_overview_stats(admin: AdminAuth):
 
         return AdminOverviewStats(
             total_users=total_users,
-            total_projects=total_projects,
+            total_agents=total_agents,
             total_memories=total_memories,
             total_documents=total_documents,
             total_sessions=total_sessions,
             users_7d=users_7d,
-            projects_7d=projects_7d,
+            agents_7d=agents_7d,
             memories_7d=memories_7d,
         )
 
@@ -173,20 +173,12 @@ async def list_users(admin: AdminAuth):
             user_email = workspace.get("owner_email") or "unknown"
             user_created = workspace["created_at"]
 
-            # Get project count via workspace
-            workspaces = client.table("workspaces")\
-                .select("id")\
-                .eq("owner_id", user_id)\
+            # Get agent count
+            agents = client.table("agents")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
                 .execute()
-
-            project_count = 0
-            if workspaces.data:
-                workspace_ids = [w["id"] for w in workspaces.data]
-                projects = client.table("projects")\
-                    .select("id", count="exact")\
-                    .in_("workspace_id", workspace_ids)\
-                    .execute()
-                project_count = projects.count or 0
+            agent_count = agents.count or 0
 
             # Get memory count (ADR-059)
             memories = client.table("user_memory")\
@@ -214,7 +206,7 @@ async def list_users(admin: AdminAuth):
                 id=user_id,
                 email=user_email,
                 created_at=user_created,
-                project_count=project_count,
+                agent_count=agent_count,
                 memory_count=memory_count,
                 session_count=session_count,
                 last_activity=last_activity,
@@ -397,20 +389,12 @@ async def export_users_excel(admin: AdminAuth):
             user_email = workspace.get("owner_email") or "unknown"
             user_created = workspace["created_at"]
 
-            # Get project count
-            workspaces = client.table("workspaces")\
-                .select("id")\
-                .eq("owner_id", user_id)\
+            # Get agent count
+            agents = client.table("agents")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
                 .execute()
-
-            project_count = 0
-            if workspaces.data:
-                workspace_ids = [w["id"] for w in workspaces.data]
-                projects = client.table("projects")\
-                    .select("id", count="exact")\
-                    .in_("workspace_id", workspace_ids)\
-                    .execute()
-                project_count = projects.count or 0
+            agent_count = agents.count or 0
 
             # Get memory count (ADR-059)
             memories = client.table("user_memory")\
@@ -434,7 +418,7 @@ async def export_users_excel(admin: AdminAuth):
                 "id": user_id,
                 "email": user_email,
                 "created_at": user_created,
-                "project_count": project_count,
+                "agent_count": agent_count,
                 "memory_count": memory_count,
                 "session_count": session_count,
                 "last_activity": last_activity,
@@ -457,7 +441,7 @@ async def export_users_excel(admin: AdminAuth):
         )
 
         # Headers
-        headers = ["Email", "User ID", "Projects", "Memories", "Sessions", "Last Activity", "Joined"]
+        headers = ["Email", "User ID", "Agents", "Memories", "Sessions", "Last Activity", "Joined"]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
@@ -469,7 +453,7 @@ async def export_users_excel(admin: AdminAuth):
         for row, user in enumerate(users_data, 2):
             ws.cell(row=row, column=1, value=user["email"]).border = thin_border
             ws.cell(row=row, column=2, value=user["id"]).border = thin_border
-            ws.cell(row=row, column=3, value=user["project_count"]).border = thin_border
+            ws.cell(row=row, column=3, value=user["agent_count"]).border = thin_border
             ws.cell(row=row, column=4, value=user["memory_count"]).border = thin_border
             ws.cell(row=row, column=5, value=user["session_count"]).border = thin_border
             ws.cell(row=row, column=6, value=user["last_activity"] or "—").border = thin_border
@@ -547,11 +531,11 @@ async def export_full_report(admin: AdminAuth):
             .order("created_at", desc=True)\
             .execute()
 
-        # Projects
-        projects_result = client.table("projects")\
+        # Agents
+        agents_result = client.table("agents")\
             .select("id, created_at", count="exact")\
             .execute()
-        total_projects = projects_result.count or 0
+        total_agents = agents_result.count or 0
 
         # Memories (ADR-059: user_memory entry-type keys)
         memories_result = client.table("user_memory")\
@@ -586,19 +570,12 @@ async def export_full_report(admin: AdminAuth):
             user_email = workspace.get("owner_email") or "unknown"
             user_created = workspace["created_at"]
 
-            # Project count
-            user_workspaces = client.table("workspaces")\
-                .select("id")\
-                .eq("owner_id", user_id)\
+            # Agent count
+            user_agents = client.table("agents")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
                 .execute()
-            project_count = 0
-            if user_workspaces.data:
-                workspace_ids = [w["id"] for w in user_workspaces.data]
-                projects = client.table("projects")\
-                    .select("id", count="exact")\
-                    .in_("workspace_id", workspace_ids)\
-                    .execute()
-                project_count = projects.count or 0
+            agent_count = user_agents.count or 0
 
             # Memory count (ADR-059)
             memories = client.table("user_memory")\
@@ -622,7 +599,7 @@ async def export_full_report(admin: AdminAuth):
                 "id": user_id,
                 "email": user_email,
                 "created_at": user_created,
-                "project_count": project_count,
+                "agent_count": agent_count,
                 "memory_count": memory_count,
                 "session_count": session_count,
                 "last_activity": last_activity,
@@ -681,7 +658,7 @@ async def export_full_report(admin: AdminAuth):
             ("Users (Last 7 Days)", users_7d),
             ("Users (Last 30 Days)", users_30d),
             ("Active Users (7 Day)", active_users_7d),
-            ("Total Projects", total_projects),
+            ("Total Agents", total_agents),
             ("Total Memories", total_memories),
             ("Total Documents", total_documents),
             ("Total Chat Sessions", total_sessions),
@@ -702,13 +679,13 @@ async def export_full_report(admin: AdminAuth):
         ws_summary[f"A{row}"].font = section_font
         row += 2
 
-        avg_projects_per_user = total_projects / total_users if total_users > 0 else 0
+        avg_agents_per_user = total_agents / total_users if total_users > 0 else 0
         avg_memories_per_user = total_memories / total_users if total_users > 0 else 0
         avg_sessions_per_user = total_sessions / total_users if total_users > 0 else 0
         avg_messages_per_session = total_messages / total_sessions if total_sessions > 0 else 0
 
         engagement_metrics = [
-            ("Avg Projects/User", f"{avg_projects_per_user:.1f}"),
+            ("Avg Agents/User", f"{avg_agents_per_user:.1f}"),
             ("Avg Memories/User", f"{avg_memories_per_user:.1f}"),
             ("Avg Sessions/User", f"{avg_sessions_per_user:.1f}"),
             ("Avg Messages/Session", f"{avg_messages_per_session:.1f}"),
@@ -728,7 +705,7 @@ async def export_full_report(admin: AdminAuth):
         # ==================== USERS SHEET ====================
         ws_users = wb.create_sheet("Users")
 
-        headers = ["Email", "User ID", "Projects", "Memories", "Sessions", "Last Activity", "Joined"]
+        headers = ["Email", "User ID", "Agents", "Memories", "Sessions", "Last Activity", "Joined"]
         for col, header in enumerate(headers, 1):
             cell = ws_users.cell(row=1, column=col, value=header)
             cell.font = header_font
@@ -738,7 +715,7 @@ async def export_full_report(admin: AdminAuth):
         for row_idx, user in enumerate(users_data, 2):
             ws_users.cell(row=row_idx, column=1, value=user["email"]).border = thin_border
             ws_users.cell(row=row_idx, column=2, value=user["id"]).border = thin_border
-            ws_users.cell(row=row_idx, column=3, value=user["project_count"]).border = thin_border
+            ws_users.cell(row=row_idx, column=3, value=user["agent_count"]).border = thin_border
             ws_users.cell(row=row_idx, column=4, value=user["memory_count"]).border = thin_border
             ws_users.cell(row=row_idx, column=5, value=user["session_count"]).border = thin_border
             ws_users.cell(row=row_idx, column=6, value=user["last_activity"] or "—").border = thin_border

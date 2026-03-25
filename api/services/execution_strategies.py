@@ -75,7 +75,7 @@ class PlatformBoundStrategy(ExecutionStrategy):
         from services.platform_content import get_content_summary_for_generation
         from services.workspace import AgentWorkspace, get_agent_slug
 
-        sources = agent.get("sources", [])
+        sources = []  # Column dropped — sources no longer on agents table
         # Infer primary platform from sources (first provider/platform found)
         primary_platform = None
         for s in sources:
@@ -177,7 +177,7 @@ class CrossPlatformStrategy(ExecutionStrategy):
         from services.platform_content import get_content_summary_for_generation
         from services.workspace import AgentWorkspace, get_agent_slug
 
-        sources = agent.get("sources", [])
+        sources = []  # Column dropped — sources no longer on agents table
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
@@ -265,8 +265,8 @@ class ResearchStrategy(ExecutionStrategy):
         agent: dict,
     ) -> GatheredContext:
         title = agent.get("title", "")
-        description = agent.get("description", "")
-        sources = agent.get("sources", [])
+        description = ""  # Column dropped — description no longer on agents table
+        sources = []  # Column dropped — sources no longer on agents table
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
         context_parts = []
@@ -329,7 +329,7 @@ class AnalystStrategy(ExecutionStrategy):
         from services.workspace import AgentWorkspace, get_agent_slug
 
         title = agent.get("title", "")
-        description = agent.get("description", "")
+        description = ""  # Column dropped — description no longer on agents table
         agent_id = agent.get("id")
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})

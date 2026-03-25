@@ -566,7 +566,7 @@ def build_role_prompt(
     }
 
     if prompt_role in ("digest", "briefer"):
-        source_platform = _infer_source_platform(agent.get("sources", []))
+        source_platform = _infer_source_platform([])  # Column dropped — sources no longer on agents table
         platform_signals = _PLATFORM_DIGEST_SIGNALS.get(source_platform, _PLATFORM_DIGEST_SIGNALS["default"])
         # Substitute reply/reaction thresholds into Slack signals
         platform_signals = platform_signals.format(
@@ -583,7 +583,7 @@ def build_role_prompt(
         from datetime import datetime, timedelta
         import pytz
         # Compute today's date and date range for the prep window
-        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
+        tz_name = "UTC"  # Column dropped — schedule no longer on agents table
         try:
             tz = pytz.timezone(tz_name)
         except Exception:
@@ -619,7 +619,7 @@ def build_role_prompt(
     elif prompt_role in ("research", "researcher", "scout"):
         from datetime import datetime
         import pytz
-        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
+        tz_name = "UTC"  # Column dropped — schedule no longer on agents table
         try:
             tz = pytz.timezone(tz_name)
         except Exception:
@@ -633,7 +633,7 @@ def build_role_prompt(
         # Scout uses today_date like research
         from datetime import datetime
         import pytz
-        tz_name = agent.get("schedule", {}).get("timezone", "UTC")
+        tz_name = "UTC"  # Column dropped — schedule no longer on agents table
         try:
             tz = pytz.timezone(tz_name)
         except Exception:
@@ -647,7 +647,7 @@ def build_role_prompt(
 
     else:  # custom and any unknown types
         fields.update({
-            "description": config.get("description", agent.get("description", "")),
+            "description": config.get("description", ""),  # Column dropped — description no longer on agents table
             "structure_notes": f"STRUCTURE NOTES:\n{config.get('structure_notes', '')}" if config.get("structure_notes") else "",
         })
 

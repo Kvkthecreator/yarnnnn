@@ -62,8 +62,8 @@ async def _tier1_deterministic(client, agent: dict) -> Optional[PulseDecision]:
     agent_id = agent["id"]
     user_id = agent["user_id"]
     mode = agent.get("mode", "recurring")
-    sources = agent.get("sources", [])
-    last_run_at = agent.get("last_run_at")
+    sources = []  # Column dropped — sources no longer on agents table
+    last_run_at = None  # Column dropped — last_run_at no longer on agents table
 
     # Gate 1: First run — always generate
     if not last_run_at:
@@ -216,7 +216,7 @@ async def _tier2_self_assessment(client, agent: dict) -> PulseDecision:
         executor = create_headless_executor(
             client,
             user_id,
-            agent_sources=agent.get("sources"),
+            agent_sources=[],  # Column dropped — sources no longer on agents table
             coordinator_agent_id=agent_id,
         )
 
@@ -593,7 +593,7 @@ def calculate_next_pulse_at(agent: dict, decision: PulseDecision) -> datetime:
 
     # 3. cadence == "schedule" → use the agent's configured schedule
     from jobs.unified_scheduler import calculate_next_pulse_from_schedule
-    schedule = agent.get("schedule", {})
+    schedule = {}  # Column dropped — schedule no longer on agents table
     if schedule:
         return calculate_next_pulse_from_schedule(schedule)
 

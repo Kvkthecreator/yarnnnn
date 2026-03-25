@@ -119,7 +119,7 @@ async def check_agent_freshness(
             "never_synced": [{platform, resource_id, resource_name}]
         }
     """
-    sources = agent.get("sources", [])
+    sources = []  # Column dropped — sources no longer on agents table
     if not sources:
         return {
             "all_fresh": True,

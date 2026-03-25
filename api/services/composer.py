@@ -200,7 +200,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     try:
         result = (
             client.table("agents")
-            .select("id, title, role, scope, mode, origin, status, created_at, last_run_at, sources, duties")
+            .select("id, title, role, scope, mode, origin, status, created_at")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()
@@ -221,7 +221,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     platforms_with_coverage = set()
     for agent in active_agents:
         if agent.get("role") in ("digest", "briefer", "monitor"):
-            for src in (agent.get("sources") or []):
+            for src in []:  # Column dropped — sources no longer on agents table
                 if isinstance(src, dict):
                     provider = src.get("provider") or src.get("platform")
                     if provider:
@@ -235,7 +235,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     # 5. Stale agents — active but haven't run in 2x their schedule frequency
     stale_agents = []
     for agent in active_agents:
-        last_run = agent.get("last_run_at")
+        last_run = None  # Column dropped — last_run_at no longer on agents table
         if not last_run:
             # Never run — stale if created more than 48h ago
             created = agent.get("created_at", "")
@@ -361,7 +361,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
                     "role": agent.get("role"),
                     "scope": agent.get("scope"),
                     "origin": agent.get("origin"),
-                    "duties": agent.get("duties"),
+                    "duties": None,  # Column dropped
                     "total_runs": total_runs,
                     "approval_rate": round(approval_rate, 2),
                     "maturity": maturity,

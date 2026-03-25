@@ -746,7 +746,7 @@ Status: {v['status']}
         elif surface_type == "agent-detail" and surface.agentId:
             # User is viewing agent details (not content)
             result = client.table("agents")\
-                .select("title, scope, role, status, schedule, type_config")\
+                .select("title, scope, role, status, type_config")\
                 .eq("id", surface.agentId)\
                 .eq("user_id", user_id)\
                 .single()\
@@ -757,7 +757,7 @@ Status: {v['status']}
                 return f"""## Currently Viewing: {d['title']} (Agent Detail)
 Type: {d.get('role', 'custom').replace('_', ' ').title()}
 Status: {d['status']}
-Schedule: {d.get('schedule', {})}
+Config: {d.get('type_config', {})}
 """
 
         elif surface_type == "context-browser":

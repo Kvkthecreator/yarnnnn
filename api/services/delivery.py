@@ -73,7 +73,7 @@ class DeliveryService:
         Returns:
             True if auto-delivery should occur
         """
-        destination = agent.get("destination")
+        destination = None  # Column dropped — destination no longer on agents table
 
         # Must have destination configured
         if not destination:
@@ -95,7 +95,7 @@ class DeliveryService:
         Returns:
             Style context string, or None if no destination
         """
-        destination = agent.get("destination")
+        destination = None  # Column dropped — destination no longer on agents table
         if not destination:
             return None
 
@@ -695,7 +695,7 @@ async def deliver_from_output_folder(
 
     # 3. Get destination (prefer explicit param, fall back to agent record)
     if not destination:
-        destination = agent.get("destination")
+        destination = None  # Column dropped — destination no longer on agents table
     if not destination:
         return ExportResult(
             status=ExportStatus.FAILED,

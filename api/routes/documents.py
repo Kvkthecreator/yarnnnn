@@ -126,11 +126,8 @@ async def upload_document(
     if len(content) < 10:
         raise HTTPException(status_code=400, detail="File is empty or too small")
 
-    # Validate project_id if provided
-    if project_id:
-        project = auth.client.table("projects").select("id").eq("id", project_id).execute()
-        if not project.data:
-            raise HTTPException(status_code=404, detail="Project not found")
+    # project_id parameter accepted but projects table does not exist;
+    # ignore project_id validation (legacy parameter)
 
     # Create document record
     import uuid

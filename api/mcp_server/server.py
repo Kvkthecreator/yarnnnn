@@ -110,9 +110,9 @@ async def list_agents(
     ctx: Context,
     status: Optional[str] = None,
 ) -> dict:
-    """List your configured agents with their schedule and status.
+    """List your configured agents and their status.
 
-    Returns agent titles, types, schedules, destinations, and when they last ran.
+    Returns agent titles, roles, scopes, and status.
     Use this to discover what agents exist before triggering or reading output.
 
     Args:
@@ -122,7 +122,7 @@ async def list_agents(
 
     query = (
         auth.client.table("agents")
-        .select("id, title, scope, role, status, schedule, destination, sources, last_run_at, next_pulse_at")
+        .select("id, title, scope, role, status")
         .eq("user_id", auth.user_id)
     )
     if status:
@@ -311,8 +311,7 @@ async def get_agent_card(
     """Get an agent's identity card — who it is, what it does, how mature it is.
 
     Returns structured agent identity including description, thesis summary,
-    sources, schedule, and maturity signals. Use discover_agents() first to
-    find agent IDs.
+    and maturity signals. Use discover_agents() first to find agent IDs.
 
     Args:
         agent_id: UUID of the agent
@@ -324,7 +323,7 @@ async def get_agent_card(
     # Verify ownership
     result = (
         auth.client.table("agents")
-        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, created_at")
         .eq("user_id", auth.user_id)
         .eq("id", agent_id)
         .limit(1)
@@ -369,9 +368,6 @@ async def get_agent_card(
             "status": agent.get("status"),
             "description": description,
             "thesis_summary": thesis[:300] if thesis else None,
-            "sources": agent.get("sources", []),
-            "schedule": agent.get("schedule"),
-            "last_run_at": agent.get("last_run_at"),
         },
     }
 
@@ -454,7 +450,7 @@ async def discover_agents(
 
     query = (
         auth.client.table("agents")
-        .select("id, title, role, scope, status, sources, schedule, last_run_at, created_at")
+        .select("id, title, role, scope, status, created_at")
         .eq("user_id", auth.user_id)
         .eq("status", status or "active")
     )
@@ -483,9 +479,7 @@ async def discover_agents(
             "title": agent["title"],
             "role": agent.get("role"),
             "scope": agent.get("scope"),
-            "sources": agent.get("sources", []),
             "thesis_summary": thesis_summary,
-            "last_run_at": agent.get("last_run_at"),
         })
 
     return {"success": True, "agents": agent_cards, "count": len(agent_cards)}

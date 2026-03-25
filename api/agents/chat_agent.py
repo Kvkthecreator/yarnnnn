@@ -143,7 +143,7 @@ class ChatAgentAuth:
         self.headless = False  # Not headless — interactive chat
         self.agent_chat = True  # ADR-124: signals agent_chat mode
         self.agent = agent
-        self.agent_sources = agent.get("sources") or []
+        self.agent_sources = []  # Column dropped — sources no longer on agents table
         self.coordinator_agent_id = None
         self.pending_renders: list[dict] = []
         self.agent_slug = get_agent_slug(agent)
