@@ -3,7 +3,7 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-03-18 (v10.0 — align with ADR-118/119, Scope × Role × Trigger, deliver-first supervision)
+**Updated**: 2026-03-25 (v11.0 — ADR-138 agents as work units, ADR-139 workfloor surface architecture)
 
 ---
 
@@ -34,18 +34,16 @@ The product essence has four stable elements:
 
 ## What Changed Recently
 
-The service model did **not** fundamentally change. The execution layer got more capable.
+ADR-138 simplified the execution model. The project layer (PM agents, phase dispatch, meeting rooms) was dissolved. The new model separates WHO from WHAT:
 
-ADR-118 and ADR-119 extend YARNNN from a text-first agent system into a richer work-product system:
+- **Agents = WHO** — persistent domain experts with identity, memory, and capabilities. Four archetypes: monitor, researcher, producer, operator.
+- **Tasks = WHAT** — defined work units with objective, cadence, delivery, and success criteria. TASK.md is the source of truth.
+- **TP orchestrates** — creates agents and tasks, monitors health, coordinates multi-agent work directly. No PM intermediary.
 
-- Agents can now produce **richer deliverables** through output skills such as PDF, PPTX, XLSX, and charts.
-- Output delivery is moving to a **unified workspace substrate**: text and binary outputs live together in output folders.
-- Supervision is increasingly **deliver-first**: agents produce, deliver, and then improve through run history, edits, feedback, and future refinement.
+The product promise is unchanged: compounding autonomous work through supervision. The architecture got simpler and cheaper (~65% cost reduction per cycle).
 
-This is an expansion of the same promise, not a replacement of it.
-
-> Users are still buying compounding autonomous work.  
-> They are now getting richer work products from the same underlying model.
+> Users are still buying compounding autonomous work.
+> Agents are domain experts. Tasks define the work. TP orchestrates.
 
 ---
 
@@ -114,23 +112,31 @@ Its job is not to own a domain. Its job is to manage the user's cognitive workfo
 
 TP is the interface through which the user directs and supervises the system.
 
-### 2. Agents: The Domain-Cognitive Layer
+### 2. Agents: The Domain-Cognitive Layer (WHO)
 
-Agents are persistent domain specialists.
+Agents are persistent domain experts. Each handles the full thinking chain: sense context, reason about it, produce output.
 
-They do not exist as disposable prompts or temporary automations. They exist as developing workers with:
+They exist as developing workers with:
 
-- a role
-- a scope
-- a trigger
-- a workspace
-- accumulated observations
-- learned preferences
-- output history
+- an archetype (monitor, researcher, producer, operator)
+- a workspace with identity file (AGENT.md) and accumulated memory
+- learned preferences from user feedback
+- domain knowledge that compounds with every run
 
 Agents are where recurring attention lives.
 
-### 3. Workspace: The Shared Operating Substrate
+### 3. Tasks: The Work Definition Layer (WHAT)
+
+Tasks define units of work: what to produce, for whom, on what cadence, delivered where.
+
+- TASK.md carries the objective, success criteria, output spec, and agent assignment
+- Tasks run on schedule — the scheduler queries tasks, not agents
+- Output accumulates in task workspace (`/tasks/{slug}/outputs/`)
+- Simple tasks: 1 agent. Complex tasks: multiple agents, TP orchestrates the sequence.
+
+Tasks are where work definition lives. Agents are assigned to tasks — one agent can work on multiple tasks.
+
+### 4. Workspace: The Shared Operating Substrate
 
 The workspace is where accumulated intelligence persists:
 
@@ -143,7 +149,7 @@ The workspace is where accumulated intelligence persists:
 
 This is what allows the system to improve with tenure instead of resetting with each interaction.
 
-### 4. Output Skills: The Execution Layer
+### 5. Output Skills: The Execution Layer
 
 Output skills make agents more capable, but they do not redefine the product.
 
@@ -164,10 +170,10 @@ Output skills enrich the deliverable. They do not change the agent's identity.
 The core loop is:
 
 1. **Describe your work — connect tools to enrich it**
-2. **System scaffolds the right projects and agents**
-3. **The agent runs and delivers useful work**
+2. **System creates the right agents and tasks**
+3. **Tasks run on cadence, agents produce, outputs deliver**
 4. **The user reviews, refines, or redirects**
-5. **Context, memory, and preferences compound**
+5. **Agent memory, preferences, and domain knowledge compound**
 6. **Future supervision gets lighter**
 
 That loop is the product.
@@ -254,8 +260,9 @@ For product narrative and architecture, use this order:
 
 1. `docs/ESSENCE.md` — product essence and stable value proposition
 2. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture
-3. `docs/architecture/agent-framework.md` — canonical agent taxonomy
-4. `docs/adr/ADR-118-skills-as-capability-layer.md` — output skills and output gateway
-5. `docs/adr/ADR-119-workspace-filesystem-architecture.md` — workspace and output folders
+3. `docs/adr/ADR-138-agents-as-work-units.md` — agents + tasks architecture (supersedes projects)
+4. `docs/adr/ADR-139-workfloor-task-surface-architecture.md` — frontend surfaces
+5. `docs/architecture/agent-framework.md` — canonical agent taxonomy
+6. `docs/adr/ADR-118-skills-as-capability-layer.md` — output skills and output gateway
 
 If lower-level docs contradict this essence without justification, the lower-level docs should be revised.

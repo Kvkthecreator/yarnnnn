@@ -1,7 +1,7 @@
 # Workspace Layout & Navigation Architecture
 
 **Date:** 2026-03-04 (initial), 2026-03-11 (persistent panel migration)
-**Status:** Implemented — persistent panel architecture (2026-03-11)
+**Status:** Superseded by [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) (ADR-139, 2026-03-25) — persistent panel pattern preserved, surfaces redefined for workfloor + tasks model
 **Authors:** Kevin Kim, Claude
 
 **References:**

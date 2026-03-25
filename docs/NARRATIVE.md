@@ -1,9 +1,9 @@
 # YARNNN Narrative Architecture
 
 **Purpose**: Canonical reference for how the YARNNN story is structured and sequenced across all surfaces — decks, videos, applications, landing pages, conversations.
-**Status**: Active (v2)
-**Date**: 2026-03-02
-**Supersedes**: v1 (2026-03-01) — reframed problem, product identity, and macro thesis
+**Status**: Active (v3)
+**Date**: 2026-03-25
+**Supersedes**: v2 (2026-03-02) — aligned product language with ADR-138 (agents + tasks, projects dissolved)
 
 **Related docs:**
 - [ESSENCE.md](ESSENCE.md) — What we believe and how the product works
@@ -93,13 +93,13 @@ We can't predict the future with certainty. But we can read the structural patte
 
 **Role**: Introduce YARNNN and TP as a concrete, living product — the application layer that Beat 1 said was missing.
 
-**The claim**: Meet TP — your autonomous AI agent. You describe your work, it builds the right team. It connects to the platforms where your work lives (Slack, Notion), accumulates context from every sync cycle, and uses that accumulated understanding to operate autonomously. It produces agents on schedule. It gets smarter every cycle. You supervise — it operates.
+**The claim**: Meet TP — your autonomous AI agent. You describe your work, it creates the right agents and tasks. Agents are persistent domain experts — each with identity, memory, and capabilities. Tasks define what work gets done, on what cadence, delivered where. Agents connect to the platforms where your work lives (Slack, Notion), accumulate context from every sync cycle, and use that accumulated understanding to operate autonomously. They produce on schedule. They get smarter every cycle. You supervise — they operate.
 
-This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: your AI, powered by your accumulated context, producing your work.
+This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: your AI workforce, powered by your accumulated context, producing your work.
 
 **Beat 3 has three internal layers** (these can be separate slides or combined depending on surface):
 
-**(a) Product introduction**: What TP is and what it connects to. One agent, two modes — conversation when you need it, autonomous operation when you don't. Two platform integrations live (Slack, Notion). The emphasis is on identity: this is a working product at yarnnn.com.
+**(a) Product introduction**: What TP is and what it connects to. TP is the orchestrator — it creates agents and tasks, monitors health, and coordinates multi-agent work. Agents handle the full thinking chain: sense context, reason about it, produce output. Two platform integrations live (Slack, Notion). The emphasis is on identity: this is a working product at yarnnn.com.
 
 **(b) Day 1 proof**: TP already knows your work from first sync. Before/after demonstration — the same request with and without accumulated context. The point: value is immediate, not theoretical.
 
@@ -123,7 +123,7 @@ This isn't a better chatbot or a memory add-on for existing LLMs. It's a new lay
 
 But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work. YARNNN is building that substrate.
 
-**The compounding loop**: Describe your work → system builds the right team → connect your tools → context accumulates from every sync → autonomous agents powered by real context → your edits and feedback deepen the understanding → repeat. Your AI after 90 days is incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf. (For the canonical phase-by-phase breakdown of this loop, see [VALUE-CHAIN.md](architecture/VALUE-CHAIN.md).)
+**The compounding loop**: Describe your work → system creates agents and tasks → connect your tools → context accumulates from every sync → agents produce on cadence powered by real context → your edits and feedback deepen agent expertise → repeat. Your agents after 90 days are incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf.
 
 **Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
 
@@ -142,7 +142,7 @@ But the insight goes deeper. Work itself is shifting from human-first to agent-f
 - **Agent startups**: Can execute autonomously, but generically. No persistent understanding of *your* work. Impressive demos, weak on repeat performance for the same user over time.
 - **Workspace AI (Notion AI, etc.)**: Trapped inside one platform. Can't synthesize across tools. Context is siloed by design.
 
-**Architecture as defensibility** (not as product description): One unified agent that works with you in conversation and works for you in the background. 90+ architecture decision records. Built from day one for multi-platform context accumulation and agent interoperability (MCP).
+**Architecture as defensibility** (not as product description): Persistent agents with accumulated domain knowledge. 135+ architecture decision records. Built from day one for multi-platform context accumulation and agent interoperability (MCP).
 
 **Why this works**: Architecture appears here — not in the product introduction — because its role is to answer the defensibility question, not to describe the product experience.
 
@@ -172,7 +172,7 @@ These apply across all surfaces — deck, website, video, applications:
 | "Your autonomous AI agent" | "Thinking Partner" alone | Agent framing positions against the market, not as a chatbot |
 | "TP, your autonomous agent" | "The Thinking Partner" | TP is the name; "autonomous agent" is the category |
 | "Already knows your work" | "Context-aware" | Active and concrete vs. passive and abstract |
-| "Produces agents on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
+| "Agents produce on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
 | "Gets smarter every cycle" | "Accumulated intelligence" | Human language vs. technical jargon |
 | "You supervise, it operates" | "Human-in-the-loop" | Frames the user as powerful, not as a safety mechanism |
 | "Accumulated context" | "Persistent memory" | Memory is one input; context is the whole picture |
@@ -215,10 +215,10 @@ All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensi
 Beat 1 (headline — contrarian or problem statement) → Beat 3 (hero + how it works) → Beat 4 (why it's different / the insight) → Beat 6 (CTA). Proof of demand and moat are secondary sections or social proof elements.
 
 ### Elevator Pitch (30 seconds)
-Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built TP — you describe your work, it builds an autonomous AI team that connects to your Slack and Notion, accumulates your work context, and produces on schedule. It's the application layer for work — and no one else is building it."
+Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built yarnnn — you describe your work, it creates agents and tasks that connect to your Slack and Notion, accumulate your work context, and produce on schedule. It's the application layer for work — and no one else is building it."
 
 ### Creative Supplement (1-pager, visual asset)
-Beat 3 + Beat 4 as visual: product screenshot or mockup showing TP pulling from connected sources and producing a agent. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
+Beat 3 + Beat 4 as visual: product screenshot or mockup showing the workfloor with agents and tasks. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
 
 ---
 
