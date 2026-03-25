@@ -356,11 +356,10 @@ def _build_headless_system_prompt(
     research_directive: Optional[str] = None,
     agent: Optional[dict] = None,
     user_context: Optional[list] = None,
-    workspace_preferences: Optional[str] = None,
     skill_docs: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081/087/101/109/117/118).
+    Build system prompt for headless mode generation (ADR-080/081/087/101/109/117/118/143).
 
     Args:
         role: The agent role (digest, prepare, synthesize, etc.)
@@ -368,7 +367,6 @@ def _build_headless_system_prompt(
         research_directive: Optional research instruction for research-scope agents
         agent: Optional agent dict with agent_instructions and agent_memory
         user_context: Optional list of user_memory rows (profile + preferences)
-        workspace_preferences: Optional workspace memory/preferences.md content (ADR-117)
         skill_docs: Optional SKILL.md content for authorized output skills (ADR-118 D.1)
 
     Returns:
@@ -438,16 +436,8 @@ The user has set these behavioral directives for this agent:
         if memory_parts:
             prompt += "\n\n## Agent Memory\n" + "\n".join(memory_parts)
 
-    # ADR-117: Inject learned preferences into system prompt for high salience.
-    # Preferences are distilled from edit patterns by feedback_distillation.py
-    # and stored in workspace memory/preferences.md.
-    if workspace_preferences:
-        prompt += f"""
-
-## Learned Preferences (from user edit history)
-{workspace_preferences}
-
-Follow these preferences closely — they reflect what the user has consistently edited in past outputs."""
+    # ADR-143: Preferences/feedback now loaded via load_context() as memory files.
+    # No separate injection needed — feedback.md and methodology-*.md auto-load.
 
     # ADR-118 D.1: Inject SKILL.md content for authorized output skills.
     # Agents read skill docs to learn how to construct high-quality specs
@@ -720,19 +710,14 @@ async def generate_draft_inline(
             if priorities:
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
-    # ADR-117: Preferences read from workspace and injected into system prompt
-    # via _build_headless_system_prompt(workspace_preferences=...) for high salience.
-
-    # ADR-106 Phase 2: Load intelligence from workspace (source of truth)
+    # ADR-106/143: Load intelligence from workspace (source of truth)
+    # Feedback + methodology loaded via load_context() automatically.
     from services.workspace import AgentWorkspace, get_agent_slug
     ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
     await ws.ensure_seeded(agent)  # Lazy migration from DB columns
 
-    # Read workspace-based intelligence
+    # ADR-143: Read workspace-based intelligence (simplified — feedback.md + methodology via load_context)
     ws_instructions = await ws.read("AGENT.md") or ""
-    ws_preferences = await ws.read("memory/preferences.md") or ""
-    ws_observations = await ws.get_observations()
-    ws_review_log = await ws.get_review_log()
     ws_goal = await ws.get_goal()
 
     # ADR-117 Phase 3: Load duty-specific context if running a non-seed duty
@@ -743,13 +728,10 @@ async def generate_draft_inline(
             ws_instructions = ws_instructions + f"\n\n## Active Duty: {duty_name}\n{duty_context}"
 
     # Build workspace-sourced agent dict for prompt building
-    # (replaces reading from agent["agent_instructions"] / agent["agent_memory"])
     workspace_agent = {
         **agent,
         "agent_instructions": ws_instructions,
         "agent_memory": {
-            "observations": ws_observations,
-            "review_log": ws_review_log,
             **({"goal": ws_goal} if ws_goal else {}),
         },
     }
@@ -799,10 +781,9 @@ async def generate_draft_inline(
         except Exception as e:
             logger.warning(f"[GENERATE] Skill docs fetch failed (non-fatal): {e}")
 
-    # ADR-109: Headless system prompt with workspace-sourced intelligence
+    # ADR-109/143: Headless system prompt with workspace-sourced intelligence
     system_prompt = _build_headless_system_prompt(
         role, trigger_context, research_directive, workspace_agent, user_context,
-        workspace_preferences=ws_preferences,
         skill_docs=skill_docs,
     )
 

@@ -37,6 +37,7 @@ from .workspace import (
     LIST_WORKSPACE_TOOL, handle_list_workspace,
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
     READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
+    WRITE_AGENT_FEEDBACK_TOOL, handle_write_agent_feedback,
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
@@ -203,6 +204,7 @@ HANDLERS: dict[str, Callable] = {
     "ReadAgentContext": handle_read_agent_context,
     "SaveMemory": handle_save_memory,
     "RuntimeDispatch": handle_runtime_dispatch,
+    "WriteAgentFeedback": handle_write_agent_feedback,
 }
 
 
@@ -291,6 +293,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "DiscoverAgents":         ["headless"],
     # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
     "ReadAgentContext":       ["headless"],
+    # Agent feedback — chat only (ADR-143: TP writes feedback to agents)
+    "WriteAgentFeedback":     ["chat"],
     # User memory — chat only (ADR-108)
     "SaveMemory":             ["chat"],
     # Runtime dispatch — headless only (ADR-118)

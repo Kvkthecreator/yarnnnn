@@ -39,13 +39,11 @@ import type {
 
 export function MemoryPanel({ agent }: { agent: Agent }) {
   const memory = agent.agent_memory;
-  const observations = memory?.observations || [];
-  const reviewLog = memory?.review_log || [];
   const goal = memory?.goal;
-  const preferences = memory?.preferences;
-  const supervisorNotes = memory?.supervisor_notes;
+  const feedback = memory?.feedback;
+  const selfAssessment = memory?.self_assessment;
 
-  if (observations.length === 0 && reviewLog.length === 0 && !goal && !preferences && !supervisorNotes) {
+  if (!goal && !feedback && !selfAssessment) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
@@ -54,12 +52,6 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
       </div>
     );
   }
-
-  const actionColors: Record<string, string> = {
-    generate: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    observe: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    sleep: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
-  };
 
   return (
     <div className="p-3 space-y-2.5">
@@ -83,59 +75,27 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
           )}
         </div>
       )}
-      {preferences && (
+      {feedback && (
         <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-md">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Lightbulb className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Learned Preferences</span>
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Feedback History</span>
           </div>
           <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
-            <ReactMarkdown>{preferences}</ReactMarkdown>
+            <ReactMarkdown>{feedback}</ReactMarkdown>
           </div>
         </div>
       )}
-      {supervisorNotes && (
+      {selfAssessment && (
         <div className="p-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-md">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Shield className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-            <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Supervisor Notes</span>
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Self-Assessment</span>
           </div>
           <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
-            <ReactMarkdown>{supervisorNotes}</ReactMarkdown>
+            <ReactMarkdown>{selfAssessment}</ReactMarkdown>
           </div>
         </div>
-      )}
-      {observations.map((obs, i) => (
-        <div key={i} className="p-2.5 bg-muted/30 border border-border rounded-md">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-            <span>{obs.date}</span>
-            {obs.source && (
-              <>
-                <span className="text-border">&middot;</span>
-                <span>{obs.source}</span>
-              </>
-            )}
-          </div>
-          <p className="text-sm">{obs.note}</p>
-        </div>
-      ))}
-      {reviewLog.length > 0 && (
-        <>
-          <div className="flex items-center gap-1.5 pt-1">
-            <span className="text-xs font-medium text-muted-foreground">Review History</span>
-          </div>
-          {reviewLog.slice(-5).map((entry, i) => (
-            <div key={`review-${i}`} className="p-2.5 bg-muted/30 border border-border rounded-md">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                <span>{entry.date}</span>
-                <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium', actionColors[entry.action] || actionColors.observe)}>
-                  {entry.action}
-                </span>
-              </div>
-              <p className="text-sm">{entry.note}</p>
-            </div>
-          ))}
-        </>
       )}
     </div>
   );

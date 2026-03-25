@@ -176,6 +176,22 @@ TriggerTask(task_slug: "weekly-competitive-briefing", context: "Focus on CrewAI'
 
 ---
 
+**WriteAgentFeedback(agent_slug, feedback)** — Write feedback to an agent about their work quality.
+
+```
+WriteAgentFeedback(agent_slug: "research-agent", feedback: "Reports are too long. Keep to 2 pages max. The charts were excellent — keep using those.")
+```
+
+Use this when the user comments on an agent's output — positive or negative.
+The agent reads this feedback on every future run. Be specific and actionable.
+
+Examples of when to use:
+- User says "the research was great" → write positive feedback to research-agent
+- User says "too much detail in the summary" → write guidance to the relevant agent
+- User says "stop including old data" → write specific correction
+
+---
+
 ## Memory (ADR-064)
 
 Memory is handled implicitly. You don't need to create or update memories explicitly.

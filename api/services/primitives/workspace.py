@@ -659,3 +659,90 @@ async def handle_read_agent_context(auth: Any, input: dict) -> dict:
     await _log_cross_agent_reference(auth, [target_agent_id])
 
     return response
+
+
+# =============================================================================
+# WriteAgentFeedback — ADR-143: TP writes feedback to an agent
+# =============================================================================
+
+WRITE_AGENT_FEEDBACK_TOOL = {
+    "name": "WriteAgentFeedback",
+    "description": """Write feedback to an agent about their work quality.
+
+Use this when the user comments on an agent's output — positive or negative.
+The feedback is persisted to the agent's memory and read on every future run.
+
+Examples of when to use:
+- User says "the research report was too long" → write to the research agent
+- User says "great charts in the last update" → write positive feedback
+- User says "stop including competitor pricing" → write specific guidance
+
+Keep feedback concise (1-3 sentences). The agent reads this directly.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "agent_slug": {
+                "type": "string",
+                "description": "The agent's slug (lowercase, hyphenated title). Use the agent's title to derive it."
+            },
+            "feedback": {
+                "type": "string",
+                "description": "The feedback to write. Be specific and actionable. 1-3 sentences."
+            }
+        },
+        "required": ["agent_slug", "feedback"]
+    }
+}
+
+async def handle_write_agent_feedback(auth: Any, input: dict) -> dict:
+    """
+    Write conversational feedback to an agent's memory/feedback.md.
+
+    ADR-143: TP is the only entity that sees both agent output and user reaction.
+    When the user gives feedback about an agent's work in conversation, TP calls
+    this primitive to persist it.
+
+    Input:
+        agent_slug: str — the target agent's slug (from agent title)
+        feedback: str — the feedback to write (human-readable, 1-3 sentences)
+
+    Returns:
+        {status: "ok", message: "Feedback written to {agent_slug}"}
+    """
+    client = auth["client"]
+    user_id = auth["user_id"]
+    agent_slug = input.get("agent_slug", "")
+    feedback_text = input.get("feedback", "")
+
+    if not agent_slug or not feedback_text:
+        return {"error": "agent_slug and feedback are required"}
+
+    # Look up the agent by slug (title-derived)
+    try:
+        result = client.table("agents").select("id, title, role").eq("user_id", user_id).execute()
+        agents = result.data or []
+
+        # Match by slug
+        from services.workspace import get_agent_slug
+        target = None
+        for a in agents:
+            if get_agent_slug(a) == agent_slug:
+                target = a
+                break
+
+        if not target:
+            return {"error": f"Agent '{agent_slug}' not found"}
+
+        from services.feedback_distillation import write_feedback_entry
+        success = await write_feedback_entry(
+            client, user_id, target, feedback_text, source="conversation"
+        )
+
+        if success:
+            return {"status": "ok", "message": f"Feedback written to {target.get('title', agent_slug)}"}
+        else:
+            return {"error": "Failed to write feedback"}
+
+    except Exception as e:
+        logger.warning(f"[WRITE_AGENT_FEEDBACK] Failed: {e}")
+        return {"error": str(e)}

@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.7] - ADR-143 Phase 2: Feedback Consolidation + WriteAgentFeedback
+
+### Changed
+- `services/feedback_distillation.py`: Complete rewrite. `distill_feedback_to_workspace()` now appends human-readable entries to `feedback.md` (rolling 10-entry cap) instead of building rule-based `preferences.md`. New `write_feedback_entry()` for conversational feedback. `write_supervisor_notes()` deleted — absorbed into `write_feedback_entry(source="composer")`.
+- `services/workspace.py`: `load_context()` labels feedback/methodology/self-assessment distinctly. `append_observation()` and `record_observation()` redirect to `feedback.md`. `get_agent_full_context()` returns `feedback` + `self_assessment` instead of `observations`/`review_log`/`preferences`/`supervisor_notes`.
+- `services/agent_execution.py`: Removed `ws_preferences`, `ws_observations`, `ws_review_log` reads. Removed `workspace_preferences` parameter from `_build_headless_system_prompt()`. Feedback + methodology now injected via `load_context()`.
+- `services/task_pipeline.py`: Removed `ws_preferences` reads and `workspace_preferences` parameter from `build_task_execution_prompt()`.
+- `services/composer.py`: `write_supervisor_notes()` → `write_feedback_entry(source="composer")`.
+- `services/primitives/workspace.py`: New `WriteAgentFeedback` primitive (chat-mode only). TP writes conversational feedback to agent's `feedback.md`.
+- `services/primitives/registry.py`: Registered `WriteAgentFeedback` in handler map + mode map (chat only).
+- `agents/tp_prompts/tools.py`: Added `WriteAgentFeedback` documentation with examples.
+- Expected behavior: TP can now persist user feedback about agent work. Agents read unified `feedback.md` instead of 4 separate files. Edit-based feedback still captured mechanically. Conversational feedback captured via TP.
+
+### Deleted
+- `preferences.md` write path (absorbed into feedback.md)
+- `supervisor-notes.md` write path (absorbed into feedback.md)
+- `observations.md` / `review-log.md` direct reads from agent_execution.py (redirected to feedback.md)
+
+---
+
 ## [2026.03.25.6] - ADR-143: Agent Methodology Layer
 
 ### Changed

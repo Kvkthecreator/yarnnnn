@@ -240,21 +240,9 @@ export default function AgentIdentityPage() {
           <div>
             <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Memory</h2>
             <div className="space-y-2">
-              {memory?.observations && memory.observations.length > 0 && (
-                <MemorySection
-                  title={`Observations (${memory.observations.length})`}
-                  content={memory.observations.map(o => `- **${o.date}**: ${o.note}`).join('\n')}
-                />
-              )}
-              <MemorySection title="Preferences" content={memory?.preferences} />
-              <MemorySection title="Supervisor Notes" content={memory?.supervisor_notes} />
-              {memory?.review_log && memory.review_log.length > 0 && (
-                <MemorySection
-                  title={`Review Log (${memory.review_log.length})`}
-                  content={memory.review_log.map(r => `- **${r.date}** [${r.action}]: ${r.note}`).join('\n')}
-                />
-              )}
-              {!memory?.observations?.length && !memory?.preferences && !memory?.supervisor_notes && !memory?.review_log?.length && (
+              <MemorySection title="Feedback History" content={memory?.feedback} />
+              <MemorySection title="Self-Assessment" content={memory?.self_assessment} />
+              {!memory?.feedback && !memory?.self_assessment && (
                 <p className="text-xs text-muted-foreground/50">No memory accumulated yet.</p>
               )}
             </div>

@@ -200,9 +200,11 @@ def build_task_execution_prompt(
     agent_instructions: str,
     context: str,
     user_context: Optional[list] = None,
-    workspace_preferences: Optional[str] = None,
 ) -> tuple[str, str]:
     """Build system prompt and user message for task execution.
+
+    ADR-143: Preferences/feedback now injected via gathered context (load_context()),
+    not as a separate parameter.
 
     Returns:
         (system_prompt, user_message)
@@ -239,14 +241,7 @@ def build_task_execution_prompt(
     if agent_instructions:
         system += f"\n\n## Agent Instructions\n{agent_instructions}"
 
-    # Learned preferences (from workspace memory/preferences.md)
-    if workspace_preferences:
-        system += f"""
-
-## Learned Preferences (from user edit history)
-{workspace_preferences}
-
-Follow these preferences closely — they reflect what the user has consistently edited in past outputs."""
+    # ADR-143: Feedback + methodology now loaded via load_context() in gathered context
 
     # Tool usage guidance
     system += """
@@ -411,8 +406,8 @@ async def execute_task(
         await ws.ensure_seeded(agent)
 
         ws_instructions = await ws.read("AGENT.md") or ""
-        ws_preferences = await ws.read("memory/preferences.md") or ""
 
+        # ADR-143: feedback + methodology loaded via ws.load_context() in context gathering
         # User context (profile + preferences)
         user_context = _load_user_context(client, user_id)
 
@@ -432,7 +427,6 @@ async def execute_task(
             agent_instructions=ws_instructions,
             context=context_text,
             user_context=user_context,
-            workspace_preferences=ws_preferences,
         )
 
         # Skill docs for agents with asset capabilities
@@ -1082,7 +1076,6 @@ async def _execute_direct(
         ws = AgentWorkspace(client, user_id, agent_slug)
         await ws.ensure_seeded(agent)
         ws_instructions = await ws.read("AGENT.md") or ""
-        ws_preferences = await ws.read("memory/preferences.md") or ""
         user_context = _load_user_context(client, user_id)
 
         # Gather context
@@ -1098,7 +1091,6 @@ async def _execute_direct(
             agent_instructions=ws_instructions,
             context=context_text,
             user_context=user_context,
-            workspace_preferences=ws_preferences,
         )
 
         # Skill docs

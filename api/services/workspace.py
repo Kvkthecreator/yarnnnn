@@ -615,39 +615,27 @@ class AgentWorkspace:
                                 summary="Operational state")
 
     async def append_observation(self, note: str, source: str = "trigger") -> int:
-        """Append observation and return new count."""
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        entry = f"- [{timestamp}] ({source}) {note}"
-        await self.append("memory/observations.md", entry)
-        # Return count for threshold checking
-        obs = await self.get_observations()
-        return len(obs)
+        """ADR-143: Redirect observations to feedback.md.
+
+        Preserves the API so existing callers (trigger_dispatch, edit primitive) don't break.
+        Returns 0 (count no longer meaningful).
+        """
+        import re as _re
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        new_entry = f"## Observation ({timestamp}, {source})\n- {note}\n"
+
+        existing = await self.read("memory/feedback.md") or ""
+        header = "# Feedback History\n<!-- Most recent first. Max 10 entries. TP writes, agent reads. -->\n\n"
+        entries = _re.split(r"(?=^## )", existing, flags=_re.MULTILINE)
+        entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
+        entries = [new_entry.strip()] + entries[:9]
+        content = header + "\n\n".join(entries) + "\n"
+        await self.write("memory/feedback.md", content, summary="ADR-143: observation → feedback")
+        return 0
 
     async def clear_observations(self) -> bool:
-        """Clear observations (after reactive threshold generation)."""
-        return await self.write("memory/observations.md", "",
-                                summary="Cleared after generation")
-
-    async def append_review_log(self, entry: dict, max_entries: int = 50) -> bool:
-        """Append to review log, capping at max_entries."""
-        date = entry.get("date", "")
-        action = entry.get("action", "")
-        note = entry.get("note", "")
-        next_review = entry.get("next_review_at", "")
-        line = f"- [{date}] ({action}) {note}"
-        if next_review:
-            line += f" [next: {next_review}]"
-
-        log = await self.get_review_log()
-        if len(log) >= max_entries:
-            # Rewrite with only recent entries + new one
-            content = await self.read("memory/review-log.md") or ""
-            lines = [l for l in content.strip().split("\n") if l.strip()]
-            lines = lines[-(max_entries - 1):]  # Keep last N-1
-            lines.append(line)
-            return await self.write("memory/review-log.md", "\n".join(lines),
-                                    summary="Review pass history")
-        return await self.append("memory/review-log.md", line)
+        """ADR-143: No-op. Observations now part of feedback.md (capped, self-cleaning)."""
+        return True
 
     async def append_created_agent(self, title: str, dedup_key: str) -> bool:
         """Append to coordinator created agents log."""
@@ -682,17 +670,15 @@ class AgentWorkspace:
                 continue
             content = await self.read(f"memory/{filename}")
             if content:
-                # ADR-117: Window observations to last 10 entries to prevent token bloat.
-                # Observations append forever; only recent entries are useful signal.
-                if filename == "observations.md":
-                    lines = content.strip().split("\n")
-                    if len(lines) > 10:
-                        content = "\n".join(lines[-10:])
-                # ADR-143: Label methodology files distinctly from memory
+                # ADR-143: Label files by type for clear context injection
                 base = filename.replace(".md", "")
                 if base.startswith("methodology-"):
                     topic = base.replace("methodology-", "").replace("-", " ").title()
                     label = f"Methodology: {topic}"
+                elif base == "feedback":
+                    label = "Feedback History"
+                elif base == "self-assessment" or base == "self_assessment":
+                    label = "Self-Assessment"
                 else:
                     label = f"Memory: {base.replace('-', ' ').title()}"
                 parts.append(f"## {label}\n{content}")
@@ -743,10 +729,9 @@ class AgentWorkspace:
         return "\n\n---\n\n".join(parts) if parts else ""
 
     async def record_observation(self, note: str, source: str = "review") -> bool:
-        """Append an observation to memory/observations.md with timestamp."""
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        entry = f"- [{timestamp}] ({source}) {note}"
-        return await self.append("memory/observations.md", entry)
+        """ADR-143: Redirect to append_observation → feedback.md."""
+        await self.append_observation(note, source=source)
+        return True
 
     async def update_thesis(self, thesis: str) -> bool:
         """Update the agent's thesis (full replacement)."""
@@ -1569,30 +1554,24 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
     await ws.ensure_seeded(agent)  # Lazy migration from DB columns (one-time)
 
     instructions = (await ws.read("AGENT.md") or "").strip()
-    observations = await ws.get_observations()
     goal = await ws.get_goal()
-    review_log = await ws.get_review_log()
     created_agents = await ws.get_created_agents()
     last_generated_at = await ws.get_state("last_generated_at")
-    # ADR-117: Feedback substrate files — surface in API for dashboard visibility
-    preferences = (await ws.read("memory/preferences.md") or "").strip()
-    supervisor_notes = (await ws.read("memory/supervisor-notes.md") or "").strip()
+    # ADR-143: Unified feedback file
+    feedback = (await ws.read("memory/feedback.md") or "").strip()
+    self_assessment = (await ws.read("memory/self_assessment.md") or "").strip()
 
     memory = {}
-    if observations:
-        memory["observations"] = observations
     if goal:
         memory["goal"] = goal
-    if review_log:
-        memory["review_log"] = review_log
     if created_agents:
         memory["created_agents"] = created_agents
     if last_generated_at:
         memory["last_generated_at"] = last_generated_at
-    if preferences:
-        memory["preferences"] = preferences
-    if supervisor_notes:
-        memory["supervisor_notes"] = supervisor_notes
+    if feedback:
+        memory["feedback"] = feedback
+    if self_assessment:
+        memory["self_assessment"] = self_assessment
 
     return {
         "agent_instructions": instructions or None,

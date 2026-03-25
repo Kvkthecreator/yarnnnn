@@ -1134,20 +1134,17 @@ async def run_lifecycle_assessment(
                     f"{approval_rate:.0%} approval) — needs more data before action"
                 )
 
-                # ADR-117: Write coaching feedback to agent workspace
+                # ADR-143: Write coaching feedback to agent's feedback.md
                 try:
-                    from services.feedback_distillation import write_supervisor_notes
+                    from services.feedback_distillation import write_feedback_entry
                     coaching = (
-                        f"Your recent outputs have a {approval_rate:.0%} approval rate "
-                        f"across {total_runs} runs. The user is frequently editing or "
-                        f"not approving your outputs. Focus on:\n"
-                        f"- Following the preferences in memory/preferences.md closely\n"
-                        f"- Producing more concise, actionable content\n"
-                        f"- Prioritizing what the user has explicitly asked for in AGENT.md"
+                        f"Composer assessment: {approval_rate:.0%} approval rate "
+                        f"across {total_runs} runs. User frequently edits outputs. "
+                        f"Focus on feedback history and AGENT.md instructions."
                     )
-                    await write_supervisor_notes(client, user_id, up, coaching)
+                    await write_feedback_entry(client, user_id, up, coaching, source="composer")
                 except Exception as e:
-                    logger.warning(f"[COMPOSER] Supervisor notes failed for {title}: {e}")
+                    logger.warning(f"[COMPOSER] Feedback write failed for {title}: {e}")
 
     # Scope expansion: proven platform digest → create cross-platform analyst
     elif reason.startswith("lifecycle_expansion"):

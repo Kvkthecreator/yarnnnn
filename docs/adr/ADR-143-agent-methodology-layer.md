@@ -74,25 +74,56 @@ Seeded at agent creation from `AGENT_TYPES` registry. The seed is a starting poi
 - Evidence citation patterns
 - Cross-reference strategies
 
-### 4. Evolution via Feedback — Append-at-Top with Cap
+### 4. Feedback Consolidation — One File, One Signal
 
-Methodology files follow the **overwrite** pattern (like preferences.md), not the append pattern (like self_assessment.md). Rationale: methodology represents "current best understanding of how to produce well" — same as preferences represents "current best understanding of what user wants."
+**Problem:** Agent memory had 5 files competing for the same job ("make the agent better next time"): preferences.md, observations.md, supervisor-notes.md, review-log.md, and the proposed feedback.md. Too many files without clarity.
 
-When feedback distillation runs, it classifies signals:
-- **Taste signals** → `preferences.md` (what to include/exclude, tone, length)
-- **Craft signals** → `methodology-outputs.md` (structural changes, format adjustments, visual usage patterns)
+**Decision:** Consolidate all correction signals into a single `feedback.md`. Each file has one clear owner and one clear reader:
 
-Classification heuristic:
-- User adds/removes content sections → taste (preferences.md)
-- User restructures output format, changes heading hierarchy, moves sections → craft (methodology-outputs.md)
-- User adds/removes charts, changes visualization approach → craft (methodology-outputs.md)
-- User changes wording/tone → taste (preferences.md)
+| File | Writer | Reader | Purpose |
+|------|--------|--------|---------|
+| `methodology-*.md` | Seeded at creation; TP updates | Agent | How to produce (craft baseline) |
+| `feedback.md` | TP (conversational + edit-based) | Agent | What to change next time |
+| `self_assessment.md` | Agent (post-run) | TP | How agent thinks it did |
 
-### 5. TP Methodology — Deferred
+**Deleted (absorbed into feedback.md):**
+- `preferences.md` — taste rules derived from edits
+- `supervisor-notes.md` — Composer coaching
+- `observations.md` — runtime notes
+- `review-log.md` — approval/rejection history
 
-TP is intentionally stateless per session. Its "methodology" is its system prompt + primitive definitions, which are code-level artifacts. TP methodology evolution would mean the system prompt adapts per user — this is architecturally different and should be a separate ADR if pursued.
+**feedback.md format:** Append-at-top with rolling 10-entry cap (same pattern as self_assessment.md):
 
-For now, TP's orchestration knowledge (how to decompose tasks, which agents to assign) remains in its prompt. This is consistent with ADR-140's treatment of TP as infrastructure, not a workforce agent.
+```markdown
+# Feedback History
+<!-- Most recent first. Max 10 entries. TP writes, agent reads. -->
+
+## Run 14 (2026-03-25)
+- Approved without changes. Current approach is working.
+
+## Run 13 (2026-03-24)
+- User edited: moved executive summary above detailed analysis
+- User edited: removed competitor pricing section
+- User edited: added "Next Steps" section at end
+- User said: "Keep it under 2 pages next time"
+```
+
+**Triggers for writing feedback.md:**
+
+| Trigger | Writer | Mechanism |
+|---------|--------|-----------|
+| User edits agent output | `feedback_distillation.py` | PATCH /api/agents/{id}/runs/{run} → compute edit_categories → format as entry → append |
+| User approves without edits | `feedback_distillation.py` | Same endpoint → brief positive entry |
+| User rejects / requests re-run | `feedback_distillation.py` | Same endpoint → negative entry |
+| User gives feedback in conversation | TP via `WriteAgentFeedback` primitive | TP detects feedback intent → writes to agent's feedback.md |
+
+### 5. TP as Feedback Supervisor
+
+TP is the only entity that sees both agent output and user reaction. TP's role in the feedback loop:
+
+- **Conversational feedback:** When user says "that report was too long" or "I liked the charts", TP writes to the relevant agent's feedback.md via `WriteAgentFeedback` primitive.
+- **Orchestration knowledge:** TP's own methodology lives in its system prompt (`api/agents/tp_prompts/*.py`), not in workspace files. TP is infrastructure, not workforce (ADR-140).
+- **Methodology updates:** Future — TP can overwrite methodology-*.md when it observes repeated structural patterns in feedback.md.
 
 ### 6. Task-Level Application
 
@@ -101,38 +132,38 @@ Tasks don't carry their own methodology. Instead:
 - Agent methodology carries the *how* (production patterns for that format type)
 - The agent reads both at execution time and applies methodology to task requirements
 
-This matches the human analogy: you know how to make presentations (methodology), and each presentation has specific requirements (task). The methodology is yours; the task is assigned.
+### 7. Scalability
 
-### 7. Scalability — Why Overwrite Works Long-Term
+- `methodology-*.md`: Overwritten (not appended), bounded size. Auto-versioned to `/history/` (5 versions).
+- `feedback.md`: Append-at-top, capped at 10 entries. Old entries drop off naturally.
+- `self_assessment.md`: Append-at-top, capped at 5 entries.
 
-Methodology files are **overwritten** (not appended), so they don't grow unboundedly. Each overwrite captures the current-best methodology, not a log. The `_archive_to_history()` mechanism (ADR-119 Phase 3) preserves up to 5 previous versions automatically.
-
-This means:
-- File size stays bounded (methodology is a document, not a log)
-- History is preserved (5 versions in `/history/`)
-- No compaction needed — overwrite IS compaction
+No compaction needed. All files stay bounded.
 
 ## Implementation Plan
 
-### Phase 1: Seed + Read (this ADR)
-1. Add `default_methodology` to `AGENT_TYPES` registry entries
-2. Update `agent_creation.py` to seed methodology files at creation
-3. Verify `load_context()` auto-reads them (zero code change expected)
-4. Update `_build_headless_system_prompt()` to label methodology distinctly in context
+### Phase 1: Seed + Read (Implemented)
+1. ~~Add `methodology` to `AGENT_TYPES` registry entries~~
+2. ~~Update `agent_creation.py` to seed methodology files at creation~~
+3. ~~Verify `load_context()` auto-reads them~~
+4. ~~Update `load_context()` to label methodology distinctly~~
 
-### Phase 2: Evolve (future)
-1. Extend `feedback_distillation.py` with taste/craft classification
-2. Craft signals write to `methodology-outputs.md` (overwrite)
-3. Self-assessment can note methodology gaps ("I used tables but charts would have been better")
+### Phase 2: Feedback Consolidation (This Phase)
+1. Rewrite `feedback_distillation.py` — all edit signals → `feedback.md` append-at-top
+2. Delete `preferences.md`, `observations.md`, `supervisor-notes.md`, `review-log.md` write paths
+3. Clean all read paths in `agent_execution.py`, `task_pipeline.py`, `workspace.py`
+4. Add `WriteAgentFeedback` primitive for TP conversational feedback
+5. Update TP prompt with feedback behavior
+6. Clean frontend types and components
 
-### Phase 3: TP Awareness (future)
-1. TP prompt includes agent methodology summaries when assigning tasks
-2. TP can suggest methodology refinements based on cross-agent patterns
+### Phase 3: TP Feedback Intelligence (Future)
+1. TP observes patterns across feedback.md entries → updates methodology-*.md
+2. TP prompt includes agent feedback summaries when reviewing agent work
 
 ## Consequences
 
-- Agents produce more structured, format-aware outputs from first run
-- Feedback loop differentiates "what to say" from "how to say it"
-- No new tables, no new registries — methodology is workspace files
-- `load_context()` works unchanged — methodology auto-injected
-- Scalability: overwrite pattern + archive keeps files bounded
+- Agent memory: 3 files with clear ownership (methodology, feedback, self-assessment) instead of 6 overlapping files
+- Feedback is the conversation — user's most natural signal path captured via TP
+- Edit-based feedback preserved as mechanical fallback
+- No new tables, no new registries — workspace files only
+- Scalability: all files bounded (overwrite or capped append)

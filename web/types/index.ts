@@ -352,11 +352,9 @@ export interface AgentReviewLogEntry {
   next_review_at?: string;
 }
 
-// ADR-087/092/101/117: Agent memory structure
+// ADR-087/092/101/117/143: Agent memory structure
 export interface AgentMemory {
-  observations?: AgentObservation[];
   goal?: AgentGoal;
-  review_log?: AgentReviewLogEntry[];
   created_agents?: Array<{
     date: string;
     title: string;
@@ -364,9 +362,9 @@ export interface AgentMemory {
     dedup_key?: string;
   }>;
   last_generated_at?: string;
-  // ADR-117: Feedback substrate — workspace memory files surfaced for dashboard visibility
-  preferences?: string;        // memory/preferences.md content (distilled from edit patterns)
-  supervisor_notes?: string;   // memory/supervisor-notes.md content (Composer coaching)
+  // ADR-143: Unified feedback + self-assessment (replaces preferences, observations, supervisor_notes, review_log)
+  feedback?: string;           // memory/feedback.md content (rolling 10 entries)
+  self_assessment?: string;    // memory/self_assessment.md content (rolling 5 entries)
 }
 
 // ADR-138: Task mode (moved from agents to tasks — mode is temporal behavior of work, not identity)
