@@ -575,6 +575,7 @@ alongside any binary — the text is the feedback surface for user edits."""
                         version_id=str(version_id),
                         version_number=next_version,
                         destination=destination,
+                        task_slug=task_slug,
                     )
                     if delivery_result.status.value == "success":
                         now = datetime.now(timezone.utc).isoformat()

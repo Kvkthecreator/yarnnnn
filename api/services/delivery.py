@@ -634,6 +634,7 @@ async def deliver_from_output_folder(
     version_id: str,
     version_number: int,
     destination: dict | None = None,
+    task_slug: str | None = None,
 ) -> ExportResult:
     """
     Deliver agent output by reading from workspace output folder instead of agent_runs.
@@ -716,6 +717,7 @@ async def deliver_from_output_folder(
             agent_id=str(agent.get("id", "")),
             mode=None,  # Mode is on tasks, not agents (ADR-138)
             composed_html=composed_html,
+            task_slug=task_slug,
         )
     else:
         # Non-email platforms: fall back to existing exporter registry
@@ -780,6 +782,7 @@ async def _deliver_email_from_manifest(
     agent_id: str,
     mode: Optional[str],
     composed_html: Optional[str] = None,
+    task_slug: Optional[str] = None,
 ) -> ExportResult:
     """ADR-118 D.3 + ADR-130 Phase 2: Email delivery sourced from output folder.
 
@@ -819,6 +822,7 @@ async def _deliver_email_from_manifest(
                     "title": title,
                     "recipient": target,
                     "agent_id": agent_id,
+                    "task_slug": task_slug or "",
                     "version_number": version_number,
                     "mode": mode,
                     "date": options.get("date", ""),

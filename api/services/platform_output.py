@@ -395,11 +395,18 @@ def generate_email_html(
 
 
 def _email_footer_html(metadata: dict) -> str:
-    """Shared footer for agent emails: feedback nudge + view button + settings link."""
+    """Shared footer for task emails: feedback nudge + view button + settings link."""
     import os
     app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    # ADR-138: Link to task page (where output + chat live), fall back to agent page
+    task_slug = metadata.get("task_slug", "")
     agent_id = metadata.get("agent_id", "")
-    view_url = f"{app_url}/agents/{agent_id}" if agent_id else app_url
+    if task_slug:
+        view_url = f"{app_url}/tasks/{task_slug}"
+    elif agent_id:
+        view_url = f"{app_url}/agents/{agent_id}"
+    else:
+        view_url = app_url
     settings_url = f"{app_url}/settings"
 
     return f"""
