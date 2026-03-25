@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * ADR-132/136: Work-First Onboarding — Single Step
+ * ADR-140: Context-First Onboarding
  *
- * One screen: share context (files + description + name) → submit
- * Inference handles everything: scopes, objectives, brand, team composition
- * User focuses on WHAT they want, system figures out HOW
+ * Onboarding = context enrichment, NOT task creation.
+ * Agents are pre-scaffolded at sign-up (6 roster agents).
+ * User shares context (files + description + name) → workspace enriched.
+ * Task creation is downstream — via TP conversation on workfloor.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -70,10 +71,9 @@ export default function OnboardingPage() {
     try {
       const documentIds = uploadedFiles.filter(f => f.status === 'done' && f.id).map(f => f.id!);
 
-      await api.onboardingScaffold.save(
-        [{ name: description.trim() || 'My Work' }],
+      await api.onboarding.enrich(
+        description.trim(),
         name.trim() || undefined,
-        undefined, // brand inferred by backend
         documentIds.length > 0 ? documentIds : undefined,
       );
 
@@ -99,21 +99,36 @@ export default function OnboardingPage() {
       <div className="relative z-10 w-full max-w-lg space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
-          <p className="mt-2 text-[#1a1a1a]/60">Share what you&apos;re working on</p>
+          <p className="mt-2 text-[#1a1a1a]/60">Tell us about your work</p>
         </div>
 
         <div className="glass-card-light p-8 space-y-5">
 
+          {/* Description — context about their work */}
+          <div>
+            <label className="text-sm font-medium text-[#1a1a1a]/70 mb-1.5 block">
+              What do you do?
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g., I'm building an AI agent platform. I track competitors like CrewAI and AutoGen, manage investor relations, and coordinate a small team on Slack."
+              rows={3}
+              autoFocus
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#1a1a1a]/10 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a1a1a]/10 resize-none"
+            />
+          </div>
+
           {/* File upload */}
           <div
-            className="border-2 border-dashed border-[#1a1a1a]/15 rounded-xl p-6 text-center hover:border-[#1a1a1a]/30 transition-colors cursor-pointer"
+            className="border-2 border-dashed border-[#1a1a1a]/15 rounded-xl p-5 text-center hover:border-[#1a1a1a]/30 transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileUpload(e.dataTransfer.files); }}
           >
-            <Upload className="w-7 h-7 text-[#1a1a1a]/25 mx-auto mb-2" />
-            <p className="text-sm text-[#1a1a1a]/50">Drop files here</p>
-            <p className="text-xs text-[#1a1a1a]/30 mt-1">Pitch decks, project briefs, any docs</p>
+            <Upload className="w-6 h-6 text-[#1a1a1a]/25 mx-auto mb-1.5" />
+            <p className="text-sm text-[#1a1a1a]/50">Or drop files for more context</p>
+            <p className="text-xs text-[#1a1a1a]/30 mt-0.5">Pitch decks, project briefs, strategy docs</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -131,8 +146,8 @@ export default function OnboardingPage() {
                   <FileText className="w-3.5 h-3.5 text-[#1a1a1a]/40" />
                   <span className="truncate flex-1 text-[#1a1a1a]/70">{f.name}</span>
                   {f.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-[#1a1a1a]/40" />}
-                  {f.status === 'done' && <span className="text-green-600 text-[10px]">✓</span>}
-                  {f.status === 'error' && <span className="text-red-500 text-[10px]">✗</span>}
+                  {f.status === 'done' && <span className="text-green-600 text-[10px]">done</span>}
+                  {f.status === 'error' && <span className="text-red-500 text-[10px]">failed</span>}
                   <button onClick={() => removeFile(f.name)} className="text-[#1a1a1a]/30 hover:text-[#1a1a1a]/60">
                     <X className="w-3 h-3" />
                   </button>
@@ -140,27 +155,6 @@ export default function OnboardingPage() {
               ))}
             </div>
           )}
-
-          <div className="relative flex items-center gap-3">
-            <div className="flex-1 h-px bg-[#1a1a1a]/10" />
-            <span className="text-xs text-[#1a1a1a]/30">and / or</span>
-            <div className="flex-1 h-px bg-[#1a1a1a]/10" />
-          </div>
-
-          {/* Description — what they want */}
-          <div>
-            <label className="text-sm font-medium text-[#1a1a1a]/70 mb-1.5 block">
-              What do you need?
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g., I need weekly competitive intel on AI pricing, a polished investor update every month, and daily Slack recaps of my team's activity."
-              rows={3}
-              autoFocus
-              className="w-full text-sm px-3 py-2 rounded-lg border border-[#1a1a1a]/10 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a1a1a]/10 resize-none"
-            />
-          </div>
 
           {/* Name */}
           <div>
@@ -171,7 +165,7 @@ export default function OnboardingPage() {
           {/* Submit */}
           <Button onClick={handleSubmit} disabled={!hasContent || loading} className="w-full">
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
-            {loading ? 'Setting up your team...' : 'Set up my team'}
+            {loading ? 'Understanding your work...' : 'Continue'}
           </Button>
 
           <div className="text-center">
@@ -180,6 +174,10 @@ export default function OnboardingPage() {
             </button>
           </div>
         </div>
+
+        <p className="text-center text-xs text-[#1a1a1a]/30">
+          Your team of 6 agents is already set up. This context helps them do better work.
+        </p>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 # ADR-139: Workfloor + Task Surface Architecture
 
-> **Status**: Proposed
+> **Status**: Proposed (v2 — output-first, chat-as-drawer)
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude
 > **Depends on**: ADR-138 (Agents as Work Units — project layer collapse)
@@ -28,6 +28,7 @@ We need new surfaces that match the collapsed architecture.
 3. **Output is what users care about** — the rendered deliverable is the hero, not config or chat
 4. **Surface-Action Mapping preserved** — directives flow through chat, configuration lives in panels
 5. **Two session scopes only** — global (workfloor) and task-scoped (task page). No agent-scoped sessions (agent steering happens via workfloor TP or task TP).
+6. **Chat is a tool, not a surface** — chat is an intervention drawer, not the default view. The user supervises outputs and reaches for chat when they need to steer. (v2 revision)
 
 ---
 
@@ -64,85 +65,103 @@ Supporting surfaces (unchanged):
 ### `/workfloor` — Home (workspace-scoped)
 
 ```
-┌──────────────────────────┬───────────────────────┐
-│                          │ [Tasks] [Workspace]    │
-│  Agents Display          │                       │
-│                          │ Tasks tab:            │
-│  ┌────────┐ ┌────────┐  │ ┌───────────────────┐ │
-│  │Market  │ │Team    │  │ │ Weekly Briefing  → │ │
-│  │Intel   │ │Observer│  │ │ ✓ delivered 2h ago │ │
-│  │🔬 2 tasks│👁 1 task│  │ └───────────────────┘ │
-│  └────────┘ └────────┘  │ ┌───────────────────┐ │
-│                          │ │ Pricing Alert    → │ │
-│  ┌────────┐              │ │ ⏳ next run: 3d   │ │
-│  │Content │              │ └───────────────────┘ │
-│  │Writer  │              │                       │
-│  │✍️      │              │ Workspace tab:        │
-│  └────────┘              │ • IDENTITY.md         │
-│                          │ • BRAND.md            │
-│  ── TP Chat ──────────── │ • preferences.md      │
-│  "Create a researcher    │ • /knowledge/ ▾       │
-│   for market analysis"   │                       │
-│                          │ Platform status       │
-│  /create-agent           │ • Slack 🟢 • Notion 🟢│
-└──────────────────────────┴───────────────────────┘
+┌─ Left Panel (flex-1) ──────────┬─ Right Panel (400px) ─────────┐
+│                                │  Agent Roster (2×3 grid)      │
+│  Output Feed                   │  ┌──────┐ ┌──────┐ ┌──────┐  │
+│  ┌──────────────────────────┐  │  │ Res  │ │ Cont │ │ Mktg │  │
+│  │ Weekly Competitive Brief │  │  │ 🟢   │ │ ⏸    │ │ 🟢   │  │
+│  │ Market Intelligence · 2h │  │  │ 2 tsk│ │ 1 tsk│ │ 1 tsk│  │
+│  │ ┌─ output preview ────┐ │  │  └──────┘ └──────┘ └──────┘  │
+│  │ │ Executive Summary:  │ │  │  ┌──────┐ ┌──────┐ ┌──────┐  │
+│  │ │ CrewAI launched...  │ │  │  │ CRM  │ │ Slck │ │ Notn │  │
+│  │ └────────────────────┘ │  │  │ ⏸    │ │ 🟢   │ │ 🔴   │  │
+│  └──────────────────────────┘  │  │ 0 tsk│ │ 1 tsk│ │ 0 tsk│  │
+│  ┌──────────────────────────┐  │  └──────┘ └──────┘ └──────┘  │
+│  │ Daily Slack Recap       │  │                               │
+│  │ Slack Bot · 6h ago      │  │  Quick stats + compact tabs   │
+│  │ ┌─ output preview ────┐ │  │  for Tasks/Workspace/Platform │
+│  │ │ #engineering: Team   │ │  │                               │
+│  │ └────────────────────┘ │  │                               │
+│  └──────────────────────────┘  │                               │
+│  (scrollable, reverse-chrono)  │                               │
+└────────────────────────────────┴───────────────────────────────┘
+                                     Chat Drawer →  (slides from right, ⌘K or FAB)
 ```
 
-**Left panel:**
-- Agent cards grid/list — name, archetype icon, task count, health indicator
-- Each card links to `/agents/{slug}`
-- TP chat input at bottom — workspace-scoped commands
-- Chat history scrolls above input (same pattern as current orchestrator)
+**Left panel: Output Feed (hero)**
+- Most recent outputs from all tasks, reverse-chronological
+- Each card: task title, agent name, timestamp, output preview (~100 chars)
+- Click → `/tasks/{slug}` (full output)
+- This is what the user opens the workfloor to see: proof the system is alive
 
-**Right panel (tabbed):**
-- **Tasks tab** — task list with status badges, cadence, last output date. Each row links to `/tasks/{slug}`. Sorted by last activity.
-- **Workspace tab** — workspace-level MD files (IDENTITY.md, BRAND.md, preferences.md, notes.md), knowledge base browser, platform connection status.
+**Right panel: Agent Roster (living office)**
+- 2×3 grid of agent "desk" cards (6 agents from ADR-140 roster)
+- Each card: name, status dot (pulsing green = running, steady green = healthy, amber = overdue, red = error, gray = paused), task count
+- Active agents have subtle shimmer animation — the "living office" feeling
+- Below roster: quick stats + compact tabs for Tasks list, Workspace files, Platform status
 
-**TP scope:** Global session. Actions available: create agent, create task, workforce health, onboarding, slash commands. Surface context: `{ type: "workfloor" }`.
+**Chat: Drawer** (not a panel)
+- Slides in from right edge (~400px), overlays right panel
+- Triggered by FAB button (bottom-right) or ⌘K
+- Global TP session. Surface context: `{ type: "workfloor" }`
+- Use cases: create agent/task, direct workforce, ask questions
+- Can be pinned open for chat-heavy interaction
 
-**Design principle:** Agents are the visual anchor (left, prominent). Tasks are the work queue (right, scannable). Chat is the command line (bottom, always available).
+**Design principle (v2):** Output feed is the heartbeat (left, hero). Agent roster is the living office (right, at-a-glance team health). Chat is an intervention tool (drawer, on-demand).
 
 ### `/tasks/{slug}` — Task Working Page (task-scoped)
 
 ```
-┌────────────────────────┬──────────────────────┐
-│                        │ Task Details          │
-│  [Output] [Chat]       │                      │
-│                        │ Status: active 🟢     │
-│  Output tab (default): │ Cadence: weekly       │
-│  ┌──────────────────┐  │ Next run: Mar 28      │
-│  │                  │  │ Delivery: email        │
-│  │ Latest rendered  │  │ Agent: market-intel →  │
-│  │ HTML output      │  │                      │
-│  │ (full width,     │  │ ── Objective ──       │
-│  │  scrollable)     │  │ Deliverable: Weekly.. │
-│  │                  │  │ Audience: Founder     │
-│  │                  │  │ Purpose: Track comp.. │
-│  └──────────────────┘  │ Format: Doc + charts  │
-│                        │                      │
-│  Chat tab:             │ ── Success Criteria ──│
-│  TP chat               │ • Cover CrewAI, etc.  │
-│  (task-scoped)         │ • Include pricing     │
-│  "Focus on pricing     │                      │
-│   this week"           │ ── Run History ──     │
-│                        │ Mar 25 ✓ [view]       │
-│                        │ Mar 18 ✓ [view]       │
-│                        │ Mar 11 ✓ [view]       │
-└────────────────────────┴──────────────────────┘
+┌─ Left Panel (flex-1) ──────────┬─ Right Panel (400px) ─────────┐
+│                                │ Task Details                   │
+│  Latest Output (rendered HTML) │                               │
+│  ┌──────────────────────────┐  │ Status: active 🟢 · recurring  │
+│  │                          │  │ Cadence: weekly                │
+│  │  Executive Summary       │  │ Next run: Mar 28 09:00         │
+│  │                          │  │ Delivery: email                │
+│  │  CrewAI launched their   │  │ Agent: Market Intel →          │
+│  │  enterprise tier this    │  │                               │
+│  │  week, pricing at...     │  │ ── Objective ──                │
+│  │                          │  │ Deliverable: Weekly AI...      │
+│  │  [full rendered output]  │  │ Audience: Founder              │
+│  │                          │  │ Purpose: Track competitor...   │
+│  │                          │  │ Format: Doc + charts           │
+│  │                          │  │                               │
+│  │                          │  │ ── Success Criteria ──         │
+│  │                          │  │ ☑ Cover CrewAI, AutoGen...    │
+│  │                          │  │ ☑ Pricing comparison          │
+│  │                          │  │ ☐ Positioning implications    │
+│  │                          │  │                               │
+│  │                          │  │ ── Run Trajectory ──           │
+│  │                          │  │ ● Mar 25 ✓ confidence: high   │
+│  │                          │  │ ○ Mar 18 ✓ confidence: med    │
+│  │                          │  │ ○ Mar 11 ✓ confidence: low    │
+│  │                          │  │   ↑ improving trend            │
+│  │                          │  │                               │
+│  └──────────────────────────┘  │ [⚙ Settings] [▶ Run Now]      │
+└────────────────────────────────┴───────────────────────────────┘
+                                     Chat Drawer →  (slides from right, ⌘K or FAB)
 ```
 
-**Left panel (tabbed):**
-- **Output tab** (default) — latest rendered HTML output at full panel width. Scrollable. Run history entries in right panel swap the displayed output when clicked.
-- **Chat tab** — TP chat scoped to this task. Session keyed by `task_slug`. Conversation persists across visits. User steers the task: "focus on pricing", "add a recommendations section", "change delivery to Slack".
+**Left panel: Latest Output (hero)**
+- Rendered HTML output at full panel width, scrollable
+- This is the deliverable — what the user came to see
+- Clicking a run history entry in right panel swaps the displayed output
+- If no output yet: "This task hasn't produced any output yet. Next run: {date}" + "Run Now" button
+- Approve/reject/edit actions inline on the output (feedback loop)
 
-**Right panel:**
-- Task metadata: status, cadence, next run, delivery channel, assigned agent (links to `/agents/{slug}`)
-- Objective (from TASK.md `## Objective`)
-- Success criteria (from TASK.md `## Success Criteria`)
-- Run history (date + status, clicking swaps left panel output)
-- Settings gear icon → edit config (cadence, delivery, status) via direct manipulation
+**Right panel: Task Meta + Run Trajectory**
+- Task metadata: status badge + mode label, cadence, next run, delivery, assigned agent
+- Objective (from TASK.md `## Objective`): deliverable, audience, purpose, format
+- Success criteria: checklist with self-assessment status (☑ met / ☐ missed) from latest run
+- Run trajectory: date + status + self-assessment confidence level, with trend indicator (↑ improving / → stable / ↓ declining). This is the eval surface — closest analog to autoresearch's results.tsv
+- Settings gear → modal for editing cadence, delivery, status, criteria. Run Now button.
 
-**TP scope:** Task-scoped session. Surface context: `{ type: "task-detail", taskSlug }`. TP has task context injected — TASK.md content, run_log.md, latest output summary, assigned agent identity. Directives in chat update TASK.md or agent memory as appropriate.
+**Chat: Drawer** (same pattern as workfloor)
+- Task-scoped TP session (keyed by `task_slug`)
+- TP has TASK.md + run_log.md + agent context injected
+- Use cases: "Focus on pricing this week", "The competitor section is weak", "Change delivery to Slack"
+- Surface context: `{ type: "task-detail", taskSlug }`
 
 ### `/agents/{slug}` — Agent Identity Page
 
@@ -254,14 +273,14 @@ Tasks and agents are children of workfloor in the navigation hierarchy.
 | **Reference** (accumulated state) | Panels, read-only | Memory browser, run history, agent identity |
 | **Creation** (new entities) | Chat | "create a researcher agent", "add a weekly briefing task" |
 
-### Onboarding flow
+### Onboarding flow (ADR-140 pre-scaffolded roster)
 
-1. User signs up → lands on `/workfloor` (empty state)
-2. Empty state shows: "What kind of work do you need help with?" prompt in TP chat
-3. User describes work → TP creates agent + task
-4. Agent card appears in left panel, task appears in right panel
-5. User connects platforms → knowledge base populates
-6. First task runs on cadence → output appears on task page
+1. User signs up → roster of 6 agents created automatically (ADR-140)
+2. User lands on `/workfloor` — agent roster visible (all paused, 0 tasks), output feed empty
+3. Chat drawer auto-opens with suggested prompts: "Weekly competitive intel", "Daily Slack recap"
+4. User describes work → TP creates task, assigns to existing roster agent
+5. Agent activates, output feed starts populating
+6. User connects platforms → knowledge base enriches, bots activate
 
 ---
 
@@ -282,23 +301,25 @@ Tasks and agents are children of workfloor in the navigation hierarchy.
 
 ### Phase 1: Route + Layout (frontend)
 1. Create `/workfloor` page with `WorkspaceLayout`
-2. Left panel: agent cards grid (read from `/api/agents`)
-3. Right panel: tabbed — Tasks (read from `/api/tasks`) | Workspace (read workspace files)
-4. TP chat at bottom of left panel (reuse existing chat components)
+2. Left panel: output feed (reverse-chrono cards from all tasks)
+3. Right panel: agent roster (2×3 grid) + quick stats + compact tabs (Tasks/Workspace/Platforms)
+4. Chat drawer component (slides from right, FAB trigger + ⌘K)
 5. Update `HOME_ROUTE` in `routes.ts` to `/workfloor`
 6. Redirect `/orchestrator` → `/workfloor`
+7. New endpoint: `GET /api/tasks/outputs/recent` (latest outputs across all tasks)
 
 ### Phase 2: Task page (frontend + backend)
 1. Create `/tasks/[slug]` page with `WorkspaceLayout`
-2. Left panel: tabbed — Output (rendered HTML) | Chat (task-scoped TP)
-3. Right panel: task details from TASK.md + run history from `/tasks/{slug}/outputs/`
-4. Add `task_slug` column to `chat_sessions` (migration)
-5. Update `chat.py` session routing for task-scoped sessions
-6. Update `load_surface_content()` for task context injection
+2. Left panel: latest output (rendered HTML, full width hero)
+3. Right panel: task meta + objective + success criteria checklist + run trajectory with confidence/trend
+4. Chat drawer (task-scoped TP, same component as workfloor)
+5. Add `task_slug` column to `chat_sessions` (migration)
+6. Update `chat.py` session routing for task-scoped sessions
+7. Update `load_surface_content()` for task context injection
 
 ### Phase 3: Agent page (frontend)
-1. Update `/agents/[slug]` — remove chat, add identity display + memory browser
-2. Right panel: assigned tasks (links to task pages), development stats, actions
+1. Update `/agents/[slug]` — identity display + memory browser (left), assigned tasks + dev stats (right)
+2. No chat drawer on this page (reference surface only)
 3. Surface context: `{ type: "agent-identity", agentSlug }`
 
 ### Phase 4: Navigation + cleanup
@@ -306,7 +327,7 @@ Tasks and agents are children of workfloor in the navigation hierarchy.
 2. Fold `/context` into workfloor Workspace tab
 3. Delete `/orchestrator` page (after redirect period)
 4. Delete `ChatAgent` class and agent_chat mode (dormant code)
-5. Update onboarding empty state for workfloor
+5. Update onboarding: chat drawer auto-opens on first visit with suggested prompts
 
 ---
 

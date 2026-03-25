@@ -100,17 +100,14 @@ class OnboardingStateResponse(BaseModel):
     has_agents: bool = False
 
 
-# ─── ADR-132: Onboarding — scaffold projects directly ──
-
-class OnboardingProject(BaseModel):
-    name: str
-
+# ─── ADR-138/140: Onboarding — context enrichment ──
 
 class OnboardingRequest(BaseModel):
-    projects: list[OnboardingProject]
+    description: Optional[str] = None
     name: Optional[str] = None
-    brand_content: Optional[str] = None
-    document_ids: Optional[list[str]] = None  # ADR-136: uploaded doc IDs for inference
+    document_ids: Optional[list[str]] = None
+    # Legacy field — frontend may still send this
+    projects: Optional[list] = None
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -214,158 +211,122 @@ async def _scaffold_default_roster(client, user_id: str):
 
 
 @router.post("/user/onboarding")
-async def onboarding_scaffold(body: OnboardingRequest, auth: UserClient):
-    """Onboarding endpoint — context enrichment + task inference (ADR-138/140).
+async def onboarding_enrich(body: OnboardingRequest, auth: UserClient):
+    """Onboarding endpoint — context enrichment only (ADR-138/140).
 
-    Agents are pre-scaffolded at sign-up (ADR-140). Onboarding:
-    1. Saves user identity/brand
-    2. Reads uploaded documents → enriches /knowledge/
-    3. Calls Sonnet to infer tasks from user context
-    4. Creates tasks assigned to existing roster agents
+    Agents are pre-scaffolded at sign-up. Onboarding enriches the workspace:
+    1. Saves user name
+    2. Reads uploaded documents
+    3. Calls Sonnet to infer identity, brand, domains, work patterns
+    4. Writes enriched context to workspace files
+
+    Task creation is NOT done here — it's downstream via TP conversation.
     """
     try:
         um = UserMemory(auth.client, auth.user_id)
 
-        # Save identity + brand
+        # Save name
         if body.name:
             profile = await um.get_profile()
             if not profile.get("name"):
                 await um.update_profile({"name": body.name})
 
-        if body.brand_content:
-            await um.write("BRAND.md", body.brand_content, summary="Brand identity")
-
-        # Gather user context for inference
-        text_description = ""
-        if body.projects:
-            text_description = " ".join(p.name for p in body.projects)
+        # Gather context for inference
+        text_description = body.description or ""
+        # Legacy compat: frontend may send projects[].name as description
+        if not text_description and body.projects:
+            text_description = " ".join(
+                p.get("name", "") if isinstance(p, dict) else str(p)
+                for p in body.projects
+            )
 
         document_contents = []
         if body.document_ids:
-            from services.project_inference import read_uploaded_documents
+            from services.context_inference import read_uploaded_documents
             document_contents = await read_uploaded_documents(
                 auth.client, auth.user_id, body.document_ids
             )
 
         # Skip inference if no context at all
         if not text_description.strip() and not document_contents:
-            logger.info("[ONBOARDING] No context provided, skipping task inference")
-            return {"tasks_created": [], "count": 0}
+            logger.info("[ONBOARDING] No context provided, skipping inference")
+            return {
+                "enriched": False,
+                "identity": {},
+                "domains": [],
+                "work_patterns": [],
+            }
 
-        # Infer tasks via Sonnet
-        from services.project_inference import infer_work_scopes
-        inference = await infer_work_scopes(text_description, document_contents)
+        # Infer workspace context via Sonnet
+        from services.context_inference import enrich_context
+        inference = await enrich_context(text_description, document_contents)
 
-        # Save brand if inferred
+        # Write identity
+        identity = inference.get("identity", {})
+        if identity:
+            profile_updates = {}
+            if identity.get("name") and not body.name:
+                profile_updates["name"] = identity["name"]
+            if identity.get("role"):
+                profile_updates["role"] = identity["role"]
+            if identity.get("company"):
+                profile_updates["company"] = identity["company"]
+            if identity.get("industry"):
+                profile_updates["industry"] = identity["industry"]
+            if identity.get("context_summary"):
+                profile_updates["context"] = identity["context_summary"]
+            if profile_updates:
+                await um.update_profile(profile_updates)
+
+            # Write enriched IDENTITY.md
+            identity_parts = [f"# {identity.get('name', 'User')}"]
+            if identity.get("role"):
+                identity_parts.append(f"\n**Role**: {identity['role']}")
+            if identity.get("company"):
+                identity_parts.append(f"**Company**: {identity['company']}")
+            if identity.get("industry"):
+                identity_parts.append(f"**Industry**: {identity['industry']}")
+            if identity.get("context_summary"):
+                identity_parts.append(f"\n{identity['context_summary']}")
+            await um.write("IDENTITY.md", "\n".join(identity_parts),
+                           summary="User identity from onboarding")
+
+        # Write brand
         brand = inference.get("brand", {})
-        if brand.get("name") and not body.brand_content:
-            brand_md = f"# {brand['name']}\n\nTone: {brand.get('tone', 'professional')}"
-            await um.write("BRAND.md", brand_md, summary="Inferred brand identity")
+        if brand.get("name"):
+            brand_parts = [f"# {brand['name']}"]
+            if brand.get("tone"):
+                brand_parts.append(f"\n**Tone**: {brand['tone']}")
+            if brand.get("voice"):
+                brand_parts.append(f"**Voice**: {brand['voice']}")
+            await um.write("BRAND.md", "\n".join(brand_parts),
+                           summary="Brand identity from onboarding")
 
-        # Save user context
-        user_context = inference.get("user_context", "")
-        if user_context:
-            profile = await um.get_profile()
-            if not profile.get("context"):
-                await um.update_profile({"context": user_context})
+        # Write domains + work patterns as workspace context
+        domains = inference.get("domains", [])
+        patterns = inference.get("work_patterns", [])
+        if domains or patterns:
+            context_parts = ["# Workspace Context\n"]
+            if domains:
+                context_parts.append("## Domains of Attention")
+                for d in domains:
+                    context_parts.append(f"- {d}")
+                context_parts.append("")
+            if patterns:
+                context_parts.append("## Work Patterns")
+                for p in patterns:
+                    context_parts.append(f"- {p}")
+                context_parts.append("")
+            await um.write("CONTEXT.md", "\n".join(context_parts),
+                           summary="Work context from onboarding")
 
-        # Get existing roster agents to assign tasks
-        roster = (
-            auth.client.table("agents")
-            .select("id, title, role")
-            .eq("user_id", auth.user_id)
-            .neq("status", "archived")
-            .execute()
-        ).data or []
-        roster_by_role = {a["role"]: a for a in roster}
-
-        # Create tasks from inferred scopes, assign to existing roster agents
-        from services.task_workspace import TaskWorkspace
-        from services.workspace import AgentWorkspace, get_agent_slug
-        import re
-        import json as json_mod
-
-        created = []
-        for scope in inference.get("tasks", []):
-            try:
-                task_title = scope.get("task_title", "New Task")
-                task_slug = re.sub(r'[^a-z0-9]+', '-', task_title.lower()).strip('-')[:60]
-                cadence = scope.get("cadence", "weekly")
-                objective = scope.get("objective", {})
-                success_criteria = scope.get("success_criteria", [])
-                output_spec = scope.get("output_spec", [])
-
-                # Match inferred agent_role to existing roster agent
-                inferred_role = scope.get("agent_role", "research")
-                agent = roster_by_role.get(inferred_role, roster_by_role.get("research"))
-                if not agent:
-                    logger.warning(f"[ONBOARDING] No agent for role {inferred_role}, skipping")
-                    continue
-
-                agent_slug = get_agent_slug(agent)
-
-                # Insert task DB row
-                task_data = {
-                    "user_id": auth.user_id,
-                    "slug": task_slug,
-                    "status": "active",
-                    "schedule": cadence,
-                }
-                auth.client.table("tasks").insert(task_data).execute()
-
-                # Write TASK.md
-                tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
-                task_md_parts = [f"# {task_title}\n"]
-
-                if objective:
-                    task_md_parts.append("## Objective")
-                    for k, v in objective.items():
-                        task_md_parts.append(f"- **{k.title()}**: {v}")
-                    task_md_parts.append("")
-
-                if success_criteria:
-                    task_md_parts.append("## Success Criteria")
-                    for c in success_criteria:
-                        task_md_parts.append(f"- {c}")
-                    task_md_parts.append("")
-
-                task_md_parts.append("## Process")
-                task_md_parts.append(f"- **Agent**: {agent_slug}")
-                task_md_parts.append(f"- **Cadence**: {cadence}")
-                task_md_parts.append("")
-
-                if output_spec:
-                    task_md_parts.append("## Output Specification")
-                    for s in output_spec:
-                        task_md_parts.append(f"- {s}")
-                    task_md_parts.append("")
-
-                await tw.write("TASK.md", "\n".join(task_md_parts),
-                               summary=f"Task definition for {task_title}")
-
-                # Update agent's tasks.json
-                ws = AgentWorkspace(auth.client, auth.user_id, agent_slug)
-                tasks_json = await ws.read("memory/tasks.json")
-                existing_tasks = json_mod.loads(tasks_json) if tasks_json else []
-                existing_tasks.append({"task_slug": task_slug, "task_title": task_title})
-                await ws.write("memory/tasks.json", json_mod.dumps(existing_tasks, indent=2),
-                               summary="Task assignment")
-
-                created.append({
-                    "task_slug": task_slug,
-                    "task_title": task_title,
-                    "agent_slug": agent_slug,
-                    "agent_title": agent["title"],
-                    "agent_role": agent["role"],
-                })
-                logger.info(f"[ONBOARDING] Created task '{task_title}' → {agent['title']}")
-
-            except Exception as e:
-                logger.error(f"[ONBOARDING] Failed to create task: {e}")
-                continue
-
-        logger.info(f"[ONBOARDING] Created {len(created)} tasks")
-        return {"tasks_created": created, "count": len(created)}
+        logger.info(f"[ONBOARDING] Enriched: {len(domains)} domains, {len(patterns)} patterns")
+        return {
+            "enriched": True,
+            "identity": identity,
+            "domains": domains,
+            "work_patterns": patterns,
+        }
 
     except Exception as e:
         logger.error(f"[ONBOARDING] Error: {e}")

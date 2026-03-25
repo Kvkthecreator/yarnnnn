@@ -208,20 +208,20 @@ export const api = {
 
   // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
-  // Onboarding state
+  // Onboarding (ADR-140) — context enrichment only. No task creation.
   onboarding: {
-    getState: () =>
-      request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
-  },
-
-  // Onboarding (ADR-138/140) — context enrichment + task inference
-  // Agents pre-scaffolded at sign-up. Onboarding creates tasks assigned to roster agents.
-  onboardingScaffold: {
-    save: (projects: Array<{ name: string }>, name?: string, brandContent?: string, documentIds?: string[]) =>
-      request<{ tasks_created: Array<{ task_slug: string; task_title: string; agent_slug: string; agent_title: string; agent_role: string }>; count: number }>(
+    enrich: (description: string, name?: string, documentIds?: string[]) =>
+      request<{
+        enriched: boolean;
+        identity: { name?: string; role?: string; company?: string; industry?: string; context_summary?: string };
+        domains: string[];
+        work_patterns: string[];
+      }>(
         "/api/memory/user/onboarding",
-        { method: "POST", body: JSON.stringify({ projects, name, brand_content: brandContent, document_ids: documentIds }) },
+        { method: "POST", body: JSON.stringify({ description, name, document_ids: documentIds }) },
       ),
+    getState: () =>
+      request<{ has_agents: boolean }>("/api/memory/user/onboarding-state"),
   },
 
   // ADR-133: Brand — reads/writes /workspace/BRAND.md
