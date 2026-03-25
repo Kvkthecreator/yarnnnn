@@ -8,7 +8,7 @@
  * Chat: Drawer (FAB + ⌘K)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HOME_ROUTE } from '@/lib/routes';
@@ -91,14 +91,20 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
   const activeTask = assignedTasks[0]; // Show the first/primary task on the desk
 
+  // State class for liveness animations
+  const stateClass = isRunning ? 'agent-working' : isPaused ? 'agent-paused' : hasFailed ? 'agent-error' : activeTask ? 'agent-ready' : '';
+
   return (
     <Link
       href={`/agents/${agent.id}`}
       className={cn(
         'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden min-h-[140px]',
-        config.accent, config.bgRoom,
+        config.accent, config.bgRoom, stateClass,
       )}
     >
+      {/* Shimmer overlay for working state */}
+      {isRunning && <div className="agent-shimmer absolute inset-0 pointer-events-none rounded-2xl" style={{ '--agent-color': config.color.includes('blue') ? '59 130 246' : config.color.includes('purple') ? '168 85 247' : config.color.includes('pink') ? '236 72 153' : config.color.includes('orange') ? '249 115 22' : config.color.includes('teal') ? '20 184 166' : config.color.includes('indigo') ? '99 102 241' : '107 114 128' } as React.CSSProperties} />}
+
       {/* Status light */}
       <div className="absolute top-3 right-3">
         <span className={cn('block w-2.5 h-2.5 rounded-full', statusDot)} />
@@ -107,9 +113,9 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
       {/* Agent identity — icon + name */}
       <div className="flex items-center gap-2.5 mb-3">
         <div className={cn(
-          'w-10 h-10 rounded-lg flex items-center justify-center bg-background/80 backdrop-blur-sm border shadow-sm shrink-0',
+          'agent-desk w-10 h-10 rounded-lg flex items-center justify-center bg-background/80 backdrop-blur-sm border shadow-sm shrink-0',
           config.accent,
-        )}>
+        )} style={isRunning ? { '--agent-color': config.color.includes('blue') ? '59 130 246' : config.color.includes('purple') ? '168 85 247' : config.color.includes('pink') ? '236 72 153' : config.color.includes('orange') ? '249 115 22' : config.color.includes('teal') ? '20 184 166' : config.color.includes('indigo') ? '99 102 241' : '107 114 128' } as React.CSSProperties : undefined}>
           <Icon className={cn('w-5 h-5', config.color)} />
         </div>
         <div className="min-w-0">
@@ -166,7 +172,7 @@ function TPRoomCard({ onOpenChat }: { onOpenChat: () => void }) {
       </div>
 
       <div className="mb-3 mt-1">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 border border-primary/20 shadow-sm">
+        <div className="tp-icon-pulse w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 border border-primary/20 shadow-sm">
           <MessageCircle className="w-6 h-6 text-primary" />
         </div>
       </div>
@@ -184,7 +190,7 @@ function TPRoomCard({ onOpenChat }: { onOpenChat: () => void }) {
 // Empty desk placeholder
 function EmptyRoomCard({ label }: { label: string }) {
   return (
-    <div className="flex flex-col rounded-2xl border-2 border-dashed border-border/30 p-4 opacity-25">
+    <div className="agent-empty flex flex-col rounded-2xl border-2 border-dashed border-border/30 p-4 opacity-25">
       <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border/30 flex items-center justify-center mb-3 mt-1">
         <Cog className="w-5 h-5 text-muted-foreground/30" />
       </div>
@@ -327,10 +333,32 @@ export default function WorkfloorPage() {
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
+
+  // Data refresh — initial load + 30s polling + tab focus
+  const refreshData = useCallback(() => {
+    api.agents.list().then(setAgents).catch(() => []);
+    api.tasks.list().then(setTasks).catch(() => []);
+  }, []);
+
   useEffect(() => {
+    // Initial load
     api.agents.list().then(setAgents).catch(() => []).finally(() => setAgentsLoading(false));
     api.tasks.list().then(setTasks).catch(() => []).finally(() => setTasksLoading(false));
-  }, []);
+
+    // Poll every 30s (pause when chat drawer is open)
+    const interval = setInterval(() => {
+      if (!chatOpen) refreshData();
+    }, 30000);
+
+    // Refresh on tab focus
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshData(); };
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [refreshData, chatOpen]);
   useEffect(() => {
     const provider = searchParams?.get('provider');
     if (provider && searchParams?.get('status') === 'connected') {

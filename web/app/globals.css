@@ -107,3 +107,74 @@ body {
 .chat-message {
   contain: layout style;
 }
+
+/* =============================================================================
+   Workfloor Liveness — Agent State Animations
+   See docs/design/WORKFLOOR-LIVENESS.md
+   ============================================================================= */
+
+/* Working: soft glow pulse around desk icon */
+@keyframes desk-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--agent-color), 0.15); }
+  50% { box-shadow: 0 0 16px 6px rgba(var(--agent-color), 0.1); }
+}
+
+/* Working: shimmer sweep across card */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Ready: gentle breathing (barely perceptible) */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.004); }
+}
+
+/* Empty: subtle border fade */
+@keyframes border-hint {
+  0%, 100% { border-color: rgba(var(--border-rgb, 0 0 0), 0.15); }
+  50% { border-color: rgba(var(--border-rgb, 0 0 0), 0.25); }
+}
+
+/* TP: icon pulse */
+@keyframes tp-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Agent state utility classes */
+.agent-working {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.agent-working .agent-desk {
+  animation: desk-glow 2.5s ease-in-out infinite;
+}
+
+.agent-working .agent-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--agent-color), 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.agent-ready {
+  animation: breathe 5s ease-in-out infinite;
+}
+
+.agent-paused {
+  opacity: 0.5;
+  filter: saturate(0.4);
+}
+
+.agent-error {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.agent-empty {
+  animation: border-hint 6s ease-in-out infinite;
+}
+
+.tp-icon-pulse {
+  animation: tp-pulse 3s ease-in-out infinite;
+}
