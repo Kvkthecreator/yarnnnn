@@ -128,7 +128,12 @@ CreateTask(
 ```
 
 **Required:** title, agent_slug (must match an existing agent)
-**Optional:** objective, schedule, delivery, success_criteria, output_spec
+**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec
+
+**mode** determines temporal behavior:
+- `recurring` (default) — runs on fixed cadence indefinitely (weekly briefings, daily recaps)
+- `goal` — bounded work, completes when success criteria are met (due diligence, one-off research)
+- `reactive` — on-demand or event-triggered (pricing alerts, competitor changes)
 
 **How to pick the right agent:**
 - User wants research/monitoring/tracking → assign to Research Agent

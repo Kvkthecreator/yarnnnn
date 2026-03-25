@@ -200,7 +200,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     try:
         result = (
             client.table("agents")
-            .select("id, title, role, scope, mode, origin, status, created_at")
+            .select("id, title, role, scope, origin, status, created_at")
             .eq("user_id", user_id)
             .neq("status", "archived")
             .execute()

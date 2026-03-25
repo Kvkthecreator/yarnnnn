@@ -369,8 +369,8 @@ export interface AgentMemory {
   supervisor_notes?: string;   // memory/supervisor-notes.md content (Composer coaching)
 }
 
-// ADR-138: Agent mode (simplified — proactive/coordinator removed)
-export type AgentMode = 'recurring' | 'goal' | 'reactive';
+// ADR-138: Task mode (moved from agents to tasks — mode is temporal behavior of work, not identity)
+export type TaskMode = 'recurring' | 'goal' | 'reactive';
 
 // ADR-087: Scoped chat session
 export interface AgentSession {
@@ -397,7 +397,7 @@ export interface Agent {
   origin?: 'user_configured' | 'system_bootstrap' | 'composer';
   agent_instructions?: string;
   agent_memory?: AgentMemory;
-  mode?: AgentMode;
+  // mode removed — ADR-138: mode is on tasks, not agents
   quality_score?: number;
   quality_trend?: QualityTrend;
   avg_edit_distance?: number;

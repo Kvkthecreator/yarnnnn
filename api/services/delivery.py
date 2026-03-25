@@ -188,7 +188,7 @@ class DeliveryService:
                     "version_id": version_id,
                     "version_number": version.data.get("version_number"),
                     "role": agent.data.get("role"),
-                    "mode": agent.data.get("mode"),
+                    "mode": None,  # ADR-138: mode is on tasks, not agents
                     "retry_count": retry_count,
                 },
                 context=context
@@ -512,7 +512,7 @@ class DeliveryService:
                         "version_id": version_id,
                         "version_number": version.data.get("version_number"),
                         "role": agent.data.get("role") if agent.data else None,
-                        "mode": agent.data.get("mode") if agent.data else None,
+                        "mode": None,  # ADR-138: mode is on tasks, not agents
                         "destination_index": idx,
                         "platform_variant": platform_variant,
                     },
@@ -650,7 +650,7 @@ async def deliver_from_output_folder(
     Args:
         client: Supabase service client
         user_id: User UUID
-        agent: Full agent dict (needs destination, title, role, mode)
+        agent: Full agent dict (needs title, role)
         output_folder: Relative output folder path (e.g., "outputs/2026-03-18T0900")
         agent_slug: Agent slug for workspace scoping
         version_id: agent_run UUID (for audit trail updates)

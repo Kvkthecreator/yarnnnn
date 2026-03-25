@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.5] - ADR-138: Add mode to CreateTask TP documentation
+
+### Changed
+- `agents/tp_prompts/tools.py`: CreateTask documentation now includes `mode` parameter with explanation of recurring/goal/reactive temporal behaviors. Previously TP didn't know about mode and would default everything to recurring.
+- Expected behavior: TP can now create goal tasks ("investigate this acquisition") and reactive tasks ("alert me if competitor changes pricing") when user intent implies bounded or event-driven work.
+
+---
+
 ## [2026.03.25.4] - ADR-140: Fix onboarding prompt + task-oriented plus menu
 
 ### Changed
