@@ -56,13 +56,15 @@ But agents are not mere functions. They accumulate domain knowledge that TP does
 
 Perception is not just external platform data. The perception substrate is **everything the system can observe**, including its own outputs and the user's feedback on those outputs.
 
-### Three Layers of Perception
+### Four Layers of Perception (ADR-142)
 
-1. **External perception** — platform sync fills `platform_content` from Slack and Notion. This is the surface area for platform data enrichment.
+1. **External perception** — platform sync fills `platform_content` from Slack and Notion, distilled to `/platforms/` workspace files. Raw data has TTLs; summaries persist.
 
-2. **Internal perception** — agent outputs, written to `/knowledge/` files in `workspace_files` (ADR-107, superseding ADR-102's `platform_content` rows), feed back into the shared knowledge layer. An agent's output is another agent's input. TP's observations are part of the substrate.
+2. **User-contributed perception** — uploaded documents in `/workspace/documents/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). TP always knows these exist.
 
-3. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's own compositional reasoning create a shared recursive layer. As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+3. **Internal perception** — agent outputs in `/tasks/{slug}/outputs/`. Task outputs ARE the accumulated knowledge — each run's output feeds the next run's context. No separate knowledge layer.
+
+4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's observations (`/workspace/notes.md`, `/workspace/preferences.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
 
 ### Three Intelligence Substrates (ADR-128 Corollary)
 
@@ -82,14 +84,15 @@ The **coherence protocol** (ADR-128) defines three flows that keep substrates al
 ### The Recursive Property
 
 ```
-External platforms → platform_content → agent execution → agent output →
-  /knowledge/ (workspace_files) → next agent execution → ...
-                              ↑                           |
-                              └── user feedback ──────────┘
-                              └── TP assessment ──────────┘
+External platforms → /platforms/ (distilled) → agent execution → task output →
+  /tasks/{slug}/outputs/ → next agent execution → ...
+       ↑                                          |
+       └── user uploads (/workspace/documents/) ──┘
+       └── user feedback (/workspace/preferences.md) ──┘
+       └── TP observations (/workspace/notes.md) ──┘
 ```
 
-The YARNNN knowledge filesystem (`workspace_files`: `/knowledge/` for accumulated outputs, `/agents/` for agent state) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume.
+The workspace filesystem (four roots: `/workspace/`, `/platforms/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142).
 
 ### Implication: Optimize for Accumulation, Not Extraction
 
@@ -280,7 +283,7 @@ Work descriptions carry implicit lifecycle, expressed as task `mode`. "I have 3 
 These follow from the axioms and are stated explicitly for implementation guidance:
 
 1. **Two layers, clear separation** — TP handles meta-cognition (composition, supervision, orchestration). Agents handle domain cognition (expertise, execution, accumulation). Neither does the other's job.
-2. **Workspace is the shared OS** — All persistent state (agent memory, outputs, user knowledge, TP assessments) lives in the workspace filesystem. `/agents/{slug}/` for agent state, `/tasks/{slug}/` for task definitions and coordination. External platforms flow through `platform_content` with TTLs; internal content persists and compounds.
+2. **Workspace is the shared OS** — All persistent state lives in four filesystem roots (ADR-142): `/workspace/` (user context + curated documents), `/platforms/` (distilled platform content), `/agents/{slug}/` (identity + memory), `/tasks/{slug}/` (work + outputs). The filesystem IS the information architecture. New capabilities extend paths, not database tables.
 3. **Agents are the write path** — All modifications to workspace files and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
 4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
 5. **Agents develop through knowledge, not capability expansion** — Agent capabilities are fixed by type. Development is about knowledge depth: accumulated memory, learned preferences, refined domain expertise. The architecture supports this deepening through workspace state (memory, feedback distillation, self-assessment), not through mechanical capability unlocking.
@@ -361,3 +364,4 @@ These require further design work before implementation:
 | 2026-03-24 | v3.8 — Declarative Pipeline Execution (ADR-137). PROCESS.md declares execution graphs: ordered steps with dependencies, executed mechanically by scheduler. PM simplified from autonomous coordinator to pipeline-embedded steps (evaluate/compose/reflect). Complexity-adaptive pipelines: simple (1 agent, direct deliver), standard (sequential), complex (retry loops). Inference produces pipeline spec, not just team. ~$0.17/cycle cost. Supersedes PM coordination model (ADR-133). |
 | 2026-03-25 | v4.0 — ADR-138 project layer collapse. PM dissolved into TP. Projects replaced by tasks. Agents are identity-only domain experts. Coherence flows reduced from 4 to 3 (PM assessment flow removed). Pulse tiers simplified (Tier 3 PM coordination removed). TP directly creates agents and tasks, monitors health, orchestrates multi-agent work. Open questions 4, 7 resolved. |
 | 2026-03-25 | v4.1 — Mode moves from agents to tasks (ADR-138 revision). `mode` (recurring/goal/reactive) is temporal behavior of work, not identity of worker. A Research Agent can simultaneously have a recurring task and a goal task. Axiom 3: "Tasks: Work Definition and Temporal Behavior" section added. Axiom 6: "Work Types Carry Lifecycle" updated with mode inference. |
+| 2026-03-25 | v4.2 — Unified filesystem (ADR-142). Axiom 2: four perception layers (external, user-contributed, internal, reflexive). `/knowledge/` dissolved — platform summaries → `/platforms/`, agent outputs stay in `/tasks/`. User-uploaded documents are first-class perception (`/workspace/documents/`). Derived Principle 2 updated: four filesystem roots. |
