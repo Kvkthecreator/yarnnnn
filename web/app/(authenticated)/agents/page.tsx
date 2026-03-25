@@ -1,400 +1,231 @@
 'use client';
 
 /**
- * Agents List Page — Source-First Presentation
+ * Agents List — ADR-138/139
  *
- * Flat agent list with platform icons as primary visual anchor.
- * Each card shows:
- * - Platform icon(s) derived from sources + active/paused dot
- * - Title + skill label + schedule status line
- * - Destination + delivery status + active/paused badges
+ * Two sections:
+ * 1. Agent archetypes explainer (what kinds of agents exist)
+ * 2. Your agents (existing agent cards with links to /agents/[id])
  *
- * ADR-109: Scope × Skill × Trigger
- * AGENT-PRESENTATION-PRINCIPLES.md: Source-first mental model
+ * ADR-138: Four archetypes — monitor, researcher, producer, operator
  */
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
+  Users,
   Loader2,
-  Play,
-  Pause,
-  Plus,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-  Sparkles,
-  Globe,
-  Brain,
+  ChevronRight,
+  Eye,
+  FlaskConical,
+  PenTool,
+  Cog,
 } from 'lucide-react';
-import { api } from '@/lib/api/client';
-import { HOME_ROUTE } from '@/lib/routes';
-import { formatDistanceToNow } from 'date-fns';
-import { getPlatformIcon } from '@/components/ui/PlatformIcons';
-import { ROLE_LABELS } from '@/lib/constants/agents';
+import type { Agent } from '@/types';
 import { cn } from '@/lib/utils';
-import { statusIndicator } from '@/lib/agent-identity';
-import type { Agent, AgentStatus } from '@/types';
+import { api } from '@/lib/api/client';
 
 // =============================================================================
-// Helpers: sorting & grouping (AGENT-PRESENTATION-PRINCIPLES.md Principle 4)
+// Archetypes — ADR-138
 // =============================================================================
 
-/** Derive the source-affinity group key for an agent */
-function getSourceAffinityGroup(agent: Agent): string {
-  const providers: Record<string, true> = {};
-  for (const s of agent.sources ?? []) {
-    const p = s.provider as string | undefined;
-    if (p) {
-      providers[p] = true;
-    }
-  }
-  const keys = Object.keys(providers);
-  if (keys.length === 0) return 'research';
-  if (keys.length >= 2) return 'cross-platform';
-  return keys[0]; // 'slack', 'notion'
-}
+const ARCHETYPES = [
+  {
+    name: 'Monitor',
+    icon: Eye,
+    color: 'text-green-500',
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/20',
+    description: 'Watches a domain and surfaces what matters.',
+    examples: 'Slack recaps, competitor alerts, customer feedback tracking',
+    capabilities: ['Read platforms', 'Web search', 'Alert on changes'],
+    roles: ['monitor', 'digest', 'briefer', 'scout'],
+  },
+  {
+    name: 'Researcher',
+    icon: FlaskConical,
+    color: 'text-blue-500',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/20',
+    description: 'Investigates topics with depth across sources.',
+    examples: 'Market analysis, due diligence, trend reports',
+    capabilities: ['Web search', 'Read workspace', 'Charts'],
+    roles: ['researcher', 'analyst', 'research', 'synthesize'],
+  },
+  {
+    name: 'Producer',
+    icon: PenTool,
+    color: 'text-purple-500',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/20',
+    description: 'Creates deliverables from accumulated context.',
+    examples: 'Investor updates, board decks, client reports',
+    capabilities: ['Read workspace', 'Charts', 'Compose HTML'],
+    roles: ['producer', 'drafter', 'writer', 'planner', 'prepare'],
+  },
+  {
+    name: 'Operator',
+    icon: Cog,
+    color: 'text-orange-500',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/20',
+    description: 'Takes actions on platforms. Coming soon.',
+    examples: 'Post to Slack, update Notion, CRM updates',
+    capabilities: ['Write to platforms', 'Read workspace'],
+    roles: ['operator', 'act'],
+  },
+];
 
-const GROUP_ORDER: Record<string, number> = {
-  slack: 0, notion: 1,
-  'cross-platform': 2, research: 3,
-};
-
-const GROUP_LABELS: Record<string, string> = {
-  slack: 'Slack',
-  notion: 'Notion',
-  'cross-platform': 'Cross-platform',
-  research: 'Research & Knowledge',
-};
-
-/** Sort: active before paused → most recently delivered first → alphabetical */
-function sortAgents(agents: Agent[]): Agent[] {
-  return [...agents].sort((a, b) => {
-    // Active before paused
-    if (a.status !== b.status) {
-      return a.status === 'paused' ? 1 : -1;
-    }
-    // Most recently delivered first
-    const aTime = a.last_run_at ? new Date(a.last_run_at).getTime() : 0;
-    const bTime = b.last_run_at ? new Date(b.last_run_at).getTime() : 0;
-    if (aTime !== bTime) return bTime - aTime;
-    // Alphabetical tiebreaker
-    return (a.title || '').localeCompare(b.title || '');
-  });
-}
-
-/** Group agents by source affinity, returning ordered groups */
-function groupAgentsBySource(agents: Agent[]): { key: string; label: string; agents: Agent[] }[] {
-  const grouped: Record<string, Agent[]> = {};
-  for (const agent of agents) {
-    const key = getSourceAffinityGroup(agent);
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(agent);
-  }
-  return Object.entries(grouped)
-    .map(([key, groupAgents]) => ({
-      key,
-      label: GROUP_LABELS[key] || key,
-      agents: sortAgents(groupAgents),
-    }))
-    .sort((a, b) => (GROUP_ORDER[a.key] ?? 99) - (GROUP_ORDER[b.key] ?? 99));
+function getArchetypeForRole(role: string) {
+  return ARCHETYPES.find(a => a.roles.includes(role)) || ARCHETYPES[0];
 }
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
-function getModeStatusLine(d: Agent): string {
-  // ADR-126: All agents pulse — show next pulse timing when available
-  const pulseStr = d.next_pulse_at
-    ? (() => {
-        try {
-          return `Next pulse ${formatDistanceToNow(new Date(d.next_pulse_at), { addSuffix: true })}`;
-        } catch {
-          return null;
-        }
-      })()
-    : null;
-
-  switch (d.mode) {
-    case 'goal': {
-      const goalStatus = d.agent_memory?.goal?.status;
-      return pulseStr || (goalStatus ? `Goal: ${goalStatus}` : 'Goal mode');
-    }
-    case 'reactive': {
-      const count = d.agent_memory?.observations?.length || 0;
-      return pulseStr || (count > 0 ? `${count} observation${count === 1 ? '' : 's'}` : 'Watching');
-    }
-    default: {
-      if (pulseStr) return pulseStr;
-      return 'Active';
-    }
-  }
-}
-
-function formatDestination(d: Agent): string | null {
-  const dest = d.destination;
-  if (!dest) return null;
-  const target = dest.target;
-  if (target === 'dm') return 'Slack DM';
-  if (target?.includes('@')) return target;
-  if (target?.startsWith('#')) return target;
-  if (target?.startsWith('C')) return `#${target.slice(0, 8)}`;
-  return dest.platform || null;
+function formatRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 // =============================================================================
-// Helpers: platform icon derivation (AGENT-PRESENTATION-PRINCIPLES.md)
+// Page
 // =============================================================================
 
-function getAgentPlatformIcon(agent: Agent): React.ReactNode {
-  const providers: Record<string, true> = {};
-  for (const s of agent.sources ?? []) {
-    const p = s.provider as string | undefined;
-    if (p) {
-      providers[p] = true;
-    }
-  }
-
-  const keys = Object.keys(providers);
-  if (keys.length === 0) {
-    if (agent.role === 'research') return <Globe className="w-5 h-5" />;
-    return <Brain className="w-5 h-5" />;
-  }
-  if (keys.length === 1) {
-    return getPlatformIcon(keys[0], 'w-5 h-5');
-  }
-  // Multi-platform: stack first two
-  return (
-    <div className="flex items-center -space-x-1.5">
-      {keys.slice(0, 2).map((p) => (
-        <span key={p} className="inline-block">{getPlatformIcon(p, 'w-4 h-4')}</span>
-      ))}
-    </div>
-  );
-}
-
-/** Small icon for group headers */
-function getAgentPlatformIconForGroup(groupKey: string): React.ReactNode {
-  switch (groupKey) {
-    case 'cross-platform': return <Globe className="w-4 h-4" />;
-    case 'research': return <Brain className="w-4 h-4" />;
-    default: return getPlatformIcon(groupKey, 'w-4 h-4');
-  }
-}
-
-// =============================================================================
-// Components
-// =============================================================================
-
-function AgentCard({
-  agent,
-  onClick,
-}: {
-  agent: Agent;
-  onClick: () => void;
-}) {
-  const typeLabel = ROLE_LABELS[agent.role] || agent.role;
-  const statusLine = getModeStatusLine(agent);
-  const destination = formatDestination(agent);
-  const latestStatus = agent.latest_version_status;
-
-  const lastDeliveryTime = agent.last_run_at
-    ? formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })
-    : null;
-
-  return (
-    <button
-      onClick={onClick}
-      className="w-full p-4 hover:bg-muted/50 transition-colors text-left"
-    >
-      <div className="flex items-start gap-3">
-        {/* Source-first: platform icon as primary visual anchor */}
-        <div className="mt-1 shrink-0 text-muted-foreground relative">
-          {getAgentPlatformIcon(agent)}
-          <span className={cn(
-            'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
-            statusIndicator(agent.status).color,
-          )} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Title row */}
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium truncate">{agent.title}</h3>
-            {(agent.origin === 'coordinator_created' || agent.origin === 'system_bootstrap' || agent.origin === 'composer') && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                <Sparkles className="w-2.5 h-2.5" />
-                Auto
-              </span>
-            )}
-            {destination && (
-              <span className="ml-auto text-xs text-muted-foreground flex items-center gap-0.5 shrink-0">
-                <ArrowRight className="w-3 h-3" />
-                {destination}
-              </span>
-            )}
-          </div>
-
-          {/* Type + mode-aware status */}
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {typeLabel} · {statusLine}
-          </p>
-
-          {/* Last delivery + badges */}
-          <div className="flex items-center gap-3 mt-2">
-            {lastDeliveryTime && (
-              <span className="text-xs text-muted-foreground">
-                Last: {lastDeliveryTime}
-              </span>
-            )}
-            {/* Delivery status */}
-            {latestStatus && (
-              <>
-                {(latestStatus === 'delivered' || latestStatus === 'approved' || latestStatus === 'staged') && (
-                  <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Delivered
-                  </span>
-                )}
-                {(latestStatus === 'failed' || latestStatus === 'rejected') && (
-                  <span className="inline-flex items-center gap-1 text-xs text-red-600">
-                    <XCircle className="w-3 h-3" />
-                    Failed
-                  </span>
-                )}
-                {latestStatus === 'generating' && (
-                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Generating
-                  </span>
-                )}
-              </>
-            )}
-            {/* Schedule status */}
-            {agent.status === 'paused' ? (
-              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                <Pause className="w-3 h-3" />
-                Paused
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                <Play className="w-3 h-3" />
-                Active
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// =============================================================================
-// Main Page
-// =============================================================================
-
-export default function AgentsPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
+export default function AgentsListPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [currentFilter, setCurrentFilter] = useState<AgentStatus | 'all'>('all');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAgents();
-  }, [currentFilter]);
+    api.agents.list()
+      .then(setAgents)
+      .catch(() => setAgents([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const loadAgents = async () => {
-    setLoading(true);
-    try {
-      const statusParam = currentFilter !== 'all' ? currentFilter : undefined;
-      const data = await api.agents.list(statusParam);
-      setAgents(data);
-    } catch (err) {
-      console.error('Failed to load agents:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const totalCount = agents.length;
-  const groups = groupAgentsBySource(agents);
+  const activeAgents = agents.filter(a => a.status !== 'archived');
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Agents</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Recurring outputs your agent produces on schedule.{' '}
-            <Link href={`${HOME_ROUTE}?create`} className="text-primary hover:underline">
-              Ask your agent
-            </Link>{' '}
-            to create one.
-          </p>
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="mb-10">
+        <div className="flex items-center gap-3 mb-2">
+          <Users className="w-6 h-6 text-muted-foreground" />
+          <h1 className="text-2xl font-medium">Agents</h1>
         </div>
+        <p className="text-sm text-muted-foreground max-w-2xl">
+          Agents are persistent domain experts. Each has an identity, accumulated memory,
+          and capabilities. They handle the full thinking chain: sense context, reason about
+          it, and produce output. You describe what you need — the right agent gets created.
+        </p>
+      </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2 mb-6">
-          {(['all', 'active', 'paused'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setCurrentFilter(f)}
-              className={`px-3 py-1.5 text-xs rounded-full border ${
-                currentFilter === f
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:bg-muted'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-          {!loading && (
-            <span className="text-xs text-muted-foreground ml-2">
-              {totalCount} agent{totalCount === 1 ? '' : 's'}
-            </span>
-          )}
-        </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : totalCount === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No agents yet</p>
-            <button
-              onClick={() => router.push(`${HOME_ROUTE}?create`)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              <Plus className="w-4 h-4" />
-              Create your first agent
-            </button>
-          </div>
-        ) : (
-          /* Source-affinity grouping (Principle 4) */
-          <div className="space-y-6">
-            {groups.map((group) => (
-              <div key={group.key}>
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="text-muted-foreground">{getAgentPlatformIconForGroup(group.key)}</span>
-                  <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{group.label}</h2>
-                  <span className="text-[10px] text-muted-foreground">{group.agents.length}</span>
+      {/* Archetypes */}
+      <div className="mb-12">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
+          Agent Archetypes
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {ARCHETYPES.map(archetype => {
+            const Icon = archetype.icon;
+            return (
+              <div
+                key={archetype.name}
+                className={cn(
+                  'border rounded-xl p-5 space-y-3',
+                  archetype.border,
+                  archetype.bg,
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Icon className={cn('w-5 h-5', archetype.color)} />
+                  <h3 className="text-sm font-medium">{archetype.name}</h3>
                 </div>
-                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-                  {group.agents.map((d) => (
-                    <AgentCard
-                      key={d.id}
-                      agent={d}
-                      onClick={() => router.push(`/agents/${d.id}`)}
-                    />
+                <p className="text-sm text-muted-foreground">{archetype.description}</p>
+                <p className="text-xs text-muted-foreground/60">{archetype.examples}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {archetype.capabilities.map(cap => (
+                    <span
+                      key={cap}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-background text-muted-foreground"
+                    >
+                      {cap}
+                    </span>
                   ))}
                 </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Your Agents */}
+      <div>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
+          Your Agents {activeAgents.length > 0 && <span className="opacity-60">({activeAgents.length})</span>}
+        </h2>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : activeAgents.length === 0 ? (
+          <div className="text-center py-12 border border-border rounded-xl">
+            <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground mb-1">No agents yet</p>
+            <p className="text-xs text-muted-foreground/60 mb-4">
+              Go to the workfloor and describe what work you need.
+            </p>
+            <Link
+              href="/workfloor"
+              className="inline-block px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Go to workfloor
+            </Link>
+          </div>
+        ) : (
+          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+            {activeAgents.map(agent => {
+              const archetype = getArchetypeForRole(agent.role);
+              const Icon = archetype.icon;
+              const isPaused = agent.status === 'paused';
+
+              return (
+                <Link
+                  key={agent.id}
+                  href={`/agents/${agent.id}`}
+                  className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <Icon className={cn('w-4 h-4 shrink-0', archetype.color)} />
+                      <span className="text-sm font-medium truncate">{agent.title}</span>
+                      {isPaused && (
+                        <span className="text-[10px] uppercase tracking-wider font-medium text-amber-500">
+                          Paused
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 ml-[26px] text-xs text-muted-foreground">
+                      <span>{archetype.name}</span>
+                      {agent.last_run_at && (
+                        <span>Last run: {formatRelativeTime(agent.last_run_at)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-foreground transition-colors shrink-0 ml-4" />
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
