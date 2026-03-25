@@ -688,8 +688,14 @@ class AgentWorkspace:
                     lines = content.strip().split("\n")
                     if len(lines) > 10:
                         content = "\n".join(lines[-10:])
-                label = filename.replace(".md", "").replace("-", " ").title()
-                parts.append(f"## Memory: {label}\n{content}")
+                # ADR-143: Label methodology files distinctly from memory
+                base = filename.replace(".md", "")
+                if base.startswith("methodology-"):
+                    topic = base.replace("methodology-", "").replace("-", " ").title()
+                    label = f"Methodology: {topic}"
+                else:
+                    label = f"Memory: {base.replace('-', ' ').title()}"
+                parts.append(f"## {label}\n{content}")
 
         # Load recent working notes
         working = await self.list("working/")

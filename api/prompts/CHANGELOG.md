@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.25.6] - ADR-143: Agent Methodology Layer
+
+### Changed
+- `services/agent_framework.py`: Added `methodology` dict to all 6 AGENT_TYPES entries. Each type gets seeded methodology files (`methodology-outputs.md`, `methodology-research.md`, `methodology-formats.md`) with type-specific craft knowledge — how to structure reports, presentations, research, recaps, etc. New `get_type_methodology()` helper.
+- `services/agent_creation.py`: Seeds methodology files to `memory/` at agent creation time, alongside self_assessment.md.
+- `services/workspace.py`: `load_context()` labels methodology files as `## Methodology: {Topic}` (distinct from `## Memory:` prefix) for clearer context injection.
+- Expected behavior: Agents produce more structured, format-aware outputs from first run. Methodology evolves through overwrite-on-feedback (same as preferences.md). No new tables or registries — workspace files only.
+
+---
+
 ## [2026.03.25.5] - ADR-138: Add mode to CreateTask TP documentation
 
 ### Changed

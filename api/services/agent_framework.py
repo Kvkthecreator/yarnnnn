@@ -50,6 +50,48 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Investigate assigned topics with depth. Use web search and "
                                 "workspace context. Produce structured analysis with evidence. "
                                 "Prioritize insights the user hasn't seen elsewhere.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## Report Structure\n"
+                "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
+                "2. **Key Findings** — numbered, each with evidence source cited\n"
+                "3. **Analysis** — structured by theme, not by source. Synthesize across sources\n"
+                "4. **Data & Visuals** — use charts for trends/comparisons, tables for reference data\n"
+                "5. **Implications** — what this means for the user's domain, not just what was found\n\n"
+                "## Visualization Heuristics\n"
+                "- Trend over time → line chart\n"
+                "- Comparison across categories → bar chart\n"
+                "- Part-of-whole → pie chart (only if ≤6 segments)\n"
+                "- Relationships → mermaid diagram\n"
+                "- Process/flow → mermaid flowchart\n"
+                "- Reference data → markdown table (no chart needed)\n\n"
+                "## Quality Criteria\n"
+                "- Every claim has a source or evidence\n"
+                "- Synthesis across sources, not source-by-source summaries\n"
+                "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
+                "- Actionable implications, not just observations\n"
+            ),
+            "methodology-research.md": (
+                "# Research Methodology\n\n"
+                "## Investigation Depth\n"
+                "- Start broad: landscape scan via web search + workspace knowledge\n"
+                "- Go deep on signals: when a finding contradicts expectations or reveals a gap\n"
+                "- Stop when: additional sources confirm existing findings without new signal\n\n"
+                "## Source Evaluation\n"
+                "1. Primary sources (official reports, filings, direct data) > secondary (articles, analyses)\n"
+                "2. Recency matters: prefer sources from last 90 days unless tracking long-term trends\n"
+                "3. Cross-reference: a finding from one source needs corroboration before becoming a 'key finding'\n\n"
+                "## Evidence Citation\n"
+                "- Inline: 'Revenue grew 23% (source: Q4 earnings call)'\n"
+                "- Do not use footnotes — keep evidence next to claims\n"
+                "- When sources conflict, note the conflict explicitly\n\n"
+                "## Cross-Reference Strategy\n"
+                "- Check workspace knowledge for prior findings on same topic\n"
+                "- Note when new findings update or contradict prior knowledge\n"
+                "- Flag emerging patterns across multiple investigation cycles\n"
+            ),
+        },
     },
 
     "content": {
@@ -65,6 +107,53 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Produce polished deliverables for the target audience. "
                                 "Use charts and visuals where they add clarity. Structure for "
                                 "readability. Focus on quality and completeness.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## Deliverable Formats\n"
+                "### Reports\n"
+                "- Lead with the conclusion, not the process\n"
+                "- Use headings as scannable summary (reader should get 80% from headings alone)\n"
+                "- Data-heavy sections: chart + 1-sentence interpretation, not paragraphs describing data\n\n"
+                "### Presentations (HTML slide format)\n"
+                "- 1 idea per slide, 3 bullet points maximum\n"
+                "- Title slide → Agenda → Content slides → Summary → Next steps\n"
+                "- Charts/visuals on every other slide minimum\n"
+                "- Slide titles are assertions ('Revenue grew 23%'), not topics ('Revenue')\n\n"
+                "### Documents (memos, briefs, updates)\n"
+                "- BLUF (Bottom Line Up Front) — the ask or conclusion in the first paragraph\n"
+                "- Background only if the audience needs it\n"
+                "- End with clear next steps or decisions needed\n\n"
+                "## Asset Integration\n"
+                "- Charts: use when data tells the story better than words\n"
+                "- Diagrams: use for process flows, org structures, system architecture\n"
+                "- Images: use for brand assets, product screenshots, visual concepts\n"
+                "- Never use a visual as decoration — every asset must carry information\n\n"
+                "## Quality Criteria\n"
+                "- Audience-appropriate language and depth\n"
+                "- Consistent visual style within a single deliverable\n"
+                "- Every section earns its place — delete sections that don't add value\n"
+                "- Proofread: no orphaned references, no TBD placeholders\n"
+            ),
+            "methodology-formats.md": (
+                "# Format Methodology\n\n"
+                "## Format Selection Heuristics\n"
+                "- Status update for executives → presentation (slide format)\n"
+                "- Deep analysis for decision-makers → report\n"
+                "- Quick alignment or approval → memo/brief\n"
+                "- Recurring team update → structured digest\n"
+                "- Creative/marketing deliverable → document with embedded visuals\n\n"
+                "## Tone Calibration\n"
+                "- Internal audience → direct, use jargon they know, skip context they have\n"
+                "- External audience → polished, define terms, provide context\n"
+                "- Executive audience → concise, lead with impact, support with data\n"
+                "- Technical audience → precise, include methodology, show your work\n\n"
+                "## Structural Patterns\n"
+                "- Pyramid principle: conclusion → supporting arguments → evidence\n"
+                "- Contrast pattern: situation → complication → resolution\n"
+                "- Narrative arc: context → tension → insight → implication\n"
+            ),
+        },
     },
 
     "marketing": {
@@ -79,6 +168,43 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                        "campaign analysis. Monitors market signals, produces GTM insights.",
         "default_instructions": "Track go-to-market activities and competitive positioning. "
                                 "Monitor market signals. Produce actionable GTM insights and content.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## GTM Report Structure\n"
+                "1. **Market Pulse** — 3-5 signals worth attention this cycle\n"
+                "2. **Competitive Moves** — what competitors did, what it means for us\n"
+                "3. **Channel Performance** — metrics that changed, why, what to do\n"
+                "4. **Opportunities** — gaps in market, positioning openings, timing windows\n"
+                "5. **Recommendations** — specific, actionable, with effort/impact estimate\n\n"
+                "## Competitive Analysis Format\n"
+                "- Feature matrix: rows=features, columns=competitors, cells=status (has/building/missing)\n"
+                "- Positioning map: where each player sits on key dimensions\n"
+                "- Signal tracking: what each competitor announced/shipped/hired recently\n\n"
+                "## Quality Criteria\n"
+                "- Separate signal from noise — not everything is worth reporting\n"
+                "- 'So what?' test: every finding needs an implication for our strategy\n"
+                "- Quantify when possible: '23% increase' not 'significant growth'\n"
+                "- Time-bound: signals decay fast, always note when something happened\n"
+            ),
+            "methodology-research.md": (
+                "# Research Methodology\n\n"
+                "## Market Signal Sources\n"
+                "- Competitor websites, blogs, changelogs (primary — what they say)\n"
+                "- Industry publications, analyst reports (secondary — what others say)\n"
+                "- Platform conversations (Slack/community mentions of competitors)\n"
+                "- Job postings (reveal strategic direction)\n\n"
+                "## Signal Evaluation\n"
+                "- Launched feature > announced feature > rumored feature\n"
+                "- Pricing change > feature change (pricing reveals strategy)\n"
+                "- Hiring pattern > single hire (pattern reveals direction)\n\n"
+                "## Investigation Cadence\n"
+                "- Continuous: competitor changelog monitoring\n"
+                "- Weekly: market signal scan\n"
+                "- Monthly: deep competitive landscape refresh\n"
+                "- Trigger-based: on major competitor announcement\n"
+            ),
+        },
     },
 
     "crm": {
@@ -93,6 +219,27 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                        "preparation. Reads platform context for relationship signals.",
         "default_instructions": "Track client relationships and interactions. Prepare meeting "
                                 "briefs. Flag follow-ups and action items. Summarize relationship health.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## Meeting Brief Format\n"
+                "- **Context** — who, when, what's the relationship history (2-3 sentences)\n"
+                "- **Last Interaction** — what was discussed, what was promised, what's pending\n"
+                "- **Agenda Items** — what to cover, prioritized by relationship impact\n"
+                "- **Talking Points** — specific things to mention (their recent news, shared interests)\n"
+                "- **Open Items** — action items from prior meetings, their status\n\n"
+                "## Relationship Health Report\n"
+                "- Engagement frequency: trending up/down/stable\n"
+                "- Response patterns: quick/delayed/ghosting\n"
+                "- Sentiment signals: positive mentions, complaints, requests\n"
+                "- Risk flags: going quiet, competitor mentions, delayed follow-ups\n\n"
+                "## Quality Criteria\n"
+                "- Actionable: every brief ends with 'do this before/during/after the meeting'\n"
+                "- Personalized: reference specific prior interactions, not generic relationship advice\n"
+                "- Timely: meeting briefs available before the meeting, not after\n"
+                "- Concise: scannable in 2 minutes — the user has 5 minutes before the call\n"
+            ),
+        },
     },
 
     # ── Bots (platform-mechanical) ──
@@ -108,6 +255,25 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "description": "Platform bot for Slack. Recaps, summaries, alerts, message posting.",
         "default_instructions": "Monitor Slack channels. Summarize key discussions. Post updates "
                                 "when directed. Flag action items and decisions.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## Channel Recap Format\n"
+                "- **Decisions Made** — what was decided, by whom, in which thread\n"
+                "- **Action Items** — who owes what, with deadlines if mentioned\n"
+                "- **Key Discussions** — topics with significant engagement (replies, reactions)\n"
+                "- **FYIs** — announcements, links shared, things to be aware of\n\n"
+                "## Summarization Rules\n"
+                "- Preserve attribution: 'Alice proposed X' not 'it was proposed'\n"
+                "- Threads > individual messages: summarize thread conclusions, not each reply\n"
+                "- Skip: bot messages, emoji-only messages, routine standup entries\n"
+                "- Highlight: questions left unanswered, disagreements unresolved\n\n"
+                "## Alert Triggers\n"
+                "- Urgent/blocking language: 'blocked', 'need help', 'ASAP', 'down'\n"
+                "- Mentions of the user by name\n"
+                "- Threads with >5 replies in <1 hour (heated discussion)\n"
+            ),
+        },
     },
 
     "notion_bot": {
@@ -122,6 +288,24 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                        "content updates.",
         "default_instructions": "Manage Notion workspace. Sync meeting notes. Update knowledge "
                                 "base pages. Track document changes.",
+        "methodology": {
+            "methodology-outputs.md": (
+                "# Output Methodology\n\n"
+                "## Knowledge Base Update Format\n"
+                "- **What Changed** — pages created, updated, or reorganized\n"
+                "- **Content Summary** — what was added or modified, in context\n"
+                "- **Structure Notes** — how content fits into the existing hierarchy\n\n"
+                "## Page Sync Rules\n"
+                "- Preserve existing page structure — append or update sections, don't restructure\n"
+                "- Use Notion-native formatting: toggles for detail, callouts for alerts, tables for data\n"
+                "- Link related pages rather than duplicating content\n"
+                "- Tag with status properties when available (draft, reviewed, published)\n\n"
+                "## Change Detection\n"
+                "- Track meaningful content changes vs formatting-only edits\n"
+                "- Flag pages that haven't been updated in >30 days (potential staleness)\n"
+                "- Note pages with high edit frequency (active collaboration)\n"
+            ),
+        },
     },
 }
 
@@ -275,6 +459,19 @@ def get_type_skill_docs(agent_type: str) -> list[str]:
         if cap_def.get("skill_docs"):
             docs.append(cap_def["skill_docs"])
     return docs
+
+
+def get_type_methodology(agent_type: str) -> dict[str, str]:
+    """Return methodology file seeds for an agent type.
+
+    ADR-143: Returns dict of {filename: content} for methodology files
+    to be written to the agent's memory/ directory at creation.
+    """
+    resolved = resolve_role(agent_type)
+    type_def = AGENT_TYPES.get(resolved)
+    if not type_def:
+        return {}
+    return type_def.get("methodology", {})
 
 
 def get_type_display(agent_type: str) -> dict[str, str]:
