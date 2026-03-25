@@ -440,7 +440,6 @@ export default function WorkfloorPage() {
     { id: 'workspace', label: 'Workspace', content: <WorkspacePanel /> },
   ];
 
-  const hasAgentsOrMessages = agents.length > 0 || messages.length > 0;
 
   return (
     <WorkspaceLayout
@@ -504,8 +503,8 @@ export default function WorkfloorPage() {
               </div>
             )}
 
-            {/* Agent cards grid — OpenClaw-inspired team overview */}
-            {!agentsLoading && agents.length > 0 && (() => {
+            {/* Agent office — always visible, OpenClaw-inspired */}
+            {!agentsLoading && (() => {
               const active = agents.filter(a => a.status !== 'archived');
               const working = active.filter(a => a.latest_version_status === 'generating');
               const ready = active.filter(a => a.status === 'active' && a.latest_version_status !== 'generating');
@@ -515,67 +514,90 @@ export default function WorkfloorPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Your Team <span className="opacity-50">({active.length})</span>
+                      Your Team {active.length > 0 && <span className="opacity-50">({active.length})</span>}
                     </p>
-                    {/* Status summary — OpenClaw-style quick counts */}
-                    <div className="flex items-center gap-3 text-[10px]">
-                      {working.length > 0 && (
-                        <span className="flex items-center gap-1 text-blue-500">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                          {working.length} working
+                    {active.length > 0 && (
+                      <div className="flex items-center gap-3 text-[10px]">
+                        {working.length > 0 && (
+                          <span className="flex items-center gap-1 text-blue-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                            {working.length} working
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-green-500">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                          {ready.length} ready
                         </span>
-                      )}
-                      <span className="flex items-center gap-1 text-green-500">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        {ready.length} ready
-                      </span>
-                      {paused.length > 0 && (
-                        <span className="flex items-center gap-1 text-amber-500">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                          {paused.length} paused
-                        </span>
-                      )}
+                        {paused.length > 0 && (
+                          <span className="flex items-center gap-1 text-amber-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            {paused.length} paused
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {active.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {active.map(agent => (
+                        <AgentCard key={agent.id} agent={agent} />
+                      ))}
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {active.map(agent => (
-                      <AgentCard key={agent.id} agent={agent} />
-                    ))}
-                  </div>
+                  ) : (
+                    /* Empty office — placeholder desks */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { label: 'Monitor', desc: 'Watches your domain', color: 'border-green-500/20 bg-green-500/5' },
+                        { label: 'Researcher', desc: 'Investigates with depth', color: 'border-blue-500/20 bg-blue-500/5' },
+                      ].map(slot => (
+                        <div
+                          key={slot.label}
+                          className={cn(
+                            'flex flex-col items-center justify-center p-6 rounded-xl border border-dashed transition-colors',
+                            slot.color,
+                            'opacity-40',
+                          )}
+                        >
+                          <p className="text-xs font-medium text-muted-foreground">{slot.label}</p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5">{slot.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {active.length === 0 && (
+                    <p className="text-xs text-muted-foreground/50 text-center mt-3">
+                      Describe your work below — agents will appear here.
+                    </p>
+                  )}
                 </div>
               );
             })()}
 
-            {/* Empty state */}
-            {!hasAgentsOrMessages && !isLoading && !agentsLoading && (
-              <div className="py-8 text-center">
-                <Command className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-                <h2 className="text-lg font-medium mb-1">Welcome to your workfloor</h2>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                  Tell me about your work and I&apos;ll set up the right agents and tasks.
-                </p>
-                <div className="max-w-md mx-auto space-y-3">
-                  <Link
-                    href="/onboarding"
-                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                  >
-                    <Upload className="w-5 h-5 shrink-0 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm font-medium">Set up your team</span>
-                      <span className="text-xs text-muted-foreground block">Upload files or describe your work</span>
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => { setInput('I need help with '); textareaRef.current?.focus(); }}
-                    className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
-                  >
-                    <Command className="w-5 h-5 shrink-0 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm font-medium">Or just tell me</span>
-                      <span className="text-xs text-muted-foreground block">Describe what you need and I&apos;ll set it up</span>
-                    </div>
-                  </button>
-                </div>
+            {/* Starter cards — shown when no messages yet */}
+            {messages.length === 0 && !isLoading && (
+              <div className="max-w-md mx-auto space-y-3 mt-4">
+                <Link
+                  href="/onboarding"
+                  className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                >
+                  <Upload className="w-5 h-5 shrink-0 text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium">Set up your team</span>
+                    <span className="text-xs text-muted-foreground block">Upload files or describe your work</span>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => { setInput('I need help with '); textareaRef.current?.focus(); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                >
+                  <Command className="w-5 h-5 shrink-0 text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium">Or just tell me</span>
+                    <span className="text-xs text-muted-foreground block">Describe what you need and I&apos;ll set it up</span>
+                  </div>
+                </button>
               </div>
             )}
 

@@ -38,6 +38,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from services.task_workspace import TaskWorkspace
 
 logger = logging.getLogger(__name__)
 from agents.base import ContextBundle
@@ -53,9 +54,10 @@ class ChatHistoryMessage(BaseModel):
 
 class SurfaceContext(BaseModel):
     """Surface context for TP - what the user is currently viewing."""
-    type: str  # e.g., "agent-review", "work-output", "idle"
+    type: str  # e.g., "agent-review", "work-output", "idle", "task-detail"
     agentId: Optional[str] = None
     projectSlug: Optional[str] = None  # ADR-119 P4b: project-scoped chat
+    taskSlug: Optional[str] = None  # Task-scoped chat sessions
     versionId: Optional[str] = None
     workId: Optional[str] = None
     outputId: Optional[str] = None
@@ -186,6 +188,81 @@ async def get_or_create_session(
 
 
 # get_or_create_project_session — REMOVED (project sessions dissolved)
+
+
+async def get_or_create_task_session(
+    client,
+    user_id: str,
+    task_slug: str,
+    session_type: str = "thinking_partner",
+) -> dict:
+    """
+    Get or create a task-scoped TP session.
+
+    Same 4h inactivity boundary as global TP sessions.
+    Looks up by user_id + task_slug + session_type + status=active.
+    """
+    from datetime import timedelta, timezone
+
+    inactivity_cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=4)
+    ).isoformat()
+
+    # Look for active session within inactivity window
+    existing = (
+        client.table("chat_sessions")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("task_slug", task_slug)
+        .eq("session_type", session_type)
+        .eq("status", "active")
+        .gte("updated_at", inactivity_cutoff)
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    if existing.data:
+        return {**existing.data[0], "is_new": False}
+
+    # Find previous session for summary generation
+    previous_session_id = None
+    try:
+        prev = (
+            client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("task_slug", task_slug)
+            .eq("session_type", session_type)
+            .is_("summary", "null")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if prev.data:
+            previous_session_id = prev.data[0]["id"]
+    except Exception as e:
+        logger.debug(f"[SESSION] Failed to find previous task session: {e}")
+
+    # Create new task-scoped session
+    result = (
+        client.table("chat_sessions")
+        .insert({
+            "user_id": user_id,
+            "session_type": session_type,
+            "status": "active",
+            "task_slug": task_slug,
+        })
+        .execute()
+    )
+
+    if result.data:
+        return {
+            **result.data[0],
+            "is_new": True,
+            "previous_session_id": previous_session_id,
+        }
+    return None
 
 
 async def append_message(
@@ -760,6 +837,10 @@ Status: {d['status']}
 Config: {d.get('type_config', {})}
 """
 
+        elif surface_type == "task-detail" and surface.taskSlug:
+            # User is viewing a task — load task context for TP
+            return await _load_task_context(client, user_id, surface.taskSlug)
+
         elif surface_type == "context-browser":
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
@@ -770,6 +851,88 @@ Config: {d.get('type_config', {})}
     except Exception as e:
         logger.warning(f"Failed to load surface content: {e}")
         return None
+
+
+async def _load_task_context(
+    client,
+    user_id: str,
+    task_slug: str,
+) -> Optional[str]:
+    """
+    Load task context for TP when user is on a task-detail surface.
+
+    Reads TASK.md, last 5 run log entries, latest output preview,
+    and assigned agent info.
+    """
+    import re
+
+    tw = TaskWorkspace(client, user_id, task_slug)
+
+    # 1. Read TASK.md
+    task_md = await tw.read("TASK.md")
+    if not task_md:
+        return None  # Task doesn't exist or has no TASK.md
+
+    # Extract task title from first heading
+    task_title = task_slug
+    title_match = re.search(r"^#\s+(.+)", task_md, re.MULTILINE)
+    if title_match:
+        task_title = title_match.group(1).strip()
+
+    # 2. Read run_log.md — last 5 ## sections
+    run_log_last_5 = ""
+    run_log = await tw.read("memory/run_log.md")
+    if run_log:
+        sections = re.split(r"(?=^## )", run_log, flags=re.MULTILINE)
+        # Filter out empty sections
+        sections = [s.strip() for s in sections if s.strip()]
+        last_5 = sections[-5:] if len(sections) > 5 else sections
+        run_log_last_5 = "\n\n".join(last_5)
+
+    # 3. Read latest output preview (first 500 chars)
+    output_preview = ""
+    output_content = await tw.read("outputs/output.md")
+    if output_content:
+        output_preview = output_content[:500]
+        if len(output_content) > 500:
+            output_preview += "\n[truncated...]"
+
+    # 4. Parse assigned agent slug from TASK.md ## Process section
+    agent_info = ""
+    agent_slug_match = re.search(
+        r"## Process.*?agent:\s*(\S+)", task_md, re.DOTALL | re.IGNORECASE
+    )
+    if agent_slug_match:
+        agent_slug = agent_slug_match.group(1).strip()
+        try:
+            agent_result = (
+                client.table("agents")
+                .select("title, role")
+                .eq("user_id", user_id)
+                .eq("slug", agent_slug)
+                .limit(1)
+                .execute()
+            )
+            if agent_result.data:
+                a = agent_result.data[0]
+                agent_info = f"{a['title']} ({a.get('role', 'custom')})"
+        except Exception as e:
+            logger.debug(f"[TASK_CONTEXT] Failed to fetch agent: {e}")
+
+    # Build formatted context
+    parts = [f'You are helping the user manage the task "{task_title}".']
+    parts.append(f"\nTask definition:\n{task_md}")
+
+    if run_log_last_5:
+        parts.append(f"\nRecent run log:\n{run_log_last_5}")
+
+    if output_preview:
+        parts.append(f"\nLatest output preview:\n{output_preview}")
+
+    if agent_info:
+        parts.append(f"\nAssigned agent: {agent_info}")
+
+    return "\n".join(parts)
 
 
 # ADR-059: Background extraction removed — TP only knows what users explicitly state.
@@ -795,11 +958,22 @@ async def global_chat(
 
     # ADR-125: Extract routing context from surface_context
     request_agent_id = None
-    if request.surface_context and request.surface_context.agentId:
-        request_agent_id = request.surface_context.agentId
+    request_task_slug = None
+    if request.surface_context:
+        if request.surface_context.agentId:
+            request_agent_id = request.surface_context.agentId
+        if request.surface_context.taskSlug:
+            request_task_slug = request.surface_context.taskSlug
 
-    # Session routing: Global TP or agent-scoped
-    if request_agent_id:
+    # Session routing: Task-scoped > Agent-scoped > Global TP
+    if request_task_slug:
+        # Task-scoped session (takes priority over agent_id)
+        session = await get_or_create_task_session(
+            auth.client,
+            auth.user_id,
+            task_slug=request_task_slug,
+        )
+    elif request_agent_id:
         # Agent-scoped session
         session = await get_or_create_session(
             auth.client,
@@ -1097,24 +1271,27 @@ async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
     agent_id: Optional[str] = Query(default=None),
+    task_slug: Optional[str] = Query(default=None),
 ):
     """
-    Get chat history scoped by agent or global.
+    Get chat history scoped by agent, task, or global.
     Returns the most recent session(s) with messages.
 
     ADR-138: project_slug and thread_agent_id removed (columns dropped).
     """
-    # Fetch recent sessions — agent-scoped or global TP
+    # Fetch recent sessions — task-scoped, agent-scoped, or global TP
     q = (
         auth.client.table("chat_sessions")
         .select("*")
         .eq("user_id", auth.user_id)
         .eq("session_type", "thinking_partner")
     )
-    if agent_id:
+    if task_slug:
+        q = q.eq("task_slug", task_slug)
+    elif agent_id:
         q = q.eq("agent_id", agent_id)
     else:
-        q = q.is_("agent_id", "null")
+        q = q.is_("agent_id", "null").is_("task_slug", "null")
     sessions_result = q.order("created_at", desc=True).limit(limit).execute()
 
     sessions = []

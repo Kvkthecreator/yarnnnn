@@ -9,10 +9,14 @@ Endpoints:
 - GET /tasks/{slug} - Get task detail
 - PUT /tasks/{slug} - Update task
 - DELETE /tasks/{slug} - Archive task (soft delete)
+- GET /tasks/{slug}/outputs - List task output history
+- GET /tasks/{slug}/outputs/latest - Get latest task output
+- POST /tasks/{slug}/run - Trigger a task run immediately
 """
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import re
 from datetime import datetime, timezone
@@ -65,6 +69,24 @@ class TaskResponse(BaseModel):
     title: Optional[str] = None
     objective: Optional[dict] = None
     process: Optional[dict] = None
+
+
+class TaskOutputEntry(BaseModel):
+    date: str
+    has_html: bool
+    manifest: Optional[dict] = None
+
+
+class TaskOutputLatest(BaseModel):
+    content: Optional[str] = None
+    html_content: Optional[str] = None
+    date: Optional[str] = None
+    manifest: Optional[dict] = None
+
+
+class TaskRunTriggered(BaseModel):
+    triggered: bool
+    task_slug: str
 
 
 # =============================================================================
@@ -482,3 +504,197 @@ async def archive_task(
 
     row = result.data[0]
     return _task_row_to_response(row)
+
+
+# =============================================================================
+# Output & Run Routes
+# =============================================================================
+
+@router.get("/{slug}/outputs")
+async def list_task_outputs(
+    slug: str,
+    auth: UserClient,
+) -> list[TaskOutputEntry]:
+    """
+    List task output history — one entry per output folder, sorted by date descending.
+    """
+    from services.task_workspace import TaskWorkspace
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+
+    # Query all output.md files under /tasks/{slug}/outputs/
+    prefix = ws._full_path("outputs/")
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{prefix}%/output.md")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("path", desc=True)
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"[TASKS] list_task_outputs query failed for {slug}: {e}")
+        return []
+
+    rows = result.data or []
+    entries: list[TaskOutputEntry] = []
+
+    for row in rows:
+        # path like /tasks/{slug}/outputs/2026-03-25T1400/output.md
+        path = row["path"]
+        # Extract date folder: strip prefix and /output.md
+        relative = path[len(prefix):]  # "2026-03-25T1400/output.md"
+        date_folder = relative.split("/")[0] if "/" in relative else relative
+
+        # Check if output.html exists in same folder
+        html_exists = await ws.exists(f"outputs/{date_folder}/output.html")
+
+        # Read manifest.json if available
+        manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
+        manifest = None
+        if manifest_content:
+            try:
+                manifest = _json.loads(manifest_content)
+            except (ValueError, _json.JSONDecodeError):
+                pass
+
+        entries.append(TaskOutputEntry(
+            date=date_folder,
+            has_html=html_exists,
+            manifest=manifest,
+        ))
+
+    return entries
+
+
+@router.get("/{slug}/outputs/latest")
+async def get_latest_task_output(
+    slug: str,
+    auth: UserClient,
+) -> TaskOutputLatest:
+    """
+    Get the most recent task output — markdown content, HTML if available, and manifest.
+    """
+    from services.task_workspace import TaskWorkspace
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+
+    # Find the most recent output.md by lexicographic sort (ISO dates sort correctly)
+    prefix = ws._full_path("outputs/")
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{prefix}%/output.md")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("path", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"[TASKS] get_latest_task_output query failed for {slug}: {e}")
+        return TaskOutputLatest()
+
+    rows = result.data or []
+    if not rows:
+        return TaskOutputLatest()
+
+    path = rows[0]["path"]
+    content = rows[0]["content"]
+
+    # Extract date folder
+    relative = path[len(prefix):]
+    date_folder = relative.split("/")[0] if "/" in relative else relative
+
+    # Read output.html if it exists
+    html_content = await ws.read(f"outputs/{date_folder}/output.html")
+
+    # Read manifest.json if available
+    manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
+    manifest = None
+    if manifest_content:
+        try:
+            manifest = _json.loads(manifest_content)
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
+    return TaskOutputLatest(
+        content=content,
+        html_content=html_content,
+        date=date_folder,
+        manifest=manifest,
+    )
+
+
+@router.post("/{slug}/run")
+async def trigger_task_run(
+    slug: str,
+    auth: UserClient,
+) -> TaskRunTriggered:
+    """
+    Trigger a task run immediately by setting next_run_at to now.
+    The scheduler will pick it up on the next cycle.
+    """
+    # Fetch task — must exist and be active
+    existing = (
+        auth.client.table("tasks")
+        .select("id, slug, status")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task = existing.data[0]
+    if task["status"] != "active":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot trigger run: task status is '{task['status']}' (must be 'active')",
+        )
+
+    # Set next_run_at to now so the scheduler picks it up
+    now = datetime.now(timezone.utc).isoformat()
+    result = (
+        auth.client.table("tasks")
+        .update({
+            "next_run_at": now,
+            "updated_at": now,
+        })
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to trigger task run")
+
+    logger.info(f"[TASKS] Triggered run for task '{slug}' (next_run_at set to now)")
+    return TaskRunTriggered(triggered=True, task_slug=slug)
