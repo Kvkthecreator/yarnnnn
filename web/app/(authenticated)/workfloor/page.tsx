@@ -14,18 +14,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { HOME_ROUTE } from '@/lib/routes';
 import {
   Loader2,
-  FileText,
-  FlaskConical,
-  TrendingUp,
-  Users,
-  MessageCircle,
-  BookOpen,
   X,
   Link2,
   ListChecks,
   ChevronRight,
   LayoutGrid,
   Cog,
+  MessageCircle,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import type { Agent, Task } from '@/types';
@@ -33,25 +28,26 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
 import { ChatDrawer } from '@/components/desk/ChatDrawer';
+import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
 
 // =============================================================================
 // Agent type config (ADR-140)
 // =============================================================================
 
-const TYPE_CONFIG: Record<string, { icon: typeof FlaskConical; color: string; accent: string; bgRoom: string; short: string; label: string }> = {
-  research:   { icon: FlaskConical,  color: 'text-blue-500',   accent: 'border-blue-400/30',  bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  content:    { icon: FileText,      color: 'text-purple-500', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  marketing:  { icon: TrendingUp,    color: 'text-pink-500',   accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   short: 'Mkt', label: 'Marketing' },
-  crm:        { icon: Users,         color: 'text-orange-500', accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', short: 'CRM', label: 'CRM' },
-  slack_bot:  { icon: MessageCircle, color: 'text-teal-500',   accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   short: 'Slk', label: 'Slack Bot' },
-  notion_bot: { icon: BookOpen,      color: 'text-indigo-500', accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', short: 'Ntn', label: 'Notion Bot' },
+const TYPE_CONFIG: Record<string, { hex: string; accent: string; bgRoom: string; short: string; label: string }> = {
+  research:   { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
+  content:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
+  marketing:  { hex: '#ec4899', accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   short: 'Mkt', label: 'Marketing' },
+  crm:        { hex: '#f97316', accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', short: 'CRM', label: 'CRM' },
+  slack_bot:  { hex: '#14b8a6', accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   short: 'Slk', label: 'Slack Bot' },
+  notion_bot: { hex: '#6366f1', accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', short: 'Ntn', label: 'Notion Bot' },
   // Legacy
-  briefer:    { icon: FlaskConical,  color: 'text-blue-500',   accent: 'border-blue-400/30',  bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  researcher: { icon: FlaskConical,  color: 'text-blue-500',   accent: 'border-blue-400/30',  bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  analyst:    { icon: FlaskConical,  color: 'text-blue-500',   accent: 'border-blue-400/30',  bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
-  drafter:    { icon: FileText,      color: 'text-purple-500', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  writer:     { icon: FileText,      color: 'text-purple-500', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
-  custom:     { icon: Cog,           color: 'text-gray-500',   accent: 'border-gray-400/30',  bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   short: 'Cst', label: 'Custom' },
+  briefer:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
+  researcher: { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
+  analyst:    { hex: '#3b82f6', accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   short: 'Res', label: 'Research' },
+  drafter:    { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
+  writer:     { hex: '#a855f7', accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', short: 'Con', label: 'Content' },
+  custom:     { hex: '#6b7280', accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   short: 'Cst', label: 'Custom' },
 };
 
 function getType(role: string) {
@@ -77,7 +73,6 @@ function formatRelativeTime(dateStr: string): string {
 
 function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const config = getType(agent.role);
-  const Icon = config.icon;
   const isRunning = agent.latest_version_status === 'generating';
   const isPaused = agent.status === 'paused';
   const hasFailed = agent.latest_version_status === 'failed';
@@ -91,38 +86,29 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
   const activeTask = assignedTasks[0]; // Show the first/primary task on the desk
 
-  // State class for liveness animations
-  const stateClass = isRunning ? 'agent-working' : isPaused ? 'agent-paused' : hasFailed ? 'agent-error' : activeTask ? 'agent-ready' : '';
+  // Avatar state
+  const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
+    isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
   return (
     <Link
       href={`/agents/${agent.id}`}
       className={cn(
-        'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden min-h-[140px]',
-        config.accent, config.bgRoom, stateClass,
+        'relative flex flex-col items-center rounded-2xl border-2 p-4 pt-2 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden min-h-[180px]',
+        config.accent, config.bgRoom,
       )}
     >
-      {/* Shimmer overlay for working state */}
-      {isRunning && <div className="agent-shimmer absolute inset-0 pointer-events-none rounded-2xl" style={{ '--agent-color': config.color.includes('blue') ? '59 130 246' : config.color.includes('purple') ? '168 85 247' : config.color.includes('pink') ? '236 72 153' : config.color.includes('orange') ? '249 115 22' : config.color.includes('teal') ? '20 184 166' : config.color.includes('indigo') ? '99 102 241' : '107 114 128' } as React.CSSProperties} />}
-
       {/* Status light */}
       <div className="absolute top-3 right-3">
         <span className={cn('block w-2.5 h-2.5 rounded-full', statusDot)} />
       </div>
 
-      {/* Agent identity — icon + name */}
-      <div className="flex items-center gap-2.5 mb-3">
-        <div className={cn(
-          'agent-desk w-10 h-10 rounded-lg flex items-center justify-center bg-background/80 backdrop-blur-sm border shadow-sm shrink-0',
-          config.accent,
-        )} style={isRunning ? { '--agent-color': config.color.includes('blue') ? '59 130 246' : config.color.includes('purple') ? '168 85 247' : config.color.includes('pink') ? '236 72 153' : config.color.includes('orange') ? '249 115 22' : config.color.includes('teal') ? '20 184 166' : config.color.includes('indigo') ? '99 102 241' : '107 114 128' } as React.CSSProperties : undefined}>
-          <Icon className={cn('w-5 h-5', config.color)} />
-        </div>
-        <div className="min-w-0">
-          <span className="text-sm font-semibold leading-tight block truncate">{agent.title}</span>
-          <span className="text-[10px] text-muted-foreground/60">{config.label}</span>
-        </div>
-      </div>
+      {/* Animated avatar — the "employee" at their desk */}
+      <AgentAvatar state={avatarState} color={config.hex} size={80} />
+
+      {/* Name + type below avatar */}
+      <span className="text-xs font-semibold text-center mt-1 truncate w-full">{agent.title}</span>
+      <span className="text-[9px] text-muted-foreground/50">{config.label}</span>
 
       {/* What's on the desk — live task */}
       <div className="mt-auto">
@@ -171,17 +157,13 @@ function TPRoomCard({ onOpenChat }: { onOpenChat: () => void }) {
         <span className="text-[9px] font-medium text-primary/60 uppercase tracking-wider">Online</span>
       </div>
 
-      <div className="mb-3 mt-1">
-        <div className="tp-icon-pulse w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 border border-primary/20 shadow-sm">
-          <MessageCircle className="w-6 h-6 text-primary" />
-        </div>
-      </div>
+      <TPAvatar size={72} />
 
-      <span className="text-sm font-semibold leading-tight">Orchestrator</span>
-      <span className="text-[11px] text-muted-foreground/70 mt-0.5">TP — your thinking partner</span>
+      <span className="text-sm font-semibold leading-tight mt-1">Orchestrator</span>
+      <span className="text-[11px] text-muted-foreground/70 mt-0.5">Your thinking partner</span>
 
-      <div className="mt-auto pt-3 text-[10px] text-primary/50">
-        <span>⌘K to chat</span>
+      <div className="mt-auto pt-2 text-[10px] text-primary/50">
+        ⌘K to chat
       </div>
     </button>
   );
