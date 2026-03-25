@@ -64,6 +64,7 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
     attachments,
     attachmentPreviews,
     error: fileError,
+    uploadedDocs,
     handleFileSelect,
     handlePaste,
     removeAttachment,
@@ -279,6 +280,12 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
             />
           </div>
 
+          {fileError && (
+            <div className="mb-2 p-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+              {fileError}
+            </div>
+          )}
+
           {attachmentPreviews.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
               {attachmentPreviews.map((preview, i) => (
@@ -287,6 +294,19 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
                   <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-4 h-4 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-[8px]">
                     <X className="w-2.5 h-2.5" />
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {uploadedDocs.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
+              {uploadedDocs.map((doc, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-background border border-border">
+                  <span className="truncate max-w-[120px]">{doc.name}</span>
+                  <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
+                    {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
+                  </span>
                 </div>
               ))}
             </div>
