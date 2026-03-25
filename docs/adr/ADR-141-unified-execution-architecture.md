@@ -1,6 +1,6 @@
 # ADR-141: Unified Execution Architecture — Mechanical Scheduling, LLM Generation
 
-> **Status**: Phase 1-2 Implemented (scheduler + task execution pipeline live; legacy callers retained for incremental migration)
+> **Status**: Phase 1-3 Implemented (task pipeline + scheduler + all callers rewired; execution_strategies + agent_pulse deleted)
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-088 (Trigger Dispatch), ADR-126 (Agent Pulse — remaining Tier 1/2)
@@ -145,7 +145,7 @@ User with 5 weekly tasks: ~$0.25/week generation + $0.28/week heartbeats = **~$0
 
 ### New files
 
-1. **`api/services/task_execution.py`** — the mechanical execution pipeline
+1. **`api/services/task_pipeline.py`** — the mechanical execution pipeline
    - `execute_task(client, user_id, task_slug)` — full pipeline from TASK.md to delivery
    - `build_task_prompt(task_md, agent_md, context)` — builds generation prompt
    - `self_check_output(output, criteria)` — optional Haiku quality gate
@@ -163,7 +163,7 @@ User with 5 weekly tasks: ~$0.25/week generation + $0.28/week heartbeats = **~$0
 6. **`api/services/agent_pulse.py`** — Tier 1/2 dissolved into scheduler SQL + task pipeline
 7. **`api/services/trigger_dispatch.py`** — scheduler triggers directly
 8. **`api/services/execution_strategies.py`** — one pipeline replaces strategy pattern
-9. **`api/services/agent_execution.py`** — replaced by clean `task_execution.py`
+9. **`api/services/agent_execution.py`** — replaced by clean `task_pipeline.py`
 
 ### Retained files (no changes)
 
@@ -184,7 +184,7 @@ Current activity events that need updating:
 
 | Event | Current source | New source | Change |
 |---|---|---|---|
-| `agent_generated` | agent_execution.py | task_execution.py | Update emit location |
+| `agent_generated` | agent_execution.py | task_pipeline.py | Update emit location |
 | `agent_pulsed` | agent_pulse.py | **Dissolved** — no pulse events | Delete event type |
 | `pm_coordination` | pm_coordination.py | **Deleted** (ADR-138) | Already gone |
 | `agent_scheduled` | unified_scheduler.py | unified_scheduler.py | Rename to `task_executed` |
@@ -198,7 +198,7 @@ New events:
 
 | Service | Impact | Changes |
 |---|---|---|
-| yarnnn-api | HIGH | task_execution.py replaces agent_execution.py. Scheduler rewired. |
+| yarnnn-api | HIGH | task_pipeline.py replaces agent_execution.py. Scheduler rewired. |
 | yarnnn-unified-scheduler | HIGH | Calls execute_task() instead of pulse dispatch |
 | yarnnn-platform-sync | NONE | Platform sync is unchanged |
 | yarnnn-mcp-server | LOW | May need agent lookup updates if execution changes agent state |
@@ -207,7 +207,7 @@ New events:
 ### Settings / Configuration
 
 Current settings that need review:
-- Work budget (`check_work_budget()`) — still applies, checked in task_execution.py
+- Work budget (`check_work_budget()`) — still applies, checked in task_pipeline.py
 - Tier limits (agent count, source count) — unchanged
 - Sync frequency — unchanged (platform sync is Layer 1)
 - **No new env vars needed** — task execution uses same Anthropic API key, same Supabase client
@@ -223,7 +223,7 @@ Current settings that need review:
 
 ## Implementation sequence
 
-### Phase 1: Build task_execution.py
+### Phase 1: Build task_pipeline.py
 - New file with `execute_task()` pipeline
 - Reads TASK.md + AGENT.md + knowledge
 - Generates via Sonnet (reuse `generate_draft_inline()` or build clean)
@@ -266,10 +266,10 @@ Current settings that need review:
   - `mcp_server/server.py` (MCP tool)
   - `services/primitives/execute.py` (Execute primitive)
   - `services/trigger_dispatch.py` (event dispatch)
-  - Strategy: build `task_execution.py`, redirect callers one by one, then delete
+  - Strategy: build `task_pipeline.py`, redirect callers one by one, then delete
 
 - `execution_strategies.py` — called by `agent_execution.py:1280` for context gathering
-  - Strategy: replace with task-aware context gathering in `task_execution.py`
+  - Strategy: replace with task-aware context gathering in `task_pipeline.py`
 
 - `trigger_dispatch.py` — called by `event_triggers.py:436` for Slack event routing
   - Strategy: event triggers call `execute_task()` directly, or route through scheduler
@@ -277,11 +277,11 @@ Current settings that need review:
 ### Activity log events
 - `agent_run` (agent_execution.py:1567) → rename to `task_executed`
 - `agent_pulsed` (agent_pulse.py) → dissolve (dead code)
-- `memory_written` (trigger_dispatch.py:130,194) → move to task_execution.py
+- `memory_written` (trigger_dispatch.py:130,194) → move to task_pipeline.py
 - New: `task_executed`, `task_failed`, `health_flag`
 
 ### Render services impact
-- **API**: HIGH — task_execution.py replaces agent_execution.py callers
+- **API**: HIGH — task_pipeline.py replaces agent_execution.py callers
 - **Unified Scheduler**: HIGH — calls execute_task() instead of stub
 - **Platform Sync**: NONE — unchanged
 - **MCP Server**: LOW — update execute_agent_generation import
@@ -293,28 +293,36 @@ Current settings that need review:
 
 ## Implementation Notes (2026-03-25)
 
-### Phase 1-2: Implemented
+### Phase 1-3: Implemented
 
 **New files:**
-- `api/services/task_execution.py` — complete pipeline: `execute_task(client, user_id, task_slug)`. Reads TASK.md → resolves agent → gathers context → generates (Sonnet, multi-tool) → saves output → delivers → updates scheduling → writes activity.
+- `api/services/task_pipeline.py` — complete pipeline with two entry points:
+  - `execute_task(client, user_id, task_slug)` — task-first: reads TASK.md → resolves agent → gathers context → generates (Sonnet, multi-tool) → saves output → delivers → updates scheduling → writes activity. Used by scheduler.
+  - `execute_agent_run(client, user_id, agent, trigger_context)` — agent-first: looks up assigned task, routes through `execute_task()`. Falls back to direct generation if no task. Used by manual runs, MCP, Execute primitive, event triggers.
   - `parse_task_md()` — structured parser for TASK.md
-  - `gather_task_context()` — unified context gathering (replaces strategy pattern for scheduled tasks)
+  - `gather_task_context()` — unified context gathering (replaces strategy pattern)
   - `build_task_execution_prompt()` — builds system + user prompt from task + agent identity
   - `_generate()` — headless generation loop (reuses `chat_completion_with_tools`)
 
 **Modified files:**
-- `api/jobs/unified_scheduler.py` — `execute_due_tasks()` calls `execute_task()` for each due task. Stub replaced with live execution. Heartbeat metadata updated with task success/fail counts.
+- `api/jobs/unified_scheduler.py` — `execute_due_tasks()` calls `execute_task()` for each due task. Stub replaced with live execution.
+- `api/routes/agents.py` — POST /agents/{id}/run → `execute_agent_run()`
+- `api/routes/admin.py` — admin run endpoint → `execute_agent_run()`
+- `api/mcp_server/server.py` — run_agent tool → `execute_agent_run()`
+- `api/services/primitives/execute.py` — agent.generate action → `execute_agent_run()`
+- `api/services/trigger_dispatch.py` — high dispatch → `execute_agent_run()`
 
 **Deleted files:**
-- `api/services/agent_pulse.py` — zero production callers. Tier 1/2 pulse dissolved into scheduler SQL + task pipeline.
+- `api/services/agent_pulse.py` — Tier 1/2 pulse dissolved into scheduler SQL + task pipeline.
+- `api/services/execution_strategies.py` — strategy pattern replaced by `gather_task_context()`.
 
-### Deferred (Phase 3-5)
+**Retained (legacy, no production callers to `execute_agent_generation()` remain):**
+- `api/services/agent_execution.py` — helper functions still imported (`_fetch_skill_docs`, `_extract_contributor_assessment`, `_append_self_assessment`, `_generate_agent_card`, `get_next_run_number`, `create_version_record`, `update_version_for_delivery`, `SONNET_MODEL`, narration utilities). Will be dissolved into task_pipeline.py when stable.
+- `api/services/trigger_dispatch.py` — still called by event_triggers.py for medium/low dispatch (observation accumulation). High dispatch now routes to `execute_agent_run()`.
 
-**Legacy callers retained** — `execute_agent_generation()` in `agent_execution.py` has 5 production callers (routes/agents.py, routes/admin.py, mcp_server/server.py, primitives/execute.py, trigger_dispatch.py). These continue working via the old pipeline. Migration plan:
-- Phase 3: Rewire callers to `execute_task()` where task context exists
+### Deferred (Phase 4-5)
+
 - Phase 4: TP heartbeat mode (reads health flags, periodic headless TP)
-- Phase 5: Delete `agent_execution.py`, `trigger_dispatch.py`, `execution_strategies.py`
+- Phase 5: Dissolve remaining `agent_execution.py` helpers into `task_pipeline.py`
 
-**Event triggers** — `event_triggers.py` → `trigger_dispatch.py` → `execute_agent_generation()` chain preserved. Reactive task accumulation pattern (observe → threshold → generate) needs separate design for task-native reactive mode.
-
-**Activity events** — `task_executed` event added. Legacy `agent_pulsed` events no longer emitted (agent_pulse.py deleted). `agent_run` events still emitted by legacy callers.
+**Activity events** — `task_executed` event used by both `execute_task()` and `execute_agent_run()`. Legacy `agent_pulsed` events no longer emitted (agent_pulse.py deleted).

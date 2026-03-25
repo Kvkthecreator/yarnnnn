@@ -73,8 +73,8 @@ async def _dispatch_high(
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """Delegate to execute_agent_generation(), pass result through."""
-    from services.agent_execution import execute_agent_generation
+    """ADR-141: Delegate to task pipeline."""
+    from services.task_pipeline import execute_agent_run
 
     agent_id = agent.get("id")
     user_id = agent.get("user_id")
@@ -83,7 +83,7 @@ async def _dispatch_high(
     logger.info(f"[DISPATCH] high → generate: {title} ({agent_id}), trigger={trigger_type}")
 
     try:
-        result = await execute_agent_generation(
+        result = await execute_agent_run(
             client=client,
             user_id=user_id,
             agent=agent,

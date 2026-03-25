@@ -250,7 +250,7 @@ async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int
 
     Each task is executed independently — one failure doesn't block others.
     """
-    from services.task_execution import execute_task
+    from services.task_pipeline import execute_task
 
     success = 0
     failed = 0

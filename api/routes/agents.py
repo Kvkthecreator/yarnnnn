@@ -798,9 +798,10 @@ async def trigger_run(
     """
     Trigger an ad-hoc agent run.
 
-    ADR-042: Uses simplified single-call execute_agent_generation().
+    ADR-141: Routes through task pipeline.
     """
-    from services.agent_execution import execute_agent_generation
+    from services.task_pipeline import execute_agent_run
+    from services.supabase import get_service_client
 
     # Get agent
     result = (
@@ -822,9 +823,9 @@ async def trigger_run(
 
     logger.info(f"[AGENT] Triggering run: {agent_id}")
 
-    # ADR-042: Execute with simplified single-call flow
-    exec_result = await execute_agent_generation(
-        client=auth.client,
+    # ADR-141: Route through task pipeline
+    exec_result = await execute_agent_run(
+        client=get_service_client(),
         user_id=auth.user_id,
         agent=agent,
         trigger_context={"type": "manual"},

@@ -1051,7 +1051,7 @@ async def admin_trigger_agent(
     Admin endpoint to trigger an agent run.
     Protected by service key header. Runs full pipeline and returns results.
     """
-    from services.agent_execution import execute_agent_generation
+    from services.task_pipeline import execute_agent_run
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
     if not x_service_key or x_service_key != supabase_key:
@@ -1073,7 +1073,7 @@ async def admin_trigger_agent(
     user_id = agent["user_id"]
 
     try:
-        exec_result = await execute_agent_generation(
+        exec_result = await execute_agent_run(
             client=client,
             user_id=user_id,
             agent=agent,

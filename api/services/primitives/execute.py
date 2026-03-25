@@ -271,14 +271,13 @@ async def _handle_agent_generate(auth, entity, ref, via, params):
     """
     Generate agent content.
 
-    ADR-042: Simplified single-call flow replacing 3-step pipeline.
-    Inline execution - no job queue, no chained work_tickets.
+    ADR-141: Routes through task pipeline.
     """
-    from services.agent_execution import execute_agent_generation
+    from services.task_pipeline import execute_agent_run
+    from services.supabase import get_service_client
 
-    # Execute inline with simplified flow
-    result = await execute_agent_generation(
-        client=auth.client,
+    result = await execute_agent_run(
+        client=get_service_client(),
         user_id=auth.user_id,
         agent=entity,
         trigger_context={"type": "execute_primitive"},

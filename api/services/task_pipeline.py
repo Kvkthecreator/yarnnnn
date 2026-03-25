@@ -1,7 +1,7 @@
 """
-Task Execution Pipeline — ADR-141: Unified Execution Architecture
+Task Pipeline — ADR-141: Unified Execution Architecture
 
-Mechanical pipeline triggered by scheduler. No decision-making — just execution.
+Mechanical generation pipeline triggered by scheduler. No decision-making — just execution.
 
 Flow:
   Scheduler finds due task (SQL)
@@ -953,3 +953,234 @@ def _fail(task_slug: str, message: str) -> dict:
         "status": "failed",
         "message": message,
     }
+
+
+# =============================================================================
+# Agent-first entry point (for manual runs, MCP, Execute primitive)
+# =============================================================================
+
+async def execute_agent_run(
+    client,
+    user_id: str,
+    agent: dict,
+    trigger_context: Optional[dict] = None,
+) -> dict:
+    """Execute an agent run — finds the agent's task and routes through execute_task().
+
+    This is the replacement for execute_agent_generation(). Callers that have
+    an agent dict (manual run, MCP, Execute primitive, event triggers) use this.
+
+    If the agent has an assigned task, routes through execute_task().
+    If no task exists, runs a direct generation (taskless — agent identity only).
+
+    Args:
+        client: Supabase service client
+        user_id: User UUID
+        agent: Full agent dict from DB
+        trigger_context: Optional trigger info
+
+    Returns:
+        Result dict compatible with execute_agent_generation() return shape
+    """
+    from services.workspace import AgentWorkspace, get_agent_slug
+
+    agent_id = agent.get("id")
+    agent_slug = get_agent_slug(agent)
+
+    # Look up task assigned to this agent
+    try:
+        task_result = (
+            client.table("tasks")
+            .select("slug")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .execute()
+        )
+        # Find task whose TASK.md references this agent
+        assigned_task_slug = None
+        if task_result.data:
+            from services.task_workspace import TaskWorkspace
+            for task_row in task_result.data:
+                tw = TaskWorkspace(client, user_id, task_row["slug"])
+                task_md = await tw.read_task()
+                if task_md and f"**Agent:** {agent_slug}" in task_md:
+                    assigned_task_slug = task_row["slug"]
+                    break
+    except Exception as e:
+        logger.warning(f"[AGENT_RUN] Task lookup failed (falling back to direct): {e}")
+        assigned_task_slug = None
+
+    if assigned_task_slug:
+        # Route through task pipeline
+        logger.info(f"[AGENT_RUN] {agent_slug} → task '{assigned_task_slug}'")
+        result = await execute_task(client, user_id, assigned_task_slug)
+        # Map to legacy result shape
+        return {
+            "success": result.get("success", False),
+            "run_id": result.get("run_id"),
+            "version_number": result.get("version_number"),
+            "status": result.get("status", "failed"),
+            "message": result.get("message", ""),
+        }
+
+    # No task — direct generation (taskless agent run)
+    logger.info(f"[AGENT_RUN] {agent_slug} has no task — direct generation")
+    return await _execute_direct(client, user_id, agent, agent_slug, trigger_context)
+
+
+async def _execute_direct(
+    client,
+    user_id: str,
+    agent: dict,
+    agent_slug: str,
+    trigger_context: Optional[dict] = None,
+) -> dict:
+    """Direct agent generation without a task. For agents not yet assigned tasks.
+
+    Minimal pipeline: gather context → generate → save output → activity log.
+    No delivery, no scheduling update (no TASK.md to read config from).
+    """
+    from services.workspace import AgentWorkspace, KnowledgeBase, get_agent_slug
+    from services.agent_framework import has_asset_capabilities, has_capability
+    from services.agent_execution import (
+        get_next_run_number, create_version_record, update_version_for_delivery,
+        SONNET_MODEL, _extract_contributor_assessment,
+    )
+
+    started_at = datetime.now(timezone.utc)
+    agent_id = agent["id"]
+    role = agent.get("role", "custom")
+    scope = agent.get("scope", "cross_platform")
+    title = agent.get("title", "Untitled")
+
+    try:
+        # Create agent_runs record
+        next_version = await get_next_run_number(client, agent_id)
+        version = await create_version_record(client, agent_id, next_version)
+        version_id = version["id"]
+
+        # Read agent workspace
+        ws = AgentWorkspace(client, user_id, agent_slug)
+        await ws.ensure_seeded(agent)
+        ws_instructions = await ws.read("AGENT.md") or ""
+        ws_preferences = await ws.read("memory/preferences.md") or ""
+        user_context = _load_user_context(client, user_id)
+
+        # Gather context
+        context_text, context_meta = await gather_task_context(
+            client, user_id, agent, agent_slug,
+        )
+
+        # Build prompt (use agent title as task title)
+        task_info = {"title": title, "objective": {}, "success_criteria": [], "output_spec": []}
+        system_prompt, user_message = build_task_execution_prompt(
+            task_info=task_info,
+            agent=agent,
+            agent_instructions=ws_instructions,
+            context=context_text,
+            user_context=user_context,
+            workspace_preferences=ws_preferences,
+        )
+
+        # Skill docs
+        if has_asset_capabilities(role):
+            try:
+                from services.agent_execution import _fetch_skill_docs
+                skill_docs = await _fetch_skill_docs()
+                if skill_docs:
+                    system_prompt += f"\n\n## Output Skill Documentation\n{skill_docs}"
+            except Exception:
+                pass
+
+        # Generate
+        draft, usage, pending_renders = await _generate(
+            client, user_id, agent, system_prompt, user_message, scope,
+        )
+
+        draft, contributor_assessment = _extract_contributor_assessment(draft)
+
+        # Save to agent_runs
+        await update_version_for_delivery(client, version_id, draft, metadata={
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+            "model": SONNET_MODEL,
+            "trigger_type": (trigger_context or {}).get("type", "manual"),
+        })
+
+        # Save output folder
+        try:
+            await ws.save_output(
+                content=draft,
+                run_id=str(version_id),
+                agent_id=str(agent_id),
+                version_number=next_version,
+                role=role,
+                rendered_files=pending_renders if pending_renders else None,
+            )
+        except Exception as e:
+            logger.warning(f"[AGENT_RUN] Output folder write failed: {e}")
+
+        # Write to knowledge base
+        try:
+            kb = KnowledgeBase(client, user_id)
+            knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
+            await kb.write(
+                path=knowledge_path, content=draft,
+                summary=f"{title} v{next_version}",
+                metadata={"agent_id": str(agent_id), "role": role, "version_number": next_version},
+                tags=[role],
+            )
+        except Exception:
+            pass
+
+        # Mark as delivered (no external delivery for taskless runs)
+        now = datetime.now(timezone.utc).isoformat()
+        client.table("agent_runs").update({
+            "status": "delivered",
+            "delivered_at": now,
+        }).eq("id", version_id).execute()
+
+        # Activity log
+        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        try:
+            from services.activity_log import write_activity
+            await write_activity(
+                client=client, user_id=user_id,
+                event_type="task_executed",
+                summary=f"{title} v{next_version} delivered (direct)",
+                event_ref=version_id,
+                metadata={
+                    "agent_slug": agent_slug, "agent_id": str(agent_id),
+                    "version_number": next_version, "role": role,
+                    "final_status": "delivered", "duration_ms": duration_ms,
+                    "trigger_type": (trigger_context or {}).get("type", "manual"),
+                },
+            )
+        except Exception:
+            pass
+
+        # Work units
+        try:
+            from services.platform_limits import record_work_units
+            record_work_units(client, user_id, "agent_run", 1, agent_id=str(agent_id))
+        except Exception:
+            pass
+
+        logger.info(f"[AGENT_RUN] Complete: {agent_slug} v{next_version} delivered ({duration_ms}ms)")
+
+        return {
+            "success": True,
+            "run_id": version_id,
+            "version_number": next_version,
+            "status": "delivered",
+            "message": f"Run {next_version} delivered",
+        }
+
+    except Exception as e:
+        logger.error(f"[AGENT_RUN] Failed: {agent_slug}: {e}")
+        return {
+            "success": False,
+            "run_id": None,
+            "status": "failed",
+            "message": str(e),
+        }

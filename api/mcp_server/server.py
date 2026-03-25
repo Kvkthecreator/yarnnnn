@@ -167,10 +167,11 @@ async def run_agent(
     if not agent_result.data:
         return {"success": False, "error": "Agent not found"}
 
-    from services.agent_execution import execute_agent_generation
+    from services.task_pipeline import execute_agent_run
+    from services.supabase import get_service_client
 
-    result = await execute_agent_generation(
-        client=auth.client,
+    result = await execute_agent_run(
+        client=get_service_client(),
         user_id=auth.user_id,
         agent=agent_result.data,
         trigger_context={"type": "mcp"},
