@@ -1,6 +1,7 @@
 # ADR-134: Workfloor-First Project Surface
 
 > **Status**: Phase 1 Implementation
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 > **Date**: 2026-03-23 (revised)
 > **Authors**: KVK, Claude
 > **Evolves**: ADR-124 (Meeting Room → workfloor-first), ADR-133 (phase state surfacing)

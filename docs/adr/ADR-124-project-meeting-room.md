@@ -1,6 +1,7 @@
 # ADR-124: Project Meeting Room — Unified Project Surface
 
 **Status**: Phase 1-5 Implemented (ChatAgent class, agent_chat mode, routing, attribution, meeting room frontend, attributed messages, @-mention, live project context injection, workspace file browser, settings tab consolidation)
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 **Date**: 2026-03-19
 **Authors**: KVK, Claude
 **Supersedes**: None (evolves ADR-119 Phase 4b project detail page)

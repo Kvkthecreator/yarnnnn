@@ -1,6 +1,7 @@
 # ADR-125: Project-Native Session Architecture
 
 **Status**: Implemented (Phases 1-5)
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 **Date**: 2026-03-20
 **Supersedes**: ADR-087 (agent-scoped sessions), partially ADR-006 (session model)
 **Extends**: ADR-122 (project-first), ADR-124 (meeting room)

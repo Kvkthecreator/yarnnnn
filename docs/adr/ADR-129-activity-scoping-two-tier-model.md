@@ -1,6 +1,7 @@
 # ADR-129: Activity Scoping — Two-Tier Model
 
 **Status**: Phases 1-3 Implemented
+> **Partially superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project activity tier removed.
 **Date**: 2026-03-22
 **Extends**: ADR-063 (Activity Log / Four-Layer Model), ADR-124 (Project Meeting Room), ADR-125 (Project-Native Session Architecture)
 **Supersedes**: None (refines the activity domain within existing four-layer model)

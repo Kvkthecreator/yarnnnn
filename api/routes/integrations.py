@@ -470,10 +470,12 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             )
 
         def _count_agents(provider: str) -> int:
+            # ADR-138: destination column dropped. Count all active agents instead.
+            # Task-level delivery config will be in TASK.md (Phase 3+).
             result = auth.client.table("agents").select(
                 "id", count="exact"
-            ).eq("user_id", user_id).contains(
-                "destination", {"platform": provider}
+            ).eq("user_id", user_id).neq(
+                "status", "archived"
             ).execute()
             return result.count or 0
 

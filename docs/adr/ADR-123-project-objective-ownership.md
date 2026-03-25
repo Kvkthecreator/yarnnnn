@@ -1,6 +1,7 @@
 # ADR-123: Project Objective & Ownership Model
 
 > **Status**: Phases 1-4 Implemented (Complete)
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 > **Date**: 2026-03-19
 > **Authors**: KVK, Claude
 > **Extends**: ADR-120 (Project Execution), ADR-121 (PM Intelligence Director), ADR-122 (Project Type Registry)

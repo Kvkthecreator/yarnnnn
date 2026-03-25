@@ -1,6 +1,7 @@
 # ADR-132: Work-First Onboarding & Project Scaffolding
 
 > **Status**: Redesigned and implemented. 2-step flow: (1) share context (files + text), (2) brand + name. Single Sonnet inference extracts multiple scopes with rich specs. Singular implementation — deleted 3-step single/multi flow.
+> **Partially superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project scaffolding replaced by task creation.
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Extends**: ADR-122 (Project Type Registry), ADR-130 (Agent Capability Substrate)

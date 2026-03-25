@@ -1,6 +1,7 @@
 # ADR-126: Agent Pulse — Autonomous Awareness Engine
 
 > **Status**: Implemented (Phases 1-6). **Partially superseded by ADR-133** — independent contributor pulse replaced by PM-coordinated phase dispatch for project-scoped agents. Standalone agents + PM agents retain pulse. Tier 3 (PM coordination) implemented as phase dispatch in ADR-133.
+> **Partially superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Tier 3 PM pulse removed. Tier 1+2 preserved.
 > **Date**: 2026-03-20
 > **Authors**: KVK, Claude
 > **Scope**: Foundational re-architecture of agent execution from top-down scheduling to bottom-up autonomous awareness.

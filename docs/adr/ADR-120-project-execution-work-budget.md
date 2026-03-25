@@ -1,6 +1,7 @@
 # ADR-120: Project Execution & Work Budget
 
 > **Status**: Phases 1-5 Implemented. **Evolved by ADR-133** — PM becomes phase orchestrator with structured work plan, cross-phase context injection, and contributor dispatch (replaces freshness-based assembly triggering).
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 > **Date**: 2026-03-18
 > **Authors**: KVK, Claude
 > **Extends**: ADR-119 (Workspace Filesystem), ADR-111 (Agent Composer), ADR-118 (Skills)

@@ -1,7 +1,7 @@
 # YARNNN Cognitive Architecture — Foundations
 
 > **Status**: Canonical
-> **Date**: 2026-03-15
+> **Date**: 2026-03-25
 > **Authors**: KVK, Claude
 > **Scope**: First principles from which all architectural decisions derive.
 > **Rule**: ADRs implement these axioms. If an ADR contradicts a foundation, the ADR must justify the deviation or be revised.
@@ -23,7 +23,7 @@ YARNNN has two distinct layers of intelligence that develop along different axes
 The Thinking Partner is the **singular meta-intelligence**. It does not own a domain — it owns the **system's attention allocation**. Its responsibilities:
 
 - **Conversational**: mediates between the user and the system
-- **Compositional**: assesses the user's substrate and scaffolds agents (Composer capability)
+- **Compositional**: assesses the user's substrate and scaffolds agents and tasks (Composer capability)
 - **Supervisory**: monitors agent health, reviews outputs, applies feedback
 - **Orchestrative**: adjusts, evolves, and dissolves agents based on changing needs
 
@@ -35,13 +35,11 @@ Agents are **persistent entities that develop expertise in a specific domain of 
 
 Agents develop **inward** — deeper domain expertise, more capable execution, higher autonomy. An agent that starts as a daily Slack digest may evolve to notice patterns, draft responses, and eventually act independently in its domain.
 
-**An agent's domain can be coordination itself.** A Project Manager agent's domain is the execution of a specific project — tracking contributions, managing assembly timing, enforcing budget. Its domain knowledge is project-specific: which contributors are reliable, what assembly cadence works, how the user wants the deliverable structured. This is not a third layer of intelligence — it is domain-cognitive expertise applied to the domain of project coordination. The PM sits alongside other agents, not above them. TP creates PMs, monitors their health, and can dissolve them — exactly as with any agent. The PM's special primitives (assembly, freshness checks, contributor nudges) are domain-specific tools, just as a researcher has WebSearch.
-
 ### The Relationship
 
 TP creates agents. Agents don't create TP capabilities. TP monitors agents. Agents don't monitor TP. TP can dissolve agents. Agents can't dissolve TP capabilities. The flow is always: **TP judges what attention is warranted → agents execute that attention → outputs feed back to TP for further judgment.**
 
-But agents are not mere functions. They accumulate domain knowledge that TP doesn't have. A mature Slack agent understands the team's communication patterns in a way TP's general intelligence does not. A mature PM agent understands what its project needs — which contributions are stale, when to assemble, how to decompose the user's intent into executable work. TP respects this — it orchestrates based on what agents know, not despite it.
+But agents are not mere functions. They accumulate domain knowledge that TP doesn't have. A mature Slack agent understands the team's communication patterns in a way TP's general intelligence does not. TP respects this — it orchestrates based on what agents know, not despite it.
 
 | | TP (Meta-Cognitive) | Agent (Domain-Cognitive) |
 |---|---|---|
@@ -50,7 +48,7 @@ But agents are not mere functions. They accumulate domain knowledge that TP does
 | **Autonomy means** | Scaffolding agents without being asked | Taking multi-step action in domain without supervision |
 | **Accumulates** | System-level patterns (what works for this user) | Domain-level knowledge (what matters in this area) |
 | **Identity** | "I manage this user's cognitive workforce" | "I own [domain] and develop expertise in it" |
-| **Examples** | Singular | Slack digest, revenue analyst, PM for Q2 review |
+| **Examples** | Singular | Slack recap, market researcher, investor update agent |
 
 ---
 
@@ -70,17 +68,16 @@ Perception is not just external platform data. The perception substrate is **eve
 
 Perception flows through three distinct substrates that must stay coherent:
 
-1. **Conversation** — project sessions, chat messages, compaction. What was said. Append-only, compacts over time.
-2. **Filesystem** — workspace files (`AGENT.md`, `memory/`, `PROJECT.md`, cognitive files). What agents know. Evolves with each pulse/run.
+1. **Conversation** — sessions, chat messages, compaction. What was said. Append-only, compacts over time.
+2. **Filesystem** — workspace files (`AGENT.md`, `memory/`, `TASK.md`, cognitive files). What agents know. Evolves with each pulse/run.
 3. **Agent Cognition** — role prompts, pulse decisions, execution strategies. How agents think. Shaped by substrate 2.
 
-These are not hierarchical — they are peer substrates. Intelligence degrades when they fall out of sync: a user directive in conversation that doesn't reach the filesystem evaporates on session rotation; a PM assessment in the filesystem that agents can't read produces coordination blind spots.
+These are not hierarchical — they are peer substrates. Intelligence degrades when they fall out of sync: a user directive in conversation that doesn't reach the filesystem evaporates on session rotation; an assessment in the filesystem that agents can't read produces blind spots.
 
-The **coherence protocol** (ADR-128) defines four flows that keep substrates aligned:
-1. **Cognition → Filesystem**: Contributors write self-assessments (`memory/self_assessment.md`) after each run — rolling history of mandate fitness, domain fitness, context currency, output confidence.
-2. **Filesystem → Cognition**: PM reads contributor self-assessments during its pulse — trajectory data (not just current state) informs steering decisions.
+The **coherence protocol** (ADR-128) defines three flows that keep substrates aligned:
+1. **Cognition → Filesystem**: Agents write self-assessments (`memory/self_assessment.md`) after each run — rolling history of mandate fitness, domain fitness, context currency, output confidence.
+2. **Filesystem → Cognition**: TP reads agent self-assessments during workforce monitoring — trajectory data (not just current state) informs orchestration decisions.
 3. **Conversation → Filesystem**: Agents persist durable directives from chat to `memory/directives.md` — user guidance survives session rotation.
-4. **Filesystem → Conversation**: Contributors read PM's `project_assessment.md` — they know which prerequisite layer constrains the project.
 
 ### The Recursive Property
 
@@ -132,20 +129,14 @@ A tenured agent produces better output because it knows more about its domain, n
 
 Consequential external actions (posting to Slack, sending emails, updating Notion) are gated by **explicit user authorization per agent**, not earned through seniority or feedback metrics. "This agent can post to #general" is a user setting.
 
-Note: "Objectives" at the project level (ADR-123) are distinct — they represent the project's north star (what, for whom, why, in what form), not agent responsibilities.
-
 ### Agent Cognitive State (ADR-128)
 
 A developing agent is not just its outputs and feedback — it has a **cognitive state** that persists between executions. This state is materialized in workspace files, seeded at creation time, and updated on every run:
 
 - **`memory/self_assessment.md`** — rolling history (5 most recent) of the agent's self-evaluation: mandate clarity, domain fitness, context currency, output confidence. This is the agent's evolving self-awareness.
-- **`memory/directives.md`** — accumulated user guidance from meeting room conversations that persists across session rotations.
+- **`memory/directives.md`** — accumulated user guidance from conversations that persists across session rotations.
 
-PM agents maintain additional cognitive files at the project level:
-- **`memory/project_assessment.md`** — the PM's layered evaluation of the project, rewritten each pulse. This is the authoritative project health snapshot.
-- **`memory/decisions.md`** — project-level decisions from meeting room conversations.
-
-Cognitive files are **not output** — they are coordination infrastructure. They are stripped from delivered content and exist solely to enable cross-agent coherence. The asymmetry is intentional: contributor assessments use rolling append (trajectory data for PM), PM assessments use overwrite (authoritative snapshot for contributors).
+Cognitive files are **not output** — they are coordination infrastructure. They are stripped from delivered content and exist solely to enable cross-agent coherence.
 
 ### The Agent Pulse — Mechanism of Autonomy (ADR-126)
 
@@ -153,27 +144,25 @@ An agent is alive when it has a **pulse** — an autonomous sense→decide cycle
 
 Pulse cadence is determined by agent type (ADR-130):
 - **monitor**: every 15 minutes (always alert)
-- **pm**: every 30 minutes (responsive to contributor output)
 - **digest/prepare**: every 12 hours (daily rhythm)
 - **synthesize/research/custom**: on schedule (delivery rhythm)
 
 The pulse uses a cheap-first funnel:
 1. **Tier 1 (deterministic, zero LLM)**: Fresh content? Budget available? Recent enough? ~80% of pulses resolve here.
 2. **Tier 2 (self-assessment)**: Agent reads own workspace, thesis, observations, and decides whether to generate.
-3. **Tier 3 (PM coordination)**: PM reads contributor freshness, quality, work plan, decides coordination action.
 
-Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in project meeting rooms, agent timelines, and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
+Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in agent timelines and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
 
-### Objectives at Project Scope (ADR-123)
+### Objectives at Task Scope (ADR-138)
 
-Projects have objectives — their north star — and they exhibit a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
+Tasks define what work gets done. A task has an objective — its north star — and exhibits a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
 
-- "I want a Q2 report with data analysis and an executive summary" — bounded objective, 2-3 agents, known capabilities, predictable work
-- "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially infinite agents/files/runs
+- "I want a daily recap of #engineering with executive summary" — bounded objective, 1 agent, predictable cadence
+- "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially multiple agents/files/runs
 
-The PM agent's core cognitive task is **translating the objective into executable, bounded work** — decomposing a user's project objective into an operational work plan: which agents contribute, which skills produce output, what cadence, what assembly format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
+TP's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which agent(s) contribute, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
 
-Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in PROJECT.md's `## Objective` section — they shape the PM's assembly decisions, layout mode selection, and export format. The PM's operational execution plan lives separately in `memory/work_plan.md` (ADR-123: charter vs. operations separation). Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
+Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in TASK.md's `## Objective` section — they shape assembly decisions, layout mode selection, and export format. Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
 
 ---
 
@@ -207,46 +196,18 @@ The Composer is not a separate service, agent type, or subsystem. It is **TP exe
 
 ### What the Composer Does
 
-1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing agents, projects, user feedback patterns.
-2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when multiple agents' outputs should combine into a project.
-3. **Agent & Project Scaffolding** — "What entity should I create?" Maps recognized needs to agent identities or project structures, then to configurations. For projects: creates a PM agent, identifies or creates contributing agents, writes PROJECT.md with objective and assembly spec. High-confidence needs are auto-scaffolded; medium-confidence are suggested to the user.
-4. **Lifecycle Management** — "Are my entities developing well?" Reviews agent and project health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and projects.
-
-### Composer vs. Project Manager: Separation of Concerns
-
-The Composer decides **whether** a project should exist. The PM agent decides **how** it executes.
-
-| Concern | Composer (TP) | PM Agent |
-|---------|--------------|----------|
-| Create/dissolve projects | Yes | No |
-| Create/dissolve agents | Yes | No (requests TP via escalation) |
-| Set project objective & contributors | Yes | Refines over time |
-| Monitor project health (top-level) | Yes (reads PM status) | No — IS the status source |
-| Track contribution freshness | No | Yes |
-| Trigger assembly | No | Yes |
-| Enforce project work budget | No | Yes |
-| Adjust assembly timing/format | No | Yes |
-| Escalate when stuck | No | Yes (communicates to TP) |
-
-This prevents TP bloat. TP's heartbeat sees project health *through* PM status reports, not by reimplementing project-level logic.
+1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing agents, tasks, user feedback patterns.
+2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when a user's work requires multiple agents coordinated through a task.
+3. **Agent & Task Creation** — "What should I create?" Maps recognized needs to agent identities and task definitions. TP directly creates agents, assigns them to tasks, and defines cadence and delivery. High-confidence needs are auto-created; medium-confidence are suggested to the user.
+4. **Lifecycle Management** — "Are my entities developing well?" Reviews agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and tasks. Monitors workforce via Composer heartbeat — reading agent self-assessments and pulse outcomes to make compositional decisions.
 
 ### Composer Triggers
 
 The Composer capability activates when:
-- A platform is connected (new substrate → what attention is now warranted?)
-- A user provides feedback (approval/edit → should agents adjust?)
+- A platform is connected (new substrate — what attention is now warranted?)
+- A user provides feedback (approval/edit — should agents adjust?)
 - A periodic self-assessment fires (are agents healthy? is anything missing?)
-- A user conversationally requests (explicit direction → scaffold or adjust)
-
-### Relationship to Proactive and Coordinator Modes
-
-> **Note (2026-03-20):** ADR-126 (Agent Pulse) supersedes the framing below. Proactive self-assessment is no longer a TP supervisory capability invoked top-down — it is generalized into every agent's pulse. All agents sense their domain and decide whether to act. The distinction between "proactive" and "recurring" dissolves: every agent has a pulse, and the pulse's sophistication scales with seniority. Coordinator mode dissolves similarly — project coordination belongs to PM agents via their coordination pulse (Tier 3), not to a special agent mode.
-
-Under the previous swarm framing, proactive and coordinator were agent modes — agents that assessed and orchestrated. Under ADR-126:
-
-- **Proactive review** generalizes into the **Agent Pulse** — every agent's autonomous sense→decide cycle. The review logic (workspace reading, domain assessment, generate/observe/wait decision) is the agent's own intelligence, not TP's. TP's role is portfolio-level: reading pulse outcomes to make compositional decisions.
-
-- **Coordinator mode** dissolves into **PM pulse** — project coordination is a PM agent's domain expertise, expressed through its specialized coordination pulse (Tier 3). PM agents are created by Composer, not by coordinator agents.
+- A user conversationally requests (explicit direction — scaffold or adjust)
 
 ---
 
@@ -260,35 +221,30 @@ The system must know **what to work on** before it can work autonomously. Platfo
 
 The onboarding sequence is:
 1. **User describes their work** — "I run a consulting practice with 3 clients" (primary input)
-2. **System extracts work units** — each discrete scope of recurring attention becomes a project
-3. **User connects platforms** — platform sources get mapped to work units (Slack channels → client projects)
+2. **TP creates agents and tasks** — each discrete scope of recurring attention becomes an agent assigned to a task
+3. **User connects platforms** — platform sources get mapped to agents (Slack channels → domain agents)
 4. **Agents activate** — scoped to work context, not platform topology
 
-Platform connection without work context produces generic digests (the fallback). Work description without platform connection produces correctly-scoped projects with placeholder agents (enriched when platforms connect). The work description is always more valuable than the platform connection.
+Platform connection without work context produces generic digests (the fallback). Work description without platform connection produces correctly-scoped agents with task definitions (enriched when platforms connect). The work description is always more valuable than the platform connection.
 
 ### The Autonomous Flow
 
-**All projects** (work-scoped + platform-scoped, unified model):
 ```
 1. User describes work (or connects platform, or Composer detects opportunity)
-2. Work units extracted → scaffold_project() creates project + member agents + PM agent
-3. Agent pulses begin (sense→decide cycle on cadence)
+2. TP creates agent(s) + task(s) with cadence, format, and delivery config
+3. Task pulses begin on cadence (sense→decide cycle)
 4. Agent pulse decides "generate" → run produces output to workspace
-5. PM pulse senses contributor freshness → coordinates delivery
-6. For single-agent projects: PM passthrough (contribution = output, deliver immediately)
-   For multi-agent projects: PM assembles contributions, delivers composed deliverable
-7. User feedback refines PM's coordination + contributors' outputs
-8. Recursive: next cycle's pulses are smarter because agents learned, PM learned
+5. Agent self-checks output quality → delivers per TASK.md
+6. For multi-agent tasks: outputs assembled and delivered as composed deliverable
+7. User feedback refines agent outputs and TP's orchestration
+8. Recursive: next cycle's pulses are smarter because agents learned
 ```
 
-Steps 1-2 are the onboarding/Composer/Bootstrap capability. Steps 3-6 are pulse-driven execution. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
+Steps 1-2 are the onboarding/Composer capability. Steps 3-5 are pulse-driven execution. Step 6 handles multi-agent coordination. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
 
-**Three distinct concerns** (ADR-126):
-- **Pulse cadence**: How often does the agent sense its domain? (scales with seniority)
-- **Generation decision**: Should I produce output? (agent's own pulse decides)
-- **Delivery timing**: When does the user receive it? (project-level, PM-coordinated)
+**Agents are persistent domain experts. Tasks define what work gets done. TP orchestrates.**
 
-**Key axiom**: Every project gets a PM. No exceptions. PM agents are project infrastructure, excluded from tier agent limits. Agents produce; projects deliver. See [PROJECT-DELIVERY-MODEL.md](../design/PROJECT-DELIVERY-MODEL.md).
+Task cadence determines when an agent runs. The agent's pulse decides whether to generate. Delivery configuration lives in TASK.md.
 
 For the canonical phase-by-phase breakdown of standalone agent flow — including timeline, separation of concerns, and the compounding mechanism — see [VALUE-CHAIN.md](VALUE-CHAIN.md).
 
@@ -303,11 +259,11 @@ Over time, the balance shifts toward autonomous. Early users direct more; tenure
 
 ### Implication: Work Context Over Configuration Breadth
 
-A user who describes their work and sees correctly-scoped projects with agents that understand their domain has more confidence than a user who connects Slack and gets a generic recap of everything. The system should optimize for understanding the user's work over maximizing platform coverage.
+A user who describes their work and sees correctly-scoped agents that understand their domain has more confidence than a user who connects Slack and gets a generic recap of everything. The system should optimize for understanding the user's work over maximizing platform coverage.
 
 ### Implication: Work Types Carry Lifecycle
 
-Work descriptions carry implicit lifecycle. "I have 3 clients" implies persistent, recurring work. "I need a board deck" implies bounded, deliverable-scoped work. The system infers lifecycle from the work description — the user does not configure it. Persistent work gets full PM coordination. Bounded work gets lightweight PM that dissolves on completion. See ADR-132.
+Work descriptions carry implicit lifecycle. "I have 3 clients" implies persistent, recurring work. "I need a board deck" implies bounded, deliverable-scoped work. The system infers lifecycle from the work description — the user does not configure it. Persistent work gets full task coordination. Bounded work gets lightweight tasks that dissolve on completion.
 
 ---
 
@@ -315,14 +271,14 @@ Work descriptions carry implicit lifecycle. "I have 3 clients" implies persisten
 
 These follow from the axioms and are stated explicitly for implementation guidance:
 
-1. **Two layers, clear separation** — TP handles meta-cognition (composition, supervision, orchestration). Agents handle domain cognition (expertise, execution, accumulation). Neither does the other's job. A coordination-domain agent (PM) is still domain-cognitive — it doesn't become a third layer.
-2. **Workspace is the shared OS** — All persistent state (agent memory, outputs, user knowledge, TP assessments) lives in the workspace filesystem. External platforms flow through `platform_content` with TTLs; internal content persists and compounds.
-3. **Agents are the write path** — All modifications to workspace files, project folders, and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
+1. **Two layers, clear separation** — TP handles meta-cognition (composition, supervision, orchestration). Agents handle domain cognition (expertise, execution, accumulation). Neither does the other's job.
+2. **Workspace is the shared OS** — All persistent state (agent memory, outputs, user knowledge, TP assessments) lives in the workspace filesystem. `/agents/{slug}/` for agent state, `/tasks/{slug}/` for task definitions and coordination. External platforms flow through `platform_content` with TTLs; internal content persists and compounds.
+3. **Agents are the write path** — All modifications to workspace files and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
 4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
 5. **Agents develop through knowledge, not capability expansion** — Agent capabilities are fixed by type. Development is about knowledge depth: accumulated memory, learned preferences, refined domain expertise. The architecture supports this deepening through workspace state (memory, feedback distillation, self-assessment), not through mechanical capability unlocking.
 6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
-7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If intentions subsume triggers, there is no parallel trigger system.
-8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or projects exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
+7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If tasks subsume scheduling, there is no parallel trigger system.
+8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. Tasks are the work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or tasks exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
 9. **Agent types determine capabilities; output is structured, not formatted** — Agent capabilities are determined by agent type (deterministic, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
 
 ---
@@ -334,20 +290,21 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-072 (Unified Content Layer) | Implements Axiom 2 — shared content substrate | Aligned |
 | ADR-073 (Unified Fetch Architecture) | Implements Axiom 2 L0 — single perception path | Aligned |
 | ADR-080 (Unified Agent Modes) | Implements Axiom 1 — one agent, two modes (chat + headless) | Aligned |
-| ADR-092 (Mode Taxonomy) | Implements trigger axis — **needs revision**: proactive/coordinator are TP capabilities (Axiom 5), not agent modes | Partially superseded |
+| ADR-092 (Mode Taxonomy) | Implements trigger axis — **superseded**: proactive/coordinator modes dissolved (ADR-126, ADR-138) | Superseded |
 | ADR-101 (Intelligence Model) | Implements Axiom 4 — four-layer knowledge model | Aligned |
 | ADR-102 (YARNNN Content Platform) | Implements Axiom 2 — agent outputs as perception | Aligned |
 | ADR-106 (Workspace Architecture) | Implements Axiom 2/4 — workspace as shared OS | Aligned |
 | ADR-109 (Agent Framework) | Implements taxonomy — **needs revision**: trigger axis and static skill model don't accommodate agent development (Axiom 3) | Partially superseded |
-| ADR-111 (Agent Composer) | Implements Axiom 5 — Composer delegates project execution to PM agents (v3 update) | Aligned (post v3) |
+| ADR-111 (Agent Composer) | Implements Axiom 5 — TP's compositional capability | Aligned (post v3) |
 | ADR-112 (Sync Efficiency) | Implements Axiom 2 L0 — perception reliability | Aligned |
 | ADR-118 (Skills as Capability Layer) | Implements Axiom 1 capability axis — skill library as agent toolbox. **Phase D format-builder skills partially superseded by ADR-130** | Partially superseded (Phase D) |
-| ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, project folders, manifests | Aligned |
-| ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — PM agents, project heartbeat, work budget governor | Implemented |
-| ADR-121 (PM Intelligence Director) | Implements Axiom 1 (PM developmental trajectory) + Axiom 3 (agents develop inward) — PM evolves from logistics to quality assessment, directive steering, investigation | Proposed |
-| ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as fourth perception layer — project transcript alongside external/internal/reflexive), Axiom 3 (agents as participants with presence), Axiom 4 (accumulated attention visible in conversation). Three data scopes (agent/group/project). Project surface as group chat. Extends ADR-080 with `agent_chat` mode. | Proposed |
-| ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + four coherence flows), Axiom 3 (cognitive files as developmental mechanism). Contributor self-assessment, PM project assessment, chat directive persistence, cross-agent visibility. | Proposed |
-| ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities replace seniority-gated progression. Three-concern separation (capability/presentation/export). HTML-native output bet: agents produce markdown + assets, platform composes HTML, export is derivative. Supersedes ADR-118 Phase D + ADR-117 seniority-gated capabilities. | Phase 1 Implemented |
+| ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, manifests | Aligned |
+| ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — work budget governor. **PM and project model superseded by ADR-138** | Partially superseded |
+| ADR-121 (PM Intelligence Director) | **Superseded by ADR-138** — PM dissolved into TP | Superseded |
+| ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as perception layer). **Project surface superseded by ADR-138** — tasks replace projects | Partially superseded |
+| ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + three coherence flows), Axiom 3 (cognitive files as developmental mechanism). Agent self-assessment, chat directive persistence. | Aligned (revised) |
+| ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities. Three-concern separation (capability/presentation/export). | Phase 1 Implemented |
+| ADR-138 (Agents as Work Units) | Implements Axioms 1+5+6 — PM dissolved into TP, projects replaced by tasks, agents are identity-only domain experts | Proposed |
 
 ---
 
@@ -361,13 +318,13 @@ These require further design work before implementation:
 
 3. ~~**Autonomy graduation criteria** — What constitutes "enough feedback" to graduate from supervised to semi-autonomous?~~ → **Resolved by ADR-130.** Consequential actions gated by explicit user authorization per agent, not earned through seniority.
 
-4. **Multi-intention scheduling** — If an agent holds multiple intentions with different temporal profiles (daily digest + event-driven monitoring + goal-driven research), how does the scheduler express this? Is it multiple scheduled entries for one agent?
+4. ~~**Multi-intention scheduling** — If an agent holds multiple intentions with different temporal profiles (daily digest + event-driven monitoring + goal-driven research), how does the scheduler express this?~~ → **Resolved by ADR-138.** Each task has its own cadence. An agent assigned to multiple tasks runs on each task's schedule independently.
 
 5. **Agent evolution mechanics** — When an agent's domain expands (e.g., Slack digest agent starts also monitoring email threads from the same team), does it become a new agent or does the existing agent's scope expand? Who decides?
 
-6. ~~**Composer bootstrapping** — What is the minimum substrate assessment needed to scaffold a high-confidence agent within 30 seconds? This is a product question with architectural implications.~~ → **Addressed by ADR-132.** Work description is the primary onboarding input. Work units extracted → projects scaffolded. Platform connections enrich existing projects rather than creating new ones.
+6. ~~**Composer bootstrapping** — What is the minimum substrate assessment needed to scaffold a high-confidence agent within 30 seconds? This is a product question with architectural implications.~~ → **Addressed by ADR-132.** Work description is the primary onboarding input. Work units extracted → tasks scaffolded. Platform connections enrich existing agents rather than creating new ones.
 
-7. **Proactive/coordinator code disposition** — The existing proactive review and coordinator primitives implement TP capabilities as agent modes. Can the mechanics be preserved while reframing conceptually, or does the code need structural changes?
+7. ~~**Proactive/coordinator code disposition** — The existing proactive review and coordinator primitives implement TP capabilities as agent modes. Can the mechanics be preserved while reframing conceptually, or does the code need structural changes?~~ → **Resolved by ADR-138.** Both proactive and coordinator modes deleted. Proactive self-assessment generalized into every agent's pulse (ADR-126). Coordinator dissolved — TP orchestrates directly, no PM delegation.
 
 8. ~~**Project execution mechanics** — How does the PM agent's heartbeat work? What are its primitives? How does it detect assembly readiness?~~ → **Addressed by ADR-120.**
 
@@ -375,7 +332,7 @@ These require further design work before implementation:
 
 10. **Filesystem hardening** — What frontend surfaces need read-only constraints? How do user edits on output flow through feedback distillation without bypassing agent-mediated writes? (Partially addressed by Derived Principle 3.)
 
-11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project objective?~~ → **Addressed by ADR-121.** PM evolves from logistics coordinator to intelligence director with quality assessment, contribution briefs, and investigation requests. **ADR-123** clarifies ownership: objective is User/Composer/TP-owned; PM reads it as quality reference but doesn't change it.
+11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project objective?~~ → **Superseded by ADR-138.** PM dissolved. TP monitors agent output quality directly through Composer heartbeat and agent self-assessments.
 
 ---
 
@@ -394,3 +351,4 @@ These require further design work before implementation:
 | 2026-03-23 | v3.6 — Work-First Onboarding (ADR-132). Axiom 6 revised: "describe your work" replaces "connect platform" as primary onboarding input. Work description → work units → project scaffolding. Platform connections enrich existing work-scoped projects rather than creating generic digests. Work types carry implicit lifecycle (persistent vs. bounded). Open question 6 (Composer bootstrapping) resolved. |
 | 2026-03-24 | v3.7 — Project Charter Architecture (ADR-136). Filesystem IS the architecture: PROJECT.md (objective + success criteria) + TEAM.md (roster + capabilities from type registry) + PROCESS.md (output spec + cadence + delivery + phases). Strict charter vs. memory separation. PM workspace = project workspace. Cadence enforcement enables deterministic execution. Output specification enables composition intelligence. Chat as coordination substrate (ADR-135). ~$0.50/month per project cost model. |
 | 2026-03-24 | v3.8 — Declarative Pipeline Execution (ADR-137). PROCESS.md declares execution graphs: ordered steps with dependencies, executed mechanically by scheduler. PM simplified from autonomous coordinator to pipeline-embedded steps (evaluate/compose/reflect). Complexity-adaptive pipelines: simple (1 agent, direct deliver), standard (sequential), complex (retry loops). Inference produces pipeline spec, not just team. ~$0.17/cycle cost. Supersedes PM coordination model (ADR-133). |
+| 2026-03-25 | v4.0 — ADR-138 project layer collapse. PM dissolved into TP. Projects replaced by tasks. Agents are identity-only domain experts. Coherence flows reduced from 4 to 3 (PM assessment flow removed). Pulse tiers simplified (Tier 3 PM coordination removed). TP directly creates agents and tasks, monitors health, orchestrates multi-agent work. Open questions 4, 7 resolved. |

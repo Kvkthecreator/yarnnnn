@@ -1,6 +1,7 @@
 # ADR-136: Project Charter Architecture — Separated Concerns
 
 > **Status**: Phases 1-4 Implemented
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects.
 > **Date**: 2026-03-24
 > **Authors**: KVK, Claude
 > **Supersedes**: Single PROJECT.md model (ADR-119, ADR-122, ADR-123)

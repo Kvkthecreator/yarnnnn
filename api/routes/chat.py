@@ -284,15 +284,13 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
     try:
         # Check if already summarized
         session = client.table("chat_sessions")\
-            .select("id, summary, created_at, project_slug")\
+            .select("id, summary, created_at")\
             .eq("id", previous_session_id)\
             .single()\
             .execute()
 
         if not session.data or session.data.get("summary"):
             return  # Already summarized or not found
-
-        project_slug = session.data.get("project_slug")
 
         # Fetch messages (include metadata for author attribution in project sessions)
         messages = client.table("session_messages")\
