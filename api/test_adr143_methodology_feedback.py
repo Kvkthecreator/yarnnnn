@@ -1,9 +1,9 @@
 """
-ADR-143 Test Suite — Agent Methodology Layer + Feedback Consolidation
+ADR-143 Test Suite — Agent Playbook Layer + Feedback Consolidation
 
 Tests:
-  1. Methodology seeding at agent creation
-  2. load_context() reads methodology + feedback files correctly
+  1. Playbook seeding at agent creation
+  2. load_context() reads playbook + feedback files correctly
   3. feedback_distillation writes to feedback.md (not preferences.md)
   4. WriteAgentFeedback primitive works
   5. Import validation — no dangling references to deleted files
@@ -15,7 +15,7 @@ Strategy: Real DB writes with TEST_ADR143_ prefix. No live LLM calls.
 Test user: kvkthecreator@gmail.com
 
 Usage:
-    cd api && python test_adr143_methodology_feedback.py
+    cd api && python test_adr143_playbook_feedback.py
 """
 
 from __future__ import annotations
@@ -69,59 +69,59 @@ def get_service_client():
 
 
 # =============================================================================
-# Test 1: Agent Framework — Methodology in Registry
+# Test 1: Agent Framework — Playbook in Registry
 # =============================================================================
 
-def test_methodology_in_registry():
-    """Verify all 6 agent types have methodology entries."""
-    logger.info("Test 1: Methodology in AGENT_TYPES registry")
+def test_playbook_in_registry():
+    """Verify all 6 agent types have playbook entries."""
+    logger.info("Test 1: Playbook in AGENT_TYPES registry")
 
-    from services.agent_framework import AGENT_TYPES, get_type_methodology
+    from services.agent_framework import AGENT_TYPES, get_type_playbook
 
     for type_key, type_def in AGENT_TYPES.items():
-        methodology = type_def.get("methodology", {})
+        playbook = type_def.get("methodology", {})
         record(
-            f"  {type_key} has methodology",
-            len(methodology) > 0,
-            f"{len(methodology)} files: {list(methodology.keys())}"
+            f"  {type_key} has playbook",
+            len(playbook) > 0,
+            f"{len(playbook)} files: {list(playbook.keys())}"
         )
 
-        # Every type must have at least methodology-outputs.md
+        # Every type must have at least playbook-outputs.md
         record(
-            f"  {type_key} has methodology-outputs.md",
-            "methodology-outputs.md" in methodology,
+            f"  {type_key} has playbook-outputs.md",
+            "playbook-outputs.md" in playbook,
         )
 
     # Test helper function
-    research_method = get_type_methodology("research")
+    research_method = get_type_playbook("research")
     record(
-        "  get_type_methodology('research') returns dict",
+        "  get_type_playbook('research') returns dict",
         isinstance(research_method, dict) and len(research_method) > 0,
         f"{len(research_method)} files"
     )
 
     # Test legacy mapping
-    legacy_method = get_type_methodology("digest")  # legacy → research
+    legacy_method = get_type_playbook("digest")  # legacy → research
     record(
-        "  get_type_methodology('digest') resolves via legacy map",
+        "  get_type_playbook('digest') resolves via legacy map",
         isinstance(legacy_method, dict) and len(legacy_method) > 0,
     )
 
     # Unknown type returns empty
-    unknown_method = get_type_methodology("nonexistent_type_xyz")
+    unknown_method = get_type_playbook("nonexistent_type_xyz")
     record(
-        "  get_type_methodology('nonexistent') returns empty",
+        "  get_type_playbook('nonexistent') returns empty",
         isinstance(unknown_method, dict) and len(unknown_method) == 0,
     )
 
 
 # =============================================================================
-# Test 2: Agent Creation Seeds Methodology
+# Test 2: Agent Creation Seeds Playbook
 # =============================================================================
 
-async def test_methodology_seeding():
-    """Verify agent creation seeds methodology files to workspace."""
-    logger.info("Test 2: Agent creation seeds methodology files")
+async def test_playbook_seeding():
+    """Verify agent creation seeds playbook files to workspace."""
+    logger.info("Test 2: Agent creation seeds playbook files")
 
     client = get_service_client()
 
@@ -145,22 +145,22 @@ async def test_methodology_seeding():
     agent_id = agent["id"]
 
     try:
-        # Check workspace for methodology files
+        # Check workspace for playbook files
         from services.workspace import AgentWorkspace, get_agent_slug
         ws = AgentWorkspace(client, TEST_USER_ID, get_agent_slug(agent))
 
-        methodology_outputs = await ws.read("memory/methodology-outputs.md")
+        playbook_outputs = await ws.read("memory/playbook-outputs.md")
         record(
-            "  methodology-outputs.md seeded",
-            methodology_outputs is not None and len(methodology_outputs) > 100,
-            f"{len(methodology_outputs or '')} chars"
+            "  playbook-outputs.md seeded",
+            playbook_outputs is not None and len(playbook_outputs) > 100,
+            f"{len(playbook_outputs or '')} chars"
         )
 
-        methodology_research = await ws.read("memory/methodology-research.md")
+        playbook_research = await ws.read("memory/playbook-research.md")
         record(
-            "  methodology-research.md seeded (research type)",
-            methodology_research is not None and len(methodology_research) > 100,
-            f"{len(methodology_research or '')} chars"
+            "  playbook-research.md seeded (research type)",
+            playbook_research is not None and len(playbook_research) > 100,
+            f"{len(playbook_research or '')} chars"
         )
 
         # Also check self_assessment.md was seeded (existing ADR-128)
@@ -187,11 +187,11 @@ async def test_methodology_seeding():
 
 
 # =============================================================================
-# Test 3: load_context() Labels Methodology Correctly
+# Test 3: load_context() Labels Playbook Correctly
 # =============================================================================
 
 async def test_load_context_labels():
-    """Verify load_context() labels methodology and feedback files distinctly."""
+    """Verify load_context() labels playbook and feedback files distinctly."""
     logger.info("Test 3: load_context() labeling")
 
     client = get_service_client()
@@ -227,14 +227,14 @@ async def test_load_context_labels():
         context = await ws.load_context()
 
         record(
-            "  Context contains '## Methodology: Outputs'",
-            "## Methodology: Outputs" in context,
+            "  Context contains '## Playbook: Outputs'",
+            "## Playbook: Outputs" in context,
         )
 
         record(
-            "  Context contains '## Methodology: Formats'",
-            "## Methodology: Formats" in context,
-            "content type should have methodology-formats.md"
+            "  Context contains '## Playbook: Formats'",
+            "## Playbook: Formats" in context,
+            "content type should have playbook-formats.md"
         )
 
         record(
@@ -300,7 +300,7 @@ async def test_feedback_distillation():
             "status": "approved",
             "edit_categories": {
                 "additions": ["executive summary", "action items"],
-                "deletions": ["detailed methodology"],
+                "deletions": ["detailed playbook"],
                 "restructures": [],
                 "rewrites": [],
             },
@@ -456,10 +456,10 @@ def test_import_validation():
 
     # agent_framework imports
     try:
-        from services.agent_framework import get_type_methodology
-        record("  get_type_methodology importable", True)
+        from services.agent_framework import get_type_playbook
+        record("  get_type_playbook importable", True)
     except ImportError as e:
-        record("  get_type_methodology importable", False, str(e))
+        record("  get_type_playbook importable", False, str(e))
 
     # Registry has WriteAgentFeedback
     try:
@@ -631,15 +631,15 @@ async def test_full_context_shape():
 
 async def run_all():
     logger.info("=" * 70)
-    logger.info("ADR-143 Test Suite — Methodology + Feedback Consolidation")
+    logger.info("ADR-143 Test Suite — Playbook + Feedback Consolidation")
     logger.info("=" * 70)
 
     # Sync tests
-    test_methodology_in_registry()
+    test_playbook_in_registry()
     test_import_validation()
 
     # Async tests
-    await test_methodology_seeding()
+    await test_playbook_seeding()
     await test_load_context_labels()
     await test_feedback_distillation()
     await test_write_agent_feedback_primitive()

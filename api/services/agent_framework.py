@@ -51,8 +51,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                                 "workspace context. Produce structured analysis with evidence. "
                                 "Prioritize insights the user hasn't seen elsewhere.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## Report Structure\n"
                 "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
                 "2. **Key Findings** — numbered, each with evidence source cited\n"
@@ -72,8 +72,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                 "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
                 "- Actionable implications, not just observations\n"
             ),
-            "methodology-research.md": (
-                "# Research Methodology\n\n"
+            "playbook-research.md": (
+                "# Research Playbook\n\n"
                 "## Investigation Depth\n"
                 "- Start broad: landscape scan via web search + workspace knowledge\n"
                 "- Go deep on signals: when a finding contradicts expectations or reveals a gap\n"
@@ -108,8 +108,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                                 "Use charts and visuals where they add clarity. Structure for "
                                 "readability. Focus on quality and completeness.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## Deliverable Formats\n"
                 "### Reports\n"
                 "- Lead with the conclusion, not the process\n"
@@ -135,8 +135,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                 "- Every section earns its place — delete sections that don't add value\n"
                 "- Proofread: no orphaned references, no TBD placeholders\n"
             ),
-            "methodology-formats.md": (
-                "# Format Methodology\n\n"
+            "playbook-formats.md": (
+                "# Format Playbook\n\n"
                 "## Format Selection Heuristics\n"
                 "- Status update for executives → presentation (slide format)\n"
                 "- Deep analysis for decision-makers → report\n"
@@ -169,8 +169,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Track go-to-market activities and competitive positioning. "
                                 "Monitor market signals. Produce actionable GTM insights and content.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## GTM Report Structure\n"
                 "1. **Market Pulse** — 3-5 signals worth attention this cycle\n"
                 "2. **Competitive Moves** — what competitors did, what it means for us\n"
@@ -187,8 +187,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
                 "- Quantify when possible: '23% increase' not 'significant growth'\n"
                 "- Time-bound: signals decay fast, always note when something happened\n"
             ),
-            "methodology-research.md": (
-                "# Research Methodology\n\n"
+            "playbook-research.md": (
+                "# Research Playbook\n\n"
                 "## Market Signal Sources\n"
                 "- Competitor websites, blogs, changelogs (primary — what they say)\n"
                 "- Industry publications, analyst reports (secondary — what others say)\n"
@@ -220,8 +220,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Track client relationships and interactions. Prepare meeting "
                                 "briefs. Flag follow-ups and action items. Summarize relationship health.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## Meeting Brief Format\n"
                 "- **Context** — who, when, what's the relationship history (2-3 sentences)\n"
                 "- **Last Interaction** — what was discussed, what was promised, what's pending\n"
@@ -256,8 +256,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Monitor Slack channels. Summarize key discussions. Post updates "
                                 "when directed. Flag action items and decisions.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## Channel Recap Format\n"
                 "- **Decisions Made** — what was decided, by whom, in which thread\n"
                 "- **Action Items** — who owes what, with deadlines if mentioned\n"
@@ -289,8 +289,8 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         "default_instructions": "Manage Notion workspace. Sync meeting notes. Update knowledge "
                                 "base pages. Track document changes.",
         "methodology": {
-            "methodology-outputs.md": (
-                "# Output Methodology\n\n"
+            "playbook-outputs.md": (
+                "# Output Playbook\n\n"
                 "## Knowledge Base Update Format\n"
                 "- **What Changed** — pages created, updated, or reorganized\n"
                 "- **Content Summary** — what was added or modified, in context\n"
@@ -308,6 +308,48 @@ AGENT_TYPES: dict[str, dict[str, Any]] = {
         },
     },
 }
+
+
+# =============================================================================
+# TP Orchestration Playbook — workspace-level (/workspace/playbook-orchestration.md)
+# =============================================================================
+# TP is infrastructure, not workforce. Its playbook lives at workspace scope,
+# not under /agents/. Seeded at roster creation, evolves through user feedback.
+
+TP_ORCHESTRATION_PLAYBOOK = """\
+# Orchestration Playbook
+
+## Task Decomposition
+- Simple requests (single deliverable, clear audience) → assign to one agent
+- Complex requests (multi-source, multi-format) → split into research + content tasks
+- Recurring work → create task with schedule, not one-off run
+- Bounded investigation → create goal-mode task with clear completion criteria
+
+## Agent Assignment
+- Research Agent: investigation, competitive analysis, due diligence, data gathering
+- Content Agent: formatted deliverables (presentations, reports, memos, blog posts)
+- Marketing Agent: GTM tracking, competitive positioning, market signals, campaign analysis
+- CRM Agent: relationship management, meeting prep, follow-ups, client tracking
+- Slack Bot: channel recaps, alerts, thread summaries (requires Slack connection)
+- Notion Bot: knowledge base management, page syncing (requires Notion connection)
+
+## When Multiple Agents Are Needed
+- Research findings → formatted output: Research Agent task first, then Content Agent task
+- Market analysis → client presentation: Marketing Agent research, then Content Agent deliverable
+- Don't assign content creation to Research Agent — they investigate, Content Agent produces
+
+## Feedback Routing
+- When user comments on output quality → WriteAgentFeedback to the producing agent
+- When user says "too long" / "more detail" / "different format" → feedback to agent
+- When user corrects orchestration ("don't use the marketing agent for this") → update this playbook
+- Positive feedback matters too — "great charts" confirms the agent's approach
+
+## Quality Oversight
+- After task completion, check if output matches what was asked
+- If user edits frequently, note patterns in agent feedback
+- When an agent consistently underperforms, suggest task reassignment
+"""
+
 
 # Default roster created at sign-up (ADR-140)
 DEFAULT_ROSTER = [
@@ -461,10 +503,10 @@ def get_type_skill_docs(agent_type: str) -> list[str]:
     return docs
 
 
-def get_type_methodology(agent_type: str) -> dict[str, str]:
-    """Return methodology file seeds for an agent type.
+def get_type_playbook(agent_type: str) -> dict[str, str]:
+    """Return playbook file seeds for an agent type.
 
-    ADR-143: Returns dict of {filename: content} for methodology files
+    ADR-143: Returns dict of {filename: content} for playbook files
     to be written to the agent's memory/ directory at creation.
     """
     resolved = resolve_role(agent_type)

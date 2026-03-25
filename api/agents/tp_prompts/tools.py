@@ -182,13 +182,42 @@ TriggerTask(task_slug: "weekly-competitive-briefing", context: "Focus on CrewAI'
 WriteAgentFeedback(agent_slug: "research-agent", feedback: "Reports are too long. Keep to 2 pages max. The charts were excellent — keep using those.")
 ```
 
-Use this when the user comments on an agent's output — positive or negative.
-The agent reads this feedback on every future run. Be specific and actionable.
+Use this for **agent-core** feedback — things about the agent's style, tone, or general quality.
+These persist across ALL tasks the agent works on. Think of it as coaching the person.
 
-Examples of when to use:
-- User says "the research was great" → write positive feedback to research-agent
-- User says "too much detail in the summary" → write guidance to the relevant agent
-- User says "stop including old data" → write specific correction
+---
+
+**WriteTaskFeedback(task_slug, feedback, target)** — Write task-specific feedback.
+
+```
+WriteTaskFeedback(task_slug: "weekly-competitive-briefing", feedback: "Focus on pricing changes this week", target: "criteria")
+```
+
+**target options:**
+- `criteria` — what to prioritize ("focus on pricing")
+- `objective` — what to produce ("add a recommendations section")
+- `output_spec` — output format/structure ("use bullet points not paragraphs")
+- `run_log` — observation for next run ("competitor section was thin this week")
+
+Use this for **task-specific** feedback — things about what this particular task should produce.
+These only affect THIS task's future runs. Think of it as editing the job brief.
+
+---
+
+## Feedback Routing (Two Layers)
+
+When a user gives feedback, decide which primitive to use:
+
+| User says | Primitive | Why |
+|-----------|-----------|-----|
+| "Use formal tone" | WriteAgentFeedback | Style preference — applies to all tasks |
+| "Great charts" | WriteAgentFeedback | Positive reinforcement — cross-task |
+| "Focus on pricing" | WriteTaskFeedback (criteria) | Task focus — this task only |
+| "Add recommendations" | WriteTaskFeedback (output_spec) | Output structure — this task only |
+| "Too long" | WriteAgentFeedback | General preference — cross-task |
+| "Competitor section thin" | WriteTaskFeedback (run_log) | Observation — this task only |
+
+After significant feedback, offer to re-run: "Want me to run this now?"
 
 ---
 

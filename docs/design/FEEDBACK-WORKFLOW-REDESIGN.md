@@ -1,117 +1,90 @@
-# Feedback Workflow Redesign — Agent + Task Model
+# Feedback Workflow — Two-Layer Model
 
 **Date:** 2026-03-26
-**Status:** Proposed
+**Status:** Implementing
 **Depends on:** ADR-138 (Agents as Work Units), ADR-139 (Surface Architecture), ADR-143 (Feedback Substrate)
-**Problem:** Email feedback button links to `/agents/{id}` which is now a read-only identity page. No way to give feedback on specific output.
 
 ---
 
-## Current State (Broken)
+## Principle: Two Layers of Feedback
 
-1. Agent runs → output delivered via email
-2. Email has "Reply with feedback" button
-3. Button links to `/agents/{agent_id}` (legacy: agent detail page had chat)
-4. Agent detail page is now identity-only (no chat, no output view)
-5. **Result:** feedback button is a dead end
+Feedback separates into WHO learns vs WHAT changes:
 
-## The Design Question
+| Layer | Target | Persistence | Read by | Example |
+|-------|--------|-------------|---------|---------|
+| **Agent-core** | `/agents/{slug}/memory/feedback.md` | Permanent, cross-task | Agent on every run | "Use formal tone", "Great charts" |
+| **Task-specific** | `/tasks/{slug}/TASK.md` or `memory/run_log.md` | Per-task only | Agent on this task's runs | "Focus on pricing", "Add a chart" |
 
-In the agent+task model, output belongs to **tasks** but learning belongs to **agents**. Feedback bridges both:
+Agent-core feedback shapes the **person** (style, preferences, domain knowledge).
+Task-specific feedback shapes the **work** (focus, criteria, format, delivery).
 
-| What changes | Where it lives | Who learns |
-|-------------|---------------|------------|
-| Output quality critique | Task page (output visible) | Agent memory |
-| Focus adjustment | TASK.md (task definition) | Task criteria |
-| Style/tone preference | Agent memory (preferences.md) | Agent |
-| Delivery adjustment | TASK.md (delivery config) | Task |
+## Entry Points (All → TP Chat)
 
-## Proposed Flow
+1. **Email "Reply with feedback"** → `/tasks/{slug}` → task-scoped TP
+2. **Task page chat** → user types feedback → TP routes
+3. **Workfloor chat** → agent feedback only (no task context)
 
-### Email feedback link
+No background jobs. No edit-distance extraction. Feedback is always explicit, always through TP.
+
+## Primitives
+
+### WriteAgentFeedback (exists — ADR-143)
+
+**Available at:** workfloor + task page
+**Writes to:** `/agents/{slug}/memory/feedback.md`
+**Scope:** Core identity learning — applies to all tasks this agent works on
 
 ```
-"Reply with feedback" → /tasks/{task_slug}?run={run_id}
+WriteAgentFeedback(
+  agent_slug: "research-agent",
+  feedback: "Use shorter executive summaries. 3 bullet points max."
+)
 ```
 
-- Opens task page with the specific output displayed
-- Task-scoped chat is right there for immediate feedback
-- TP has task context injected (knows which output, which agent)
+### WriteTaskFeedback (new)
 
-### Feedback routing
+**Available at:** task page only
+**Writes to:** TASK.md fields or `/tasks/{slug}/memory/run_log.md`
+**Scope:** Task-specific — only affects this task's future runs
 
-When user gives feedback in task-scoped chat:
-1. TP reads the feedback intent
-2. **If about output quality/content** → writes to agent's `memory/feedback.md` (agent learns for next run)
-3. **If about task focus/scope** → updates TASK.md objective/criteria
-4. **If about delivery/format** → updates TASK.md delivery config
-5. **If about style/tone** → writes to agent's `memory/preferences.md`
-
-### Agent page role in feedback
-
-The agent page (`/agents/{slug}`) becomes the **feedback history viewer**:
-- Shows accumulated `memory/feedback.md` (what users have told this agent)
-- Shows `memory/preferences.md` (learned style/tone preferences)
-- Shows `memory/self_assessment.md` (agent's own quality observations)
-
-But the agent page is NOT where feedback is given. Feedback happens on the **task page**.
-
----
-
-## Implementation
-
-### 1. Fix email feedback URL
-
-**File:** `api/services/delivery.py` (email template)
-
-Change:
-```python
-# Old: links to agent page
-feedback_url = f"{FRONTEND_URL}/agents/{agent_id}"
-
-# New: links to task page with output context
-feedback_url = f"{FRONTEND_URL}/tasks/{task_slug}?run={run_id}"
+```
+WriteTaskFeedback(
+  task_slug: "weekly-competitive-briefing",
+  feedback: "Focus on pricing changes this week",
+  target: "criteria"  // "criteria" | "objective" | "output_spec" | "run_log"
+)
 ```
 
-### 2. Task page: handle `?run={run_id}` query param
+## TP Routing Logic
 
-When task page loads with `?run=` param:
-- Load that specific output (not just latest)
-- Auto-show the output tab
-- Chat placeholder changes to "Give feedback on this output..."
+When user gives feedback in task-scoped chat, TP determines:
 
-### 3. TP feedback routing (task-scoped)
+| User says | TP action |
+|-----------|-----------|
+| "Too verbose" / "Use bullet points" | `WriteAgentFeedback` (style preference, cross-task) |
+| "Focus on pricing this week" | `WriteTaskFeedback` (task criteria, this task only) |
+| "Add a recommendations section" | `WriteTaskFeedback` (output spec, this task only) |
+| "Great work on the charts" | `WriteAgentFeedback` (positive reinforcement, cross-task) |
+| "This is wrong, redo it" | `WriteTaskFeedback` (run_log) + suggest `TriggerTask` |
+| "Change delivery to Slack" | `WriteTaskFeedback` (delivery config) |
 
-When user gives feedback in task chat, TP should:
-- Recognize feedback intent vs steering intent
-- Write to appropriate workspace file (agent memory vs task config)
-- Confirm what was updated
+After significant feedback, TP asks: "Want me to run this task now with the updated focus?"
 
-This may need a `WriteAgentFeedback` primitive or extension of existing primitives.
+## What Dies
 
-### 4. Agent page: feedback history section
+- `feedback_distillation.py` background cron (edit-distance-based) — keep `write_feedback_entry()` only
+- `feedback_engine.py` edit metrics computation — dead
+- Any auto-extract-from-edits logic — dead
+- Nightly feedback extraction — dead
 
-Replace or augment the current memory browser with a dedicated "Feedback" section showing:
-- Recent feedback entries from `memory/feedback.md`
-- Learned preferences from `memory/preferences.md`
-- Self-assessment trend
+Feedback is conversational, explicit, and immediate. No background jobs.
 
----
-
-## Files to Modify
+## Files
 
 | File | Change |
 |------|--------|
-| `api/services/delivery.py` | Email feedback URL: `/agents/{id}` → `/tasks/{slug}?run={id}` |
-| `web/app/(authenticated)/tasks/[slug]/page.tsx` | Handle `?run=` query param |
-| `api/agents/tp_prompts/task_scope.py` | Add feedback routing guidance to preamble |
-| `web/app/(authenticated)/agents/[id]/page.tsx` | Add feedback history section |
-| `api/services/task_pipeline.py` | Pass task_slug to delivery function |
-
----
-
-## Open Questions
-
-1. Should feedback on output auto-trigger a re-run? (Like "this is wrong, redo it" → TriggerTask)
-2. Should there be a structured feedback form (rating + text) or just freeform chat?
-3. How does edit-distance tracking work in the task model? (Previously it was on agent_runs)
+| `api/services/primitives/workspace.py` | Add `WriteTaskFeedback` primitive |
+| `api/services/primitives/registry.py` | Register `WriteTaskFeedback` |
+| `api/agents/tp_prompts/task_scope.py` | Feedback routing guidance in preamble |
+| `api/agents/tp_prompts/tools.py` | Document both feedback primitives |
+| `api/services/platform_output.py` | Email feedback URL → `/tasks/{slug}` (done) |

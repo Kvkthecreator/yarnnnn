@@ -189,14 +189,14 @@ async def create_agent_record(
                     summary="ADR-128: initial self-assessment (awaiting first run)",
                 )
 
-                # ADR-143: Seed methodology files from type registry
-                from services.agent_framework import get_type_methodology
-                methodology = get_type_methodology(role)
-                for filename, content in methodology.items():
+                # ADR-143: Seed playbook files from type registry
+                from services.agent_framework import get_type_playbook
+                playbook = get_type_playbook(role)
+                for filename, content in playbook.items():
                     await ws.write(
                         f"memory/{filename}",
                         content,
-                        summary=f"ADR-143: seed methodology ({filename})",
+                        summary=f"ADR-143: seed playbook ({filename})",
                     )
             except Exception as e:
                 logger.warning(f"[AGENT_CREATION] Workspace seed failed for {entity_id}: {e}")

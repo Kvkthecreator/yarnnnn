@@ -90,10 +90,18 @@ async def build_working_memory(
         _get_user_shared_files_sync, user_id, _make_client()
     )
 
+    # ADR-143: Read brand + orchestration playbook from workspace
+    brand_content = memory_files.get("BRAND.md", "")
+    orchestration_playbook = await asyncio.to_thread(
+        _get_workspace_file_sync, user_id, "playbook-orchestration.md", _make_client()
+    )
+
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
+        "brand": brand_content.strip() if brand_content else None,
+        "orchestration_playbook": orchestration_playbook,
         "agents": agents,
         "platforms": platforms,
         "recent_sessions": sessions,
@@ -107,6 +115,25 @@ async def build_working_memory(
         working_memory["scoped_agent"] = await _extract_agent_scope(agent, client)
 
     return working_memory
+
+
+def _get_workspace_file_sync(user_id: str, filename: str, client: Any) -> Optional[str]:
+    """Read a single /workspace/ file (sync, for thread pool). ADR-143."""
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", f"/workspace/{filename}")
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows and rows[0].get("content"):
+            return rows[0]["content"].strip()
+    except Exception:
+        pass
+    return None
 
 
 def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
@@ -611,6 +638,16 @@ def format_for_prompt(working_memory: dict) -> str:
             lines.append(f"Timezone: {profile['timezone']}")
         if profile.get("summary"):
             lines.append(f"{profile['summary']}")
+
+    # Brand identity (ADR-143)
+    brand = working_memory.get("brand")
+    if brand:
+        lines.append(f"\n### Brand\n{brand}")
+
+    # Orchestration playbook (ADR-143)
+    playbook = working_memory.get("orchestration_playbook")
+    if playbook:
+        lines.append(f"\n### Orchestration Playbook\n{playbook}")
 
     # Preferences (HOW)
     preferences = working_memory.get("preferences", [])

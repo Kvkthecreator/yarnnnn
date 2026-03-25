@@ -94,8 +94,8 @@ Each agent's persistent workspace. Identity, accumulated domain knowledge, and d
 ├── memory/
 │   ├── feedback.md                # Rolling 10-entry feedback history (ADR-143) — TP writes, agent reads
 │   ├── self_assessment.md         # Rolling 5-entry self-eval (ADR-128) — agent writes, TP reads
-│   ├── methodology-outputs.md     # How to produce deliverables (ADR-143) — craft baseline
-│   ├── methodology-{topic}.md     # Additional craft knowledge (research, formats)
+│   ├── playbook-outputs.md         # How to produce deliverables (ADR-143) — craft
+│   ├── playbook-{topic}.md         # Additional craft knowledge (research, formats)
 │   └── goal.md                    # Current goal and milestones
 ├── working/                       # Ephemeral scratch (24h TTL)
 └── history/                       # Version archives (ADR-119)
@@ -229,4 +229,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-21 | v2 | ADR-128: cognitive files (self_assessment.md, directives.md) |
 | 2026-03-25 | v3 | ADR-138: task workspace, /tasks/{slug}/ added |
 | 2026-03-25 | v4 | ADR-142: unified filesystem. Four roots (/workspace/, /platforms/, /agents/, /tasks/). /knowledge/ dissolved into /platforms/ + /tasks/. /memory/ merged into /workspace/. /user_shared/ dissolved into session-scoped uploads. Document upload pipeline to /workspace/documents/. Three file-sharing contexts (shared docs, chat uploads, platform syncs). |
-| 2026-03-25 | v5 | ADR-143: methodology files + feedback consolidation. 3 memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), methodology-*.md (craft baseline). Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. WriteAgentFeedback primitive for TP conversational feedback. |
+| 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |

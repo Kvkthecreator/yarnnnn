@@ -672,9 +672,13 @@ class AgentWorkspace:
             if content:
                 # ADR-143: Label files by type for clear context injection
                 base = filename.replace(".md", "")
-                if base.startswith("methodology-"):
+                if base.startswith("playbook-"):
+                    topic = base.replace("playbook-", "").replace("-", " ").title()
+                    label = f"Playbook: {topic}"
+                elif base.startswith("methodology-"):
+                    # Legacy naming — treat same as playbook
                     topic = base.replace("methodology-", "").replace("-", " ").title()
-                    label = f"Methodology: {topic}"
+                    label = f"Playbook: {topic}"
                 elif base == "feedback":
                     label = "Feedback History"
                 elif base == "self-assessment" or base == "self_assessment":

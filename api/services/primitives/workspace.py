@@ -746,3 +746,107 @@ async def handle_write_agent_feedback(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.warning(f"[WRITE_AGENT_FEEDBACK] Failed: {e}")
         return {"error": str(e)}
+
+
+# =============================================================================
+# WriteTaskFeedback — Task-specific feedback (focus, criteria, output spec)
+# =============================================================================
+
+WRITE_TASK_FEEDBACK_TOOL = {
+    "name": "WriteTaskFeedback",
+    "description": """Write task-specific feedback that only affects this task's future runs.
+
+Use this when the user comments on what the task should produce differently:
+- "Focus on pricing this week" → updates task criteria
+- "Add a recommendations section" → updates output spec
+- "The competitor section was thin" → records in run log for next run
+- "Change delivery to Monday" → updates task config
+
+This is different from WriteAgentFeedback:
+- WriteAgentFeedback = changes the agent (style, tone, preferences — applies to ALL tasks)
+- WriteTaskFeedback = changes the task definition (focus, criteria — applies to THIS task only)""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task_slug": {
+                "type": "string",
+                "description": "The task's slug (from the URL or task title)"
+            },
+            "feedback": {
+                "type": "string",
+                "description": "The feedback to apply. Be specific."
+            },
+            "target": {
+                "type": "string",
+                "enum": ["criteria", "objective", "output_spec", "run_log"],
+                "description": "Where to apply the feedback: 'criteria' (success criteria), 'objective' (what to produce), 'output_spec' (format/structure), 'run_log' (observation for next run)"
+            }
+        },
+        "required": ["task_slug", "feedback", "target"]
+    }
+}
+
+
+async def handle_write_task_feedback(auth: Any, input: dict) -> dict:
+    """
+    Write task-specific feedback to TASK.md or memory/run_log.md.
+
+    Routes feedback to the appropriate location based on target:
+    - criteria/objective/output_spec → appends to TASK.md section
+    - run_log → appends to memory/run_log.md
+    """
+    from services.task_workspace import TaskWorkspace
+    from datetime import datetime, timezone
+
+    client = auth["client"]
+    user_id = auth["user_id"]
+    task_slug = input.get("task_slug", "")
+    feedback_text = input.get("feedback", "")
+    target = input.get("target", "run_log")
+
+    if not task_slug or not feedback_text:
+        return {"error": "task_slug and feedback are required"}
+
+    try:
+        tw = TaskWorkspace(client, user_id, task_slug)
+        now = datetime.now(timezone.utc)
+        date_str = now.strftime("%Y-%m-%d %H:%M")
+
+        if target == "run_log":
+            # Append to memory/run_log.md
+            entry = f"\n## Feedback ({date_str})\n- {feedback_text}\n"
+            existing = await tw.read("memory/run_log.md") or ""
+            await tw.write("memory/run_log.md", existing + entry,
+                          summary=f"Task feedback: {feedback_text[:50]}")
+            return {"status": "ok", "message": f"Feedback recorded in run log for {task_slug}"}
+
+        else:
+            # Read TASK.md, find the target section, append feedback
+            task_md = await tw.read("TASK.md")
+            if not task_md:
+                return {"error": f"TASK.md not found for {task_slug}"}
+
+            section_map = {
+                "criteria": "## Success Criteria",
+                "objective": "## Objective",
+                "output_spec": "## Output Specification",
+            }
+            section_header = section_map.get(target, "## Success Criteria")
+
+            # Append feedback as a new bullet under the section
+            feedback_line = f"- {feedback_text} (updated {date_str})"
+
+            if section_header in task_md:
+                # Insert after the section header
+                parts = task_md.split(section_header, 1)
+                updated = parts[0] + section_header + "\n" + feedback_line + parts[1]
+            else:
+                # Section doesn't exist — append at end
+                updated = task_md + f"\n\n{section_header}\n{feedback_line}\n"
+
+            await tw.write("TASK.md", updated, summary=f"Updated {target}: {feedback_text[:50]}")
+            return {"status": "ok", "message": f"Updated {target} in {task_slug}"}
+
+    except Exception as e:
+        logger.warning(f"[WRITE_TASK_FEEDBACK] Failed: {e}")
+        return {"error": str(e)}

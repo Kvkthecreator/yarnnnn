@@ -1,4 +1,4 @@
-# ADR-143: Agent Methodology Layer
+# ADR-143: Agent Playbook Layer
 
 **Status:** Proposed
 **Date:** 2026-03-25
@@ -15,9 +15,9 @@ The Anthropic harness design article identifies this gap: their evaluator needed
 
 ### The Human Analogy
 
-A senior employee accumulates methodology over time:
+A senior employee accumulates playbook over time:
 - **Taste** (preferences.md): "My manager prefers concise slides" — what the audience wants
-- **Craft** (methodology): "Presentations work best as problem-solution-evidence" — how to produce well
+- **Craft** (playbook): "Presentations work best as problem-solution-evidence" — how to produce well
 - **Self-awareness** (self_assessment.md): "I'm strong on market data, weak on competitive analysis" — what I'm good at
 
 All three are agent-level knowledge, independent of any specific task. Tasks *apply* this knowledge; feedback *refines* it.
@@ -26,7 +26,7 @@ All three are agent-level knowledge, independent of any specific task. Tasks *ap
 
 ### 1. Methodology Files — Flat in memory/
 
-Each agent type gets seeded methodology files at creation:
+Each agent type gets seeded playbook files at creation:
 
 ```
 /agents/{slug}/
@@ -34,8 +34,8 @@ Each agent type gets seeded methodology files at creation:
   ├── memory/
   │   ├── preferences.md                 ← taste (from user edits)
   │   ├── self_assessment.md             ← self-awareness (rolling 5)
-  │   ├── methodology-outputs.md         ← NEW: how to produce deliverables
-  │   ├── methodology-research.md        ← NEW: how to investigate (research/marketing only)
+  │   ├── playbook-outputs.md         ← NEW: how to produce deliverables
+  │   ├── playbook-research.md        ← NEW: how to investigate (research/marketing only)
   │   └── observations.md, goal.md, ...  ← existing
 ```
 
@@ -43,24 +43,24 @@ Files are flat in `memory/` (not a subdirectory) so existing `load_context()` au
 
 ### 2. Naming Convention
 
-`methodology-{topic}.md` — the `methodology-` prefix makes them identifiable for future tooling. Topics are agent-type-specific:
+`playbook-{topic}.md` — the `playbook-` prefix makes them identifiable for future tooling. Topics are agent-type-specific:
 
 | Agent Type | Methodology Files | Rationale |
 |-----------|-------------------|-----------|
-| `research` | `methodology-outputs.md`, `methodology-research.md` | Produces reports + does investigation |
-| `content` | `methodology-outputs.md`, `methodology-formats.md` | Produces deliverables in multiple formats |
-| `marketing` | `methodology-outputs.md`, `methodology-research.md` | GTM analysis + market reports |
-| `crm` | `methodology-outputs.md` | Relationship briefs, meeting prep |
-| `slack_bot` | `methodology-outputs.md` | Recaps, summaries |
-| `notion_bot` | `methodology-outputs.md` | Knowledge base updates |
+| `research` | `playbook-outputs.md`, `playbook-research.md` | Produces reports + does investigation |
+| `content` | `playbook-outputs.md`, `playbook-formats.md` | Produces deliverables in multiple formats |
+| `marketing` | `playbook-outputs.md`, `playbook-research.md` | GTM analysis + market reports |
+| `crm` | `playbook-outputs.md` | Relationship briefs, meeting prep |
+| `slack_bot` | `playbook-outputs.md` | Recaps, summaries |
+| `notion_bot` | `playbook-outputs.md` | Knowledge base updates |
 
-Every agent gets `methodology-outputs.md` (how to structure and deliver output). Agents with investigation capabilities also get `methodology-research.md`.
+Every agent gets `playbook-outputs.md` (how to structure and deliver output). Agents with investigation capabilities also get `playbook-research.md`.
 
 ### 3. Seed Content — Type-Specific Defaults
 
 Seeded at agent creation from `AGENT_TYPES` registry. The seed is a starting point — it evolves through feedback.
 
-**methodology-outputs.md** (per-type defaults):
+**playbook-outputs.md** (per-type defaults):
 - Research: structured analysis with evidence sections, executive summary, data visualization heuristics
 - Content: deliverable formatting patterns, slide/report/document structure, asset integration guidance
 - Marketing: GTM report structure, competitive positioning format, market signal organization
@@ -68,7 +68,7 @@ Seeded at agent creation from `AGENT_TYPES` registry. The seed is a starting poi
 - Slack bot: recap format, thread summary patterns, alert structure
 - Notion bot: page update patterns, knowledge organization
 
-**methodology-research.md** (research + marketing):
+**playbook-research.md** (research + marketing):
 - Source evaluation hierarchy
 - Investigation depth heuristics (when to go deeper vs synthesize)
 - Evidence citation patterns
@@ -82,7 +82,7 @@ Seeded at agent creation from `AGENT_TYPES` registry. The seed is a starting poi
 
 | File | Writer | Reader | Purpose |
 |------|--------|--------|---------|
-| `methodology-*.md` | Seeded at creation; TP updates | Agent | How to produce (craft baseline) |
+| `playbook-*.md` | Seeded at creation; TP updates | Agent | How to produce (craft baseline) |
 | `feedback.md` | TP (conversational + edit-based) | Agent | What to change next time |
 | `self_assessment.md` | Agent (post-run) | TP | How agent thinks it did |
 
@@ -122,19 +122,19 @@ Seeded at agent creation from `AGENT_TYPES` registry. The seed is a starting poi
 TP is the only entity that sees both agent output and user reaction. TP's role in the feedback loop:
 
 - **Conversational feedback:** When user says "that report was too long" or "I liked the charts", TP writes to the relevant agent's feedback.md via `WriteAgentFeedback` primitive.
-- **Orchestration knowledge:** TP's own methodology lives in its system prompt (`api/agents/tp_prompts/*.py`), not in workspace files. TP is infrastructure, not workforce (ADR-140).
-- **Methodology updates:** Future — TP can overwrite methodology-*.md when it observes repeated structural patterns in feedback.md.
+- **Orchestration knowledge:** TP's own playbook lives in its system prompt (`api/agents/tp_prompts/*.py`), not in workspace files. TP is infrastructure, not workforce (ADR-140).
+- **Methodology updates:** Future — TP can overwrite playbook-*.md when it observes repeated structural patterns in feedback.md.
 
 ### 6. Task-Level Application
 
-Tasks don't carry their own methodology. Instead:
+Tasks don't carry their own playbook. Instead:
 - Task TASK.md carries the *what* (objective, format, audience)
-- Agent methodology carries the *how* (production patterns for that format type)
-- The agent reads both at execution time and applies methodology to task requirements
+- Agent playbook carries the *how* (production patterns for that format type)
+- The agent reads both at execution time and applies playbook to task requirements
 
 ### 7. Scalability
 
-- `methodology-*.md`: Overwritten (not appended), bounded size. Auto-versioned to `/history/` (5 versions).
+- `playbook-*.md`: Overwritten (not appended), bounded size. Auto-versioned to `/history/` (5 versions).
 - `feedback.md`: Append-at-top, capped at 10 entries. Old entries drop off naturally.
 - `self_assessment.md`: Append-at-top, capped at 5 entries.
 
@@ -143,10 +143,10 @@ No compaction needed. All files stay bounded.
 ## Implementation Plan
 
 ### Phase 1: Seed + Read (Implemented)
-1. ~~Add `methodology` to `AGENT_TYPES` registry entries~~
-2. ~~Update `agent_creation.py` to seed methodology files at creation~~
+1. ~~Add `playbook` to `AGENT_TYPES` registry entries~~
+2. ~~Update `agent_creation.py` to seed playbook files at creation~~
 3. ~~Verify `load_context()` auto-reads them~~
-4. ~~Update `load_context()` to label methodology distinctly~~
+4. ~~Update `load_context()` to label playbook distinctly~~
 
 ### Phase 2: Feedback Consolidation (This Phase)
 1. Rewrite `feedback_distillation.py` — all edit signals → `feedback.md` append-at-top
@@ -157,12 +157,12 @@ No compaction needed. All files stay bounded.
 6. Clean frontend types and components
 
 ### Phase 3: TP Feedback Intelligence (Future)
-1. TP observes patterns across feedback.md entries → updates methodology-*.md
+1. TP observes patterns across feedback.md entries → updates playbook-*.md
 2. TP prompt includes agent feedback summaries when reviewing agent work
 
 ## Consequences
 
-- Agent memory: 3 files with clear ownership (methodology, feedback, self-assessment) instead of 6 overlapping files
+- Agent memory: 3 files with clear ownership (playbook, feedback, self-assessment) instead of 6 overlapping files
 - Feedback is the conversation — user's most natural signal path captured via TP
 - Edit-based feedback preserved as mechanical fallback
 - No new tables, no new registries — workspace files only

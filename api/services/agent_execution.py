@@ -770,6 +770,10 @@ async def generate_draft_inline(
         notes = UserMemory._parse_notes_md(memory_files.get("notes.md"))
         for note in notes[:5]:
             user_context.append({"key": f"preference:{note['content'][:40]}", "value": note["content"]})
+        # ADR-143: Inject brand context for visual consistency
+        brand = memory_files.get("BRAND.md", "").strip()
+        if brand:
+            user_context.append({"key": "brand", "value": brand})
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 

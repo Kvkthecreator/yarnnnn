@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.26.2] - Two-Layer Feedback: WriteTaskFeedback + Routing
+
+### Added
+- `services/primitives/workspace.py`: WriteTaskFeedback primitive — writes task-specific feedback to TASK.md sections (criteria/objective/output_spec) or memory/run_log.md.
+- `services/primitives/registry.py`: WriteAgentFeedback + WriteTaskFeedback added to PRIMITIVES list (WriteAgentFeedback was imported but never exposed to Claude — fixed).
+
+### Changed
+- `agents/tp_prompts/tools.py`: WriteTaskFeedback docs + two-layer routing table. TP knows agent-core vs task-specific feedback.
+- `agents/tp_prompts/task_scope.py`: "Feedback Routing" section added to task-scoped preamble.
+- Expected behavior: style/tone feedback → WriteAgentFeedback (cross-task). Focus/criteria/format feedback → WriteTaskFeedback (this task only). After significant feedback, TP offers re-run.
+
+---
+
+## [2026.03.26.1] - ADR-143 Phase 3: Playbook rename + TP orchestration + brand injection
+
+### Changed
+- `services/agent_framework.py`: Renamed `methodology-*` → `playbook-*` across all 6 AGENT_TYPES. Added `TP_ORCHESTRATION_PLAYBOOK` constant. Renamed `get_type_methodology()` → `get_type_playbook()`.
+- `services/agent_creation.py`: Seeds `playbook-*.md` (renamed from methodology-*).
+- `services/workspace.py`: `load_context()` labels `playbook-*` files as `## Playbook: {Topic}`. Legacy `methodology-*` also handled.
+- `services/working_memory.py`: TP now reads BRAND.md + `playbook-orchestration.md` from `/workspace/`. Both injected into working memory prompt.
+- `services/agent_execution.py`: BRAND.md content injected into headless agent user_context.
+- `services/task_pipeline.py`: BRAND.md content injected into task execution user_context.
+- `routes/memory.py`: `_scaffold_default_roster()` seeds `playbook-orchestration.md` at workspace level.
+- Expected behavior: All agents see brand context for visual consistency. TP has orchestration playbook for task decomposition and agent assignment guidance.
+
+---
+
 ## [2026.03.25.8] - Task-Scoped TP: Context-Aware Chat at Task Level
 
 ### Added

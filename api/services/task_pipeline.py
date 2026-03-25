@@ -949,6 +949,10 @@ def _load_user_context(client, user_id: str) -> Optional[list]:
         notes = UserMemory._parse_notes_md(memory_files.get("notes.md"))
         for note in notes[:5]:
             user_context.append({"key": f"preference:{note['content'][:40]}", "value": note["content"]})
+        # ADR-143: Inject brand context
+        brand = memory_files.get("BRAND.md", "").strip()
+        if brand:
+            user_context.append({"key": "brand", "value": brand})
         return user_context if user_context else None
     except Exception as e:
         logger.warning(f"[TASK_EXEC] User context load failed: {e}")

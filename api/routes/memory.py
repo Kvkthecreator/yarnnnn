@@ -208,6 +208,22 @@ async def _scaffold_default_roster(client, user_id: str):
             # Skip duplicates or errors — best effort
             logger.warning(f"[ROSTER] Failed to create {agent_def['title']}: {e}")
 
+    # ADR-143: Seed TP orchestration playbook at workspace level
+    try:
+        from services.workspace import UserMemory
+        um = UserMemory(client, user_id)
+        existing = await um.read("playbook-orchestration.md")
+        if not existing:
+            from services.agent_framework import TP_ORCHESTRATION_PLAYBOOK
+            await um.write(
+                "playbook-orchestration.md",
+                TP_ORCHESTRATION_PLAYBOOK,
+                summary="ADR-143: TP orchestration playbook (seed)",
+            )
+            logger.info(f"[ROSTER] Seeded TP orchestration playbook for {user_id[:8]}")
+    except Exception as e:
+        logger.warning(f"[ROSTER] TP playbook seed failed: {e}")
+
 
 
 @router.post("/user/onboarding")
