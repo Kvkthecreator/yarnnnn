@@ -31,8 +31,6 @@ import { cn } from '@/lib/utils';
 import type {
   Agent,
   AgentSession,
-  RecipientContext,
-  AgentMemory,
 } from '@/types';
 
 // =============================================================================
@@ -144,79 +142,6 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
 }
 
 // =============================================================================
-// Prompt Preview Helper
-// =============================================================================
-
-function composePromptPreview(
-  instructions: string,
-  recipient: RecipientContext,
-  memory?: AgentMemory,
-): string {
-  const parts: string[] = [];
-
-  // System prompt: instructions section
-  if (instructions.trim()) {
-    parts.push('## Agent Instructions');
-    parts.push('The user has set these behavioral directives for this agent:');
-    parts.push(instructions.trim());
-  }
-
-  // System prompt: learned preferences (ADR-117 — high salience injection)
-  if (memory?.preferences) {
-    parts.push('');
-    parts.push('## Learned Preferences (from user edit history)');
-    parts.push(memory.preferences);
-    parts.push('');
-    parts.push('Follow these preferences closely — they reflect what the user has consistently edited in past outputs.');
-  }
-
-  // System prompt: memory section (read-only, from agent_memory)
-  if (memory) {
-    const memParts: string[] = [];
-    if (memory.goal) {
-      memParts.push(`**Goal:** ${memory.goal.description}`);
-      if (memory.goal.status) memParts.push(`Goal status: ${memory.goal.status}`);
-    }
-    if (memory.observations?.length) {
-      memParts.push('**Recent observations:**');
-      memory.observations.slice(-5).forEach(obs => {
-        memParts.push(`- ${obs.date}: ${obs.note}`);
-      });
-    }
-    if (memory.review_log?.length) {
-      memParts.push('**Review history:**');
-      memory.review_log.slice(-3).forEach(entry => {
-        memParts.push(`- ${entry.date}: ${entry.note}`);
-      });
-    }
-    if (memory.supervisor_notes) {
-      memParts.push('**Supervisor coaching:**');
-      memParts.push(memory.supervisor_notes);
-    }
-    if (memParts.length) {
-      parts.push('');
-      parts.push('## Agent Memory');
-      parts.push(memParts.join('\n'));
-    }
-  }
-
-  // User message: recipient context
-  if (recipient.name || recipient.role) {
-    parts.push('');
-    parts.push('---');
-    parts.push('*(In the user message:)*');
-    let line = `RECIPIENT: ${recipient.name || '(unnamed)'}`;
-    if (recipient.role) line += ` (${recipient.role})`;
-    parts.push(line);
-    if (recipient.priorities?.length) {
-      parts.push(`PRIORITIES: ${recipient.priorities.join(', ')}`);
-    }
-  }
-
-  return parts.join('\n');
-}
-
-// =============================================================================
 // InstructionsPanel — Read-only reference view (ADR-105)
 //
 // Directives flow through chat (TP uses Edit primitive to persist).
@@ -231,19 +156,10 @@ export function InstructionsPanel({
   onEditInChat?: () => void;
 }) {
   const instructions = agent.agent_instructions || '';
-  const recipient = agent.recipient_context || {};
   const memory = agent.agent_memory;
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const hasAnyContent = !!(
-    instructions.trim() ||
-    recipient.name ||
-    recipient.role
-  );
-
-  const preview = composePromptPreview(instructions, recipient, memory);
-
-  const hasAudience = !!(recipient.name || recipient.role || recipient.notes);
+  const hasAnyContent = !!instructions.trim();
 
   return (
     <div className="p-3 space-y-4">
@@ -273,30 +189,7 @@ export function InstructionsPanel({
         )}
       </div>
 
-      {/* Section B: Audience (read-only) */}
-      {hasAudience && (
-        <div>
-          <label className="block text-xs font-medium mb-1">Audience</label>
-          <div className="px-3 py-2 border border-border rounded-md bg-muted/30 space-y-1">
-            {(recipient.name || recipient.role) && (
-              <p className="text-sm">
-                {recipient.name || '(unnamed)'}
-                {recipient.role && <span className="text-muted-foreground"> — {recipient.role}</span>}
-              </p>
-            )}
-            {recipient.priorities && recipient.priorities.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Priorities: {recipient.priorities.join(', ')}
-              </p>
-            )}
-            {recipient.notes && (
-              <p className="text-xs text-muted-foreground">{recipient.notes}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Section C: Prompt Preview */}
+      {/* Section B: Prompt Preview */}
       <div className="border border-border rounded-md overflow-hidden">
         <button
           type="button"
@@ -314,9 +207,9 @@ export function InstructionsPanel({
         </button>
         {previewOpen && (
           <div className="border-t border-border bg-muted/20">
-            {hasAnyContent || memory ? (
+            {hasAnyContent ? (
               <pre className="px-3 py-2 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto">
-                {preview}
+                {instructions}
               </pre>
             ) : (
               <p className="px-3 py-3 text-xs text-muted-foreground italic">

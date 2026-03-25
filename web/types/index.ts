@@ -380,77 +380,43 @@ export interface AgentSession {
   message_count: number;
 }
 
+// ADR-138: Agent is identity-only. Schedule, sources, destination moved to tasks.
 export interface Agent {
   id: string;
   title: string;
-  // ADR-109: Scope × Role × Trigger
+  slug?: string;
   scope: Scope;
   role: Role;
   type_config?: RoleConfig;
-  project_id?: string;
-  project_name?: string;  // For UI display
-  recipient_context?: RecipientContext;
-  schedule: ScheduleConfig;
-  sources: DataSource[];
   status: AgentStatus;
   created_at: string;
   updated_at: string;
   last_run_at?: string;
-  next_pulse_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
-  // ADR-028: Destination-first agents
-  destination?: Destination;
-  // ADR-068: Agent origin (ADR-092: coordinator_created, ADR-110: system_bootstrap, ADR-111: composer)
-  origin?: 'user_configured' | 'coordinator_created' | 'system_bootstrap' | 'composer';
-  // ADR-087: Agent-scoped context
+  origin?: 'user_configured' | 'system_bootstrap' | 'composer';
   agent_instructions?: string;
   agent_memory?: AgentMemory;
   mode?: AgentMode;
-  // Quality metrics (ADR-018: feedback loop)
-  quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
-  quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
-  avg_edit_distance?: number;  // Average over last 5 versions
+  quality_score?: number;
+  quality_trend?: QualityTrend;
+  avg_edit_distance?: number;
   description?: string;
-  avatar_url?: string | null;
 }
 
 export interface AgentCreate {
   title: string;
-  // ADR-109: Scope × Role × Trigger
   role?: Role;
-  type_config?: RoleConfig;
-  // ADR-031: Platform-native variants
-  project_id?: string;
-  recipient_context?: RecipientContext;
-  schedule: ScheduleConfig;
-  sources?: DataSource[];
-  // ADR-028: Destination-first agents
-  destination?: Destination;
-  // ADR-092: Mode taxonomy
-  mode?: AgentMode;
   description?: string;
+  agent_instructions?: string;
 }
 
 export interface AgentUpdate {
   title?: string;
-  // ADR-109: Scope × Role × Trigger
   role?: Role;
-  type_config?: RoleConfig;
-  // ADR-031: Platform-native variants
-  recipient_context?: RecipientContext;
-  schedule?: ScheduleConfig;
-  sources?: DataSource[];
   status?: AgentStatus;
-  // ADR-028: Destination-first agents
-  destination?: Destination;
-  // ADR-087: Agent-scoped context
   agent_instructions?: string;
-  // ADR-092: Mode taxonomy + scheduling
-  mode?: AgentMode;
-  trigger_config?: Record<string, unknown>;
   description?: string;
-  avatar_url?: string | null;
 }
 
 // ADR-049: Source snapshot for tracking what data was used at generation time

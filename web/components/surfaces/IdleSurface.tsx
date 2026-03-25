@@ -44,19 +44,7 @@ import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
 import { ROLE_LABELS } from '@/lib/constants/agents';
-import type { Agent, ScheduleConfig, Document as DocType } from '@/types';
-
-// Format schedule to human readable string
-function formatSchedule(schedule?: ScheduleConfig): string | null {
-  if (!schedule) return null;
-  const { frequency, day, time } = schedule;
-  if (frequency === 'daily') return `Daily${time ? ` at ${time}` : ''}`;
-  if (frequency === 'weekly') return `Weekly${day ? ` on ${day}` : ''}`;
-  if (frequency === 'biweekly') return `Every 2 weeks${day ? ` on ${day}` : ''}`;
-  if (frequency === 'monthly') return `Monthly${day ? ` on ${day}` : ''}`;
-  if (frequency === 'custom') return 'Custom schedule';
-  return frequency;
-}
+import type { Agent, Document as DocType } from '@/types';
 
 interface DashboardData {
   agents: Agent[];
@@ -162,15 +150,12 @@ export function IdleSurface() {
   const activeAgents = data?.agents.filter((d) => d.status === 'active') || [];
   const pausedAgents = data?.agents.filter((d) => d.status === 'paused') || [];
 
-  // Sort active agents by next_pulse_at (soonest first)
+  // Sort active agents by last_run_at (most recent first)
   const upcomingAgents = [...activeAgents].sort((a, b) => {
-    if (!a.next_pulse_at) return 1;
-    if (!b.next_pulse_at) return -1;
-    return new Date(a.next_pulse_at).getTime() - new Date(b.next_pulse_at).getTime();
+    if (!a.last_run_at) return 1;
+    if (!b.last_run_at) return -1;
+    return new Date(b.last_run_at).getTime() - new Date(a.last_run_at).getTime();
   });
-
-  // Find next scheduled agent for status strip
-  const nextAgent = upcomingAgents[0];
 
   // Calculate overall quality trend
   const qualityTrends = activeAgents
@@ -225,17 +210,6 @@ export function IdleSurface() {
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Pause className="w-3.5 h-3.5" />
                 <span>{pausedAgents.length} paused</span>
-              </div>
-            )}
-            <span className="text-muted-foreground">·</span>
-            {nextAgent?.next_pulse_at && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Clock className="w-3.5 h-3.5" />
-                <span>
-                  Next:{' '}
-                  <span className="text-foreground">{nextAgent.title}</span>{' '}
-                  {formatDistanceToNow(new Date(nextAgent.next_pulse_at), { addSuffix: true })}
-                </span>
               </div>
             )}
             {overallQuality !== 'stable' && (
@@ -445,16 +419,14 @@ function AgentCard({
               <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
                 {typeLabel}
               </span>
-              {formatSchedule(agent.schedule) && (
-                <span>{formatSchedule(agent.schedule)}</span>
-              )}
+              <span>{agent.status === 'active' ? 'Active' : 'Paused'}</span>
             </div>
           </div>
         </div>
-        {agent.next_pulse_at && (
+        {agent.last_run_at && (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            {formatDistanceToNow(new Date(agent.next_pulse_at), { addSuffix: true })}
+            {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
           </span>
         )}
       </div>

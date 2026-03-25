@@ -308,9 +308,6 @@ export function RunsPanel({
   );
 
   const isGoalMode = agent.mode === 'goal';
-  const isPlatformBound = agent.scope === 'platform';
-  const hasSources = (agent.sources?.length ?? 0) > 0;
-  const missingSourcesWarning = isPlatformBound && !hasSources;
 
   // Preview mode: show full version
   if (previewIdx !== null && versions[previewIdx]) {
@@ -334,17 +331,12 @@ export function RunsPanel({
         <p className="text-sm text-muted-foreground mb-3">No runs yet</p>
         <button
           onClick={onRunNow}
-          disabled={running || agent.status === 'archived' || missingSourcesWarning}
+          disabled={running || agent.status === 'archived'}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {isGoalMode ? 'Generate first run' : 'Run now'}
         </button>
-        {missingSourcesWarning && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-            Add sources in Settings before running.
-          </p>
-        )}
       </div>
     );
   }
@@ -358,21 +350,14 @@ export function RunsPanel({
         </span>
         <button
           onClick={onRunNow}
-          disabled={running || agent.status === 'archived' || missingSourcesWarning}
-          title={missingSourcesWarning ? 'Add sources in Settings before running' : (isGoalMode ? 'Generate' : 'Run Now')}
+          disabled={running || agent.status === 'archived'}
+          title={isGoalMode ? 'Generate' : 'Run Now'}
           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
           {isGoalMode ? 'Generate' : 'Run Now'}
         </button>
       </div>
-
-      {missingSourcesWarning && (
-        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-          <span className="shrink-0">&#9888;</span>
-          No sources configured — open Settings to select platform content.
-        </div>
-      )}
 
       {/* Version list */}
       <div className="divide-y divide-border flex-1 overflow-y-auto">
