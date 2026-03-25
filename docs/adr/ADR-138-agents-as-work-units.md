@@ -1,6 +1,6 @@
 # ADR-138: Workspace → Agents → Tasks — Project Layer Collapse
 
-> **Status**: Proposed (v3 — definitive, clean-slate)
+> **Status**: Proposed (v3.1 — filesystem-first, no join tables)
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-120 (PM/Project Execution), ADR-121 (PM Intelligence Director), ADR-122 (Project Type Registry), ADR-123 (Project Objective & Ownership), ADR-124 (Meeting Room), ADR-125 (Project-Native Sessions), ADR-128 (Multi-Agent Coherence — PM portions), ADR-129 (Activity Scoping — project tier), ADR-132 (Onboarding — project scaffolding), ADR-133 (PM Phase Dispatch), ADR-134 (Output-First Project Surface), ADR-136 (Charter File Split), ADR-137 (Pipeline Execution)
@@ -356,43 +356,41 @@ Agent list = "your team." Task list = "your work." TP chat = "your office."
 
 ## Schema changes
 
-### New: `tasks` table
+### Design principle: filesystem-first, DB as scheduling index
+
+Consistent with the existing workspace architecture (ADR-106, ADR-119), all rich metadata lives in workspace files. The DB stores only what the scheduler needs for time-based queries. Agent-task relationships live in TASK.md (authoritative, names agent slugs) and agent's `memory/tasks.json` (denormalized reverse index). **No join tables.**
+
+### New: `tasks` table (thin scheduling index)
 
 ```sql
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
-  title TEXT NOT NULL,
   slug TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'archived')),
-  schedule TEXT,                    -- cron or human-readable cadence
+  schedule TEXT,             -- cron or human-readable cadence
   next_run_at TIMESTAMPTZ,
   last_run_at TIMESTAMPTZ,
-  destination TEXT,                 -- delivery target (email, slack channel)
-  type_config JSONB DEFAULT '{}',  -- task-level config
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, slug)
 );
 ```
 
-### New: `task_agents` join table
+All rich metadata (title, objective, delivery, output spec, success criteria, agent assignments, process) lives in `/tasks/{slug}/TASK.md`. The DB is the scheduler's index only.
 
-```sql
-CREATE TABLE task_agents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  role_in_task TEXT DEFAULT 'worker',  -- worker, assembler (future)
-  sequence_order INT DEFAULT 0,        -- for multi-agent sequencing
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(task_id, agent_id)
-);
-```
+### No `task_agents` join table
+
+Agent-task relationships are filesystem-based:
+- **TASK.md** (authoritative): `## Process` section names agent slug(s) and sequence
+- **Agent `memory/tasks.json`** (reverse index): written at task creation/update, lists assigned task slugs
+- **Reverse lookup**: query workspace_files or read agent's `memory/tasks.json`
+
+This is consistent with how project-agent relationships worked (via `type_config.project_slug` + `memory/projects.json`), but cleaner.
 
 ### Modified: `agents` table
 
-- **Remove**: `schedule`, `next_pulse_at`, `destination` — these move to tasks
+- **Remove**: `schedule`, `next_pulse_at`, `destination` — scheduling moves to tasks table
 - **Remove**: `type_config.project_slug` — no projects
 - **Keep**: `id`, `user_id`, `title`, `slug`, `role` (archetype), `scope`, `mode`, `status`, `type_config` (agent-level config)
 - **Role CHECK**: remove `pm`, keep/add `monitor`, `researcher`, `producer`, `operator` + legacy values with migration map
@@ -401,16 +399,13 @@ CREATE TABLE task_agents (
 
 - All `workspace_files` rows where `path LIKE '/projects/%'`
 - All `agents` rows where `role = 'pm'`
-- `chat_sessions.project_slug` column (or leave nullable, unused)
-- `session_messages.thread_agent_id` column (or leave nullable, unused)
+- `chat_sessions.project_slug` column (drop — clean slate)
+- `session_messages.thread_agent_id` column (drop — clean slate)
 
 ### Clean wipe
 
 Since all data is test data, execute full cleanup:
-- DELETE all workspace_files
-- DELETE all agents, agent_runs
-- DELETE all chat_sessions, session_messages
-- DELETE all activity_log entries
+- TRUNCATE workspace_files, agents, agent_runs, chat_sessions, session_messages, activity_log CASCADE
 - Recreate with new schema
 
 ---
@@ -528,52 +523,149 @@ Still true. All workspace writes flow through agent execution, not direct user m
 
 ## Implementation sequence
 
-### Phase 1: Schema + clean slate
-- Write migration: create `tasks` + `task_agents` tables
-- Clean wipe: delete all test data (workspace_files, agents, agent_runs, sessions, activity_log)
-- Update `agents` role CHECK (remove `pm`, add archetypes)
-- Remove `schedule`, `next_pulse_at`, `destination` from agents (move to tasks)
+### Execution disciplines (enforced throughout)
 
-### Phase 2: Task infrastructure (backend)
-- Create `api/routes/tasks.py` (CRUD)
-- Create `api/services/task_execution.py` (task pulse → agent execution)
-- Write AGENT.md v2 template (identity only)
-- Write TASK.md v2 template (work definition)
-- Update `create_agent()` — identity-focused, no schedule/delivery
-- Create `create_task()` — work-definition-focused, with agent assignment
+1. **SINGULAR IMPLEMENTATION** — Delete legacy code when replacing. No dual approaches. No backwards-compat shims. No dormant code. When PM code is removed, it is deleted, not commented out.
+2. **DOCS ALONGSIDE CODE** — Every phase updates relevant docs. No phase is "done" until docs match code.
+3. **FILESYSTEM IS SOURCE OF TRUTH** — Rich metadata in workspace files (AGENT.md, TASK.md). DB is scheduling index only. No join tables for relationships that can live in files.
+4. **CLEAN SLATE** — All existing test data wiped. No migration compatibility needed. Schema can break.
+5. **COMMIT PER PHASE** — Each phase produces a working (or at least non-crashing) state. Commit and push after each phase. Conventional commit style with ADR-138 ref.
+6. **PROGRESS TRACKING** — TodoWrite updated at start of each phase with sub-tasks. Todos marked complete immediately on finish.
+7. **PROMPT CHANGES LOGGED** — Any TP/agent prompt modification gets a CHANGELOG.md entry.
+8. **VERIFY AFTER DELETE** — After deleting code, verify imports resolve and the app starts. Don't leave dangling references.
 
-### Phase 3: Delete project layer (backend)
-- Delete files: pm_coordination.py, pipeline_executor.py, project_registry.py, routes/projects.py
-- Delete ProjectWorkspace from workspace.py
-- Delete PM paths from agent_pulse.py, agent_execution.py, agent_pipeline.py, agent_creation.py
-- Simplify composer.py (remove project actions)
-- Rewrite onboarding_bootstrap.py → creates agents + tasks
-- Rewrite unified_scheduler.py → pulse tasks, not agents
+### Phase 1: Clean slate + schema migration
+**Goal**: Empty database with new schema. No test data. Tasks table exists.
 
-### Phase 4: TP enrichment
-- Enrich CreateAgent primitive (identity-focused AGENT.md)
-- Create CreateTask primitive (TASK.md + agent assignment)
-- Create TriggerTask primitive (run task now, with optional context)
-- Create AssembleOutputs primitive (combine outputs from multiple tasks)
-- TP prompt: absorb workforce monitoring, task management language
+Steps:
+1. Write SQL migration that:
+   - TRUNCATEs all data tables (workspace_files, agents, agent_runs, chat_sessions, session_messages, activity_log, render_usage)
+   - Creates `tasks` table (thin: id, user_id, slug, status, schedule, next_run_at, last_run_at, timestamps)
+   - Drops `schedule`, `next_pulse_at`, `destination` columns from `agents`
+   - Updates `agents.role` CHECK constraint (remove `pm`, add `monitor`, `researcher`, `producer`, `operator`)
+   - Drops `chat_sessions.project_slug` column
+   - Drops `session_messages.thread_agent_id` column
+2. Run migration against Supabase
+3. Verify schema via psql
+
+**Commit**: `feat(ADR-138): Phase 1 — clean slate + tasks schema`
+
+### Phase 2: Delete project layer (code)
+**Goal**: All project/PM code removed. App compiles without project references.
+
+Steps:
+1. Delete entire files:
+   - `api/services/pm_coordination.py`
+   - `api/services/pipeline_executor.py`
+   - `api/services/project_registry.py`
+   - `api/routes/projects.py`
+2. Delete from existing files:
+   - `api/services/workspace.py` — delete `ProjectWorkspace` class entirely
+   - `api/services/agent_pulse.py` — delete Tier 3 PM coordination
+   - `api/services/agent_execution.py` — delete PM decision interpreter, assembly execution, `_write_contribution_to_projects()`, `_maybe_trigger_project_heartbeat()`
+   - `api/services/agent_pipeline.py` — delete PM prompt, PM context loading, PM-specific DEFAULT_INSTRUCTIONS
+   - `api/services/agent_creation.py` — delete PM-specific seeding paths
+   - `api/services/composer.py` — delete `_execute_create_project()`, project Composer actions
+   - `api/services/onboarding_bootstrap.py` — gut `maybe_bootstrap_project()` (stub for Phase 3)
+   - `api/jobs/unified_scheduler.py` — delete pipeline execution path, PM pulse routing
+   - `api/services/agent_framework.py` — delete `pm` from AGENT_TYPES, simplify to 4 archetypes + legacy map
+3. Fix all broken imports and references across codebase
+4. Delete frontend project files:
+   - `web/app/(authenticated)/projects/` — entire directory
+   - Remove project imports/references from navigation, API client, types
+5. Verify app starts: `cd api && python -c "from main import app"` (or equivalent)
+6. Verify frontend compiles: `cd web && pnpm build` (or `pnpm tsc --noEmit`)
+
+**Commit**: `feat(ADR-138): Phase 2 — delete project/PM layer (~5000 lines)`
+
+### Phase 3: Task + Agent infrastructure (backend)
+**Goal**: Agents are identity-only. Tasks are work units. Creation and execution work.
+
+Steps:
+1. Create `api/services/task_workspace.py` — `TaskWorkspace` class (read/write/list for `/tasks/{slug}/`)
+2. Create `api/routes/tasks.py` — CRUD routes (list, get, create, update, delete)
+3. Write AGENT.md v2 template (identity-focused: identity, expertise, capabilities, coherence)
+4. Write TASK.md v2 template (work-focused: objective, criteria, process with agent slug(s), output spec)
+5. Update `api/services/agent_creation.py`:
+   - `create_agent()` writes identity-focused AGENT.md (no schedule, no delivery)
+   - Seeds `memory/tasks.json` (empty initially)
+6. Create `api/services/task_creation.py`:
+   - `create_task()` writes TASK.md, creates DB row, updates agent's `memory/tasks.json`
+7. Update `api/services/agent_execution.py`:
+   - Execution reads objective + criteria from TASK.md (not AGENT.md)
+   - Output writes to `/tasks/{slug}/outputs/{date}/` (not `/agents/{slug}/outputs/`)
+   - Agent's domain memory still read from `/agents/{slug}/memory/`
+8. Update `api/jobs/unified_scheduler.py`:
+   - Scheduler queries `tasks` table for `next_run_at <= now`
+   - Reads TASK.md to resolve agent slug(s)
+   - For single-agent: triggers agent execution with task context
+   - For multi-agent: TP imperative orchestration (future, stub for now)
+9. Update `api/services/agent_pulse.py`:
+   - Tier 1 checks move to task level (cooldown, budget, fresh content)
+   - Tier 2 agent self-assessment still agent-level
+10. Update delivery: `deliver_from_output_folder()` reads from `/tasks/{slug}/outputs/`
+
+**Commit**: `feat(ADR-138): Phase 3 — task infrastructure + agent identity separation`
+
+### Phase 4: TP enrichment (primitives + prompt)
+**Goal**: TP can create agents, create tasks, trigger tasks, and manage the workforce.
+
+Steps:
+1. Update `CreateAgent` primitive — writes identity-focused AGENT.md
+2. Create `CreateTask` primitive — writes TASK.md, creates DB row, assigns agent
+3. Create `TriggerTask` primitive — run a task now with optional injected context
+4. Create `AssembleOutputs` primitive — read outputs from multiple tasks, compose unified deliverable
+5. Update TP system prompt:
+   - Remove project/PM language
+   - Add task management language
+   - Absorb workforce monitoring (from Composer)
+   - Add "agent = who, task = what" framing
+6. Update Composer:
+   - Remove project creation actions
+   - Thin to health-check only (agent health, task staleness)
+7. Log all prompt changes in `api/prompts/CHANGELOG.md`
+
+**Commit**: `feat(ADR-138): Phase 4 — TP primitives + prompt (absorbs PM coordination)`
 
 ### Phase 5: Frontend
-- Delete /projects/ pages
-- Create /tasks/ pages (list + detail)
-- Update /agents/ pages (identity + memory + assigned tasks)
-- Agent detail: chat + identity + task assignments
-- Task detail: objective + latest output + delivery history
-- Orchestrator: shows agents (team) + tasks (work)
+**Goal**: User sees agents (team) and tasks (work). No project references anywhere.
 
-### Phase 6: Docs alignment
-- FOUNDATIONS.md v4.0 — revise Axioms 1, 5, 6; derived principles
-- ESSENCE.md v11.0 — System Shape + UX Loop + positioning
-- NARRATIVE.md — remove project references
-- workspace-conventions.md v3 — new filesystem layout
-- agent-framework.md — archetypes, remove PM type
-- api/prompts/CHANGELOG.md — TP prompt changes, PM prompt deletion
-- CLAUDE.md — comprehensive update (remove project references, add task model)
-- Mark all superseded ADRs
+Steps:
+1. Create `/tasks` page — task list with status, cadence, last run, assigned agent
+2. Create `/tasks/[slug]` page — task detail: objective, latest output, delivery history
+3. Update `/agents` page — agent list showing identity, expertise, assigned tasks
+4. Update `/agents/[id]` page — agent detail: identity, memory, chat, task assignments
+5. Update orchestrator panel — shows agents + tasks (not projects)
+6. Update navigation — replace projects with tasks
+7. Update API client (`web/lib/api/client.ts`) — add tasks endpoints, remove projects
+8. Update types — add Task types, remove Project types
+9. Verify all routes and links work
+
+**Commit**: `feat(ADR-138): Phase 5 — frontend (agents + tasks surfaces)`
+
+### Phase 6: Documentation alignment
+**Goal**: All docs reflect the new architecture. No stale project references.
+
+Steps:
+1. **FOUNDATIONS.md v4.0**:
+   - Axiom 1: Remove PM as domain-cognitive example. TP absorbs coordination.
+   - Axiom 3: Agent identity = archetype + instructions. Remove PM cognitive state.
+   - Axiom 5: Delete Composer/PM separation table. TP directly orchestrates.
+   - Axiom 6: New autonomous flow (agent + task, no PM). Remove "every project gets PM."
+   - Derived principles: update all project references.
+2. **ESSENCE.md v11.0**:
+   - System Shape: 5 layers (TP, Agents, Tasks, Workspace, Skills)
+   - UX Loop: describe work → agents + tasks → deliver → refine → compound
+   - Remove all project references
+3. **NARRATIVE.md**: Remove project references in product description
+4. **workspace-conventions.md v3**: New filesystem layout with `/tasks/{slug}/`
+5. **agent-framework.md**: 4 archetypes, remove PM, update taxonomy
+6. **api/prompts/CHANGELOG.md**: Document all prompt changes from Phase 4
+7. **CLAUDE.md**: Comprehensive update — remove project references, add task model, update file locations, update terminology
+8. **Mark superseded ADRs**: Add superseded-by notes to ADRs 120-125, 128-129, 132-137
+9. **docs/database/ACCESS.md**: Update schema documentation
+
+**Commit**: `docs(ADR-138): Phase 6 — documentation alignment (FOUNDATIONS v4, ESSENCE v11, CLAUDE.md)`
 
 ---
 
