@@ -272,43 +272,24 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
     except Exception as e:
         logger.warning(f"[COMPOSER] Feedback query failed: {e}")
 
-    # 7. ADR-126: Agent health from pulse events + lightweight maturity
-    # Instead of N+1 per-agent queries on agent_runs (old approach), we:
-    # (a) Read recent pulse events from activity_log — agents self-report health
-    # (b) Single batch query for run counts + approval rates (maturity still needed
-    #     for duty promotion heuristics in should_composer_act)
+    # 7. ADR-141: Task execution health from activity_log + lightweight maturity
     maturity_signals = []
-    pulse_health = {
-        "recent_pulses": [],        # Last 24h of agent_pulsed events
-        "escalations": [],          # Agents that pulsed "escalate"
-        "waiting": [],              # Agents that pulsed "wait"
-        "generating": [],           # Agents that pulsed "generate"
-    }
+    recent_executions = []
     try:
-        # (a) Read recent pulse events — single query, all agents
         day_ago = (now - timedelta(days=1)).isoformat()
-        pulse_result = (
+        exec_result = (
             client.table("activity_log")
             .select("event_ref, metadata, created_at, summary")
             .eq("user_id", user_id)
-            .in_("event_type", ["agent_pulsed", "pm_pulsed"])
+            .eq("event_type", "task_executed")
             .gte("created_at", day_ago)
             .order("created_at", desc=True)
-            .limit(200)
+            .limit(50)
             .execute()
         )
-        for pe in (pulse_result.data or []):
-            meta = pe.get("metadata") or {}
-            pulse_health["recent_pulses"].append(pe)
-            action = meta.get("action", "")
-            if action == "escalate":
-                pulse_health["escalations"].append(pe)
-            elif action == "wait":
-                pulse_health["waiting"].append(pe)
-            elif action == "generate":
-                pulse_health["generating"].append(pe)
+        recent_executions = exec_result.data or []
     except Exception as e:
-        logger.warning(f"[COMPOSER] Pulse event query failed: {e}")
+        logger.warning(f"[COMPOSER] Task execution query failed: {e}")
 
     try:
         # (b) Lightweight maturity: single batch query for all agent run counts
@@ -528,7 +509,7 @@ async def heartbeat_data_query(client: Any, user_id: str) -> dict:
         "last_assessed_state": _get_last_assessed_state(client, user_id),  # ADR-115 state-change gate
         "agent_graph": agent_graph,  # ADR-116 Phase 5
         "work_budget": _get_work_budget_status(client, user_id),  # ADR-120 Phase 3
-        "pulse_health": pulse_health,  # ADR-126: agent self-reported health from pulse events
+        "recent_executions": recent_executions,  # ADR-141: recent task execution events
         # (work_index removed — topics layer dissolved, projects are workstreams directly)
     }
 
@@ -571,11 +552,11 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
     if not assessment["tier"]["can_create"]:
         return False, "HEARTBEAT_OK: at tier agent limit"
 
-    # ADR-126: Pulse escalations — agents asking for Composer attention
-    escalations = assessment.get("pulse_health", {}).get("escalations", [])
-    if escalations:
-        agent_refs = list(set(e.get("event_ref", "?") for e in escalations))[:3]
-        return True, f"pulse_escalation: {len(escalations)} agent(s) escalated in last 24h: {agent_refs}"
+    # ADR-141: Check for recent task failures that might need Composer attention
+    recent_execs = assessment.get("recent_executions", [])
+    failures = [e for e in recent_execs if (e.get("metadata") or {}).get("final_status") == "failed"]
+    if len(failures) >= 3:
+        return True, f"task_failures: {len(failures)} task(s) failed in last 24h"
 
     # (Topics layer removed — projects are the workstreams directly.
     #  Coverage gap below handles the equivalent check.)

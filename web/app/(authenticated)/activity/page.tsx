@@ -1,17 +1,13 @@
 'use client';
 
 /**
- * ADR-063 + ADR-129: Activity Page — Two-Tier Activity Log
+ * Activity Page — ADR-141 aligned
  *
  * Workspace-level supervision dashboard showing what YARNNN has done.
- * Reads from activity_log table (unified activity layer).
+ * Reads from activity_log table.
  *
- * ADR-129 categories:
- *   - Agents: agent_run, agent_approved, agent_rejected, agent_generated,
- *            agent_scheduled, agent_bootstrapped, agent_pulsed, duty_promoted
- *   - Projects: project_heartbeat, project_assembled, project_escalated,
- *              project_contributor_advanced, pm_pulsed, project_quality_assessed,
- *              project_contributor_steered, project_file_triaged, project_scaffolded
+ * Categories:
+ *   - Agents: task_executed, agent_run (legacy), agent_approved, agent_rejected, agent_bootstrapped
  *   - Memory: memory_written, session_summary_written
  *   - Sync: platform_synced, content_cleanup
  *   - Chat: chat_session
@@ -40,13 +36,11 @@ import {
   ThumbsDown,
   Trash2,
   FileOutput,
-  CalendarClock,
   HeartPulse,
   Sparkles,
   AlertTriangle,
   ClipboardCheck,
   FolderPlus,
-  Package,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -95,16 +89,10 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-red-500',
     category: 'agents',
   },
-  agent_generated: {
-    label: 'Generated',
+  task_executed: {
+    label: 'Executed',
     icon: <FileOutput className="w-4 h-4" />,
     color: 'text-emerald-500',
-    category: 'agents',
-  },
-  agent_scheduled: {
-    label: 'Scheduled',
-    icon: <CalendarClock className="w-4 h-4" />,
-    color: 'text-blue-400',
     category: 'agents',
   },
   // Memory & Analysis
@@ -171,19 +159,6 @@ const EVENT_CONFIG: Record<string, {
     icon: <Sparkles className="w-4 h-4" />,
     color: 'text-amber-500',
     category: 'agents',
-  },
-  // ADR-126: Agent Pulse — autonomous sense→decide events
-  agent_pulsed: {
-    label: 'Pulse',
-    icon: <HeartPulse className="w-4 h-4" />,
-    color: 'text-cyan-500',
-    category: 'agents',
-  },
-  pm_pulsed: {
-    label: 'PM Pulse',
-    icon: <HeartPulse className="w-4 h-4" />,
-    color: 'text-purple-500',
-    category: 'projects',
   },
   // ADR-117/119: Project activity + duty promotion
   project_heartbeat: {
@@ -264,10 +239,9 @@ const FILTER_CATEGORIES = [
 type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 
 // Map category filters to the event_type values they include
-// ADR-129: Category mapping includes all event types per tier
+// ADR-141: Category mapping
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
-  agents: ['agent_run', 'agent_approved', 'agent_rejected', 'agent_generated', 'agent_scheduled', 'agent_bootstrapped', 'duty_promoted', 'agent_pulsed'],
-  projects: ['project_heartbeat', 'project_assembled', 'project_escalated', 'project_contributor_advanced', 'pm_pulsed', 'project_quality_assessed', 'project_contributor_steered', 'project_file_triaged', 'project_scaffolded'],
+  agents: ['task_executed', 'agent_run', 'agent_approved', 'agent_rejected', 'agent_bootstrapped'],
   memory: ['memory_written', 'session_summary_written'],
   sync: ['platform_synced', 'content_cleanup'],
   chat: ['chat_session'],
@@ -323,13 +297,16 @@ function getNavigationTarget(
 ): { href: string; label: string } | null {
   const metadata = item.metadata || {};
   switch (item.event_type) {
+    case 'task_executed':
     case 'agent_run':
     case 'agent_approved':
     case 'agent_rejected':
-    case 'agent_generated':
-    case 'agent_scheduled':
+    case 'agent_bootstrapped':
       if (metadata.agent_id) {
         return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
+      }
+      if (metadata.task_slug) {
+        return { href: `/tasks/${metadata.task_slug}`, label: 'View task' };
       }
       return null;
     case 'memory_written':
@@ -346,29 +323,6 @@ function getNavigationTarget(
       return null;
     case 'chat_session':
       return { href: HOME_ROUTE, label: 'Open Agent' };
-    // Legacy project events — link to workfloor (projects deleted in ADR-138)
-    case 'project_heartbeat':
-    case 'project_assembled':
-    case 'project_escalated':
-    case 'project_contributor_advanced':
-    case 'project_quality_assessed':
-    case 'project_contributor_steered':
-    case 'project_file_triaged':
-    case 'project_scaffolded':
-      return null;
-    case 'agent_bootstrapped':
-    case 'duty_promoted':
-      if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
-      return null;
-    case 'agent_pulsed':
-      if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
-      return null;
-    case 'pm_pulsed': {
-      const pmProjectSlug = (metadata.project_slug || item.event_ref) as string | undefined;
-      if (pmProjectSlug) return { href: `/projects/${pmProjectSlug}`, label: 'View project' };
-      if (metadata.agent_id) return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
-      return null;
-    }
     default:
       return null;
   }
@@ -513,25 +467,6 @@ export default function ActivityPage() {
           </>
         );
 
-      case 'agent_generated':
-        return (
-          <>
-            {metadata.role && <DetailRow label="Role" value={String(metadata.role)} />}
-            {metadata.agent_title && <DetailRow label="Title" value={String(metadata.agent_title)} />}
-          </>
-        );
-
-      case 'agent_scheduled':
-        return (
-          <>
-            {metadata.role && <DetailRow label="Role" value={String(metadata.role)} />}
-            {metadata.trigger_reason && <DetailRow label="Trigger" value={String(metadata.trigger_reason)} />}
-            {metadata.scheduled_for && (
-              <DetailRow label="Scheduled for" value={format(new Date(String(metadata.scheduled_for)), 'MMM d, h:mm a')} />
-            )}
-            {metadata.mode && <DetailRow label="Mode" value={String(metadata.mode)} />}
-          </>
-        );
 
       case 'platform_synced':
         return (
@@ -576,50 +511,14 @@ export default function ActivityPage() {
       case 'integration_disconnected':
         return metadata.provider ? <DetailRow label="Platform" value={String(metadata.provider)} /> : null;
 
-      case 'agent_pulsed':
+      case 'task_executed':
         return (
           <>
-            {metadata.action && <DetailRow label="Decision" value={String(metadata.action)} />}
-            {metadata.tier && <DetailRow label="Tier" value={`Tier ${metadata.tier}`} />}
+            {metadata.task_slug && <DetailRow label="Task" value={String(metadata.task_slug)} />}
+            {metadata.agent_slug && <DetailRow label="Agent" value={String(metadata.agent_slug)} />}
             {metadata.role && <DetailRow label="Role" value={String(metadata.role)} />}
-            {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'pm_pulsed':
-        return (
-          <>
-            {metadata.action && <DetailRow label="Decision" value={String(metadata.action)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-            {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
-          </>
-        );
-
-      // ADR-121/123: PM intelligence events
-      case 'project_heartbeat':
-        return (
-          <>
-            {metadata.pm_action && <DetailRow label="Action" value={String(metadata.pm_action)} />}
-            {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'project_quality_assessed':
-        return (
-          <>
-            {metadata.reason && <DetailRow label="Assessment" value={String(metadata.reason)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'project_contributor_steered':
-        return (
-          <>
-            {metadata.target_agent_slug && <DetailRow label="Contributor" value={String(metadata.target_agent_slug)} />}
-            {metadata.reason && <DetailRow label="Direction" value={String(metadata.reason)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
+            {metadata.duration_ms && <DetailRow label="Duration" value={`${Math.round(Number(metadata.duration_ms) / 1000)}s`} />}
+            {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
           </>
         );
 

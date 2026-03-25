@@ -616,7 +616,7 @@ export interface ScheduledAgent {
   id: string;
   title: string;
   role: string;
-  next_pulse_at: string;
+  next_run_at: string;
   destination_platform?: string | null;
 }
 

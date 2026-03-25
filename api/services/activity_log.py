@@ -14,13 +14,10 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
-  - unified_scheduler.py: 'agent_scheduled' when agent queued (ADR-072)
-  - unified_scheduler.py: 'agent_generated' after successful agent generation
   - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
   - unified_scheduler.py: 'content_cleanup' after expired content deletion
   - unified_scheduler.py: 'session_summary_written' after session summary generation
-  - agent_pulse.py: 'agent_pulsed' after agent pulse cycle (ADR-126)
-  - agent_pulse.py: 'pm_pulsed' after PM coordination pulse (ADR-126)
+  - task_pipeline.py: 'task_executed' after task execution (ADR-141)
 
 Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
@@ -51,34 +48,25 @@ async def resolve_agent_project_slug_full(client, user_id: str, agent: dict) -> 
     return None
 
 VALID_EVENT_TYPES = frozenset({
-    "agent_run",
+    # ADR-141: Task execution
+    "task_executed",                # Task pipeline completed (scheduled or manual)
+    # Agent lifecycle
+    "agent_run",                    # Legacy: pre-ADR-141 execution events (still in DB)
     "agent_approved",
     "agent_rejected",
-    "agent_scheduled",    # ADR-072: System state awareness - queued for execution
-    "agent_generated",    # Agent content actually generated (distinct from scheduled)
-    "memory_written",
+    "agent_bootstrapped",           # ADR-110: Auto-created agent on platform connection
+    # Platform & sync
     "platform_synced",
     "integration_connected",
     "integration_disconnected",
+    "content_cleanup",              # Expired platform_content cleaned up
+    # Sessions & memory
     "chat_session",
-    "scheduler_heartbeat",      # ADR-072: System state awareness - scheduler execution cycle
-    "content_cleanup",          # Expired platform_content cleaned up
-    "session_summary_written",  # Session compaction summaries generated
-    "agent_bootstrapped",       # ADR-110: Auto-created agent on platform connection
-    "composer_heartbeat",       # ADR-111: TP Composer periodic assessment cycle
-    # ADR-117 Phase 3: Project activity + duty promotion
-    "project_heartbeat",            # PM checked on contributors
-    "project_assembled",            # PM triggered assembly
-    "project_escalated",            # PM escalated to TP
-    "project_contributor_advanced",  # PM advanced contributor schedule
-    "project_contributor_steered",   # PM wrote contribution brief (ADR-121)
-    "project_quality_assessed",      # PM assessed contribution quality (ADR-121)
-    "project_file_triaged",          # PM triaged user_shared/ file (ADR-127)
-    "duty_promoted",                # Composer promoted agent duty
-    "project_scaffolded",           # ADR-122: Project scaffolded via registry
-    # ADR-126: Agent Pulse — autonomous awareness events
-    "agent_pulsed",                 # Agent sense→decide cycle (all tiers)
-    "pm_pulsed",                    # PM coordination pulse (Tier 3)
+    "memory_written",
+    "session_summary_written",      # Session compaction summaries generated
+    # System
+    "scheduler_heartbeat",          # ADR-072: Scheduler execution cycle
+    "composer_heartbeat",           # ADR-111: TP Composer periodic assessment
 })
 
 

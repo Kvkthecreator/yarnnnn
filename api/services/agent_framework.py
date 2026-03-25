@@ -20,8 +20,7 @@ Canonical reference: docs/adr/ADR-140-agent-workforce-model.md
 
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Any, Union
+from typing import Any
 
 
 # =============================================================================
@@ -304,23 +303,4 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
     return types
 
 
-# =============================================================================
-# Pulse Cadence — how often each type senses (ADR-126)
-# =============================================================================
-
-ROLE_PULSE_CADENCE: dict[str, Union[timedelta, str]] = {
-    # v3 types (ADR-140)
-    "research":   "schedule",   # runs on task cadence
-    "content":    "schedule",   # runs on task cadence
-    "marketing":  "schedule",   # runs on task cadence
-    "crm":        "schedule",   # runs on task cadence
-    "slack_bot":  timedelta(hours=1),   # frequent platform monitoring
-    "notion_bot": timedelta(hours=12),  # daily platform sync
-}
-
-_DEFAULT_PULSE_CADENCE = "schedule"
-
-
-def get_pulse_cadence(role: str) -> Union[timedelta, str]:
-    """Return the pulse cadence for a role/type."""
-    return ROLE_PULSE_CADENCE.get(role, _DEFAULT_PULSE_CADENCE)
+# ADR-141: Pulse cadence dissolved — scheduling is now task-level (tasks.schedule + next_run_at).

@@ -137,9 +137,9 @@ const BACKGROUND_JOB_GROUPS = [
     types: ['Platform Sync'],
   },
   {
-    label: 'Agent Pulse',
+    label: 'Task Execution',
     icon: <HeartPulse className="w-4 h-4 text-cyan-500" />,
-    types: ['Agent Pulse'],
+    types: ['Task Execution'],
   },
   {
     label: 'Memory & Analysis',
@@ -147,7 +147,6 @@ const BACKGROUND_JOB_GROUPS = [
     types: [
       'Memory Extraction',
       'Session Summaries',
-      'Agent Generation',
       'Composer Heartbeat',
       'Content Cleanup',
     ],
