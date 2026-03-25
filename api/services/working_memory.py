@@ -143,17 +143,13 @@ def _get_work_index_sync(user_id: str, client: Any) -> Optional[list[dict]]:
             name = match.group(1)
             props = match.group(2)
             status = "active"
-            project_slug = None
             for line in props.strip().split("\n"):
                 line = line.strip().lstrip("- ")
                 if line.startswith("status:"):
                     status = line.split(":", 1)[1].strip()
-                elif line.startswith("project_slug:"):
-                    project_slug = line.split(":", 1)[1].strip()
             scopes.append({
                 "name": name,
                 "status": status,
-                "project_slug": project_slug,
             })
         return scopes if scopes else None
     except Exception as e:
@@ -416,18 +412,14 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
 
 
 def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
-    """Fetch recent session summaries (sync, for thread pool).
-
-    ADR-125: Includes both global TP and project session summaries.
-    Project sessions include project_slug for TP cross-project awareness.
-    """
+    """Fetch recent session summaries (sync, for thread pool)."""
     sessions = []
 
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=SESSION_LOOKBACK_DAYS)).isoformat()
 
         result = client.table("chat_sessions").select(
-            "id, created_at, summary, project_slug"
+            "id, created_at, summary"
         ).eq("user_id", user_id).not_.is_(
             "summary", "null"
         ).gte("created_at", cutoff).order(
@@ -438,14 +430,10 @@ def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
             for s in result.data:
                 summary = s.get("summary", "")
                 if summary:
-                    entry = {
+                    sessions.append({
                         "date": s.get("created_at", "")[:10],
                         "summary": summary[:300],
-                    }
-                    # ADR-125: Tag project session summaries
-                    if s.get("project_slug"):
-                        entry["project"] = s["project_slug"]
-                    sessions.append(entry)
+                    })
 
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch recent sessions: {e}")
