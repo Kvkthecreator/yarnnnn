@@ -32,7 +32,7 @@ Each action has a **verb type** that determines what happens when selected. Acti
 
 Rules:
 - Every action must declare its verb explicitly
-- **show** actions toggle a UI panel/cards in the chat area (not a modal)
+- **show** actions toggle a UI panel/cards inline (not a modal). In the chat drawer, shown content appears within the drawer.
 - **execute** actions fire-and-forget with no user input required
 - **prompt** is only appropriate when the user needs to add information (e.g., a search query)
 - Never use **prompt** as a lazy default — if the action can be done without user input, use **execute** or **show**

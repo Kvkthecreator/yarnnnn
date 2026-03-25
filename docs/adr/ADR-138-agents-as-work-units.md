@@ -676,14 +676,14 @@ Steps:
 
 > **Detailed specification**: [ADR-139](ADR-139-workfloor-task-surface-architecture.md) + [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md)
 
-**Three surfaces** (ADR-139):
-- `/workfloor` — Home. Agents display (left) + TP chat + Tasks/Workspace tabs (right). Replaces `/orchestrator`.
-- `/tasks/{slug}` — Task working page. Output tab (left, hero) + Chat tab (left, task-scoped TP) + Task details (right).
-- `/agents/{slug}` — Agent identity page. AGENT.md + memory browser (left) + assigned tasks + actions (right). Read-only reference, no dedicated chat.
+**Three surfaces** (ADR-139 v2):
+- `/workfloor` — Home. Output feed (left hero) + Agent roster grid (right). Chat as drawer. Replaces `/orchestrator`.
+- `/tasks/{slug}` — Task working page. Latest output (left hero) + Task meta + run trajectory (right). Chat as drawer (task-scoped).
+- `/agents/{slug}` — Agent identity page. AGENT.md + memory browser (left) + assigned tasks + actions (right). Read-only reference, no chat.
 
 Steps:
-1. Create `/workfloor` page — agent cards grid, TP chat, right panel with Tasks + Workspace tabs
-2. Create `/tasks/[slug]` page — output/chat tabs (left), task details + run history (right)
+1. Create `/workfloor` page — output feed (left), agent roster 2×3 grid + Tasks/Workspace tabs (right), chat drawer component
+2. Create `/tasks/[slug]` page — latest output hero (left), task meta + trajectory + criteria (right), chat drawer (task-scoped)
 3. Update `/agents/[slug]` page — identity display, memory browser, assigned tasks, no chat
 4. Add `task_slug` column to `chat_sessions` (migration) for task-scoped sessions
 5. Update `chat.py` session routing — task-scoped sessions via `surface_context.taskSlug`
