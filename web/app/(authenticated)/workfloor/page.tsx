@@ -246,32 +246,63 @@ function WorkspacePanel() {
     );
   }
 
+  // Workspace file slots — always show structure, even when empty
+  const fileSlots = [
+    { label: 'IDENTITY.md', path: '/workspace/IDENTITY.md', content: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}${identity.company ? ` at ${identity.company}` : ''}` : null },
+    { label: 'BRAND.md', path: '/workspace/BRAND.md', content: brandContent },
+    { label: 'preferences.md', path: '/memory/preferences.md', content: null },
+    { label: 'notes.md', path: '/memory/notes.md', content: null },
+  ];
+
   return (
     <div className="p-3 space-y-4">
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Identity</p>
-        {identity?.name ? (
-          <div className="text-sm space-y-0.5">
-            <div className="font-medium">{identity.name}</div>
-            {(identity.role || identity.company) && (
-              <div className="text-muted-foreground text-xs">
-                {[identity.role, identity.company].filter(Boolean).join(' at ')}
+      {/* Workspace files — always show all slots */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Workspace Files</p>
+        <div className="space-y-1.5">
+          {fileSlots.map(slot => (
+            <div
+              key={slot.label}
+              className={cn(
+                'flex items-center justify-between px-3 py-2 rounded-lg border text-xs',
+                slot.content
+                  ? 'border-border bg-background'
+                  : 'border-dashed border-border/50 bg-muted/20'
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-foreground/80">{slot.label}</span>
+                {slot.content ? (
+                  <p className="text-muted-foreground truncate mt-0.5">{slot.content}</p>
+                ) : (
+                  <p className="text-muted-foreground/40 mt-0.5">Empty</p>
+                )}
               </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground/60">Not set</p>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {brandContent && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Brand</p>
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
-            <ReactMarkdown>{brandContent}</ReactMarkdown>
-          </div>
+      {/* Knowledge base */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Knowledge Base</p>
+        <div className="px-3 py-2 rounded-lg border border-dashed border-border/50 bg-muted/20 text-xs text-muted-foreground/40">
+          /knowledge/ — accumulates from platform sync + agent outputs
         </div>
-      )}
+      </div>
+
+      {/* Platform status */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Platforms</p>
+        <div className="flex gap-2">
+          <Link href="/integrations" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted/50 transition-colors">
+            Slack
+          </Link>
+          <Link href="/integrations" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted/50 transition-colors">
+            Notion
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
