@@ -34,10 +34,16 @@ import type { DeskSurface } from '@/types/desk';
 interface ChatDrawerProps {
   /** Surface context to send with messages */
   surfaceOverride?: DeskSurface;
+  /** Controlled open state (parent can open the drawer) */
+  isOpen?: boolean;
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function ChatDrawer({ surfaceOverride }: ChatDrawerProps) {
-  const [open, setOpen] = useState(false);
+export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChange }: ChatDrawerProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
   const {
     messages,
     sendMessage,
@@ -71,7 +77,7 @@ export function ChatDrawer({ surfaceOverride }: ChatDrawerProps) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setOpen(prev => !prev);
+        setOpen(!open);
       }
       if (e.key === 'Escape' && open) {
         setOpen(false);

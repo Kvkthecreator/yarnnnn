@@ -129,6 +129,42 @@ function AgentRoomCard({ agent }: { agent: Agent }) {
   );
 }
 
+// =============================================================================
+// TP Room Card — The Orchestrator's Office
+// Distinct from AgentRoomCard: opens chat drawer, not a detail page.
+// =============================================================================
+
+function TPRoomCard({ onOpenChat }: { onOpenChat: () => void }) {
+  return (
+    <button
+      onClick={onOpenChat}
+      className={cn(
+        'relative flex flex-col rounded-2xl border-2 p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden text-left',
+        'border-primary/20 from-primary/5 to-primary/10',
+      )}
+    >
+      {/* Always-on indicator */}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+        <span className="text-[9px] font-medium text-primary/60 uppercase tracking-wider">Online</span>
+      </div>
+
+      <div className="mb-3 mt-1">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 border border-primary/20 shadow-sm">
+          <MessageCircle className="w-6 h-6 text-primary" />
+        </div>
+      </div>
+
+      <span className="text-sm font-semibold leading-tight">Orchestrator</span>
+      <span className="text-[11px] text-muted-foreground/70 mt-0.5">TP — your thinking partner</span>
+
+      <div className="mt-auto pt-3 text-[10px] text-primary/50">
+        <span>⌘K to chat</span>
+      </div>
+    </button>
+  );
+}
+
 // Empty desk placeholder
 function EmptyRoomCard({ label }: { label: string }) {
   return (
@@ -272,6 +308,7 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
   useEffect(() => {
@@ -341,15 +378,18 @@ export default function WorkfloorPage() {
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
-            ) : activeAgents.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} />)}
-              </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {['Research', 'Content', 'Marketing', 'CRM', 'Slack Bot', 'Notion Bot'].map(name => (
-                  <EmptyRoomCard key={name} label={name} />
-                ))}
+                {/* TP — always first, the orchestrator's office */}
+                <TPRoomCard onOpenChat={() => setChatOpen(true)} />
+                {/* Agent rooms */}
+                {activeAgents.length > 0 ? (
+                  activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} />)
+                ) : (
+                  ['Research', 'Content', 'Marketing', 'CRM', 'Slack Bot', 'Notion Bot'].map(name => (
+                    <EmptyRoomCard key={name} label={name} />
+                  ))
+                )}
               </div>
             )}
 
@@ -373,7 +413,7 @@ export default function WorkfloorPage() {
           </div>
         </div>
       </WorkspaceLayout>
-      <ChatDrawer />
+      <ChatDrawer isOpen={chatOpen} onOpenChange={setChatOpen} />
     </>
   );
 }
