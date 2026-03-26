@@ -240,7 +240,8 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         # Workspace filesystem — the primary data store
         deleted["workspace_files"] = _delete_workspace_files(client, user_id)
 
-        # Relational tables that reference agents
+        # Relational tables that reference agents/tasks
+        deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True)
         deleted["agents"] = _delete_rows(client, "agents", user_id)
         deleted["agent_proposals"] = _delete_rows(client, "agent_proposals", user_id, optional=True)
         deleted["agent_context_log"] = _delete_rows(client, "agent_context_log", user_id, optional=True)
@@ -339,6 +340,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "activity_log",
             "chat_sessions",
             "agent_proposals",
+            "tasks",
             "agents",
             "destination_delivery_log",
             "event_trigger_log",
