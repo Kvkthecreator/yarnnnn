@@ -563,11 +563,16 @@ export const api = {
       request<TaskOutput>(`/api/tasks/${slug}/outputs/latest`),
 
     // List output history
-    listOutputs: (slug: string, limit?: number) => {
+    listOutputs: async (slug: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
-      return request<{ outputs: TaskOutput[]; total: number }>(
+      const data = await request<TaskOutput[] | { outputs: TaskOutput[]; total: number }>(
         `/api/tasks/${slug}/outputs${params}`
       );
+      // API returns plain array; normalize to { outputs, total }
+      if (Array.isArray(data)) {
+        return { outputs: data, total: data.length };
+      }
+      return data;
     },
 
     // Trigger immediate execution

@@ -69,6 +69,10 @@ class TaskResponse(BaseModel):
     title: Optional[str] = None
     objective: Optional[dict] = None
     process: Optional[dict] = None
+    agent_slugs: Optional[list] = None
+    delivery: Optional[str] = None
+    success_criteria: Optional[list] = None
+    output_spec: Optional[list] = None
 
 
 class TaskOutputEntry(BaseModel):
@@ -179,7 +183,14 @@ def _parse_task_md(content: str) -> dict:
     if objective:
         result["objective"] = objective
 
-    # Process section
+    # Top-level bold fields (Agent, Mode, Schedule, Delivery, Slug)
+    agent_slugs = []
+    for line in lines:
+        agent_match = re.match(r"\*\*Agent:\*\*\s*(.*)", line)
+        if agent_match:
+            agent_slugs = [a.strip() for a in agent_match.group(1).split(",")]
+
+    # Process section (multi-agent tasks may have Agents list here)
     in_process = False
     process: dict = {}
     for line in lines:
@@ -194,11 +205,51 @@ def _parse_task_md(content: str) -> dict:
                 key = match.group(1).lower()
                 val = match.group(2).strip()
                 if key == "agents":
-                    process["agents"] = [a.strip() for a in val.split(",")]
+                    agent_slugs = [a.strip() for a in val.split(",")]
+                    process["agents"] = agent_slugs
                 else:
                     process[key] = val
     if process:
         result["process"] = process
+
+    # Agent slugs (from top-level field or Process section)
+    if agent_slugs:
+        result["agent_slugs"] = agent_slugs
+
+    # Success criteria
+    in_criteria = False
+    criteria = []
+    for line in lines:
+        if line.strip() == "## Success Criteria":
+            in_criteria = True
+            continue
+        if line.startswith("## ") and in_criteria:
+            break
+        if in_criteria and line.strip().startswith("- "):
+            criteria.append(line.strip()[2:])
+    if criteria:
+        result["success_criteria"] = criteria
+
+    # Delivery (top-level field)
+    for line in lines:
+        delivery_match = re.match(r"\*\*Delivery:\*\*\s*(.*)", line)
+        if delivery_match:
+            result["delivery"] = delivery_match.group(1).strip()
+            break
+
+    # Output spec
+    in_spec = False
+    output_spec = []
+    for line in lines:
+        if line.strip() == "## Output Spec":
+            in_spec = True
+            continue
+        if line.startswith("## ") and in_spec:
+            break
+        if in_spec and line.strip().startswith("- "):
+            output_spec.append(line.strip()[2:])
+    if output_spec:
+        result["output_spec"] = output_spec
 
     return result
 
@@ -226,6 +277,10 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         title=title,
         objective=objective,
         process=process,
+        agent_slugs=task_md_parsed.get("agent_slugs") if task_md_parsed else None,
+        delivery=task_md_parsed.get("delivery") if task_md_parsed else None,
+        success_criteria=task_md_parsed.get("success_criteria") if task_md_parsed else None,
+        output_spec=task_md_parsed.get("output_spec") if task_md_parsed else None,
     )
 
 
