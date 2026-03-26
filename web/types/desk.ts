@@ -88,7 +88,7 @@ export interface TPToolResult {
 }
 
 export interface TPUIAction {
-  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY' | 'SHOW_SETUP_CONFIRM' | 'UPDATE_TODOS';
+  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY' | 'SHOW_SETUP_CONFIRM' | 'UPDATE_TODOS' | 'NAVIGATE';
   surface?: string;
   data: Record<string, unknown>;
 }

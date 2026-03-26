@@ -329,6 +329,10 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         "schedule": schedule,
         "next_run_at": next_run_at,
         "message": f"Created task '{title}' (mode={mode}) assigned to agent '{agent_slug}'.",
+        "ui_action": {
+            "type": "NAVIGATE",
+            "data": {"url": f"/tasks/{slug}", "label": title},
+        },
     }
 
 
@@ -456,6 +460,10 @@ async def handle_trigger_task(auth: Any, input: dict) -> dict:
         "task_id": task["id"],
         "task_slug": task_slug,
         "message": f"Task '{task_slug}' triggered — will run on next scheduler tick.",
+        "ui_action": {
+            "type": "NAVIGATE",
+            "data": {"url": f"/tasks/{task_slug}", "label": f"View {task_slug}"},
+        },
     }
 
 

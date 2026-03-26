@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Loader2,
   CheckCircle2,
@@ -31,6 +32,7 @@ import {
   Sparkles,
   FolderSearch,
   Brain,
+  ArrowRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { MessageBlock } from '@/types/desk';
@@ -109,38 +111,52 @@ export function InlineToolCall({ block, compact = true }: InlineToolCallProps & 
   if (compact) {
     const isRunning = block.status === 'pending';
     const errorMsg = block.result?.data?.error as string | undefined;
+    // ADR-144: Navigation link from ui_action
+    const navAction = block.result?.uiAction?.type === 'NAVIGATE' ? block.result.uiAction.data : null;
+    const navUrl = navAction?.url as string | undefined;
+    const navLabel = navAction?.label as string | undefined;
 
     return (
-      <div
-        className={cn(
-          'inline-flex items-center gap-1.5 text-xs font-mono py-0.5 my-0.5',
-          isRunning && 'text-muted-foreground',
-          block.status === 'success' && 'text-muted-foreground',
-          block.status === 'failed' && 'text-destructive'
+      <div className="my-0.5">
+        <div
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs font-mono py-0.5',
+            isRunning && 'text-muted-foreground',
+            block.status === 'success' && 'text-muted-foreground',
+            block.status === 'failed' && 'text-destructive'
+          )}
+        >
+          <span className="text-muted-foreground/60">[</span>
+          {isRunning && (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Using {displayMessage}...</span>
+            </>
+          )}
+          {block.status === 'success' && (
+            <>
+              <span>Using {displayMessage}...</span>
+              <CheckCircle2 className="w-3 h-3 text-green-500" />
+              <span className="text-green-600">done</span>
+            </>
+          )}
+          {block.status === 'failed' && (
+            <>
+              <span>Using {displayMessage}...</span>
+              <XCircle className="w-3 h-3" />
+              <span>{errorMsg ? `failed: ${errorMsg.slice(0, 40)}${errorMsg.length > 40 ? '...' : ''}` : 'failed'}</span>
+            </>
+          )}
+          <span className="text-muted-foreground/60">]</span>
+        </div>
+        {block.status === 'success' && navUrl && (
+          <Link
+            href={navUrl}
+            className="inline-flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 font-medium mt-0.5 ml-1"
+          >
+            {navLabel || 'View'} <ArrowRight className="w-2.5 h-2.5" />
+          </Link>
         )}
-      >
-        <span className="text-muted-foreground/60">[</span>
-        {isRunning && (
-          <>
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>Using {displayMessage}...</span>
-          </>
-        )}
-        {block.status === 'success' && (
-          <>
-            <span>Using {displayMessage}...</span>
-            <CheckCircle2 className="w-3 h-3 text-green-500" />
-            <span className="text-green-600">done</span>
-          </>
-        )}
-        {block.status === 'failed' && (
-          <>
-            <span>Using {displayMessage}...</span>
-            <XCircle className="w-3 h-3" />
-            <span>{errorMsg ? `failed: ${errorMsg.slice(0, 40)}${errorMsg.length > 40 ? '...' : ''}` : 'failed'}</span>
-          </>
-        )}
-        <span className="text-muted-foreground/60">]</span>
       </div>
     );
   }
