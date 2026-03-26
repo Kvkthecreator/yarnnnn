@@ -1064,19 +1064,6 @@ async def global_chat(
     # ContextBundle is passed for backwards compatibility but is empty
     context = ContextBundle()
 
-    # Check if user has any agents (for onboarding mode)
-    is_onboarding = False
-    try:
-        agents_result = auth.client.table("agents")\
-            .select("id")\
-            .eq("user_id", auth.user_id)\
-            .neq("status", "archived")\
-            .limit(1)\
-            .execute()
-        is_onboarding = len(agents_result.data or []) == 0
-    except Exception as e:
-        logger.debug(f"[TP] Onboarding check failed, defaulting to non-onboarding: {e}")
-
     # ADR-023: Load surface content if user is viewing something specific
     surface_content = None
     if request.surface_context:
@@ -1128,7 +1115,6 @@ async def global_chat(
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,
-                    "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context

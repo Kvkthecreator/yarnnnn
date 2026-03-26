@@ -31,6 +31,8 @@ import {
   TrendingUp,
   Users,
   BookOpen,
+  UserCircle,
+  Paintbrush,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -399,11 +401,12 @@ function ChatPanel() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
+  // Workfloor-scoped actions: workspace context + task orchestration
   const plusMenuActions: PlusMenuAction[] = [
+    { id: 'update-identity', label: 'Update my identity', icon: UserCircle, verb: 'prompt', onSelect: () => { setInput('Update my identity'); textareaRef.current?.focus(); } },
+    { id: 'update-brand', label: 'Update my brand', icon: Paintbrush, verb: 'prompt', onSelect: () => { setInput('Update my brand'); textareaRef.current?.focus(); } },
     { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
-    { id: 'search-platforms', label: 'Search platforms', icon: Search, verb: 'prompt', onSelect: () => { setInput('Search across my connected platforms for '); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
-    { id: 'run-task', label: 'Run a task now', icon: RefreshCw, verb: 'prompt', onSelect: () => { setInput('Run my '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
 
@@ -412,9 +415,26 @@ function ChatPanel() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         {messages.length === 0 && !isLoading && (
-          <div className="text-center py-6">
-            <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
-            <p className="text-[11px] text-muted-foreground/40">Ask anything or type / for commands</p>
+          <div className="py-6 space-y-3">
+            <div className="text-center">
+              <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
+              <p className="text-[11px] text-muted-foreground/40">Get started</p>
+            </div>
+            <div className="flex flex-col gap-1.5 px-2">
+              {[
+                'Tell me about myself and my work',
+                'Update my brand from our website',
+                'Help me set up my first task',
+              ].map(chip => (
+                <button
+                  key={chip}
+                  onClick={() => { sendMessage(chip, { surface }); }}
+                  className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

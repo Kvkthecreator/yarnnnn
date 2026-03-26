@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from agents.base import BaseAgent, AgentResult, ContextBundle
 from agents.tp_prompts import build_system_prompt as build_modular_prompt
 from agents.tp_prompts.base import SIMPLE_PROMPT
-from agents.tp_prompts.onboarding import ONBOARDING_CONTEXT
 from services.anthropic import (
     chat_completion,
     chat_completion_stream,
@@ -51,15 +50,10 @@ class ThinkingPartnerAgent(BaseAgent):
     Output: Chat response (text, optionally streamed)
 
     ADR-059: Prompts now modularized in tp_prompts/ directory.
-    - SYSTEM_PROMPT: Simple prompt (from tp_prompts.base.SIMPLE_PROMPT)
-    - SYSTEM_PROMPT_WITH_TOOLS: Built dynamically via build_modular_prompt()
-    - ONBOARDING_CONTEXT: From tp_prompts.onboarding.ONBOARDING_CONTEXT
+    ADR-144: Context awareness always injected (graduated, not binary).
     """
 
     # ADR-059: Prompts are now modularized in tp_prompts/ directory
-    # SYSTEM_PROMPT: Simple prompt for non-tool conversations
-    # SYSTEM_PROMPT_WITH_TOOLS: Built dynamically via build_modular_prompt()
-    # ONBOARDING_CONTEXT: Imported from tp_prompts.onboarding
     SYSTEM_PROMPT = SIMPLE_PROMPT
 
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
@@ -122,7 +116,6 @@ class ThinkingPartnerAgent(BaseAgent):
         context: ContextBundle,
         include_context: bool,
         with_tools: bool = False,
-        is_onboarding: bool = False,
         surface_content: Optional[str] = None,
         selected_domain_name: Optional[str] = None,
         command_prompt: Optional[str] = None,
@@ -131,12 +124,12 @@ class ThinkingPartnerAgent(BaseAgent):
         """Build system prompt with memory context.
 
         ADR-059: Uses modular prompts from tp_prompts/ directory.
+        ADR-144: Context awareness always injected (graduated, not binary).
 
         Args:
             context: Memory context bundle (legacy)
             include_context: Whether to include memory context
             with_tools: Whether to include tool usage instructions
-            is_onboarding: Whether user has no agents (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_domain_name: ADR-034 - Name of user's selected domain context
             command_prompt: ADR-025 - Skill-specific prompt addition to inject
@@ -167,12 +160,10 @@ class ThinkingPartnerAgent(BaseAgent):
             context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
         # ADR-059: Use modular prompt builder
-        # ADR-144: Always inject context awareness prompt (graduated, not binary)
+        # ADR-144: Context awareness always included — graduated, not binary
         prompt = build_modular_prompt(
             with_tools=with_tools,
-            is_onboarding=is_onboarding,
             context=context_text,
-            onboarding_context=ONBOARDING_CONTEXT,
         )
 
         # ADR-025: Inject skill prompt if a skill is active
@@ -337,7 +328,6 @@ class ThinkingPartnerAgent(BaseAgent):
         params = parameters or {}
         include_context = params.get("include_context", True)
         history = params.get("history", [])
-        is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
         scoped_agent = params.get("scoped_agent")  # ADR-087: Agent-scoped context
@@ -385,7 +375,6 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
-            is_onboarding=is_onboarding,
             surface_content=surface_content,
             selected_domain_name=selected_domain_name,
             command_prompt=command_prompt,

@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.26.6] - ADR-144: Context awareness always-on + cold start chips
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Rewritten as `CONTEXT_AWARENESS` (renamed from `CONTEXT_AWARENESS_PROMPT`). Tighter prompt: priority order (Identity → Brand → Tasks), TP uses judgment on task-scaffolding readiness (no hard gate on identity richness), platform connections removed as prerequisite.
+- `agents/tp_prompts/__init__.py`: `CONTEXT_AWARENESS` always appended to system prompt sections. `is_onboarding` parameter deleted from `build_system_prompt()`.
+- `agents/thinking_partner.py`: `is_onboarding` parameter removed from `_build_system_prompt()` and `execute_stream_with_tools()`.
+- `routes/chat.py`: Deleted agent-count onboarding check (was always False since ADR-140 pre-scaffolds roster).
+
+### Added
+- `web/app/(authenticated)/workfloor/page.tsx`: Suggestion chips in chat empty state — "Tell me about myself and my work", "Update my brand from our website", "Help me set up my first task". Static frontend, no LLM call on page load. Disappear on first message.
+
+### Expected behavior
+- TP always has context awareness guidance (was dead — `is_onboarding` gated by agent count, but ADR-140 pre-scaffolds agents at signup)
+- New users see actionable suggestion chips instead of blank chat
+- TP uses judgment on task scaffolding readiness — sparse identity is enough if role/domain is clear
+- No page-refresh LLM calls — chips are deterministic, TP only fires on user interaction
+
 ## [2026.03.26.5] - ADR-144: Inference-First Shared Context
 
 ### Added

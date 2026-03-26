@@ -18,7 +18,16 @@ Context         — nested sub-navigation:
 
 ### Cold Start (Empty Workspace)
 
-Each context sub-tab shows guidance when empty:
+**Chat suggestion chips**: When chat history is empty, the chat panel shows clickable
+suggestion chips that send a message to TP on click:
+- "Tell me about myself and my work" → triggers identity enrichment flow
+- "Update my brand from our website" → triggers brand enrichment flow
+- "Help me set up my first task" → TP uses judgment on readiness
+
+Chips disappear once the user sends any message (conversation replaces them).
+No LLM call on page load — chips are static frontend, TP only fires on interaction.
+
+Each context sub-tab also shows guidance when empty:
 
 - **Identity**: "Your identity helps agents understand who you are. Try: 'Update my identity — I'm [name], [role] at [company]'"
 - **Brand**: "Your brand guide shapes how agents write. Try: 'Update my brand from our website'"
@@ -85,10 +94,9 @@ Working memory includes a `context_readiness` object so TP knows what's sparse:
 }
 ```
 
-TP uses this to guide conversations:
-- **All empty**: "Let's start by setting up your workspace context. Tell me about yourself and your work."
-- **Identity set, brand empty**: "Your identity is set. Want to add a brand guide? Share your website or describe your style."
-- **Context rich, no tasks**: "Your context looks good. Ready to create your first task?"
+TP uses this with judgment — there is no hard gate between context enrichment and task
+creation. A sparse identity with a clear role is enough for TP to suggest tasks.
+Priority order: Identity → Brand → Tasks, but the user is never blocked.
 
 ## Onboarding Dissolution
 
@@ -98,3 +106,10 @@ The `/onboarding` page is replaced by this workflow. New users land on `/workflo
 - TP chat that detects empty context and guides enrichment
 
 No separate onboarding step. The workfloor IS the onboarding surface.
+
+### TP Context Awareness
+
+The context awareness prompt is **always injected** into TP's system prompt (not gated
+by any onboarding flag). TP sees `context_readiness` signals in working memory every
+turn and uses judgment to guide the user. Platform connections are not a prerequisite —
+they enrich context but don't gate it.
