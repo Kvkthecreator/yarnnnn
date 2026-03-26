@@ -548,7 +548,7 @@ export const api = {
 
     update: (slug: string, data: Partial<TaskCreate> & { status?: string }) =>
       request<Task>(`/api/tasks/${slug}`, {
-        method: "PATCH",
+        method: "PUT",
         body: JSON.stringify(data),
       }),
 
@@ -561,6 +561,10 @@ export const api = {
     // Get latest output (rendered HTML)
     getLatestOutput: (slug: string) =>
       request<TaskOutput>(`/api/tasks/${slug}/outputs/latest`),
+
+    // Get specific output by date folder
+    getOutput: (slug: string, dateFolder: string) =>
+      request<TaskOutput>(`/api/tasks/${slug}/outputs/${dateFolder}`),
 
     // List output history
     listOutputs: async (slug: string, limit?: number) => {

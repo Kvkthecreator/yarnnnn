@@ -73,10 +73,14 @@ class TaskResponse(BaseModel):
     delivery: Optional[str] = None
     success_criteria: Optional[list] = None
     output_spec: Optional[list] = None
+    # Enriched from workspace (detail endpoint only)
+    run_log: Optional[str] = None
 
 
 class TaskOutputEntry(BaseModel):
-    date: str
+    folder: str           # date folder name (e.g., "2026-03-25T1400")
+    date: str             # same as folder — display-friendly alias
+    status: str           # from manifest or default "active"
     has_html: bool
     manifest: Optional[dict] = None
 
@@ -256,14 +260,15 @@ def _parse_task_md(content: str) -> dict:
 
 def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> TaskResponse:
     """Convert a DB row + optional TASK.md parse into TaskResponse."""
-    title = None
     objective = None
     process = None
 
     if task_md_parsed:
-        title = task_md_parsed.get("title")
         objective = task_md_parsed.get("objective")
         process = task_md_parsed.get("process")
+
+    # Title: prefer TASK.md title, fall back to slug
+    title = (task_md_parsed.get("title") if task_md_parsed else None) or row["slug"]
 
     return TaskResponse(
         id=str(row["id"]),
@@ -353,12 +358,15 @@ async def get_task(
 
     row = rows[0]
 
-    # Read TASK.md
+    # Read TASK.md + run_log (detail-only enrichment)
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
     content = await ws.read_task()
     parsed = _parse_task_md(content) if content else None
+    run_log = await ws.read("memory/run_log.md")
 
-    return _task_row_to_response(row, parsed)
+    response = _task_row_to_response(row, parsed)
+    response.run_log = run_log
+    return response
 
 
 @router.post("", status_code=201)
@@ -627,8 +635,17 @@ async def list_task_outputs(
             except (ValueError, _json.JSONDecodeError):
                 pass
 
+        # Derive status from manifest or lifecycle
+        output_status = "active"
+        if manifest:
+            output_status = manifest.get("status", "active")
+        if html_exists:
+            output_status = "delivered"
+
         entries.append(TaskOutputEntry(
+            folder=date_folder,
             date=date_folder,
+            status=output_status,
             has_html=html_exists,
             manifest=manifest,
         ))
@@ -692,6 +709,50 @@ async def get_latest_task_output(
     html_content = await ws.read(f"outputs/{date_folder}/output.html")
 
     # Read manifest.json if available
+    manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
+    manifest = None
+    if manifest_content:
+        try:
+            manifest = _json.loads(manifest_content)
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
+    return TaskOutputLatest(
+        content=content,
+        html_content=html_content,
+        date=date_folder,
+        manifest=manifest,
+    )
+
+
+@router.get("/{slug}/outputs/{date_folder}")
+async def get_task_output_by_date(
+    slug: str,
+    date_folder: str,
+    auth: UserClient,
+) -> TaskOutputLatest:
+    """
+    Get a specific task output by date folder (e.g., 2026-03-25T1400).
+    """
+    from services.task_workspace import TaskWorkspace
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+
+    content = await ws.read(f"outputs/{date_folder}/output.md")
+    html_content = await ws.read(f"outputs/{date_folder}/output.html")
+
     manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
     manifest = None
     if manifest_content:

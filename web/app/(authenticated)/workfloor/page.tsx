@@ -26,7 +26,6 @@ import {
   Search,
   Globe,
   RefreshCw,
-  Bookmark,
   FlaskConical,
   FileText,
   TrendingUp,
@@ -128,7 +127,7 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
         <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-xs">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
-            <span className="truncate">{task.title}</span>
+            <span className="truncate">{task.title || task.slug}</span>
           </div>
           {task.schedule && <span className="text-muted-foreground/40 shrink-0 ml-2">{task.schedule}</span>}
         </Link>
@@ -139,41 +138,152 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function ContextTab() {
-  const [identity, setIdentity] = useState<Record<string, string> | null>(null);
-  const [brand, setBrand] = useState<string | null>(null);
+function IdentityTab() {
+  const [profile, setProfile] = useState<{ name?: string; role?: string; company?: string; timezone?: string; summary?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ name: '', role: '', company: '', timezone: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.profile.get().catch(() => null),
-      api.brand.get().catch(() => ({ content: null, exists: false })),
-    ]).then(([profile, brandData]) => {
-      setIdentity(profile);
-      if (brandData?.exists) setBrand(brandData.content);
-      setLoading(false);
-    });
+    api.profile.get().then(p => { setProfile(p); setDraft({ name: p?.name || '', role: p?.role || '', company: p?.company || '', timezone: p?.timezone || '' }); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.profile.update(draft);
+      setProfile(updated);
+      setEditing(false);
+    } catch (e) { console.error(e); }
+    setSaving(false);
+  };
 
   if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
 
-  const files = [
-    { name: 'IDENTITY.md', content: identity?.name || null },
-    { name: 'BRAND.md', content: brand ? brand.slice(0, 60) : null },
-    { name: 'CONTEXT.md', content: null },
-  ];
+  const fields = [
+    { key: 'name', label: 'Name' },
+    { key: 'role', label: 'Role' },
+    { key: 'company', label: 'Company' },
+    { key: 'timezone', label: 'Timezone' },
+  ] as const;
+
+  const hasContent = profile && (profile.name || profile.role || profile.company);
 
   return (
-    <div className="space-y-1">
-      {files.map(f => (
-        <div key={f.name} className={cn('px-2 py-1.5 rounded text-[10px]', f.content ? '' : 'text-muted-foreground/25')}>
-          <span className="font-medium">{f.name}</span>
-          {f.content ? <span className="text-muted-foreground/60 ml-1.5">— {f.content}</span> : <span className="ml-1.5">Empty</span>}
+    <div className="space-y-2">
+      {editing ? (
+        <>
+          {fields.map(f => (
+            <div key={f.key} className="px-2">
+              <label className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">{f.label}</label>
+              <input
+                value={draft[f.key]}
+                onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+                className="w-full text-xs bg-muted/30 border border-border rounded px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                placeholder={f.label}
+              />
+            </div>
+          ))}
+          <div className="flex gap-1.5 px-2 pt-1">
+            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+              {saving ? '...' : 'Save'}
+            </button>
+            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : hasContent ? (
+        <>
+          {fields.map(f => {
+            const val = profile?.[f.key];
+            if (!val) return null;
+            return (
+              <div key={f.key} className="px-2 py-0.5">
+                <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wide">{f.label}</span>
+                <p className="text-xs">{val}</p>
+              </div>
+            );
+          })}
+          {profile?.summary && (
+            <div className="px-2 py-0.5">
+              <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wide">Summary</span>
+              <p className="text-[11px] text-muted-foreground/70">{profile.summary}</p>
+            </div>
+          )}
+          <button onClick={() => setEditing(true)} className="mx-2 mt-1 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70">
+            Edit →
+          </button>
+        </>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-[10px] text-muted-foreground/30 mb-2">No identity set — tell agents who you are</p>
+          <button onClick={() => setEditing(true)} className="text-[10px] text-primary hover:underline">Set up identity</button>
         </div>
-      ))}
-      <Link href="/context" className="block text-center text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 pt-1">
-        Browse full context →
-      </Link>
+      )}
+    </div>
+  );
+}
+
+function BrandTab() {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.brand.get().then(res => { if (res?.exists && res.content) { setContent(res.content); setDraft(res.content); } }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.brand.save(draft);
+      setContent(draft);
+      setEditing(false);
+    } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-2">
+      {editing ? (
+        <>
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            rows={8}
+            placeholder="Brand voice, tone, terminology, style guidelines..."
+            className="w-full text-xs bg-muted/30 border border-border rounded px-2.5 py-2 mx-0 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
+          />
+          <div className="flex gap-1.5 px-0 pt-0.5">
+            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+              {saving ? '...' : 'Save'}
+            </button>
+            <button onClick={() => { setDraft(content || ''); setEditing(false); }} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : content ? (
+        <>
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70">
+            Edit →
+          </button>
+        </>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-[10px] text-muted-foreground/30 mb-2">No brand guide — define voice, tone, and style</p>
+          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline">Add brand guide</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -383,7 +493,7 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'context' | 'platforms'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'identity' | 'brand' | 'platforms'>('tasks');
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -471,7 +581,7 @@ export default function WorkfloorPage() {
           {/* Tabs: Tasks | Context | Platforms */}
           <div className="border-t border-border pt-3">
             <div className="flex gap-1 mb-2">
-              {(['tasks', 'context', 'platforms'] as const).map(tab => (
+              {(['tasks', 'identity', 'brand', 'platforms'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -485,7 +595,8 @@ export default function WorkfloorPage() {
               ))}
             </div>
             {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
-            {activeTab === 'context' && <ContextTab />}
+            {activeTab === 'identity' && <IdentityTab />}
+            {activeTab === 'brand' && <BrandTab />}
             {activeTab === 'platforms' && <PlatformsTab />}
           </div>
         </div>

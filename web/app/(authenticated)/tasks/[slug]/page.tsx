@@ -284,33 +284,45 @@ function AgentsTab({ task }: { task: TaskDetail }) {
   const agentSlugs = task.agent_slugs || [];
 
   return (
-    <div className="p-4 space-y-2 max-w-xl">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-        Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
-      </p>
-      {agentSlugs.length > 0 ? (
-        <div className="space-y-1.5">
-          {agentSlugs.map((slug, idx) => (
-            <Link
-              key={slug}
-              href={`/agents/${slug}`}
-              className="flex items-center gap-2.5 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
-            >
-              {agentSlugs.length > 1 && (
-                <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
-                <p className="text-muted-foreground">{slug}</p>
-              </div>
-            </Link>
-          ))}
-          {agentSlugs.length > 1 && (
-            <p className="text-[11px] text-muted-foreground mt-2">Agents execute in sequence — each receives the prior agent&apos;s output as context.</p>
-          )}
+    <div className="p-4 space-y-4 max-w-xl">
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
+        </p>
+        {agentSlugs.length > 0 ? (
+          <div className="space-y-1.5">
+            {agentSlugs.map((slug, idx) => (
+              <Link
+                key={slug}
+                href={`/agents/${slug}`}
+                className="flex items-center gap-2.5 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
+              >
+                {agentSlugs.length > 1 && (
+                  <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+                  <p className="text-muted-foreground">{slug}</p>
+                </div>
+              </Link>
+            ))}
+            {agentSlugs.length > 1 && (
+              <p className="text-[11px] text-muted-foreground mt-2">Agents execute in sequence — each receives the prior agent&apos;s output as context.</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">No agents assigned to this task.</p>
+        )}
+      </div>
+
+      {/* Run log — accumulated execution history */}
+      {task.run_log && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Run Log</p>
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/30 rounded-lg p-3 max-h-48 overflow-y-auto">
+            <pre className="whitespace-pre-wrap font-mono">{task.run_log}</pre>
+          </div>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground py-4">No agents assigned to this task.</p>
       )}
     </div>
   );
@@ -472,13 +484,27 @@ export default function TaskPage() {
   const [error, setError] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'agents'>('output');
 
-  const loadTask = useCallback(() => {
+  const refreshData = useCallback(() => {
     if (!slug) return;
     api.tasks.get(slug).then(setTask).catch(console.error);
+    api.tasks.listOutputs(slug, 10)
+      .then(data => setOutputs(data?.outputs || []))
+      .catch(() => {});
+    // Refresh latest output only if we're viewing the most recent
+    api.tasks.getLatestOutput(slug)
+      .then(latest => {
+        if (latest) setSelectedOutput(prev => {
+          // Only auto-update if viewing latest or no selection
+          if (!prev || prev.date === latest.date) return latest;
+          return prev;
+        });
+      })
+      .catch(() => {});
   }, [slug]);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
+  // Initial load
   useEffect(() => {
     if (!slug) return;
     Promise.all([
@@ -494,6 +520,32 @@ export default function TaskPage() {
     }).catch(() => { setError('Failed to load task'); setLoading(false); });
   }, [slug]);
 
+  // Polling + visibility refresh (matches workfloor pattern)
+  useEffect(() => {
+    if (!slug || loading) return;
+    const interval = setInterval(refreshData, 30000);
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshData(); };
+    document.addEventListener('visibilitychange', onFocus);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
+  }, [slug, loading, refreshData]);
+
+  // Fetch full output content when selecting a historical run from ScheduleTab
+  const handleSelectOutput = useCallback((entry: TaskOutput) => {
+    if (!slug) return;
+    // If entry already has content, use it directly
+    if (entry.content || entry.html_content) {
+      setSelectedOutput(entry);
+      setLeftTab('output');
+      return;
+    }
+    // Fetch the specific output by date folder
+    const dateFolder = entry.folder || entry.date;
+    if (!dateFolder) { setSelectedOutput(entry); setLeftTab('output'); return; }
+    api.tasks.getOutput(slug, dateFolder)
+      .then(full => { setSelectedOutput(full || entry); setLeftTab('output'); })
+      .catch(() => { setSelectedOutput(entry); setLeftTab('output'); });
+  }, [slug]);
+
   if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (error || !task) {
     return (
@@ -504,14 +556,16 @@ export default function TaskPage() {
     );
   }
 
+  const displayTitle = task.title || task.slug;
+
   // Right panel = Task-scoped chat
   const panelTabs: WorkspacePanelTab[] = [
-    { id: 'chat', label: 'Chat', content: <TaskChatPanel taskSlug={slug} taskTitle={task.title} /> },
+    { id: 'chat', label: 'Chat', content: <TaskChatPanel taskSlug={slug} taskTitle={displayTitle} /> },
   ];
 
   return (
     <WorkspaceLayout
-      identity={{ icon: <FileText className="w-5 h-5" />, label: task.title }}
+      identity={{ icon: <FileText className="w-5 h-5" />, label: displayTitle }}
       breadcrumb={
         <Link href="/workfloor" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -547,9 +601,9 @@ export default function TaskPage() {
             <ScheduleTab
               task={task}
               outputs={outputs}
-              selectedFolder={selectedOutput?.folder || null}
-              onSelectOutput={(o) => { setSelectedOutput(o); setLeftTab('output'); }}
-              onRefresh={loadTask}
+              selectedFolder={selectedOutput?.folder || selectedOutput?.date || null}
+              onSelectOutput={handleSelectOutput}
+              onRefresh={refreshData}
             />
           )}
           {leftTab === 'agents' && <AgentsTab task={task} />}
