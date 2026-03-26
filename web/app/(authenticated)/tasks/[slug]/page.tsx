@@ -3,7 +3,7 @@
 /**
  * Task Page — v3: Tabbed Left + Task-Scoped Chat Right
  *
- * Left: [Output] [Task] tabs — output is hero, task tab has everything else
+ * Left: [Output] [Task] [Schedule] [Agents] tabs
  * Right: Task-scoped TP chat (always visible, resizable)
  * Same WorkspaceLayout pattern as workfloor.
  *
@@ -106,10 +106,61 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 }
 
 // =============================================================================
-// Left Panel: Task Tab (unified — schedule + runs + agents + definition)
+// Left Panel: Task Tab (definition — objective, criteria, output spec)
 // =============================================================================
 
-function TaskTab({
+function TaskDefinitionTab({ task }: { task: TaskDetail }) {
+  return (
+    <div className="p-4 space-y-5 max-w-xl">
+      {task.objective && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Objective</p>
+          <div className="text-xs space-y-1.5">
+            {task.objective.deliverable && <p><span className="text-muted-foreground">Deliverable:</span> {task.objective.deliverable}</p>}
+            {task.objective.audience && <p><span className="text-muted-foreground">Audience:</span> {task.objective.audience}</p>}
+            {task.objective.purpose && <p><span className="text-muted-foreground">Purpose:</span> {task.objective.purpose}</p>}
+            {task.objective.format && <p><span className="text-muted-foreground">Format:</span> {task.objective.format}</p>}
+          </div>
+        </div>
+      )}
+
+      {task.success_criteria && task.success_criteria.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Success Criteria</p>
+          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+            {task.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {task.output_spec && task.output_spec.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Output Spec</p>
+          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+            {task.output_spec.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {task.delivery && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Delivery</p>
+          <p className="text-xs flex items-center gap-1"><Mail className="w-3 h-3 text-muted-foreground" />{task.delivery}</p>
+        </div>
+      )}
+
+      {!task.objective && !task.success_criteria?.length && !task.output_spec?.length && (
+        <p className="text-sm text-muted-foreground py-4">No task definition yet. Use chat to define the objective.</p>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Left Panel: Schedule Tab (controls + run trajectory)
+// =============================================================================
+
+function ScheduleTab({
   task,
   outputs,
   selectedFolder,
@@ -125,7 +176,6 @@ function TaskTab({
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
   const statusColor = task.status === 'active' ? 'bg-green-500' : task.status === 'paused' ? 'bg-amber-500' : task.status === 'completed' ? 'bg-blue-500' : 'bg-gray-400';
-  const agentSlugs = task.agent_slugs || [];
 
   const handlePauseResume = async () => {
     try {
@@ -146,9 +196,8 @@ function TaskTab({
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-xl overflow-y-auto">
-
-      {/* ── Schedule controls (hero) ── */}
+    <div className="p-4 space-y-4 max-w-xl">
+      {/* Controls */}
       <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -177,7 +226,6 @@ function TaskTab({
             </button>
           </div>
         </div>
-
         <div className="grid grid-cols-2 gap-2 text-xs">
           {task.next_run_at && (
             <div>
@@ -191,16 +239,10 @@ function TaskTab({
               <span className="font-medium">{formatRelativeTime(task.last_run_at)}</span>
             </div>
           )}
-          {task.delivery && (
-            <div>
-              <span className="text-muted-foreground block mb-0.5">Delivery</span>
-              <span className="font-medium flex items-center gap-1"><Mail className="w-3 h-3" />{task.delivery}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* ── Runs ── */}
+      {/* Run trajectory */}
       <div>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
           Runs {outputs.length > 0 && `(${outputs.length})`}
@@ -230,68 +272,45 @@ function TaskTab({
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* ── Agents ── */}
-      {agentSlugs.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential)`}
-          </p>
-          <div className="space-y-1">
-            {agentSlugs.map((slug, idx) => (
-              <Link
-                key={slug}
-                href={`/agents/${slug}`}
-                className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
-              >
-                {agentSlugs.length > 1 && (
-                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
-                )}
-                <span className="font-medium">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
-                <span className="text-muted-foreground ml-auto">{slug}</span>
-              </Link>
-            ))}
-          </div>
+// =============================================================================
+// Left Panel: Agents Tab
+// =============================================================================
+
+function AgentsTab({ task }: { task: TaskDetail }) {
+  const agentSlugs = task.agent_slugs || [];
+
+  return (
+    <div className="p-4 space-y-2 max-w-xl">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
+      </p>
+      {agentSlugs.length > 0 ? (
+        <div className="space-y-1.5">
+          {agentSlugs.map((slug, idx) => (
+            <Link
+              key={slug}
+              href={`/agents/${slug}`}
+              className="flex items-center gap-2.5 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
+            >
+              {agentSlugs.length > 1 && (
+                <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+                <p className="text-muted-foreground">{slug}</p>
+              </div>
+            </Link>
+          ))}
+          {agentSlugs.length > 1 && (
+            <p className="text-[11px] text-muted-foreground mt-2">Agents execute in sequence — each receives the prior agent&apos;s output as context.</p>
+          )}
         </div>
-      )}
-
-      {/* ── Objective ── */}
-      {task.objective && (
-        <details className="group" open>
-          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
-            Objective
-          </summary>
-          <div className="text-xs space-y-1 mt-2 pl-1">
-            {task.objective.deliverable && <p><span className="text-muted-foreground">Deliverable:</span> {task.objective.deliverable}</p>}
-            {task.objective.audience && <p><span className="text-muted-foreground">Audience:</span> {task.objective.audience}</p>}
-            {task.objective.purpose && <p><span className="text-muted-foreground">Purpose:</span> {task.objective.purpose}</p>}
-            {task.objective.format && <p><span className="text-muted-foreground">Format:</span> {task.objective.format}</p>}
-          </div>
-        </details>
-      )}
-
-      {/* ── Success Criteria ── */}
-      {task.success_criteria && task.success_criteria.length > 0 && (
-        <details className="group">
-          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
-            Success Criteria ({task.success_criteria.length})
-          </summary>
-          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground mt-2 pl-1">
-            {task.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
-          </ul>
-        </details>
-      )}
-
-      {/* ── Output Spec ── */}
-      {task.output_spec && task.output_spec.length > 0 && (
-        <details className="group">
-          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
-            Output Spec ({task.output_spec.length} sections)
-          </summary>
-          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground mt-2 pl-1">
-            {task.output_spec.map((s, i) => <li key={i}>{s}</li>)}
-          </ul>
-        </details>
+      ) : (
+        <p className="text-sm text-muted-foreground py-4">No agents assigned to this task.</p>
       )}
     </div>
   );
@@ -451,7 +470,7 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'task'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'agents'>('output');
 
   const loadTask = useCallback(() => {
     if (!slug) return;
@@ -506,7 +525,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-2">
-          {(['output', 'task'] as const).map(tab => (
+          {(['output', 'task', 'schedule', 'agents'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -523,8 +542,9 @@ export default function TaskPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'task' && (
-            <TaskTab
+          {leftTab === 'task' && <TaskDefinitionTab task={task} />}
+          {leftTab === 'schedule' && (
+            <ScheduleTab
               task={task}
               outputs={outputs}
               selectedFolder={selectedOutput?.folder || null}
@@ -532,6 +552,7 @@ export default function TaskPage() {
               onRefresh={loadTask}
             />
           )}
+          {leftTab === 'agents' && <AgentsTab task={task} />}
         </div>
       </div>
     </WorkspaceLayout>
