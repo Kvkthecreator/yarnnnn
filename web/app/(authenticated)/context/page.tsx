@@ -295,7 +295,7 @@ function DocumentsPanel() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground/50 px-1">
-        Uploaded documents — used for onboarding context and agent reference
+        Uploaded documents — used by agents as reference material
       </p>
 
       {docs.length > 0 ? (

@@ -323,7 +323,7 @@ async def save_brand(body: BrandSaveRequest, auth: UserClient):
 
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(auth: UserClient):
-    """Get user's profile from /memory/MEMORY.md."""
+    """Get user's profile fields. Reads from /workspace/IDENTITY.md via UserMemory."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         profile = await um.get_profile()
