@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * ADR-100: Upgrade prompt component — always targets Pro tier.
+ * Upgrade prompt component — subscription + credits model.
  */
 
 import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { X, Sparkles, Loader2, Check } from "lucide-react";
-import { SUBSCRIPTION_LIMITS, formatLimit } from "@/lib/subscription/limits";
+import { TIER_LIMITS, formatLimit } from "@/lib/subscription/limits";
 
 interface UpgradePromptProps {
   /** What triggered the prompt */
-  feature: "messages" | "agents" | "documents";
+  feature: "messages" | "credits" | "tasks";
   /** Current usage count */
   currentUsage?: number;
   /** Whether to show as modal or inline banner */
@@ -28,15 +28,15 @@ interface UpgradePromptProps {
 const FEATURE_COPY = {
   messages: {
     title: "Need more messages?",
-    description: "You've used all your free messages this month. Upgrade to Pro for unlimited conversations.",
+    description: "You've used all your free messages this month. Upgrade to Pro for unlimited chat.",
   },
-  agents: {
-    title: "Unlock more agents",
-    description: "You've reached the agent limit. Upgrade to Pro for up to 10 active agents.",
+  credits: {
+    title: "Need more work credits?",
+    description: "Your agents have used all work credits this month. Upgrade to Pro for 500 credits/month.",
   },
-  documents: {
-    title: "Upload more documents",
-    description: "You've reached the document limit. Upgrade to Pro for unlimited document uploads.",
+  tasks: {
+    title: "Unlock more tasks",
+    description: "You've reached the task limit. Upgrade to Pro for up to 10 active tasks.",
   },
 };
 
@@ -52,10 +52,10 @@ export function UpgradePrompt({
   const [upgrading, setUpgrading] = useState(false);
 
   const copy = FEATURE_COPY[feature];
-  const limit = SUBSCRIPTION_LIMITS.free[
+  const limit = TIER_LIMITS.free[
     feature === "messages" ? "monthlyMessages" :
-    feature === "agents" ? "activeAgents" :
-    feature
+    feature === "credits" ? "monthlyCredits" :
+    "activeTasks"
   ];
 
   const handleUpgrade = async () => {
@@ -64,11 +64,11 @@ export function UpgradePrompt({
   };
 
   const proFeatures = [
-    "Unlimited messages",
-    "10 active agents",
+    "Unlimited chat",
+    "500 work credits/month",
+    "10 active tasks",
     "Unlimited sources",
     "Hourly sync",
-    "Priority support",
   ];
 
   if (variant === "banner") {
@@ -144,7 +144,6 @@ export function UpgradePrompt({
             {description || copy.description}
           </p>
 
-          {/* Pro features list */}
           <div className="p-4 bg-muted/30 rounded-lg mb-6">
             <p className="text-sm font-medium mb-3">Pro includes:</p>
             <ul className="space-y-2">
@@ -157,7 +156,6 @@ export function UpgradePrompt({
             </ul>
           </div>
 
-          {/* Price */}
           <div className="text-center mb-6">
             <span className="text-3xl font-bold">$19</span>
             <span className="text-muted-foreground">/month</span>

@@ -421,16 +421,16 @@ async def execute_task(
         logger.info(f"[TASK_EXEC] Agent: {agent_slug} (role={role}, scope={scope})")
 
         # =====================================================================
-        # 3. Check work budget
+        # 3. Check work credits
         # =====================================================================
         try:
-            from services.platform_limits import check_work_budget
-            budget_ok = check_work_budget(client, user_id)
-            if not budget_ok:
-                logger.info(f"[TASK_EXEC] Work budget exhausted for user {user_id[:8]}")
-                return _fail(task_slug, "Work budget exhausted")
+            from services.platform_limits import check_credits
+            credits_ok, credits_used, credits_limit = check_credits(client, user_id)
+            if not credits_ok:
+                logger.info(f"[TASK_EXEC] Work credits exhausted for user {user_id[:8]} ({credits_used}/{credits_limit})")
+                return _fail(task_slug, "Work credits exhausted")
         except Exception as e:
-            logger.warning(f"[TASK_EXEC] Budget check failed (proceeding): {e}")
+            logger.warning(f"[TASK_EXEC] Credits check failed (proceeding): {e}")
 
         # =====================================================================
         # 4. Create agent_runs record
@@ -758,8 +758,8 @@ alongside any binary — the text is the feedback surface for user edits."""
 
         if final_status == "delivered":
             try:
-                from services.platform_limits import record_work_units
-                record_work_units(client, user_id, "task_execution", 1, agent_id=str(agent_id))
+                from services.platform_limits import record_credits
+                record_credits(client, user_id, "task_execution", agent_id=str(agent_id), metadata={"task_slug": task_slug})
             except Exception:
                 pass
 
@@ -1216,10 +1216,10 @@ async def _execute_direct(
         except Exception:
             pass
 
-        # Work units
+        # Work credits
         try:
-            from services.platform_limits import record_work_units
-            record_work_units(client, user_id, "agent_run", 1, agent_id=str(agent_id))
+            from services.platform_limits import record_credits
+            record_credits(client, user_id, "task_execution", agent_id=str(agent_id))
         except Exception:
             pass
 

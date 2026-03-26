@@ -8,9 +8,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, CreditCard, Sun, Moon, Monitor } from 'lucide-react';
+import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api/client';
 
 interface UserMenuProps {
   email?: string;
@@ -18,10 +19,24 @@ interface UserMenuProps {
 
 export function UserMenu({ email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [credits, setCredits] = useState<{ used: number; limit: number; tier: string } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
+
+  // Fetch credits on mount
+  useEffect(() => {
+    api.integrations.getLimits()
+      .then((data) => {
+        setCredits({
+          used: data.usage.credits_used,
+          limit: data.limits.monthly_credits,
+          tier: data.tier,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -73,7 +88,19 @@ export function UserMenu({ email }: UserMenuProps) {
             <div className="px-3 py-2 border-b border-border">
               <p className="text-sm font-medium truncate">{email}</p>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">Free plan</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  {credits ? (
+                    <>
+                      <Zap className="w-3 h-3" />
+                      {credits.limit - credits.used} credits
+                      <span className="text-muted-foreground/60">
+                        {credits.tier === "pro" ? "Pro" : "Free"}
+                      </span>
+                    </>
+                  ) : (
+                    "Loading..."
+                  )}
+                </p>
                 <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
                   <button
                     onClick={() => setTheme('light')}

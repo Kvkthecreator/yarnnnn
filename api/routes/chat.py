@@ -999,14 +999,14 @@ async def global_chat(
             get_service_client(),
         ))
 
-    # ADR-100: Check monthly message limit before every message
+    # Check monthly message limit (Free tier only — Pro is unlimited)
     allowed, messages_used, message_limit = check_monthly_message_limit(auth.client, auth.user_id)
     if not allowed:
         raise HTTPException(
             status_code=429,
             detail={
                 "error": "monthly_message_limit_exceeded",
-                "message": f"You've used all {message_limit} free messages this month ({messages_used}/{message_limit}). Upgrade to Pro for unlimited messages.",
+                "message": f"You've reached your {message_limit} monthly messages ({messages_used}/{message_limit}). Upgrade to Pro for unlimited chat.",
                 "messages_used": messages_used,
                 "message_limit": message_limit,
                 "upgrade_url": "/settings?tab=billing",

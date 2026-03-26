@@ -2,7 +2,7 @@
 Account Management Routes — ADR-122 Phase 5 rewrite
 
 Purge actions are workspace-aware: all deletions include workspace_files,
-work_units, render_usage alongside relational tables.
+work_credits alongside relational tables.
 
 Three purge actions:
   1. Clear workspace — agents, projects, outputs, knowledge, activity
@@ -228,7 +228,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - workspace_files (all paths — agents, projects, knowledge, memory)
     - agents table (cascades agent_runs, export prefs, delivery logs)
     - chat_sessions (cascades session_messages)
-    - work_units, render_usage, activity_log
+    - work_credits, activity_log
     - agent_proposals, agent_context_log
     """
     user_id = auth.user_id
@@ -245,8 +245,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         deleted["agents"] = _delete_rows(client, "agents", user_id)
         deleted["agent_proposals"] = _delete_rows(client, "agent_proposals", user_id, optional=True)
         deleted["agent_context_log"] = _delete_rows(client, "agent_context_log", user_id, optional=True)
-        deleted["work_units"] = _delete_rows(client, "work_units", user_id, optional=True)
-        deleted["render_usage"] = _delete_rows(client, "render_usage", user_id, optional=True)
+        deleted["work_credits"] = _delete_rows(client, "work_credits", user_id, optional=True)
         deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
         deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
         deleted["user_interaction_patterns"] = _delete_rows(client, "user_interaction_patterns", user_id, optional=True)
@@ -358,8 +357,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "user_memory",
             "user_notification_preferences",
             "user_platform_styles",
-            "work_units",
-            "render_usage",
+            "work_credits",
         ]
         for table in tables:
             deleted[table] = _delete_rows(client, table, user_id, optional=True)

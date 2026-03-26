@@ -403,123 +403,92 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {/* Usage vs Limits bars */}
-          <div className="p-4 border border-border rounded-lg space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-medium">Plan limits</h3>
-              {!limitsLoading && limits && (
-                <span className="text-xs text-muted-foreground">
-                  Sync: {
-                    ({ "1x_daily": "1x daily", "2x_daily": "2x daily", "4x_daily": "4x daily", "hourly": "Hourly" } as Record<string, string>)[limits.limits.sync_frequency] || limits.limits.sync_frequency
-                  }
-                </span>
-              )}
+          {limitsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading usage...
             </div>
-
-            {limitsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading limits...
+          ) : limits ? (
+            <>
+              {/* Work Credits — the primary meter */}
+              <div className="p-4 border border-border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Work Credits</h3>
+                  <span className="text-sm text-muted-foreground">
+                    {limits.usage.credits_used} / {limits.limits.monthly_credits} this month
+                  </span>
+                </div>
+                {(() => {
+                  const percent = Math.min(100, Math.round((limits.usage.credits_used / Math.max(1, limits.limits.monthly_credits)) * 100));
+                  return (
+                    <>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Task run = 3 credits, Render = 1 credit. {limits.limits.monthly_credits - limits.usage.credits_used} credits remaining.
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
-            ) : limits ? (
-              <div className="space-y-3">
+
+              {/* Chat — only shown for Free tier */}
+              {limits.limits.monthly_messages !== -1 && (
+                <div className="p-4 border border-border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">Chat Messages</h3>
+                    <span className="text-sm text-muted-foreground">
+                      {limits.usage.monthly_messages_used} / {limits.limits.monthly_messages} this month
+                    </span>
+                  </div>
+                  {(() => {
+                    const percent = Math.min(100, Math.round((limits.usage.monthly_messages_used / Math.max(1, limits.limits.monthly_messages)) * 100));
+                    return (
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    );
+                  })()}
+                  <p className="text-xs text-muted-foreground">
+                    Upgrade to Pro for unlimited chat.
+                  </p>
+                </div>
+              )}
+
+              {/* Other limits */}
+              <div className="p-4 border border-border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Plan details</h3>
+                  <span className="text-xs text-muted-foreground">
+                    Sync: {({ "1x_daily": "1x daily", "2x_daily": "2x daily", "4x_daily": "4x daily", "hourly": "Hourly" } as Record<string, string>)[limits.limits.sync_frequency] || limits.limits.sync_frequency}
+                  </span>
+                </div>
                 {[
+                  { label: "Active tasks", used: limits.usage.active_tasks, limit: limits.limits.active_tasks },
                   { label: "Slack sources", used: limits.usage.slack_channels, limit: limits.limits.slack_channels },
                   { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
-                  { label: "Monthly messages", used: limits.usage.monthly_messages_used, limit: limits.limits.monthly_messages },
-                  { label: "Active agents", used: limits.usage.active_agents, limit: limits.limits.active_agents },
                 ].map((row) => {
-                  const percent = row.limit === -1 ? 0 : Math.min(100, Math.round((row.used / Math.max(1, row.limit)) * 100));
                   const formatUsage = (used: number, limit: number) =>
                     limit === -1 ? `${used} / Unlimited` : `${used} / ${limit}`;
                   return (
-                    <div key={row.label} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>{row.label}</span>
-                        <span className="text-muted-foreground">{formatUsage(row.used, row.limit)}</span>
-                      </div>
-                      {row.limit !== -1 && (
-                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
-                            style={{ width: `${percent}%` }}
-                          />
-                        </div>
-                      )}
+                    <div key={row.label} className="flex items-center justify-between text-sm">
+                      <span>{row.label}</span>
+                      <span className="text-muted-foreground">{formatUsage(row.used, row.limit)}</span>
                     </div>
                   );
                 })}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Unable to load usage limits.</p>
-            )}
-          </div>
-
-          {/* Summary cards */}
-          {isLoadingUsage ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : usageMetrics ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Agents</h3>
-                </div>
-                <p className="text-2xl font-semibold">{usageMetrics.agents}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {usageMetrics.agents === 1 ? "Active agent" : "Active agents"}
-                </p>
-              </div>
-
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Link2 className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Connected Platforms</h3>
-                </div>
-                <p className="text-2xl font-semibold">
-                  {usageMetrics.platforms.connected}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    /{usageMetrics.platforms.total}
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Connected platforms</p>
-              </div>
-
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Documents</h3>
-                </div>
-                <p className="text-2xl font-semibold">{usageMetrics.documents}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {usageMetrics.documents === 1 ? "Uploaded document" : "Uploaded documents"}
-                </p>
-              </div>
-
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Facts</h3>
-                </div>
-                <p className="text-2xl font-semibold">{usageMetrics.facts}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {usageMetrics.facts === 1 ? "Stored fact" : "Stored facts"}
-                </p>
-              </div>
-            </div>
+            </>
           ) : (
-            <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
+              <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
           )}
-
-          {/* Link to Context page */}
-          <div className="p-4 bg-muted/30 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              Manage your context sources in the{" "}
-              <a href="/context" className="text-primary hover:underline">Context page</a>.
-            </p>
-          </div>
         </section>
       )}
 

@@ -2102,11 +2102,11 @@ async def update_coverage(
 # =============================================================================
 
 class UserLimitsResponse(BaseModel):
-    """User's tier limits and current usage (ADR-053)."""
+    """User's tier limits and current usage. Subscription + work credits model."""
     tier: str
-    limits: dict[str, Any]  # Includes sync_frequency (str) and counts (int)
-    usage: dict[str, int]
-    next_sync: Optional[str] = None  # ISO timestamp of next scheduled sync
+    limits: dict[str, Any]  # sync_frequency (str), monthly_messages, monthly_credits, active_tasks, etc.
+    usage: dict[str, Any]   # credits_used, monthly_messages_used, active_tasks, etc.
+    next_sync: Optional[str] = None
 
 
 class SelectedSourcesRequest(BaseModel):
@@ -2126,14 +2126,10 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     Get user's tier limits and current usage.
 
-    ADR-100: Returns platform resource limits based on user tier,
-    current usage counts, and next scheduled sync time.
-
-    Response includes:
+    Returns subscription + work credits model:
     - tier: "free" | "pro"
-    - limits: slack_channels, notion_pages, total_platforms,
-              sync_frequency, monthly_messages, active_agents
-    - usage: Current usage counts for each resource
+    - limits: monthly_messages, monthly_credits, active_tasks, sources, sync_frequency
+    - usage: credits_used, monthly_messages_used, active_tasks, source counts
     - next_sync: ISO timestamp of next scheduled platform sync
     """
     from services.platform_limits import get_usage_summary

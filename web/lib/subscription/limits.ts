@@ -1,58 +1,56 @@
 /**
- * Subscription tier limits and feature flags
+ * Subscription + Work Credits model
  *
- * ADR-100: Simplified 2-tier monetization (Free + Pro).
- * Platform resource limits (Slack channels, Notion pages, etc.) are defined in
- * api/services/platform_limits.py and fetched via API.
+ * Subscription buys access + unlimited chat (Pro). Work credits meter autonomous work.
  *
- * Tier structure (ADR-100, 2026-03-09):
- * - Free: 5/5/10 sources, 1x/day sync, 50 messages/month, 2 agents
- * - Pro ($19/mo, Early Bird $9/mo): unlimited sources, hourly sync, unlimited messages, 10 agents
+ * Free: 150 messages/mo, 20 credits/mo, 2 active tasks
+ * Pro ($19/mo): unlimited chat, 500 credits/mo, 10 active tasks
+ *
+ * Credit costs: task execution = 3, render = 1
  */
 
-export const SUBSCRIPTION_LIMITS = {
+export const TIER_LIMITS = {
   free: {
-    monthlyMessages: 50,          // ADR-100: Monthly message limit
-    activeAgents: 2,        // ADR-100: Active agent limit
-    documents: 10,
+    monthlyMessages: 150,
+    monthlyCredits: 20,
+    activeTasks: 2,
   },
   pro: {
-    monthlyMessages: Infinity,    // Unlimited
-    activeAgents: Infinity,
-    documents: Infinity,
+    monthlyMessages: Infinity,    // Unlimited chat
+    monthlyCredits: 500,
+    activeTasks: 10,
   },
 } as const;
 
-export type SubscriptionTier = keyof typeof SUBSCRIPTION_LIMITS;
+export const CREDIT_COSTS = {
+  task_execution: 3,
+  render: 1,
+} as const;
 
-export interface UsageData {
-  monthlyMessagesUsed: number;
-  documentCount: number;
-  activeAgents: number;
-}
+export type SubscriptionTier = keyof typeof TIER_LIMITS;
 
 export interface LimitStatus {
   feature: string;
   current: number;
   limit: number;
   isAtLimit: boolean;
-  isNearLimit: boolean; // 80% threshold
+  isNearLimit: boolean;
   percentUsed: number;
 }
 
 export function checkLimit(
   tier: SubscriptionTier,
-  feature: keyof typeof SUBSCRIPTION_LIMITS.free,
+  feature: keyof typeof TIER_LIMITS.free,
   currentUsage: number
 ): LimitStatus {
-  const limit = SUBSCRIPTION_LIMITS[tier][feature];
+  const limit = TIER_LIMITS[tier][feature];
   const isUnlimited = limit === Infinity;
   const percentUsed = isUnlimited ? 0 : (currentUsage / limit) * 100;
 
   return {
     feature,
     current: currentUsage,
-    limit: isUnlimited ? -1 : limit, // -1 indicates unlimited
+    limit: isUnlimited ? -1 : limit,
     isAtLimit: !isUnlimited && currentUsage >= limit,
     isNearLimit: !isUnlimited && percentUsed >= 80,
     percentUsed: Math.min(percentUsed, 100),
@@ -63,19 +61,6 @@ export function formatLimit(limit: number): string {
   return limit === -1 || limit === Infinity ? "Unlimited" : limit.toString();
 }
 
-export function formatMessages(count: number): string {
-  return count.toString();
-}
-
-// Feature flags for Pro-only features
-export const PRO_FEATURES = {
-  bulkImport: false,             // available on free
-  documentUpload: false,         // available on free with limits
-  advancedAnalytics: true,
-  prioritySupport: true,
-  apiAccess: true,
-} as const;
-
-export function isProFeature(feature: keyof typeof PRO_FEATURES): boolean {
-  return PRO_FEATURES[feature];
+export function isProFeature(feature: string): boolean {
+  return false; // All features available on both tiers, just with different limits
 }

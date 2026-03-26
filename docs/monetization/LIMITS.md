@@ -1,48 +1,40 @@
 # yarnnn Platform Resource Limits
 
-> **Status**: Revised (ADR-100)
-> **Date**: 2026-03-09
-> **Related**: ADR-100 (Simplified Monetization), ADR-053 (Platform Sync Monetization)
+> **Status**: Implemented — subscription + work credits model
+> **Date**: 2026-03-26 (revised)
+> **Related**: ADR-100, [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md), [STRATEGY.md](./STRATEGY.md)
 
 ---
 
 ## Overview
 
-This document describes the resource limits that control platform usage based on subscription tier. These limits serve three purposes:
+Two gates: subscription (chat access) and work credits (autonomous work).
 
-1. **Cost Control** — Monthly messages and agents are the primary LLM cost drivers
-2. **Fair Usage** — Prevent abuse and ensure equitable resource distribution
-3. **Monetization** — Create upgrade incentives aligned with value delivered
-
-**Key Insight (ADR-100)**: Gate on what costs money (LLM usage). Users understand "50 messages/month" — not "50k tokens/day."
+- **Subscription** buys access + unlimited chat (Pro)
+- **Work credits** meter autonomous agent work (task runs, renders)
 
 ---
 
-## Tier Limits (ADR-100)
+## Tier Limits
 
 | Resource | Free | Pro ($19/mo) |
 |----------|------|--------------|
-| **Platforms** | All 4 | All 4 |
+| **Chat messages** | 150/month | **Unlimited** |
+| **Work credits** | 20/month | 500/month |
+| **Active tasks** | 2 | 10 |
 | **Slack sources** | 5 | Unlimited |
-| **Gmail labels** | 5 | Unlimited |
 | **Notion pages** | 10 | Unlimited |
-| **Calendars** | Unlimited | Unlimited |
+| **Platforms** | 2 (Slack + Notion) | 2 |
 | **Sync frequency** | 1x/day | Hourly |
-| **Monthly messages** | 50 | Unlimited |
-| **Active agents** | 2 | 10 |
 
-### Early Bird Pricing
+### Credit Costs
 
-- **$9/mo** — Same Pro features at promotional price during beta
-- Monthly only, no yearly
-- Separate Lemon Squeezy variant, sunset at our discretion
+| Action | Credits |
+|--------|---------|
+| Task execution (scheduled or manual) | 3 |
+| Render (PDF, chart, PPTX) | 1 |
 
-### Sync Frequency Schedule
-
-| Tier | Frequency | Schedule |
-|------|-----------|----------|
-| Free | 1x/day | 8am (user's timezone) |
-| Pro | Hourly | Every hour |
+All numbers configurable in `TIER_LIMITS` and `CREDIT_COSTS` dicts in `platform_limits.py`.
 
 ---
 
@@ -51,37 +43,24 @@ This document describes the resource limits that control platform usage based on
 ### Backend: `api/services/platform_limits.py`
 
 ```python
-@dataclass
-class PlatformLimits:
-    slack_channels: int
-    gmail_labels: int
-    notion_pages: int
-    calendars: int
-    total_platforms: int
-    sync_frequency: str
-    monthly_messages: int     # -1 for unlimited
-    active_agents: int  # -1 for unlimited
+CREDIT_COSTS = {
+    "task_execution": 3,
+    "render": 1,
+    "agent_run": 3,   # legacy alias
+}
 
 TIER_LIMITS = {
     "free": PlatformLimits(
-        slack_channels=5,
-        gmail_labels=5,
-        notion_pages=10,
-        calendars=-1,
-        total_platforms=4,
-        sync_frequency="1x_daily",
-        monthly_messages=50,
-        active_agents=2,
+        monthly_messages=150,
+        monthly_credits=20,
+        active_tasks=2,
+        ...
     ),
     "pro": PlatformLimits(
-        slack_channels=-1,
-        gmail_labels=-1,
-        notion_pages=-1,
-        calendars=-1,
-        total_platforms=4,
-        sync_frequency="hourly",
-        monthly_messages=-1,
-        active_agents=10,
+        monthly_messages=-1,      # Unlimited
+        monthly_credits=500,
+        active_tasks=10,
+        ...
     ),
 }
 ```
@@ -90,119 +69,70 @@ TIER_LIMITS = {
 
 | Function | Purpose |
 |----------|---------|
-| `get_user_tier(client, user_id)` | Returns user's subscription tier ("free" or "pro") |
-| `get_limits_for_user(client, user_id)` | Returns PlatformLimits for tier |
-| `check_source_limit(client, user_id, provider, count)` | Check if can add sources |
-| `check_monthly_message_limit(client, user_id)` | Check monthly message budget |
-| `check_agent_limit(client, user_id)` | Check active agent count |
-| `get_usage_summary(client, user_id)` | Full limits + usage report |
+| `check_credits(client, user_id)` | Check remaining work credits |
+| `record_credits(client, user_id, action_type)` | Record credit consumption |
+| `check_monthly_message_limit(client, user_id)` | Check chat limit (Free only) |
+| `check_task_limit(client, user_id)` | Check active task count |
+| `get_usage_summary(client, user_id)` | Full limits + usage for API |
+
+### Database
+
+- `work_credits` table — unified ledger (replaces `work_units` + `render_usage`)
+- `get_monthly_credits(p_user_id)` — RPC for monthly credit sum
+- `get_monthly_message_count(p_user_id)` — RPC for chat messages (Free tier)
+
+### Enforcement Points
+
+| Point | File | Gate |
+|-------|------|------|
+| Chat message | `api/routes/chat.py` | `check_monthly_message_limit()` — Free only |
+| Task execution | `api/services/task_pipeline.py` | `check_credits()` before pipeline |
+| Render | `api/services/primitives/runtime_dispatch.py` | `check_credits()` before dispatch |
+| Task creation | `api/routes/tasks.py` | `check_task_limit()` |
+
+### Frontend
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Credits in nav | `web/components/shell/UserMenu.tsx` | Shows remaining credits |
+| Usage tab | `web/app/(authenticated)/settings/page.tsx` | Credits bar + chat bar (Free) + plan details |
+| Upgrade prompt | `web/components/subscription/UpgradePrompt.tsx` | Modal/banner for messages, credits, tasks |
+| Tier constants | `web/lib/subscription/limits.ts` | `TIER_LIMITS`, `CREDIT_COSTS` |
 
 ---
 
-## Enforcement Points
-
-### 1. Monthly Message Limit (ADR-100)
-
-When user sends a chat message:
-- Calls `get_monthly_message_count()` RPC to count user messages this month
-- Returns 429 if at limit with upgrade prompt
-- Resets on 1st of each month (calendar month)
-
-**Files**: `api/services/platform_limits.py`, `api/routes/chat.py`
-
-### 2. Agent Limit
-
-When user creates a agent:
-- Check `active_agents` limit (Free: 2, Pro: 10)
-- Returns 429 error with upgrade prompt if at limit
-
-**Files**: `api/routes/agents.py`
-
-### 3. Source Selection
-
-When user selects sources to sync:
-- Frontend disables checkbox when at limit
-- Backend truncates to limit if exceeded
-- Shows upgrade prompt
-
-**Files**: `api/services/platform_limits.py`
-
-### 4. Sync Operations (Background)
-
-During scheduled syncs:
-- Only sync selected sources (within limits)
-- Tier-based frequency: Free=1x/day, Pro=hourly
-
-**Files**: `api/jobs/platform_sync_scheduler.py`
-
----
-
-## API Endpoints
+## API Endpoint
 
 ### GET `/api/user/limits`
-
-Returns current tier, limits, and usage.
 
 ```json
 {
   "tier": "free",
   "limits": {
+    "monthly_messages": 150,
+    "monthly_credits": 20,
+    "active_tasks": 2,
     "slack_channels": 5,
-    "gmail_labels": 5,
     "notion_pages": 10,
-    "calendars": -1,
-    "total_platforms": 4,
-    "sync_frequency": "1x_daily",
-    "monthly_messages": 50,
-    "active_agents": 2
+    "total_platforms": 2,
+    "sync_frequency": "1x_daily"
   },
   "usage": {
-    "slack_channels": 3,
-    "gmail_labels": 1,
-    "notion_pages": 2,
-    "calendars": 1,
-    "platforms_connected": 3,
     "monthly_messages_used": 12,
-    "active_agents": 1
+    "credits_used": 6,
+    "active_tasks": 1,
+    "slack_channels": 3,
+    "notion_pages": 2,
+    "platforms_connected": 1
   },
-  "next_sync": "2026-03-10T08:00:00+09:00"
+  "next_sync": "2026-03-27T08:00:00+09:00"
 }
 ```
 
 ---
 
-## Legacy
-
-### Deprecated Tier: Starter
-
-ADR-053 defined a $9/mo Starter tier between Free and Pro. ADR-100 removed it:
-- `get_user_tier()` maps any existing "starter" status to "pro"
-- Starter Lemon Squeezy variants no longer referenced in code
-- No migration needed — database values handled gracefully
-
-### Deprecated Gate: Daily Token Budget
-
-ADR-053 used `daily_token_budget` (50k/250k/unlimited tokens per day). ADR-100 replaced with `monthly_messages` (50/unlimited per month):
-- More user-understandable
-- Predictable cost ceiling
-- `get_daily_token_usage()` RPC kept for analytics, not enforcement
-
----
-
-## Related Files
-
-| File | Purpose |
-|------|---------|
-| `api/services/platform_limits.py` | Backend limit enforcement |
-| `api/routes/chat.py` | Monthly message limit check |
-| `api/routes/agents.py` | Agent limit check |
-| `web/lib/subscription/limits.ts` | Frontend limit constants |
-| `web/lib/api/client.ts` | Frontend API client (getLimits) |
-| `supabase/migrations/094_monthly_message_count.sql` | Monthly message count RPC |
-
----
-
 ## See Also
 
-- [ADR-100: Simplified Monetization](../adr/ADR-100-simplified-monetization.md)
-- [STRATEGY.md](./STRATEGY.md) - Pricing and billing strategy
+- [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md) — subscription + credits pricing model
+- [COST-MODEL.md](./COST-MODEL.md) — per-task economics
+- [STRATEGY.md](./STRATEGY.md) — business strategy

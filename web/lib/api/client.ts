@@ -938,8 +938,7 @@ export const api = {
         total_agents: number;
       }>("/api/integrations/summary"),
 
-    // ADR-100: 2-tier monetization — Source Selection & Limits
-    // Get user's tier limits, current usage, and next sync time
+    // Subscription + work credits model — tier limits and current usage
     getLimits: () =>
       request<{
         tier: "free" | "pro";
@@ -948,17 +947,19 @@ export const api = {
           notion_pages: number;
           total_platforms: number;
           sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
-          monthly_messages: number; // -1 for unlimited
-          active_agents: number; // -1 for unlimited
+          monthly_messages: number; // -1 for unlimited (Pro)
+          active_tasks: number;
+          monthly_credits: number;
         };
         usage: {
           slack_channels: number;
           notion_pages: number;
           platforms_connected: number;
           monthly_messages_used: number;
-          active_agents: number;
+          active_tasks: number;
+          credits_used: number;
         };
-        next_sync: string | null; // ISO timestamp
+        next_sync: string | null;
       }>("/api/user/limits"),
 
     // Get selected sources for a platform

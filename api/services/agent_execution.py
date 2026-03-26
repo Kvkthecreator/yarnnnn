@@ -1564,11 +1564,11 @@ async def execute_agent_generation(
         except Exception:
             pass  # Non-fatal — never block execution
 
-        # ADR-120 Phase 3: Record work units for delivered agent runs
+        # Record work credits for delivered agent runs
         if final_status == "delivered":
             try:
-                from services.platform_limits import record_work_units
-                record_work_units(svc_client, user_id, "agent_run", 1, agent_id=str(agent_id))
+                from services.platform_limits import record_credits
+                record_credits(svc_client, user_id, "task_execution", agent_id=str(agent_id))
             except Exception:
                 pass  # Non-fatal
 

@@ -25,21 +25,20 @@ const PRICING_OPTIONS: Array<{
 ];
 
 const PRO_FEATURES = [
-  "Unlimited messages",
-  "10 active agents",
-  "Hourly sync",
+  "Unlimited chat",
+  "500 work credits/month",
+  "10 active tasks",
   "Unlimited sources",
-  "Priority support",
+  "Hourly sync",
 ];
 
 const COMPARE_ROWS: Array<{ label: string; free: string; pro: string }> = [
-  { label: "Platforms", free: "All", pro: "All" },
+  { label: "Chat messages", free: "150/month", pro: "Unlimited" },
+  { label: "Work credits", free: "20/month", pro: "500/month" },
+  { label: "Active tasks", free: "2", pro: "10" },
   { label: "Slack sources", free: "5", pro: "Unlimited" },
   { label: "Notion pages", free: "10", pro: "Unlimited" },
   { label: "Sync frequency", free: "1x daily", pro: "Hourly" },
-  { label: "Monthly messages", free: "50", pro: "Unlimited" },
-  { label: "Active agents", free: "2", pro: "10" },
-  { label: "Priority support", free: "No", pro: "Yes" },
 ];
 
 function getPlanPriceLabel(plan: string | null | undefined): string {
@@ -226,7 +225,7 @@ export function SubscriptionCard() {
               Upgrade to Pro
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Unlimited messages, 10 agents, hourly sync, unlimited sources.
+              Unlimited chat, 500 work credits/month, 10 tasks, hourly sync.
             </p>
           </div>
 

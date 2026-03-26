@@ -1,14 +1,14 @@
 # yarnnn Monetization Strategy
 
-> **Status**: Updated for ADR-136 (cadence-bounded execution). See [COST-MODEL.md](COST-MODEL.md) for per-project economics.
-> **Date**: 2026-03-24 (revised from 2026-03-09)
-> **Related**: ADR-100 (Simplified Monetization), ADR-053 (Platform Sync Monetization)
+> **Status**: Updated for subscription + work credits model. See [COST-MODEL.md](COST-MODEL.md) for per-task economics.
+> **Date**: 2026-03-26 (revised)
+> **Related**: ADR-100, [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md), [LIMITS.md](./LIMITS.md)
 
 ## Overview
 
-This document outlines the monetization strategy for yarnnn. ADR-100 simplified from 3-tier to 2-tier (Free + Pro) with Early Bird pricing for beta.
+Two-tier model (Free + Pro) with subscription + work credits hybrid pricing.
 
-**Key Insight (ADR-100)**: Gate on what costs money (LLM usage via monthly messages + agent count). Sync is cheap — don't gate on it beyond source counts.
+**Key Insight**: Subscription buys access + unlimited chat (Pro). Work credits meter autonomous work (task runs, renders). Chat is the product onramp — don't gate it for paying users.
 
 ---
 
@@ -26,24 +26,24 @@ This document outlines the monetization strategy for yarnnn. ADR-100 simplified 
 ### Free Tier ($0)
 
 **Limits**:
-- **Platforms**: All 4
-- **Sources per platform**: 5 Slack / 5 Gmail / 10 Notion / Unlimited Calendar
+- **Chat messages**: 150/month
+- **Work credits**: 20/month
+- **Active tasks**: 2
+- **Sources**: 5 Slack / 10 Notion
 - **Sync frequency**: 1x/day
-- **Monthly messages**: 50
-- **Active agents**: 2
 
-**Rationale**: Generous enough to experience value and build habits. 50 messages/month = ~12/week. 2 agents = Recap + one other. Users hit natural upgrade triggers when they want more.
+**Rationale**: Generous enough to experience value. 150 messages = ~5/day. 20 credits = ~6 task runs. Users hit upgrade triggers when autonomous work proves valuable.
 
 ### Pro Tier ($19/month standard, $9/month Early Bird)
 
 **Limits**:
-- **Platforms**: All 4
-- **Sources per platform**: Unlimited
+- **Chat messages**: Unlimited
+- **Work credits**: 500/month
+- **Active tasks**: 10
+- **Sources**: Unlimited
 - **Sync frequency**: Hourly
-- **Monthly messages**: Unlimited
-- **Active agents**: 10
 
-**Rationale**: Single paid tier — one decision for the user. Early Bird at $9/mo for beta users, locked in while available.
+**Rationale**: Single paid tier. Chat unlimited = no meter anxiety. Work credits bound the real cost variable. Early Bird at $9/mo for beta users.
 
 ### Early Bird Strategy
 
@@ -108,23 +108,23 @@ Events to enable:
 
 ---
 
-## Cost Analysis (ADR-100)
+## Cost Analysis
 
-| Tier | Sync Cost/Mo | LLM Cost/Mo (est) | Price | Margin |
-|------|--------------|-------------------|-------|--------|
-| Free (active) | ~$0.05 | ~$6 | $0 | Loss leader |
-| Free (blended 40% active) | ~$0.02 | ~$3 | $0 | Loss leader |
-| Pro (moderate) | ~$0.50 | ~$7 | $19 | ~$11.50 (60%) |
-| Pro (heavy) | ~$0.50 | ~$18 | $19 | ~$0.50 (3%) |
-| Pro Early Bird (moderate) | ~$0.50 | ~$7 | $9 | ~$1.50 (17%) |
+| Tier | Chat Cost/Mo | Work Cost/Mo | Price | Margin |
+|------|-------------|-------------|-------|--------|
+| Free (active) | ~$1.50 | ~$0.50 | $0 | Loss leader |
+| Pro (moderate) | ~$4 | ~$4 | $19 | ~$11 (58%) |
+| Pro (heavy chat) | ~$10 | ~$3 | $19 | ~$6 (32%) |
+| Pro (heavy automation) | ~$1 | ~$11 | $19 | ~$7 (37%) |
+| Pro Early Bird | ~$4 | ~$4 | $9 | ~$1 (11%) |
 
-LLM costs are the dominant variable. Monthly message limit on free tier caps exposure.
+With prompt caching (deployed 2026-03-26), chat cost per message drops to ~$0.005-0.01. Work credits bound autonomous spend.
 
 ### Break-Even
 
-At $19 standard pricing with $3/mo blended free user cost:
-- Need ~15% conversion for net-positive
-- Realistic for B2B productivity tool with good activation
+At $19 standard pricing with ~$2/mo blended free user cost:
+- Need ~10% conversion for net-positive
+- Prompt caching significantly improves unit economics
 
 ---
 

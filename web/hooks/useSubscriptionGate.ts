@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import { useSubscription, type SubscriptionTier } from "./useSubscription";
 import {
-  SUBSCRIPTION_LIMITS,
+  TIER_LIMITS,
   checkLimit,
   type LimitStatus,
 } from "@/lib/subscription/limits";
@@ -24,7 +24,7 @@ export interface SubscriptionGate {
 
   // Helper to check any feature
   checkFeatureLimit: (
-    feature: keyof typeof SUBSCRIPTION_LIMITS.free,
+    feature: keyof typeof TIER_LIMITS.free,
     currentUsage: number
   ) => LimitStatus;
 }
@@ -40,7 +40,7 @@ export function useSubscriptionGate(): SubscriptionGate {
   const checkFeatureLimit = useMemo(
     () =>
       (
-        feature: keyof typeof SUBSCRIPTION_LIMITS.free,
+        feature: keyof typeof TIER_LIMITS.free,
         currentUsage: number
       ): LimitStatus => {
         return checkLimit(tier, feature, currentUsage);

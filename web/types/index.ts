@@ -719,15 +719,17 @@ export interface TierLimits {
     notion_pages: number;
     total_platforms: number;
     sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
-    monthly_messages: number; // -1 for unlimited (ADR-100)
-    active_agents: number;
+    monthly_messages: number; // -1 for unlimited (Pro)
+    active_tasks: number;
+    monthly_credits: number;
   };
   usage: {
     slack_channels: number;
     notion_pages: number;
     platforms_connected: number;
-    monthly_messages_used: number; // ADR-100
-    active_agents: number;
+    monthly_messages_used: number;
+    active_tasks: number;
+    credits_used: number;
   };
   next_sync?: string | null;
 }
