@@ -129,10 +129,9 @@ Context
   ├─ Identity    (rendered IDENTITY.md + "Update" button)
   ├─ Brand       (rendered BRAND.md + "Update" button)
   └─ Documents   (file list + upload)
-Platforms
 ```
 
-Three top-level sections. Context expands to show workspace files as sub-navigation. Scales to additional files (PLAYBOOK.md, CONTEXT.md) without adding top-level tabs.
+Two top-level sections (Platforms tab removed — platforms are infrastructure, not context). Context expands to show workspace files as sub-navigation. Scales to additional files (PLAYBOOK.md, CONTEXT.md) without adding top-level tabs.
 
 **"Update" button** sends a message to TP chat: "Update my identity" / "Update my brand". TP then orchestrates the inference flow — asks what sources to use, gathers them, runs inference, writes the file.
 

@@ -3,7 +3,7 @@
 /**
  * Workfloor — ADR-139 v3: Agent Grid + TP Chat Panel
  *
- * Left: Agent roster (living office) + tabbed data (Tasks | Identity | Brand | Documents | Platforms)
+ * Left: Agent roster (living office) + tabbed data (Tasks | Context with nested Identity/Brand/Documents)
  * Right: TP Chat (always visible, resizable via WorkspaceLayout)
  * No drawer — chat is the right panel.
  */
@@ -132,7 +132,7 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
           {task.schedule && <span className="text-muted-foreground/40 shrink-0 ml-2">{task.schedule}</span>}
         </Link>
       )) : (
-        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No tasks — use chat to create one</p>
+        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No tasks yet — set up your context first, then ask chat to create one</p>
       )}
     </div>
   );
@@ -217,9 +217,19 @@ function IdentityTab() {
           </button>
         </>
       ) : (
-        <div className="text-center py-4">
-          <p className="text-[10px] text-muted-foreground/30 mb-2">No identity set — tell agents who you are</p>
-          <button onClick={() => setEditing(true)} className="text-[10px] text-primary hover:underline">Set up identity</button>
+        <div className="py-4 px-2">
+          <p className="text-[11px] text-muted-foreground/60 mb-3">Your identity helps agents understand who you are and what you care about.</p>
+          <div className="space-y-1.5 text-[10px] text-muted-foreground/40">
+            <p>Try telling the chat:</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my identity — I&apos;m [name], [role] at [company]&quot;</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my identity from my LinkedIn&quot;</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my identity from the pitch deck I uploaded&quot;</p>
+          </div>
+          <div className="mt-3 pt-2 border-t border-border/30">
+            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
+              Or edit manually →
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -279,40 +289,21 @@ function BrandTab() {
           </button>
         </>
       ) : (
-        <div className="text-center py-4">
-          <p className="text-[10px] text-muted-foreground/30 mb-2">No brand guide — define voice, tone, and style</p>
-          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline">Add brand guide</button>
+        <div className="py-4 px-2">
+          <p className="text-[11px] text-muted-foreground/60 mb-3">Your brand guide shapes how agents write — tone, terminology, audience awareness.</p>
+          <div className="space-y-1.5 text-[10px] text-muted-foreground/40">
+            <p>Try telling the chat:</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my brand from our website&quot;</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my brand — we&apos;re technical but friendly, writing for developers&quot;</p>
+            <p className="italic text-muted-foreground/60">&quot;Update my brand from the brand guidelines I uploaded&quot;</p>
+          </div>
+          <div className="mt-3 pt-2 border-t border-border/30">
+            <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
+              Or edit manually →
+            </button>
+          </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function PlatformsTab() {
-  const [platforms, setPlatforms] = useState<Array<{ provider: string; status: string; resource_count: number }>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.integrations.getSummary().then(res => setPlatforms(res.platforms)).catch(() => []).finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
-
-  return (
-    <div className="space-y-1">
-      {['slack', 'notion'].map(provider => {
-        const p = platforms.find(pl => pl.provider === provider);
-        const connected = p && (p.status === 'active' || p.status === 'connected');
-        return (
-          <Link key={provider} href={connected ? `/context/${provider}` : '/settings?tab=connectors'} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/30 transition-colors text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className={cn('w-1.5 h-1.5 rounded-full', connected ? 'bg-emerald-500' : 'bg-gray-300')} />
-              <span className={cn('capitalize', connected ? '' : 'text-muted-foreground/30')}>{provider}</span>
-            </div>
-            {connected && <span className="text-[10px] text-muted-foreground/40">{p?.resource_count} sources</span>}
-          </Link>
-        );
-      })}
     </div>
   );
 }
@@ -351,7 +342,10 @@ function DocumentsTab() {
           <span className="text-muted-foreground/40 shrink-0 ml-2">{formatSize(doc.file_size)}</span>
         </div>
       )) : (
-        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No documents — upload via chat or drag &amp; drop</p>
+        <div className="py-4 px-2">
+          <p className="text-[11px] text-muted-foreground/60 mb-2">Documents give agents source material to work from — pitch decks, reports, guidelines.</p>
+          <p className="text-[10px] text-muted-foreground/40">Upload files via the chat input (+) or drag &amp; drop into the conversation.</p>
+        </div>
       )}
     </div>
   );
@@ -533,7 +527,8 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'identity' | 'brand' | 'documents' | 'platforms'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'context'>('tasks');
+  const [contextSubTab, setContextSubTab] = useState<'identity' | 'brand' | 'documents'>('identity');
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -618,10 +613,10 @@ export default function WorkfloorPage() {
             )}
           </div>
 
-          {/* Tabs: Tasks | Context | Platforms */}
+          {/* Tabs: Tasks | Context (nested: Identity, Brand, Documents) — ADR-144 */}
           <div className="border-t border-border pt-3">
             <div className="flex gap-1 mb-2">
-              {(['tasks', 'identity', 'brand', 'documents', 'platforms'] as const).map(tab => (
+              {(['tasks', 'context'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -634,11 +629,31 @@ export default function WorkfloorPage() {
                 </button>
               ))}
             </div>
+
             {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
-            {activeTab === 'identity' && <IdentityTab />}
-            {activeTab === 'brand' && <BrandTab />}
-            {activeTab === 'documents' && <DocumentsTab />}
-            {activeTab === 'platforms' && <PlatformsTab />}
+
+            {activeTab === 'context' && (
+              <div>
+                {/* Context sub-navigation */}
+                <div className="flex gap-0.5 mb-2 border-b border-border/50 pb-1.5">
+                  {(['identity', 'brand', 'documents'] as const).map(sub => (
+                    <button
+                      key={sub}
+                      onClick={() => setContextSubTab(sub)}
+                      className={cn(
+                        'px-2 py-0.5 text-[9px] font-medium rounded transition-colors capitalize',
+                        contextSubTab === sub ? 'bg-primary/10 text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground/70'
+                      )}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+                {contextSubTab === 'identity' && <IdentityTab />}
+                {contextSubTab === 'brand' && <BrandTab />}
+                {contextSubTab === 'documents' && <DocumentsTab />}
+              </div>
+            )}
           </div>
         </div>
       </div>
