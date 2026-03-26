@@ -111,23 +111,23 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 
 function TaskDefinitionTab({ task }: { task: TaskDetail }) {
   return (
-    <div className="p-4 space-y-5 max-w-xl">
+    <div className="p-5 space-y-6">
       {task.objective && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Objective</p>
-          <div className="text-xs space-y-1.5">
-            {task.objective.deliverable && <p><span className="text-muted-foreground">Deliverable:</span> {task.objective.deliverable}</p>}
-            {task.objective.audience && <p><span className="text-muted-foreground">Audience:</span> {task.objective.audience}</p>}
-            {task.objective.purpose && <p><span className="text-muted-foreground">Purpose:</span> {task.objective.purpose}</p>}
-            {task.objective.format && <p><span className="text-muted-foreground">Format:</span> {task.objective.format}</p>}
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Objective</p>
+          <div className="space-y-2">
+            {task.objective.deliverable && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Deliverable</span> {task.objective.deliverable}</p>}
+            {task.objective.audience && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Audience</span> {task.objective.audience}</p>}
+            {task.objective.purpose && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Purpose</span> {task.objective.purpose}</p>}
+            {task.objective.format && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Format</span> {task.objective.format}</p>}
           </div>
         </div>
       )}
 
       {task.success_criteria && task.success_criteria.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Success Criteria</p>
-          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Success Criteria</p>
+          <ul className="text-sm space-y-1.5 list-disc list-inside text-muted-foreground">
             {task.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
           </ul>
         </div>
@@ -135,8 +135,8 @@ function TaskDefinitionTab({ task }: { task: TaskDetail }) {
 
       {task.output_spec && task.output_spec.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Output Spec</p>
-          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Output Spec</p>
+          <ul className="text-sm space-y-1.5 list-disc list-inside text-muted-foreground">
             {task.output_spec.map((s, i) => <li key={i}>{s}</li>)}
           </ul>
         </div>
@@ -144,13 +144,13 @@ function TaskDefinitionTab({ task }: { task: TaskDetail }) {
 
       {task.delivery && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Delivery</p>
-          <p className="text-xs flex items-center gap-1"><Mail className="w-3 h-3 text-muted-foreground" />{task.delivery}</p>
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Delivery</p>
+          <p className="text-sm flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-muted-foreground" />{task.delivery}</p>
         </div>
       )}
 
       {!task.objective && !task.success_criteria?.length && !task.output_spec?.length && (
-        <p className="text-sm text-muted-foreground py-4">No task definition yet. Use chat to define the objective.</p>
+        <p className="text-sm text-muted-foreground py-6">No task definition yet. Use chat to define the objective.</p>
       )}
     </div>
   );
@@ -196,14 +196,14 @@ function ScheduleTab({
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-xl">
+    <div className="p-5 space-y-4">
       {/* Controls */}
-      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+      <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className={cn('w-2 h-2 rounded-full', statusColor)} />
             <span className="text-sm font-medium capitalize">{task.status}</span>
-            {task.schedule && <span className="text-xs text-muted-foreground">· {task.schedule}</span>}
+            {task.schedule && <span className="text-sm text-muted-foreground">· {task.schedule}</span>}
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -244,7 +244,7 @@ function ScheduleTab({
 
       {/* Run trajectory */}
       <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
           Runs {outputs.length > 0 && `(${outputs.length})`}
         </p>
         {outputs.length > 0 ? (
@@ -254,21 +254,21 @@ function ScheduleTab({
                 key={output.folder}
                 onClick={() => onSelectOutput(output)}
                 className={cn(
-                  'w-full flex items-center justify-between p-2.5 rounded-lg text-xs transition-colors',
+                  'w-full flex items-center justify-between p-3 rounded-lg text-sm transition-colors',
                   selectedFolder === output.folder ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full', output.status === 'delivered' ? 'bg-green-500' : output.status === 'failed' ? 'bg-red-500' : 'bg-amber-500')} />
+                <div className="flex items-center gap-2.5">
+                  <span className={cn('w-2 h-2 rounded-full', output.status === 'delivered' ? 'bg-green-500' : output.status === 'failed' ? 'bg-red-500' : 'bg-amber-500')} />
                   <span>{output.date}</span>
                 </div>
-                <span className="text-muted-foreground/50">{output.status === 'delivered' ? '✓' : output.status}</span>
+                <span className="text-xs text-muted-foreground/50">{output.status === 'delivered' ? '✓' : output.status}</span>
               </button>
             ))}
           </div>
         ) : (
-          <div className="py-4 text-center border border-dashed border-border/40 rounded-lg">
-            <p className="text-[10px] text-muted-foreground/40">No runs yet</p>
+          <div className="py-6 text-center border border-dashed border-border/40 rounded-lg">
+            <p className="text-xs text-muted-foreground/40">No runs yet</p>
           </div>
         )}
       </div>
@@ -300,9 +300,9 @@ function AgentsTab({ task }: { task: TaskDetail }) {
   if (loading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>;
 
   return (
-    <div className="p-4 space-y-4 max-w-xl">
+    <div className="p-5 space-y-4">
       <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-3">
           Assigned Agents {agents.length > 1 && `(${agents.length} — sequential pipeline)`}
         </p>
         {agents.length > 0 ? (
@@ -590,14 +590,14 @@ export default function TaskPage() {
       {/* Left: Tabbed content */}
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
-        <div className="flex border-b border-border shrink-0 px-2">
+        <div className="flex border-b border-border shrink-0 px-5">
           {(['output', 'task', 'schedule', 'agents'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
               className={cn(
-                'px-3 py-2 text-xs font-medium border-b-2 transition-colors capitalize',
-                leftTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/50 hover:text-muted-foreground'
+                'px-3 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize',
+                leftTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/40 hover:text-muted-foreground'
               )}
             >
               {tab}
