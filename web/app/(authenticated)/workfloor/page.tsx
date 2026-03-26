@@ -562,7 +562,7 @@ export default function WorkfloorPage() {
       identity={{ icon: <LayoutGrid className="w-5 h-5" />, label: 'Workfloor' }}
       panelTabs={panelTabs}
       panelDefaultOpen={true}
-      panelDefaultPct={40}
+      panelDefaultPct={33}
     >
       <div className="flex-1 overflow-y-auto p-5">
         <div className="max-w-2xl mx-auto">

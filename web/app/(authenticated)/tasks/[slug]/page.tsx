@@ -38,7 +38,6 @@ import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
@@ -344,7 +343,6 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   } = useTP();
 
   const [input, setInput] = useState('');
-  const [commandPickerOpen, setCommandPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { attachments, attachmentPreviews, handleFileSelect, handlePaste, removeAttachment, clearAttachments, getImagesForAPI, fileInputRef } = useFileAttachments();
@@ -356,9 +354,6 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
     if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; }
   }, []);
   useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
-
-  const commandQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
-  useEffect(() => { setCommandPickerOpen(commandQuery !== null && !input.includes(' ')); }, [commandQuery, input]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -438,8 +433,6 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
       </div>
 
       <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
-        <CommandPicker query={commandQuery ?? ''} onSelect={(cmd) => { setInput(cmd + ' '); setCommandPickerOpen(false); textareaRef.current?.focus(); }} onClose={() => setCommandPickerOpen(false)} isOpen={commandPickerOpen} />
-
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
@@ -573,7 +566,7 @@ export default function TaskPage() {
       }
       panelTabs={panelTabs}
       panelDefaultOpen={true}
-      panelDefaultPct={40}
+      panelDefaultPct={33}
     >
       {/* Left: Tabbed content */}
       <div className="flex flex-col flex-1 min-h-0">
