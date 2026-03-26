@@ -27,7 +27,7 @@ Replaces: agent_pulse.py, trigger_dispatch.py, execution_strategies.py,
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -311,8 +311,6 @@ def calculate_next_run_at(schedule, last_run_at: Optional[datetime] = None) -> O
     ADR-138: schedule is stored as a simple string ('daily', 'weekly', 'monthly')
     or cron expression in the tasks table.
     """
-    from datetime import timedelta
-
     now = last_run_at or datetime.now(timezone.utc)
 
     # Handle string schedules (ADR-138 tasks table format)
@@ -372,6 +370,20 @@ async def execute_task(
 
     started_at = datetime.now(timezone.utc)
     logger.info(f"[TASK_EXEC] Starting: {task_slug} for user {user_id[:8]}...")
+
+    # =====================================================================
+    # 0. Optimistic next_run_at bump — prevents scheduler re-pickup
+    # The scheduler queries next_run_at <= now every 5 min. If execution
+    # takes longer than 5 min, the task gets picked up again. Bump to
+    # +2 hours as a sentinel; the real value is set at step 15.
+    # =====================================================================
+    try:
+        sentinel = (started_at + timedelta(hours=2)).isoformat()
+        client.table("tasks").update({
+            "next_run_at": sentinel,
+        }).eq("user_id", user_id).eq("slug", task_slug).execute()
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] Optimistic next_run_at bump failed: {e}")
 
     try:
         # =====================================================================

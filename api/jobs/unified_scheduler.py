@@ -263,6 +263,18 @@ async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int
             failed += 1
             continue
 
+        # Belt-and-suspenders: skip if last_run_at is within 3 minutes
+        # (execution lock bumps next_run_at, but this catches edge cases)
+        last_run = task.get("last_run_at")
+        if last_run:
+            try:
+                last_run_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+                if (datetime.now(timezone.utc) - last_run_dt) < timedelta(minutes=3):
+                    logger.info(f"[TASKS] Skipping {slug} — last_run_at too recent ({last_run})")
+                    continue
+            except (ValueError, TypeError):
+                pass
+
         try:
             result = await execute_task(supabase_client, user_id, slug)
             if result.get("success"):
