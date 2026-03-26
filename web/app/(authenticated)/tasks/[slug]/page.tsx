@@ -223,6 +223,55 @@ function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => 
 }
 
 // =============================================================================
+// Left Panel: Agents Tab
+// =============================================================================
+
+function AgentsTab({ task }: { task: TaskDetail }) {
+  const agentSlugs = task.agent_slugs || [];
+
+  if (agentSlugs.length === 0) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">
+        No agents assigned to this task.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-2">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
+      </p>
+      {agentSlugs.map((slug, idx) => (
+        <Link
+          key={slug}
+          href={`/agents/${slug}`}
+          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors"
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-mono font-bold text-muted-foreground">
+            {agentSlugs.length > 1 ? idx + 1 : '→'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+            <p className="text-xs text-muted-foreground">{slug}</p>
+          </div>
+          {agentSlugs.length > 1 && (
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+              Step {idx + 1}
+            </span>
+          )}
+        </Link>
+      ))}
+      {agentSlugs.length > 1 && (
+        <p className="text-[11px] text-muted-foreground mt-3 pl-1">
+          Agents execute in sequence — each receives the prior agent&apos;s output as context.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
 // Left Panel: History Tab
 // =============================================================================
 
@@ -414,7 +463,7 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'schedule' | 'history'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'schedule' | 'agents' | 'history'>('output');
 
   const loadTask = useCallback(() => {
     if (!slug) return;
@@ -469,7 +518,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-2">
-          {(['output', 'schedule', 'history'] as const).map(tab => (
+          {(['output', 'schedule', 'agents', 'history'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -487,6 +536,7 @@ export default function TaskPage() {
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
           {leftTab === 'schedule' && <ScheduleTab task={task} onRefresh={loadTask} />}
+          {leftTab === 'agents' && <AgentsTab task={task} />}
           {leftTab === 'history' && (
             <HistoryTab
               outputs={outputs}
