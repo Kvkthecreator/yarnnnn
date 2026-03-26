@@ -18,6 +18,7 @@ import {
   Link2,
   ListChecks,
   ChevronRight,
+  ChevronDown,
   LayoutGrid,
   Cog,
   MessageCircle,
@@ -41,7 +42,7 @@ import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
@@ -118,7 +119,61 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 }
 
 // =============================================================================
-// Tabs below agent grid
+// Agent Strip — collapsible compact row, expands to full grid
+// =============================================================================
+
+function AgentStrip({ agents, tasks, loading }: { agents: Agent[]; tasks: Task[]; loading: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-3"><Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  const withTasks = agents.filter(a => {
+    const slug = a.slug || a.title.toLowerCase().replace(/\s+/g, '-');
+    return tasks.some(t => t.status !== 'archived' && t.agent_slugs?.includes(slug));
+  });
+
+  return (
+    <div className="mb-3">
+      {/* Compact header — always visible */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-2 py-1.5 text-left group"
+      >
+        {/* Avatar stack */}
+        <div className="flex -space-x-1.5">
+          {agents.slice(0, 6).map(agent => {
+            const config = getType(agent.role);
+            return (
+              <div
+                key={agent.id}
+                className="w-5 h-5 rounded-full border-2 border-background flex items-center justify-center"
+                style={{ backgroundColor: config.hex + '20' }}
+              >
+                <config.icon size={9} strokeWidth={2.5} style={{ color: config.hex }} />
+              </div>
+            );
+          })}
+        </div>
+        <span className="text-[11px] text-muted-foreground">
+          {agents.length} agents{withTasks.length > 0 && <> · {withTasks.length} with tasks</>}
+        </span>
+        <ChevronDown className={cn('w-3 h-3 text-muted-foreground/40 ml-auto transition-transform', expanded && 'rotate-180')} />
+      </button>
+
+      {/* Expanded grid */}
+      {expanded && (
+        <div className="grid grid-cols-3 gap-2 pt-1.5">
+          {agents.map(agent => <AgentRoomCard key={agent.id} agent={agent} tasks={tasks} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Tabs below agent strip
 // =============================================================================
 
 function TasksTab({ tasks }: { tasks: Task[] }) {
@@ -597,48 +652,19 @@ export default function WorkfloorPage() {
             </div>
           )}
 
-          {/* TP Card */}
-          <div className="mb-5">
-            <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/15 bg-primary/5">
-              <TPAvatar size={40} />
-              <div>
-                <span className="text-sm font-semibold">Orchestrator</span>
-                <span className="text-[10px] text-muted-foreground block">Your thinking partner — always online</span>
-              </div>
-              <span className="ml-auto w-2 h-2 rounded-full bg-primary animate-pulse" />
-            </div>
-          </div>
-
-          {/* Agent Grid */}
-          <div className="mb-5">
-
-            {agentsLoading ? (
-              <div className="flex items-center justify-center py-10"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
-            ) : activeAgents.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-2.5">
-                {activeAgents.map(agent => <AgentRoomCard key={agent.id} agent={agent} tasks={tasks} />)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2.5">
-                {['Research', 'Content', 'Marketing', 'CRM', 'Slack', 'Notion'].map(name => (
-                  <div key={name} className="flex flex-col items-center justify-center p-4 rounded-2xl border border-dashed border-border/30">
-                    <span className="text-[10px] text-muted-foreground/20">{name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Agent Strip — collapsible, compact by default */}
+          <AgentStrip agents={activeAgents} tasks={tasks} loading={agentsLoading} />
 
           {/* Tabs: Tasks | Context (nested: Identity, Brand, Documents) — ADR-144 */}
-          <div className="border-t border-border pt-3">
-            <div className="flex gap-1 mb-2">
+          <div>
+            <div className="flex gap-1 mb-3 border-b border-border/50 pb-2">
               {(['tasks', 'context'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    'px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors capitalize',
-                    activeTab === tab ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-muted-foreground'
+                    'px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize',
+                    activeTab === tab ? 'bg-muted text-foreground' : 'text-muted-foreground/40 hover:text-muted-foreground'
                   )}
                 >
                   {tab}
@@ -651,13 +677,13 @@ export default function WorkfloorPage() {
             {activeTab === 'context' && (
               <div>
                 {/* Context sub-navigation */}
-                <div className="flex gap-0.5 mb-2 border-b border-border/50 pb-1.5">
+                <div className="flex gap-1 mb-3 border-b border-border/30 pb-1.5">
                   {(['identity', 'brand', 'documents'] as const).map(sub => (
                     <button
                       key={sub}
                       onClick={() => setContextSubTab(sub)}
                       className={cn(
-                        'px-2 py-0.5 text-[9px] font-medium rounded transition-colors capitalize',
+                        'px-2.5 py-1 text-[11px] font-medium rounded transition-colors capitalize',
                         contextSubTab === sub ? 'bg-primary/10 text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground/70'
                       )}
                     >
