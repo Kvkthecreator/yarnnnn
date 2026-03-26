@@ -3,7 +3,7 @@
 /**
  * Workfloor — ADR-139 v3: Agent Grid + TP Chat Panel
  *
- * Left: Agent roster (living office) + tabbed data (Tasks | Context | Platforms)
+ * Left: Agent roster (living office) + tabbed data (Tasks | Identity | Brand | Documents | Platforms)
  * Right: TP Chat (always visible, resizable via WorkspaceLayout)
  * No drawer — chat is the right panel.
  */
@@ -35,7 +35,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import type { Agent, Task } from '@/types';
+import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
@@ -317,6 +317,46 @@ function PlatformsTab() {
   );
 }
 
+function DocumentsTab() {
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.documents.list()
+      .then(res => setDocs(res.documents || []))
+      .catch(() => [])
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  }
+
+  return (
+    <div className="space-y-1">
+      {docs.length > 0 ? docs.map(doc => (
+        <div key={doc.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
+              doc.processing_status === 'completed' ? 'bg-green-500' :
+              doc.processing_status === 'failed' ? 'bg-red-500' :
+              'bg-amber-500'
+            )} />
+            <span className="truncate">{doc.filename}</span>
+          </div>
+          <span className="text-muted-foreground/40 shrink-0 ml-2">{formatSize(doc.file_size)}</span>
+        </div>
+      )) : (
+        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No documents — upload via chat or drag &amp; drop</p>
+      )}
+    </div>
+  );
+}
+
 // =============================================================================
 // Chat Panel (right side — always visible)
 // =============================================================================
@@ -493,7 +533,7 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'identity' | 'brand' | 'platforms'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'identity' | 'brand' | 'documents' | 'platforms'>('tasks');
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -581,7 +621,7 @@ export default function WorkfloorPage() {
           {/* Tabs: Tasks | Context | Platforms */}
           <div className="border-t border-border pt-3">
             <div className="flex gap-1 mb-2">
-              {(['tasks', 'identity', 'brand', 'platforms'] as const).map(tab => (
+              {(['tasks', 'identity', 'brand', 'documents', 'platforms'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -597,6 +637,7 @@ export default function WorkfloorPage() {
             {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
             {activeTab === 'identity' && <IdentityTab />}
             {activeTab === 'brand' && <BrandTab />}
+            {activeTab === 'documents' && <DocumentsTab />}
             {activeTab === 'platforms' && <PlatformsTab />}
           </div>
         </div>
