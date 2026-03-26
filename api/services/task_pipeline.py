@@ -158,12 +158,11 @@ async def gather_task_context(
     try:
         kb_results = await kb.search(
             query=title,
-            role=role,
             limit=10,
         )
         if kb_results:
             kb_text = "\n\n".join([
-                f"### {r.get('path', 'unknown')}\n{r.get('content', '')[:2000]}"
+                f"### {getattr(r, 'path', 'unknown')}\n{getattr(r, 'content', '')[:2000]}"
                 for r in kb_results
             ])
             sections.append(f"## Knowledge Base\n{kb_text}")
