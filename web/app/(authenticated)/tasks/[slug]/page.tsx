@@ -3,7 +3,7 @@
 /**
  * Task Page — v3: Tabbed Left + Task-Scoped Chat Right
  *
- * Left: [Output] [Schedule] [History] tabs — output is full-tab hero
+ * Left: [Output] [Task] tabs — output is hero, task tab has everything else
  * Right: Task-scoped TP chat (always visible, resizable)
  * Same WorkspaceLayout pattern as workfloor.
  *
@@ -106,13 +106,26 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 }
 
 // =============================================================================
-// Left Panel: Schedule Tab (was "Details")
+// Left Panel: Task Tab (unified — schedule + runs + agents + definition)
 // =============================================================================
 
-function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => void }) {
+function TaskTab({
+  task,
+  outputs,
+  selectedFolder,
+  onSelectOutput,
+  onRefresh,
+}: {
+  task: TaskDetail;
+  outputs: TaskOutput[];
+  selectedFolder: string | null;
+  onSelectOutput: (o: TaskOutput) => void;
+  onRefresh?: () => void;
+}) {
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
   const statusColor = task.status === 'active' ? 'bg-green-500' : task.status === 'paused' ? 'bg-amber-500' : task.status === 'completed' ? 'bg-blue-500' : 'bg-gray-400';
+  const agentSlugs = task.agent_slugs || [];
 
   const handlePauseResume = async () => {
     try {
@@ -133,8 +146,9 @@ function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => 
   };
 
   return (
-    <div className="p-4 space-y-5 max-w-xl">
-      {/* Schedule controls — hero section */}
+    <div className="p-4 space-y-4 max-w-xl overflow-y-auto">
+
+      {/* ── Schedule controls (hero) ── */}
       <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -183,18 +197,67 @@ function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => 
               <span className="font-medium flex items-center gap-1"><Mail className="w-3 h-3" />{task.delivery}</span>
             </div>
           )}
-          {task.agent_slugs?.[0] && (
-            <div>
-              <span className="text-muted-foreground block mb-0.5">Agent</span>
-              <span className="font-medium">{task.agent_slugs[0]}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Objective — collapsible reference */}
+      {/* ── Runs ── */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+          Runs {outputs.length > 0 && `(${outputs.length})`}
+        </p>
+        {outputs.length > 0 ? (
+          <div className="space-y-1">
+            {outputs.map(output => (
+              <button
+                key={output.folder}
+                onClick={() => onSelectOutput(output)}
+                className={cn(
+                  'w-full flex items-center justify-between p-2.5 rounded-lg text-xs transition-colors',
+                  selectedFolder === output.folder ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('w-1.5 h-1.5 rounded-full', output.status === 'delivered' ? 'bg-green-500' : output.status === 'failed' ? 'bg-red-500' : 'bg-amber-500')} />
+                  <span>{output.date}</span>
+                </div>
+                <span className="text-muted-foreground/50">{output.status === 'delivered' ? '✓' : output.status}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="py-4 text-center border border-dashed border-border/40 rounded-lg">
+            <p className="text-[10px] text-muted-foreground/40">No runs yet</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Agents ── */}
+      {agentSlugs.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential)`}
+          </p>
+          <div className="space-y-1">
+            {agentSlugs.map((slug, idx) => (
+              <Link
+                key={slug}
+                href={`/agents/${slug}`}
+                className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
+              >
+                {agentSlugs.length > 1 && (
+                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
+                )}
+                <span className="font-medium">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                <span className="text-muted-foreground ml-auto">{slug}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Objective ── */}
       {task.objective && (
-        <details className="group">
+        <details className="group" open>
           <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
             Objective
           </summary>
@@ -207,7 +270,7 @@ function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => 
         </details>
       )}
 
-      {/* Success criteria — collapsible reference */}
+      {/* ── Success Criteria ── */}
       {task.success_criteria && task.success_criteria.length > 0 && (
         <details className="group">
           <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
@@ -218,92 +281,17 @@ function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => 
           </ul>
         </details>
       )}
-    </div>
-  );
-}
 
-// =============================================================================
-// Left Panel: Agents Tab
-// =============================================================================
-
-function AgentsTab({ task }: { task: TaskDetail }) {
-  const agentSlugs = task.agent_slugs || [];
-
-  if (agentSlugs.length === 0) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">
-        No agents assigned to this task.
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 space-y-2">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-        Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
-      </p>
-      {agentSlugs.map((slug, idx) => (
-        <Link
-          key={slug}
-          href={`/agents/${slug}`}
-          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors"
-        >
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-mono font-bold text-muted-foreground">
-            {agentSlugs.length > 1 ? idx + 1 : '→'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
-            <p className="text-xs text-muted-foreground">{slug}</p>
-          </div>
-          {agentSlugs.length > 1 && (
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
-              Step {idx + 1}
-            </span>
-          )}
-        </Link>
-      ))}
-      {agentSlugs.length > 1 && (
-        <p className="text-[11px] text-muted-foreground mt-3 pl-1">
-          Agents execute in sequence — each receives the prior agent&apos;s output as context.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Left Panel: History Tab
-// =============================================================================
-
-function HistoryTab({ outputs, selectedFolder, onSelect }: { outputs: TaskOutput[]; selectedFolder: string | null; onSelect: (o: TaskOutput) => void }) {
-  return (
-    <div className="p-4">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-        Run Trajectory {outputs.length > 0 && `(${outputs.length})`}
-      </p>
-      {outputs.length > 0 ? (
-        <div className="space-y-1">
-          {outputs.map(output => (
-            <button
-              key={output.folder}
-              onClick={() => onSelect(output)}
-              className={cn(
-                'w-full flex items-center justify-between p-2.5 rounded-lg text-xs transition-colors',
-                selectedFolder === output.folder ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span className={cn('w-1.5 h-1.5 rounded-full', output.status === 'delivered' ? 'bg-green-500' : output.status === 'failed' ? 'bg-red-500' : 'bg-amber-500')} />
-                <span>{output.date}</span>
-              </div>
-              <span className="text-muted-foreground/50">{output.status === 'delivered' ? '✓' : output.status}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="py-6 text-center border border-dashed border-border/40 rounded-lg">
-          <p className="text-[10px] text-muted-foreground/40">No runs yet</p>
-        </div>
+      {/* ── Output Spec ── */}
+      {task.output_spec && task.output_spec.length > 0 && (
+        <details className="group">
+          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
+            Output Spec ({task.output_spec.length} sections)
+          </summary>
+          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground mt-2 pl-1">
+            {task.output_spec.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </details>
       )}
     </div>
   );
@@ -463,7 +451,7 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'schedule' | 'agents' | 'history'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'task'>('output');
 
   const loadTask = useCallback(() => {
     if (!slug) return;
@@ -518,7 +506,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-2">
-          {(['output', 'schedule', 'agents', 'history'] as const).map(tab => (
+          {(['output', 'task'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -535,13 +523,13 @@ export default function TaskPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'schedule' && <ScheduleTab task={task} onRefresh={loadTask} />}
-          {leftTab === 'agents' && <AgentsTab task={task} />}
-          {leftTab === 'history' && (
-            <HistoryTab
+          {leftTab === 'task' && (
+            <TaskTab
+              task={task}
               outputs={outputs}
               selectedFolder={selectedOutput?.folder || null}
-              onSelect={(o) => { setSelectedOutput(o); setLeftTab('output'); }}
+              onSelectOutput={(o) => { setSelectedOutput(o); setLeftTab('output'); }}
+              onRefresh={loadTask}
             />
           )}
         </div>

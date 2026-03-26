@@ -763,7 +763,7 @@ export interface TaskDetail extends Task {
   task_md?: string;            // raw TASK.md content
   run_log?: string;            // memory/run_log.md content
   success_criteria?: string[];
-  output_spec?: string;
+  output_spec?: string[];
 }
 
 export interface TaskCreate {
