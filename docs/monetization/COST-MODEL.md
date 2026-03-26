@@ -1,117 +1,113 @@
-# Cost Model — Per-Project Economics
+# Cost Model — Per-Task Economics
 
-> **Status**: Canonical — updated for ADR-137 (declarative pipeline, no PM coordination overhead)
-> **Date**: 2026-03-24 (revised)
-> **Related**: ADR-100 (tier model), ADR-130 (capabilities), ADR-136 (charter architecture)
+> **Status**: Canonical — updated for ADR-138 (agents + tasks) and prompt caching
+> **Date**: 2026-03-26 (revised)
+> **Related**: ADR-100 (tier model), ADR-138 (agents as work units), ADR-141 (task pipeline), [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md)
 
 ---
 
-## Per-Project Cost Breakdown
+## Per-Task Cost Breakdown
 
-With cadence enforcement (ADR-136) and PM prompt modes, each project's cost is predictable.
+With prompt caching (deployed 2026-03-26) and mechanical task pipeline (ADR-141), each task's cost is predictable.
 
-### Weekly Project (1 contributor + PM)
+### Daily Task (e.g., Slack briefer)
 
 | Step | Model | Calls/Week | Cost/Call | Weekly |
 |------|-------|-----------|----------|--------|
-| Contributor pre-screen (Tier 2) | Haiku | 1 | $0.001 | $0.001 |
-| Contributor generation | Sonnet | 1 | $0.03-0.05 | $0.04 |
-| PM coordination pulses (Tier 3) | Haiku | 2-4 | $0.001 | $0.003 |
-| PM assembly + delivery | Sonnet | 1 | $0.05 | $0.05 |
-| PM quality evaluation | Haiku | 1 | $0.001 | $0.001 |
-| Compose (render service) | Internal | 1 | ~$0 | $0 |
-| **Total** | | | | **~$0.10/week** |
+| Task execution (weekdays) | Sonnet (cached) | 5 | $0.02-0.03 | $0.125 |
+| Delivery (email/Slack) | Internal | 5 | ~$0 | $0 |
+| **Total** | | | | **~$0.13/week** |
 
-**Monthly: ~$0.40-0.50 per project**
+**Monthly: ~$0.50 per daily task**
 
-### Weekly Project (3 contributors + PM)
+### Weekly Task (e.g., research report)
 
 | Step | Model | Calls/Week | Cost/Call | Weekly |
 |------|-------|-----------|----------|--------|
-| 3× Contributor pre-screen | Haiku | 3 | $0.001 | $0.003 |
-| 2× Contributor generation (1 skips — no change) | Sonnet | 2 | $0.04 | $0.08 |
-| PM coordination | Haiku | 4 | $0.001 | $0.004 |
-| PM assembly | Sonnet | 1 | $0.05 | $0.05 |
-| PM evaluation + reflection | Haiku + Sonnet | 2 | $0.015 | $0.03 |
-| **Total** | | | | **~$0.17/week** |
+| Task execution | Sonnet (cached) | 1 | $0.03-0.05 | $0.04 |
+| Render (if PDF/chart) | Internal | 0-1 | $0.005 | $0.003 |
+| **Total** | | | | **~$0.04/week** |
 
-**Monthly: ~$0.70 per project**
+**Monthly: ~$0.17 per weekly task**
 
-### Daily Project (briefer + PM — Slack recap)
+### Monthly Task (e.g., competitor analysis)
 
-| Step | Model | Calls/Week | Cost/Call | Weekly |
-|------|-------|-----------|----------|--------|
-| 5× Briefer pre-screen (weekdays) | Haiku | 5 | $0.001 | $0.005 |
-| 5× Briefer generation | Sonnet | 5 | $0.03 | $0.15 |
-| 5× PM passthrough delivery | Haiku | 5 | $0.001 | $0.005 |
-| **Total** | | | | **~$0.16/week** |
-
-**Monthly: ~$0.65 per project**
+| Step | Model | Calls/Month | Cost/Call | Monthly |
+|------|-------|------------|----------|---------|
+| Task execution | Sonnet (cached) | 1 | $0.04-0.06 | $0.05 |
+| Render (if needed) | Internal | 0-1 | $0.005 | $0.005 |
+| **Total** | | | | **~$0.06/month** |
 
 ---
 
-## Cost Optimization Levers
+## User Cost Profiles
 
-### Implemented
+### Casual Pro ($19/mo) — 3 tasks
 
-1. **Cadence enforcement (ADR-136)** — agents only run when cadence window opens. Weekly = 1 run/week, not unbounded.
-2. **30-min cooldown (Tier 1)** — prevents cascade loops.
-3. **Tier 2 pre-screen (Haiku, 2 tool rounds)** — cheap check before expensive generation. Skips if nothing changed.
-4. **PM prompt modes** — Haiku for coordination, Sonnet only for composition + reflection.
+- 2 weekly tasks + 1 monthly task
+- Task cost: (2 × $0.17) + $0.06 = **$0.40/month**
+- Chat cost (est. 200 messages): **$2.00/month**
+- **Total: ~$2.40/month → 87% margin**
 
-### Future Optimizations
+### Active Pro ($19/mo) — 6 tasks
 
-5. **Output diffing** — if contributor output is <10% different from last run, skip delivery. Saves assembly Sonnet call.
-6. **Shared context cache** — multiple agents in same project don't re-read the same workspace files.
-7. **Prompt caching** — Anthropic prompt caching for stable system prompts (PM template, role prompts).
-8. **Haiku-only projects** — simple briefer projects could use Haiku for generation (cheaper, lower quality).
+- 2 daily tasks + 3 weekly tasks + 1 monthly task
+- Task cost: (2 × $0.50) + (3 × $0.17) + $0.06 = **$1.57/month**
+- Chat cost (est. 500 messages): **$4.00/month**
+- **Total: ~$5.57/month → 71% margin**
 
----
+### Power Pro ($19/mo) — 10 tasks
 
-## Pricing Tiers (Updated)
-
-| Plan | Projects | Agents | Monthly LLM Cost | Suggested Price | Gross Margin |
-|------|----------|--------|------------------|-----------------|-------------|
-| **Free** | 2 | 3-4 | ~$1.00 | $0 | -100% (trial) |
-| **Pro** | 10 | 15-20 | ~$6.00 | $19/mo | 68% |
-| **Business** | 50 | 75-100 | ~$30.00 | $99/mo | 70% |
-
-### Comparison with ADR-100 (old model)
-
-| Metric | ADR-100 (old) | Current (ADR-136) |
-|--------|---------------|-------------------|
-| Primary gate | Monthly messages (50/∞) | Projects + cadence |
-| Cost driver | Unpredictable (user msg volume) | Predictable (N projects × cadence) |
-| Agent limit | 2 free / 10 pro | Same |
-| Execution model | Unbounded pulses | Cadence-bounded |
-| Cost per project | Unknown (varied by usage) | ~$0.50/month |
-
-### Key Insight
-
-**The cost is now per-project, not per-message.** A user with 5 weekly projects costs ~$2.50/month regardless of how much they chat (chat is user-initiated, not agent-generated). This makes the business model predictable:
-
-- **CAC recovery**: Pro user ($19/mo) at $6/mo cost = $13/mo contribution margin
-- **Break-even**: ~1 month for direct costs
-- **LTV at 12-month retention**: $156 contribution / $72 cost = 2.2x
+- 4 daily tasks + 4 weekly tasks + 2 monthly tasks
+- Task cost: (4 × $0.50) + (4 × $0.17) + (2 × $0.06) = **$2.80/month**
+- Chat cost (est. 800 messages): **$6.00/month**
+- **Total: ~$8.80/month → 54% margin**
 
 ---
 
-## Token Optimization Strategy
+## Cost Optimization — Implemented
 
-### Current Token Usage per Sonnet Call
+1. **Prompt caching** (2026-03-26) — 90% savings on stable system prompt + tool definitions. Cached Sonnet calls drop from ~$0.05 to ~$0.02-0.03.
+2. **Mechanical scheduling** (ADR-141) — zero LLM cost for scheduling decisions. SQL-only: `next_run_at <= now()`.
+3. **Execution lock** (2026-03-26) — optimistic `next_run_at` bump prevents duplicate runs. Eliminated 6x duplicate execution bug.
+4. **Context scoping** — task pipeline reads only TASK.md + AGENT.md + relevant workspace context. No unbounded platform dumps.
+
+## Cost Optimization — Future
+
+5. **Batch API** — Anthropic Batch API (50% off, non-real-time). Task executions are non-interactive — route through batch to cut per-task cost further.
+6. **Output diffing** — if output is <10% different from last run, skip delivery. Saves Sonnet call.
+7. **Haiku pre-screen** — cheap check before expensive generation (is there new content since last run?). Saves Sonnet calls on no-change cycles.
+
+---
+
+## Token Usage per Task Execution
 
 | Component | Tokens | Source |
 |-----------|--------|--------|
-| System prompt (PM) | ~2000 | PM prompt template + project context |
-| System prompt (contributor) | ~3000 | Role prompt + workspace context + SKILL.md |
-| Input context (platform content) | ~5000-10000 | Platform sync data |
-| Tool results | ~2000-5000 | Search/Read results per tool round |
+| System prompt (cached) | ~2000 | Role prompt + TASK.md context |
+| AGENT.md context (cached) | ~1000 | Agent identity + instructions |
+| Workspace context | ~2000-5000 | Platform content, memory files |
+| Tool results | ~1000-3000 | Search/Read results per tool round |
 | Output | ~500-2000 | Generated content |
-| **Total per call** | **~12000-20000** | |
+| **Total per call** | **~6500-13000** | |
 
-### Optimization Opportunities
+With caching: system prompt + AGENT.md = ~3000 tokens cached (90% discount on input cost).
 
-1. **System prompt caching**: PM and contributor prompts are mostly stable. Anthropic's prompt caching could reduce input token cost by 90% for the stable portion.
-2. **Context window management**: cap platform content injection to most-recent N items (currently unbounded).
-3. **SKILL.md selective injection**: only inject SKILL.md for capabilities the agent's type has (already done via `has_asset_capabilities()`).
-4. **Workspace read caching**: within a single pulse cycle, cache workspace file reads.
+---
+
+## Pricing Alignment
+
+| Plan | Tasks | Est. Monthly LLM Cost | Subscription | Gross Margin |
+|------|-------|----------------------|-------------|-------------|
+| **Free** | 2 | ~$0.50-1.50 | $0 | Loss leader |
+| **Pro** | 10 | ~$3-9 | $19/mo | 53-84% |
+
+Work credits (500/mo Pro) provide a secondary bound: even if all 10 tasks run daily (10 × 3 × 30 = 900 credits), the user hits the credit limit before LLM cost becomes unsustainable. Overage packs ($5/100) have ~80% margin.
+
+---
+
+## See Also
+
+- [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md) — subscription + credits pricing model
+- [STRATEGY.md](./STRATEGY.md) — business strategy and Lemon Squeezy setup
+- [LIMITS.md](./LIMITS.md) — enforcement framework

@@ -2,47 +2,42 @@
 
 ## Overview
 
-This directory contains documentation for yarnnn's monetization strategy using Lemon Squeezy for payment processing. The implementation reuses the same Lemon Squeezy account as episode-0 (fantazy/chat_companion) but with separate yarnnn-specific products.
+This directory contains documentation for yarnnn's monetization strategy. Payment processing via Lemon Squeezy (same account as episode-0, separate products).
 
 ## Documents
 
 | Document | Description |
 |----------|-------------|
-| [STRATEGY.md](./STRATEGY.md) | Business strategy, pricing tiers, and Lemon Squeezy setup |
-| [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Technical implementation guide with code examples |
+| [STRATEGY.md](./STRATEGY.md) | Business strategy, pricing tiers, Lemon Squeezy setup |
+| [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md) | **Subscription + Work Credits** — hybrid pricing model (decided) |
+| [COST-MODEL.md](./COST-MODEL.md) | Per-task cost breakdown and unit economics |
 | [LIMITS.md](./LIMITS.md) | Platform resource limits and enforcement framework |
+| [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Technical implementation guide (Lemon Squeezy integration) |
 
 ## Quick Reference
 
-### Pricing Tiers (Proposed)
+### Pricing Model (Subscription + Work Credits)
 
-| Tier | Price | Key Features |
-|------|-------|--------------|
-| Free | $0 | 1 project, 50 memories, 5 sessions/mo |
-| Pro | $19/mo | Unlimited projects, scheduled agents |
-| Enterprise | Custom | High limits, custom integrations, SLA |
-| Team | $49/seat/mo | Collaboration, SSO (future) |
+| | Free | Pro ($19/mo) |
+|--|------|-------------|
+| Chat (TP) | 50 messages/mo | **Unlimited** |
+| Work credits | 20/mo | 500/mo |
+| Overage | Hard stop | $5/100 credits |
+| Sync frequency | 1x/day | Hourly |
+| Active tasks | 2 | 10 |
 
-### Platform Resource Limits
-
-| Resource | Free | Pro | Enterprise |
-|----------|------|-----|------------|
-| Slack channels | 5 | 20 | 100 |
-| Gmail labels | 3 | 10 | 50 |
-| Notion pages | 5 | 25 | 100 |
-| Calendar events | 3 | 10 | 50 |
-| Total platforms | 3 | 10 | 50 |
+**Work credit costs**: Task execution = 3 credits, Render = 1 credit. Chat is not credited — it's covered by the subscription.
 
 ### Key Environment Variables
 
 ```bash
-# Backend
 LEMONSQUEEZY_API_KEY=xxx
 LEMONSQUEEZY_STORE_ID=xxx
 LEMONSQUEEZY_WEBHOOK_SECRET=xxx
 LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID=xxx
 LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID=xxx
-CHECKOUT_SUCCESS_URL=https://yarnnn.com/dashboard?subscription=success
+LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID=xxx
+CHECKOUT_SUCCESS_URL=https://yarnnn.com/settings?subscription=success
 ```
 
 ### API Endpoints
@@ -53,39 +48,9 @@ CHECKOUT_SUCCESS_URL=https://yarnnn.com/dashboard?subscription=success
 | `/api/subscription/checkout` | POST | Create checkout session |
 | `/api/subscription/portal` | GET | Get customer portal URL |
 | `/api/webhooks/lemonsqueezy` | POST | Webhook receiver |
+| `/api/user/limits` | GET | Get tier limits + usage |
 
-### Database Tables
+## See Also
 
-- `workspaces`: Subscription fields added
-- `subscription_events`: Audit log for all events
-
-## Implementation Status
-
-### Subscription System (Lemon Squeezy)
-- [ ] Lemon Squeezy store setup
-- [ ] Product/variant configuration
-- [x] Backend subscription routes (`api/routes/subscription.py`)
-- [x] Database migrations (`supabase/migrations/010_subscription_fields.sql`)
-- [ ] Frontend subscription components
-- [ ] Pricing page content
-- [ ] End-to-end testing
-- [ ] Production deployment
-
-### Platform Resource Limits
-- [x] Backend limit enforcement (`api/services/platform_limits.py`)
-- [x] Frontend limit display (platform detail page)
-- [x] Inline source selection with limit checking
-- [x] Upgrade prompts for free tier users at limit
-- [ ] Usage tracking dashboard
-- [ ] Overage handling/notifications
-
-## Shared Account Notes
-
-yarnnn uses the same Lemon Squeezy account as episode-0. Key implications:
-
-1. **Separation**: Create separate store or products for yarnnn
-2. **Webhooks**: Configure separate webhook endpoints
-3. **Reporting**: Use LS tags or filters for revenue attribution
-4. **Customer IDs**: Account-wide, but subscriptions are product-specific
-
-See [STRATEGY.md](./STRATEGY.md) for detailed shared account considerations.
+- [ADR-100: Simplified Monetization](../adr/ADR-100-simplified-monetization.md)
+- [ADR-138: Agents as Work Units](../adr/) — tasks as the unit of autonomous work
