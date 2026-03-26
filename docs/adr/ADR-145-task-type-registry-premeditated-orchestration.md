@@ -5,6 +5,7 @@
 **Supersedes:** None
 **Extends:** ADR-138 (Agents as Work Units), ADR-140 (Agent Workforce Model), ADR-141 (Unified Execution Architecture), ADR-143 (Agent Methodology Layer)
 **Depends on:** ADR-138 (tasks as work units), ADR-140 (pre-scaffolded roster + capability registry), ADR-141 (task pipeline), ADR-143 (agent playbooks)
+**Canonical docs:** [`docs/architecture/task-type-orchestration.md`](../architecture/task-type-orchestration.md) (system design), [`docs/features/task-types.md`](../features/task-types.md) (product catalog)
 
 ---
 
