@@ -24,6 +24,7 @@ import {
   Link2,
   Upload,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -94,12 +95,22 @@ function WorkspacePanel() {
 
   if (loading) return <LoadingState />;
 
+  const identityContent = identity?.name
+    ? [
+        identity.name && `# ${identity.name}`,
+        identity.role && `**Role:** ${identity.role}`,
+        identity.company && `**Company:** ${identity.company}`,
+        identity.timezone && `**Timezone:** ${identity.timezone}`,
+        identity.summary && `\n${identity.summary}`,
+      ].filter(Boolean).join('\n')
+    : null;
+
   const files = [
-    { name: 'IDENTITY.md', path: '/workspace/IDENTITY.md', content: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}${identity.company ? ` at ${identity.company}` : ''}` : null, summary: identity?.summary },
-    { name: 'BRAND.md', path: '/workspace/BRAND.md', content: brand },
-    { name: 'CONTEXT.md', path: '/workspace/CONTEXT.md', content: null },
-    { name: 'preferences.md', path: '/memory/preferences.md', content: null },
-    { name: 'notes.md', path: '/memory/notes.md', content: null },
+    { name: 'IDENTITY.md', path: '/workspace/IDENTITY.md', preview: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}` : null, content: identityContent },
+    { name: 'BRAND.md', path: '/workspace/BRAND.md', preview: brand ? 'Brand guidelines' : null, content: brand },
+    { name: 'CONTEXT.md', path: '/workspace/CONTEXT.md', preview: null, content: null },
+    { name: 'preferences.md', path: '/memory/preferences.md', preview: null, content: null },
+    { name: 'notes.md', path: '/memory/notes.md', preview: null, content: null },
   ];
 
   return (
@@ -108,7 +119,7 @@ function WorkspacePanel() {
         /workspace/ — your identity and preferences
       </p>
       {files.map(f => (
-        <FileRow key={f.name} name={f.name} path={f.path} preview={f.content} empty={!f.content} />
+        <ExpandableFileRow key={f.name} name={f.name} path={f.path} preview={f.preview} content={f.content} empty={!f.content} />
       ))}
     </div>
   );
@@ -290,13 +301,7 @@ function DocumentsPanel() {
       {docs.length > 0 ? (
         <div className="space-y-1">
           {docs.map(doc => (
-            <FileRow
-              key={doc.id}
-              name={doc.filename}
-              path={`/documents/${doc.id}`}
-              preview={`${doc.file_type} · ${formatFileSize(doc.file_size)}`}
-              timestamp={doc.created_at}
-            />
+            <DocumentRow key={doc.id} doc={doc} />
           ))}
         </div>
       ) : (
@@ -310,31 +315,110 @@ function DocumentsPanel() {
 // Shared Components
 // =============================================================================
 
-function FileRow({ name, path, preview, empty, timestamp }: {
+function ExpandableFileRow({ name, path, preview, content, empty }: {
   name: string;
   path: string;
   preview?: string | null;
+  content?: string | null;
   empty?: boolean;
-  timestamp?: string | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div className={cn(
-      'flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors',
-      empty ? 'border border-dashed border-border/50 bg-muted/10' : 'border border-border hover:bg-muted/50',
+      'rounded-lg transition-colors overflow-hidden',
+      empty ? 'border border-dashed border-border/50 bg-muted/10' : 'border border-border',
     )}>
-      <FileText className={cn('w-4 h-4 shrink-0', empty ? 'text-muted-foreground/30' : 'text-muted-foreground')} />
-      <div className="min-w-0 flex-1">
-        <span className={cn('text-sm truncate block', empty ? 'text-muted-foreground/40' : 'font-medium')}>{name}</span>
-        {preview ? (
-          <span className="text-[11px] text-muted-foreground truncate block">{preview}</span>
-        ) : empty ? (
-          <span className="text-[11px] text-muted-foreground/30">Empty</span>
-        ) : null}
-      </div>
-      {timestamp && (
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">
-          {formatRelativeTime(timestamp)}
-        </span>
+      <button
+        onClick={() => !empty && content && setExpanded(!expanded)}
+        className={cn(
+          'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
+          !empty && content ? 'hover:bg-muted/50 cursor-pointer' : 'cursor-default',
+        )}
+      >
+        {!empty && content ? (
+          expanded
+            ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        ) : (
+          <FileText className={cn('w-4 h-4 shrink-0', empty ? 'text-muted-foreground/30' : 'text-muted-foreground')} />
+        )}
+        <div className="min-w-0 flex-1">
+          <span className={cn('text-sm truncate block', empty ? 'text-muted-foreground/40' : 'font-medium')}>{name}</span>
+          {preview && !expanded ? (
+            <span className="text-[11px] text-muted-foreground truncate block">{preview}</span>
+          ) : empty ? (
+            <span className="text-[11px] text-muted-foreground/30">Empty</span>
+          ) : null}
+        </div>
+        <span className="text-[10px] text-muted-foreground/40 shrink-0">{path}</span>
+      </button>
+      {expanded && content && (
+        <div className="px-3 pb-3 border-t border-border/50">
+          <div className="mt-2 text-sm text-muted-foreground prose prose-sm prose-neutral dark:prose-invert max-w-none">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocumentRow({ doc }: { doc: Document }) {
+  const [expanded, setExpanded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloading(true);
+    try {
+      const res = await api.documents.download(doc.id);
+      window.open(res.url, '_blank');
+    } catch {
+      // silent fail
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+      >
+        {expanded
+          ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        }
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium truncate block">{doc.filename}</span>
+          <span className="text-[11px] text-muted-foreground truncate block">
+            {doc.file_type} · {formatFileSize(doc.file_size)}
+          </span>
+        </div>
+        {doc.created_at && (
+          <span className="text-[10px] text-muted-foreground/50 shrink-0">
+            {formatRelativeTime(doc.created_at)}
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 border-t border-border/50">
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              Download
+            </button>
+            <span className="text-[11px] text-muted-foreground">
+              {doc.file_type} · {formatFileSize(doc.file_size)} · uploaded {doc.created_at ? formatRelativeTime(doc.created_at) : 'unknown'}
+            </span>
+          </div>
+        </div>
       )}
     </div>
   );

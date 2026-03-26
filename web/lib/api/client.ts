@@ -231,6 +231,19 @@ export const api = {
       ),
   },
 
+  // ADR-144: Identity (workspace IDENTITY.md — replaces profile fields)
+  identity: {
+    get: () =>
+      request<{ content: string | null; exists: boolean }>(
+        "/api/memory/user/identity"
+      ),
+    save: (content: string) =>
+      request<{ exists: boolean }>(
+        "/api/memory/user/identity",
+        { method: "POST", body: JSON.stringify({ content }) },
+      ),
+  },
+
   // Document endpoints (ADR-008: Document Pipeline)
   documents: {
     // List user's documents
