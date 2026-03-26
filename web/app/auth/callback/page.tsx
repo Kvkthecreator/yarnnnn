@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
-import { HOME_ROUTE, ONBOARDING_ROUTE } from "@/lib/routes";
+import { HOME_ROUTE } from "@/lib/routes";
 import { api } from "@/lib/api/client";
 
 function CallbackHandler() {
@@ -44,18 +44,13 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // ADR-138: Gate new users to /onboarding if no agents exist
-        // Only gate if user is heading to HOME_ROUTE (not a specific deep link)
+        // ADR-144: Ensure roster is scaffolded (lazy creation on first login)
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
-            const onboardingState = await api.onboarding.getState();
-            if (!onboardingState.has_agents) {
-              window.location.href = ONBOARDING_ROUTE;
-              return;
-            }
+            await api.onboarding.getState(); // triggers roster scaffolding
           } catch {
-            // On error, skip onboarding gate — don't block login
+            // Best effort — don't block login
           }
         }
         window.location.href = next;
@@ -70,16 +65,12 @@ function CallbackHandler() {
       const { data: { session: retrySession } } = await supabase.auth.getSession();
 
       if (retrySession) {
-        // ADR-138: Same onboarding check for retry path
+        // ADR-144: Ensure roster scaffolding on retry path too
         if (next === HOME_ROUTE) {
           try {
-            const onboardingState = await api.onboarding.getState();
-            if (!onboardingState.has_agents) {
-              window.location.href = ONBOARDING_ROUTE;
-              return;
-            }
+            await api.onboarding.getState();
           } catch {
-            // On error, skip onboarding gate
+            // Best effort
           }
         }
         window.location.href = next;

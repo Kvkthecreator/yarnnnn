@@ -167,11 +167,12 @@ class ThinkingPartnerAgent(BaseAgent):
             context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
         # ADR-059: Use modular prompt builder
+        # ADR-144: Always inject context awareness prompt (graduated, not binary)
         prompt = build_modular_prompt(
             with_tools=with_tools,
             is_onboarding=is_onboarding,
             context=context_text,
-            onboarding_context=ONBOARDING_CONTEXT if is_onboarding else "",
+            onboarding_context=ONBOARDING_CONTEXT,
         )
 
         # ADR-025: Inject skill prompt if a skill is active

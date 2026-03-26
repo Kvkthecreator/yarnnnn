@@ -96,10 +96,20 @@ async def build_working_memory(
         _get_workspace_file_sync, user_id, "playbook-orchestration.md", _make_client()
     )
 
+    # ADR-144: Read identity + compute context readiness
+    identity_content = await asyncio.to_thread(
+        _get_workspace_file_sync, user_id, "IDENTITY.md", _make_client()
+    )
+    task_count, doc_count = await asyncio.gather(
+        asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
+        asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
+    )
+
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
+        "identity": identity_content,
         "brand": brand_content.strip() if brand_content else None,
         "orchestration_playbook": orchestration_playbook,
         "agents": agents,
@@ -108,6 +118,13 @@ async def build_working_memory(
         "system_summary": system_summary,
         "system_reference": _build_system_reference(platforms),
         "user_shared_files": user_shared_files,
+        # ADR-144: Context readiness signal for TP graduated awareness
+        "context_readiness": {
+            "identity": _classify_richness(identity_content),
+            "brand": _classify_richness(brand_content),
+            "documents": doc_count,
+            "tasks": task_count,
+        },
     }
 
     # ADR-087: Inject agent-scoped context if session is scoped
@@ -134,6 +151,46 @@ def _get_workspace_file_sync(user_id: str, filename: str, client: Any) -> Option
     except Exception:
         pass
     return None
+
+
+def _classify_richness(content: Optional[str]) -> str:
+    """Classify workspace file richness: empty | sparse | rich. ADR-144."""
+    if not content or not content.strip():
+        return "empty"
+    stripped = content.strip()
+    # Sparse = exists but very short (e.g., just a heading)
+    if len(stripped) < 100 or stripped.count("\n") < 3:
+        return "sparse"
+    return "rich"
+
+
+def _count_tasks_sync(user_id: str, client: Any) -> int:
+    """Count active tasks (sync, for thread pool). ADR-144."""
+    try:
+        result = (
+            client.table("tasks")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .neq("status", "archived")
+            .execute()
+        )
+        return result.count or 0
+    except Exception:
+        return 0
+
+
+def _count_documents_sync(user_id: str, client: Any) -> int:
+    """Count uploaded documents (sync, for thread pool). ADR-144."""
+    try:
+        result = (
+            client.table("filesystem_documents")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return result.count or 0
+    except Exception:
+        return 0
 
 
 def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
@@ -639,10 +696,31 @@ def format_for_prompt(working_memory: dict) -> str:
         if profile.get("summary"):
             lines.append(f"{profile['summary']}")
 
-    # Brand identity (ADR-143)
+    # Identity (ADR-144: workspace IDENTITY.md)
+    identity = working_memory.get("identity")
+    if identity:
+        lines.append(f"\n### Identity\n{identity}")
+
+    # Brand (ADR-143: workspace BRAND.md)
     brand = working_memory.get("brand")
     if brand:
         lines.append(f"\n### Brand\n{brand}")
+
+    # Context readiness (ADR-144: tells TP what's sparse/missing)
+    readiness = working_memory.get("context_readiness", {})
+    if readiness:
+        empty_items = [k for k, v in readiness.items() if v == "empty" or v == 0]
+        if empty_items:
+            lines.append(f"\n### Context gaps")
+            for item in empty_items:
+                if item == "identity":
+                    lines.append("- **Identity**: empty — ask user to update (\"Update my identity\")")
+                elif item == "brand":
+                    lines.append("- **Brand**: empty — suggest updating (\"Update my brand\")")
+                elif item == "documents":
+                    lines.append("- **Documents**: none uploaded — suggest sharing files for richer context")
+                elif item == "tasks":
+                    lines.append("- **Tasks**: none created — guide toward first task after context is set")
 
     # Orchestration playbook (ADR-143)
     playbook = working_memory.get("orchestration_playbook")

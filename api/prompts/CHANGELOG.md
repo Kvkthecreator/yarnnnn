@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.26.5] - ADR-144: Inference-First Shared Context
+
+### Added
+- `services/primitives/shared_context.py`: `UpdateSharedContext` primitive — single tool for updating IDENTITY.md or BRAND.md via inference. Chat-only. TP gathers sources (text, docs, URLs), calls this to run inference and write workspace file.
+- `services/context_inference.py`: Rewritten. `infer_shared_context()` replaces `enrich_context()`. Rich markdown output with structured sections. Merge-aware (reads existing file).
+- `services/working_memory.py`: `context_readiness` signal injected into working memory — `{identity: empty|sparse|rich, brand: ..., documents: N, tasks: N}`. Context gaps formatted into TP prompt.
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Binary `ONBOARDING_CONTEXT` replaced with graduated `CONTEXT_AWARENESS_PROMPT`. Always injected (not just when `is_onboarding`). Responds to context gaps.
+- `agents/thinking_partner.py`: Context awareness prompt always injected (was conditional on `is_onboarding`).
+- `services/primitives/registry.py`: Registered `UpdateSharedContext` with chat-only mode.
+
+### Deleted
+- `routes/memory.py`: `POST /user/onboarding` endpoint deleted — context enrichment now via `UpdateSharedContext` primitive.
+- `services/context_inference.py`: `enrich_context()` function deleted — replaced by `infer_shared_context()`.
+
+### Expected behavior
+- TP sees context gaps and guides users toward enrichment conversationally
+- User says "update my identity" → TP calls UpdateSharedContext → inference writes IDENTITY.md
+- Cold start: TP notices empty identity/brand and suggests setup
+- No more separate onboarding page flow
+
+---
+
 ## [2026.03.26.4] - Task lifecycle primitives + Schedule tab
 
 ### Changed

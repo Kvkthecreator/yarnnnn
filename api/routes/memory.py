@@ -100,14 +100,8 @@ class OnboardingStateResponse(BaseModel):
     has_agents: bool = False
 
 
-# ─── ADR-138/140: Onboarding — context enrichment ──
-
-class OnboardingRequest(BaseModel):
-    description: Optional[str] = None
-    name: Optional[str] = None
-    document_ids: Optional[list[str]] = None
-    # Legacy field — frontend may still send this
-    projects: Optional[list] = None
+# ─── ADR-140: Onboarding state (roster scaffolding) ──
+# ADR-144: POST /user/onboarding deleted — context enrichment via UpdateSharedContext primitive
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -250,127 +244,9 @@ async def _scaffold_default_roster(client, user_id: str):
 
 
 
-@router.post("/user/onboarding")
-async def onboarding_enrich(body: OnboardingRequest, auth: UserClient):
-    """Onboarding endpoint — context enrichment only (ADR-138/140).
 
-    Agents are pre-scaffolded at sign-up. Onboarding enriches the workspace:
-    1. Saves user name
-    2. Reads uploaded documents
-    3. Calls Sonnet to infer identity, brand, domains, work patterns
-    4. Writes enriched context to workspace files
-
-    Task creation is NOT done here — it's downstream via TP conversation.
-    """
-    try:
-        um = UserMemory(auth.client, auth.user_id)
-
-        # Save name
-        if body.name:
-            profile = await um.get_profile()
-            if not profile.get("name"):
-                await um.update_profile({"name": body.name})
-
-        # Gather context for inference
-        text_description = body.description or ""
-        # Legacy compat: frontend may send projects[].name as description
-        if not text_description and body.projects:
-            text_description = " ".join(
-                p.get("name", "") if isinstance(p, dict) else str(p)
-                for p in body.projects
-            )
-
-        document_contents = []
-        if body.document_ids:
-            from services.context_inference import read_uploaded_documents
-            document_contents = await read_uploaded_documents(
-                auth.client, auth.user_id, body.document_ids
-            )
-
-        # Skip inference if no context at all
-        if not text_description.strip() and not document_contents:
-            logger.info("[ONBOARDING] No context provided, skipping inference")
-            return {
-                "enriched": False,
-                "identity": {},
-                "domains": [],
-                "work_patterns": [],
-            }
-
-        # Infer workspace context via Sonnet
-        from services.context_inference import enrich_context
-        inference = await enrich_context(text_description, document_contents)
-
-        # Write identity
-        identity = inference.get("identity", {})
-        if identity:
-            profile_updates = {}
-            if identity.get("name") and not body.name:
-                profile_updates["name"] = identity["name"]
-            if identity.get("role"):
-                profile_updates["role"] = identity["role"]
-            if identity.get("company"):
-                profile_updates["company"] = identity["company"]
-            if identity.get("industry"):
-                profile_updates["industry"] = identity["industry"]
-            if identity.get("context_summary"):
-                profile_updates["context"] = identity["context_summary"]
-            if profile_updates:
-                await um.update_profile(profile_updates)
-
-            # Write enriched IDENTITY.md
-            identity_parts = [f"# {identity.get('name', 'User')}"]
-            if identity.get("role"):
-                identity_parts.append(f"\n**Role**: {identity['role']}")
-            if identity.get("company"):
-                identity_parts.append(f"**Company**: {identity['company']}")
-            if identity.get("industry"):
-                identity_parts.append(f"**Industry**: {identity['industry']}")
-            if identity.get("context_summary"):
-                identity_parts.append(f"\n{identity['context_summary']}")
-            await um.write("IDENTITY.md", "\n".join(identity_parts),
-                           summary="User identity from onboarding")
-
-        # Write brand
-        brand = inference.get("brand", {})
-        if brand.get("name"):
-            brand_parts = [f"# {brand['name']}"]
-            if brand.get("tone"):
-                brand_parts.append(f"\n**Tone**: {brand['tone']}")
-            if brand.get("voice"):
-                brand_parts.append(f"**Voice**: {brand['voice']}")
-            await um.write("BRAND.md", "\n".join(brand_parts),
-                           summary="Brand identity from onboarding")
-
-        # Write domains + work patterns as workspace context
-        domains = inference.get("domains", [])
-        patterns = inference.get("work_patterns", [])
-        if domains or patterns:
-            context_parts = ["# Workspace Context\n"]
-            if domains:
-                context_parts.append("## Domains of Attention")
-                for d in domains:
-                    context_parts.append(f"- {d}")
-                context_parts.append("")
-            if patterns:
-                context_parts.append("## Work Patterns")
-                for p in patterns:
-                    context_parts.append(f"- {p}")
-                context_parts.append("")
-            await um.write("CONTEXT.md", "\n".join(context_parts),
-                           summary="Work context from onboarding")
-
-        logger.info(f"[ONBOARDING] Enriched: {len(domains)} domains, {len(patterns)} patterns")
-        return {
-            "enriched": True,
-            "identity": identity,
-            "domains": domains,
-            "work_patterns": patterns,
-        }
-
-    except Exception as e:
-        logger.error(f"[ONBOARDING] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# ADR-144: POST /user/onboarding DELETED — context enrichment now via
+# UpdateSharedContext TP primitive. Roster scaffolding preserved above.
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

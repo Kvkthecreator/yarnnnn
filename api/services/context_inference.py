@@ -1,122 +1,157 @@
 """
-Context Inference — ADR-138/140
+Context Inference — ADR-144: Inference-First Shared Context
 
-Workspace-level context enrichment. Reads user-provided documents and text,
-infers identity, domain, industry, and work patterns.
+Single inference function for workspace shared context. Reads any combination
+of sources (text, documents, URLs, platform content) and produces rich markdown
+for IDENTITY.md or BRAND.md.
 
-This is NOT task creation. This enriches the workspace so TP and agents
-have context to work from. Task creation is downstream — via TP conversation.
-
-Two primitives:
-  - enrich_context(): Sonnet reads docs + text → identity, brand, domain summary
-  - suggest_tasks(): Sonnet reads enriched context → task recommendations (not created)
+Replaces enrich_context() from ADR-138/140 onboarding flow.
 """
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
 INFERENCE_MODEL = "claude-sonnet-4-20250514"
 
 
-async def enrich_context(
-    text_description: str = "",
-    document_contents: Optional[list] = None,
-) -> dict:
-    """Infer workspace context from user-provided materials.
+IDENTITY_SYSTEM = """You are updating a user's workspace identity file (IDENTITY.md).
+Read all provided sources carefully. Produce a rich markdown identity document.
 
-    Returns identity, brand, domain summary — NOT tasks.
+OUTPUT FORMAT (use exactly this structure):
+# Identity
+
+## Who
+[Name], [Role] at [Company]
+[Industry/space]. [2-3 sentence context summary of who this person is and what they work on.]
+
+## Domains of Attention
+- [Domain 1]: [why this matters to them]
+- [Domain 2]: [why this matters to them]
+
+## Work Patterns
+- [Pattern 1]: [cadence, what it involves]
+- [Pattern 2]: [cadence, what it involves]
+
+## Timezone
+[Inferred or stated, e.g., "US Pacific (UTC-8)"]
+
+RULES:
+- Extract REAL names, companies, industries from their materials — never fabricate
+- Domains = areas of sustained attention (2-5)
+- Work patterns = recurring rhythms you can identify (1-5)
+- If something isn't mentioned, omit that section entirely
+- Be specific — use their actual context, not generic labels
+- If existing content is provided, MERGE: preserve information from both old and new sources"""
+
+
+BRAND_SYSTEM = """You are updating a user's workspace brand file (BRAND.md).
+Read all provided sources carefully. Produce a rich markdown brand guide.
+
+OUTPUT FORMAT (use exactly this structure):
+# Brand
+
+## Voice
+[1-2 sentences describing the communication style — how they sound]
+
+## Tone
+[Professional/casual/technical/etc. with nuance and examples]
+
+## Terminology
+- [Term]: [how they use it, what it means in their context]
+- [Term]: [how they use it]
+
+## Audience
+[Who they typically communicate with — investors, engineers, customers, etc.]
+
+## Style Notes
+- [Specific observation from their materials about how they write]
+- [Another observation]
+
+RULES:
+- Extract real voice/tone from their actual writing, not generic descriptions
+- Terminology should capture their specific vocabulary
+- If they have a company, capture company brand voice (not just personal style)
+- If something isn't mentioned, omit that section entirely
+- If existing content is provided, MERGE: preserve information from both old and new sources"""
+
+
+async def infer_shared_context(
+    target: Literal["identity", "brand"],
+    text: str = "",
+    document_contents: Optional[list] = None,
+    url_contents: Optional[list] = None,
+    platform_content: Optional[list] = None,
+    existing_content: str = "",
+) -> str:
+    """Infer workspace shared context from provided sources.
+
+    Returns markdown content for the target workspace file.
 
     Args:
-        text_description: What the user typed about their work
-        document_contents: [{filename, content}] from uploaded docs
+        target: "identity" or "brand"
+        text: Direct text from user (chat message, description)
+        document_contents: [{filename, content}] from uploaded documents
+        url_contents: [{url, content}] from web search/fetch
+        platform_content: [{source, content}] from platform search
+        existing_content: Current file content (for merge, not overwrite)
 
     Returns:
-        {
-            identity: {name, role, company, industry, context_summary},
-            brand: {name, tone, voice},
-            domains: ["domain1", "domain2"],
-            work_patterns: ["pattern1", "pattern2"]
-        }
+        Markdown string for IDENTITY.md or BRAND.md
     """
     from services.anthropic import chat_completion
 
-    context_parts = []
-    if text_description.strip():
-        context_parts.append(f"User's description:\n{text_description.strip()}")
+    # Assemble source material
+    parts = []
+    if text.strip():
+        parts.append(f"User says:\n{text.strip()}")
     if document_contents:
         for doc in (document_contents or [])[:5]:
             name = doc.get("filename", "document")
-            content = doc.get("content", "")[:3000]
+            content = doc.get("content", "")[:5000]
             if content:
-                context_parts.append(f"--- Uploaded: {name} ---\n{content}")
+                parts.append(f"--- Document: {name} ---\n{content}")
+    if url_contents:
+        for item in (url_contents or [])[:3]:
+            url = item.get("url", "")
+            content = item.get("content", "")[:3000]
+            if content:
+                parts.append(f"--- URL: {url} ---\n{content}")
+    if platform_content:
+        for item in (platform_content or [])[:3]:
+            source = item.get("source", "platform")
+            content = item.get("content", "")[:3000]
+            if content:
+                parts.append(f"--- Platform ({source}) ---\n{content}")
 
-    if not context_parts:
-        return {"identity": {}, "brand": {}, "domains": [], "work_patterns": []}
+    if not parts:
+        logger.warning("[INFERENCE] No source material provided")
+        return existing_content or ""
 
-    context = "\n\n".join(context_parts)
+    # Include existing content for merge
+    if existing_content and existing_content.strip():
+        parts.append(f"--- Existing {target.upper()}.md (merge with this) ---\n{existing_content.strip()}")
 
-    prompt = f"""You are analyzing a user's work context to understand WHO they are and WHAT they care about.
-
-Read their materials carefully. Extract identity, brand, and domain information.
-Do NOT suggest tasks or actions — just understand the context.
-
-USER MATERIALS:
-{context}
-
-Respond with ONLY a JSON object:
-{{
-  "identity": {{
-    "name": "their name (if mentioned)",
-    "role": "their role (e.g., 'Founder', 'CEO', 'Product Manager')",
-    "company": "company name (if mentioned)",
-    "industry": "industry or space (e.g., 'AI/ML', 'SaaS', 'E-commerce')",
-    "context_summary": "2-3 sentence summary of who this person is and what they do"
-  }},
-  "brand": {{
-    "name": "company or brand name",
-    "tone": "communication tone (e.g., 'professional', 'casual', 'technical')",
-    "voice": "brand voice description (1 sentence)"
-  }},
-  "domains": [
-    "domain of attention (e.g., 'Competitive Intelligence', 'Team Communication', 'Product Development')"
-  ],
-  "work_patterns": [
-    "recurring pattern (e.g., 'Weekly investor updates', 'Daily team standups', 'Monthly board reporting')"
-  ]
-}}
-
-RULES:
-- Extract REAL names, companies, industries from their documents
-- domains = areas of sustained attention (2-5)
-- work_patterns = recurring rhythms you can identify (1-5)
-- If something isn't mentioned, use null or empty array
-- Be specific — use their actual context, not generic labels"""
+    source_material = "\n\n".join(parts)
+    system = IDENTITY_SYSTEM if target == "identity" else BRAND_SYSTEM
 
     try:
         response = await chat_completion(
-            messages=[{"role": "user", "content": "Analyze the context."}],
-            system=prompt,
+            messages=[{"role": "user", "content": f"Update the {target} file from these sources:\n\n{source_material}"}],
+            system=system,
             model=INFERENCE_MODEL,
-            max_tokens=1024,
+            max_tokens=2048,
         )
-
-        text = response.strip()
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            result = json.loads(text[start:end])
-            logger.info(f"[CONTEXT] Enriched: {len(result.get('domains', []))} domains, "
-                        f"{len(result.get('work_patterns', []))} patterns")
+        result = response.strip()
+        if result:
+            logger.info(f"[INFERENCE] Generated {target} ({len(result)} chars)")
             return result
-
-        logger.warning("[CONTEXT] No JSON found in response")
     except Exception as e:
-        logger.error(f"[CONTEXT] Enrichment failed: {e}")
+        logger.error(f"[INFERENCE] Failed for {target}: {e}")
 
-    return {"identity": {}, "brand": {}, "domains": [], "work_patterns": []}
+    return existing_content or ""
 
 
 async def read_uploaded_documents(
@@ -150,6 +185,6 @@ async def read_uploaded_documents(
                     "content": content,
                 })
         except Exception as e:
-            logger.warning(f"[CONTEXT] Failed to read doc {doc_id}: {e}")
+            logger.warning(f"[INFERENCE] Failed to read doc {doc_id}: {e}")
 
     return docs

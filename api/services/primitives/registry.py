@@ -45,6 +45,7 @@ from .workspace import (
 )
 from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
+from .shared_context import UPDATE_SHARED_CONTEXT_TOOL, handle_update_shared_context
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -186,6 +187,8 @@ PRIMITIVES = [
     # Feedback — chat only (ADR-143)
     WRITE_AGENT_FEEDBACK_TOOL,
     WRITE_TASK_FEEDBACK_TOOL,
+    # Shared context — chat only (ADR-144)
+    UPDATE_SHARED_CONTEXT_TOOL,
 ]
 
 
@@ -219,6 +222,7 @@ HANDLERS: dict[str, Callable] = {
     "RuntimeDispatch": handle_runtime_dispatch,
     "WriteAgentFeedback": handle_write_agent_feedback,
     "WriteTaskFeedback": handle_write_task_feedback,
+    "UpdateSharedContext": handle_update_shared_context,
 }
 
 
@@ -313,6 +317,8 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     # Agent feedback — chat only (ADR-143: TP writes feedback to agents)
     "WriteAgentFeedback":     ["chat"],
     "WriteTaskFeedback":      ["chat"],
+    # Shared context — chat only (ADR-144: workspace identity/brand mutations)
+    "UpdateSharedContext":    ["chat"],
     # User memory — chat only (ADR-108)
     "SaveMemory":             ["chat"],
     # Runtime dispatch — headless only (ADR-118)
