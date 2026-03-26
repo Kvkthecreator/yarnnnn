@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.26.3] - ADR-143: Default workspace seeding + TP profile/brand nudge
+
+### Added
+- `services/agent_framework.py`: `DEFAULT_IDENTITY_MD` (template with "(not set)" fields) and `DEFAULT_BRAND_MD` (minimal B&W professional baseline). Always seeded at roster scaffold.
+- `routes/memory.py`: `_scaffold_default_roster()` now seeds IDENTITY.md + BRAND.md alongside orchestration playbook. All idempotent — only writes if file doesn't exist.
+- `agents/tp_prompts/behaviors.py`: "Profile & Brand Awareness" behavior section. TP notices when profile has "(not set)" fields or brand is default, and gently nudges user once per session. Can update workspace directly when user provides info.
+- Expected behavior: New users always have BRAND.md (minimal B&W) and IDENTITY.md (template). Agents get brand context from first run. TP encourages personalization without blocking.
+
+---
+
 ## [2026.03.26.2] - Two-Layer Feedback: WriteTaskFeedback + Routing
 
 ### Added

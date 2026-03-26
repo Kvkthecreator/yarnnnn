@@ -351,6 +351,49 @@ TP_ORCHESTRATION_PLAYBOOK = """\
 """
 
 
+# =============================================================================
+# Default Workspace Files — seeded at roster scaffold time
+# =============================================================================
+
+DEFAULT_IDENTITY_MD = """\
+# About Me
+
+**Name:** (not set)
+**Role:** (not set)
+**Company:** (not set)
+**Industry:** (not set)
+
+## Summary
+(Not yet provided. Tell your Thinking Partner about yourself — your role, what you work on, \
+who you work with — so your agents can tailor outputs to your context.)
+"""
+
+DEFAULT_BRAND_MD = """\
+# Brand
+
+## Tone & Voice
+- **Tone:** Professional, clear, direct
+- **Voice:** Confident but not aggressive. Data-driven. Concise.
+
+## Visual Style
+- **Primary color:** #000000 (black)
+- **Secondary color:** #ffffff (white)
+- **Accent color:** #666666 (gray)
+- **Typography:** Clean sans-serif (system default)
+- **Charts:** Black/gray palette. Minimal gridlines. Clear axis labels. No decorative elements.
+- **Diagrams:** Monochrome. Solid lines. Clear labels.
+
+## Output Defaults
+- Clean, minimal formatting — content over decoration
+- White background, high contrast text
+- Generous whitespace, scannable structure
+- No placeholder images or decorative visuals
+
+(Update this file to match your brand — colors, logo, typography, tone of voice. \
+Your agents read this on every run.)
+"""
+
+
 # Default roster created at sign-up (ADR-140)
 DEFAULT_ROSTER = [
     {"title": "Research Agent", "role": "research"},

@@ -208,21 +208,45 @@ async def _scaffold_default_roster(client, user_id: str):
             # Skip duplicates or errors — best effort
             logger.warning(f"[ROSTER] Failed to create {agent_def['title']}: {e}")
 
-    # ADR-143: Seed TP orchestration playbook at workspace level
+    # ADR-143: Seed workspace-level files
     try:
         from services.workspace import UserMemory
+        from services.agent_framework import (
+            TP_ORCHESTRATION_PLAYBOOK,
+            DEFAULT_IDENTITY_MD,
+            DEFAULT_BRAND_MD,
+        )
         um = UserMemory(client, user_id)
-        existing = await um.read("playbook-orchestration.md")
-        if not existing:
-            from services.agent_framework import TP_ORCHESTRATION_PLAYBOOK
+
+        # TP orchestration playbook
+        if not await um.read("playbook-orchestration.md"):
             await um.write(
                 "playbook-orchestration.md",
                 TP_ORCHESTRATION_PLAYBOOK,
                 summary="ADR-143: TP orchestration playbook (seed)",
             )
             logger.info(f"[ROSTER] Seeded TP orchestration playbook for {user_id[:8]}")
+
+        # Default IDENTITY.md — template for user to fill
+        if not await um.read("IDENTITY.md"):
+            await um.write(
+                "IDENTITY.md",
+                DEFAULT_IDENTITY_MD,
+                summary="ADR-143: default identity template (seed)",
+            )
+            logger.info(f"[ROSTER] Seeded default IDENTITY.md for {user_id[:8]}")
+
+        # Default BRAND.md — minimal B&W professional baseline
+        if not await um.read("BRAND.md"):
+            await um.write(
+                "BRAND.md",
+                DEFAULT_BRAND_MD,
+                summary="ADR-143: default brand (seed)",
+            )
+            logger.info(f"[ROSTER] Seeded default BRAND.md for {user_id[:8]}")
+
     except Exception as e:
-        logger.warning(f"[ROSTER] TP playbook seed failed: {e}")
+        logger.warning(f"[ROSTER] Workspace seed failed: {e}")
 
 
 
