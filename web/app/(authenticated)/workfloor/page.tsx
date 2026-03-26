@@ -92,7 +92,6 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const isRunning = agent.latest_version_status === 'generating';
   const isPaused = agent.status === 'paused';
   const hasFailed = agent.latest_version_status === 'failed';
-  const statusDot = isRunning ? 'bg-blue-500 animate-pulse' : isPaused ? 'bg-amber-400' : hasFailed ? 'bg-red-500' : 'bg-emerald-500';
 
   const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
   const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
@@ -101,24 +100,17 @@ function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
     isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
+  const Icon = config.icon;
+
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className={cn(
-        'relative flex flex-col items-center rounded-2xl border-2 p-3 pt-2 transition-all hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br overflow-hidden',
-        config.accent, config.bgRoom,
-      )}
+      className="relative flex flex-col items-center rounded-2xl border border-border/60 bg-background p-3 pt-2 transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-border"
     >
-      <div className="absolute top-2 right-2">
-        <span className={cn('block w-2 h-2 rounded-full', statusDot)} />
-      </div>
-      {(() => { const Icon = config.icon; return <AgentAvatar state={avatarState} color={config.hex} size={56} icon={<Icon size={10} strokeWidth={2.5} />} />; })()}
-      <span className="text-[11px] font-semibold text-center mt-1 truncate w-full">{agent.title}</span>
-      {/* Live task on desk */}
-      {activeTask ? (
-        <span className="text-[8px] text-muted-foreground/50 truncate w-full text-center mt-0.5">{activeTask.title}</span>
-      ) : (
-        <span className="text-[8px] text-muted-foreground/25 italic mt-0.5">No task</span>
+      <AgentAvatar state={avatarState} color={config.hex} size={60} icon={<Icon size={11} strokeWidth={2.5} />} />
+      <span className="text-[11px] font-medium text-center mt-0.5 truncate w-full">{agent.title}</span>
+      {activeTask && (
+        <span className="text-[8px] text-muted-foreground/40 truncate w-full text-center">{activeTask.title}</span>
       )}
     </Link>
   );
@@ -458,21 +450,6 @@ export default function WorkfloorPage() {
 
           {/* Agent Grid */}
           <div className="mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Agents {activeAgents.length > 0 && `(${activeAgents.length})`}
-              </p>
-              {activeAgents.length > 0 && (() => {
-                const w = activeAgents.filter(a => a.latest_version_status === 'generating').length;
-                const r = activeAgents.filter(a => a.status === 'active' && a.latest_version_status !== 'generating').length;
-                return (
-                  <div className="flex items-center gap-2.5 text-[9px]">
-                    {w > 0 && <span className="flex items-center gap-1 text-blue-500"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />{w} working</span>}
-                    {r > 0 && <span className="flex items-center gap-1 text-emerald-500"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{r} ready</span>}
-                  </div>
-                );
-              })()}
-            </div>
 
             {agentsLoading ? (
               <div className="flex items-center justify-center py-10"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
@@ -483,9 +460,8 @@ export default function WorkfloorPage() {
             ) : (
               <div className="grid grid-cols-3 gap-2.5">
                 {['Research', 'Content', 'Marketing', 'CRM', 'Slack', 'Notion'].map(name => (
-                  <div key={name} className="agent-empty flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-dashed border-border/30 opacity-25">
-                    <Cog className="w-4 h-4 text-muted-foreground/30 mb-1" />
-                    <span className="text-[10px] text-muted-foreground/30">{name}</span>
+                  <div key={name} className="flex flex-col items-center justify-center p-4 rounded-2xl border border-dashed border-border/30">
+                    <span className="text-[10px] text-muted-foreground/20">{name}</span>
                   </div>
                 ))}
               </div>
