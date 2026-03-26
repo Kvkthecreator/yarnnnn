@@ -1,186 +1,340 @@
 'use client';
 
 /**
- * AgentAvatar — Animated SVG character for workfloor
+ * AgentAvatar + TPAvatar — Framer Motion animated characters
  *
- * Minimalist geometric persona (circle head + rounded body)
- * with state-driven CSS animations. Each agent type gets
- * an accent color; states drive the animation behavior.
+ * Uses motion.div for spring-based physics:
+ * - Working: head bobs, arms type, glow pulse
+ * - Ready: gentle breathing, occasional blink
+ * - Paused: tilted, sleeping z's float
+ * - Idle: slow sway, looking around
+ * - Error: shake
+ *
+ * TP: always-on pulse ring, headset, distinct personality.
  */
 
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 type AvatarState = 'working' | 'ready' | 'paused' | 'idle' | 'error';
 
 interface AgentAvatarProps {
   state: AvatarState;
-  color: string; // CSS color for body accent
-  /** Lucide icon element to use as the "head" — e.g. <FlaskConical /> */
+  color: string;
   icon?: React.ReactNode;
   size?: number;
   className?: string;
 }
 
+// =============================================================================
+// Agent Avatar
+// =============================================================================
+
 export function AgentAvatar({ state, color, icon, size = 64, className }: AgentAvatarProps) {
   const s = size;
-  const cx = s / 2;
-  const headR = s * 0.17;
-  const headY = s * 0.28;
-  const bodyW = s * 0.3;
-  const bodyH = s * 0.26;
-  const bodyY = s * 0.48;
-  const armW = s * 0.07;
-  const armH = s * 0.16;
-  const armY = bodyY + s * 0.02;
-  const leftArmX = cx - bodyW / 2 - armW - s * 0.015;
-  const rightArmX = cx + bodyW / 2 + s * 0.015;
-  const deskY = bodyY + bodyH + s * 0.05;
-  const deskW = s * 0.65;
-  const deskH = s * 0.05;
   const paused = state === 'paused';
 
-  // Unique animation ID to avoid CSS collisions at different sizes
-  const id = `av${s}`;
+  // State-dependent animation variants
+  const bodyVariants = {
+    working: { scaleY: [1, 1.02, 1], transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' as const } },
+    ready: { scaleY: [1, 1.015, 1], transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' as const } },
+    paused: { scaleY: 1, opacity: 0.3, rotate: 5, transition: { duration: 0.8 } },
+    idle: { scaleY: [1, 1.01, 1], transition: { duration: 5, repeat: Infinity, ease: 'easeInOut' as const } },
+    error: { x: [-2, 2, -2, 2, 0], transition: { duration: 0.4, repeat: Infinity } },
+  };
+
+  const headVariants = {
+    working: { y: [0, -s * 0.03, 0], transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' as const } },
+    ready: { y: 0, transition: { duration: 0.5 } },
+    paused: { rotate: 12, y: s * 0.02, transition: { duration: 1.5, repeat: Infinity, repeatType: 'reverse' as const, ease: 'easeInOut' as const } },
+    idle: { x: [0, -s * 0.02, s * 0.02, 0], transition: { duration: 5, repeat: Infinity, ease: 'easeInOut' as const } },
+    error: { y: 0 },
+  };
+
+  const leftArmVariants = {
+    working: { y: [0, -s * 0.05, 0], transition: { duration: 0.5, repeat: Infinity, ease: 'easeInOut' as const } },
+    ready: { y: 0 },
+    paused: { y: 0, opacity: 0.15 },
+    idle: { y: 0 },
+    error: { y: 0 },
+  };
+
+  const rightArmVariants = {
+    working: { y: [0, -s * 0.05, 0], transition: { duration: 0.5, repeat: Infinity, ease: 'easeInOut' as const, delay: 0.2 } },
+    ready: { y: 0 },
+    paused: { y: 0, opacity: 0.15 },
+    idle: { y: 0 },
+    error: { y: 0 },
+  };
+
+  const glowVariants = {
+    working: { scale: [1, 1.4, 1], opacity: [0.15, 0.3, 0.15], transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' as const } },
+    ready: { scale: 1, opacity: 0.05 },
+    paused: { scale: 1, opacity: 0 },
+    idle: { scale: 1, opacity: 0.03 },
+    error: { scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1], transition: { duration: 0.8, repeat: Infinity } },
+  };
+
+  const iconSize = Math.round(s * 0.22);
+  const headSize = Math.round(s * 0.36);
+  const bodyWidth = Math.round(s * 0.36);
+  const bodyHeight = Math.round(s * 0.28);
+  const armWidth = Math.round(s * 0.08);
+  const armHeight = Math.round(s * 0.2);
 
   return (
-    <div className={cn('inline-flex items-center justify-center', className)}>
-      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} fill="none">
-        <style>{`
-          @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 40%{transform:translateY(-${s*0.025}px)} }
-          @keyframes ${id}-typeL { 0%,100%{transform:translateY(0)} 30%{transform:translateY(-${s*0.04}px)} }
-          @keyframes ${id}-typeR { 0%,100%{transform:translateY(0)} 60%{transform:translateY(-${s*0.04}px)} }
-          @keyframes ${id}-breathe { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(1.035)} }
-          @keyframes ${id}-blink { 0%,91%,100%{transform:scaleY(1)} 94%{transform:scaleY(0.08)} }
-          @keyframes ${id}-nod { 0%,100%{transform:rotate(0) translateY(0)} 50%{transform:rotate(10deg) translateY(${s*0.015}px)} }
-          @keyframes ${id}-zzz { 0%{opacity:0;transform:translate(0,0) scale(.5)} 25%{opacity:.6} 100%{opacity:0;transform:translate(${s*0.1}px,-${s*0.18}px) scale(1)} }
-          @keyframes ${id}-look { 0%,45%,100%{transform:translateX(0)} 18%{transform:translateX(-${s*0.025}px)} 32%{transform:translateX(${s*0.025}px)} }
-          @keyframes ${id}-wobble { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-${s*0.015}px)} 75%{transform:translateX(${s*0.015}px)} }
+    <div className={cn('relative inline-flex items-center justify-center', className)} style={{ width: s, height: s }}>
+      {/* Glow ring behind character */}
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: headSize * 1.6,
+          height: headSize * 1.6,
+          top: s * 0.08,
+          left: '50%',
+          marginLeft: -(headSize * 0.8),
+          background: color,
+        }}
+        animate={glowVariants[state]}
+      />
 
-          .${id}-working .${id}-head { animation:${id}-bob 1s ease-in-out infinite }
-          .${id}-working .${id}-armL { animation:${id}-typeL .7s ease-in-out infinite }
-          .${id}-working .${id}-armR { animation:${id}-typeR .7s ease-in-out infinite .15s }
-          .${id}-ready .${id}-body { animation:${id}-breathe 4.5s ease-in-out infinite; transform-origin:bottom center }
-          .${id}-ready .${id}-eyes { animation:${id}-blink 5.5s ease-in-out infinite; transform-origin:center }
-          .${id}-paused .${id}-char { animation:${id}-nod 3.5s ease-in-out infinite; transform-origin:bottom center }
-          .${id}-paused .${id}-z { animation:${id}-zzz 2.8s ease-out infinite }
-          .${id}-idle .${id}-eyes { animation:${id}-look 7s ease-in-out infinite }
-          .${id}-idle .${id}-body { animation:${id}-breathe 5s ease-in-out infinite; transform-origin:bottom center }
-          .${id}-error .${id}-char { animation:${id}-wobble .4s ease-in-out infinite }
-        `}</style>
+      {/* Character body group */}
+      <motion.div
+        className="absolute"
+        style={{ bottom: s * 0.12, left: '50%', marginLeft: -(bodyWidth / 2), originY: 1 }}
+        animate={bodyVariants[state]}
+      >
+        {/* Body */}
+        <div
+          className="rounded-xl"
+          style={{
+            width: bodyWidth,
+            height: bodyHeight,
+            background: color,
+            opacity: paused ? 0.2 : 0.6,
+            borderRadius: s * 0.1,
+          }}
+        />
+      </motion.div>
 
-        <g className={`${id}-${state}`}>
-          {/* Desk */}
-          <rect x={(s-deskW)/2} y={deskY} width={deskW} height={deskH} rx={deskH/2} fill="currentColor" opacity={.07} />
-          {/* Desk item — small screen/paper on desk when working */}
-          {state === 'working' && (
-            <rect x={cx - s*0.08} y={deskY - s*0.04} width={s*0.16} height={s*0.04} rx={2} fill={color} opacity={0.15} />
-          )}
+      {/* Left arm */}
+      <motion.div
+        className="absolute"
+        style={{
+          bottom: s * 0.14,
+          left: '50%',
+          marginLeft: -(bodyWidth / 2) - armWidth - 2,
+          width: armWidth,
+          height: armHeight,
+          background: color,
+          opacity: paused ? 0.12 : 0.35,
+          borderRadius: armWidth / 2,
+        }}
+        animate={leftArmVariants[state]}
+      />
 
-          <g className={`${id}-char`}>
-            {/* Body */}
-            <rect className={`${id}-body`} x={cx-bodyW/2} y={bodyY} width={bodyW} height={bodyH} rx={s*0.09} fill={color} opacity={paused?.25:.65} />
+      {/* Right arm */}
+      <motion.div
+        className="absolute"
+        style={{
+          bottom: s * 0.14,
+          left: '50%',
+          marginLeft: bodyWidth / 2 + 2,
+          width: armWidth,
+          height: armHeight,
+          background: color,
+          opacity: paused ? 0.12 : 0.35,
+          borderRadius: armWidth / 2,
+        }}
+        animate={rightArmVariants[state]}
+      />
 
-            {/* Arms */}
-            <rect className={`${id}-armL`} x={leftArmX} y={armY} width={armW} height={armH} rx={armW/2} fill={color} opacity={paused?.15:.4} />
-            <rect className={`${id}-armR`} x={rightArmX} y={armY} width={armW} height={armH} rx={armW/2} fill={color} opacity={paused?.15:.4} />
-
-            {/* Head — icon inside colored circle */}
-            <g className={`${id}-head`}>
-              <circle cx={cx} cy={headY} r={headR} fill={color} opacity={paused ? .3 : .8} />
-              {icon ? (
-                <foreignObject x={cx - headR * 0.65} y={headY - headR * 0.65} width={headR * 1.3} height={headR * 1.3}>
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', opacity: paused ? 0.5 : 0.9 }}>
-                    {icon}
-                  </div>
-                </foreignObject>
-              ) : (
-                /* Fallback: dot eyes if no icon */
-                <g className={`${id}-eyes`}>
-                  {paused ? (
-                    <>
-                      <line x1={cx-headR*.35} y1={headY+headR*.05} x2={cx-headR*.08} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
-                      <line x1={cx+headR*.08} y1={headY+headR*.05} x2={cx+headR*.35} y2={headY+headR*.05} stroke="white" strokeWidth={1.2} strokeLinecap="round" />
-                    </>
-                  ) : (
-                    <>
-                      <circle cx={cx-headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
-                      <circle cx={cx+headR*.28} cy={headY-headR*.02} r={headR*.11} fill="white" />
-                    </>
-                  )}
-                </g>
-              )}
-            </g>
-
-            {/* Zzz */}
-            {paused && (
+      {/* Head */}
+      <motion.div
+        className="absolute flex items-center justify-center"
+        style={{
+          width: headSize,
+          height: headSize,
+          top: s * 0.1,
+          left: '50%',
+          marginLeft: -(headSize / 2),
+          background: color,
+          borderRadius: '50%',
+          opacity: paused ? 0.3 : 0.85,
+        }}
+        animate={headVariants[state]}
+      >
+        {/* Icon or eyes inside head */}
+        {icon ? (
+          <div style={{ color: 'white', opacity: paused ? 0.4 : 0.9 }}>
+            {icon}
+          </div>
+        ) : (
+          <div className="flex gap-1">
+            {paused ? (
               <>
-                <text className={`${id}-z`} x={cx+headR} y={headY-headR*.4} fill={color} opacity={.35} fontSize={s*.09} fontWeight="bold">z</text>
-                <text className={`${id}-z`} x={cx+headR*1.3} y={headY-headR*.9} fill={color} opacity={.25} fontSize={s*.07} fontWeight="bold" style={{animationDelay:'.7s'}}>z</text>
-                <text className={`${id}-z`} x={cx+headR*1.5} y={headY-headR*1.3} fill={color} opacity={.15} fontSize={s*.06} fontWeight="bold" style={{animationDelay:'1.4s'}}>z</text>
+                <div style={{ width: iconSize * 0.4, height: 2, background: 'white', borderRadius: 1 }} />
+                <div style={{ width: iconSize * 0.4, height: 2, background: 'white', borderRadius: 1 }} />
+              </>
+            ) : (
+              <>
+                <div style={{ width: iconSize * 0.18, height: iconSize * 0.18, background: 'white', borderRadius: '50%' }} />
+                <div style={{ width: iconSize * 0.18, height: iconSize * 0.18, background: 'white', borderRadius: '50%' }} />
               </>
             )}
-          </g>
+          </div>
+        )}
+      </motion.div>
 
-          {/* Error badge */}
-          {state === 'error' && (
-            <>
-              <circle cx={cx+headR*.85} cy={headY-headR*.65} r={s*.035} fill="#ef4444" />
-              <text x={cx+headR*.85} y={headY-headR*.55} textAnchor="middle" fill="white" fontSize={s*.04} fontWeight="bold">!</text>
-            </>
-          )}
-        </g>
-      </svg>
+      {/* Floating Z's for paused */}
+      <AnimatePresence>
+        {paused && [0, 1, 2].map(i => (
+          <motion.span
+            key={i}
+            className="absolute font-bold pointer-events-none select-none"
+            style={{ color, right: s * 0.12, top: s * 0.1, fontSize: s * (0.1 - i * 0.015) }}
+            initial={{ opacity: 0, x: 0, y: 0, scale: 0.5 }}
+            animate={{ opacity: [0, 0.5, 0], x: s * 0.1, y: -(s * 0.15 + i * s * 0.08), scale: 1 }}
+            transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.6, ease: 'easeOut' as const }}
+          >
+            z
+          </motion.span>
+        ))}
+      </AnimatePresence>
+
+      {/* Error badge */}
+      {state === 'error' && (
+        <motion.div
+          className="absolute flex items-center justify-center bg-red-500 text-white rounded-full"
+          style={{ width: s * 0.14, height: s * 0.14, top: s * 0.05, right: s * 0.15, fontSize: s * 0.08, fontWeight: 'bold' }}
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ duration: 0.8, repeat: Infinity }}
+        >
+          !
+        </motion.div>
+      )}
+
+      {/* Desk surface */}
+      <div
+        className="absolute"
+        style={{
+          bottom: s * 0.04,
+          left: '50%',
+          marginLeft: -(s * 0.35),
+          width: s * 0.7,
+          height: s * 0.05,
+          background: 'currentColor',
+          opacity: 0.06,
+          borderRadius: s * 0.025,
+        }}
+      />
+
+      {/* Working: small screen on desk */}
+      {state === 'working' && (
+        <motion.div
+          className="absolute"
+          style={{
+            bottom: s * 0.08,
+            left: '50%',
+            marginLeft: -(s * 0.09),
+            width: s * 0.18,
+            height: s * 0.05,
+            background: color,
+            opacity: 0.15,
+            borderRadius: 2,
+          }}
+          animate={{ opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
+      )}
     </div>
   );
 }
 
 // =============================================================================
-// TP Avatar — Distinct orchestrator character with headset
+// TP Avatar — The Orchestrator
 // =============================================================================
 
 export function TPAvatar({ size = 64, className }: { size?: number; className?: string }) {
   const s = size;
-  const cx = s / 2;
-  const headR = s * 0.19;
-  const headY = s * 0.34;
-  const id = `tp${s}`;
+  const headSize = Math.round(s * 0.38);
 
   return (
-    <div className={cn('inline-flex items-center justify-center', className)}>
-      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} fill="none">
-        <style>{`
-          @keyframes ${id}-ring { 0%,100%{opacity:.08;r:${s*.24}} 50%{opacity:.04;r:${s*.28}} }
-          @keyframes ${id}-blink { 0%,88%,100%{transform:scaleY(1)} 92%{transform:scaleY(.1)} }
-          .${id}-ring { animation:${id}-ring 3s ease-in-out infinite }
-          .${id}-eyes { animation:${id}-blink 4.5s ease-in-out infinite; transform-origin:center }
-        `}</style>
+    <div className={cn('relative inline-flex items-center justify-center', className)} style={{ width: s, height: s }}>
+      {/* Pulse ring */}
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: headSize * 1.5,
+          height: headSize * 1.5,
+          top: s * 0.1,
+          left: '50%',
+          marginLeft: -(headSize * 0.75),
+          background: 'hsl(var(--primary))',
+        }}
+        animate={{ scale: [1, 1.15, 1], opacity: [0.08, 0.04, 0.08] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' as const }}
+      />
 
-        {/* Pulse ring */}
-        <circle className={`${id}-ring`} cx={cx} cy={headY} r={s*.24} fill="hsl(var(--primary))" />
+      {/* Headset arc */}
+      <div
+        className="absolute"
+        style={{
+          width: headSize * 0.9,
+          height: headSize * 0.4,
+          top: s * 0.08,
+          left: '50%',
+          marginLeft: -(headSize * 0.45),
+          borderTop: '2px solid hsl(var(--primary))',
+          borderRadius: '50% 50% 0 0',
+          opacity: 0.4,
+        }}
+      />
 
-        {/* Headset arc */}
-        <path
-          d={`M${cx-headR*.75} ${headY-headR*.55} Q${cx} ${headY-headR*1.5} ${cx+headR*.75} ${headY-headR*.55}`}
-          stroke="hsl(var(--primary))" strokeWidth={1.8} strokeLinecap="round" fill="none" opacity={.45}
-        />
-        <circle cx={cx-headR*.72} cy={headY-headR*.45} r={s*.025} fill="hsl(var(--primary))" opacity={.5} />
-        <circle cx={cx+headR*.72} cy={headY-headR*.45} r={s*.025} fill="hsl(var(--primary))" opacity={.5} />
-
-        {/* Head */}
-        <circle cx={cx} cy={headY} r={headR} fill="hsl(var(--primary))" opacity={.75} />
-
+      {/* Head */}
+      <motion.div
+        className="absolute flex items-center justify-center rounded-full"
+        style={{
+          width: headSize,
+          height: headSize,
+          top: s * 0.15,
+          left: '50%',
+          marginLeft: -(headSize / 2),
+          background: 'hsl(var(--primary))',
+          opacity: 0.75,
+        }}
+        animate={{ y: [0, -1, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' as const }}
+      >
         {/* Eyes */}
-        <g className={`${id}-eyes`}>
-          <circle cx={cx-headR*.3} cy={headY-headR*.05} r={headR*.1} fill="white" />
-          <circle cx={cx+headR*.3} cy={headY-headR*.05} r={headR*.1} fill="white" />
-        </g>
+        <div className="flex gap-1.5">
+          <motion.div
+            style={{ width: headSize * 0.1, height: headSize * 0.1, background: 'white', borderRadius: '50%' }}
+            animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
+            transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.93, 0.96, 1] }}
+          />
+          <motion.div
+            style={{ width: headSize * 0.1, height: headSize * 0.1, background: 'white', borderRadius: '50%' }}
+            animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
+            transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.93, 0.96, 1] }}
+          />
+        </div>
+      </motion.div>
 
-        {/* Smile */}
-        <path d={`M${cx-headR*.18} ${headY+headR*.25} Q${cx} ${headY+headR*.4} ${cx+headR*.18} ${headY+headR*.25}`} stroke="white" strokeWidth={1} strokeLinecap="round" fill="none" opacity={.5} />
-
-        {/* Body */}
-        <rect x={cx-s*.14} y={headY+headR+s*.025} width={s*.28} height={s*.2} rx={s*.08} fill="hsl(var(--primary))" opacity={.45} />
-      </svg>
+      {/* Body */}
+      <div
+        className="absolute rounded-xl"
+        style={{
+          width: s * 0.3,
+          height: s * 0.22,
+          bottom: s * 0.12,
+          left: '50%',
+          marginLeft: -(s * 0.15),
+          background: 'hsl(var(--primary))',
+          opacity: 0.45,
+          borderRadius: s * 0.08,
+        }}
+      />
     </div>
   );
 }
