@@ -33,7 +33,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import type { TaskDetail, TaskOutput } from '@/types';
+import type { TaskDetail, TaskOutput, Agent } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
@@ -281,31 +281,47 @@ function ScheduleTab({
 
 function AgentsTab({ task }: { task: TaskDetail }) {
   const agentSlugs = task.agent_slugs || [];
+  const [agents, setAgents] = useState<Array<{ id: string; slug?: string; title: string; role?: string; status?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (agentSlugs.length === 0) { setLoading(false); return; }
+    api.agents.list().then(all => {
+      // Match agent_slugs to full agent records for proper linking
+      const matched = agentSlugs.map(slug => {
+        const found = all.find(a => a.slug === slug);
+        return found || { id: slug, slug, title: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) };
+      });
+      setAgents(matched);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>;
 
   return (
     <div className="p-4 space-y-4 max-w-xl">
       <div>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-          Assigned Agents {agentSlugs.length > 1 && `(${agentSlugs.length} — sequential pipeline)`}
+          Assigned Agents {agents.length > 1 && `(${agents.length} — sequential pipeline)`}
         </p>
-        {agentSlugs.length > 0 ? (
+        {agents.length > 0 ? (
           <div className="space-y-1.5">
-            {agentSlugs.map((slug, idx) => (
+            {agents.map((agent, idx) => (
               <Link
-                key={slug}
-                href={`/agents/${slug}`}
+                key={agent.id}
+                href={`/agents/${agent.id}`}
                 className="flex items-center gap-2.5 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
               >
-                {agentSlugs.length > 1 && (
+                {agents.length > 1 && (
                   <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
-                  <p className="text-muted-foreground">{slug}</p>
+                  <p className="text-sm font-medium truncate">{agent.title}</p>
+                  <p className="text-muted-foreground">{agent.slug || agent.id}</p>
                 </div>
               </Link>
             ))}
-            {agentSlugs.length > 1 && (
+            {agents.length > 1 && (
               <p className="text-[11px] text-muted-foreground mt-2">Agents execute in sequence — each receives the prior agent&apos;s output as context.</p>
             )}
           </div>
@@ -495,7 +511,8 @@ export default function TaskPage() {
       .catch(() => {});
   }, [slug]);
 
-  useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
+  // Load task-scoped chat history (not global)
+  useEffect(() => { if (slug) loadScopedHistory(undefined, slug); }, [slug, loadScopedHistory]);
 
   // Initial load
   useEffect(() => {
