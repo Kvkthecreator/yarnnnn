@@ -27,6 +27,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - User says "update my identity" → TP calls UpdateSharedContext → inference writes IDENTITY.md
 - Cold start: TP notices empty identity/brand and suggests setup
 - No more separate onboarding page flow
+- TP proactively suggests context updates when user uploads docs or searches URLs (one-time per session)
 
 ---
 

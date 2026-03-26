@@ -6,7 +6,6 @@ import { HOME_ROUTE } from "@/lib/routes";
 
 const PROTECTED_PREFIXES = [
   HOME_ROUTE,
-  "/onboarding",
   "/projects",
   "/agents",
   "/memory",

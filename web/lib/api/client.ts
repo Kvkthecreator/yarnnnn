@@ -202,18 +202,9 @@ export const api = {
 
   // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
-  // Onboarding (ADR-140) — context enrichment only. No task creation.
+  // ADR-144: onboarding.enrich deleted — context enrichment via UpdateSharedContext primitive.
+  // getState kept for roster scaffolding trigger on first login.
   onboarding: {
-    enrich: (description: string, name?: string, documentIds?: string[]) =>
-      request<{
-        enriched: boolean;
-        identity: { name?: string; role?: string; company?: string; industry?: string; context_summary?: string };
-        domains: string[];
-        work_patterns: string[];
-      }>(
-        "/api/memory/user/onboarding",
-        { method: "POST", body: JSON.stringify({ description, name, document_ids: documentIds }) },
-      ),
     getState: () =>
       request<{ has_agents: boolean }>("/api/memory/user/onboarding-state"),
   },

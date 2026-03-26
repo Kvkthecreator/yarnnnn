@@ -138,22 +138,22 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function IdentityTab() {
-  const [profile, setProfile] = useState<{ name?: string; role?: string; company?: string; timezone?: string; summary?: string } | null>(null);
+function IdentityTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
+  const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: '', role: '', company: '', timezone: '' });
+  const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.profile.get().then(p => { setProfile(p); setDraft({ name: p?.name || '', role: p?.role || '', company: p?.company || '', timezone: p?.timezone || '' }); }).catch(() => {}).finally(() => setLoading(false));
+    api.identity.get().then(res => { if (res?.exists && res.content) { setContent(res.content); setDraft(res.content); } }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updated = await api.profile.update(draft);
-      setProfile(updated);
+      await api.identity.save(draft);
+      setContent(draft);
       setEditing(false);
     } catch (e) { console.error(e); }
     setSaving(false);
@@ -161,60 +161,39 @@ function IdentityTab() {
 
   if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
 
-  const fields = [
-    { key: 'name', label: 'Name' },
-    { key: 'role', label: 'Role' },
-    { key: 'company', label: 'Company' },
-    { key: 'timezone', label: 'Timezone' },
-  ] as const;
-
-  const hasContent = profile && (profile.name || profile.role || profile.company);
-
   return (
     <div className="space-y-2">
       {editing ? (
         <>
-          {fields.map(f => (
-            <div key={f.key} className="px-2">
-              <label className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">{f.label}</label>
-              <input
-                value={draft[f.key]}
-                onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
-                className="w-full text-xs bg-muted/30 border border-border rounded px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                placeholder={f.label}
-              />
-            </div>
-          ))}
-          <div className="flex gap-1.5 px-2 pt-1">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            rows={8}
+            placeholder="# Identity\n\n## Who\nName, Role at Company..."
+            className="w-full text-xs bg-muted/30 border border-border rounded px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y font-mono"
+          />
+          <div className="flex gap-1.5 pt-0.5">
             <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
               {saving ? '...' : 'Save'}
             </button>
-            <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
+            <button onClick={() => { setDraft(content || ''); setEditing(false); }} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
               Cancel
             </button>
           </div>
         </>
-      ) : hasContent ? (
+      ) : content ? (
         <>
-          {fields.map(f => {
-            const val = profile?.[f.key];
-            if (!val) return null;
-            return (
-              <div key={f.key} className="px-2 py-0.5">
-                <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wide">{f.label}</span>
-                <p className="text-xs">{val}</p>
-              </div>
-            );
-          })}
-          {profile?.summary && (
-            <div className="px-2 py-0.5">
-              <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wide">Summary</span>
-              <p className="text-[11px] text-muted-foreground/70">{profile.summary}</p>
-            </div>
-          )}
-          <button onClick={() => setEditing(true)} className="mx-2 mt-1 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70">
-            Edit →
-          </button>
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto prose prose-xs dark:prose-invert max-w-none">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onSendMessage('Update my identity')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
+              Update via chat →
+            </button>
+            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
+              Edit manually
+            </button>
+          </div>
         </>
       ) : (
         <div className="py-4 px-2">
@@ -225,9 +204,12 @@ function IdentityTab() {
             <p className="italic text-muted-foreground/60">&quot;Update my identity from my LinkedIn&quot;</p>
             <p className="italic text-muted-foreground/60">&quot;Update my identity from the pitch deck I uploaded&quot;</p>
           </div>
-          <div className="mt-3 pt-2 border-t border-border/30">
-            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Or edit manually →
+          <div className="mt-3 flex items-center gap-2">
+            <button onClick={() => onSendMessage('Update my identity')} className="text-[10px] text-primary hover:underline font-medium">
+              Update via chat →
+            </button>
+            <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
+              Or edit manually
             </button>
           </div>
         </div>
@@ -236,7 +218,7 @@ function IdentityTab() {
   );
 }
 
-function BrandTab() {
+function BrandTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -284,9 +266,14 @@ function BrandTab() {
           <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto">
             <ReactMarkdown>{content}</ReactMarkdown>
           </div>
-          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70">
-            Edit →
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onSendMessage('Update my brand')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
+              Update via chat →
+            </button>
+            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
+              Edit manually
+            </button>
+          </div>
         </>
       ) : (
         <div className="py-4 px-2">
@@ -297,9 +284,12 @@ function BrandTab() {
             <p className="italic text-muted-foreground/60">&quot;Update my brand — we&apos;re technical but friendly, writing for developers&quot;</p>
             <p className="italic text-muted-foreground/60">&quot;Update my brand from the brand guidelines I uploaded&quot;</p>
           </div>
-          <div className="mt-3 pt-2 border-t border-border/30">
+          <div className="mt-3 flex items-center gap-2">
+            <button onClick={() => onSendMessage('Update my brand')} className="text-[10px] text-primary hover:underline font-medium">
+              Update via chat →
+            </button>
             <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Or edit manually →
+              Or edit manually
             </button>
           </div>
         </div>
@@ -518,7 +508,13 @@ function ChatPanel() {
 // =============================================================================
 
 export default function WorkfloorPage() {
-  const { loadScopedHistory } = useTP();
+  const { loadScopedHistory, sendMessage } = useTP();
+  const { surface } = useDesk();
+
+  // Send a prefilled message to TP chat (used by Update buttons in Context tabs)
+  const handleContextUpdate = useCallback((msg: string) => {
+    sendMessage(msg, { surface });
+  }, [sendMessage, surface]);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -649,8 +645,8 @@ export default function WorkfloorPage() {
                     </button>
                   ))}
                 </div>
-                {contextSubTab === 'identity' && <IdentityTab />}
-                {contextSubTab === 'brand' && <BrandTab />}
+                {contextSubTab === 'identity' && <IdentityTab onSendMessage={handleContextUpdate} />}
+                {contextSubTab === 'brand' && <BrandTab onSendMessage={handleContextUpdate} />}
                 {contextSubTab === 'documents' && <DocumentsTab />}
               </div>
             )}

@@ -1,6 +1,6 @@
 # ADR-144: Inference-First Shared Context
 
-**Status:** Proposed
+**Status:** Implemented (Phases 1-4)
 **Date:** 2026-03-26
 **Supersedes:** ADR-132 (onboarding page), ADR-113 (onboarding flow)
 **Extends:** ADR-106 (workspace), ADR-138 (agents as work units), ADR-140 (workforce model), ADR-142 (unified filesystem)
@@ -182,28 +182,31 @@ TP prompt awareness: "User has sparse workspace context. Before creating tasks, 
 
 ## Phases
 
-### Phase 1: Primitive + Inference
-- `UpdateSharedContext` primitive (TP tool)
-- `infer_shared_context()` function (replaces `enrich_context()`)
-- Context readiness signal in `build_working_memory()`
-- Graduated TP prompt (replaces binary `ONBOARDING_CONTEXT`)
+### Phase 1: Primitive + Inference ✅
+- `UpdateSharedContext` primitive in `api/services/primitives/shared_context.py` (chat-only)
+- `infer_shared_context()` in `api/services/context_inference.py` (replaces `enrich_context()`)
+- Context readiness signal in `build_working_memory()` — `{identity, brand, documents, tasks}` richness
+- Graduated `CONTEXT_AWARENESS_PROMPT` (replaces binary `ONBOARDING_CONTEXT`)
 
-### Phase 2: Workfloor Surface
+### Phase 2: Workfloor Surface ✅
 - Nested Context tab (Identity / Brand / Documents sub-nav)
-- Identity + Brand tabs render markdown with "Update" button
-- Cold start empty states
-- Delete profile form fields
+- Identity tab renders IDENTITY.md markdown (not form fields) + "Update via chat" button
+- Brand tab renders BRAND.md markdown + "Update via chat" button
+- Cold start empty states with inference guidance
+- New API: `GET/POST /api/memory/user/identity` (mirrors brand pattern)
 
-### Phase 3: Onboarding Dissolution
-- Delete `/onboarding` page
-- Delete `/api/memory/profile` endpoint
-- Auth callback redirects to `/workfloor` (not `/onboarding`)
-- Migrate existing profile data → IDENTITY.md (one-time)
+### Phase 3: Onboarding Dissolution ✅
+- Deleted `/onboarding` page
+- Deleted `POST /user/onboarding` endpoint
+- Deleted `onboarding.enrich()` client method
+- Auth callback triggers roster scaffolding, redirects to `/workfloor`
+- Profile form fields dissolved — IDENTITY.md is the profile
+- Removed `/onboarding` from middleware protected prefixes
 
-### Phase 4: Continuous Enrichment
-- TP proactively suggests context updates when new sources appear
-- Document upload offers "Use this to update Identity/Brand?"
-- Platform sync completion triggers TP awareness: "New Slack data — want to refine your identity?"
+### Phase 4: Continuous Enrichment ✅
+- TP prompt extended with proactive suggestion guidance for doc uploads, URL searches, platform connections
+- One-time-per-session suggestion discipline to avoid nagging
+- TP offers to update identity/brand when relevant source material appears in conversation
 
 ## Consequences
 

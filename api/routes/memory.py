@@ -251,6 +251,42 @@ async def _scaffold_default_roster(client, user_id: str):
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────
 
+# ─── Identity (ADR-144: workspace-level identity) ────────────────────────────
+
+@router.get("/user/identity")
+async def get_identity(auth: UserClient):
+    """Get workspace identity. Reads /workspace/IDENTITY.md."""
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+        content = await um.read("IDENTITY.md")
+        if content and content.strip():
+            return {"content": content, "exists": True}
+        return {"content": None, "exists": False}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class IdentitySaveRequest(BaseModel):
+    content: str
+
+
+@router.post("/user/identity")
+async def save_identity(body: IdentitySaveRequest, auth: UserClient):
+    """Save workspace identity. Writes /workspace/IDENTITY.md."""
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+        success = await um.write("IDENTITY.md", body.content, summary="User identity")
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to write IDENTITY.md")
+        return {"exists": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────
+
 @router.get("/user/brand")
 async def get_brand(auth: UserClient):
     """Get workspace brand. Reads /workspace/BRAND.md."""
