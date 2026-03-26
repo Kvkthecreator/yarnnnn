@@ -7,6 +7,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
@@ -160,6 +161,7 @@ interface TPProviderProps {
 }
 
 export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
   const [status, setStatus] = useState<TPStatus>({ type: 'idle' });
@@ -549,6 +551,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     const setupData = action.data as unknown as SetupConfirmData;
                     setSetupConfirmModal({ open: true, data: setupData });
                     setStatus({ type: 'complete', message: 'Agent created' });
+                  } else if (action.type === 'NAVIGATE') {
+                    // ADR-144: TP navigates user to a page (task, agent, etc.)
+                    const url = action.data?.url as string;
+                    if (url) {
+                      // Delay slightly so the user sees the tool result before navigating
+                      setTimeout(() => router.push(url), 600);
+                    }
                   } else if (action.type === 'UPDATE_TODOS') {
                     const todos = (action.data?.todos as Todo[]) || [];
                     dispatch({ type: 'SET_TODOS', todos });
