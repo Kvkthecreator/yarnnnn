@@ -14,12 +14,6 @@ import type {
   DocumentUploadResponse,
   DocumentDownloadResponse,
   DocumentListResponse,
-  KnowledgeFile,
-  KnowledgeFileDetail,
-  KnowledgeFileCreateInput,
-  KnowledgeFilesResponse,
-  KnowledgeVersionsResponse,
-  KnowledgeSummaryResponse,
   DeleteResponse,
   OnboardingStateResponse,
   SubscriptionStatus,
@@ -288,43 +282,6 @@ export const api = {
       request<{ success: boolean; path: string; filename: string; message: string }>(
         "/api/share",
         { method: "POST", body: JSON.stringify({ filename, content }) }
-      ),
-  },
-
-  // Knowledge filesystem (ADR-107 Phase 3)
-  knowledge: {
-    summary: () =>
-      request<KnowledgeSummaryResponse>("/api/knowledge/summary"),
-
-    listFiles: (
-      options?: {
-        content_class?: "digests" | "analyses" | "briefs" | "research" | "insights";
-        limit?: number;
-      }
-    ) => {
-      const params = new URLSearchParams();
-      if (options?.content_class) params.set("content_class", options.content_class);
-      if (typeof options?.limit === "number") params.set("limit", String(options.limit));
-      const query = params.toString();
-      return request<KnowledgeFilesResponse>(
-        `/api/knowledge/files${query ? `?${query}` : ""}`
-      );
-    },
-
-    readFile: (path: string) =>
-      request<KnowledgeFileDetail>(
-        `/api/knowledge/files/read?path=${encodeURIComponent(path)}`
-      ),
-
-    createFile: (data: KnowledgeFileCreateInput) =>
-      request<KnowledgeFile>(
-        `/api/knowledge/files`,
-        { method: "POST", body: JSON.stringify(data) }
-      ),
-
-    listVersions: (path: string) =>
-      request<KnowledgeVersionsResponse>(
-        `/api/knowledge/files/versions?path=${encodeURIComponent(path)}`
       ),
   },
 

@@ -7,7 +7,6 @@
  * - Workspace (IDENTITY.md, BRAND.md, CONTEXT.md)
  * - Agents (/agents/{slug}/ → AGENT.md, memory/)
  * - Tasks (/tasks/{slug}/ → TASK.md, outputs/)
- * - Knowledge (/knowledge/ → digests, analyses, research, insights)
  * - Platforms (Slack, Notion — connections + sync status)
  * - Documents (uploaded files)
  */
@@ -22,7 +21,6 @@ import {
   ChevronDown,
   Users,
   ListChecks,
-  Brain,
   Link2,
   Upload,
   RefreshCw,
@@ -30,13 +28,13 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
-import type { Agent, Task, KnowledgeFile, Document } from '@/types';
+import type { Agent, Task, Document } from '@/types';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Section = 'workspace' | 'agents' | 'tasks' | 'knowledge' | 'platforms' | 'documents';
+type Section = 'workspace' | 'agents' | 'tasks' | 'platforms' | 'documents';
 
 // =============================================================================
 // Sidebar Tree Item
@@ -199,83 +197,6 @@ function TasksPanel() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function KnowledgePanel() {
-  const [summary, setSummary] = useState<{ total: number; classes: Array<{ content_class: string; count: number }> } | null>(null);
-  const [files, setFiles] = useState<KnowledgeFile[]>([]);
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.knowledge.summary().then(setSummary).catch(() => null).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) {
-      api.knowledge.listFiles({ content_class: selectedClass as any, limit: 20 })
-        .then(res => setFiles(res.files))
-        .catch(() => setFiles([]));
-    } else {
-      api.knowledge.listFiles({ limit: 20 })
-        .then(res => setFiles(res.files))
-        .catch(() => setFiles([]));
-    }
-  }, [selectedClass]);
-
-  if (loading) return <LoadingState />;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground/50 px-1">
-        /knowledge/ — accumulated from platform sync + agent outputs
-      </p>
-
-      {/* Class chips */}
-      {summary && summary.classes.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap px-1">
-          <button
-            onClick={() => setSelectedClass(null)}
-            className={cn(
-              'px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
-              !selectedClass ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
-            )}
-          >
-            All ({summary.total})
-          </button>
-          {summary.classes.map(c => (
-            <button
-              key={c.content_class}
-              onClick={() => setSelectedClass(c.content_class)}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
-                selectedClass === c.content_class ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {c.content_class} ({c.count})
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* File list */}
-      {files.length > 0 ? (
-        <div className="space-y-1">
-          {files.map(f => (
-            <FileRow
-              key={f.path}
-              name={f.name}
-              path={f.path}
-              preview={f.summary}
-              timestamp={f.updated_at}
-            />
-          ))}
-        </div>
-      ) : (
-        <EmptyState message="No knowledge files yet — they accumulate from platform sync and agent outputs" />
-      )}
     </div>
   );
 }
@@ -477,7 +398,6 @@ const SECTIONS: Array<{ id: Section; label: string; icon: typeof FolderOpen; pat
   { id: 'workspace', label: 'Workspace', icon: FolderOpen, path: '/workspace/' },
   { id: 'agents', label: 'Agents', icon: Users, path: '/agents/' },
   { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks/' },
-  { id: 'knowledge', label: 'Knowledge', icon: Brain, path: '/knowledge/' },
   { id: 'platforms', label: 'Platforms', icon: Link2, path: '' },
   { id: 'documents', label: 'Documents', icon: Upload, path: '' },
 ];
@@ -494,7 +414,6 @@ export default function ContextPage() {
       case 'workspace': return <WorkspacePanel />;
       case 'agents': return <AgentsPanel />;
       case 'tasks': return <TasksPanel />;
-      case 'knowledge': return <KnowledgePanel />;
       case 'platforms': return <PlatformsPanel />;
       case 'documents': return <DocumentsPanel />;
     }

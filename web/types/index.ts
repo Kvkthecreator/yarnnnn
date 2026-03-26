@@ -115,68 +115,6 @@ export interface DocumentListResponse {
   offset: number;
 }
 
-// Knowledge filesystem (ADR-107)
-export type KnowledgeContentClass =
-  | "digests"
-  | "analyses"
-  | "briefs"
-  | "research"
-  | "insights";
-
-export interface KnowledgeFile {
-  path: string;
-  name: string;
-  content_class: KnowledgeContentClass | string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-  updated_at?: string;
-}
-
-export interface KnowledgeFilesResponse {
-  files: KnowledgeFile[];
-  total: number;
-  content_class?: KnowledgeContentClass | null;
-  limit: number;
-}
-
-export interface KnowledgeFileDetail {
-  path: string;
-  name: string;
-  content_class: KnowledgeContentClass | string;
-  content: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-  updated_at?: string;
-}
-
-export interface KnowledgeFileCreateInput {
-  title: string;
-  content: string;
-  content_class: string;
-}
-
-export interface KnowledgeVersion {
-  path: string;
-  version: number;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-  updated_at?: string;
-}
-
-export interface KnowledgeVersionsResponse {
-  canonical_path: string;
-  versions: KnowledgeVersion[];
-  total: number;
-}
-
-export interface KnowledgeSummaryResponse {
-  total: number;
-  classes: Array<{
-    content_class: KnowledgeContentClass | string;
-    count: number;
-  }>;
-}
-
 // Onboarding State (ADR-138: check if user has any agents)
 export interface OnboardingStateResponse {
   has_agents: boolean;
