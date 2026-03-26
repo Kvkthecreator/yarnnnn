@@ -112,12 +112,14 @@ def _parse_response(response) -> ChatResponse:
                 input=block.input
             ))
 
-    # ADR-101: Extract token usage from response
+    # ADR-101: Extract token usage from response (including cache metrics)
     usage = None
     if hasattr(response, 'usage') and response.usage:
         usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
+            "cache_creation_input_tokens": getattr(response.usage, 'cache_creation_input_tokens', 0) or 0,
+            "cache_read_input_tokens": getattr(response.usage, 'cache_read_input_tokens', 0) or 0,
         }
 
     return ChatResponse(
@@ -154,6 +156,8 @@ async def chat_completion(
         max_tokens=max_tokens,
         system=system,
         messages=messages,
+        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        cache_control={"type": "ephemeral"},
     )
 
     return response.content[0].text
@@ -189,6 +193,8 @@ async def chat_completion_with_tools(
         "system": system,
         "messages": messages,
         "tools": tools,
+        "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+        "cache_control": {"type": "ephemeral"},
     }
 
     if tool_choice:
@@ -223,6 +229,8 @@ async def chat_completion_stream(
         max_tokens=max_tokens,
         system=system,
         messages=messages,
+        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        cache_control={"type": "ephemeral"},
     ) as stream:
         async for text in stream.text_stream:
             yield text
@@ -285,6 +293,8 @@ async def chat_completion_stream_with_tools(
             "system": system,
             "messages": working_messages,
             "tools": tools,
+            "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+            "cache_control": {"type": "ephemeral"},
         }
         # Only use tool_choice on first round to force initial tool use
         # After that, let model decide (it might want to respond after action)
@@ -299,10 +309,12 @@ async def chat_completion_stream_with_tools(
             # Get final response to check for tool use
             full_response = await stream.get_final_message()
 
-        # Track token usage from this round
+        # Track token usage from this round (including cache metrics)
         if hasattr(full_response, 'usage') and full_response.usage:
             total_input_tokens += full_response.usage.input_tokens
             total_output_tokens += full_response.usage.output_tokens
+            cache_creation = getattr(full_response.usage, 'cache_creation_input_tokens', 0) or 0
+            cache_read = getattr(full_response.usage, 'cache_read_input_tokens', 0) or 0
             # Emit usage event after each round
             yield StreamEvent(
                 type="usage",
@@ -310,6 +322,8 @@ async def chat_completion_stream_with_tools(
                     "input_tokens": total_input_tokens,
                     "output_tokens": total_output_tokens,
                     "total_tokens": total_input_tokens + total_output_tokens,
+                    "cache_creation_input_tokens": cache_creation,
+                    "cache_read_input_tokens": cache_read,
                 }
             )
 
@@ -411,6 +425,8 @@ async def chat_completion_stream_with_tools(
             max_tokens=max_tokens,
             system=system + "\n\n[SYSTEM: You've used several tools. Now provide a brief summary response to the user based on what you found. Do not request any more tools.]",
             messages=working_messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            cache_control={"type": "ephemeral"},
             # No tools - force text response
         )
 
