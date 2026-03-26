@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.26.4] - Task lifecycle primitives + Schedule tab
+
+### Changed
+- `services/primitives/task.py`: Added UpdateTask (schedule/delivery/mode), PauseTask, ResumeTask. Chat-only scoping.
+- `services/primitives/registry.py`: Registered with chat-only mode gating.
+- `agents/tp_prompts/tools.py`: "Managing Task Lifecycle" section with examples and intent mapping.
+- `web/app/(authenticated)/tasks/[slug]/page.tsx`: "Details" tab → "Schedule" tab. Inline pause/resume/run-now controls. Schedule info as hero section. Objective/criteria as collapsible details.
+- Expected behavior: TP manages full task lifecycle via chat. Schedule tab gives users at-a-glance schedule state with inline controls.
+
+---
+
 ## [2026.03.26.3] - ADR-143: Default workspace seeding + TP profile/brand nudge
 
 ### Added

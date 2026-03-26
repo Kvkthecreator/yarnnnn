@@ -3,7 +3,7 @@
 /**
  * Task Page — v3: Tabbed Left + Task-Scoped Chat Right
  *
- * Left: [Output] [Details] [History] tabs — output is full-tab hero
+ * Left: [Output] [Schedule] [History] tabs — output is full-tab hero
  * Right: Task-scoped TP chat (always visible, resizable)
  * Same WorkspaceLayout pattern as workfloor.
  *
@@ -92,10 +92,12 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
     );
   }
 
-  if (output.md_content) {
+  // API returns 'content' (markdown text) — check both field names for compatibility
+  const mdContent = (output as any).content || output.md_content;
+  if (mdContent) {
     return (
       <div className="prose prose-sm dark:prose-invert max-w-none p-4">
-        <ReactMarkdown>{output.md_content}</ReactMarkdown>
+        <ReactMarkdown>{mdContent}</ReactMarkdown>
       </div>
     );
   }
@@ -104,52 +106,118 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 }
 
 // =============================================================================
-// Left Panel: Details Tab
+// Left Panel: Schedule Tab (was "Details")
 // =============================================================================
 
-function DetailsTab({ task }: { task: TaskDetail }) {
+function ScheduleTab({ task, onRefresh }: { task: TaskDetail; onRefresh?: () => void }) {
+  const [pausing, setPausing] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const statusColor = task.status === 'active' ? 'bg-green-500' : task.status === 'paused' ? 'bg-amber-500' : task.status === 'completed' ? 'bg-blue-500' : 'bg-gray-400';
+
+  const handlePauseResume = async () => {
+    try {
+      if (task.status === 'active') {
+        setPausing(true);
+        await api.tasks.update(task.slug, { status: 'paused' });
+      } else {
+        setResuming(true);
+        await api.tasks.update(task.slug, { status: 'active' });
+      }
+      onRefresh?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPausing(false);
+      setResuming(false);
+    }
+  };
 
   return (
     <div className="p-4 space-y-5 max-w-xl">
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="p-2.5 rounded-lg border border-border">
-          <span className="text-muted-foreground block mb-0.5">Status</span>
-          <span className="font-medium flex items-center gap-1.5"><span className={cn('w-1.5 h-1.5 rounded-full', statusColor)} />{task.status}</span>
+      {/* Schedule controls — hero section */}
+      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={cn('w-2 h-2 rounded-full', statusColor)} />
+            <span className="text-sm font-medium capitalize">{task.status}</span>
+            {task.schedule && <span className="text-xs text-muted-foreground">· {task.schedule}</span>}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handlePauseResume}
+              disabled={pausing || resuming}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                task.status === 'active'
+                  ? "border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                  : "border border-green-300 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+              )}
+            >
+              {pausing ? '...' : resuming ? '...' : task.status === 'active' ? 'Pause' : 'Resume'}
+            </button>
+            <button
+              onClick={() => api.tasks.run(task.slug).then(() => onRefresh?.()).catch(console.error)}
+              className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Play className="w-3 h-3 inline mr-1" />Run Now
+            </button>
+          </div>
         </div>
-        {task.schedule && <div className="p-2.5 rounded-lg border border-border"><span className="text-muted-foreground block mb-0.5">Cadence</span><span className="font-medium">{task.schedule}</span></div>}
-        {task.next_run_at && <div className="p-2.5 rounded-lg border border-border"><span className="text-muted-foreground block mb-0.5">Next run</span><span className="font-medium">{formatRelativeTime(task.next_run_at)}</span></div>}
-        {task.delivery && <div className="p-2.5 rounded-lg border border-border"><span className="text-muted-foreground block mb-0.5">Delivery</span><span className="font-medium flex items-center gap-1"><Mail className="w-3 h-3" />{task.delivery}</span></div>}
-        {task.agent_slugs?.[0] && <div className="p-2.5 rounded-lg border border-border col-span-2"><span className="text-muted-foreground block mb-0.5">Agent</span><span className="font-medium">{task.agent_slugs[0]}</span></div>}
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {task.next_run_at && (
+            <div>
+              <span className="text-muted-foreground block mb-0.5">Next run</span>
+              <span className="font-medium">{new Date(task.next_run_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+            </div>
+          )}
+          {task.last_run_at && (
+            <div>
+              <span className="text-muted-foreground block mb-0.5">Last run</span>
+              <span className="font-medium">{formatRelativeTime(task.last_run_at)}</span>
+            </div>
+          )}
+          {task.delivery && (
+            <div>
+              <span className="text-muted-foreground block mb-0.5">Delivery</span>
+              <span className="font-medium flex items-center gap-1"><Mail className="w-3 h-3" />{task.delivery}</span>
+            </div>
+          )}
+          {task.agent_slugs?.[0] && (
+            <div>
+              <span className="text-muted-foreground block mb-0.5">Agent</span>
+              <span className="font-medium">{task.agent_slugs[0]}</span>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Objective — collapsible reference */}
       {task.objective && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Objective</p>
-          <div className="text-xs space-y-1">
+        <details className="group">
+          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
+            Objective
+          </summary>
+          <div className="text-xs space-y-1 mt-2 pl-1">
             {task.objective.deliverable && <p><span className="text-muted-foreground">Deliverable:</span> {task.objective.deliverable}</p>}
             {task.objective.audience && <p><span className="text-muted-foreground">Audience:</span> {task.objective.audience}</p>}
             {task.objective.purpose && <p><span className="text-muted-foreground">Purpose:</span> {task.objective.purpose}</p>}
             {task.objective.format && <p><span className="text-muted-foreground">Format:</span> {task.objective.format}</p>}
           </div>
-        </div>
+        </details>
       )}
 
+      {/* Success criteria — collapsible reference */}
       {task.success_criteria && task.success_criteria.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Success Criteria</p>
-          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+        <details className="group">
+          <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
+            Success Criteria ({task.success_criteria.length})
+          </summary>
+          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground mt-2 pl-1">
             {task.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
           </ul>
-        </div>
+        </details>
       )}
-
-      <button
-        onClick={() => api.tasks.run(task.slug).catch(console.error)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        <Play className="w-3 h-3" /> Run Now
-      </button>
     </div>
   );
 }
@@ -346,7 +414,12 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'details' | 'history'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'schedule' | 'history'>('output');
+
+  const loadTask = useCallback(() => {
+    if (!slug) return;
+    api.tasks.get(slug).then(setTask).catch(console.error);
+  }, [slug]);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -396,7 +469,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-2">
-          {(['output', 'details', 'history'] as const).map(tab => (
+          {(['output', 'schedule', 'history'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -413,7 +486,7 @@ export default function TaskPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'details' && <DetailsTab task={task} />}
+          {leftTab === 'schedule' && <ScheduleTab task={task} onRefresh={loadTask} />}
           {leftTab === 'history' && (
             <HistoryTab
               outputs={outputs}

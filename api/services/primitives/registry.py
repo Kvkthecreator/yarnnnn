@@ -28,6 +28,9 @@ from .coordinator import (
 from .task import (
     CREATE_TASK_TOOL, handle_create_task,
     TRIGGER_TASK_TOOL, handle_trigger_task,
+    UPDATE_TASK_TOOL, handle_update_task,
+    PAUSE_TASK_TOOL, handle_pause_task,
+    RESUME_TASK_TOOL, handle_resume_task,
 )
 from .workspace import (
     READ_WORKSPACE_TOOL, handle_read_workspace,
@@ -163,6 +166,9 @@ PRIMITIVES = [
     # Task primitives — chat + headless (ADR-138)
     CREATE_TASK_TOOL,
     TRIGGER_TASK_TOOL,
+    UPDATE_TASK_TOOL,
+    PAUSE_TASK_TOOL,
+    RESUME_TASK_TOOL,
     # Workspace primitives — headless only (ADR-106)
     READ_WORKSPACE_TOOL,
     WRITE_WORKSPACE_TOOL,
@@ -199,6 +205,9 @@ HANDLERS: dict[str, Callable] = {
     "CreateAgent": handle_create_agent,
     "CreateTask": handle_create_task,
     "TriggerTask": handle_trigger_task,
+    "UpdateTask": handle_update_task,
+    "PauseTask": handle_pause_task,
+    "ResumeTask": handle_resume_task,
     "ReadWorkspace": handle_read_workspace,
     "WriteWorkspace": handle_write_workspace,
     "SearchWorkspace": handle_search_workspace,
@@ -288,6 +297,9 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     # Task primitives — chat + headless (ADR-138)
     "CreateTask":             ["chat", "headless"],
     "TriggerTask":            ["chat", "headless"],
+    "UpdateTask":             ["chat"],
+    "PauseTask":              ["chat"],
+    "ResumeTask":             ["chat"],
     # Workspace primitives — headless only (ADR-106)
     "ReadWorkspace":          ["headless"],
     "WriteWorkspace":         ["headless"],

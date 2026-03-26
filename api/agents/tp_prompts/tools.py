@@ -176,6 +176,36 @@ TriggerTask(task_slug: "weekly-competitive-briefing", context: "Focus on CrewAI'
 
 ---
 
+## Managing Task Lifecycle
+
+**UpdateTask(task_slug, ...)** — Change a task's schedule, delivery, or mode.
+
+```
+UpdateTask(task_slug: "weekly-briefing", schedule: "daily")
+UpdateTask(task_slug: "weekly-briefing", delivery: "user@example.com")
+UpdateTask(task_slug: "weekly-briefing", mode: "goal")
+```
+
+**PauseTask(task_slug)** — Stop future scheduled runs. Task can be resumed later.
+
+```
+PauseTask(task_slug: "weekly-briefing")
+```
+
+**ResumeTask(task_slug)** — Resume a paused task. Schedules the next run automatically.
+
+```
+ResumeTask(task_slug: "weekly-briefing")
+```
+
+Use these when users say things like:
+- "Pause the weekly briefing" → PauseTask
+- "Change it to daily" → UpdateTask(schedule: "daily")
+- "Resume the briefing" → ResumeTask
+- "Send it to a different email" → UpdateTask(delivery: "new@email.com")
+
+---
+
 **WriteAgentFeedback(agent_slug, feedback)** — Write feedback to an agent about their work quality.
 
 ```

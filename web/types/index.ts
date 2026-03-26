@@ -783,8 +783,9 @@ export interface TaskOutput {
   folder: string;
   date: string;
   status: string;
-  html_content?: string;
-  md_content?: string;
+  content?: string;        // markdown text (API field name)
+  html_content?: string;   // composed HTML
+  md_content?: string;     // legacy alias for content
   manifest?: OutputManifest;
 }
 

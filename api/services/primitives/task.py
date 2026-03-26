@@ -457,3 +457,271 @@ async def handle_trigger_task(auth: Any, input: dict) -> dict:
         "task_slug": task_slug,
         "message": f"Task '{task_slug}' triggered — will run on next scheduler tick.",
     }
+
+
+# =============================================================================
+# UpdateTask
+# =============================================================================
+
+UPDATE_TASK_TOOL = {
+    "name": "UpdateTask",
+    "description": """Update a task's schedule, delivery, or status.
+
+Examples:
+- UpdateTask(task_slug="weekly-briefing", schedule="daily")
+- UpdateTask(task_slug="weekly-briefing", delivery="user@example.com")
+- UpdateTask(task_slug="weekly-briefing", mode="goal")""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task_slug": {
+                "type": "string",
+                "description": "The task to update"
+            },
+            "schedule": {
+                "type": "string",
+                "description": "New cadence: 'daily', 'weekly', 'monthly', or cron expression"
+            },
+            "delivery": {
+                "type": "string",
+                "description": "New delivery target: email address or 'none'"
+            },
+            "mode": {
+                "type": "string",
+                "enum": ["recurring", "goal", "reactive"],
+                "description": "New temporal behavior"
+            },
+        },
+        "required": ["task_slug"]
+    }
+}
+
+
+async def handle_update_task(auth: Any, input: dict) -> dict:
+    """Handle UpdateTask primitive — update task schedule, delivery, or mode."""
+    task_slug = input.get("task_slug", "").strip()
+    if not task_slug:
+        return {"success": False, "error": "missing_slug", "message": "task_slug is required"}
+
+    user_id = auth.user_id
+
+    # Find task
+    try:
+        task_result = (
+            auth.client.table("tasks")
+            .select("id, slug, status, schedule, mode")
+            .eq("user_id", user_id)
+            .eq("slug", task_slug)
+            .maybe_single()
+            .execute()
+        )
+        if not task_result or not task_result.data:
+            return {"success": False, "error": "not_found", "message": f"Task '{task_slug}' not found."}
+    except Exception as e:
+        return {"success": False, "error": "lookup_failed", "message": str(e)}
+
+    # Build update
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    changes = []
+
+    new_schedule = input.get("schedule")
+    if new_schedule:
+        update_data["schedule"] = new_schedule
+        next_run = _compute_next_run(new_schedule)
+        if next_run:
+            update_data["next_run_at"] = next_run
+        changes.append(f"schedule → {new_schedule}")
+
+    new_mode = input.get("mode")
+    if new_mode and new_mode in ("recurring", "goal", "reactive"):
+        update_data["mode"] = new_mode
+        changes.append(f"mode → {new_mode}")
+
+    new_delivery = input.get("delivery")
+    if new_delivery is not None:
+        changes.append(f"delivery → {new_delivery}")
+
+    if not changes:
+        return {"success": False, "error": "no_changes", "message": "No changes specified."}
+
+    # Apply DB update
+    try:
+        auth.client.table("tasks").update(update_data).eq("id", task_result.data["id"]).execute()
+    except Exception as e:
+        return {"success": False, "error": "update_failed", "message": str(e)}
+
+    # Update TASK.md delivery field if changed
+    if new_delivery is not None:
+        try:
+            from services.task_workspace import TaskWorkspace
+            tw = TaskWorkspace(auth.client, user_id, task_slug)
+            task_md = await tw.read_task()
+            if task_md:
+                # Simple replace of delivery line
+                import re
+                if "**Delivery:**" in task_md:
+                    task_md = re.sub(r"\*\*Delivery:\*\*.*", f"**Delivery:** {new_delivery}", task_md)
+                else:
+                    task_md += f"\n**Delivery:** {new_delivery}"
+                await tw.write("TASK.md", task_md, summary=f"Updated delivery: {new_delivery}")
+        except Exception as e:
+            logger.warning(f"[UPDATE_TASK] TASK.md update failed (non-fatal): {e}")
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "changes": changes,
+        "message": f"Updated task '{task_slug}': {', '.join(changes)}.",
+    }
+
+
+# =============================================================================
+# PauseTask
+# =============================================================================
+
+PAUSE_TASK_TOOL = {
+    "name": "PauseTask",
+    "description": """Pause a task — stops future scheduled runs. The task can be resumed later.
+
+Example: PauseTask(task_slug="weekly-briefing")""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task_slug": {
+                "type": "string",
+                "description": "The task to pause"
+            },
+        },
+        "required": ["task_slug"]
+    }
+}
+
+
+async def handle_pause_task(auth: Any, input: dict) -> dict:
+    """Handle PauseTask — set task status to 'paused'."""
+    task_slug = input.get("task_slug", "").strip()
+    if not task_slug:
+        return {"success": False, "error": "missing_slug", "message": "task_slug is required"}
+
+    user_id = auth.user_id
+    now = datetime.now(timezone.utc)
+
+    try:
+        task_result = (
+            auth.client.table("tasks")
+            .select("id, slug, status")
+            .eq("user_id", user_id)
+            .eq("slug", task_slug)
+            .maybe_single()
+            .execute()
+        )
+        if not task_result or not task_result.data:
+            return {"success": False, "error": "not_found", "message": f"Task '{task_slug}' not found."}
+
+        if task_result.data["status"] == "paused":
+            return {"success": True, "task_slug": task_slug, "message": f"Task '{task_slug}' is already paused."}
+
+        auth.client.table("tasks").update({
+            "status": "paused",
+            "updated_at": now.isoformat(),
+        }).eq("id", task_result.data["id"]).execute()
+
+    except Exception as e:
+        return {"success": False, "error": "update_failed", "message": str(e)}
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=auth.client, user_id=user_id,
+            event_type="task_paused", summary=f"Paused task: {task_slug}",
+            event_ref=task_result.data["id"],
+            metadata={"task_slug": task_slug},
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "message": f"Task '{task_slug}' paused. No future runs will be scheduled until resumed.",
+    }
+
+
+# =============================================================================
+# ResumeTask
+# =============================================================================
+
+RESUME_TASK_TOOL = {
+    "name": "ResumeTask",
+    "description": """Resume a paused task — restores scheduled runs.
+
+Example: ResumeTask(task_slug="weekly-briefing")""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task_slug": {
+                "type": "string",
+                "description": "The task to resume"
+            },
+        },
+        "required": ["task_slug"]
+    }
+}
+
+
+async def handle_resume_task(auth: Any, input: dict) -> dict:
+    """Handle ResumeTask — set task status back to 'active' and schedule next run."""
+    task_slug = input.get("task_slug", "").strip()
+    if not task_slug:
+        return {"success": False, "error": "missing_slug", "message": "task_slug is required"}
+
+    user_id = auth.user_id
+    now = datetime.now(timezone.utc)
+
+    try:
+        task_result = (
+            auth.client.table("tasks")
+            .select("id, slug, status, schedule")
+            .eq("user_id", user_id)
+            .eq("slug", task_slug)
+            .maybe_single()
+            .execute()
+        )
+        if not task_result or not task_result.data:
+            return {"success": False, "error": "not_found", "message": f"Task '{task_slug}' not found."}
+
+        if task_result.data["status"] == "active":
+            return {"success": True, "task_slug": task_slug, "message": f"Task '{task_slug}' is already active."}
+
+        # Calculate next run from schedule
+        schedule = task_result.data.get("schedule", "weekly")
+        next_run = _compute_next_run(schedule) if schedule else None
+
+        auth.client.table("tasks").update({
+            "status": "active",
+            "next_run_at": next_run,
+            "updated_at": now.isoformat(),
+        }).eq("id", task_result.data["id"]).execute()
+
+    except Exception as e:
+        return {"success": False, "error": "update_failed", "message": str(e)}
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=auth.client, user_id=user_id,
+            event_type="task_resumed", summary=f"Resumed task: {task_slug}",
+            event_ref=task_result.data["id"],
+            metadata={"task_slug": task_slug, "next_run_at": next_run},
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "next_run_at": next_run,
+        "message": f"Task '{task_slug}' resumed. Next run: {next_run or 'to be scheduled'}.",
+    }
