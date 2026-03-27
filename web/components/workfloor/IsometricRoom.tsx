@@ -334,9 +334,10 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
             height: ROOM_H,
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
-            margin: '0 auto',
-            // Collapse the scaled height so no blank space below
-            marginBottom: -(ROOM_H * (1 - scale)),
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            marginTop: 0,
+            marginBottom: Math.min(0, -(ROOM_H * (1 - scale))),
           }}
           className="relative"
         >

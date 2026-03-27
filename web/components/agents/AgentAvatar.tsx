@@ -137,20 +137,20 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
       >
         {/* Hair / hat */}
         <div
-          className="absolute rounded-t-lg"
+          className="absolute"
           style={{
             width: headW + 2,
             height: hairH,
             top: hairTop,
             left: '50%',
-            transform: 'translateX(-50%)',
+            marginLeft: -(headW + 2) / 2,
             background: hair,
             borderRadius: `${s * 0.06}px ${s * 0.06}px 0 0`,
             opacity: paused ? 0.3 : 1,
           }}
         />
 
-        {/* Head group — animated separately */}
+        {/* Head group — animated separately (use marginLeft, not transform for centering) */}
         <motion.div
           className="absolute"
           style={{
@@ -158,7 +158,7 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
             height: headH,
             top: headTop,
             left: '50%',
-            transform: 'translateX(-50%)',
+            marginLeft: -headW / 2,
           }}
           animate={headAnim[state]}
         >
@@ -200,7 +200,7 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
               height: state === 'error' ? 2 : 1.5,
               bottom: '22%',
               left: '50%',
-              transform: 'translateX(-50%)',
+              marginLeft: -mouthW / 2,
               background: state === 'error' ? '#E53E3E' : '#8B6F5E',
               borderRadius: state === 'working' ? '0 0 4px 4px' : 1,
               opacity: paused ? 0.2 : 0.7,
@@ -216,7 +216,7 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
             height: bodyH,
             top: bodyTop,
             left: '50%',
-            transform: 'translateX(-50%)',
+            marginLeft: -bodyW / 2,
             background: outfit,
             borderRadius: `${s * 0.03}px ${s * 0.03}px ${s * 0.02}px ${s * 0.02}px`,
             opacity: paused ? 0.25 : 0.9,
