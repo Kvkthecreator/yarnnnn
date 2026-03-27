@@ -1,5 +1,5 @@
 ---
-name: diagram
+name: mermaid
 description: "Create diagrams from Mermaid syntax. Produces PNG or SVG flowcharts, sequence diagrams, org charts, and more."
 type: local
 tools: ["mermaid-cli"]

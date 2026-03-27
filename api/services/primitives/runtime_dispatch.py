@@ -21,7 +21,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-output-gateway.onrender.com")
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
