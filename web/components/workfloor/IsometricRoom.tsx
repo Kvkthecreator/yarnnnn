@@ -281,7 +281,26 @@ interface IsometricRoomProps {
 }
 
 export function IsometricRoom({ agents, tasks, loading, onTPClick }: IsometricRoomProps) {
+  // ALL hooks must be before any early return (React rules of hooks)
   const [collapsed, setCollapsed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  const ROOM_W = maxScreenX - minScreenX;
+  const ROOM_H = ROOM_TOTAL_HEIGHT;
+
+  useEffect(() => {
+    const measure = () => {
+      if (!containerRef.current) return;
+      const available = containerRef.current.clientWidth;
+      const s = Math.min(1.3, available / ROOM_W);
+      setScale(s);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [ROOM_W]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height: ROOM_TOTAL_HEIGHT }}>
@@ -300,7 +319,7 @@ export function IsometricRoom({ agents, tasks, loading, onTPClick }: IsometricRo
 
   // Build set of occupied tile positions for floor highlighting
   const occupiedSet = new Set([
-    `${TP_TILE[0]},${TP_TILE[1]}`, // TP always occupies its tile
+    `${TP_TILE[0]},${TP_TILE[1]}`,
     ...agents.slice(0, 6).map((_, i) => {
       const t = AGENT_TILES[i];
       return t ? `${t[0]},${t[1]}` : '';
@@ -312,27 +331,6 @@ export function IsometricRoom({ agents, tasks, loading, onTPClick }: IsometricRo
       .filter(Boolean)
       .map(t => `${t![0]},${t![1]}`)
   );
-
-  // Canonical room dimensions — computed from actual tile bounds
-  const ROOM_W = maxScreenX - minScreenX;
-  const ROOM_H = ROOM_TOTAL_HEIGHT;
-
-  // Measure container and compute scale factor
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const measure = () => {
-      if (!containerRef.current) return;
-      const available = containerRef.current.clientWidth;
-      // Scale down if room is wider than container, scale up to max 1.3
-      const s = Math.min(1.3, available / ROOM_W);
-      setScale(s);
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [ROOM_W]);
 
   const tpScreen = isoToScreen(TP_TILE[0], TP_TILE[1]);
   const tpSpriteW = 90;
