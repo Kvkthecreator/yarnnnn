@@ -24,7 +24,7 @@ import {
   Cog,
 } from 'lucide-react';
 import type { Agent, Task } from '@/types';
-import { AgentAvatar } from '@/components/agents/AgentAvatar';
+import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
 import { cn } from '@/lib/utils';
 
 // =============================================================================
@@ -71,15 +71,17 @@ function isoToScreen(col: number, row: number) {
   };
 }
 
-// Agent positions on the grid — spread wide across the 5×3 floor
+// Agent positions on the grid — spread wide, TP gets center-front
 const AGENT_TILES: [number, number][] = [
   [1, 0],
   [3, 0],
   [0, 1],
-  [2, 1],
   [4, 1],
   [1, 2],
+  [3, 2],
 ];
+// TP position — center of middle row, slightly forward
+const TP_TILE: [number, number] = [2, 1];
 
 // Floor tiles: fill the full grid (including empty tiles for floor surface)
 const FLOOR_TILES: [number, number][] = [];
@@ -275,9 +277,11 @@ interface IsometricRoomProps {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
+  onTPClick?: () => void;
 }
 
-export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
+export function IsometricRoom({ agents, tasks, loading, onTPClick }: IsometricRoomProps) {
+  const [collapsed, setCollapsed] = useState(false);
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height: ROOM_TOTAL_HEIGHT }}>
@@ -295,12 +299,13 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
   }
 
   // Build set of occupied tile positions for floor highlighting
-  const occupiedSet = new Set(
-    agents.slice(0, 6).map((_, i) => {
+  const occupiedSet = new Set([
+    `${TP_TILE[0]},${TP_TILE[1]}`, // TP always occupies its tile
+    ...agents.slice(0, 6).map((_, i) => {
       const t = AGENT_TILES[i];
       return t ? `${t[0]},${t[1]}` : '';
-    })
-  );
+    }),
+  ]);
   const workingSet = new Set(
     agents.slice(0, 6)
       .map((a, i) => a.latest_version_status === 'generating' ? AGENT_TILES[i] : null)
@@ -329,50 +334,95 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
     return () => window.removeEventListener('resize', measure);
   }, [ROOM_W]);
 
+  const tpScreen = isoToScreen(TP_TILE[0], TP_TILE[1]);
+  const tpSpriteW = 90;
+
   return (
     <>
-      {/* Desktop: Isometric room — scales to fill available width */}
-      <div ref={containerRef} className="hidden md:block mb-2 overflow-hidden">
-        <div
-          style={{
-            width: ROOM_W,
-            height: ROOM_H,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top center',
-            marginLeft: 'auto',
-            marginRight: 'auto',
-            marginTop: 0,
-            marginBottom: Math.min(0, -(ROOM_H * (1 - scale))),
-          }}
-          className="relative"
+      {/* Desktop: Isometric room — collapsible, scales to fill */}
+      <div ref={containerRef} className="hidden md:block overflow-hidden">
+        {/* Toggle bar */}
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
         >
-          {/* Floor tiles */}
-          {FLOOR_TILES.map(([c, r]) => (
-            <FloorTile
-              key={`${c}-${r}`}
-              col={c}
-              row={r}
-              occupied={occupiedSet.has(`${c},${r}`)}
-              working={workingSet.has(`${c},${r}`)}
-            />
-          ))}
+          <span>{collapsed ? 'Show' : 'Hide'} workfloor</span>
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={cn('transition-transform', collapsed && 'rotate-180')}>
+            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
-
-          {/* Agents on tiles */}
-          {agents.slice(0, 6).map((agent, i) => {
-            const tile = AGENT_TILES[i];
-            if (!tile) return null;
-            return (
-              <AgentOnTile
-                key={agent.id}
-                agent={agent}
-                tasks={tasks}
-                col={tile[0]}
-                row={tile[1]}
+        {!collapsed && (
+          <div
+            style={{
+              width: ROOM_W,
+              height: ROOM_H,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              marginTop: 0,
+              marginBottom: Math.min(0, -(ROOM_H * (1 - scale))),
+            }}
+            className="relative"
+          >
+            {/* Floor tiles */}
+            {FLOOR_TILES.map(([c, r]) => (
+              <FloorTile
+                key={`${c}-${r}`}
+                col={c}
+                row={r}
+                occupied={occupiedSet.has(`${c},${r}`)}
+                working={workingSet.has(`${c},${r}`)}
               />
-            );
-          })}
-        </div>
+            ))}
+
+            {/* TP — center position, slightly distinct */}
+            <button
+              onClick={onTPClick}
+              className="absolute flex flex-col items-center group z-10"
+              style={{
+                left: centerX + tpScreen.x - tpSpriteW / 2,
+                top: ROOM_PADDING_TOP + tpScreen.y - 68,
+                width: tpSpriteW,
+              }}
+            >
+              {/* Ground shadow */}
+              <div
+                className="absolute rounded-full blur-[5px]"
+                style={{
+                  width: 50, height: 16,
+                  backgroundColor: 'hsl(var(--primary))',
+                  opacity: 0.12,
+                  bottom: 18,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              />
+              <div className="transition-transform duration-200 group-hover:-translate-y-2">
+                <TPAvatar size={80} />
+              </div>
+              <span className="text-[10px] font-medium text-primary/70 group-hover:text-primary transition-colors">
+                Orchestrator
+              </span>
+            </button>
+
+            {/* Agents on tiles */}
+            {agents.slice(0, 6).map((agent, i) => {
+              const tile = AGENT_TILES[i];
+              if (!tile) return null;
+              return (
+                <AgentOnTile
+                  key={agent.id}
+                  agent={agent}
+                  tasks={tasks}
+                  col={tile[0]}
+                  row={tile[1]}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Mobile: Horizontal strip */}

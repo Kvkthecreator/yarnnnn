@@ -520,7 +520,11 @@ export default function WorkfloorPage() {
         )}
 
         {/* Agent Room — full width, isometric display */}
-        <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} />
+        <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} onTPClick={() => {
+          // Focus the chat input when TP is clicked
+          const chatInput = document.querySelector('textarea[placeholder*="Ask anything"]') as HTMLTextAreaElement;
+          if (chatInput) chatInput.focus();
+        }} />
 
         <div className="max-w-2xl mx-auto px-5">
 
