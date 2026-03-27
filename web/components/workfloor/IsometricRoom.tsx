@@ -138,7 +138,6 @@ function FloorTile({ col, row, occupied, working }: { col: number; row: number; 
         )}
         style={{
           clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-          animation: `tileShimmer 8s ease-in-out ${(col + row) * 0.4}s infinite`,
         }}
       />
     </div>
@@ -358,95 +357,6 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
             />
           ))}
 
-          {/* Ambient: radial pulse wave on the floor surface
-              Clipped to the isometric diamond shape so it only covers floor tiles */}
-          {(() => {
-            // Floor diamond corners in screen coords
-            const top = isoToScreen(GRID_COLS - 1, 0);
-            const right = isoToScreen(GRID_COLS - 1, GRID_ROWS - 1);
-            const bottom = isoToScreen(0, GRID_ROWS - 1);
-            const left = isoToScreen(0, 0);
-            // Convert to % of container for clip-path
-            const toX = (sx: number) => ((centerX + sx) / ROOM_W * 100).toFixed(1);
-            const toY = (sy: number) => ((ROOM_PADDING_TOP + sy + TILE_H / 2) / ROOM_H * 100).toFixed(1);
-            const clipPath = `polygon(${toX(top.x)}% ${toY(top.y)}%, ${toX(right.x)}% ${toY(right.y)}%, ${toX(bottom.x)}% ${toY(bottom.y)}%, ${toX(left.x)}% ${toY(left.y)}%)`;
-
-            return (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{ clipPath }}
-              >
-                {[0, 1, 2].map(i => (
-                  <div
-                    key={`pulse-${i}`}
-                    className="absolute rounded-full"
-                    style={{
-                      left: '50%',
-                      top: '50%',
-                      width: Math.max(ROOM_W, ROOM_H),
-                      height: Math.max(ROOM_W, ROOM_H),
-                      marginLeft: -Math.max(ROOM_W, ROOM_H) / 2,
-                      marginTop: -Math.max(ROOM_W, ROOM_H) / 2,
-                      background: 'radial-gradient(circle, hsl(var(--primary) / 0.06) 0%, transparent 70%)',
-                      animation: `floorPulse 5s ease-out ${i * 1.7}s infinite`,
-                    }}
-                  />
-                ))}
-              </div>
-            );
-          })()}
-
-          {/* Ambient: SVG flow lines between agent pairs */}
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            width={ROOM_W}
-            height={ROOM_H}
-            style={{ overflow: 'visible' }}
-          >
-            {/* Draw flowing dashed lines between adjacent agents */}
-            {agents.slice(0, 6).map((_, i) => {
-              const nextIdx = (i + 1) % Math.min(agents.length, 6);
-              if (nextIdx <= i) return null; // only draw forward connections
-              const tileA = AGENT_TILES[i];
-              const tileB = AGENT_TILES[nextIdx];
-              if (!tileA || !tileB) return null;
-              const a = isoToScreen(tileA[0], tileA[1]);
-              const b = isoToScreen(tileB[0], tileB[1]);
-              const ax = centerX + a.x;
-              const ay = ROOM_PADDING_TOP + a.y + TILE_H / 2;
-              const bx = centerX + b.x;
-              const by = ROOM_PADDING_TOP + b.y + TILE_H / 2;
-              return (
-                <line
-                  key={`flow-${i}-${nextIdx}`}
-                  x1={ax} y1={ay} x2={bx} y2={by}
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="1"
-                  strokeDasharray="4 8"
-                  opacity="0.08"
-                  style={{
-                    animation: `dashFlow 3s linear ${i * 0.5}s infinite`,
-                  }}
-                />
-              );
-            })}
-          </svg>
-
-          {/* Ambient styles */}
-          <style>{`
-            @keyframes floorPulse {
-              0% { transform: scale(0.1); opacity: 1; }
-              100% { transform: scale(1.2); opacity: 0; }
-            }
-            @keyframes dashFlow {
-              0% { stroke-dashoffset: 0; }
-              100% { stroke-dashoffset: -24; }
-            }
-            @keyframes tileShimmer {
-              0%, 100% { opacity: 1; }
-              50% { opacity: 0.75; }
-            }
-          `}</style>
 
           {/* Agents on tiles */}
           {agents.slice(0, 6).map((agent, i) => {
