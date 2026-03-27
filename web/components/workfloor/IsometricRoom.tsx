@@ -358,27 +358,43 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
             />
           ))}
 
-          {/* Ambient: diagonal light sweep across all floor tiles */}
-          <div
-            className="absolute pointer-events-none"
-            style={{
-              left: 0,
-              top: ROOM_PADDING_TOP,
-              width: ROOM_W,
-              height: roomScreenHeight + TILE_H,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                width: '150%',
-                height: '100%',
-                background: 'linear-gradient(135deg, transparent 40%, hsl(var(--primary) / 0.04) 48%, hsl(var(--primary) / 0.08) 50%, hsl(var(--primary) / 0.04) 52%, transparent 60%)',
-                animation: 'floorSweep 6s ease-in-out infinite',
-              }}
-            />
-          </div>
+          {/* Ambient: radial pulse wave on the floor surface
+              Clipped to the isometric diamond shape so it only covers floor tiles */}
+          {(() => {
+            // Floor diamond corners in screen coords
+            const top = isoToScreen(GRID_COLS - 1, 0);
+            const right = isoToScreen(GRID_COLS - 1, GRID_ROWS - 1);
+            const bottom = isoToScreen(0, GRID_ROWS - 1);
+            const left = isoToScreen(0, 0);
+            // Convert to % of container for clip-path
+            const toX = (sx: number) => ((centerX + sx) / ROOM_W * 100).toFixed(1);
+            const toY = (sy: number) => ((ROOM_PADDING_TOP + sy + TILE_H / 2) / ROOM_H * 100).toFixed(1);
+            const clipPath = `polygon(${toX(top.x)}% ${toY(top.y)}%, ${toX(right.x)}% ${toY(right.y)}%, ${toX(bottom.x)}% ${toY(bottom.y)}%, ${toX(left.x)}% ${toY(left.y)}%)`;
+
+            return (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ clipPath }}
+              >
+                {[0, 1, 2].map(i => (
+                  <div
+                    key={`pulse-${i}`}
+                    className="absolute rounded-full"
+                    style={{
+                      left: '50%',
+                      top: '50%',
+                      width: Math.max(ROOM_W, ROOM_H),
+                      height: Math.max(ROOM_W, ROOM_H),
+                      marginLeft: -Math.max(ROOM_W, ROOM_H) / 2,
+                      marginTop: -Math.max(ROOM_W, ROOM_H) / 2,
+                      background: 'radial-gradient(circle, hsl(var(--primary) / 0.06) 0%, transparent 70%)',
+                      animation: `floorPulse 5s ease-out ${i * 1.7}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Ambient: SVG flow lines between agent pairs */}
           <svg
@@ -418,9 +434,9 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
 
           {/* Ambient styles */}
           <style>{`
-            @keyframes floorSweep {
-              0% { transform: translateX(-60%); }
-              100% { transform: translateX(40%); }
+            @keyframes floorPulse {
+              0% { transform: scale(0.1); opacity: 1; }
+              100% { transform: scale(1.2); opacity: 0; }
             }
             @keyframes dashFlow {
               0% { stroke-dashoffset: 0; }
