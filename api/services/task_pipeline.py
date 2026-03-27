@@ -84,6 +84,8 @@ def parse_task_md(content: str) -> dict:
             result["agent_slug"] = line_stripped.split("**Agent:**")[1].strip()
         elif line_stripped.startswith("**Slug:**"):
             result["slug"] = line_stripped.split("**Slug:**")[1].strip()
+        elif line_stripped.startswith("**Type:**"):
+            result["type_key"] = line_stripped.split("**Type:**")[1].strip()
         elif line_stripped.startswith("**Schedule:**"):
             result["schedule"] = line_stripped.split("**Schedule:**")[1].strip()
         elif line_stripped.startswith("**Delivery:**"):
@@ -395,6 +397,22 @@ async def execute_task(
             return _fail(task_slug, "TASK.md not found")
 
         task_info = parse_task_md(task_md_content)
+
+        # =====================================================================
+        # 1a. Check for multi-step pipeline (ADR-145)
+        # =====================================================================
+        type_key = task_info.get("type_key", "").strip()
+        if type_key:
+            from services.task_types import get_task_type
+            task_type_def = get_task_type(type_key)
+            if task_type_def and len(task_type_def.get("pipeline", [])) > 1:
+                # Multi-step pipeline — delegate to pipeline executor
+                result = await _execute_pipeline(
+                    client, user_id, task_slug, tw, task_info, task_type_def, started_at,
+                )
+                return result
+
+        # Single-step execution (existing flow)
         agent_slug = task_info.get("agent_slug", "").strip()
         if not agent_slug:
             return _fail(task_slug, "No agent assigned in TASK.md")
@@ -782,6 +800,379 @@ alongside any binary — the text is the feedback surface for user edits."""
     except Exception as e:
         logger.error(f"[TASK_EXEC] Failed: {task_slug}: {e}")
         return _fail(task_slug, str(e))
+
+
+# =============================================================================
+# Multi-Step Pipeline Execution (ADR-145 Gate 2)
+# =============================================================================
+
+async def _execute_pipeline(
+    client,
+    user_id: str,
+    task_slug: str,
+    tw,  # TaskWorkspace
+    task_info: dict,
+    task_type_def: dict,
+    started_at,
+) -> dict:
+    """Execute a multi-step pipeline — sequential agent execution with handoffs.
+
+    Each pipeline step:
+    1. Resolve agent by type from user's roster
+    2. Gather step-specific context (agent workspace + prior step output)
+    3. Generate with step instruction merged into task objective
+    4. Save step output to /tasks/{slug}/outputs/{date}/step-{N}/
+
+    Final step's output becomes the task deliverable.
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.workspace import AgentWorkspace, KnowledgeBase
+    from services.agent_framework import has_asset_capabilities, has_capability
+    from services.agent_execution import (
+        get_next_run_number, create_version_record,
+        update_version_for_delivery, SONNET_MODEL,
+        _extract_contributor_assessment, _compose_output_html,
+    )
+    from services.platform_limits import check_credits, record_credits
+
+    pipeline = task_type_def["pipeline"]
+    title = task_info.get("title") or task_slug
+    delivery_target = task_info.get("delivery", "").strip()
+
+    logger.info(f"[PIPELINE] Starting {len(pipeline)}-step pipeline for {task_slug} (type={task_info.get('type_key')})")
+
+    # Resolve all pipeline agents upfront
+    agents_result = (
+        client.table("agents")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    all_agents = agents_result.data or []
+    role_to_agent = {}
+    for a in all_agents:
+        r = a.get("role")
+        if r and r not in role_to_agent:
+            role_to_agent[r] = a
+
+    # Check credits before starting
+    try:
+        credits_ok, credits_used, credits_limit = check_credits(client, user_id)
+        if not credits_ok:
+            return _fail(task_slug, "Work credits exhausted")
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Credits check failed (proceeding): {e}")
+
+    # Date folder for this run
+    date_folder = started_at.strftime("%Y-%m-%dT%H%M")
+
+    step_outputs: list[str] = []
+    final_draft = ""
+    final_agent = None
+    final_agent_slug = ""
+    final_role = ""
+    total_usage = {"input_tokens": 0, "output_tokens": 0}
+    all_renders: list = []
+
+    for step_idx, step in enumerate(pipeline):
+        step_num = step_idx + 1
+        agent_type = step["agent_type"]
+        step_name = step["step"]
+        step_instruction = step["instruction"]
+
+        agent = role_to_agent.get(agent_type)
+        if not agent:
+            logger.warning(f"[PIPELINE] Step {step_num} ({step_name}): no agent of type '{agent_type}' — skipping")
+            step_outputs.append(f"(Step {step_num} skipped: no {agent_type} agent in roster)")
+            continue
+
+        agent_slug = agent.get("slug", "")
+        agent_id = agent["id"]
+        role = agent.get("role", "custom")
+        scope = agent.get("scope", "cross_platform")
+
+        logger.info(f"[PIPELINE] Step {step_num}/{len(pipeline)}: {step_name} → {agent_slug} ({agent_type})")
+
+        # --- Gather context for this step ---
+        ws = AgentWorkspace(client, user_id, agent_slug)
+        await ws.ensure_seeded(agent)
+        ws_instructions = await ws.read("AGENT.md") or ""
+        user_context = _load_user_context(client, user_id)
+
+        context_text, context_meta = await gather_task_context(
+            client, user_id, agent, agent_slug,
+        )
+
+        # --- Build step-specific prompt ---
+        # Merge step instruction into the task objective
+        step_task_info = {**task_info}
+        step_objective = dict(task_info.get("objective", {}))
+        step_objective["step_instruction"] = step_instruction
+        step_task_info["objective"] = step_objective
+
+        system_prompt, user_message = build_task_execution_prompt(
+            task_info=step_task_info,
+            agent=agent,
+            agent_instructions=ws_instructions,
+            context=context_text,
+            user_context=user_context,
+        )
+
+        # Inject step-specific preamble
+        step_preamble = f"\n\n## Pipeline Step {step_num}/{len(pipeline)}: {step_name.title()}\n"
+        step_preamble += f"Your role in this pipeline: {step_instruction}\n"
+        if step_outputs:
+            prior_output = step_outputs[-1]
+            step_preamble += f"\n## Prior Step Output\n{prior_output[:8000]}\n"
+            step_preamble += "\nBuild upon and refine the prior step's work. Do not repeat it verbatim.\n"
+
+        # Append to user message (after gathered context)
+        user_message += step_preamble
+
+        # Skill docs for agents with asset capabilities
+        if has_asset_capabilities(role):
+            try:
+                from services.agent_execution import _fetch_skill_docs
+                skill_docs = await _fetch_skill_docs()
+                if skill_docs:
+                    system_prompt += f"""
+
+## Output Skill Documentation
+You have access to RuntimeDispatch for producing binary artifacts.
+Construct input specs according to these skill instructions:
+
+{skill_docs}
+
+When producing output that would benefit from a rendered artifact (chart, diagram, image),
+use RuntimeDispatch with the spec format described above."""
+            except Exception:
+                pass
+
+        # --- Generate ---
+        draft, usage, pending_renders = await _generate(
+            client, user_id, agent, system_prompt, user_message, scope,
+        )
+
+        # Strip assessment
+        draft, _ = _extract_contributor_assessment(draft)
+
+        total_usage["input_tokens"] += usage.get("input_tokens", 0)
+        total_usage["output_tokens"] += usage.get("output_tokens", 0)
+        all_renders.extend(pending_renders or [])
+
+        step_outputs.append(draft)
+        final_draft = draft
+        final_agent = agent
+        final_agent_slug = agent_slug
+        final_role = role
+
+        # Save step output
+        try:
+            step_path = f"outputs/{date_folder}/step-{step_num}/output.md"
+            await tw.write(step_path, draft, summary=f"Step {step_num}: {step_name}", tags=["pipeline", "step"])
+            step_manifest = {
+                "step": step_num,
+                "step_name": step_name,
+                "agent_type": agent_type,
+                "agent_slug": agent_slug,
+                "tokens": usage,
+            }
+            await tw.write(
+                f"outputs/{date_folder}/step-{step_num}/manifest.json",
+                json.dumps(step_manifest, indent=2),
+                tags=["pipeline", "manifest"],
+            )
+        except Exception as e:
+            logger.warning(f"[PIPELINE] Step output save failed: {e}")
+
+        # Record credit per step
+        try:
+            record_credits(client, user_id, "task_execution", agent_id=str(agent_id), metadata={
+                "task_slug": task_slug, "step": step_num, "step_name": step_name,
+            })
+        except Exception:
+            pass
+
+        logger.info(f"[PIPELINE] Step {step_num} complete ({usage.get('output_tokens', 0)} tokens)")
+
+    # =====================================================================
+    # Post-pipeline: Save final output, compose, deliver
+    # =====================================================================
+    if not final_draft or not final_agent:
+        return _fail(task_slug, "Pipeline produced no output")
+
+    # Create agent_runs record for the final output
+    agent_id = final_agent["id"]
+    next_version = await get_next_run_number(client, agent_id)
+    version = await create_version_record(client, agent_id, next_version)
+    version_id = version["id"]
+
+    version_metadata = {
+        "input_tokens": total_usage["input_tokens"],
+        "output_tokens": total_usage["output_tokens"],
+        "model": SONNET_MODEL,
+        "task_slug": task_slug,
+        "type_key": task_info.get("type_key"),
+        "pipeline_steps": len(pipeline),
+        "trigger_type": "scheduled",
+    }
+    await update_version_for_delivery(client, version_id, final_draft, metadata=version_metadata)
+
+    # Save final output to task workspace
+    task_output_folder = await tw.save_output(
+        content=final_draft,
+        agent_slug=final_agent_slug,
+        manifest_data={
+            "version_id": str(version_id),
+            "version_number": next_version,
+            "type_key": task_info.get("type_key"),
+            "pipeline_steps": len(pipeline),
+            "tokens": total_usage,
+        },
+    )
+
+    # Save to agent workspace
+    ws = AgentWorkspace(client, user_id, final_agent_slug)
+    agent_output_folder = None
+    try:
+        agent_output_folder = await ws.save_output(
+            content=final_draft,
+            run_id=str(version_id),
+            agent_id=str(agent_id),
+            version_number=next_version,
+            role=final_role,
+            rendered_files=all_renders if all_renders else None,
+        )
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Agent output folder write failed: {e}")
+
+    # Knowledge base accumulation
+    try:
+        kb = KnowledgeBase(client, user_id)
+        knowledge_path = KnowledgeBase.get_knowledge_path(final_role, title)
+        await kb.write(
+            path=knowledge_path,
+            content=final_draft,
+            summary=f"{title} v{next_version}",
+            metadata={"task_slug": task_slug, "type_key": task_info.get("type_key")},
+            tags=[final_role],
+        )
+    except Exception:
+        pass
+
+    # Compose HTML
+    if agent_output_folder and has_capability(final_role, "compose_html"):
+        try:
+            await _compose_output_html(
+                client, user_id, final_agent_slug, agent_output_folder,
+                title=title, pending_renders=all_renders,
+            )
+        except Exception as e:
+            logger.warning(f"[PIPELINE] Compose HTML failed: {e}")
+
+    # Deliver
+    final_status = "delivered"
+    delivery_error = None
+
+    if delivery_target and agent_output_folder:
+        try:
+            from services.delivery import deliver_from_output_folder
+            destination = _parse_delivery_target(delivery_target, client, user_id)
+            if destination:
+                delivery_result = await deliver_from_output_folder(
+                    client=client, user_id=user_id, agent=final_agent,
+                    output_folder=agent_output_folder, agent_slug=final_agent_slug,
+                    version_id=str(version_id), version_number=next_version,
+                    destination=destination, task_slug=task_slug,
+                )
+                if delivery_result.status.value == "success":
+                    now = datetime.now(timezone.utc).isoformat()
+                    client.table("agent_runs").update({
+                        "status": "delivered", "delivered_at": now, "delivery_status": "delivered",
+                    }).eq("id", version_id).execute()
+                else:
+                    final_status = "failed"
+                    delivery_error = delivery_result.error_message
+        except Exception as e:
+            final_status = "failed"
+            delivery_error = str(e)
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        client.table("agent_runs").update({
+            "status": "delivered", "delivered_at": now,
+        }).eq("id", version_id).execute()
+
+    if final_status == "failed":
+        client.table("agent_runs").update({
+            "status": "failed", "delivery_status": "failed", "delivery_error": delivery_error,
+        }).eq("id", version_id).execute()
+
+    # Run log
+    try:
+        pipeline_summary = " → ".join(s["step"] for s in pipeline)
+        log_entry = f"v{next_version} {final_status} (pipeline: {pipeline_summary})"
+        if delivery_error:
+            log_entry += f" — {delivery_error}"
+        await tw.append_run_log(log_entry)
+    except Exception:
+        pass
+
+    # Update scheduling
+    now = datetime.now(timezone.utc)
+    try:
+        task_row = (
+            client.table("tasks").select("schedule")
+            .eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
+        )
+        schedule = (task_row.data[0]["schedule"] if task_row.data else None) or {}
+        next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+        update_data = {"last_run_at": now.isoformat()}
+        if next_run:
+            update_data["next_run_at"] = next_run.isoformat()
+        client.table("tasks").update(update_data).eq("user_id", user_id).eq("slug", task_slug).execute()
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Schedule update failed: {e}")
+
+    # Activity log
+    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=client, user_id=user_id,
+            event_type="task_executed",
+            summary=f"{title} v{next_version} {final_status} (pipeline: {len(pipeline)} steps)",
+            event_ref=version_id,
+            metadata={
+                "task_slug": task_slug,
+                "type_key": task_info.get("type_key"),
+                "pipeline_steps": len(pipeline),
+                "agent_slugs": [s.get("agent_type") for s in pipeline],
+                "final_status": final_status,
+                "duration_ms": duration_ms,
+                "input_tokens": total_usage["input_tokens"],
+                "output_tokens": total_usage["output_tokens"],
+            },
+        )
+    except Exception:
+        pass
+
+    logger.info(
+        f"[PIPELINE] Complete: {task_slug} → {len(pipeline)} steps, v{next_version} "
+        f"{final_status} ({duration_ms}ms, {total_usage['input_tokens']+total_usage['output_tokens']} tokens)"
+    )
+
+    return {
+        "success": final_status == "delivered",
+        "task_slug": task_slug,
+        "type_key": task_info.get("type_key"),
+        "pipeline_steps": len(pipeline),
+        "agent_slug": final_agent_slug,
+        "run_id": version_id,
+        "version_number": next_version,
+        "status": final_status,
+        "duration_ms": duration_ms,
+        "message": f"v{next_version} {final_status} (pipeline: {len(pipeline)} steps)",
+    }
 
 
 # =============================================================================
