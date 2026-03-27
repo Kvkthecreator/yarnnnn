@@ -14,17 +14,29 @@ interface SpotlightCardProps {
   spotlightColor?: string;
   /** Size of the spotlight gradient in px. Defaults to 350. */
   spotlightSize?: number;
+  /** Dark variant for dark-themed pages. */
+  variant?: "light" | "dark";
 }
 
 export function SpotlightCard({
   children,
   className = "",
-  spotlightColor = "rgba(255,255,255,0.08)",
+  spotlightColor,
   spotlightSize = 350,
+  variant = "light",
 }: SpotlightCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+
+  const resolvedSpotlightColor =
+    spotlightColor ??
+    (variant === "dark" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.08)");
+
+  const baseClasses =
+    variant === "dark"
+      ? "relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05]"
+      : "relative overflow-hidden rounded-2xl border border-[#1a1a1a]/[0.06] bg-white/60 backdrop-blur-sm transition-all duration-300 hover:border-[#1a1a1a]/[0.12] hover:shadow-lg";
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -42,7 +54,7 @@ export function SpotlightCard({
   return (
     <div
       ref={cardRef}
-      className={`relative overflow-hidden rounded-2xl border border-[#1a1a1a]/[0.06] bg-white/60 backdrop-blur-sm transition-all duration-300 hover:border-[#1a1a1a]/[0.12] hover:shadow-lg ${className}`}
+      className={`${baseClasses} ${className}`}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -52,7 +64,7 @@ export function SpotlightCard({
         className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500"
         style={{
           opacity: isHovered ? 1 : 0,
-          background: `radial-gradient(${spotlightSize}px circle at ${position.x}px ${position.y}px, ${spotlightColor}, transparent 70%)`,
+          background: `radial-gradient(${spotlightSize}px circle at ${position.x}px ${position.y}px, ${resolvedSpotlightColor}, transparent 70%)`,
         }}
       />
 

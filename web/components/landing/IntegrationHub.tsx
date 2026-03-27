@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import Image from "next/image";
 
 /**
  * Animated Beam Integration Hub
  *
  * Context (left) → yarnnn (center) → Agents (right)
  *
- * Left side shows the four ways context reaches agents:
- *   Conversation, Documents, Slack, Notion
- * Right side shows the four specialist agents:
- *   Research, Content, Marketing, CRM
- *
- * Beams animate left→center (context in) and center→right (work out).
+ * Brand-consistent: all beams use #1a1a1a at low opacity.
+ * Node borders are subtle warm tones, not rainbow.
+ * Animations are slow and ambient — not distracting.
  * Hidden below lg breakpoint.
  */
 
@@ -22,25 +20,23 @@ interface NodeDef {
   id: string;
   label: string;
   icon: React.ReactNode;
-  color: string;
   side: "left" | "right";
 }
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
 const ChatIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
   </svg>
 );
 
 const DocsIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
-    <polyline points="10 9 9 9 8 9" />
   </svg>
 );
 
@@ -60,17 +56,20 @@ const AgentIcon = ({ letter }: { letter: string }) => (
   <span className="text-xs font-bold leading-none">{letter}</span>
 );
 
+// Brand color: #1a1a1a — all nodes use this with slight opacity variation
+const BEAM_COLOR = "#1a1a1a";
+
 const nodes: NodeDef[] = [
   // Context sources (left)
-  { id: "chat", label: "Conversation", icon: <ChatIcon />, color: "#8b5cf6", side: "left" },
-  { id: "docs", label: "Documents", icon: <DocsIcon />, color: "#3b82f6", side: "left" },
-  { id: "slack", label: "Slack", icon: <SlackIcon />, color: "#E01E5A", side: "left" },
-  { id: "notion", label: "Notion", icon: <NotionIcon />, color: "#191919", side: "left" },
+  { id: "chat", label: "Conversation", icon: <ChatIcon />, side: "left" },
+  { id: "docs", label: "Documents", icon: <DocsIcon />, side: "left" },
+  { id: "slack", label: "Slack", icon: <SlackIcon />, side: "left" },
+  { id: "notion", label: "Notion", icon: <NotionIcon />, side: "left" },
   // Agents (right)
-  { id: "research", label: "Research", icon: <AgentIcon letter="R" />, color: "#6366f1", side: "right" },
-  { id: "content", label: "Content", icon: <AgentIcon letter="C" />, color: "#0ea5e9", side: "right" },
-  { id: "marketing", label: "Marketing", icon: <AgentIcon letter="M" />, color: "#f59e0b", side: "right" },
-  { id: "crm", label: "CRM", icon: <AgentIcon letter="CR" />, color: "#10b981", side: "right" },
+  { id: "research", label: "Research", icon: <AgentIcon letter="R" />, side: "right" },
+  { id: "content", label: "Content", icon: <AgentIcon letter="C" />, side: "right" },
+  { id: "marketing", label: "Marketing", icon: <AgentIcon letter="M" />, side: "right" },
+  { id: "crm", label: "CRM", icon: <AgentIcon letter="CR" />, side: "right" },
 ];
 
 const leftNodes = nodes.filter((n) => n.side === "left");
@@ -80,14 +79,12 @@ const rightNodes = nodes.filter((n) => n.side === "right");
 
 function AnimatedBeam({
   pathD,
-  color,
   delay,
   duration,
   id,
   reverse,
 }: {
   pathD: string;
-  color: string;
   delay: number;
   duration: number;
   id: string;
@@ -96,20 +93,20 @@ function AnimatedBeam({
   return (
     <g>
       {/* Faint static path */}
-      <path d={pathD} fill="none" stroke={color} strokeOpacity={0.06} strokeWidth={2} />
+      <path d={pathD} fill="none" stroke={BEAM_COLOR} strokeOpacity={0.05} strokeWidth={1.5} />
 
       {/* Animated gradient beam */}
       <path
         d={pathD}
         fill="none"
         stroke={`url(#beam-grad-${id})`}
-        strokeWidth={2}
+        strokeWidth={1.5}
         strokeLinecap="round"
       />
 
       <defs>
         <linearGradient id={`beam-grad-${id}`} gradientUnits="userSpaceOnUse">
-          <stop stopColor={color} stopOpacity={0}>
+          <stop stopColor={BEAM_COLOR} stopOpacity={0}>
             <animate
               attributeName="offset"
               values={reverse ? "1;-0.5" : "-0.5;1"}
@@ -118,7 +115,7 @@ function AnimatedBeam({
               repeatCount="indefinite"
             />
           </stop>
-          <stop stopColor={color} stopOpacity={0.5}>
+          <stop stopColor={BEAM_COLOR} stopOpacity={0.2}>
             <animate
               attributeName="offset"
               values={reverse ? "1.15;-0.35" : "-0.35;1.15"}
@@ -127,7 +124,7 @@ function AnimatedBeam({
               repeatCount="indefinite"
             />
           </stop>
-          <stop stopColor={color} stopOpacity={0.5}>
+          <stop stopColor={BEAM_COLOR} stopOpacity={0.2}>
             <animate
               attributeName="offset"
               values={reverse ? "1.5;0" : "0;1.5"}
@@ -136,7 +133,7 @@ function AnimatedBeam({
               repeatCount="indefinite"
             />
           </stop>
-          <stop stopColor={color} stopOpacity={0}>
+          <stop stopColor={BEAM_COLOR} stopOpacity={0}>
             <animate
               attributeName="offset"
               values={reverse ? "1.65;0.15" : "0.15;1.65"}
@@ -157,7 +154,7 @@ export function IntegrationHub() {
   const containerRef = useRef<HTMLDivElement>(null);
   const centerRef = useRef<HTMLDivElement>(null);
   const nodeElMap = useRef<Record<string, HTMLDivElement | null>>({});
-  const [paths, setPaths] = useState<{ id: string; d: string; color: string; reverse: boolean }[]>([]);
+  const [paths, setPaths] = useState<{ id: string; d: string; reverse: boolean }[]>([]);
   const [ready, setReady] = useState(false);
 
   const assignRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
@@ -184,7 +181,6 @@ export function IntegrationHub() {
         const nx = r.left + r.width / 2 - cr.left;
         const ny = r.top + r.height / 2 - cr.top;
 
-        // Cubic bezier — smooth horizontal curve to center
         const cpX1 = nx + (cx - nx) * 0.55;
         const cpX2 = cx - (cx - nx) * 0.45;
 
@@ -192,7 +188,6 @@ export function IntegrationHub() {
         result.push({
           id: node.id,
           d,
-          color: node.color,
           reverse: node.side === "right",
         });
       });
@@ -218,16 +213,15 @@ export function IntegrationHub() {
         {/* SVG beams */}
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ overflow: "visible", opacity: ready ? 1 : 0, transition: "opacity 0.6s ease" }}
+          style={{ overflow: "visible", opacity: ready ? 1 : 0, transition: "opacity 0.8s ease" }}
         >
           {paths.map((p, i) => (
             <AnimatedBeam
               key={p.id}
               id={p.id}
               pathD={p.d}
-              color={p.color}
-              delay={i * 0.3}
-              duration={2.8}
+              delay={i * 0.6}
+              duration={5}
               reverse={p.reverse}
             />
           ))}
@@ -237,46 +231,46 @@ export function IntegrationHub() {
         <div className="absolute inset-0 flex items-center justify-between px-3">
           {/* Left — Context */}
           <div className="flex flex-col items-center gap-6">
-            <div className="text-[9px] text-[#1a1a1a]/25 uppercase tracking-[0.2em] font-medium">
+            <div className="text-[9px] text-[#1a1a1a]/20 uppercase tracking-[0.2em] font-medium">
               Context
             </div>
             {leftNodes.map((node) => (
               <div key={node.id} ref={assignRef(node.id)} className="group flex flex-col items-center gap-1.5">
-                <div
-                  className="w-11 h-11 rounded-full border-2 bg-white shadow-md flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg"
-                  style={{ borderColor: `${node.color}30`, color: node.color }}
-                >
+                <div className="w-11 h-11 rounded-full border border-[#1a1a1a]/[0.08] bg-white shadow-sm flex items-center justify-center text-[#1a1a1a]/50 transition-all duration-500 group-hover:border-[#1a1a1a]/[0.15] group-hover:text-[#1a1a1a]/70 group-hover:shadow-md">
                   {node.icon}
                 </div>
-                <span className="text-[10px] text-[#1a1a1a]/40 font-medium tracking-wide">
+                <span className="text-[10px] text-[#1a1a1a]/30 font-medium tracking-wide">
                   {node.label}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* Center — yarnnn */}
+          {/* Center — yarnnn logo */}
           <div ref={centerRef} className="relative z-10">
-            <div className="absolute inset-0 rounded-2xl bg-white/80 blur-xl" />
-            <div className="relative w-[72px] h-[72px] rounded-2xl bg-white shadow-xl border border-[#1a1a1a]/5 flex items-center justify-center">
-              <span className="font-brand text-xl text-[#1a1a1a]">y</span>
+            <div className="absolute -inset-3 rounded-2xl bg-white/60 blur-xl" />
+            <div className="relative w-[72px] h-[72px] rounded-2xl bg-white shadow-lg border border-[#1a1a1a]/[0.06] flex items-center justify-center overflow-hidden">
+              <Image
+                src="/assets/logos/circleonly_yarnnn.png"
+                alt="yarnnn"
+                width={44}
+                height={44}
+                className="opacity-80"
+              />
             </div>
           </div>
 
           {/* Right — Agents */}
           <div className="flex flex-col items-center gap-6">
-            <div className="text-[9px] text-[#1a1a1a]/25 uppercase tracking-[0.2em] font-medium">
+            <div className="text-[9px] text-[#1a1a1a]/20 uppercase tracking-[0.2em] font-medium">
               Agents
             </div>
             {rightNodes.map((node) => (
               <div key={node.id} ref={assignRef(node.id)} className="group flex flex-col items-center gap-1.5">
-                <div
-                  className="w-11 h-11 rounded-full border-2 bg-white shadow-md flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg"
-                  style={{ borderColor: `${node.color}30`, color: node.color }}
-                >
+                <div className="w-11 h-11 rounded-full border border-[#1a1a1a]/[0.08] bg-white shadow-sm flex items-center justify-center text-[#1a1a1a]/50 transition-all duration-500 group-hover:border-[#1a1a1a]/[0.15] group-hover:text-[#1a1a1a]/70 group-hover:shadow-md">
                   {node.icon}
                 </div>
-                <span className="text-[10px] text-[#1a1a1a]/40 font-medium tracking-wide">
+                <span className="text-[10px] text-[#1a1a1a]/30 font-medium tracking-wide">
                   {node.label}
                 </span>
               </div>
@@ -287,7 +281,7 @@ export function IntegrationHub() {
 
       {/* Subtitle */}
       <div className="text-center mt-6">
-        <p className="text-xs text-[#1a1a1a]/30 tracking-wide">
+        <p className="text-xs text-[#1a1a1a]/25 tracking-wide">
           Context flows in. Work flows out.
         </p>
       </div>

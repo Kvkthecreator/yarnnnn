@@ -3,6 +3,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { Check, X } from "lucide-react";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
@@ -95,114 +96,119 @@ export default function PricingPage() {
 
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-16">
               {/* Free */}
-              <div className="border border-white/10 rounded-2xl p-8 flex flex-col">
-                <div className="mb-8">
-                  <h2 className="text-2xl font-medium mb-2">Free</h2>
-                  <p className="text-white/50 text-sm mb-6">See what an AI workforce feels like</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-medium">$0</span>
-                    <span className="text-white/50">/month</span>
+              <SpotlightCard variant="dark" spotlightSize={400} className="flex flex-col">
+                <div className="p-8 flex flex-col flex-1">
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-medium mb-2">Free</h2>
+                    <p className="text-white/50 text-sm mb-6">See what an AI workforce feels like</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-medium">$0</span>
+                      <span className="text-white/50">/month</span>
+                    </div>
                   </div>
+
+                  <ul className="space-y-3 flex-1 mb-8">
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Full 6-agent roster</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>2 active agents with tasks</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>60 task runs / month</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>50 messages / month</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>All platforms</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Daily sync</span>
+                    </li>
+                  </ul>
+
+                  <Link
+                    href="/auth/login"
+                    className="block w-full text-center px-6 py-3 border border-white/20 text-white font-medium rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    Start free
+                  </Link>
                 </div>
-
-                <ul className="space-y-3 flex-1 mb-8">
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Full 6-agent roster</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>2 active agents with tasks</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>60 task runs / month</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>50 messages / month</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>All platforms</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Daily sync</span>
-                  </li>
-                </ul>
-
-                <Link
-                  href="/auth/login"
-                  className="block w-full text-center px-6 py-3 border border-white/20 text-white font-medium rounded-full hover:bg-white/10 transition-colors"
-                >
-                  Start free
-                </Link>
-              </div>
+              </SpotlightCard>
 
               {/* Pro */}
-              <div className="border border-white/20 rounded-2xl p-8 flex flex-col bg-white/5 relative">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <SpotlightCard variant="dark" spotlightColor="rgba(255,255,255,0.08)" spotlightSize={400} className="relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
                   <span className="px-3 py-1 bg-white text-black text-xs font-medium rounded-full">
                     Early Bird: $9/mo
                   </span>
                 </div>
 
-                <div className="mb-8">
-                  <h2 className="text-2xl font-medium mb-2">Pro</h2>
-                  <p className="text-white/50 text-sm mb-6">Full autonomous workforce</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-medium">$19</span>
-                    <span className="text-white/50">/month</span>
+                <div className="p-8 flex flex-col">
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-medium mb-2">Pro</h2>
+                    <p className="text-white/50 text-sm mb-6">Full autonomous workforce</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-medium">$19</span>
+                      <span className="text-white/50">/month</span>
+                    </div>
+                    <p className="text-emerald-400 text-xs mt-2">
+                      Beta pricing: $9/mo — locked in while available
+                    </p>
                   </div>
-                  <p className="text-emerald-400 text-xs mt-2">
-                    Beta pricing: $9/mo — locked in while available
-                  </p>
+
+                  <ul className="space-y-3 flex-1 mb-8">
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Full 6-agent roster</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>10 active agents with tasks</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>1,000 task runs / month</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Unlimited messages</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Hourly sync</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Unlimited sources</span>
+                    </li>
+                    <li className="flex items-center gap-3 text-sm">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Priority support</span>
+                    </li>
+                  </ul>
+
+                  <Link
+                    href="/auth/login"
+                    className="block w-full text-center px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
+                  >
+                    Get Pro
+                  </Link>
                 </div>
-
-                <ul className="space-y-3 flex-1 mb-8">
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Full 6-agent roster</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 active agents with tasks</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1,000 task runs / month</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited messages</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Hourly sync</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited sources</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Priority support</span>
-                  </li>
-                </ul>
-
-                <Link
-                  href="/auth/login"
-                  className="block w-full text-center px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
-                >
-                  Get Pro
-                </Link>
-              </div>
+              </SpotlightCard>
             </div>
 
             {/* What are task runs */}
             <div className="max-w-3xl mx-auto mb-16">
-              <div className="border border-white/10 rounded-2xl p-6">
+              <SpotlightCard variant="dark" spotlightSize={500}>
+                <div className="p-6">
                 <h3 className="text-lg font-medium mb-3">How pricing works</h3>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
                   Every plan includes your full 6-agent roster (4 agents + 2 bots).
@@ -219,7 +225,8 @@ export default function PricingPage() {
                   Free: 60 runs/month covers daily tasks for 2 agents. Pro: 1,000 runs/month
                   covers a full workforce running multiple tasks per day.
                 </p>
-              </div>
+                </div>
+              </SpotlightCard>
             </div>
 
             {/* Compare table */}

@@ -4,6 +4,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
@@ -88,36 +89,22 @@ export default function HowItWorksPage() {
                   </p>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl">
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Agent</div>
-                      <div className="text-sm font-medium">Research</div>
-                      <p className="text-white/40 text-xs mt-1">Web research, intelligence, monitoring</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Agent</div>
-                      <div className="text-sm font-medium">Content</div>
-                      <p className="text-white/40 text-xs mt-1">Drafts, reports, briefs, summaries</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Agent</div>
-                      <div className="text-sm font-medium">Marketing</div>
-                      <p className="text-white/40 text-xs mt-1">Market signals, positioning, campaigns</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Agent</div>
-                      <div className="text-sm font-medium">CRM</div>
-                      <p className="text-white/40 text-xs mt-1">Relationships, clients, stakeholders</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Bot</div>
-                      <div className="text-sm font-medium">Slack</div>
-                      <p className="text-white/40 text-xs mt-1">Channels &amp; threads</p>
-                    </div>
-                    <div className="border border-white/10 rounded-xl p-4">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-2">Bot</div>
-                      <div className="text-sm font-medium">Notion</div>
-                      <p className="text-white/40 text-xs mt-1">Pages &amp; databases</p>
-                    </div>
+                    {([
+                      { type: "Agent", name: "Research", desc: "Web research, intelligence, monitoring" },
+                      { type: "Agent", name: "Content", desc: "Drafts, reports, briefs, summaries" },
+                      { type: "Agent", name: "Marketing", desc: "Market signals, positioning, campaigns" },
+                      { type: "Agent", name: "CRM", desc: "Relationships, clients, stakeholders" },
+                      { type: "Bot", name: "Slack", desc: "Channels & threads" },
+                      { type: "Bot", name: "Notion", desc: "Pages & databases" },
+                    ] as const).map((agent) => (
+                      <SpotlightCard key={agent.name} variant="dark" spotlightSize={250} className="rounded-xl">
+                        <div className="p-4">
+                          <div className="text-xs text-white/30 uppercase tracking-wider mb-2">{agent.type}</div>
+                          <div className="text-sm font-medium">{agent.name}</div>
+                          <p className="text-white/40 text-xs mt-1">{agent.desc}</p>
+                        </div>
+                      </SpotlightCard>
+                    ))}
                   </div>
 
                   <p className="text-white/30 text-xs mt-6 max-w-xl">
@@ -144,41 +131,20 @@ export default function HowItWorksPage() {
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="border border-white/10 rounded-xl p-6">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Recurring task</div>
-                      <div className="text-lg font-medium mb-3">Weekly team recap</div>
-                      <p className="text-white/50 text-sm leading-relaxed">
-                        Slack Bot syncs your channels. Content Agent synthesizes highlights,
-                        decisions, and action items. Delivered every Monday morning.
-                      </p>
-                    </div>
-
-                    <div className="border border-white/10 rounded-xl p-6">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Recurring task</div>
-                      <div className="text-lg font-medium mb-3">Competitor intelligence</div>
-                      <p className="text-white/50 text-sm leading-relaxed">
-                        Research Agent monitors competitors weekly. Combines web research
-                        with your internal context. Deepens with every cycle.
-                      </p>
-                    </div>
-
-                    <div className="border border-white/10 rounded-xl p-6">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Goal task</div>
-                      <div className="text-lg font-medium mb-3">Market research deep dive</div>
-                      <p className="text-white/50 text-sm leading-relaxed">
-                        Research Agent investigates a topic across cycles, building depth
-                        until the deliverable meets your success criteria.
-                      </p>
-                    </div>
-
-                    <div className="border border-white/10 rounded-xl p-6">
-                      <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Reactive task</div>
-                      <div className="text-lg font-medium mb-3">Meeting prep brief</div>
-                      <p className="text-white/50 text-sm leading-relaxed">
-                        On-demand. Content Agent pulls context from Slack and Notion
-                        into a 2-minute briefing before any key meeting.
-                      </p>
-                    </div>
+                    {([
+                      { mode: "Recurring task", title: "Weekly team recap", desc: "Slack Bot syncs your channels. Content Agent synthesizes highlights, decisions, and action items. Delivered every Monday morning." },
+                      { mode: "Recurring task", title: "Competitor intelligence", desc: "Research Agent monitors competitors weekly. Combines web research with your internal context. Deepens with every cycle." },
+                      { mode: "Goal task", title: "Market research deep dive", desc: "Research Agent investigates a topic across cycles, building depth until the deliverable meets your success criteria." },
+                      { mode: "Reactive task", title: "Meeting prep brief", desc: "On-demand. Content Agent pulls context from Slack and Notion into a 2-minute briefing before any key meeting." },
+                    ] as const).map((task) => (
+                      <SpotlightCard key={task.title} variant="dark" spotlightSize={300}>
+                        <div className="p-6">
+                          <div className="text-xs text-white/30 uppercase tracking-wider mb-3">{task.mode}</div>
+                          <div className="text-lg font-medium mb-3">{task.title}</div>
+                          <p className="text-white/50 text-sm leading-relaxed">{task.desc}</p>
+                        </div>
+                      </SpotlightCard>
+                    ))}
                   </div>
 
                   <p className="text-white/30 text-xs mt-6 max-w-xl">
@@ -347,24 +313,20 @@ export default function HowItWorksPage() {
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Give me a weekly digest from #engineering and #product.&rdquo;</p>
-                </div>
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Every Friday, send leadership a status report as a PDF.&rdquo;</p>
-                </div>
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Track these three competitors and give me a weekly update.&rdquo;</p>
-                </div>
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Before my meetings, generate a prep brief from Slack and Notion.&rdquo;</p>
-                </div>
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Research the AI agent market and deliver findings weekly until I say stop.&rdquo;</p>
-                </div>
-                <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Summarize my week across all platforms every Friday.&rdquo;</p>
-                </div>
+                {[
+                  "Give me a weekly digest from #engineering and #product.",
+                  "Every Friday, send leadership a status report as a PDF.",
+                  "Track these three competitors and give me a weekly update.",
+                  "Before my meetings, generate a prep brief from Slack and Notion.",
+                  "Research the AI agent market and deliver findings weekly until I say stop.",
+                  "Summarize my week across all platforms every Friday.",
+                ].map((prompt) => (
+                  <SpotlightCard key={prompt} variant="dark" spotlightSize={250} className="rounded-xl">
+                    <div className="p-4">
+                      <p className="text-white/70 text-sm italic">&ldquo;{prompt}&rdquo;</p>
+                    </div>
+                  </SpotlightCard>
+                ))}
               </div>
             </div>
           </section>

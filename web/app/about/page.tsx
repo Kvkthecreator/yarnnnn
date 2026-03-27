@@ -4,6 +4,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
