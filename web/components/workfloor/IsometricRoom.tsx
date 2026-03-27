@@ -243,7 +243,7 @@ function AgentOnTile({ agent, tasks, col, row }: {
 
 function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2 px-1 scrollbar-hide">
+    <div className="flex gap-5 overflow-x-auto py-3 px-4 scrollbar-hide">
       {agents.map(agent => {
         const s = getStyle(agent.role);
         const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
@@ -254,14 +254,25 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
         const hasFailed = agent.latest_version_status === 'failed';
         const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
           isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
-        const Icon = s.icon;
+
+        // Short display name
+        const shortName = agent.title
+          .replace(' Agent', '')
+          .replace(' Bot', '')
+          .replace('Weekly ', '')
+          .replace('Knowledge', 'Knowl.');
 
         return (
-          <Link key={agent.id} href={`/agents/${agent.id}`} className="flex flex-col items-center shrink-0">
-            <AgentAvatar state={avatarState} color={s.hex} size={40} icon={<Icon size={9} strokeWidth={2.5} />} />
-            <span className="text-[9px] font-medium mt-0.5 truncate w-14 text-center">
-              {agent.title.replace(' Agent', '').replace(' Bot', '')}
+          <Link key={agent.id} href={`/agents/${agent.id}`} className="flex flex-col items-center shrink-0 w-16">
+            <AgentAvatar state={avatarState} color={s.hex} size={48} />
+            <span className="text-[10px] font-medium mt-1 truncate w-full text-center text-foreground/70">
+              {shortName}
             </span>
+            {activeTask && (
+              <span className="text-[8px] text-muted-foreground/40 truncate w-full text-center">
+                {activeTask.title.length > 12 ? activeTask.title.slice(0, 12) + '...' : activeTask.title}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -424,7 +435,7 @@ export function IsometricRoom({ agents, tasks, loading, onTPClick }: IsometricRo
       </div>
 
       {/* Mobile: Horizontal strip */}
-      <div className="md:hidden mb-3">
+      <div className="md:hidden border-b border-border/30">
         <MobileStrip agents={agents} tasks={tasks} />
       </div>
     </>
