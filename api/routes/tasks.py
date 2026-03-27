@@ -666,6 +666,11 @@ async def list_task_outputs(
     for row in rows:
         # path like /tasks/{slug}/outputs/2026-03-25T1400/output.md
         path = row["path"]
+
+        # ADR-145: Skip pipeline step outputs (step-N/output.md) — only show final outputs
+        if "/step-" in path:
+            continue
+
         # Extract date folder: strip prefix and /output.md
         relative = path[len(prefix):]  # "2026-03-25T1400/output.md"
         date_folder = relative.split("/")[0] if "/" in relative else relative
@@ -742,11 +747,18 @@ async def get_latest_task_output(
         return TaskOutputLatest()
 
     rows = result.data or []
-    if not rows:
+
+    # ADR-145: Skip pipeline step outputs — find first non-step output
+    chosen = None
+    for row in rows:
+        if "/step-" not in row["path"]:
+            chosen = row
+            break
+    if not chosen:
         return TaskOutputLatest()
 
-    path = rows[0]["path"]
-    content = rows[0]["content"]
+    path = chosen["path"]
+    content = chosen["content"]
 
     # Extract date folder
     relative = path[len(prefix):]

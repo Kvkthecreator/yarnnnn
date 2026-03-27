@@ -593,7 +593,7 @@ alongside any binary — the text is the feedback surface for user edits."""
             logger.warning(f"[TASK_EXEC] Knowledge write failed: {e}")
 
         # =====================================================================
-        # 12. Compose HTML (non-fatal)
+        # 12. Compose HTML (non-fatal) + sync to task workspace
         # =====================================================================
         if agent_output_folder and has_capability(role, "compose_html"):
             try:
@@ -602,6 +602,16 @@ alongside any binary — the text is the feedback surface for user edits."""
                     client, user_id, agent_slug, agent_output_folder,
                     title=title, pending_renders=pending_renders,
                 )
+                # Sync composed HTML from agent workspace to task workspace
+                # (agent_execution writes to /agents/, frontend reads from /tasks/)
+                agent_html = await ws.read(f"outputs/{agent_output_folder}/output.html")
+                if agent_html and task_output_folder:
+                    await tw.write(
+                        f"outputs/{task_output_folder}/output.html",
+                        agent_html,
+                        summary=f"Composed HTML for {title}",
+                        tags=["output", "html"],
+                    )
             except Exception as e:
                 logger.warning(f"[TASK_EXEC] Compose HTML failed: {e}")
 
@@ -1060,13 +1070,23 @@ use RuntimeDispatch with the spec format described above."""
     except Exception:
         pass
 
-    # Compose HTML
+    # Compose HTML + sync to task workspace
     if agent_output_folder and has_capability(final_role, "compose_html"):
         try:
             await _compose_output_html(
                 client, user_id, final_agent_slug, agent_output_folder,
                 title=title, pending_renders=all_renders,
             )
+            # Sync composed HTML from agent workspace to task workspace
+            agent_ws = AgentWorkspace(client, user_id, final_agent_slug)
+            agent_html = await agent_ws.read(f"outputs/{agent_output_folder}/output.html")
+            if agent_html:
+                await tw.write(
+                    f"outputs/{date_folder}/output.html",
+                    agent_html,
+                    summary=f"Composed HTML for {title}",
+                    tags=["output", "html"],
+                )
         except Exception as e:
             logger.warning(f"[PIPELINE] Compose HTML failed: {e}")
 
