@@ -3,7 +3,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { SpotlightCard } from "@/components/landing/SpotlightCard";
+import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
@@ -69,27 +69,43 @@ export default function InvestPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">The raise</h2>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
-                <div>
-                  <p className="text-3xl md:text-4xl font-medium">$500K</p>
-                  <p className="text-white/40 text-sm mt-1">Pre-seed round</p>
-                </div>
-                <div>
-                  <p className="text-3xl md:text-4xl font-medium">$5M</p>
-                  <p className="text-white/40 text-sm mt-1">Post-money valuation</p>
-                </div>
-                <div>
-                  <p className="text-3xl md:text-4xl font-medium">$9–19</p>
-                  <p className="text-white/40 text-sm mt-1">Per month pricing</p>
-                </div>
-                <div>
-                  <p className="text-3xl md:text-4xl font-medium">$1.14B</p>
-                  <p className="text-white/40 text-sm mt-1">SAM</p>
-                </div>
-              </div>
+              <BentoGrid className="mb-16">
+                {/* Headline number — large */}
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(255,255,255,0.05)">
+                  <div className="p-6 md:p-8">
+                    <p className="text-4xl md:text-5xl font-medium mb-2">$500K</p>
+                    <p className="text-white/40 text-sm">Pre-seed round</p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(255,255,255,0.05)">
+                  <div className="p-6 md:p-8">
+                    <p className="text-4xl md:text-5xl font-medium mb-2">$5M</p>
+                    <p className="text-white/40 text-sm">Post-money valuation</p>
+                  </div>
+                </SpotlightCard>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <SpotlightCard variant="dark" spotlightSize={350}>
+                {/* Smaller stats */}
+                <SpotlightCard variant="dark" className="md:col-span-2">
+                  <div className="p-5">
+                    <p className="text-2xl font-medium mb-1">$9–19</p>
+                    <p className="text-white/40 text-xs">Per month pricing</p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" className="md:col-span-2">
+                  <div className="p-5">
+                    <p className="text-2xl font-medium mb-1">$1.14B</p>
+                    <p className="text-white/40 text-xs">SAM</p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" className="md:col-span-2">
+                  <div className="p-5">
+                    <p className="text-2xl font-medium mb-1">145+</p>
+                    <p className="text-white/40 text-xs">Architecture Decision Records</p>
+                  </div>
+                </SpotlightCard>
+
+                {/* Use of funds + Stage */}
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightSize={350}>
                   <div className="p-6">
                     <h3 className="text-base font-medium mb-3">Use of funds</h3>
                     <div className="text-white/50 text-sm space-y-2">
@@ -99,7 +115,7 @@ export default function InvestPage() {
                     </div>
                   </div>
                 </SpotlightCard>
-                <SpotlightCard variant="dark" spotlightSize={350}>
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightSize={350}>
                   <div className="p-6">
                     <h3 className="text-base font-medium mb-3">Stage</h3>
                     <div className="text-white/50 text-sm space-y-2">
@@ -109,88 +125,81 @@ export default function InvestPage() {
                     </div>
                   </div>
                 </SpotlightCard>
-              </div>
+              </BentoGrid>
             </div>
           </section>
 
           {/* What We Built */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">What&apos;s live</h2>
 
-              <div className="space-y-16">
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Pre-built AI workforce</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
+              <BentoGrid>
+                {/* Workforce — hero card */}
+                <SpotlightCard variant="dark" className="md:col-span-4" spotlightColor="rgba(99,102,241,0.05)">
+                  <div className="p-6 md:p-8">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Core product</div>
+                    <h3 className="text-xl font-medium mb-3">Pre-built AI workforce</h3>
+                    <p className="text-white/50 text-sm leading-relaxed mb-6">
                       Every user gets a 6-agent roster at sign-up: Research, Content, Marketing,
-                      and CRM specialist agents plus Slack and Notion bots. Two classes — agents
-                      (domain-cognitive, multi-step reasoning) and bots (platform-mechanical,
-                      single-API). No setup, no configuration — the workforce is ready on day 1.
+                      and CRM specialist agents plus Slack and Notion bots. No setup, no configuration.
                     </p>
+                    <div className="flex flex-wrap gap-2">
+                      {["Research", "Content", "Marketing", "CRM", "Slack Bot", "Notion Bot"].map((a) => (
+                        <span key={a} className="text-[10px] px-2.5 py-1 rounded-full bg-white/[0.06] text-white/50 font-medium">{a}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </SpotlightCard>
 
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Agent + Task model</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      Clean separation: agents are WHO (persistent identity, fixed capabilities,
-                      accumulating knowledge), tasks are WHAT (objective, cadence, delivery format,
-                      success criteria). Three task modes — recurring (indefinite cadence), goal
-                      (bounded completion), reactive (on-demand). Agents take on tasks and execute
-                      via a mechanical pipeline: read task spec, gather context, generate, deliver.
-                      Output ships as PDF, slides, spreadsheets, and more.
+                {/* Agent + Task model */}
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(14,165,233,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Architecture</div>
+                    <h3 className="text-base font-medium mb-2">Agent + Task model</h3>
+                    <p className="text-white/50 text-xs leading-relaxed">
+                      Agents are WHO (identity, capabilities, knowledge). Tasks are WHAT
+                      (objective, cadence, delivery). Three modes: recurring, goal, reactive.
                     </p>
                   </div>
-                </div>
+                </SpotlightCard>
 
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Two integrations</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      Slack and Notion — connected and syncing.
-                      Cross-platform context accumulates automatically with every sync cycle.
-                      Bots activate when a platform is connected, giving agents eyes on real work.
+                {/* Integrations */}
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(225,30,90,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Platforms</div>
+                    <h3 className="text-base font-medium mb-2">Slack + Notion</h3>
+                    <p className="text-white/50 text-xs leading-relaxed">
+                      Connected and syncing. Cross-platform context accumulates with every cycle.
+                      Bots activate when you connect a tool.
                     </p>
                   </div>
-                </div>
+                </SpotlightCard>
 
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Unified execution architecture</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      Three-layer separation: mechanical scheduling (zero LLM, SQL-based),
-                      task execution pipeline (Sonnet generation with multi-tool reasoning),
-                      and conversational orchestration (user-facing TP). 145+ Architecture Decision
-                      Records documenting every design choice. This is a purpose-built work system,
-                      not an API wrapper.
+                {/* Execution architecture */}
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Infrastructure</div>
+                    <h3 className="text-base font-medium mb-2">Three-layer execution</h3>
+                    <p className="text-white/50 text-xs leading-relaxed">
+                      Mechanical scheduling (zero LLM), task execution pipeline (Sonnet),
+                      and conversational orchestration. Purpose-built, not an API wrapper.
                     </p>
                   </div>
-                </div>
+                </SpotlightCard>
 
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Compounding moat</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      After 90 days of accumulated context, agents know your preferences,
-                      your clients, and your style. Task history, feedback distillation,
-                      and domain knowledge compound with every cycle. Switching to a
-                      competitor means starting from zero. The moat deepens automatically.
+                {/* Moat — wide card */}
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(245,158,11,0.05)">
+                  <div className="p-6 h-full flex flex-col justify-center">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Defensibility</div>
+                    <h3 className="text-base font-medium mb-2">Compounding moat</h3>
+                    <p className="text-white/50 text-xs leading-relaxed">
+                      90 days of context, feedback, and domain knowledge can&apos;t be replicated.
+                      Switching costs increase automatically with every cycle.
                     </p>
                   </div>
-                </div>
-              </div>
+                </SpotlightCard>
+              </BentoGrid>
             </div>
           </section>
 

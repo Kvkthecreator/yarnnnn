@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * AnimatedTimeline — horizontal 3-step flow with a connecting line
- * and animated pulse dots moving along it.
+ * AnimatedTimeline — horizontal step flow with a connecting line
+ * and animated pulse dots moving along it. Supports light and dark variants.
  */
 
 interface TimelineStep {
@@ -11,7 +11,12 @@ interface TimelineStep {
   description: string;
 }
 
-const steps: TimelineStep[] = [
+interface AnimatedTimelineProps {
+  steps?: TimelineStep[];
+  variant?: "light" | "dark";
+}
+
+const defaultSteps: TimelineStep[] = [
   {
     number: "01",
     title: "Describe the work",
@@ -32,42 +37,59 @@ const steps: TimelineStep[] = [
   },
 ];
 
-export function AnimatedTimeline() {
+export function AnimatedTimeline({ steps = defaultSteps, variant = "light" }: AnimatedTimelineProps) {
+  const isDark = variant === "dark";
+
+  const lineColor = isDark ? "bg-white/[0.08]" : "bg-[#1a1a1a]/[0.06]";
+  const dotBg = isDark ? "bg-white/[0.06] border-white/[0.15]" : "bg-white border-[#1a1a1a]/[0.08] shadow-sm";
+  const dotText = isDark ? "text-white/60" : "text-[#1a1a1a]/60";
+  const titleColor = isDark ? "text-white" : "text-[#1a1a1a]";
+  const descColor = isDark ? "text-white/50" : "text-[#1a1a1a]/50";
+  const pulseGradient = isDark
+    ? "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)"
+    : "linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)";
+  const ringColor = isDark ? "border-white/20" : "border-indigo-400/30";
+
+  // For >3 steps, adjust grid cols
+  const gridCols =
+    steps.length === 4
+      ? "grid-cols-4"
+      : steps.length === 5
+        ? "grid-cols-5"
+        : "grid-cols-3";
+
   return (
     <div className="w-full">
       {/* Desktop: horizontal */}
       <div className="hidden md:block relative">
         {/* Connecting line */}
-        <div className="absolute top-[28px] left-[60px] right-[60px] h-[2px] bg-[#1a1a1a]/[0.06]">
-          {/* Animated pulse traveling along the line */}
+        <div className={`absolute top-[28px] left-[60px] right-[60px] h-[2px] ${lineColor}`}>
           <div
             className="absolute top-0 left-0 h-full w-[80px] rounded-full"
             style={{
-              background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)",
+              background: pulseGradient,
               animation: "timeline-pulse 3s ease-in-out infinite",
             }}
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-8 relative">
+        <div className={`grid ${gridCols} gap-8 relative`}>
           {steps.map((step, i) => (
             <div key={step.number} className="flex flex-col items-center text-center">
-              {/* Dot */}
               <div className="relative mb-6">
-                <div className="w-14 h-14 rounded-full bg-white border-2 border-[#1a1a1a]/[0.08] flex items-center justify-center shadow-sm z-10 relative">
-                  <span className="text-sm font-semibold text-[#1a1a1a]/60">{step.number}</span>
+                <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center z-10 relative ${dotBg}`}>
+                  <span className={`text-sm font-semibold ${dotText}`}>{step.number}</span>
                 </div>
-                {/* Outer ring pulse (on first dot only, to draw the eye) */}
                 {i === 0 && (
                   <div
-                    className="absolute inset-0 rounded-full border-2 border-indigo-400/30"
+                    className={`absolute inset-0 rounded-full border-2 ${ringColor}`}
                     style={{ animation: "dot-ring 2s ease-out infinite" }}
                   />
                 )}
               </div>
 
-              <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">{step.title}</h3>
-              <p className="text-[#1a1a1a]/50 text-sm leading-relaxed max-w-[260px]">
+              <h3 className={`text-base font-medium mb-2 ${titleColor}`}>{step.title}</h3>
+              <p className={`text-sm leading-relaxed max-w-[260px] ${descColor}`}>
                 {step.description}
               </p>
             </div>
@@ -80,20 +102,19 @@ export function AnimatedTimeline() {
         {steps.map((step) => (
           <div key={step.number} className="flex gap-4">
             <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full bg-white border-2 border-[#1a1a1a]/[0.08] flex items-center justify-center shadow-sm shrink-0">
-                <span className="text-xs font-semibold text-[#1a1a1a]/60">{step.number}</span>
+              <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 ${dotBg}`}>
+                <span className={`text-xs font-semibold ${dotText}`}>{step.number}</span>
               </div>
-              <div className="w-[2px] flex-1 bg-[#1a1a1a]/[0.06] mt-2" />
+              <div className={`w-[2px] flex-1 mt-2 ${lineColor}`} />
             </div>
             <div className="pb-4">
-              <h3 className="text-base font-medium mb-1 text-[#1a1a1a]">{step.title}</h3>
-              <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">{step.description}</p>
+              <h3 className={`text-base font-medium mb-1 ${titleColor}`}>{step.title}</h3>
+              <p className={`text-sm leading-relaxed ${descColor}`}>{step.description}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Animations — global keyframes (idempotent, same names won't conflict) */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes timeline-pulse {
           0% { left: -80px; opacity: 0; }
