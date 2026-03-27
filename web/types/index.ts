@@ -729,6 +729,45 @@ export interface TaskOutput {
   manifest?: OutputManifest;
 }
 
+// ADR-145: Task Type Registry
+export interface PipelineStepSummary {
+  agent_type: string;
+  step: string;
+}
+
+export interface TaskType {
+  type_key: string;
+  display_name: string;
+  description: string;
+  category: string;
+  default_schedule: string;
+  output_format: string;
+  export_options: string[];
+  pipeline_summary: PipelineStepSummary[];
+  context_sources: string[];
+  requires_platform: string | null;
+}
+
+export interface TaskTypesResponse {
+  types: TaskType[];
+  categories: Array<{ key: string; display_name: string }>;
+}
+
+export interface PipelineStepOutput {
+  step: number;
+  step_name: string;
+  agent_type: string;
+  agent_slug: string;
+  content?: string;
+  tokens?: { input_tokens: number; output_tokens: number };
+}
+
+export interface PipelineStepsResponse {
+  steps: PipelineStepOutput[];
+  pipeline_definition?: PipelineStepSummary[];
+  type_key?: string;
+}
+
 // ADR-119 Phase 4b: Output manifest (used by agent outputs)
 export interface OutputManifest {
   folder: string;

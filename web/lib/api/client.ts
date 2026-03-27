@@ -37,6 +37,10 @@ import type {
   TaskDetail,
   TaskCreate,
   TaskOutput,
+  // ADR-145: Task type registry
+  TaskType,
+  TaskTypesResponse,
+  PipelineStepsResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -546,6 +550,21 @@ export const api = {
       request<{ success: boolean; message: string }>(
         `/api/tasks/${slug}/run`,
         { method: "POST" }
+      ),
+
+    // ADR-145: Task type registry
+    listTypes: (category?: string) => {
+      const params = category ? `?category=${category}` : "";
+      return request<TaskTypesResponse>(`/api/tasks/types${params}`);
+    },
+
+    getType: (typeKey: string) =>
+      request<TaskType>(`/api/tasks/types/${typeKey}`),
+
+    // ADR-145: Pipeline step outputs for a given run
+    getStepOutputs: (slug: string, dateFolder: string) =>
+      request<PipelineStepsResponse>(
+        `/api/tasks/${slug}/outputs/${dateFolder}/steps`
       ),
   },
 

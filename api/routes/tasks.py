@@ -11,6 +11,7 @@ Endpoints:
 - DELETE /tasks/{slug} - Archive task (soft delete)
 - GET /tasks/{slug}/outputs - List task output history
 - GET /tasks/{slug}/outputs/latest - Get latest task output
+- GET /tasks/{slug}/outputs/{date_folder}/steps - Get pipeline step outputs (ADR-145)
 - POST /tasks/{slug}/run - Trigger a task run immediately
 """
 
@@ -95,6 +96,21 @@ class TaskOutputLatest(BaseModel):
 class TaskRunTriggered(BaseModel):
     triggered: bool
     task_slug: str
+
+
+class PipelineStepEntry(BaseModel):
+    step: int
+    step_name: str
+    agent_type: str
+    agent_slug: str
+    content: Optional[str] = None
+    tokens: Optional[dict] = None
+
+
+class PipelineStepsResponse(BaseModel):
+    steps: list[PipelineStepEntry]
+    pipeline_definition: Optional[list] = None  # from task type registry
+    type_key: Optional[str] = None
 
 
 # =============================================================================
@@ -781,6 +797,101 @@ async def get_latest_task_output(
         html_content=html_content,
         date=date_folder,
         manifest=manifest,
+    )
+
+
+@router.get("/{slug}/outputs/{date_folder}/steps")
+async def get_pipeline_steps(
+    slug: str,
+    date_folder: str,
+    auth: UserClient,
+) -> PipelineStepsResponse:
+    """
+    ADR-145: Get pipeline step outputs for a specific run.
+    Returns step manifests + content for the pipeline visualization tab.
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.task_types import get_task_type
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id, slug")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+
+    # Read TASK.md to get type_key for pipeline definition
+    task_md = await ws.read("TASK.md")
+    type_key = None
+    pipeline_definition = None
+    if task_md:
+        for line in task_md.split("\n"):
+            if line.strip().startswith("type:"):
+                type_key = line.split(":", 1)[1].strip()
+                break
+        if type_key:
+            task_type_def = get_task_type(type_key)
+            if task_type_def:
+                pipeline_definition = [
+                    {"agent_type": s["agent_type"], "step": s["step"]}
+                    for s in task_type_def.get("pipeline", [])
+                ]
+
+    # Enumerate step folders by querying workspace for step manifests
+    prefix = f"/tasks/{slug}/outputs/{date_folder}/step-"
+    result = (
+        auth.client.table("workspace_files")
+        .select("path, content")
+        .eq("user_id", auth.user_id)
+        .like("path", f"{prefix}%/manifest.json")
+        .order("path")
+        .execute()
+    )
+
+    steps: list[PipelineStepEntry] = []
+    for row in result.data or []:
+        path = row["path"]
+        # Extract step number from path like .../step-1/manifest.json
+        try:
+            step_folder = path.split("/step-")[1].split("/")[0]
+            step_num = int(step_folder)
+        except (IndexError, ValueError):
+            continue
+
+        # Parse manifest
+        manifest = {}
+        if row.get("content"):
+            try:
+                manifest = _json.loads(row["content"])
+            except (ValueError, _json.JSONDecodeError):
+                pass
+
+        # Read step output content
+        step_content = await ws.read(f"outputs/{date_folder}/step-{step_num}/output.md")
+
+        steps.append(PipelineStepEntry(
+            step=manifest.get("step", step_num),
+            step_name=manifest.get("step_name", f"Step {step_num}"),
+            agent_type=manifest.get("agent_type", "unknown"),
+            agent_slug=manifest.get("agent_slug", "unknown"),
+            content=step_content,
+            tokens=manifest.get("tokens"),
+        ))
+
+    # Sort by step number
+    steps.sort(key=lambda s: s.step)
+
+    return PipelineStepsResponse(
+        steps=steps,
+        pipeline_definition=pipeline_definition,
+        type_key=type_key,
     )
 
 

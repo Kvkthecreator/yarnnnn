@@ -42,6 +42,7 @@ import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/Works
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
+import { PipelineTab } from '@/components/tasks/PipelineTab';
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -276,73 +277,7 @@ function ScheduleTab({
   );
 }
 
-// =============================================================================
-// Left Panel: Agents Tab
-// =============================================================================
-
-function AgentsTab({ task }: { task: TaskDetail }) {
-  const agentSlugs = task.agent_slugs || [];
-  const [agents, setAgents] = useState<Array<{ id: string; slug?: string; title: string; role?: string; status?: string }>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (agentSlugs.length === 0) { setLoading(false); return; }
-    api.agents.list().then(all => {
-      // Match agent_slugs to full agent records for proper linking
-      const matched = agentSlugs.map(slug => {
-        const found = all.find(a => a.slug === slug);
-        return found || { id: slug, slug, title: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) };
-      });
-      setAgents(matched);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>;
-
-  return (
-    <div className="p-5 space-y-4">
-      <div>
-        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-3">
-          Assigned Agents {agents.length > 1 && `(${agents.length} — sequential pipeline)`}
-        </p>
-        {agents.length > 0 ? (
-          <div className="space-y-1.5">
-            {agents.map((agent, idx) => (
-              <Link
-                key={agent.id}
-                href={`/agents/${agent.id}`}
-                className="flex items-center gap-2.5 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-xs"
-              >
-                {agents.length > 1 && (
-                  <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-mono font-bold text-muted-foreground">{idx + 1}</span>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{agent.title}</p>
-                  <p className="text-muted-foreground">{agent.slug || agent.id}</p>
-                </div>
-              </Link>
-            ))}
-            {agents.length > 1 && (
-              <p className="text-[11px] text-muted-foreground mt-2">Agents execute in sequence — each receives the prior agent&apos;s output as context.</p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground py-4">No agents assigned to this task.</p>
-        )}
-      </div>
-
-      {/* Run log — accumulated execution history */}
-      {task.run_log && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Run Log</p>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/30 rounded-lg p-3 max-h-48 overflow-y-auto">
-            <pre className="whitespace-pre-wrap font-mono">{task.run_log}</pre>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// AgentsTab removed — replaced by PipelineTab (ADR-145 Gate 3)
 
 // =============================================================================
 // Right Panel: Task-Scoped Chat
@@ -493,7 +428,7 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'agents'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'pipeline'>('output');
 
   const refreshData = useCallback(() => {
     if (!slug) return;
@@ -591,7 +526,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-5">
-          {(['output', 'task', 'schedule', 'agents'] as const).map(tab => (
+          {(['output', 'task', 'schedule', 'pipeline'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -618,7 +553,7 @@ export default function TaskPage() {
               onRefresh={refreshData}
             />
           )}
-          {leftTab === 'agents' && <AgentsTab task={task} />}
+          {leftTab === 'pipeline' && <PipelineTab task={task} selectedOutput={selectedOutput} />}
         </div>
       </div>
     </WorkspaceLayout>

@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.27.3] - ADR-145 Gate 3: TP task type catalog awareness
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Extended CONTEXT_AWARENESS with task type catalog knowledge. TP now knows all 13+ task type_keys with descriptions, schedules, and platform requirements.
+- Expected behavior: When tasks=0 and identity is set, TP proactively suggests 2-3 relevant task types based on user's role/domain. References specific type_keys for CreateTask.
+
+---
+
 ## [2026.03.27.2] - ADR-145 Gate 2: Multi-step pipeline execution
 
 ### Changed

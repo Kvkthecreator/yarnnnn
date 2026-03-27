@@ -38,17 +38,30 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { TaskTypeCatalog } from '@/components/workfloor/TaskTypeCatalog';
+import { Plus } from 'lucide-react';
 
 
 // =============================================================================
 // Tabs below agent room
 // =============================================================================
 
-function TasksTab({ tasks }: { tasks: Task[] }) {
+function TasksTab({ tasks, onSelectType, showCatalog, setShowCatalog }: {
+  tasks: Task[];
+  onSelectType: (typeKey: string, displayName: string) => void;
+  showCatalog: boolean;
+  setShowCatalog: (v: boolean) => void;
+}) {
   const active = tasks.filter(t => t.status !== 'archived');
+
+  // Empty state = catalog
+  if (active.length === 0) {
+    return <TaskTypeCatalog onSelectType={onSelectType} />;
+  }
+
   return (
     <div className="space-y-1">
-      {active.length > 0 ? active.map(task => (
+      {active.map(task => (
         <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-xs">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
@@ -56,8 +69,24 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
           </div>
           {task.schedule && <span className="text-muted-foreground/40 shrink-0 ml-2">{task.schedule}</span>}
         </Link>
-      )) : (
-        <p className="text-[10px] text-muted-foreground/30 text-center py-3">No tasks yet — set up your context first, then ask chat to create one</p>
+      ))}
+
+      {/* Inline catalog toggle */}
+      {showCatalog ? (
+        <div className="pt-2 border-t border-border/30">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-medium text-muted-foreground">Add another deliverable</p>
+            <button onClick={() => setShowCatalog(false)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground">Hide</button>
+          </div>
+          <TaskTypeCatalog onSelectType={(k, n) => { onSelectType(k, n); setShowCatalog(false); }} compact />
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowCatalog(true)}
+          className="w-full flex items-center justify-center gap-1 py-2 mt-1 text-[10px] text-muted-foreground/40 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors border border-dashed border-border/30 hover:border-primary/30"
+        >
+          <Plus className="w-3 h-3" /> Add deliverable
+        </button>
       )}
     </div>
   );
@@ -270,7 +299,7 @@ function DocumentsTab() {
 // Chat Panel (right side — always visible)
 // =============================================================================
 
-function ChatPanel() {
+function ChatPanel({ taskCount }: { taskCount: number }) {
   const {
     messages,
     sendMessage,
@@ -344,11 +373,15 @@ function ChatPanel() {
               <p className="text-[11px] text-muted-foreground/40">Get started</p>
             </div>
             <div className="flex flex-col gap-1.5 px-2">
-              {[
-                'Tell me about myself and my work',
-                'Update my brand from our website',
-                'Help me set up my first task',
-              ].map(chip => (
+              {(taskCount === 0 ? [
+                'What kind of deliverable do you need?',
+                'Set up a competitive intelligence brief',
+                'Tell me about yourself and your work',
+              ] : [
+                'Review my latest outputs',
+                'Add another deliverable',
+                'Adjust focus for a task',
+              ]).map(chip => (
                 <button
                   key={chip}
                   onClick={() => { sendMessage(chip, { surface }); }}
@@ -468,6 +501,8 @@ export default function WorkfloorPage() {
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'tasks' | 'context'>('tasks');
   const [contextSubTab, setContextSubTab] = useState<'identity' | 'brand' | 'documents'>('identity');
+  const [showCatalog, setShowCatalog] = useState(false);
+  const chatTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -494,10 +529,16 @@ export default function WorkfloorPage() {
   }, [searchParams, router]);
 
   const activeAgents = agents.filter(a => a.status !== 'archived');
+  const activeTasks = tasks.filter(t => t.status !== 'archived');
+
+  // Handle task type selection from catalog → send as chat message
+  const handleSelectType = useCallback((typeKey: string, displayName: string) => {
+    sendMessage(`Create a "${displayName}" task`, { surface });
+  }, [sendMessage, surface]);
 
   // Right panel = TP Chat
   const panelTabs: WorkspacePanelTab[] = [
-    { id: 'chat', label: 'Chat', content: <ChatPanel /> },
+    { id: 'chat', label: 'Chat', content: <ChatPanel taskCount={activeTasks.length} /> },
   ];
 
   return (
@@ -528,6 +569,25 @@ export default function WorkfloorPage() {
 
         <div className="max-w-2xl mx-auto px-5">
 
+          {/* Floating action buttons — ADR-145 */}
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => {
+                setActiveTab('tasks');
+                if (activeTasks.length > 0) setShowCatalog(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Plus className="w-3 h-3" /> New Task
+            </button>
+            <button
+              onClick={() => { setActiveTab('context'); setContextSubTab('identity'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border/50 text-muted-foreground hover:bg-muted/50 transition-colors"
+            >
+              <UserCircle className="w-3 h-3" /> Update Context
+            </button>
+          </div>
+
           {/* Tabs: Tasks | Context (nested: Identity, Brand, Documents) — ADR-144 */}
           <div>
             <div className="flex gap-1 mb-3 border-b border-border/50 pb-2">
@@ -545,7 +605,7 @@ export default function WorkfloorPage() {
               ))}
             </div>
 
-            {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
+            {activeTab === 'tasks' && <TasksTab tasks={tasks} onSelectType={handleSelectType} showCatalog={showCatalog} setShowCatalog={setShowCatalog} />}
 
             {activeTab === 'context' && (
               <div>

@@ -1167,6 +1167,10 @@ use RuntimeDispatch with the spec format described above."""
                 "type_key": task_info.get("type_key"),
                 "pipeline_steps": len(pipeline),
                 "agent_slugs": [s.get("agent_type") for s in pipeline],
+                "step_details": [
+                    {"step": i + 1, "step_name": s.get("step", f"step-{i+1}"), "agent_type": s.get("agent_type")}
+                    for i, s in enumerate(pipeline)
+                ],
                 "final_status": final_status,
                 "duration_ms": duration_ms,
                 "input_tokens": total_usage["input_tokens"],
