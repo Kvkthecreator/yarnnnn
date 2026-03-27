@@ -37,7 +37,7 @@ import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 
 // =============================================================================
@@ -109,7 +109,7 @@ function IdentityTab({ onSendMessage }: { onSendMessage: (msg: string) => void }
       ) : content ? (
         <>
           <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto prose prose-xs dark:prose-invert max-w-none">
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <MarkdownRenderer content={content} compact />
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => onSendMessage('Update my identity')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
@@ -189,7 +189,7 @@ function BrandTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
       ) : content ? (
         <>
           <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto">
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <MarkdownRenderer content={content} compact />
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => onSendMessage('Update my brand')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
@@ -373,7 +373,7 @@ function ChatPanel() {
             ) : (
               <>
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                  <MarkdownRenderer content={msg.content} compact />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
@@ -507,21 +507,22 @@ export default function WorkfloorPage() {
       panelDefaultOpen={true}
       panelDefaultPct={33}
     >
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="max-w-2xl mx-auto">
-          {/* Bootstrap banner */}
-          {bootstrapProvider && (
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-5">
-              <div className="flex-1">
-                <p className="text-sm font-medium">Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!</p>
-                <p className="text-xs text-muted-foreground">Syncing...</p>
-              </div>
-              <button onClick={() => setBootstrapProvider(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+      <div className="flex-1 overflow-y-auto">
+        {/* Bootstrap banner */}
+        {bootstrapProvider && (
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5 mx-5 mt-5 mb-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium">Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!</p>
+              <p className="text-xs text-muted-foreground">Syncing...</p>
             </div>
-          )}
+            <button onClick={() => setBootstrapProvider(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          </div>
+        )}
 
-          {/* Agent Room — isometric display */}
-          <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} />
+        {/* Agent Room — full width, isometric display */}
+        <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} />
+
+        <div className="max-w-2xl mx-auto px-5">
 
           {/* Tabs: Tasks | Context (nested: Identity, Brand, Documents) — ADR-144 */}
           <div>

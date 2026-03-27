@@ -55,8 +55,8 @@ function getStyle(role: string) {
 // Room is a 4×3 diamond grid (wider than tall). Agents on inner tiles.
 const GRID_COLS = 4;
 const GRID_ROWS = 3;
-const TILE_W = 100; // px width of one tile — big enough for 64px avatars
-const TILE_H = 50;  // px height (half width for true isometric)
+const TILE_W = 130; // px width of one tile — generous spacing for characters
+const TILE_H = 65;  // px height (half width for true isometric)
 
 function isoToScreen(col: number, row: number) {
   // Standard isometric: x = (col - row) * halfW, y = (col + row) * halfH
@@ -90,8 +90,8 @@ for (let r = 0; r < GRID_ROWS; r++) {
 // Room dimensions in screen space
 const roomScreenWidth = (GRID_COLS + GRID_ROWS) * (TILE_W / 2);
 const roomScreenHeight = (GRID_COLS + GRID_ROWS) * (TILE_H / 2);
-const ROOM_PADDING_TOP = 60; // space above for avatars that stick up
-const ROOM_PADDING_BOTTOM = 30;
+const ROOM_PADDING_TOP = 70; // space above for avatars that stick up
+const ROOM_PADDING_BOTTOM = 40;
 const ROOM_TOTAL_HEIGHT = roomScreenHeight + ROOM_PADDING_TOP + ROOM_PADDING_BOTTOM + 30;
 
 // Center offset: shift so the (0,0) tile's center is at the visual center-top
@@ -163,8 +163,8 @@ function AgentOnTile({ agent, tasks, col, row }: {
     isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
   const Icon = style.icon;
-  const AVATAR_SIZE = 64;
-  const spriteWidth = 80;
+  const AVATAR_SIZE = 72;
+  const spriteWidth = 90;
 
   return (
     <Link
@@ -172,19 +172,19 @@ function AgentOnTile({ agent, tasks, col, row }: {
       className="absolute flex flex-col items-center group z-10"
       style={{
         left: centerX + x - spriteWidth / 2,
-        top: ROOM_PADDING_TOP + y - 56, // avatar stands above tile center
+        top: ROOM_PADDING_TOP + y - 62, // avatar stands above tile center
         width: spriteWidth,
       }}
     >
       {/* Ground shadow — ellipse on the floor */}
       <div
-        className="absolute rounded-full blur-[3px]"
+        className="absolute rounded-full blur-[4px]"
         style={{
-          width: 36,
-          height: 12,
+          width: 44,
+          height: 14,
           backgroundColor: style.hex,
-          opacity: 0.12,
-          bottom: 14,
+          opacity: 0.15,
+          bottom: 16,
           left: '50%',
           transform: 'translateX(-50%)',
         }}
@@ -192,10 +192,10 @@ function AgentOnTile({ agent, tasks, col, row }: {
 
       {/* Role badge — small icon floating top-right */}
       <div
-        className="absolute flex items-center justify-center rounded-full z-20 border border-background"
+        className="absolute flex items-center justify-center rounded-full z-20 border-2 border-background"
         style={{
-          width: 18,
-          height: 18,
+          width: 20,
+          height: 20,
           backgroundColor: style.hex,
           top: 0,
           right: 6,
@@ -304,12 +304,13 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
 
   return (
     <>
-      {/* Desktop: Isometric room */}
-      <div className="hidden md:block mb-2">
+      {/* Desktop: Isometric room — fills available width, centered */}
+      <div className="hidden md:block mb-2 px-4">
         <div
-          className="relative mx-auto overflow-hidden"
+          className="relative mx-auto"
           style={{
-            width: roomScreenWidth + 20,
+            width: '100%',
+            maxWidth: roomScreenWidth + 40,
             height: ROOM_TOTAL_HEIGHT,
           }}
         >
