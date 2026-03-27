@@ -11,7 +11,7 @@ metaDescription: "LLMs are monolithic — one model for every task. But AI's jag
 concept: Accumulated Intelligence
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/the-speciation-is-already-happening
-status: draft
+status: published
 ---
 
 **LLMs are monolithic today — one model tries to write your code, plan your wedding, diagnose your rash, and draft your board memo.** The same weights, the same training, the same architecture. We talk about GPT-5 and Claude 4 like they're the finish line. They're not. They're the last generation before the split.
