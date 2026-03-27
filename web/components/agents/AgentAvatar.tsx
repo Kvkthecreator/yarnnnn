@@ -81,13 +81,13 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
   const eyeSize = Math.max(2.5, s * 0.05);
   const mouthW = s * 0.09;
 
-  // Y positions (top-down) — tight stacking, no gaps
-  const hairTop = s * 0.04;
-  const headTop = hairTop + hairH * 0.6; // hair overlaps top of head
-  const bodyTop = headTop + headH - 3;   // head overlaps into body (neck)
-  const armTop = bodyTop + 2;
-  const legTop = bodyTop + bodyH - 2;
-  const footTop = legTop + legH - 1;
+  // Y positions (top-down) — tightly connected, head sits on body
+  const hairTop = s * 0.02;
+  const headTop = hairTop + hairH * 0.5;
+  const bodyTop = headTop + headH * 0.75; // significant overlap — no gap
+  const armTop = bodyTop + s * 0.01;
+  const legTop = bodyTop + bodyH - legH * 0.15;
+  const footTop = legTop + legH - footH * 0.5;
 
   // State animations
   const bodyAnim = {

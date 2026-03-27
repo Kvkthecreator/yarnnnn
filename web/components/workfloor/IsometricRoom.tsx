@@ -52,11 +52,12 @@ function getStyle(role: string) {
 // Isometric grid math
 // =============================================================================
 
-// Room is a 5×3 diamond grid — wide enough to fill the left panel.
+// Room is a 5×3 diamond grid — fills the left panel.
+// screenWidth = (cols+rows) * tileW/2 = 8 * 100 = 800px
 const GRID_COLS = 5;
 const GRID_ROWS = 3;
-const TILE_W = 160; // px width — fills ~640px of screen width for 5×3 grid
-const TILE_H = 80;  // px height (half width for true isometric)
+const TILE_W = 200;
+const TILE_H = 100;
 
 function isoToScreen(col: number, row: number) {
   // Standard isometric: x = (col - row) * halfW, y = (col + row) * halfH
@@ -89,8 +90,8 @@ for (let r = 0; r < GRID_ROWS; r++) {
 // Room dimensions in screen space
 const roomScreenWidth = (GRID_COLS + GRID_ROWS) * (TILE_W / 2);
 const roomScreenHeight = (GRID_COLS + GRID_ROWS) * (TILE_H / 2);
-const ROOM_PADDING_TOP = 70; // space above for avatars that stick up
-const ROOM_PADDING_BOTTOM = 40;
+const ROOM_PADDING_TOP = 80;
+const ROOM_PADDING_BOTTOM = 50;
 const ROOM_TOTAL_HEIGHT = roomScreenHeight + ROOM_PADDING_TOP + ROOM_PADDING_BOTTOM + 30;
 
 // Center offset: shift so the (0,0) tile's center is at the visual center-top
@@ -162,8 +163,8 @@ function AgentOnTile({ agent, tasks, col, row }: {
     isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
   const Icon = style.icon;
-  const AVATAR_SIZE = 72;
-  const spriteWidth = 90;
+  const AVATAR_SIZE = 80;
+  const spriteWidth = 100;
 
   return (
     <Link
@@ -171,19 +172,19 @@ function AgentOnTile({ agent, tasks, col, row }: {
       className="absolute flex flex-col items-center group z-10"
       style={{
         left: centerX + x - spriteWidth / 2,
-        top: ROOM_PADDING_TOP + y - 62, // avatar stands above tile center
+        top: ROOM_PADDING_TOP + y - 68, // avatar stands above tile center
         width: spriteWidth,
       }}
     >
       {/* Ground shadow — ellipse on the floor */}
       <div
-        className="absolute rounded-full blur-[4px]"
+        className="absolute rounded-full blur-[5px]"
         style={{
-          width: 44,
-          height: 14,
+          width: 50,
+          height: 16,
           backgroundColor: style.hex,
           opacity: 0.15,
-          bottom: 16,
+          bottom: 18,
           left: '50%',
           transform: 'translateX(-50%)',
         }}
@@ -193,8 +194,8 @@ function AgentOnTile({ agent, tasks, col, row }: {
       <div
         className="absolute flex items-center justify-center rounded-full z-20 border-2 border-background"
         style={{
-          width: 20,
-          height: 20,
+          width: 22,
+          height: 22,
           backgroundColor: style.hex,
           top: 0,
           right: 6,
