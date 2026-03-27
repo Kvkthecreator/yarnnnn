@@ -89,14 +89,18 @@ for (let r = 0; r < GRID_ROWS; r++) {
 }
 
 // Room dimensions in screen space
-const roomScreenWidth = (GRID_COLS + GRID_ROWS) * (TILE_W / 2);
 const roomScreenHeight = (GRID_COLS + GRID_ROWS) * (TILE_H / 2);
 const ROOM_PADDING_TOP = 80;
 const ROOM_PADDING_BOTTOM = 50;
 const ROOM_TOTAL_HEIGHT = roomScreenHeight + ROOM_PADDING_TOP + ROOM_PADDING_BOTTOM + 30;
 
-// Center offset: shift so the (0,0) tile's center is at the visual center-top
-const centerX = roomScreenWidth / 2;
+// Center offset: compute from actual tile bounds to ensure visual centering
+// Min x: tile (0, GRID_ROWS-1) = (0 - (GRID_ROWS-1)) * halfW
+// Max x: tile (GRID_COLS-1, 0) = (GRID_COLS-1) * halfW + TILE_W
+const halfW = TILE_W / 2;
+const minScreenX = (0 - (GRID_ROWS - 1)) * halfW - halfW;
+const maxScreenX = (GRID_COLS - 1) * halfW + halfW;
+const centerX = -minScreenX; // shift so minScreenX maps to 0
 
 // =============================================================================
 // Floor tile
@@ -303,8 +307,8 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
       .map(t => `${t![0]},${t![1]}`)
   );
 
-  // Canonical room dimensions (rendered at this size, then scaled to fit)
-  const ROOM_W = roomScreenWidth + 40;
+  // Canonical room dimensions — computed from actual tile bounds
+  const ROOM_W = maxScreenX - minScreenX;
   const ROOM_H = ROOM_TOTAL_HEIGHT;
 
   // Measure container and compute scale factor
