@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.27.1] - ADR-145: Task Type Registry — CreateTask + commands type_key awareness
+
+### Changed
+- `services/primitives/task.py`: CreateTask tool description updated with `type_key` parameter listing all 13 registered types. `type_key` or `agent_slug` now required (was: `agent_slug` required). Added `focus` parameter for topic customization. Handler resolves pipeline agents from registry when type_key provided.
+- `services/commands.py`: `/task`, `/recap`, `/summary`, `/research` commands rewritten to use `type_key` instead of manual `agent_slug` assignment. Each command maps to specific registered types. TP now prefers `type_key` over manual agent selection.
+
+### Added
+- `services/task_types.py`: Task type registry with 13 types across 5 categories. Each type defines: display_name, description, pipeline (ordered agent steps), default_schedule, output_format, context_sources. Helper functions: `list_task_types()`, `get_task_type()`, `resolve_pipeline_agents()`, `build_task_md_from_type()`.
+- `routes/tasks.py`: `GET /tasks/types` — list all task types with pipeline summaries. `GET /tasks/types/{type_key}` — full type detail.
+
+### Expected behavior
+- TP uses `type_key` when creating tasks for known deliverable patterns (competitive intel, recaps, research, etc.)
+- Custom tasks without a matching type still use `agent_slug` directly
+- TASK.md now includes `**Type:** {type_key}` and `## Process` section with pipeline steps when created from registry
+- Pipeline agents are resolved from user's roster by agent type; graceful degradation if agent type missing
+
+---
+
 ## [2026.03.26.6] - ADR-144: Context awareness always-on + cold start chips
 
 ### Changed

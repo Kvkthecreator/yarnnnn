@@ -25,29 +25,39 @@ COMMANDS: Dict[str, Dict[str, Any]] = {
     # =========================================================================
     "task": {
         "name": "task",
-        "description": "Create a new task — assign recurring work to an agent",
-        "trigger_patterns": ["/task", "create a task", "new task", "assign work", "set up a task"],
+        "description": "Create a new task — pick a deliverable type or describe custom work",
+        "trigger_patterns": ["/task", "create a task", "new task", "assign work", "set up a task", "I want a", "deliver me", "produce a"],
         "system_prompt_addition": """
 ---
 
-## Active Command: Create Task
+## Active Command: Create Task (ADR-145: Task Type Registry)
 
-User wants to create a task (recurring work assigned to an agent).
+User wants to create a task. Use the task type registry to match their need to a concrete deliverable type.
+
+**Available task types:**
+- competitive-intel-brief — Competitive analysis with charts (Research → Content, weekly)
+- market-research-report — Deep-dive investigation (Research → Content, monthly)
+- industry-signal-monitor — Industry scan + deep-dives (Marketing → Research, weekly)
+- due-diligence-summary — Company/opportunity investigation (Research → Content, on-demand)
+- meeting-prep-brief — Relationship context + external research (CRM → Research, on-demand)
+- stakeholder-update — Board/leadership update with KPIs (Research → Content, monthly)
+- relationship-health-digest — Interaction patterns from Slack (Slack Bot → CRM, weekly, requires Slack)
+- project-status-report — Cross-platform status synthesis (Slack Bot → CRM → Content, weekly, requires Slack)
+- slack-recap — Decisions, action items, discussions (Slack Bot, daily/weekly, requires Slack)
+- notion-sync-report — What changed in Notion (Notion Bot, weekly, requires Notion)
+- content-brief — Research-backed blog/content draft (Research → Content, on-demand)
+- launch-material — GTM positioning + polished output (Marketing → Content, on-demand)
+- gtm-tracker — Competitive moves + feature matrices (Marketing → Content, weekly)
 
 **Flow:**
-1. Ask what they need: `Clarify(question="What work do you need done?", options=["Weekly recap", "Research report", "Content/document", "Platform monitoring"])`
-2. Based on choice, pick the right agent from their roster:
-   - Research/monitoring/tracking → Research Agent
-   - Reports/updates/decks → Content Agent
-   - GTM/campaigns → Marketing Agent
-   - Relationships/follow-ups → CRM Agent
-   - Slack automation → Slack Bot
-   - Notion automation → Notion Bot
-3. Ask schedule: `Clarify(question="How often?", options=["Daily", "Weekly", "Monthly", "One-time"])`
-4. Ask delivery if relevant: email, Slack, download
-5. Confirm and create with `CreateTask(title=..., agent_slug=..., schedule=..., delivery=...)`
+1. Understand what they need. Match to a type_key above.
+2. Ask for focus/topic if applicable: "What specific area should this cover?"
+3. Confirm schedule (use type's default unless they specify otherwise)
+4. Create: `CreateTask(title="...", type_key="...", focus="...")`
 
-Keep it simple — one question at a time. The agent already exists in their roster.
+If their need doesn't match any type, fall back to custom: `CreateTask(title="...", agent_slug="...", objective={...})`
+
+Keep it simple — one question at a time. Prefer type_key over manual agent_slug.
 """,
     },
 
@@ -60,15 +70,17 @@ Keep it simple — one question at a time. The agent already exists in their ros
 
 ## Active Command: Recap
 
-Create a recurring recap task assigned to the Research Agent (or Slack/Notion Bot if platform-specific).
+Create a Slack or Notion recap using registered task types.
 
 **Flow:**
 1. Ask platform: `Clarify(question="Which platform?", options=["Slack", "Notion", "Both"])`
 2. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
-3. Confirm and create:
-   `CreateTask(title="[Platform] Recap", agent_slug="research-agent", schedule=..., objective={deliverable: "Platform recap", audience: "You", purpose: "Stay on top of activity"})`
+3. Create using type_key:
+   - Slack: `CreateTask(title="Daily Slack Recap", type_key="slack-recap", schedule="daily")`
+   - Notion: `CreateTask(title="Weekly Notion Sync", type_key="notion-sync-report")`
+   - Both: create both tasks
 
-**Defaults:** frequency=daily, agent=research-agent
+**Note:** Slack/Notion types require the platform to be connected. If not connected, prompt user to connect first.
 """,
     },
 
@@ -81,15 +93,16 @@ Create a recurring recap task assigned to the Research Agent (or Slack/Notion Bo
 
 ## Active Command: Work Summary
 
-Create a recurring summary task assigned to the Content Agent.
+Create a stakeholder update or project status report using registered task types.
 
 **Flow:**
-1. Ask audience: `Clarify(question="Who is this for?", options=["Manager", "Team", "Board", "Investors"])`
-2. Ask frequency: `Clarify(question="How often?", options=["Weekly", "Biweekly", "Monthly"])`
-3. Confirm and create:
-   `CreateTask(title="[Frequency] [Audience] Summary", agent_slug="content-agent", schedule=..., objective={deliverable: "Work summary", audience: ..., format: "Document"})`
+1. Ask audience: `Clarify(question="Who is this for?", options=["Board/Investors", "Leadership", "Team"])`
+2. Based on audience:
+   - Board/Investors/Leadership → `CreateTask(title="Monthly Stakeholder Update", type_key="stakeholder-update")`
+   - Team → `CreateTask(title="Weekly Project Status", type_key="project-status-report")` (requires Slack)
+3. Ask for any focus customization
 
-**Defaults:** frequency=weekly, agent=content-agent
+**Defaults:** stakeholder-update=monthly, project-status-report=weekly
 """,
     },
 
@@ -102,15 +115,21 @@ Create a recurring summary task assigned to the Content Agent.
 
 ## Active Command: Research
 
-Create a research task assigned to the Research Agent.
+Create a research task using registered task types. Match to the best type:
+
+- Competitive tracking → `CreateTask(title="...", type_key="competitive-intel-brief", focus="...")`
+- Market/industry research → `CreateTask(title="...", type_key="market-research-report", focus="...")`
+- Industry monitoring → `CreateTask(title="...", type_key="industry-signal-monitor", focus="...")`
+- GTM tracking → `CreateTask(title="...", type_key="gtm-tracker", focus="...")`
+- Due diligence → `CreateTask(title="...", type_key="due-diligence-summary", focus="...")`
 
 **Flow:**
-1. Ask what to research: "What topic or domain should I track?"
-2. Ask frequency: `Clarify(question="How often?", options=["Weekly (recommended)", "Daily", "Monthly"])`
-3. Confirm and create:
-   `CreateTask(title="[Topic] Research", agent_slug="research-agent", schedule=..., objective={deliverable: "Research report", purpose: "Track and analyze [topic]"})`
+1. Ask what to research: "What topic or domain?"
+2. Match to best type_key
+3. Ask frequency if default isn't right
+4. Create with focus parameter
 
-**Defaults:** frequency=weekly, agent=research-agent
+**Defaults:** competitive-intel-brief=weekly, market-research-report=monthly
 """,
     },
 

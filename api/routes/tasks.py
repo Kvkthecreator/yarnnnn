@@ -290,6 +290,53 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
 
 
 # =============================================================================
+# Task Type Catalog (ADR-145)
+# =============================================================================
+
+@router.get("/types")
+async def list_task_types_endpoint(
+    category: Optional[str] = None,
+):
+    """List available task types from the registry.
+
+    Optionally filter by category: intelligence, operations, platform, content, tracking.
+    """
+    from services.task_types import list_task_types, list_categories
+
+    types = list_task_types(category=category)
+    categories = list_categories()
+
+    # Slim down pipeline for API response (don't expose full instructions)
+    for t in types:
+        t["pipeline_summary"] = [
+            {"agent_type": step["agent_type"], "step": step["step"]}
+            for step in t.get("pipeline", [])
+        ]
+        # Don't send full pipeline instructions to frontend
+        t.pop("pipeline", None)
+        # Don't send internal fields
+        t.pop("default_objective", None)
+
+    return {"types": types, "categories": categories}
+
+
+@router.get("/types/{type_key}")
+async def get_task_type_endpoint(type_key: str):
+    """Get a single task type definition with full detail."""
+    from services.task_types import get_task_type, get_pipeline_agent_types
+
+    task_type = get_task_type(type_key)
+    if not task_type:
+        raise HTTPException(status_code=404, detail=f"Task type '{type_key}' not found")
+
+    return {
+        "type_key": type_key,
+        **task_type,
+        "pipeline_agent_types": get_pipeline_agent_types(type_key),
+    }
+
+
+# =============================================================================
 # CRUD Routes
 # =============================================================================
 

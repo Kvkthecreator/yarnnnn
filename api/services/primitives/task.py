@@ -24,18 +24,27 @@ logger = logging.getLogger(__name__)
 
 CREATE_TASK_TOOL = {
     "name": "CreateTask",
-    "description": """Create a new task — a defined unit of work with objective, cadence, and delivery target. Assign an agent to execute it.
+    "description": """Create a new task — a defined unit of work with objective, cadence, and delivery target.
 
-Required: title, agent_slug
-Optional: mode, objective, schedule, delivery, success_criteria, output_spec
+Two creation paths:
+1. From type registry (preferred): provide type_key + title. Pipeline, schedule, and objective are auto-populated from the registry.
+2. Custom: provide title + agent_slug + objective manually.
+
+type_key values: competitive-intel-brief, market-research-report, industry-signal-monitor, due-diligence-summary, meeting-prep-brief, stakeholder-update, relationship-health-digest, project-status-report, slack-recap, notion-sync-report, content-brief, launch-material, gtm-tracker
+
+Required: title
+Required (one of): type_key OR agent_slug
+
+Optional: mode, objective, schedule, delivery, success_criteria, output_spec, focus (topic to customize the deliverable)
 
 mode: 'recurring' (default), 'goal' (bounded, completes when done), 'reactive' (on-demand/event-triggered)
-schedule: 'daily', 'weekly', 'monthly', or a cron expression (default: 'weekly')
+schedule: 'daily', 'weekly', 'monthly', or a cron expression (default from type or 'weekly')
 
 Examples:
-- CreateTask(title="Weekly Competitive Briefing", agent_slug="competitive-intel", schedule="weekly")
-- CreateTask(title="Daily Slack Recap", agent_slug="slack-digest", schedule="daily", delivery="user@example.com")
-- CreateTask(title="Acquisition Due Diligence", agent_slug="research-agent", mode="goal", schedule="daily")""",
+- CreateTask(title="Weekly Competitive Briefing", type_key="competitive-intel-brief", focus="AI agent platforms")
+- CreateTask(title="Daily Slack Recap", type_key="slack-recap", delivery="user@example.com")
+- CreateTask(title="Acme Corp Due Diligence", type_key="due-diligence-summary", focus="Acme Corp acquisition target")
+- CreateTask(title="Custom Research Task", agent_slug="research-agent", objective={...})""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -43,14 +52,22 @@ Examples:
                 "type": "string",
                 "description": "Task name, e.g. 'Weekly Competitive Briefing'"
             },
+            "type_key": {
+                "type": "string",
+                "description": "Task type from registry. Auto-populates pipeline, schedule, and objective."
+            },
             "agent_slug": {
                 "type": "string",
-                "description": "Slug of the agent to assign. Must exist."
+                "description": "Slug of the agent to assign (for custom tasks without type_key)."
+            },
+            "focus": {
+                "type": "string",
+                "description": "Topic or focus area to customize the deliverable, e.g. 'AI agent platforms' or 'Acme Corp'"
             },
             "mode": {
                 "type": "string",
                 "enum": ["recurring", "goal", "reactive"],
-                "description": "Temporal behavior: 'recurring' (indefinite cadence), 'goal' (bounded, completes when criteria met), 'reactive' (on-demand)"
+                "description": "Temporal behavior: 'recurring' (indefinite cadence), 'goal' (bounded), 'reactive' (on-demand)"
             },
             "objective": {
                 "type": "object",
@@ -60,11 +77,11 @@ Examples:
                     "purpose": {"type": "string"},
                     "format": {"type": "string"}
                 },
-                "description": "Task objective: what to deliver, for whom, why, in what format"
+                "description": "Task objective (auto-populated from type_key if provided)"
             },
             "schedule": {
                 "type": "string",
-                "description": "Cadence: 'daily', 'weekly', 'monthly', or cron expression"
+                "description": "Cadence override (defaults from type registry or 'weekly')"
             },
             "delivery": {
                 "type": "string",
@@ -81,7 +98,7 @@ Examples:
                 "description": "Expected sections in output"
             }
         },
-        "required": ["title", "agent_slug"]
+        "required": ["title"]
     }
 }
 
@@ -173,20 +190,27 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     """
     Handle CreateTask primitive — create a task and assign it to an agent.
 
-    1. Extract fields
+    Two paths:
+    A. type_key provided → resolve from registry, auto-populate pipeline + objective
+    B. agent_slug provided → custom task (existing behavior)
+
+    Steps:
+    1. Extract fields, resolve type_key if provided
     2. Generate slug from title
-    3. Verify agent_slug exists
+    3. Resolve agent(s) — from pipeline or explicit agent_slug
     4. Create DB row in tasks table
     5. Write TASK.md via TaskWorkspace
-    6. Update agent's memory/tasks.json
+    6. Update agent's memory/tasks.json for primary agent
     7. Calculate next_run_at from schedule
     8. Return success with task slug
     """
     title = input.get("title", "").strip()
-    agent_slug = input.get("agent_slug", "").strip()
+    type_key = input.get("type_key", "").strip() or None
+    agent_slug = input.get("agent_slug", "").strip() or None
+    focus = input.get("focus", "").strip() or None
     mode = input.get("mode", "recurring")
     objective = input.get("objective")
-    schedule = input.get("schedule", "weekly")
+    schedule = input.get("schedule")
     delivery = input.get("delivery")
     success_criteria = input.get("success_criteria")
     output_spec = input.get("output_spec")
@@ -197,13 +221,65 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
 
     if not title:
         return {"success": False, "error": "missing_title", "message": "title is required"}
-    if not agent_slug:
-        return {"success": False, "error": "missing_agent", "message": "agent_slug is required"}
+    if not type_key and not agent_slug:
+        return {"success": False, "error": "missing_type_or_agent", "message": "Either type_key or agent_slug is required"}
 
     user_id = auth.user_id
     slug = _slugify(title)
 
-    # Verify agent exists
+    # --- Path A: Type-key based creation (ADR-145) ---
+    resolved_agent_slugs: list[str] = []
+    task_md_content: Optional[str] = None
+
+    if type_key:
+        from services.task_types import get_task_type, resolve_pipeline_agents, build_task_md_from_type
+
+        task_type_def = get_task_type(type_key)
+        if not task_type_def:
+            return {"success": False, "error": "unknown_type", "message": f"Task type '{type_key}' not found in registry."}
+
+        # Use type's default schedule if not overridden
+        if not schedule:
+            schedule = task_type_def["default_schedule"]
+            if schedule == "on-demand":
+                schedule = None  # reactive tasks don't have a schedule
+
+        # Set mode based on schedule
+        if not input.get("mode"):
+            mode = "reactive" if not schedule else "recurring"
+
+        # Resolve pipeline agents from user's roster
+        agents_result = (
+            auth.client.table("agents")
+            .select("id, title, slug, role, status")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        user_agents = agents_result.data or []
+
+        resolved_steps = resolve_pipeline_agents(type_key, user_agents)
+        if resolved_steps:
+            resolved_agent_slugs = [s["agent_slug"] for s in resolved_steps if s["agent_slug"]]
+
+        # Use first pipeline agent as primary (for backward compat)
+        if not agent_slug and resolved_agent_slugs:
+            agent_slug = resolved_agent_slugs[0]
+
+        # Build TASK.md from type template
+        task_md_content = build_task_md_from_type(
+            type_key=type_key,
+            title=title,
+            slug=slug,
+            focus=focus,
+            schedule=schedule,
+            delivery=delivery,
+            agent_slugs=resolved_agent_slugs or None,
+        )
+
+    # --- Verify primary agent exists ---
+    if not agent_slug:
+        return {"success": False, "error": "no_agent_resolved", "message": "Could not resolve an agent for this task type. Check your agent roster."}
+
     try:
         agent_result = (
             auth.client.table("agents")
@@ -222,6 +298,10 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.error(f"[CREATE_TASK] Agent lookup failed: {e}")
         return {"success": False, "error": "agent_lookup_failed", "message": str(e)}
+
+    # Default schedule for custom tasks
+    if not schedule:
+        schedule = "weekly"
 
     # Calculate next_run_at
     next_run_at = _compute_next_run(schedule) if schedule else None
@@ -258,25 +338,30 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     try:
         from services.task_workspace import TaskWorkspace
         tw = TaskWorkspace(auth.client, user_id, slug)
-        task_md = _build_task_md(
-            title=title,
-            slug=slug,
-            agent_slug=agent_slug,
-            mode=mode,
-            objective=objective,
-            schedule=schedule,
-            delivery=delivery,
-            success_criteria=success_criteria,
-            output_spec=output_spec,
-        )
+
+        if task_md_content:
+            # Type-based: use pre-built TASK.md from registry
+            task_md = task_md_content
+        else:
+            # Custom: build manually
+            task_md = _build_task_md(
+                title=title,
+                slug=slug,
+                agent_slug=agent_slug,
+                mode=mode,
+                objective=objective,
+                schedule=schedule,
+                delivery=delivery,
+                success_criteria=success_criteria,
+                output_spec=output_spec,
+            )
         await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
     except Exception as e:
         logger.warning(f"[CREATE_TASK] TASK.md write failed (non-fatal): {e}")
 
-    # Update agent's memory/tasks.json
+    # Update primary agent's memory/tasks.json
     try:
         from services.workspace import AgentWorkspace
-        agent_data = agent_result.data
         aw = AgentWorkspace(auth.client, user_id, agent_slug)
         existing_raw = await aw.read("memory/tasks.json")
         if existing_raw:
@@ -290,6 +375,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         tasks_list.append({
             "task_slug": slug,
             "title": title,
+            "type_key": type_key,
             "schedule": schedule,
             "created_at": now.isoformat(),
         })
@@ -309,11 +395,13 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
             client=auth.client,
             user_id=user_id,
             event_type="task_created",
-            summary=f"Created task: {title} (assigned to {agent_slug})",
+            summary=f"Created task: {title}" + (f" (type: {type_key})" if type_key else f" (agent: {agent_slug})"),
             event_ref=task_id,
             metadata={
                 "task_slug": slug,
+                "type_key": type_key,
                 "agent_slug": agent_slug,
+                "pipeline_agents": resolved_agent_slugs or [agent_slug],
                 "schedule": schedule,
             },
         )
@@ -324,11 +412,13 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         "success": True,
         "task_id": task_id,
         "task_slug": slug,
+        "type_key": type_key,
         "agent_slug": agent_slug,
+        "pipeline_agents": resolved_agent_slugs or [agent_slug],
         "mode": mode,
         "schedule": schedule,
         "next_run_at": next_run_at,
-        "message": f"Created task '{title}' (mode={mode}) assigned to agent '{agent_slug}'.",
+        "message": f"Created task '{title}'" + (f" ({type_key})" if type_key else "") + f" — {schedule or 'on-demand'}.",
         "ui_action": {
             "type": "NAVIGATE",
             "data": {"url": f"/tasks/{slug}", "label": title},
