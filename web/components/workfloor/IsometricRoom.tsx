@@ -10,6 +10,7 @@
  * - Mobile (<768px) falls back to horizontal scroll strip
  */
 
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import {
@@ -302,16 +303,42 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
       .map(t => `${t![0]},${t![1]}`)
   );
 
+  // Canonical room dimensions (rendered at this size, then scaled to fit)
+  const ROOM_W = roomScreenWidth + 40;
+  const ROOM_H = ROOM_TOTAL_HEIGHT;
+
+  // Measure container and compute scale factor
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!containerRef.current) return;
+      const available = containerRef.current.clientWidth;
+      // Scale down if room is wider than container, scale up to max 1.3
+      const s = Math.min(1.3, available / ROOM_W);
+      setScale(s);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [ROOM_W]);
+
   return (
     <>
-      {/* Desktop: Isometric room — fills available width, centered */}
-      <div className="hidden md:block mb-2">
+      {/* Desktop: Isometric room — scales to fill available width */}
+      <div ref={containerRef} className="hidden md:block mb-2 overflow-hidden">
         <div
-          className="relative mx-auto"
           style={{
-            width: roomScreenWidth + 40,
-            height: ROOM_TOTAL_HEIGHT,
+            width: ROOM_W,
+            height: ROOM_H,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top center',
+            margin: '0 auto',
+            // Collapse the scaled height so no blank space below
+            marginBottom: -(ROOM_H * (1 - scale)),
           }}
+          className="relative"
         >
           {/* Floor tiles */}
           {FLOOR_TILES.map(([c, r]) => (
