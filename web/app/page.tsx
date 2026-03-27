@@ -64,8 +64,8 @@ export default function LandingPage() {
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
                   Sign up and meet your team — Research, Content, Marketing, and CRM
-                  agents ready to work. Assign tasks, connect your tools, and wake up
-                  to finished work. They get better every cycle.
+                  agents ready to work. Share context through conversation, documents,
+                  or connected tools. They get better every cycle.
                 </p>
 
                 <Link
@@ -203,8 +203,8 @@ export default function LandingPage() {
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Describe your work</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
                   Tell yarnnn what you need — &ldquo;weekly competitor brief&rdquo; or
-                  &ldquo;Friday team recap from Slack.&rdquo; Connect Slack or Notion
-                  to give your agents context.
+                  &ldquo;Friday team recap.&rdquo; Share context through conversation,
+                  documents, or by connecting Slack and Notion.
                 </p>
               </div>
 
@@ -314,7 +314,7 @@ export default function LandingPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">1</div>
-                    <p className="text-[#1a1a1a]/70 text-sm">Bots sync your tools — agents see everything</p>
+                    <p className="text-[#1a1a1a]/70 text-sm">You share context — conversation, docs, connected tools</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">2</div>

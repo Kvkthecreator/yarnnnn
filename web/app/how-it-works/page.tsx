@@ -41,7 +41,7 @@ export default function HowItWorksPage() {
       },
       {
         "@type": "HowToStep",
-        name: "Connect Slack or Notion to enrich agent context",
+        name: "Share context through conversation, documents, or connected tools",
       },
       {
         "@type": "HowToStep",
@@ -191,21 +191,28 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* Step 3: Connect tools */}
+          {/* Step 3: Share context */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-16">
                 <div className="text-4xl font-light text-white/20">03</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Connect your tools</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Share context</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl mb-8">
-                    Link Slack or Notion to give your agents real context. Bots activate
-                    automatically and start syncing — your agents get eyes on your actual
-                    work. You choose which channels or pages to include, or let yarnnn
-                    figure it out.
+                    Agents learn from everything you share. Talk to them directly,
+                    upload documents, or connect Slack and Notion for continuous
+                    platform context. The more they know, the better they work.
                   </p>
 
-                  <div className="grid grid-cols-2 gap-4 max-w-md">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl">
+                    <div className="border border-white/10 rounded-xl p-4 text-center">
+                      <div className="text-lg font-medium mb-1">Chat</div>
+                      <p className="text-white/40 text-xs">Describe what matters through conversation</p>
+                    </div>
+                    <div className="border border-white/10 rounded-xl p-4 text-center">
+                      <div className="text-lg font-medium mb-1">Docs</div>
+                      <p className="text-white/40 text-xs">Upload files that agents reference</p>
+                    </div>
                     <div className="border border-white/10 rounded-xl p-4 text-center">
                       <div className="text-lg font-medium mb-1">Slack</div>
                       <p className="text-white/40 text-xs">Channels, threads, conversations</p>
@@ -217,8 +224,8 @@ export default function HowItWorksPage() {
                   </div>
 
                   <p className="text-white/30 text-xs mt-6 max-w-xl">
-                    Platform connections enrich your agents&apos; context but aren&apos;t required
-                    to start. Agents can work with web research and documents alone.
+                    No context source is required. Agents can start working immediately
+                    with just a conversation. Each source you add makes the output richer.
                   </p>
                 </div>
               </div>
