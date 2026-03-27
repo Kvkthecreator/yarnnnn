@@ -3,7 +3,7 @@
 /**
  * Workfloor — ADR-139 v3: Agent Grid + TP Chat Panel
  *
- * Left: Agent roster (living office) + tabbed data (Tasks | Context with nested Identity/Brand/Documents)
+ * Left: Isometric agent room + tabbed data (Tasks | Context with nested Identity/Brand/Documents)
  * Right: TP Chat (always visible, resizable via WorkspaceLayout)
  * No drawer — chat is the right panel.
  */
@@ -15,23 +15,13 @@ import { HOME_ROUTE } from '@/lib/routes';
 import {
   Loader2,
   X,
-  Link2,
   ListChecks,
-  ChevronRight,
-  ChevronDown,
   LayoutGrid,
-  Cog,
   MessageCircle,
   Send,
   Upload,
   Search,
   Globe,
-  RefreshCw,
-  FlaskConical,
-  FileText,
-  TrendingUp,
-  Users,
-  BookOpen,
   UserCircle,
   Paintbrush,
 } from 'lucide-react';
@@ -42,138 +32,16 @@ import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { AgentAvatar } from '@/components/agents/AgentAvatar';
+import { IsometricRoom } from '@/components/workfloor/IsometricRoom';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import ReactMarkdown from 'react-markdown';
 
-// =============================================================================
-// Agent type config
-// =============================================================================
-
-const TYPE_CONFIG: Record<string, { hex: string; icon: typeof FlaskConical; accent: string; bgRoom: string; label: string }> = {
-  research:   { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  content:    { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  marketing:  { hex: '#ec4899', icon: TrendingUp,    accent: 'border-pink-400/30',   bgRoom: 'from-pink-50 to-pink-100/50 dark:from-pink-950/30 dark:to-pink-900/20',   label: 'Marketing' },
-  crm:        { hex: '#f97316', icon: Users,         accent: 'border-orange-400/30', bgRoom: 'from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20', label: 'CRM' },
-  slack_bot:  { hex: '#14b8a6', icon: MessageCircle, accent: 'border-teal-400/30',   bgRoom: 'from-teal-50 to-teal-100/50 dark:from-teal-950/30 dark:to-teal-900/20',   label: 'Slack Bot' },
-  notion_bot: { hex: '#6366f1', icon: BookOpen,      accent: 'border-indigo-400/30', bgRoom: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20', label: 'Notion Bot' },
-  briefer:    { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  researcher: { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  analyst:    { hex: '#3b82f6', icon: FlaskConical,  accent: 'border-blue-400/30',   bgRoom: 'from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20',   label: 'Research' },
-  drafter:    { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  writer:     { hex: '#a855f7', icon: FileText,      accent: 'border-purple-400/30', bgRoom: 'from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20', label: 'Content' },
-  custom:     { hex: '#6b7280', icon: Cog,           accent: 'border-gray-400/30',   bgRoom: 'from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20',   label: 'Custom' },
-};
-
-function getType(role: string) {
-  return TYPE_CONFIG[role] || TYPE_CONFIG.custom;
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 // =============================================================================
-// Agent Room Card (with avatar)
-// =============================================================================
-
-function AgentRoomCard({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
-  const config = getType(agent.role);
-  const isRunning = agent.latest_version_status === 'generating';
-  const isPaused = agent.status === 'paused';
-  const hasFailed = agent.latest_version_status === 'failed';
-
-  const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
-  const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
-  const activeTask = assignedTasks[0];
-
-  const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
-    isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
-
-  const Icon = config.icon;
-
-  return (
-    <Link
-      href={`/agents/${agent.id}`}
-      className="relative flex flex-col items-center rounded-2xl border border-border/60 bg-background p-3 pt-2 transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-border"
-    >
-      <AgentAvatar state={avatarState} color={config.hex} size={60} icon={<Icon size={11} strokeWidth={2.5} />} />
-      <span className="text-[11px] font-medium text-center mt-0.5 truncate w-full">{agent.title}</span>
-      {activeTask && (
-        <span className="text-[8px] text-muted-foreground/40 truncate w-full text-center">{activeTask.title}</span>
-      )}
-    </Link>
-  );
-}
-
-// =============================================================================
-// Agent Strip — collapsible compact row, expands to full grid
-// =============================================================================
-
-function AgentStrip({ agents, tasks, loading }: { agents: Agent[]; tasks: Task[]; loading: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (loading) {
-    return <div className="flex items-center justify-center py-3"><Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /></div>;
-  }
-
-  const withTasks = agents.filter(a => {
-    const slug = a.slug || a.title.toLowerCase().replace(/\s+/g, '-');
-    return tasks.some(t => t.status !== 'archived' && t.agent_slugs?.includes(slug));
-  });
-
-  return (
-    <div className="mb-3">
-      {/* Compact header — always visible */}
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 py-1.5 text-left group"
-      >
-        {/* Avatar stack */}
-        <div className="flex -space-x-1.5">
-          {agents.slice(0, 6).map(agent => {
-            const config = getType(agent.role);
-            return (
-              <div
-                key={agent.id}
-                className="w-5 h-5 rounded-full border-2 border-background flex items-center justify-center"
-                style={{ backgroundColor: config.hex + '20' }}
-              >
-                <config.icon size={9} strokeWidth={2.5} style={{ color: config.hex }} />
-              </div>
-            );
-          })}
-        </div>
-        <span className="text-[11px] text-muted-foreground">
-          {agents.length} agents{withTasks.length > 0 && <> · {withTasks.length} with tasks</>}
-        </span>
-        <ChevronDown className={cn('w-3 h-3 text-muted-foreground/40 ml-auto transition-transform', expanded && 'rotate-180')} />
-      </button>
-
-      {/* Expanded grid */}
-      {expanded && (
-        <div className="grid grid-cols-3 gap-2 pt-1.5">
-          {agents.map(agent => <AgentRoomCard key={agent.id} agent={agent} tasks={tasks} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Tabs below agent strip
+// Tabs below agent room
 // =============================================================================
 
 function TasksTab({ tasks }: { tasks: Task[] }) {
@@ -652,8 +520,8 @@ export default function WorkfloorPage() {
             </div>
           )}
 
-          {/* Agent Strip — collapsible, compact by default */}
-          <AgentStrip agents={activeAgents} tasks={tasks} loading={agentsLoading} />
+          {/* Agent Room — isometric display */}
+          <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} />
 
           {/* Tabs: Tasks | Context (nested: Identity, Brand, Documents) — ADR-144 */}
           <div>
