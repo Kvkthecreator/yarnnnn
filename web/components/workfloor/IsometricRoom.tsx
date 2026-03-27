@@ -7,6 +7,7 @@
  * - Large tiled floor with depth and grid lines
  * - Agents spaced generously on tiles with ground shadows
  * - Clickable sprites with state-based animations (via AgentAvatar)
+ * - Ambient floor effects: pulse wave + tile shimmer
  * - Mobile (<768px) falls back to horizontal scroll strip
  */
 
@@ -121,10 +122,10 @@ function FloorTile({ col, row, occupied, working }: { col: number; row: number; 
         height: TILE_H,
       }}
     >
-      {/* Tile face */}
+      {/* Tile face with subtle shimmer */}
       <div
         className={cn(
-          'w-full h-full border transition-colors duration-500',
+          'w-full h-full border',
           working
             ? 'bg-primary/12 border-primary/20 dark:bg-primary/15 dark:border-primary/25'
             : occupied
@@ -137,6 +138,7 @@ function FloorTile({ col, row, occupied, working }: { col: number; row: number; 
         )}
         style={{
           clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+          animation: `tileShimmer 8s ease-in-out ${(col + row) * 0.4}s infinite`,
         }}
       />
     </div>
@@ -355,6 +357,85 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
               working={workingSet.has(`${c},${r}`)}
             />
           ))}
+
+          {/* Ambient: center pulse wave — ripples outward every few seconds */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: centerX - 120,
+              top: ROOM_PADDING_TOP + roomScreenHeight / 2 - 40,
+              width: 240,
+              height: 80,
+            }}
+          >
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                className="absolute inset-0 rounded-full"
+                style={{
+                  clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+                  background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.06), transparent 70%)',
+                  animation: `pulseWave 4s ease-out ${i * 1.3}s infinite`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Ambient: flowing dots along tile edges — data flowing */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[0, 1, 2, 3, 4].map(i => {
+              const startTile = FLOOR_TILES[i % FLOOR_TILES.length];
+              const endTile = FLOOR_TILES[(i + 3) % FLOOR_TILES.length];
+              const start = isoToScreen(startTile[0], startTile[1]);
+              const end = isoToScreen(endTile[0], endTile[1]);
+              return (
+                <div
+                  key={`flow-${i}`}
+                  className="absolute rounded-full"
+                  style={{
+                    width: 3,
+                    height: 3,
+                    backgroundColor: 'hsl(var(--primary))',
+                    opacity: 0.12,
+                    left: centerX + start.x,
+                    top: ROOM_PADDING_TOP + start.y + TILE_H / 2,
+                    animation: `flowDot${i} ${6 + i}s linear ${i * 0.8}s infinite`,
+                    // CSS custom property for end position
+                    '--end-x': `${centerX + end.x - (centerX + start.x)}px`,
+                    '--end-y': `${ROOM_PADDING_TOP + end.y + TILE_H / 2 - (ROOM_PADDING_TOP + start.y + TILE_H / 2)}px`,
+                  } as React.CSSProperties}
+                />
+              );
+            })}
+          </div>
+
+          {/* Ambient styles */}
+          <style>{`
+            @keyframes pulseWave {
+              0% { transform: scale(0.3); opacity: 1; }
+              100% { transform: scale(2.5); opacity: 0; }
+            }
+            @keyframes tileShimmer {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.7; }
+            }
+            ${[0, 1, 2, 3, 4].map(i => {
+              const startTile = FLOOR_TILES[i % FLOOR_TILES.length];
+              const endTile = FLOOR_TILES[(i + 3) % FLOOR_TILES.length];
+              const s = isoToScreen(startTile[0], startTile[1]);
+              const e = isoToScreen(endTile[0], endTile[1]);
+              const dx = (centerX + e.x) - (centerX + s.x);
+              const dy = (ROOM_PADDING_TOP + e.y + TILE_H / 2) - (ROOM_PADDING_TOP + s.y + TILE_H / 2);
+              return `
+                @keyframes flowDot${i} {
+                  0% { transform: translate(0, 0); opacity: 0; }
+                  10% { opacity: 0.15; }
+                  90% { opacity: 0.15; }
+                  100% { transform: translate(${dx}px, ${dy}px); opacity: 0; }
+                }
+              `;
+            }).join('')}
+          `}</style>
 
           {/* Agents on tiles */}
           {agents.slice(0, 6).map((agent, i) => {
