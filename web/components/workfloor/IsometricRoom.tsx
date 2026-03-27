@@ -55,8 +55,8 @@ function getStyle(role: string) {
 // Room is a 4×3 diamond grid (wider than tall). Agents on inner tiles.
 const GRID_COLS = 4;
 const GRID_ROWS = 3;
-const TILE_W = 80; // px width of one tile
-const TILE_H = 40; // px height of one tile (half width for true isometric)
+const TILE_W = 100; // px width of one tile — big enough for 64px avatars
+const TILE_H = 50;  // px height (half width for true isometric)
 
 function isoToScreen(col: number, row: number) {
   // Standard isometric: x = (col - row) * halfW, y = (col + row) * halfH
@@ -90,9 +90,9 @@ for (let r = 0; r < GRID_ROWS; r++) {
 // Room dimensions in screen space
 const roomScreenWidth = (GRID_COLS + GRID_ROWS) * (TILE_W / 2);
 const roomScreenHeight = (GRID_COLS + GRID_ROWS) * (TILE_H / 2);
-const ROOM_PADDING_TOP = 40; // space above for avatars that stick up
+const ROOM_PADDING_TOP = 60; // space above for avatars that stick up
 const ROOM_PADDING_BOTTOM = 30;
-const ROOM_TOTAL_HEIGHT = roomScreenHeight + ROOM_PADDING_TOP + ROOM_PADDING_BOTTOM + 20;
+const ROOM_TOTAL_HEIGHT = roomScreenHeight + ROOM_PADDING_TOP + ROOM_PADDING_BOTTOM + 30;
 
 // Center offset: shift so the (0,0) tile's center is at the visual center-top
 const centerX = roomScreenWidth / 2;
@@ -163,9 +163,8 @@ function AgentOnTile({ agent, tasks, col, row }: {
     isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
 
   const Icon = style.icon;
-
-  // Position: avatar centered on tile, shifted up so it "stands on" the tile
-  const spriteWidth = 72;
+  const AVATAR_SIZE = 64;
+  const spriteWidth = 80;
 
   return (
     <Link
@@ -173,35 +172,50 @@ function AgentOnTile({ agent, tasks, col, row }: {
       className="absolute flex flex-col items-center group z-10"
       style={{
         left: centerX + x - spriteWidth / 2,
-        top: ROOM_PADDING_TOP + y - 48, // avatar stands above tile center
+        top: ROOM_PADDING_TOP + y - 56, // avatar stands above tile center
         width: spriteWidth,
       }}
     >
-      {/* Shadow on the floor */}
+      {/* Ground shadow — ellipse on the floor */}
       <div
-        className="absolute opacity-10 dark:opacity-15 rounded-full blur-sm"
+        className="absolute rounded-full blur-[3px]"
         style={{
-          width: 32,
-          height: 10,
+          width: 36,
+          height: 12,
           backgroundColor: style.hex,
-          bottom: 12,
+          opacity: 0.12,
+          bottom: 14,
           left: '50%',
           transform: 'translateX(-50%)',
         }}
       />
 
-      {/* Avatar with hover lift */}
-      <div className="transition-transform duration-200 group-hover:-translate-y-1.5">
+      {/* Role badge — small icon floating top-right */}
+      <div
+        className="absolute flex items-center justify-center rounded-full z-20 border border-background"
+        style={{
+          width: 18,
+          height: 18,
+          backgroundColor: style.hex,
+          top: 0,
+          right: 6,
+          opacity: isPaused ? 0.3 : 0.85,
+        }}
+      >
+        <Icon size={9} strokeWidth={2.5} color="white" />
+      </div>
+
+      {/* Character avatar — eyes mode (no icon = shows eyes) */}
+      <div className="transition-transform duration-200 group-hover:-translate-y-2">
         <AgentAvatar
           state={avatarState}
           color={style.hex}
-          size={44}
-          icon={<Icon size={10} strokeWidth={2.5} />}
+          size={AVATAR_SIZE}
         />
       </div>
 
       {/* Name */}
-      <span className="text-[10px] font-medium text-center mt-1 truncate w-full text-foreground/70 group-hover:text-foreground transition-colors">
+      <span className="text-[10px] font-medium text-center truncate w-full text-foreground/70 group-hover:text-foreground transition-colors">
         {agent.title.replace(' Agent', '').replace(' Bot', '')}
       </span>
 
