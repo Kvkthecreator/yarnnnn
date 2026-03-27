@@ -1,24 +1,20 @@
 """
-Task Pipeline — ADR-141: Unified Execution Architecture
+Task Pipeline — ADR-141 + ADR-145: Unified Execution Architecture
 
 Mechanical generation pipeline triggered by scheduler. No decision-making — just execution.
 
-Flow:
-  Scheduler finds due task (SQL)
-    → Read TASK.md (objective, criteria, output spec, agent slug)
-    → Resolve agent (DB lookup by slug)
-    → Read AGENT.md (identity, expertise)
-    → Read agent memory/ (accumulated knowledge)
-    → Search /knowledge/ (relevant workspace context)
-    → Build execution prompt (task objective + agent identity + context)
-    → Generate output (Sonnet, multi-tool-round)
-    → Save output to /tasks/{slug}/outputs/{date}/
-    → Compose HTML (render service, non-fatal)
-    → Append to memory/run_log.md
-    → Write to /knowledge/ (accumulation)
-    → Deliver per TASK.md config
-    → Update tasks.last_run_at + calculate next_run_at
-    → Write activity event
+Two execution paths:
+  1. Single-step (existing): TASK.md has agent_slug, no type_key → direct generation
+  2. Multi-step pipeline (ADR-145): TASK.md has type_key → resolve pipeline from registry
+     → execute each step sequentially → pass output forward as explicit handoff
+
+Single-step flow:
+  Scheduler → Read TASK.md → Resolve agent → Gather context → Generate → Save → Deliver
+
+Multi-step flow:
+  Scheduler → Read TASK.md → Resolve type_key → Look up pipeline
+    → For each step: resolve agent by type → gather context + prior step output → generate
+    → Final step output → compose HTML → deliver
 
 Replaces: agent_pulse.py, trigger_dispatch.py, execution_strategies.py,
           agent_execution.py (execute_agent_generation).
@@ -280,6 +276,10 @@ If context says "(No context available)" or tools return no results:
             val = objective.get(key)
             if val:
                 user_parts.append(f"- **{key.capitalize()}:** {val}")
+        # Pipeline step instruction (ADR-145)
+        step_instruction = objective.get("step_instruction")
+        if step_instruction:
+            user_parts.append(f"\n**Your specific role:** {step_instruction}")
 
     # Success criteria
     criteria = task_info.get("success_criteria", [])

@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.27.2] - ADR-145 Gate 2: Multi-step pipeline execution
+
+### Changed
+- `services/task_pipeline.py`: `execute_task()` now detects `type_key` in TASK.md and routes to `_execute_pipeline()` for multi-step types. Single-step tasks unchanged.
+- `services/task_pipeline.py`: `parse_task_md()` extracts `type_key` from `**Type:**` field.
+- `services/task_pipeline.py`: `build_task_execution_prompt()` injects `step_instruction` from pipeline step into user message.
+
+### Added
+- `services/task_pipeline.py`: `_execute_pipeline()` — multi-step sequential execution. Each step: resolve agent by type from roster → gather context + inject prior step output → generate → save to `step-{N}/`. Final step output becomes deliverable. Credits recorded per step.
+
+### Expected behavior
+- Tasks with `type_key` pointing to a multi-step pipeline (e.g., `competitive-intel-brief`: Research → Content) execute both agents sequentially.
+- Step outputs saved to `/tasks/{slug}/outputs/{date}/step-{N}/output.md` with per-step manifests.
+- Prior step's output explicitly injected into next step's prompt (deterministic handoff, not KB discovery).
+- Graceful degradation: if an agent type is missing from roster, step is skipped.
+- Single-step tasks and tasks without `type_key` follow existing execution path unchanged.
+
+---
+
 ## [2026.03.27.1] - ADR-145: Task Type Registry — CreateTask + commands type_key awareness
 
 ### Changed
