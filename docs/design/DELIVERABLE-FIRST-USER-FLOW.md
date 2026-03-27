@@ -330,3 +330,106 @@ Instead of upfront "connect platforms", prompt contextually:
 - Nav dropdown update
 - Agent strip collapse as default
 - State-aware chat suggested chips
+
+---
+
+## Output Rendering Strategy (Bigger Picture)
+
+### Problem
+Task outputs include structured content that raw `ReactMarkdown` doesn't handle well:
+- **Tables** — competitive matrices, feature comparisons (now fixed with `remark-gfm`)
+- **Charts** — rendered as PNG/SVG by RuntimeDispatch, referenced in markdown
+- **Mermaid diagrams** — rendered as SVG/PNG, referenced in markdown
+- **Composed HTML** — full brand-styled deliverable from compose engine
+- **Embedded assets** — images, social cards, data visualizations
+
+The current approach (markdown → ReactMarkdown) works for text but breaks for rich deliverables. The compose engine produces HTML, but the frontend needs to know when to show markdown vs. HTML.
+
+### Current State (2026-03-27)
+- `MarkdownRenderer` shared component with `remark-gfm` — handles tables, GFM features
+- Task page `OutputTab` checks: HTML first → markdown fallback → empty state
+- Chat messages use `MarkdownRenderer` with compact mode
+- No asset embedding (chart/mermaid images not rendered inline)
+- Compose HTML displayed via `iframe` with sandbox
+
+### Rendering Decisions Needed
+
+**1. Output display priority**
+When a task produces both `output.md` and `output.html`, which do we show?
+- Current: HTML via iframe if available, markdown fallback
+- Proposal: HTML is the primary view (it's the "finished" deliverable). Markdown is the "source" view (for editing/feedback). Toggle between them.
+
+**2. Asset embedding in markdown view**
+Agent outputs reference assets (`chart-1.svg`, `competitive-map.png`) but the markdown viewer doesn't resolve these paths.
+- Need: resolve workspace_files asset paths to actual URLs (Supabase storage or base64 inline)
+- Approach: `MarkdownRenderer` gains an `assetResolver` prop that maps `![alt](assets/chart-1.svg)` to actual URLs
+
+**3. Pipeline step output viewing**
+Multi-step pipelines store step outputs in `step-{N}/output.md`. The Pipeline tab needs to render each step's output inline.
+- Same `MarkdownRenderer` component, one per step
+- Step outputs are intermediate work product — show as collapsible sections
+
+**4. Composed HTML rendering**
+The compose engine produces self-contained HTML with brand CSS, embedded SVGs, responsive layout.
+- Current: `<iframe srcDoc={html} sandbox="allow-same-origin" />`
+- Issue: iframe sizing (height calculation), no interaction, feels disconnected
+- Alternative: `dangerouslySetInnerHTML` with sanitization (DOMPurify)
+- Decision: keep iframe for now (security sandbox), add auto-height via postMessage
+
+**5. Chat message rendering**
+TP responses include tool results, inline suggestions, and markdown. Chat needs compact rendering.
+- Current: `MarkdownRenderer` with `compact` prop
+- Consider: tool result cards (already exist), inline asset previews, code blocks
+
+### Proposed Component Architecture
+
+```
+OutputRenderer (top-level — decides HTML vs Markdown vs Empty)
+├── HtmlOutputViewer (iframe with auto-height, sandbox)
+├── MarkdownRenderer (remark-gfm, asset resolution, table styling)
+│   └── AssetImage (resolves workspace_files paths to URLs)
+├── PipelineStepViewer (collapsible step outputs)
+└── OutputToolbar (toggle HTML/MD, export buttons, copy)
+```
+
+### Not Now (Future)
+- Live mermaid rendering in markdown (currently pre-rendered as PNG/SVG)
+- Inline chart editing (modify data → re-render)
+- PDF/PPTX preview in-browser
+- Side-by-side diff between output versions
+
+---
+
+## Frontend Prerequisite Considerations
+
+### Context Buildup Is Still Required
+ADR-145 task types don't remove the need for onboarding context. Without identity/brand/domain context, even the best pipeline produces generic output.
+
+**Minimum viable context for meaningful task execution:**
+1. **Identity** (IDENTITY.md) — who you are, role, company
+2. **Domain** — what industry/space you operate in (inferred from identity or explicit)
+3. **Focus** — the `focus` parameter on task creation customizes the deliverable
+
+**Without platforms connected:**
+- Research-based tasks (competitive intel, market research, due diligence) work via web search — output is thinner but functional
+- Platform-dependent tasks (Slack Recap, Relationship Health) require the platform — prompt connection contextually
+
+**Onboarding flow must ensure:**
+- Identity is populated before task catalog is shown (or at least strongly encouraged)
+- Task types that require platforms show connection prompts inline
+- First-run output quality depends on available context — set expectations
+
+### Surface-Primitives Map
+`docs/design/SURFACE-PRIMITIVES-MAP.md` maps every surface to its primitives, commands, plus menu, and scope boundaries.
+
+**When adding task type catalog to workfloor:**
+- Update SURFACE-PRIMITIVES-MAP.md with new surface elements
+- Catalog cards are NOT primitives — they're UI that scaffolds via `CreateTask`
+- The `+ Add deliverable` button triggers catalog, not a primitive directly
+- Chat plus menu may gain a "Browse deliverable types" action
+
+### Workfloor Still Owns Cold Start
+- `/workfloor` remains `HOME_ROUTE`
+- Empty state transitions: no context → context enrichment → task catalog → active deliverables
+- Agent strip remains accessible but collapsed — power user path, not default
+- Chat panel always visible — TP can guide through all states
