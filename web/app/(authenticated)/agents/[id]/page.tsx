@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { Agent, AgentRun, AgentMemory } from '@/types';
 
 // =============================================================================
@@ -96,9 +96,7 @@ function MemorySection({ title, content }: { title: string; content: string | nu
       </button>
       {open && (
         <div className="px-3 pb-3 text-xs text-muted-foreground/80">
-          <div className="prose prose-xs dark:prose-invert max-w-none">
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer content={content} compact />
         </div>
       )}
     </div>
@@ -223,9 +221,7 @@ export default function AgentIdentityPage() {
           {agent.agent_instructions && (
             <div>
               <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Instructions</h2>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{agent.agent_instructions}</ReactMarkdown>
-              </div>
+              <MarkdownRenderer content={agent.agent_instructions} />
             </div>
           )}
 

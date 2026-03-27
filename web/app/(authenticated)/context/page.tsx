@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { Agent, Task, Document } from '@/types';
 
 // =============================================================================
@@ -355,8 +355,8 @@ function ExpandableFileRow({ name, path, preview, content, empty }: {
       </button>
       {expanded && content && (
         <div className="px-3 pb-3 border-t border-border/50">
-          <div className="mt-2 text-sm text-muted-foreground prose prose-sm prose-neutral dark:prose-invert max-w-none">
-            <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="mt-2 text-sm text-muted-foreground">
+            <MarkdownRenderer content={content} />
           </div>
         </div>
       )}

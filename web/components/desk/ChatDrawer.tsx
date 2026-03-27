@@ -28,7 +28,7 @@ import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { DeskSurface } from '@/types/desk';
 
 interface ChatDrawerProps {
@@ -228,9 +228,7 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
               ) : (
                 <>
                   {msg.role === 'assistant' ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 text-[13px]">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
+                    <MarkdownRenderer content={msg.content} compact className="text-[13px]" />
                   ) : (
                     <p className="whitespace-pre-wrap text-[13px]">{msg.content}</p>
                   )}

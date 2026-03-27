@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
@@ -9,7 +8,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Invest — Pre-Seed",
   description:
-    "yarnnn is raising $500K pre-seed to build the application layer for work context: persistent agents, accumulated context, and compounding work products for recurring knowledge work.",
+    "yarnnn is raising $500K pre-seed to build the application layer for work context: a pre-built AI workforce with persistent agents, accumulated context, and compounding work products.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
@@ -54,9 +53,9 @@ export default function InvestPage() {
               <p>
                 Every platform cycle produces an application layer the platform provider
                 doesn&apos;t own. LLMs are no different. yarnnn is building that layer for work —
-                an autonomous AI platform that connects to your tools, accumulates context over time,
-                creates persistent agents around recurring jobs, and turns supervision into the default
-                operating model.
+                an autonomous AI platform that gives every user a pre-built workforce of
+                specialist agents, connects to their tools, accumulates context over time,
+                and turns supervision into the default operating model.
               </p>
               <p className="text-white font-medium">
                 We&apos;re raising $500K pre-seed at $5M post-money.
@@ -117,54 +116,58 @@ export default function InvestPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
+                    <h3 className="text-lg font-medium text-white">Pre-built AI workforce</h3>
+                  </div>
+                  <div className="text-white/50">
+                    <p>
+                      Every user gets a 6-agent roster at sign-up: Research, Content, Marketing,
+                      and CRM specialist agents plus Slack and Notion bots. Two classes — agents
+                      (domain-cognitive, multi-step reasoning) and bots (platform-mechanical,
+                      single-API). No setup, no configuration — the workforce is ready on day 1.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-white">Agent + Task model</h3>
+                  </div>
+                  <div className="text-white/50">
+                    <p>
+                      Clean separation: agents are WHO (persistent identity, fixed capabilities,
+                      accumulating knowledge), tasks are WHAT (objective, cadence, delivery format,
+                      success criteria). Three task modes — recurring (indefinite cadence), goal
+                      (bounded completion), reactive (on-demand). Agents take on tasks and execute
+                      via a mechanical pipeline: read task spec, gather context, generate, deliver.
+                      Output ships as PDF, slides, spreadsheets, and more.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                  <div>
                     <h3 className="text-lg font-medium text-white">Two integrations</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
                       Slack and Notion — connected and syncing.
                       Cross-platform context accumulates automatically with every sync cycle.
+                      Bots activate when a platform is connected, giving agents eyes on real work.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Agents and tasks</h3>
+                    <h3 className="text-lg font-medium text-white">Unified execution architecture</h3>
                   </div>
                   <div className="text-white/50">
                     <p>
-                      Persistent agents — each a domain expert with memory, expertise, and
-                      capabilities — work on defined tasks that run on cadence. One agent
-                      can handle the full thinking chain: sense context, reason about it,
-                      and produce output. For bigger jobs, multiple agents collaborate with
-                      the orchestrator coordinating the sequence. Output ships as PDF, slides,
-                      spreadsheets, and more.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Supervision model</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      The product shifts the user from operator to supervisor. Instead of rebuilding
-                      context and regenerating the same draft every cycle, users review, redirect,
-                      and refine a running system that compounds with tenure.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">135+ ADRs</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p>
-                      Architecture Decision Records documenting every design choice — from the
-                      agent pulse engine to task execution and output skills. This is a
-                      purpose-built work system, not an API wrapper.
+                      Three-layer separation: mechanical scheduling (zero LLM, SQL-based),
+                      task execution pipeline (Sonnet generation with multi-tool reasoning),
+                      and conversational orchestration (user-facing TP). 145+ Architecture Decision
+                      Records documenting every design choice. This is a purpose-built work system,
+                      not an API wrapper.
                     </p>
                   </div>
                 </div>
@@ -175,9 +178,10 @@ export default function InvestPage() {
                   </div>
                   <div className="text-white/50">
                     <p>
-                      After 90 days of accumulated context, the system knows your preferences,
-                      your clients, and your style. Switching to a competitor means starting
-                      from zero. The moat deepens automatically with every cycle.
+                      After 90 days of accumulated context, agents know your preferences,
+                      your clients, and your style. Task history, feedback distillation,
+                      and domain knowledge compound with every cycle. Switching to a
+                      competitor means starting from zero. The moat deepens automatically.
                     </p>
                   </div>
                 </div>
@@ -207,7 +211,7 @@ export default function InvestPage() {
                 <p className="text-white font-medium">
                   The comparable companies that validated this market — Notion ($11B), Glean ($7.2B),
                   Granola ($250M), Mem.ai ($110M) — all proved demand for AI-powered context.
-                  yarnnn adds the persistent agent and work-product layer that none of them have.
+                  yarnnn adds the persistent agent workforce and task execution layer that none of them have.
                 </p>
               </div>
             </div>
@@ -234,7 +238,7 @@ export default function InvestPage() {
               </div>
 
               <p className="text-white/50 max-w-2xl">
-                Entry wedge: solo consultants managing multiple clients with recurring agents
+                Entry wedge: solo consultants managing multiple clients with recurring tasks
                 across 3+ tools. Clearest pain, shortest sales cycle, highest willingness to pay.
                 Expansion path: founders, executives, teams, then all knowledge workers.
               </p>
@@ -258,7 +262,7 @@ export default function InvestPage() {
                 <p>
                   Shipped the entire MVP solo: full-stack application (Next.js + FastAPI + Supabase),
                   platform integrations, autonomous agent architecture documented across
-                  135+ Architecture Decision Records, and a working context accumulation engine —
+                  145+ Architecture Decision Records, and a working context accumulation engine —
                   all before raising a dollar.
                 </p>
               </div>

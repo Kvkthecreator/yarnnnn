@@ -35,7 +35,7 @@ import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 import type { TaskDetail, TaskOutput, Agent } from '@/types';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
@@ -96,8 +96,8 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
   const mdContent = (output as any).content || output.md_content;
   if (mdContent) {
     return (
-      <div className="prose prose-sm dark:prose-invert max-w-none p-4">
-        <ReactMarkdown>{mdContent}</ReactMarkdown>
+      <div className="p-4">
+        <MarkdownRenderer content={mdContent} />
       </div>
     );
   }
@@ -420,7 +420,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
             ) : (
               <>
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                  <MarkdownRenderer content={msg.content} compact />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}

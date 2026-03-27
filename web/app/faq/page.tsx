@@ -22,22 +22,72 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an AI agent platform for recurring knowledge work. It connects to Slack and Notion, then runs persistent agents in the background that deliver real work on schedule — recaps, research, reports — and improve with every cycle.",
+          "yarnnn is an AI workforce platform for recurring knowledge work. You sign up and get a pre-built team of specialist agents — Research, Content, Marketing, CRM — plus Slack and Notion bots. You assign tasks, they execute on schedule, and they get better every cycle.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "Chat tools are session-based — they help in the moment but reset when you close the tab. yarnnn is system-based: it maintains synced context from your work tools, runs agents on schedule without you, and learns from your feedback over time. The output gets better the longer it runs.",
+          "Chat tools are session-based — they help in the moment but reset when you close the tab. yarnnn is system-based: you have persistent agents with memory that run tasks on schedule, sync context from your work tools, and learn from your feedback over time. The output gets better the longer it runs.",
       },
       {
         question: "What does \"autonomous\" mean here?",
         answer:
-          "Agents run in the background on schedule — you don't need to prompt them. They pull fresh context from your connected tools, produce work, and deliver it. You review and redirect when needed. Over time, they require less supervision.",
+          "Tasks run on schedule without you. Your agents pull fresh context from connected tools, execute the task, and deliver the output. You review and redirect when needed. Over time, they require less supervision as they learn your preferences.",
       },
       {
-        question: "What kind of work can agents do?",
+        question: "What's the difference between agents, bots, and tasks?",
         answer:
-          "Common jobs include: weekly team updates from Slack, Notion page summaries, competitor monitoring, research tracking, and cross-platform status reports. Agents can also produce rich output like PDFs, slides, and spreadsheets.",
+          "Agents are persistent specialists (Research, Content, Marketing, CRM) — they reason across multiple steps and accumulate domain expertise. Bots are platform-mechanical (Slack Bot, Notion Bot) — they read and sync data from one platform. Tasks are defined work units — an objective, schedule, delivery format, and success criteria assigned to the right agent.",
+      },
+    ],
+  },
+  {
+    category: "Your Team",
+    items: [
+      {
+        question: "Do I have to create agents manually?",
+        answer:
+          "No. When you sign up, your team is already built — 4 specialist agents and 2 platform bots. You don't need to configure anything. Just describe the work you need done and yarnnn assigns it as a task to the right agent.",
+      },
+      {
+        question: "What agents do I get?",
+        answer:
+          "Research Agent (web research, competitive intelligence, topic monitoring), Content Agent (drafts, reports, briefs, summaries), Marketing Agent (market signals, positioning, campaigns), CRM Agent (relationships, clients, stakeholders), Slack Bot (syncs channels and threads), and Notion Bot (syncs pages and databases).",
+      },
+      {
+        question: "How do agents improve over time?",
+        answer:
+          "Every task run, review, and edit becomes signal for future work. Agents learn your preferred structure, emphasis, and tone. They also accumulate domain knowledge — understanding your team, competitive landscape, and communication patterns more deeply with each cycle.",
+      },
+      {
+        question: "Can multiple agents work together on a task?",
+        answer:
+          "Yes. Most tasks need one agent handling the full chain — gather context, reason about it, produce output. For bigger jobs, multiple agents contribute their domain expertise to a single task. For example, Research Agent investigates competitors while Content Agent synthesizes Slack activity, and the task combines their work into one deliverable.",
+      },
+      {
+        question: "Can I talk to agents directly?",
+        answer:
+          "Yes. Each agent can receive direction from you — adjust focus, change tone, redirect priorities. Your instructions persist across sessions and carry forward to every task that agent runs.",
+      },
+    ],
+  },
+  {
+    category: "Tasks",
+    items: [
+      {
+        question: "What kinds of tasks can I assign?",
+        answer:
+          "Common tasks include: weekly team recaps from Slack, competitor intelligence briefs, status reports as PDF, Notion page summaries, research deep dives, meeting prep briefs, and cross-platform synthesis reports. Tasks can produce plain text, email, PDFs, slides (PPTX), spreadsheets (XLSX), and charts.",
+      },
+      {
+        question: "What are the different task modes?",
+        answer:
+          "Three modes: Recurring (runs on a cadence indefinitely — daily, weekly, monthly), Goal (bounded, runs until success criteria are met), and Reactive (on-demand or event-triggered, like a meeting prep brief you request before a specific meeting).",
+      },
+      {
+        question: "How do I create a task?",
+        answer:
+          "Describe what you need in plain language — \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" yarnnn creates the task, assigns the right agent, sets the cadence, and starts executing.",
       },
     ],
   },
@@ -47,47 +97,17 @@ const faqSections: FaqSection[] = [
       {
         question: "Which platforms does yarnnn connect to?",
         answer:
-          "Slack and Notion. You authorize via OAuth and choose which channels or pages to include — or let yarnnn auto-select based on your activity.",
+          "Slack and Notion. You authorize via OAuth and choose which channels or pages to include — or let yarnnn auto-select based on your activity. Bots activate automatically when you connect a platform.",
+      },
+      {
+        question: "Do I need to connect a platform to start?",
+        answer:
+          "No. Your agents can work with web research and documents alone. Platform connections enrich context but aren't required. You can connect Slack or Notion anytime and your agents will immediately start benefiting from the synced data.",
       },
       {
         question: "Is my data safe?",
         answer:
-          "Yes. Data is encrypted in transit and at rest. OAuth tokens are encrypted. Access is user-scoped. You can change source selections or disconnect any integration at any time.",
-      },
-      {
-        question: "What does yarnnn sync?",
-        answer:
-          "Only selected source content and metadata needed for context-aware work. yarnnn reads from your tools — it does not post, edit, or modify anything in them. Delivery is separate and controlled by you.",
-      },
-    ],
-  },
-  {
-    category: "Agents & How They Work",
-    items: [
-      {
-        question: "Do I have to create agents manually?",
-        answer:
-          "No. When you connect a platform, yarnnn automatically creates agents matched to your workflow and starts running them. You can also create agents through conversation — just describe what you need in plain language.",
-      },
-      {
-        question: "How do agents improve over time?",
-        answer:
-          "Every delivered, reviewed, or edited output becomes signal for future runs. Agents learn your preferred structure, emphasis, and tone. They also accumulate domain knowledge — understanding your team, projects, and communication patterns more deeply with each cycle.",
-      },
-      {
-        question: "Can multiple agents work together?",
-        answer:
-          "Yes. Most work needs one agent handling the full thinking chain — sense context, reason about it, produce output. For bigger jobs, multiple agents collaborate on a shared task, each contributing their domain expertise. The orchestrator coordinates the sequence and combines the result. You get a finished product, not fragments.",
-      },
-      {
-        question: "Can I talk to agents directly?",
-        answer:
-          "Yes. Each agent has its own page where you can review its work, give direction, or redirect its focus. Your instructions persist across sessions — agents remember what you told them.",
-      },
-      {
-        question: "What output formats are available?",
-        answer:
-          "Agents can produce plain text, email-ready content, PDFs, slide decks (PPTX), spreadsheets (XLSX), charts, and more. The format depends on the job — a weekly digest might be email, while a leadership report might be a PDF or slides.",
+          "Yes. Data is encrypted in transit and at rest. OAuth tokens are encrypted. Access is user-scoped. yarnnn reads from your tools — it does not post, edit, or modify anything in them. You can change source selections or disconnect any integration at any time.",
       },
     ],
   },
@@ -97,17 +117,22 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include all platform integrations. Free gives you 2 agents, 50 messages/month, and daily sync. Pro gives you 10 agents, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
+          "yarnnn has Free and Pro plans. Both include the full 6-agent roster and all platform integrations. Free gives you 2 active agents, 60 task runs/month, 50 messages/month, and daily sync. Pro gives you 10 active agents, 1,000 task runs/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
       },
       {
-        question: "What are work units?",
+        question: "What does \"active agents\" mean?",
         answer:
-          "Work units measure autonomous work — each agent run and rendered output (PDF, slides, etc.) costs one unit. Free includes 60 work units/month, Pro includes 1,000. This is separate from messages (your conversations with agents).",
+          "Your full roster (4 agents + 2 bots) is always available. \"Active agents\" means agents that have tasks assigned to them. Free lets you have 2 agents actively running tasks. Pro lets you have up to 10 — including new agents you create beyond the default roster.",
+      },
+      {
+        question: "What are task runs?",
+        answer:
+          "Task runs measure the autonomous work your agents do — each scheduled task execution and rendered output (PDF, slides, etc.) costs one run. This is separate from messages (your conversations with agents). Free includes 60 runs/month, Pro includes 1,000.",
       },
       {
         question: "How does sync frequency differ by plan?",
         answer:
-          "Free: once daily. Pro: hourly. Faster sync means agents work with fresher context.",
+          "Free: once daily. Pro: hourly. Faster sync means agents work with fresher context from your connected platforms.",
       },
     ],
   },
@@ -117,17 +142,17 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up and connect one platform. yarnnn creates your first agents automatically and starts working. No configuration required — you can refine later.",
+          "Sign up and your team is ready immediately — 4 specialist agents and 2 platform bots. Describe your first task, connect a platform if you want richer context, and your agents start working. No configuration required.",
       },
       {
-        question: "What is the best first agent?",
+        question: "What's the best first task?",
         answer:
-          "Most users start with a Slack recap. These give fast, visible value and create clean feedback signal for the system to learn from.",
+          "A weekly Slack recap is the fastest way to see value — connect Slack, assign a \"weekly team recap\" task, and your Content Agent delivers a synthesized summary on your schedule. Quick feedback signal, immediate utility.",
       },
       {
         question: "How quickly do I see results?",
         answer:
-          "Your first agent output is typically ready within minutes of connecting a platform. From there, quality improves with every cycle as agents accumulate context and learn from your feedback.",
+          "Your first task output is typically ready within minutes. From there, quality improves with every cycle as agents accumulate context and learn from your feedback.",
       },
     ],
   },
@@ -138,14 +163,14 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: how agents work, platform integrations, pricing, output formats, and getting started.",
+    "Frequently asked questions about yarnnn: your AI workforce, agents and bots, task modes, platform integrations, pricing, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
     "autonomous ai faq",
+    "ai workforce faq",
     "ai agent faq",
-    "work agents faq",
-    "ai employee faq",
+    "ai task faq",
   ],
 });
 
@@ -177,7 +202,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              How agents work, what they can do, pricing, and how to get useful output fast.
+              Your AI workforce, agents and tasks, platforms, pricing, and how to get started.
             </p>
 
             <div className="space-y-16">
@@ -199,13 +224,13 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start with one agent — you&apos;ll see results in minutes.</p>
+              <p className="text-white/50 mb-8">Your team is ready — assign your first task in minutes.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"
                   className="inline-block px-8 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
                 >
-                  Start for free
+                  Meet your team
                 </Link>
                 <a
                   href="mailto:admin@yarnnn.com"

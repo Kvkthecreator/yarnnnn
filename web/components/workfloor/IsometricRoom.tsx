@@ -52,11 +52,11 @@ function getStyle(role: string) {
 // Isometric grid math
 // =============================================================================
 
-// Room is a 4×3 diamond grid (wider than tall). Agents on inner tiles.
-const GRID_COLS = 4;
+// Room is a 5×3 diamond grid — wide enough to fill the left panel.
+const GRID_COLS = 5;
 const GRID_ROWS = 3;
-const TILE_W = 130; // px width of one tile — generous spacing for characters
-const TILE_H = 65;  // px height (half width for true isometric)
+const TILE_W = 160; // px width — fills ~640px of screen width for 5×3 grid
+const TILE_H = 80;  // px height (half width for true isometric)
 
 function isoToScreen(col: number, row: number) {
   // Standard isometric: x = (col - row) * halfW, y = (col + row) * halfH
@@ -68,15 +68,14 @@ function isoToScreen(col: number, row: number) {
   };
 }
 
-// Agent positions on the grid (spread across inner tiles)
-// 6 agents arranged in a staggered pattern for visual interest
+// Agent positions on the grid — spread wide across the 5×3 floor
 const AGENT_TILES: [number, number][] = [
-  [0, 0],
-  [2, 0],
-  [1, 1],
-  [3, 1],
-  [0, 2],
-  [2, 2],
+  [1, 0],
+  [3, 0],
+  [0, 1],
+  [2, 1],
+  [4, 1],
+  [1, 2],
 ];
 
 // Floor tiles: fill the full grid (including empty tiles for floor surface)
@@ -305,12 +304,11 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
   return (
     <>
       {/* Desktop: Isometric room — fills available width, centered */}
-      <div className="hidden md:block mb-2 px-4">
+      <div className="hidden md:block mb-2">
         <div
           className="relative mx-auto"
           style={{
-            width: '100%',
-            maxWidth: roomScreenWidth + 40,
+            width: roomScreenWidth + 40,
             height: ROOM_TOTAL_HEIGHT,
           }}
         >

@@ -26,7 +26,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import type {
   Agent,
@@ -81,9 +81,7 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
             <Lightbulb className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Feedback History</span>
           </div>
-          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
-            <ReactMarkdown>{feedback}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer content={feedback} compact className="text-sm prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0" />
         </div>
       )}
       {selfAssessment && (
@@ -92,9 +90,7 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
             <Shield className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
             <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Self-Assessment</span>
           </div>
-          <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0">
-            <ReactMarkdown>{selfAssessment}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer content={selfAssessment} compact className="text-sm prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0" />
         </div>
       )}
     </div>

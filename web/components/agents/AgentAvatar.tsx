@@ -66,27 +66,27 @@ export function AgentAvatar({ state, color, icon, size = 64, className }: AgentA
   const pantsColor = '#4A5568'; // dark gray pants for all
   const shoeColor = '#2D3748';
 
-  // Proportions (all relative to size)
-  const headW = s * 0.38;
-  const headH = s * 0.28;
-  const hairH = s * 0.08;
-  const bodyW = s * 0.34;
-  const bodyH = s * 0.22;
-  const armW = s * 0.09;
-  const armH = s * 0.18;
-  const legW = s * 0.12;
-  const legH = s * 0.16;
-  const footW = s * 0.14;
+  // Proportions (all relative to size) — compact humanoid
+  const headW = s * 0.40;
+  const headH = s * 0.26;
+  const hairH = s * 0.09;
+  const bodyW = s * 0.36;
+  const bodyH = s * 0.24;
+  const armW = s * 0.10;
+  const armH = s * 0.20;
+  const legW = s * 0.13;
+  const legH = s * 0.14;
+  const footW = s * 0.15;
   const footH = s * 0.04;
-  const eyeSize = Math.max(2, s * 0.045);
-  const mouthW = s * 0.08;
+  const eyeSize = Math.max(2.5, s * 0.05);
+  const mouthW = s * 0.09;
 
-  // Y positions (top-down)
-  const hairTop = s * 0.06;
-  const headTop = hairTop + hairH - 1;
-  const bodyTop = headTop + headH - 2;
-  const armTop = bodyTop + s * 0.02;
-  const legTop = bodyTop + bodyH - 1;
+  // Y positions (top-down) — tight stacking, no gaps
+  const hairTop = s * 0.04;
+  const headTop = hairTop + hairH * 0.6; // hair overlaps top of head
+  const bodyTop = headTop + headH - 3;   // head overlaps into body (neck)
+  const armTop = bodyTop + 2;
+  const legTop = bodyTop + bodyH - 2;
   const footTop = legTop + legH - 1;
 
   // State animations

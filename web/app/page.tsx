@@ -8,13 +8,14 @@ import { IntegrationHub } from "@/components/landing/IntegrationHub";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "AI Agents That Work While You Sleep",
+  title: "Your AI Workforce — Ready on Day 1",
   description:
-    "yarnnn connects to Slack and Notion, then runs AI agents that deliver real work on schedule. Connect once. Wake up to finished work.",
+    "Sign up and meet your team: Research, Content, Marketing, and CRM agents plus Slack and Notion bots. Assign tasks. They execute on schedule and get better every cycle.",
   path: "/",
   keywords: [
     "autonomous ai",
     "ai agent platform",
+    "ai workforce",
     "ai work agent",
     "slack ai summary",
     "notion ai summary",
@@ -22,6 +23,7 @@ export const metadata: Metadata = getMarketingMetadata({
     "ai employee",
     "agent automation",
     "recurring ai work",
+    "ai task automation",
   ],
 });
 
@@ -55,22 +57,22 @@ export default function LandingPage() {
                 <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
 
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-                  AI agents that work
+                  Your AI workforce
                   <br />
-                  <span className="text-[#1a1a1a]">while you sleep.</span>
+                  <span className="text-[#1a1a1a]">is ready on day 1.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Connect your tools once. yarnnn runs agents in the background
-                  that deliver real work on schedule — recaps, research,
-                  reports. You wake up to finished work. They get better every cycle.
+                  Sign up and meet your team — Research, Content, Marketing, and CRM
+                  agents ready to work. Assign tasks, connect your tools, and wake up
+                  to finished work. They get better every cycle.
                 </p>
 
                 <Link
                   href="/auth/login"
                   className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
                 >
-                  Start with yarnnn
+                  Meet your team
                 </Link>
               </div>
 
@@ -105,12 +107,80 @@ export default function LandingPage() {
               </div>
               <div className="glass-card-light p-6">
                 <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">What yarnnn does instead</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Hire agents. Supervise outcomes.</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Hire the team. Assign the tasks.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  yarnnn connects to your work tools and creates agents that handle
-                  recurring work in the background. They remember everything, learn
-                  from your feedback, and deliver better output every cycle.
-                  You supervise — they operate.
+                  yarnnn gives you a team of specialist agents on day 1. You assign
+                  recurring tasks — weekly recaps, competitor briefs, research reports —
+                  and they execute on schedule. They learn from your feedback and deliver
+                  better output every cycle. You supervise — they operate.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Your team */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
+              Meet your team
+            </h2>
+            <p className="text-[#1a1a1a]/50 mb-12 max-w-xl">
+              Six specialists, ready at sign-up. No configuration required.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Agent</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Research Agent</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Web research, competitive intelligence, topic monitoring. Finds what
+                  matters and builds depth with every cycle.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Agent</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Content Agent</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Drafts, reports, briefs, and summaries. Produces polished output in
+                  your voice — PDF, slides, spreadsheets, or email.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Agent</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Marketing Agent</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Market signals, positioning analysis, campaign tracking. Keeps you
+                  informed on what your market is doing.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Agent</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">CRM Agent</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Relationship tracking, client updates, stakeholder briefings. Remembers
+                  the people context you care about.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Bot</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Slack Bot</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Reads channels and threads. Activates when you connect Slack —
+                  your agents&apos; eyes and ears in conversations.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Bot</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Notion Bot</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Reads pages and databases. Activates when you connect Notion —
+                  your agents&apos; access to structured knowledge.
                 </p>
               </div>
             </div>
@@ -124,26 +194,27 @@ export default function LandingPage() {
               Three steps. Then it runs itself.
             </h2>
             <p className="text-[#1a1a1a]/50 text-center mb-16 max-w-xl mx-auto">
-              Connect once, supervise from there.
+              Agents are who. Tasks are what. You supervise from there.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Connect your tools</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Describe your work</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Link Slack or Notion. yarnnn immediately creates your first
-                  agents and starts syncing.
+                  Tell yarnnn what you need — &ldquo;weekly competitor brief&rdquo; or
+                  &ldquo;Friday team recap from Slack.&rdquo; Connect Slack or Notion
+                  to give your agents context.
                 </p>
               </div>
 
               <div className="glass-card-light p-6 text-center">
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">02</div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Agents do the work</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Tasks run on schedule</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Each agent runs on schedule and delivers real output — recaps,
-                  briefs, reports, research. Multiple agents work together on
-                  bigger jobs.
+                  Each task is assigned to the right agent and runs on your cadence —
+                  daily, weekly, or on-demand. Output ships as email, PDF, slides,
+                  or spreadsheets.
                 </p>
               </div>
 
@@ -151,67 +222,67 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">03</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">You review. They learn.</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Review, edit, or redirect. Your feedback becomes their learned behavior.
-                  Quality compounds with every cycle.
+                  Review, edit, or redirect. Your feedback becomes learned behavior
+                  that carries forward. Quality compounds with every cycle.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* What agents handle */}
+        {/* What tasks look like */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-              Work that runs itself
+              Tasks that run themselves
             </h2>
             <p className="text-[#1a1a1a]/50 mb-12 max-w-xl">
-              Tell yarnnn what you need, or connect a platform and let it figure it out.
+              Describe the work. yarnnn assigns the right agent and sets the cadence.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Weekly team update</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Slack and Notion, synthesized</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Recurring</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Weekly team recap</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Daily or weekly summaries of your channels and pages — highlights, decisions,
-                  and action items delivered on schedule.
+                  Slack Bot syncs channels, Content Agent synthesizes — highlights,
+                  decisions, and action items delivered every Monday.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Meeting prep</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Context when you need it</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Recurring</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Competitor watch</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  yarnnn pulls context from Slack and Notion into prep briefings
-                  that keep you informed before every key moment.
+                  Research Agent monitors competitors weekly — combines web intelligence
+                  with your internal context to surface what matters.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Competitor watch</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Continuous intelligence</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Recurring</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Status report as PDF</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Track competitors, markets, or topics. Combines your internal context
-                  with web research and delivers updates on your cadence.
+                  Content Agent pulls from Slack and Notion, produces a polished
+                  PDF delivered to leadership every Friday.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Status report</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Cross-platform synthesis</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Goal</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Market research deep dive</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Multiple agents pull from different sources, then combine into one
-                  polished report — PDF, slides, or email-ready.
+                  Research Agent investigates a topic across multiple cycles, building
+                  depth until success criteria are met.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Research tracker</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Deep dives on autopilot</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Reactive</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Meeting prep brief</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Set a research topic. yarnnn monitors, investigates, and
-                  delivers findings on schedule — building depth with each cycle.
+                  On-demand context from Slack and Notion — a 2-minute briefing
+                  pulled together before any key meeting.
                 </p>
               </div>
             </div>
@@ -243,11 +314,11 @@ export default function LandingPage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">1</div>
-                    <p className="text-[#1a1a1a]/70 text-sm">Your tools sync — agents see everything</p>
+                    <p className="text-[#1a1a1a]/70 text-sm">Bots sync your tools — agents see everything</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">2</div>
-                    <p className="text-[#1a1a1a]/70 text-sm">Agents deliver work — you review and redirect</p>
+                    <p className="text-[#1a1a1a]/70 text-sm">Tasks run on schedule — agents deliver real output</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center text-xs text-[#1a1a1a]/50 shrink-0 mt-0.5">3</div>
@@ -267,19 +338,19 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Your first AI employee starts today.
+              Your team is waiting.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 50 messages/month, 2 agents, daily sync
+              Free: 2 active agents, 60 task runs/month, daily sync
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
-              Pro: unlimited messages, 10 agents, hourly sync — $19/mo
+              Pro: 10 active agents, 1,000 task runs/month, hourly sync — $19/mo
             </p>
             <Link
               href="/auth/login"
               className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
             >
-              Start with yarnnn
+              Meet your team
             </Link>
           </div>
         </section>

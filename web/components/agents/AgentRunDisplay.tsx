@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import {
   Loader2,
   Play,
@@ -225,8 +225,8 @@ function VersionPreviewFull({
             </span>
           </div>
         ) : content ? (
-          <div className="px-4 py-3 prose prose-sm dark:prose-invert max-w-none prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0">
-            <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="px-4 py-3">
+            <MarkdownRenderer content={content} />
           </div>
         ) : null}
 

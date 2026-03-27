@@ -9,11 +9,12 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — Why we built yarnnn",
   description:
-    "We built yarnnn because AI should do the recurring work, not just answer questions. Persistent agents that learn your context and deliver real output on schedule.",
+    "We built yarnnn because AI should do the recurring work, not just answer questions. A pre-built AI workforce with persistent agents that learn your context and deliver on schedule.",
   path: "/about",
   keywords: [
     "about yarnnn",
     "autonomous ai",
+    "ai workforce",
     "ai employee",
     "agent intelligence",
     "recurring ai work",
@@ -61,8 +62,9 @@ export default function AboutPage() {
                 needs memory, context from your actual systems, and the ability to run without you.
               </p>
               <p className="text-white font-medium">
-                yarnnn is what we built: AI agents that know your work, run on schedule, and get
-                better with every cycle. You supervise outcomes instead of doing the work yourself.
+                yarnnn is what we built: a team of specialist AI agents — ready on day 1 —
+                that take on your recurring tasks, run on schedule, and get better with every
+                cycle. You assign the work. They execute. You supervise outcomes.
               </p>
             </div>
           </section>
@@ -75,17 +77,17 @@ export default function AboutPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">AI should know your work</h3>
+                    <h3 className="text-lg font-medium text-white">Your team should be ready on day 1</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Intelligence without context produces generic output. Useful AI needs
-                      grounded awareness of your team, your projects, your communication patterns,
-                      and what happened last week.
+                      You shouldn&apos;t have to build an AI workforce from scratch. When you sign up
+                      for yarnnn, you get Research, Content, Marketing, and CRM agents plus Slack and
+                      Notion bots — a complete team of specialists, pre-built and ready to take on work.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn connects to Slack and Notion — and remembers
-                      everything across sessions.
+                      Agents are who. Tasks are what. You describe the work, and the right
+                      agent handles it.
                     </p>
                   </div>
                 </div>
@@ -97,8 +99,8 @@ export default function AboutPage() {
                   <div className="text-white/50">
                     <p className="mb-4">
                       The goal isn&apos;t faster prompting. The goal is to not have to prompt at all.
-                      Agents run in the background and deliver work. You review, redirect, and
-                      move on.
+                      Agents run tasks in the background on schedule and deliver finished work.
+                      You review, redirect, and move on.
                     </p>
                     <p className="text-white/30 text-sm">
                       The shift: from operator to supervisor. From building context to reviewing output.
@@ -108,16 +110,17 @@ export default function AboutPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Agents should develop</h3>
+                    <h3 className="text-lg font-medium text-white">Agents develop inward</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      A good assistant gets better over time. They learn your preferences,
-                      understand what matters, and require less direction the longer they work for you.
+                      A good employee gets better by going deeper, not wider. Your Research Agent
+                      doesn&apos;t try to become a Content Agent — it becomes a better researcher.
+                      Every edit, every review, every task run builds domain knowledge that compounds.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn agents learn from your edits, remember your feedback, and build
-                      domain knowledge that compounds with every cycle.
+                      Agent identity is persistent. Capabilities are fixed by type. Knowledge is
+                      what grows.
                     </p>
                   </div>
                 </div>
@@ -129,8 +132,8 @@ export default function AboutPage() {
                   <div className="text-white/50">
                     <p className="mb-4">
                       Day 1, the output is good. Day 90, it&apos;s irreplaceable. An agent that knows
-                      3 months of your Slack and Notion patterns can&apos;t be replicated by
-                      switching to another tool.
+                      3 months of your Slack and Notion patterns, your feedback history, and your
+                      domain context can&apos;t be replicated by switching to another tool.
                     </p>
                     <p className="text-white/30 text-sm">
                       That compounding intelligence is the product. Everything else is support.
@@ -153,28 +156,28 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not a chatbot</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    You can talk to yarnnn, but the product is the work that happens
-                    when you&apos;re not talking. Agents run in the background.
+                    You can talk to yarnnn, but the product is the tasks that run in the background.
+                    Agents execute on schedule — the real work happens when you&apos;re not looking.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not template automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Agents generate from live context and accumulated memory, not
-                    static form fields.
+                    static form fields. Every task run uses fresh data.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not one-shot task execution</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    We optimize for recurring, high-context work — not arbitrary one-off commands
-                    disconnected from your real systems.
+                    We optimize for recurring, high-context work — tasks that run weekly, daily,
+                    or on a cadence — not arbitrary one-off commands.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not uncontrolled automation</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Every agent has run history, delivery controls, and explicit user oversight.
+                    Every task has run history, delivery controls, and explicit user oversight.
                     Supervised autonomy, not a black box.
                   </p>
                 </div>
@@ -193,14 +196,15 @@ export default function AboutPage() {
                   <p className="text-white/50 text-sm leading-relaxed">
                     Founders, consultants, chiefs of staff, and team leads who spend hours
                     synthesizing across tools — every Monday, every Friday, before every meeting.
+                    Assign those tasks to your agents instead.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-2">Teams spread across Slack and Notion</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    If your workflow spans multiple platforms, yarnnn turns that sprawl into
-                    coherent, recurring output. Automatically.
+                    If your workflow spans multiple platforms, yarnnn&apos;s bots sync it all
+                    and your agents turn that context into coherent, recurring output.
                   </p>
                 </div>
 
@@ -208,7 +212,7 @@ export default function AboutPage() {
                   <h3 className="text-base font-medium mb-2">Anyone who wants to supervise instead of execute</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     If you&apos;d rather review a finished brief than build one from scratch,
-                    yarnnn is built for that shift.
+                    yarnnn gives you a team that does the work while you direct.
                   </p>
                 </div>
               </div>
@@ -219,16 +223,16 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Put your first agent to work.
+                Meet your team. Assign the first task.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Connect your tools, let yarnnn create your first agent, and start supervising.
+                Your AI workforce is ready the moment you sign up. No setup required.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Start with yarnnn
+                Meet your team
               </Link>
             </div>
           </section>

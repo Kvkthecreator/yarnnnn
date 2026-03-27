@@ -9,9 +9,9 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Free and Pro plans for autonomous AI agents. All plans include Slack and Notion. Start free, upgrade when you need more.",
+    "Free and Pro plans for your AI workforce. Every plan includes all 6 agents, Slack, and Notion. Start free, upgrade when you need more task capacity.",
   path: "/pricing",
-  keywords: ["yarnnn pricing", "autonomous AI pricing", "AI work assistant plans", "agent pricing"],
+  keywords: ["yarnnn pricing", "autonomous AI pricing", "AI workforce plans", "agent pricing", "ai task pricing"],
 });
 
 interface PricingFeature {
@@ -21,17 +21,18 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Active agents", free: "2", pro: "10" },
-  { name: "Work units / month", free: "60", pro: "1,000" },
+  { name: "Pre-built agents", free: "6 (full roster)", pro: "6 (full roster)" },
+  { name: "Active agents (with tasks)", free: "2", pro: "10" },
+  { name: "Task runs / month", free: "60", pro: "1,000" },
   { name: "Monthly messages", free: "50", pro: "Unlimited" },
   { name: "Platforms available", free: "All", pro: "All" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
   { name: "Notion pages", free: "10", pro: "Unlimited" },
   { name: "Sync frequency", free: "1x daily", pro: "Hourly" },
   { name: "Rich output (PDF, PPTX, XLSX)", free: true, pro: true },
-  { name: "Run history & review", free: true, pro: true },
+  { name: "Task history & review", free: true, pro: true },
   { name: "Learning from your edits", free: true, pro: true },
-  { name: "Multi-agent collaboration", free: true, pro: true },
+  { name: "Multi-agent tasks", free: true, pro: true },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -87,8 +88,8 @@ export default function PricingPage() {
                 Simple, honest pricing
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Start free. Upgrade when your agents need more capacity.
-                Every plan includes all integrations.
+                Your full team is ready on every plan. Upgrade when your agents
+                need more task capacity and faster sync.
               </p>
             </div>
 
@@ -97,7 +98,7 @@ export default function PricingPage() {
               <div className="border border-white/10 rounded-2xl p-8 flex flex-col">
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
-                  <p className="text-white/50 text-sm mb-6">See what autonomous work feels like</p>
+                  <p className="text-white/50 text-sm mb-6">See what an AI workforce feels like</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
                     <span className="text-white/50">/month</span>
@@ -107,11 +108,15 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>2 active agents</span>
+                    <span>Full 6-agent roster</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>60 work units / month</span>
+                    <span>2 active agents with tasks</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>60 task runs / month</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -158,11 +163,15 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 active agents</span>
+                    <span>Full 6-agent roster</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1,000 work units / month</span>
+                    <span>10 active agents with tasks</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>1,000 task runs / month</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -191,18 +200,24 @@ export default function PricingPage() {
               </div>
             </div>
 
-            {/* What are work units */}
+            {/* What are task runs */}
             <div className="max-w-3xl mx-auto mb-16">
               <div className="border border-white/10 rounded-2xl p-6">
-                <h3 className="text-lg font-medium mb-3">What are work units?</h3>
+                <h3 className="text-lg font-medium mb-3">How pricing works</h3>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
-                  Work units measure the autonomous work your agents do — each agent run
-                  and rendered output (PDF, slides, etc.) costs one unit.
-                  Messages (your conversations with agents) are counted separately.
+                  Every plan includes your full 6-agent roster (4 agents + 2 bots).
+                  <strong className="text-white/70"> Active agents</strong> are agents with assigned tasks —
+                  Free lets you activate 2, Pro lets you activate up to 10 (create additional
+                  agents beyond the default roster as your needs grow).
+                </p>
+                <p className="text-white/50 text-sm leading-relaxed mb-4">
+                  <strong className="text-white/70">Task runs</strong> measure the autonomous work your agents
+                  do — each scheduled task execution and rendered output (PDF, slides, etc.) costs
+                  one run. Messages (your conversations with agents) are counted separately.
                 </p>
                 <p className="text-white/40 text-xs">
-                  Free: 60 units/month covers daily runs for 2 agents. Pro: 1,000 units/month
-                  covers a full workforce running multiple times per day.
+                  Free: 60 runs/month covers daily tasks for 2 agents. Pro: 1,000 runs/month
+                  covers a full workforce running multiple tasks per day.
                 </p>
               </div>
             </div>
@@ -243,9 +258,9 @@ export default function PricingPage() {
             </div>
 
             <div className="text-center mt-16 mb-8">
-              <p className="text-white/70 text-lg mb-2">All plans include full platform coverage.</p>
+              <p className="text-white/70 text-lg mb-2">All plans include your full agent roster and all platforms.</p>
               <p className="text-white/40 text-sm">
-                Slack and Notion on every plan. Rich output formats included.
+                Slack, Notion, rich output formats, and learning from feedback — included on every plan.
               </p>
             </div>
 

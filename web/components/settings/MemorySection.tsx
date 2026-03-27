@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { HOME_ROUTE } from '@/lib/routes';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 // =============================================================================
 // Types
@@ -337,8 +337,8 @@ export function BrandSection() {
           </div>
         </div>
       ) : brandContent ? (
-        <div className="prose prose-sm dark:prose-invert max-w-none border border-border rounded-lg p-4">
-          <ReactMarkdown>{brandContent}</ReactMarkdown>
+        <div className="border border-border rounded-lg p-4">
+          <MarkdownRenderer content={brandContent} />
         </div>
       ) : (
         <div className="border border-dashed border-border rounded-lg p-6 text-center">
