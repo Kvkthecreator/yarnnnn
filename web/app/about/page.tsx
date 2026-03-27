@@ -153,35 +153,20 @@ export default function AboutPage() {
                 We&apos;re focused. These are things we intentionally chose not to be.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Not a chatbot</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    You can talk to yarnnn, but the product is the tasks that run in the background.
-                    Agents execute on schedule — the real work happens when you&apos;re not looking.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Not template automation</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Agents generate from live context and accumulated memory, not
-                    static form fields. Every task run uses fresh data.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Not one-shot task execution</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    We optimize for recurring, high-context work — tasks that run weekly, daily,
-                    or on a cadence — not arbitrary one-off commands.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Not uncontrolled automation</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Every task has run history, delivery controls, and explicit user oversight.
-                    Supervised autonomy, not a black box.
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  { title: "Not a chatbot", desc: "You can talk to yarnnn, but the product is the tasks that run in the background. Agents execute on schedule — the real work happens when you're not looking." },
+                  { title: "Not template automation", desc: "Agents generate from live context and accumulated memory, not static form fields. Every task run uses fresh data." },
+                  { title: "Not one-shot task execution", desc: "We optimize for recurring, high-context work — tasks that run weekly, daily, or on a cadence — not arbitrary one-off commands." },
+                  { title: "Not uncontrolled automation", desc: "Every task has run history, delivery controls, and explicit user oversight. Supervised autonomy, not a black box." },
+                ] as const).map((item) => (
+                  <SpotlightCard key={item.title} variant="dark" spotlightSize={300}>
+                    <div className="p-6">
+                      <h3 className="text-lg font-medium mb-2">{item.title}</h3>
+                      <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
+                    </div>
+                  </SpotlightCard>
+                ))}
               </div>
             </div>
           </section>
@@ -191,31 +176,19 @@ export default function AboutPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-12">Who yarnnn is for</h2>
 
-              <div className="space-y-6">
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People who do the same knowledge work every week</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Founders, consultants, chiefs of staff, and team leads who spend hours
-                    synthesizing across tools — every Monday, every Friday, before every meeting.
-                    Assign those tasks to your agents instead.
-                  </p>
-                </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Teams spread across Slack and Notion</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    If your workflow spans multiple platforms, yarnnn&apos;s bots sync it all
-                    and your agents turn that context into coherent, recurring output.
-                  </p>
-                </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Anyone who wants to supervise instead of execute</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    If you&apos;d rather review a finished brief than build one from scratch,
-                    yarnnn gives you a team that does the work while you direct.
-                  </p>
-                </div>
+              <div className="space-y-4">
+                {([
+                  { title: "People who do the same knowledge work every week", desc: "Founders, consultants, chiefs of staff, and team leads who spend hours synthesizing across tools — every Monday, every Friday, before every meeting. Assign those tasks to your agents instead." },
+                  { title: "Teams spread across Slack and Notion", desc: "If your workflow spans multiple platforms, yarnnn's bots sync it all and your agents turn that context into coherent, recurring output." },
+                  { title: "Anyone who wants to supervise instead of execute", desc: "If you'd rather review a finished brief than build one from scratch, yarnnn gives you a team that does the work while you direct." },
+                ] as const).map((item) => (
+                  <SpotlightCard key={item.title} variant="dark" spotlightSize={400}>
+                    <div className="p-6">
+                      <h3 className="text-base font-medium mb-2">{item.title}</h3>
+                      <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
+                    </div>
+                  </SpotlightCard>
+                ))}
               </div>
             </div>
           </section>

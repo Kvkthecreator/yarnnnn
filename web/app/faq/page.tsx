@@ -3,6 +3,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { getMarketingMetadata } from "@/lib/metadata";
 
 interface FaqItem {
@@ -210,12 +211,14 @@ export default function FaqPage() {
                 <div key={section.category}>
                   <h2 className="text-xs text-white/30 uppercase tracking-widest mb-8">{section.category}</h2>
 
-                  <div className="space-y-8">
+                  <div className="space-y-4">
                     {section.items.map((item) => (
-                      <div key={item.question} className="border-b border-white/5 pb-8 last:border-0">
-                        <h3 className="text-lg font-medium mb-3">{item.question}</h3>
-                        <p className="text-white/50 leading-relaxed">{item.answer}</p>
-                      </div>
+                      <SpotlightCard key={item.question} variant="dark" spotlightSize={400} className="rounded-xl">
+                        <div className="p-5">
+                          <h3 className="text-lg font-medium mb-3">{item.question}</h3>
+                          <p className="text-white/50 leading-relaxed">{item.answer}</p>
+                        </div>
+                      </SpotlightCard>
                     ))}
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
@@ -87,23 +88,27 @@ export default function InvestPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Use of funds</h3>
-                  <div className="text-white/50 text-sm space-y-2">
-                    <p>Senior Tech Lead — accelerate context engine and agent architecture</p>
-                    <p>GTM Lead — drive adoption in solo consultant wedge</p>
-                    <p>Candidates identified from enterprise consulting network</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SpotlightCard variant="dark" spotlightSize={350}>
+                  <div className="p-6">
+                    <h3 className="text-base font-medium mb-3">Use of funds</h3>
+                    <div className="text-white/50 text-sm space-y-2">
+                      <p>Senior Tech Lead — accelerate context engine and agent architecture</p>
+                      <p>GTM Lead — drive adoption in solo consultant wedge</p>
+                      <p>Candidates identified from enterprise consulting network</p>
+                    </div>
                   </div>
-                </div>
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Stage</h3>
-                  <div className="text-white/50 text-sm space-y-2">
-                    <p>Delaware C-Corp, pre-revenue</p>
-                    <p>MVP live with platform integrations shipping</p>
-                    <p>Solo founder — full stack built and shipped independently</p>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" spotlightSize={350}>
+                  <div className="p-6">
+                    <h3 className="text-base font-medium mb-3">Stage</h3>
+                    <div className="text-white/50 text-sm space-y-2">
+                      <p>Delaware C-Corp, pre-revenue</p>
+                      <p>MVP live with platform integrations shipping</p>
+                      <p>Solo founder — full stack built and shipped independently</p>
+                    </div>
                   </div>
-                </div>
+                </SpotlightCard>
               </div>
             </div>
           </section>
@@ -222,19 +227,19 @@ export default function InvestPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">Market</h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <p className="text-2xl font-medium mb-2">$4.35B</p>
-                  <p className="text-white/40 text-sm">TAM — AI productivity tools, 31% CAGR</p>
-                </div>
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <p className="text-2xl font-medium mb-2">$1.14B</p>
-                  <p className="text-white/40 text-sm">SAM — 5M solo consultants at $228/yr</p>
-                </div>
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <p className="text-2xl font-medium mb-2">$11.4M</p>
-                  <p className="text-white/40 text-sm">Entry SOM — 50K users in 3 years</p>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+                {([
+                  { value: "$4.35B", label: "TAM — AI productivity tools, 31% CAGR" },
+                  { value: "$1.14B", label: "SAM — 5M solo consultants at $228/yr" },
+                  { value: "$11.4M", label: "Entry SOM — 50K users in 3 years" },
+                ] as const).map((stat) => (
+                  <SpotlightCard key={stat.value} variant="dark" spotlightSize={280}>
+                    <div className="p-6">
+                      <p className="text-2xl font-medium mb-2">{stat.value}</p>
+                      <p className="text-white/40 text-sm">{stat.label}</p>
+                    </div>
+                  </SpotlightCard>
+                ))}
               </div>
 
               <p className="text-white/50 max-w-2xl">
