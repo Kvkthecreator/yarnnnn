@@ -1028,10 +1028,11 @@ use RuntimeDispatch with the spec format described above."""
     }
     await update_version_for_delivery(client, version_id, final_draft, metadata=version_metadata)
 
-    # Save final output to task workspace
+    # Save final output to task workspace (same date_folder as step outputs)
     task_output_folder = await tw.save_output(
         content=final_draft,
         agent_slug=final_agent_slug,
+        date_folder=date_folder,
         manifest_data={
             "version_id": str(version_id),
             "version_number": next_version,

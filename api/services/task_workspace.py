@@ -123,19 +123,24 @@ class TaskWorkspace:
             return False
 
     async def save_output(self, content: str, agent_slug: str,
-                          manifest_data: Optional[dict] = None) -> Optional[str]:
+                          manifest_data: Optional[dict] = None,
+                          date_folder: Optional[str] = None) -> Optional[str]:
         """Save output to /outputs/{date}/output.md + manifest.json.
 
         Args:
             content: The text output (markdown).
             agent_slug: The agent that produced this output.
             manifest_data: Optional extra fields to include in manifest.
+            date_folder: Optional explicit date folder name. If not provided,
+                         generated from current time. Pipeline callers should pass
+                         their own date_folder to co-locate with step outputs.
 
         Returns:
             The output folder path (e.g., "outputs/2026-03-25T1400/"), or None on failure.
         """
         now = datetime.now(timezone.utc)
-        date_folder = now.strftime("%Y-%m-%dT%H00")
+        if not date_folder:
+            date_folder = now.strftime("%Y-%m-%dT%H00")
         folder_path = f"outputs/{date_folder}"
 
         # 1. Write the text output
