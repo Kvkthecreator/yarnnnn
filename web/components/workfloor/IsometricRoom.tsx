@@ -358,83 +358,78 @@ export function IsometricRoom({ agents, tasks, loading }: IsometricRoomProps) {
             />
           ))}
 
-          {/* Ambient: center pulse wave — ripples outward every few seconds */}
+          {/* Ambient: diagonal light sweep across all floor tiles */}
           <div
             className="absolute pointer-events-none"
             style={{
-              left: centerX - 120,
-              top: ROOM_PADDING_TOP + roomScreenHeight / 2 - 40,
-              width: 240,
-              height: 80,
+              left: 0,
+              top: ROOM_PADDING_TOP,
+              width: ROOM_W,
+              height: roomScreenHeight + TILE_H,
+              overflow: 'hidden',
             }}
           >
-            {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                className="absolute inset-0 rounded-full"
-                style={{
-                  clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-                  background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.06), transparent 70%)',
-                  animation: `pulseWave 4s ease-out ${i * 1.3}s infinite`,
-                }}
-              />
-            ))}
+            <div
+              style={{
+                position: 'absolute',
+                width: '150%',
+                height: '100%',
+                background: 'linear-gradient(135deg, transparent 40%, hsl(var(--primary) / 0.04) 48%, hsl(var(--primary) / 0.08) 50%, hsl(var(--primary) / 0.04) 52%, transparent 60%)',
+                animation: 'floorSweep 6s ease-in-out infinite',
+              }}
+            />
           </div>
 
-          {/* Ambient: flowing dots along tile edges — data flowing */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {[0, 1, 2, 3, 4].map(i => {
-              const startTile = FLOOR_TILES[i % FLOOR_TILES.length];
-              const endTile = FLOOR_TILES[(i + 3) % FLOOR_TILES.length];
-              const start = isoToScreen(startTile[0], startTile[1]);
-              const end = isoToScreen(endTile[0], endTile[1]);
+          {/* Ambient: SVG flow lines between agent pairs */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={ROOM_W}
+            height={ROOM_H}
+            style={{ overflow: 'visible' }}
+          >
+            {/* Draw flowing dashed lines between adjacent agents */}
+            {agents.slice(0, 6).map((_, i) => {
+              const nextIdx = (i + 1) % Math.min(agents.length, 6);
+              if (nextIdx <= i) return null; // only draw forward connections
+              const tileA = AGENT_TILES[i];
+              const tileB = AGENT_TILES[nextIdx];
+              if (!tileA || !tileB) return null;
+              const a = isoToScreen(tileA[0], tileA[1]);
+              const b = isoToScreen(tileB[0], tileB[1]);
+              const ax = centerX + a.x;
+              const ay = ROOM_PADDING_TOP + a.y + TILE_H / 2;
+              const bx = centerX + b.x;
+              const by = ROOM_PADDING_TOP + b.y + TILE_H / 2;
               return (
-                <div
-                  key={`flow-${i}`}
-                  className="absolute rounded-full"
+                <line
+                  key={`flow-${i}-${nextIdx}`}
+                  x1={ax} y1={ay} x2={bx} y2={by}
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="1"
+                  strokeDasharray="4 8"
+                  opacity="0.08"
                   style={{
-                    width: 3,
-                    height: 3,
-                    backgroundColor: 'hsl(var(--primary))',
-                    opacity: 0.12,
-                    left: centerX + start.x,
-                    top: ROOM_PADDING_TOP + start.y + TILE_H / 2,
-                    animation: `flowDot${i} ${6 + i}s linear ${i * 0.8}s infinite`,
-                    // CSS custom property for end position
-                    '--end-x': `${centerX + end.x - (centerX + start.x)}px`,
-                    '--end-y': `${ROOM_PADDING_TOP + end.y + TILE_H / 2 - (ROOM_PADDING_TOP + start.y + TILE_H / 2)}px`,
-                  } as React.CSSProperties}
+                    animation: `dashFlow 3s linear ${i * 0.5}s infinite`,
+                  }}
                 />
               );
             })}
-          </div>
+          </svg>
 
           {/* Ambient styles */}
           <style>{`
-            @keyframes pulseWave {
-              0% { transform: scale(0.3); opacity: 1; }
-              100% { transform: scale(2.5); opacity: 0; }
+            @keyframes floorSweep {
+              0% { transform: translateX(-60%); }
+              100% { transform: translateX(40%); }
+            }
+            @keyframes dashFlow {
+              0% { stroke-dashoffset: 0; }
+              100% { stroke-dashoffset: -24; }
             }
             @keyframes tileShimmer {
               0%, 100% { opacity: 1; }
-              50% { opacity: 0.7; }
+              50% { opacity: 0.75; }
             }
-            ${[0, 1, 2, 3, 4].map(i => {
-              const startTile = FLOOR_TILES[i % FLOOR_TILES.length];
-              const endTile = FLOOR_TILES[(i + 3) % FLOOR_TILES.length];
-              const s = isoToScreen(startTile[0], startTile[1]);
-              const e = isoToScreen(endTile[0], endTile[1]);
-              const dx = (centerX + e.x) - (centerX + s.x);
-              const dy = (ROOM_PADDING_TOP + e.y + TILE_H / 2) - (ROOM_PADDING_TOP + s.y + TILE_H / 2);
-              return `
-                @keyframes flowDot${i} {
-                  0% { transform: translate(0, 0); opacity: 0; }
-                  10% { opacity: 0.15; }
-                  90% { opacity: 0.15; }
-                  100% { transform: translate(${dx}px, ${dy}px); opacity: 0; }
-                }
-              `;
-            }).join('')}
           `}</style>
 
           {/* Agents on tiles */}
