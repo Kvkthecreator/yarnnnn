@@ -21,6 +21,8 @@ import {
   Upload,
   Globe,
   UserCircle,
+  Paintbrush,
+  ListChecks,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -350,8 +352,11 @@ function ChatPanel({ taskCount }: { taskCount: number }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
-  // Chat-specific actions (workspace actions moved to room overlay pills)
+  // Workfloor-scoped actions: context + tasks + utilities
   const plusMenuActions: PlusMenuAction[] = [
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
+    { id: 'update-identity', label: 'Update my identity', icon: UserCircle, verb: 'prompt', onSelect: () => { setInput('Update my identity'); textareaRef.current?.focus(); } },
+    { id: 'update-brand', label: 'Update my brand', icon: Paintbrush, verb: 'prompt', onSelect: () => { setInput('Update my brand'); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
