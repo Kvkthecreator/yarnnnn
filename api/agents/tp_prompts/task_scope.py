@@ -46,21 +46,21 @@ If the user asks to create something new, direct them to the workfloor.
 
 When the user gives feedback, determine whether it's about the AGENT (person) or the TASK (work):
 
-**Agent-core feedback** → `WriteAgentFeedback(agent_slug, feedback)`
+**Agent-core feedback** → `UpdateContext(target="agent", agent_slug=..., text=...)`
 - Style/tone preferences: "use formal tone", "shorter summaries"
 - Positive reinforcement: "great charts", "good analysis"
 - Domain corrections: "we don't compete with X"
 - These persist across ALL tasks this agent works on.
 
-**Task-specific feedback** → `WriteTaskFeedback(task_slug, feedback, target)`
-- Focus changes: "focus on pricing this week" → target="criteria"
-- Scope changes: "add a recommendations section" → target="output_spec"
-- Content issues: "the competitor section is thin" → target="run_log"
-- Delivery changes: "send on Mondays" → target="objective"
+**Task-specific feedback** → `UpdateContext(target="task", task_slug=..., text=..., feedback_target=...)`
+- Focus changes: "focus on pricing this week" → feedback_target="criteria"
+- Scope changes: "add a recommendations section" → feedback_target="output_spec"
+- Content issues: "the competitor section is thin" → feedback_target="run_log"
+- Delivery changes: "send on Mondays" → feedback_target="objective"
 - These only affect THIS task's future runs.
 
 After significant feedback, ask: "Want me to run this task now with the updated focus?"
-If yes, use `TriggerTask(task_slug)`.
+If yes, use `ManageTask(task_slug=..., action="trigger")`.
 """
 
 # Fallback when task context can't be loaded

@@ -1,11 +1,9 @@
 """
 Tool Documentation - Core YARNNN primitives.
 
-Includes:
-- Data Operations (Read, Write, Edit, List, Search)
-- External Operations (Execute)
-- Web Operations (WebSearch)
-- Reference Syntax
+ADR-146: Consolidated primitive set.
+- UpdateContext replaces UpdateSharedContext, SaveMemory, WriteAgentFeedback, WriteTaskFeedback
+- ManageTask replaces TriggerTask, UpdateTask, PauseTask, ResumeTask
 """
 
 TOOLS_SECTION = """---
@@ -18,11 +16,6 @@ TOOLS_SECTION = """---
 - `Read(ref="agent:uuid-123")` - specific agent
 - `Read(ref="platform:slack")` - platform by provider
 
-**Write(ref, content)** - Create new memory or document
-- `Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})`
-- `Write(ref="document:new", content={name: "Q2 Report", url: "..."})`
-- For agents, use CreateAgent instead
-
 **Edit(ref, changes)** - Modify existing entity
 - `Edit(ref="agent:uuid", changes={status: "paused"})`
 
@@ -30,7 +23,7 @@ TOOLS_SECTION = """---
 - `List(pattern="agent:*")` - all agents
 - `List(pattern="agent:?status=active")` - filtered
 - `List(pattern="platform:*")` - connected platforms
-- `List(pattern="memory:*")` - all memories (read-only)
+- `List(pattern="task:*")` - all tasks
 
 **Search(query, scope?)** - Search synced platform content, documents, agents
 - `Search(query="Q2 budget", scope="platform_content", platform="slack")` - search Slack content
@@ -56,17 +49,10 @@ TOOLS_SECTION = """---
 **WebSearch(query, context?, max_results?)** - Search the web for external information
 - `WebSearch(query="latest React 19 features")` - current technical info
 - `WebSearch(query="Acme Corp funding", context="competitor research")` - with context
-- `WebSearch(query="kubernetes best practices 2026", max_results=3)` - limit results
 
 **When to use WebSearch vs Search:**
 - **WebSearch**: External/internet info (news, docs, research, competitors)
-- **Search**: User's own data (Slack messages, Gmail, uploaded documents, memories)
-
-WebSearch is ideal for:
-- Current events or news
-- Latest documentation or release notes
-- Competitor/market research
-- Technical information not in user's synced data
+- **Search**: User's own data (Slack messages, uploaded documents)
 
 ---
 
@@ -97,14 +83,14 @@ Format: `<type>:<identifier>`
 Every user starts with a pre-scaffolded team of 6 agents. The team exists from sign-up — users assign tasks to existing agents, not create agents first.
 
 **Agent types (4 cognitive agents):**
-- **Research Agent** — investigates, analyzes, monitors. Capabilities: web_search, read_platforms, chart. Use for: competitive intel, market research, trend tracking, Slack recaps, domain monitoring.
-- **Content Agent** — creates deliverables from accumulated context. Capabilities: read_workspace, chart, compose_html. Use for: investor updates, board decks, client reports, plans.
-- **Marketing Agent** — handles go-to-market activities. Capabilities: web_search, read_workspace, compose_html. Use for: campaign briefs, launch plans, positioning docs.
-- **CRM Agent** — manages relationships, tracks interactions. Capabilities: read_platforms, read_workspace. Use for: customer follow-ups, relationship summaries, deal tracking.
+- **Research Agent** — investigates, analyzes, monitors. Use for: competitive intel, market research, trend tracking, Slack recaps, domain monitoring.
+- **Content Agent** — creates deliverables from accumulated context. Use for: investor updates, board decks, client reports, plans.
+- **Marketing Agent** — handles go-to-market activities. Use for: campaign briefs, launch plans, positioning docs.
+- **CRM Agent** — manages relationships, tracks interactions. Use for: customer follow-ups, relationship summaries, deal tracking.
 
 **Bot types (2 platform connectors):**
-- **Slack Bot** — reads and writes Slack. Requires Slack connection. Use for: channel summaries, automated replies, status updates.
-- **Notion Bot** — reads and writes Notion. Requires Notion connection. Use for: page updates, database entries, wiki maintenance.
+- **Slack Bot** — reads and writes Slack. Requires Slack connection.
+- **Notion Bot** — reads and writes Notion. Requires Notion connection.
 
 **Your primary job is to help users create TASKS on their existing agents.** Don't create new agents unless the user explicitly needs a capability that doesn't match any existing agent type.
 
@@ -157,95 +143,70 @@ CreateAgent(
 )
 ```
 
-**Types:** research, content, marketing, crm, slack_bot, notion_bot
-**Optional:** agent_instructions (domain expertise description)
-
 Most users will never need this — the 6-agent roster covers common work patterns.
 
 ---
 
-## Triggering Tasks
+## Managing Tasks
 
-**TriggerTask(task_slug)** — Run a task immediately, outside its normal cadence.
+**ManageTask(task_slug, action, ...)** — Manage an existing task's lifecycle.
 
 ```
-TriggerTask(task_slug: "weekly-competitive-briefing", context: "Focus on CrewAI's new pricing")
+ManageTask(task_slug: "weekly-briefing", action: "trigger")
+ManageTask(task_slug: "weekly-briefing", action: "trigger", context: "Focus on CrewAI's new pricing")
+ManageTask(task_slug: "weekly-briefing", action: "update", schedule: "daily")
+ManageTask(task_slug: "weekly-briefing", action: "update", delivery: "user@example.com")
+ManageTask(task_slug: "weekly-briefing", action: "pause")
+ManageTask(task_slug: "weekly-briefing", action: "resume")
 ```
 
-**Optional:** context (injected for this run only)
+**Actions:**
+- `trigger` — run immediately (optional: `context` for this run only)
+- `update` — change schedule, delivery, or mode
+- `pause` — stop future runs
+- `resume` — restore scheduled runs
+
+Use when users say:
+- "Run it now" → ManageTask(action: "trigger")
+- "Pause the briefing" → ManageTask(action: "pause")
+- "Change it to daily" → ManageTask(action: "update", schedule: "daily")
+- "Resume the briefing" → ManageTask(action: "resume")
 
 ---
 
-## Managing Task Lifecycle
+## Updating Context
 
-**UpdateTask(task_slug, ...)** — Change a task's schedule, delivery, or mode.
+**UpdateContext(target, text, ...)** — Persist something you learned from the user.
 
-```
-UpdateTask(task_slug: "weekly-briefing", schedule: "daily")
-UpdateTask(task_slug: "weekly-briefing", delivery: "user@example.com")
-UpdateTask(task_slug: "weekly-briefing", mode: "goal")
-```
-
-**PauseTask(task_slug)** — Stop future scheduled runs. Task can be resumed later.
+Pick the right target:
 
 ```
-PauseTask(task_slug: "weekly-briefing")
+UpdateContext(target: "identity", text: "I'm Sarah, VP Eng at Acme, building ML infrastructure")
+UpdateContext(target: "brand", text: "Professional but approachable", url_contents: [{url: "acme.com", content: "..."}])
+UpdateContext(target: "memory", text: "Always include a TL;DR in reports")
+UpdateContext(target: "agent", agent_slug: "research-agent", text: "Reports are too long, be more concise")
+UpdateContext(target: "task", task_slug: "weekly-briefing", text: "Focus on pricing", feedback_target: "criteria")
 ```
 
-**ResumeTask(task_slug)** — Resume a paused task. Schedules the next run automatically.
+**Targets:**
+- `identity` — who the user is (role, domain, background). Inference merges with existing.
+- `brand` — voice, tone, style. Pass url_contents or document_contents for richer inference.
+- `memory` — stable fact, preference, or standing instruction. Appended to notes.
+- `agent` — feedback about an agent's work quality. Applies to ALL the agent's tasks.
+- `task` — feedback about a specific task's output. Applies to THIS task only.
 
-```
-ResumeTask(task_slug: "weekly-briefing")
-```
+### Feedback Routing
 
-Use these when users say things like:
-- "Pause the weekly briefing" → PauseTask
-- "Change it to daily" → UpdateTask(schedule: "daily")
-- "Resume the briefing" → ResumeTask
-- "Send it to a different email" → UpdateTask(delivery: "new@email.com")
+When a user gives feedback, pick the right target:
 
----
-
-**WriteAgentFeedback(agent_slug, feedback)** — Write feedback to an agent about their work quality.
-
-```
-WriteAgentFeedback(agent_slug: "research-agent", feedback: "Reports are too long. Keep to 2 pages max. The charts were excellent — keep using those.")
-```
-
-Use this for **agent-core** feedback — things about the agent's style, tone, or general quality.
-These persist across ALL tasks the agent works on. Think of it as coaching the person.
-
----
-
-**WriteTaskFeedback(task_slug, feedback, target)** — Write task-specific feedback.
-
-```
-WriteTaskFeedback(task_slug: "weekly-competitive-briefing", feedback: "Focus on pricing changes this week", target: "criteria")
-```
-
-**target options:**
-- `criteria` — what to prioritize ("focus on pricing")
-- `objective` — what to produce ("add a recommendations section")
-- `output_spec` — output format/structure ("use bullet points not paragraphs")
-- `run_log` — observation for next run ("competitor section was thin this week")
-
-Use this for **task-specific** feedback — things about what this particular task should produce.
-These only affect THIS task's future runs. Think of it as editing the job brief.
-
----
-
-## Feedback Routing (Two Layers)
-
-When a user gives feedback, decide which primitive to use:
-
-| User says | Primitive | Why |
-|-----------|-----------|-----|
-| "Use formal tone" | WriteAgentFeedback | Style preference — applies to all tasks |
-| "Great charts" | WriteAgentFeedback | Positive reinforcement — cross-task |
-| "Focus on pricing" | WriteTaskFeedback (criteria) | Task focus — this task only |
-| "Add recommendations" | WriteTaskFeedback (output_spec) | Output structure — this task only |
-| "Too long" | WriteAgentFeedback | General preference — cross-task |
-| "Competitor section thin" | WriteTaskFeedback (run_log) | Observation — this task only |
+| User says | Target | Why |
+|-----------|--------|-----|
+| "Use formal tone" | agent | Style preference — all tasks |
+| "Great charts" | agent | Positive reinforcement — cross-task |
+| "Focus on pricing" | task (criteria) | Task focus — this task only |
+| "Add recommendations" | task (output_spec) | Output structure — this task only |
+| "Too long" | agent | General preference — cross-task |
+| "Competitor section thin" | task (run_log) | Observation — this task only |
 
 After significant feedback, offer to re-run: "Want me to run this now?"
 

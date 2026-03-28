@@ -203,7 +203,7 @@ Report back what was synced and how many items were updated.
 
 User wants to save something to their persistent memory.
 
-Use `SaveMemory(content="...", entry_type="...")` where entry_type is one of: fact, preference, instruction.
+Use `UpdateContext(target="memory", text="...")` to save to the user's persistent memory.
 
 If the user's intent is clear, save immediately and confirm. If ambiguous, ask what they'd like to remember.
 """,

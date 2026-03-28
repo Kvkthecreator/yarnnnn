@@ -385,11 +385,18 @@ async def test_write_agent_feedback_primitive():
         from services.workspace import get_agent_slug
         slug = get_agent_slug(agent)
 
-        from services.primitives.workspace import handle_write_agent_feedback
-        auth = {"client": client, "user_id": TEST_USER_ID}
-        result = await handle_write_agent_feedback(auth, {
+        # ADR-146: WriteAgentFeedback absorbed into UpdateContext(target="agent")
+        from services.primitives.update_context import handle_update_context
+
+        class _Auth:
+            def __init__(self, c, uid):
+                self.client = c
+                self.user_id = uid
+        auth = _Auth(client, TEST_USER_ID)
+        result = await handle_update_context(auth, {
+            "target": "agent",
             "agent_slug": slug,
-            "feedback": "Reports are too long. Keep to 2 pages max."
+            "text": "Reports are too long. Keep to 2 pages max."
         })
 
         record(
@@ -414,9 +421,10 @@ async def test_write_agent_feedback_primitive():
         )
 
         # Test with invalid slug
-        error_result = await handle_write_agent_feedback(auth, {
+        error_result = await handle_update_context(auth, {
+            "target": "agent",
             "agent_slug": "nonexistent-agent-xyz",
-            "feedback": "This should fail"
+            "text": "This should fail"
         })
         record(
             "  Invalid slug returns error",
@@ -461,16 +469,16 @@ def test_import_validation():
     except ImportError as e:
         record("  get_type_playbook importable", False, str(e))
 
-    # Registry has WriteAgentFeedback
+    # ADR-146: WriteAgentFeedback absorbed into UpdateContext
     try:
-        from services.primitives.registry import HANDLERS, PRIMITIVE_MODES
+        from services.primitives.registry import HANDLERS, _CHAT_TOOL_NAMES
         record(
-            "  WriteAgentFeedback in registry",
-            "WriteAgentFeedback" in HANDLERS,
+            "  UpdateContext in registry (replaces WriteAgentFeedback)",
+            "UpdateContext" in HANDLERS,
         )
         record(
-            "  WriteAgentFeedback is chat-mode only",
-            PRIMITIVE_MODES.get("WriteAgentFeedback") == ["chat"],
+            "  UpdateContext is chat-mode",
+            "UpdateContext" in _CHAT_TOOL_NAMES,
         )
     except Exception as e:
         record("  Registry check", False, str(e))

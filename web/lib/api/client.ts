@@ -207,7 +207,7 @@ export const api = {
 
   // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
-  // ADR-144: onboarding.enrich deleted — context enrichment via UpdateSharedContext primitive.
+  // ADR-144: onboarding.enrich deleted — context enrichment via UpdateContext primitive (ADR-146).
   // getState kept for roster scaffolding trigger on first login.
   onboarding: {
     getState: () =>

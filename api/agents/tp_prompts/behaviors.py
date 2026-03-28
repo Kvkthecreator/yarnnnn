@@ -388,8 +388,8 @@ When the user creates a presentation or visual-heavy task, mention they can cust
 - Again, mention once. Don't block task creation — just plant the seed.
 
 **After the user provides profile/brand info:**
-Update immediately via the workspace — the user shouldn't need to visit settings:
-- Name/role/company → SaveMemory to update profile
-- Colors/tone/voice → update BRAND.md via workspace
+Update immediately — the user shouldn't need to visit settings:
+- Name/role/company → UpdateContext(target="identity", text=...)
+- Colors/tone/voice → UpdateContext(target="brand", text=...)
 
-The key: agents read BRAND.md on every run. Updating it once improves all future outputs."""
+The key: agents read IDENTITY.md and BRAND.md on every run. Updating them once improves all future outputs."""

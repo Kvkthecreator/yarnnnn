@@ -9,7 +9,7 @@ Each entry is a human-readable summary of what changed and why.
 
 Two write paths:
   1. Edit-based (this module) — called from agents.py PATCH run endpoint
-  2. Conversational (WriteAgentFeedback primitive) — called by TP
+  2. Conversational (UpdateContext target="agent") — called by TP (ADR-146)
 
 The agent reads feedback.md on every run via load_context(). The LLM
 infers patterns from the entries — no classification logic needed.
@@ -92,7 +92,7 @@ async def write_feedback_entry(
     """
     Write a conversational feedback entry to an agent's feedback.md.
 
-    Called by TP via WriteAgentFeedback primitive when the user gives
+    Called by TP via UpdateContext(target="agent") when the user gives
     feedback about an agent's work in conversation.
     """
     from services.workspace import AgentWorkspace, get_agent_slug

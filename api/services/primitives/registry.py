@@ -1,11 +1,14 @@
 """
-Primitive Registry
+Primitive Registry — ADR-146: Primitive Hardening
 
 Central registry for all primitives and their handlers.
+Two explicit mode registries (P4): CHAT_PRIMITIVES and HEADLESS_PRIMITIVES.
+
 ADR-050: Platform tools are routed via handle_platform_tool.
-ADR-080: Mode-gated primitives — each primitive declares which modes
-it supports (chat, headless). get_tools_for_mode() and
-create_headless_executor() provide the headless mode interface.
+ADR-080: Mode-gated primitives — chat vs. headless.
+ADR-146: Consolidated from 27 → 19 primitives.
+  - UpdateContext replaces UpdateSharedContext, SaveMemory, WriteAgentFeedback, WriteTaskFeedback
+  - ManageTask replaces TriggerTask, UpdateTask, PauseTask, ResumeTask
 """
 
 import logging
@@ -13,8 +16,10 @@ from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Imports — only live primitives
+# ---------------------------------------------------------------------------
 from .read import READ_TOOL, handle_read
-from .write import WRITE_TOOL, handle_write
 from .edit import EDIT_TOOL, handle_edit
 from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
@@ -22,16 +27,10 @@ from .execute import EXECUTE_TOOL, handle_execute
 from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
-from .coordinator import (
-    CREATE_AGENT_TOOL, handle_create_agent,
-)
-from .task import (
-    CREATE_TASK_TOOL, handle_create_task,
-    TRIGGER_TASK_TOOL, handle_trigger_task,
-    UPDATE_TASK_TOOL, handle_update_task,
-    PAUSE_TASK_TOOL, handle_pause_task,
-    RESUME_TASK_TOOL, handle_resume_task,
-)
+from .coordinator import CREATE_AGENT_TOOL, handle_create_agent
+from .task import CREATE_TASK_TOOL, handle_create_task
+from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
+from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
 from .workspace import (
     READ_WORKSPACE_TOOL, handle_read_workspace,
     WRITE_WORKSPACE_TOOL, handle_write_workspace,
@@ -40,14 +39,26 @@ from .workspace import (
     LIST_WORKSPACE_TOOL, handle_list_workspace,
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
     READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
-    WRITE_AGENT_FEEDBACK_TOOL, handle_write_agent_feedback,
-    WRITE_TASK_FEEDBACK_TOOL, handle_write_task_feedback,
 )
-from .save_memory import SAVE_MEMORY_TOOL, handle_save_memory
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
-from .shared_context import UPDATE_SHARED_CONTEXT_TOOL, handle_update_shared_context
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
+# ---------------------------------------------------------------------------
+# Deleted imports (ADR-146 — absorbed into UpdateContext / ManageTask):
+# - save_memory.py → UpdateContext(target="memory")
+# - shared_context.py → UpdateContext(target="identity"|"brand")
+# - workspace.py: WRITE_AGENT_FEEDBACK_TOOL → UpdateContext(target="agent")
+# - workspace.py: WRITE_TASK_FEEDBACK_TOOL → UpdateContext(target="task")
+# - task.py: TRIGGER_TASK_TOOL → ManageTask(action="trigger")
+# - task.py: UPDATE_TASK_TOOL → ManageTask(action="update")
+# - task.py: PAUSE_TASK_TOOL → ManageTask(action="pause")
+# - task.py: RESUME_TASK_TOOL → ManageTask(action="resume")
+# ---------------------------------------------------------------------------
+
+
+# =============================================================================
+# Inline tool definitions (small enough to live here)
+# =============================================================================
 
 CLARIFY_TOOL = {
     "name": "Clarify",
@@ -88,6 +99,25 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
     }
 
 
+LIST_INTEGRATIONS_TOOL = {
+    "name": "list_integrations",
+    "description": """List the user's connected platform integrations and their metadata.
+
+Call this first when about to use a platform tool, to get:
+- Which platforms are active (slack, notion)
+- Slack: authed_user_id — use as channel_id when sending DMs to self
+- Notion: designated_page_id — use as page_id when writing to user's YARNNN page
+
+AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
+If not connected, suggest connecting in Settings.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
+}
+
+
 async def handle_list_integrations(auth: Any, input: dict) -> dict:
     """List user's connected platform integrations."""
     result = auth.client.table("platform_connections")\
@@ -120,82 +150,71 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
     }
 
 
-LIST_INTEGRATIONS_TOOL = {
-    "name": "list_integrations",
-    "description": """List the user's connected platform integrations and their metadata.
+# =============================================================================
+# ADR-146: Explicit Mode Registries (P4)
+# =============================================================================
 
-Call this first when about to use a platform tool, to get:
-- Which platforms are active (slack, notion)
-- Slack: authed_user_id — use as channel_id when sending DMs to self
-- Notion: designated_page_id — use as page_id when writing to user's YARNNN page
-
-AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
-If not connected, suggest connecting in Settings.""",
-    "input_schema": {
-        "type": "object",
-        "properties": {},
-        "required": []
-    }
-}
-
-
-# All primitives exposed to TP
-# Removed:
-# - Todo: conversation stream IS the progress indicator (Claude Code pattern) — deleted
-# - Respond: TP's natural text output serves as the response — deleted
-PRIMITIVES = [
-    # Data operations
+# Chat mode: TP in user-facing conversation. ≤15 tools (P5 budget).
+CHAT_PRIMITIVES = [
+    # Discovery (5)
     READ_TOOL,
-    WRITE_TOOL,
-    EDIT_TOOL,
-    SEARCH_TOOL,
     LIST_TOOL,
-    # External operations
-    EXECUTE_TOOL,
-    # Platform content refresh (ADR-085)
-    REFRESH_PLATFORM_CONTENT_TOOL,
-    # Web operations (ADR-045)
-    WEB_SEARCH_PRIMITIVE,
-    # Platform discovery — resolves connection metadata (authed_user_id, designated_page_id, etc.)
-    LIST_INTEGRATIONS_TOOL,
-    # System state introspection (ADR-072)
+    SEARCH_TOOL,
+    EDIT_TOOL,
     GET_SYSTEM_STATE_TOOL,
-    # Communication (Clarify only - Respond removed)
-    CLARIFY_TOOL,
-    # Coordinator write primitives — headless only (ADR-092)
+    # External (3)
+    REFRESH_PLATFORM_CONTENT_TOOL,
+    WEB_SEARCH_PRIMITIVE,
+    LIST_INTEGRATIONS_TOOL,
+    # Context mutations — unified (1, was 4)
+    UPDATE_CONTEXT_TOOL,
+    # Agent/Task lifecycle (3, was 6)
     CREATE_AGENT_TOOL,
-    # Task primitives — chat + headless (ADR-138)
     CREATE_TASK_TOOL,
-    TRIGGER_TASK_TOOL,
-    UPDATE_TASK_TOOL,
-    PAUSE_TASK_TOOL,
-    RESUME_TASK_TOOL,
-    # Workspace primitives — headless only (ADR-106)
+    MANAGE_TASK_TOOL,
+    # Execution
+    EXECUTE_TOOL,
+    # Interaction (1)
+    CLARIFY_TOOL,
+]  # 14 tools — under P5 budget of 15
+
+# Headless mode: background agent execution.
+HEADLESS_PRIMITIVES = [
+    # Discovery (4)
+    READ_TOOL,
+    LIST_TOOL,
+    SEARCH_TOOL,
+    GET_SYSTEM_STATE_TOOL,
+    # External (2)
+    REFRESH_PLATFORM_CONTENT_TOOL,
+    WEB_SEARCH_PRIMITIVE,
+    # Workspace (5)
     READ_WORKSPACE_TOOL,
     WRITE_WORKSPACE_TOOL,
     SEARCH_WORKSPACE_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_WORKSPACE_TOOL,
-    # Inter-agent discovery — headless only (ADR-116)
+    # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
-    # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
     READ_AGENT_CONTEXT_TOOL,
-    # User memory — chat only (ADR-108)
-    SAVE_MEMORY_TOOL,
-    # Runtime dispatch — headless only (ADR-118)
+    # Lifecycle (3)
+    CREATE_AGENT_TOOL,
+    CREATE_TASK_TOOL,
+    MANAGE_TASK_TOOL,
+    # Output (1)
     RUNTIME_DISPATCH_TOOL,
-    # Feedback — chat only (ADR-143)
-    WRITE_AGENT_FEEDBACK_TOOL,
-    WRITE_TASK_FEEDBACK_TOOL,
-    # Shared context — chat only (ADR-144)
-    UPDATE_SHARED_CONTEXT_TOOL,
-]
+]  # 17 tools
+
+# Combined list — for handler registration and backwards compatibility
+PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
 
 
-# Handler mapping
+# =============================================================================
+# Handler mapping — all unique handlers
+# =============================================================================
+
 HANDLERS: dict[str, Callable] = {
     "Read": handle_read,
-    "Write": handle_write,
     "Edit": handle_edit,
     "Search": handle_search,
     "List": handle_list,
@@ -207,10 +226,8 @@ HANDLERS: dict[str, Callable] = {
     "list_integrations": handle_list_integrations,
     "CreateAgent": handle_create_agent,
     "CreateTask": handle_create_task,
-    "TriggerTask": handle_trigger_task,
-    "UpdateTask": handle_update_task,
-    "PauseTask": handle_pause_task,
-    "ResumeTask": handle_resume_task,
+    "ManageTask": handle_manage_task,
+    "UpdateContext": handle_update_context,
     "ReadWorkspace": handle_read_workspace,
     "WriteWorkspace": handle_write_workspace,
     "SearchWorkspace": handle_search_workspace,
@@ -218,12 +235,17 @@ HANDLERS: dict[str, Callable] = {
     "ListWorkspace": handle_list_workspace,
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentContext": handle_read_agent_context,
-    "SaveMemory": handle_save_memory,
     "RuntimeDispatch": handle_runtime_dispatch,
-    "WriteAgentFeedback": handle_write_agent_feedback,
-    "WriteTaskFeedback": handle_write_task_feedback,
-    "UpdateSharedContext": handle_update_shared_context,
 }
+
+
+# =============================================================================
+# ADR-146: Mode-aware tool resolution (replaces PRIMITIVE_MODES dict)
+# =============================================================================
+
+# Derived from explicit registries — no separate PRIMITIVE_MODES dict to drift
+_CHAT_TOOL_NAMES = {t["name"] for t in CHAT_PRIMITIVES}
+_HEADLESS_TOOL_NAMES = {t["name"] for t in HEADLESS_PRIMITIVES}
 
 
 async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
@@ -231,20 +253,10 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     Execute a primitive by name.
 
     ADR-050: Platform tools (platform_*) are routed to MCP Gateway.
-
-    Args:
-        auth: Auth context with user_id and client
-        name: Primitive name (e.g., "Read", "Write") or platform tool (e.g., "platform_slack_send_message")
-        input: Primitive input parameters
-
-    Returns:
-        Primitive result dict
     """
-    # ADR-050: Route platform tools to MCP Gateway
     if is_platform_tool(name):
         try:
-            result = await handle_platform_tool(auth, name, input)
-            return result
+            return await handle_platform_tool(auth, name, input)
         except Exception as e:
             return {
                 "success": False,
@@ -263,8 +275,7 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
         }
 
     try:
-        result = await handler(auth, input)
-        return result
+        return await handler(auth, input)
     except Exception as e:
         return {
             "success": False,
@@ -274,77 +285,18 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
         }
 
 
-# =============================================================================
-# ADR-080: Mode-Gated Primitives
-# =============================================================================
-
-# Which primitives are available in each mode.
-# "chat" = full TP session (streaming, user present)
-# "headless" = background generation (non-streaming, no user)
-PRIMITIVE_MODES: dict[str, list[str]] = {
-    # Read-only investigation — both modes
-    "Search":           ["chat", "headless"],
-    "Read":             ["chat", "headless"],
-    "List":             ["chat", "headless"],
-    "GetSystemState":   ["chat", "headless"],
-    "WebSearch":        ["chat", "headless"],
-
-    # Write/action/UI primitives — chat only
-    "Write":            ["chat"],
-    "Edit":             ["chat"],
-    "Execute":          ["chat"],
-    "RefreshPlatformContent": ["chat", "headless"],  # ADR-085, extended by ADR-092
-    "Clarify":          ["chat"],
-    "list_integrations": ["chat"],
-    # Agent creation — chat + headless (ADR-111: unified CreateAgent)
-    "CreateAgent":            ["chat", "headless"],
-    # Task primitives — chat + headless (ADR-138)
-    "CreateTask":             ["chat", "headless"],
-    "TriggerTask":            ["chat", "headless"],
-    "UpdateTask":             ["chat"],
-    "PauseTask":              ["chat"],
-    "ResumeTask":             ["chat"],
-    # Workspace primitives — headless only (ADR-106)
-    "ReadWorkspace":          ["headless"],
-    "WriteWorkspace":         ["headless"],
-    "SearchWorkspace":        ["headless"],
-    "QueryKnowledge":         ["headless"],
-    "ListWorkspace":          ["headless"],
-    # Inter-agent discovery — headless only (ADR-116)
-    "DiscoverAgents":         ["headless"],
-    # Cross-agent workspace reading — headless only (ADR-116 Phase 3)
-    "ReadAgentContext":       ["headless"],
-    # Agent feedback — chat only (ADR-143: TP writes feedback to agents)
-    "WriteAgentFeedback":     ["chat"],
-    "WriteTaskFeedback":      ["chat"],
-    # Shared context — chat only (ADR-144: workspace identity/brand mutations)
-    "UpdateSharedContext":    ["chat"],
-    # User memory — chat only (ADR-108)
-    "SaveMemory":             ["chat"],
-    # Runtime dispatch — headless only (ADR-118)
-    "RuntimeDispatch":        ["headless"],
-}
-
-# Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
-
-
 def get_tools_for_mode(mode: str) -> list[dict]:
     """
-    Get tool definitions filtered by mode.
+    Get tool definitions for a specific mode.
 
-    Args:
-        mode: "chat" or "headless"
-
-    Returns:
-        List of tool definition dicts for the Anthropic API
+    ADR-146: Returns from explicit registries, not filtered from a combined list.
     """
-    tools = []
-    for tool_def in PRIMITIVES:
-        name = tool_def.get("name", "")
-        modes = PRIMITIVE_MODES.get(name, ["chat"])
-        if mode in modes:
-            tools.append(tool_def)
-    return tools
+    if mode == "chat":
+        return list(CHAT_PRIMITIVES)
+    elif mode == "headless":
+        return list(HEADLESS_PRIMITIVES)
+    else:
+        return list(CHAT_PRIMITIVES)  # Default to chat
 
 
 def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[list] = None, coordinator_agent_id: Optional[str] = None, agent: Optional[dict] = None):
@@ -354,27 +306,17 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
     Returns an async callable (tool_name, tool_input) -> result_dict
     that dispatches to primitive handlers with headless-appropriate
     error handling (log + return error dict, never raise).
-
-    Args:
-        client: Supabase client (service role)
-        user_id: User UUID for data scoping
-        agent_sources: ADR-092 — agent's configured sources list, used by
-                             RefreshPlatformContent to scope headless refreshes
-        coordinator_agent_id: ADR-092 — ID of the coordinator agent running this
-                                    executor, used by CreateAgent for attribution
-        agent: ADR-106 — full agent dict, used by workspace primitives for context
     """
     class HeadlessAuth:
         """Minimal auth context for headless execution."""
         def __init__(self, client, user_id, agent_sources=None, coordinator_agent_id=None, agent=None):
             self.client = client
             self.user_id = user_id
-            self.headless = True  # ADR-092: signals headless mode to primitives
-            self.agent_sources = agent_sources  # ADR-092: source scoping
-            self.coordinator_agent_id = coordinator_agent_id  # ADR-092: attribution
-            self.agent = agent  # ADR-106: workspace primitives need agent context
-            self.pending_renders: list[dict] = []  # ADR-118 D.3: accumulate rendered files for save_output()
-            # ADR-118 D.3: agent_slug for RuntimeDispatch workspace paths
+            self.headless = True
+            self.agent_sources = agent_sources
+            self.coordinator_agent_id = coordinator_agent_id
+            self.agent = agent
+            self.pending_renders: list[dict] = []
             if agent:
                 from services.workspace import get_agent_slug
                 self.agent_slug = get_agent_slug(agent)
@@ -384,9 +326,8 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
     auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
 
     async def executor(tool_name: str, tool_input: dict) -> dict:
-        # Verify tool is allowed in headless mode
-        modes = PRIMITIVE_MODES.get(tool_name, [])
-        if "headless" not in modes:
+        # ADR-146: Check against explicit headless registry
+        if tool_name not in _HEADLESS_TOOL_NAMES:
             logger.warning(
                 f"[HEADLESS] Tool {tool_name} not available in headless mode, skipping"
             )
@@ -405,8 +346,7 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
             }
 
         try:
-            result = await handler(auth, tool_input)
-            return result
+            return await handler(auth, tool_input)
         except Exception as e:
             logger.error(f"[HEADLESS] Tool {tool_name} failed: {e}")
             return {
@@ -415,6 +355,5 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
                 "message": f"Tool execution failed: {e}",
             }
 
-    # ADR-118 D.3: Expose auth context so callers can read pending_renders
     executor.auth = auth  # type: ignore[attr-defined]
     return executor

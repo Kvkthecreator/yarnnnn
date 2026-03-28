@@ -23,7 +23,8 @@ from services.anthropic import (
     ChatResponse,
     StreamEvent,
 )
-from services.primitives import PRIMITIVES, execute_primitive
+from services.primitives import execute_primitive
+from services.primitives.registry import CHAT_PRIMITIVES
 from services.commands import detect_command, get_command_prompt_addition, detect_command_hybrid
 from services.working_memory import build_working_memory, format_for_prompt
 from services.platform_tools import get_platform_tools_for_user
@@ -58,7 +59,7 @@ class ThinkingPartnerAgent(BaseAgent):
 
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
         super().__init__(model)
-        self.tools = PRIMITIVES
+        self.tools = CHAT_PRIMITIVES  # ADR-146: explicit chat registry (was PRIMITIVES)
 
     def _format_memories(self, context: ContextBundle, selected_domain_name: Optional[str] = None) -> str:
         """Format memories for system prompt with counts and unified summary.

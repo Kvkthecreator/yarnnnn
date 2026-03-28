@@ -1,17 +1,11 @@
 """
-Primitives Architecture (ADR-036/037 Alignment)
+Primitives Architecture (ADR-146: Hardened)
 
-Universal agent primitives mirroring Claude Code patterns:
-- Read: Retrieve entity by reference
-- Write: Create new entity
-- Edit: Modify existing entity
-- Search: Find by content (semantic)
-- List: Find by structure
-- Execute: External operations
-- Todo: Track intent/progress
-
-These primitives operate on YARNNN entities (agents, platforms, memories, etc.)
-rather than files, but follow the same interface contract.
+Two explicit mode registries (CHAT_PRIMITIVES, HEADLESS_PRIMITIVES).
+14 chat tools, 17 headless tools. Key consolidations:
+- UpdateContext: identity, brand, memory, agent feedback, task feedback
+- ManageTask: trigger, update, pause, resume
+- CreateTask: complex registry-aware creation (separate)
 """
 
 from .refs import EntityRef, parse_ref, resolve_ref

@@ -55,11 +55,11 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Clarify: FileText,
   // Agent lifecycle (ADR-111)
   CreateAgent: Sparkles,
-  // Task primitives (ADR-138)
+  // Task primitives (ADR-138, ADR-146)
   CreateTask: Sparkles,
-  TriggerTask: Play,
-  // Intelligence (ADR-087/106)
-  SaveMemory: Bookmark,
+  ManageTask: Play,
+  // Context (ADR-146)
+  UpdateContext: Bookmark,
   GetSystemState: Monitor,
   WebSearch: Globe,
   web_search: Globe,

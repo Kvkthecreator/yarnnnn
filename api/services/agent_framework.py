@@ -339,7 +339,7 @@ TP_ORCHESTRATION_PLAYBOOK = """\
 - Don't assign content creation to Research Agent — they investigate, Content Agent produces
 
 ## Feedback Routing
-- When user comments on output quality → WriteAgentFeedback to the producing agent
+- When user comments on output quality → UpdateContext(target="agent") to the producing agent
 - When user says "too long" / "more detail" / "different format" → feedback to agent
 - When user corrects orchestration ("don't use the marketing agent for this") → update this playbook
 - Positive feedback matters too — "great charts" confirms the agent's approach

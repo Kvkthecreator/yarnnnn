@@ -1,9 +1,10 @@
 # Primitives Architecture
 
-> **Status**: Canonical
+> **Status**: ⚠️ STALE — this document predates ADR-138 (project layer collapse, 2026-03-25). It still references projects, PM primitives, agent_chat mode, CreateProject, AdvanceAgentSchedule, and entity schemas that no longer exist. **See [ADR-146](../adr/ADR-146-primitive-hardening.md) for the consolidation plan.** This doc will be rewritten as part of ADR-146 Gate 3.
+>
 > **Created**: 2026-02-10
 > **Updated**: 2026-03-20 (primitive cleanup — dead weight removed, role-gated agent_chat, three-mode architecture)
-> **Related ADRs**: ADR-059, ADR-072, ADR-080 (Unified Agent Modes), ADR-106 (Workspace), ADR-116 (Inter-Agent), ADR-118 (Skills/Output Gateway), ADR-119 (Workspace Filesystem), ADR-120 (Project Execution), ADR-124 (Project Meeting Room)
+> **Related ADRs**: ADR-059, ADR-072, ADR-080 (Unified Agent Modes), ADR-106 (Workspace), ADR-116 (Inter-Agent), ADR-118 (Skills/Output Gateway), ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-146 (Primitive Hardening)
 > **Implementation**: `api/services/primitives/`
 
 ---

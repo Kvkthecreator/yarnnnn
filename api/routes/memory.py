@@ -101,7 +101,7 @@ class OnboardingStateResponse(BaseModel):
 
 
 # ─── ADR-140: Onboarding state (roster scaffolding) ──
-# ADR-144: POST /user/onboarding deleted — context enrichment via UpdateSharedContext primitive
+# ADR-144/146: POST /user/onboarding deleted — context enrichment via UpdateContext primitive
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ async def _scaffold_default_roster(client, user_id: str):
 
 
 # ADR-144: POST /user/onboarding DELETED — context enrichment now via
-# UpdateSharedContext TP primitive. Roster scaffolding preserved above.
+# UpdateContext TP primitive (ADR-146). Roster scaffolding preserved above.
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.28.2] - ADR-146 Gate 1: Primitive Hardening — consolidation implemented
+
+### Changed
+- `services/primitives/registry.py`: Rewritten. Two explicit mode registries (`CHAT_PRIMITIVES` 14 tools, `HEADLESS_PRIMITIVES` 17 tools) replace single `PRIMITIVES` + `PRIMITIVE_MODES` filter. `_CHAT_TOOL_NAMES` / `_HEADLESS_TOOL_NAMES` sets for O(1) mode checks.
+- `agents/tp_prompts/tools.py`: Rewritten. `UpdateContext` docs replace 4 old primitives. `ManageTask` docs replace 4 old primitives. Feedback routing table updated. `Write` primitive removed from docs.
+- `agents/tp_prompts/task_scope.py`: Feedback routing updated — `WriteAgentFeedback` → `UpdateContext(target="agent")`, `WriteTaskFeedback` → `UpdateContext(target="task")`, `TriggerTask` → `ManageTask(action="trigger")`.
+- `agents/tp_prompts/behaviors.py`: `SaveMemory` → `UpdateContext(target="identity"|"brand")`.
+- `agents/tp_prompts/onboarding.py`: `UpdateSharedContext` → `UpdateContext`.
+
+### Added
+- `services/primitives/update_context.py`: Unified context mutation primitive. Routes by `target` enum: identity/brand (inference merge), memory (append), agent (feedback distillation), task (TASK.md patch or run_log append). Absorbs logic from 4 deleted primitives.
+- `services/primitives/manage_task.py`: Unified task lifecycle primitive. Routes by `action` enum: trigger, update, pause, resume. Own `_compute_next_run()` copy. Absorbs logic from 4 deleted primitives.
+
+### Deleted
+- `services/primitives/save_memory.py`: Absorbed into UpdateContext(target="memory").
+- `services/primitives/shared_context.py`: Absorbed into UpdateContext(target="identity"|"brand").
+- `services/primitives/workspace.py`: `WriteAgentFeedback` + `WriteTaskFeedback` tool definitions and handlers deleted. Workspace primitives (Read/Write/Search/Query/List/Discover/ReadAgent) preserved.
+- `services/primitives/task.py`: `TriggerTask` + `UpdateTask` + `PauseTask` + `ResumeTask` tool definitions and handlers deleted. `CreateTask` preserved.
+
+### Expected behavior
+- Chat tool count: 18 → 14. TP sees fewer tools, makes fewer classification errors.
+- Context mutations: TP picks `target` enum (simple) instead of choosing between 4 tools (complex).
+- Task management: TP picks `action` enum instead of choosing between 4 tools.
+- Frontend: `ManageTask` + `UpdateContext` display names and icons replace old ones.
+
+---
+
 ## [2026.03.28.1] - Context-first cold start: tighten task type suggestion threshold
 
 ### Changed

@@ -23,11 +23,11 @@ Use your judgment to guide the user — but never block them from doing what the
 1. **Identity empty** — this is the most important gap. Lead with it naturally:
    "Tell me about yourself and your work — I'll set up your workspace from there."
    Accept anything: a sentence, a LinkedIn URL, an uploaded doc, a company name.
-   Use `UpdateSharedContext(target="identity")` when they share information.
+   Use `UpdateContext(target="identity")` when they share information.
 
 2. **Brand empty, identity set** — suggest once:
    "Want to add a brand guide? Share your website or describe how you communicate."
-   Use `UpdateSharedContext(target="brand")`.
+   Use `UpdateContext(target="brand")`.
 
 3. **Tasks = 0, identity set** — use judgment on readiness:
    You need enough context to recommend the *right* deliverables — not just any deliverables.

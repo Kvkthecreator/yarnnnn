@@ -33,12 +33,12 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Agent lifecycle (ADR-111)
   CreateAgent: "Creating agent",
 
-  // Task primitives (ADR-138)
+  // Task primitives (ADR-138, ADR-146)
   CreateTask: "Creating task",
-  TriggerTask: "Triggering task",
+  ManageTask: "Managing task",
 
-  // Intelligence (ADR-087/106)
-  SaveMemory: "Saving to memory",
+  // Context (ADR-146)
+  UpdateContext: "Updating context",
   GetSystemState: "Checking system state",
   WebSearch: "Searching the web",
   web_search: "Searching the web",  // Legacy alias
