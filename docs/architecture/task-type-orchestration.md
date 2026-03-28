@@ -1,6 +1,8 @@
 # Task Type Orchestration Architecture
 
-> Canonical reference for the task type registry, pipeline execution model, and orchestration scalability.
+> Canonical reference for the task type registry, process execution model, and orchestration scalability.
+>
+> **Terminology note:** User-facing surfaces use "process" (tab label, headers). Internal code retains "pipeline" (field names, functions, logs). This doc uses "pipeline" for code/architecture, "process" for user-facing concepts.
 > ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
 > Product catalog: [docs/features/task-types.md](../features/task-types.md)
 
@@ -122,6 +124,25 @@ Your role: {pipeline[step_n+1]['instruction']}
 └── assets/                # Charts, diagrams, images from any step
 ```
 
+### Live Execution Progress
+
+During multi-step execution, a `status.json` file is written to the output folder at three points:
+1. **Before first step:** `{status: "running", current_step: 0, total_steps: N}`
+2. **After each step completes:** `{status: "running", current_step: K, completed_steps: [...]}`
+3. **After pipeline completes:** `{status: "completed", completed_at: ...}`
+
+The frontend "Process" tab polls `GET /api/tasks/{slug}/status` every 3s during execution, showing a live stepper with completed/active/pending step states. Falls back to 10s polling when idle.
+
+```
+/tasks/{slug}/outputs/{date}/
+├── status.json              # Ephemeral — live execution progress
+├── step-1/...
+├── step-2/...
+└── ...
+```
+
+`status.json` uses `lifecycle=ephemeral` — cleaned up by workspace cron.
+
 ### Empty Step Handling
 
 If a pipeline step produces empty or minimal output (e.g., Marketing Agent finds no signals):
@@ -159,7 +180,7 @@ Two orchestration modes coexist:
 ```
 Layer 1: DELIVERABLES (task types — what users see and select)
     ↕ Product decisions: curated, deliberate
-Layer 2: PIPELINES (execution plans — ordered agent steps)
+Layer 2: PROCESSES (execution plans — ordered agent steps)
     ↕ Platform decisions: deterministic, versioned
 Layer 3: AGENTS (identity + capabilities — who executes)
     ↕ Roster decisions: pre-scaffolded, expandable
@@ -243,7 +264,8 @@ Pipeline orchestration is not an agent's capability — it's the platform's. Thi
 | File | Purpose |
 |------|---------|
 | `api/services/task_types.py` | Task type registry + scaffold + resolve |
-| `api/services/task_pipeline.py` | Pipeline-aware execution (extends ADR-141) |
+| `api/services/task_pipeline.py` | Pipeline-aware execution (extends ADR-141), writes status.json for live progress |
+| `web/components/tasks/ProcessTab.tsx` | Process visualization with live progress polling |
 | `api/services/task_workspace.py` | Step-scoped output storage |
 | `api/services/agent_framework.py` | Agent type + capability registries (ADR-140) |
 | `api/routes/tasks.py` | `GET /api/tasks/types` endpoint |

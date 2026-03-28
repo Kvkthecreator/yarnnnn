@@ -42,7 +42,7 @@ import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/Works
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import { PipelineTab } from '@/components/tasks/PipelineTab';
+import { ProcessTab } from '@/components/tasks/ProcessTab';
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -277,7 +277,7 @@ function ScheduleTab({
   );
 }
 
-// AgentsTab removed — replaced by PipelineTab (ADR-145 Gate 3)
+// AgentsTab removed — replaced by ProcessTab (ADR-145 Gate 3)
 
 // =============================================================================
 // Right Panel: Task-Scoped Chat
@@ -428,7 +428,7 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'pipeline'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'process'>('output');
 
   const refreshData = useCallback(() => {
     if (!slug) return;
@@ -526,7 +526,7 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-5">
-          {(['output', 'task', 'schedule', 'pipeline'] as const).map(tab => (
+          {(['output', 'task', 'schedule', 'process'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setLeftTab(tab)}
@@ -553,7 +553,7 @@ export default function TaskPage() {
               onRefresh={refreshData}
             />
           )}
-          {leftTab === 'pipeline' && <PipelineTab task={task} selectedOutput={selectedOutput} />}
+          {leftTab === 'process' && <ProcessTab task={task} selectedOutput={selectedOutput} />}
         </div>
       </div>
     </WorkspaceLayout>

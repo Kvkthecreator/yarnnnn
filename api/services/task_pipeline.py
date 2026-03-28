@@ -851,6 +851,24 @@ async def _execute_pipeline(
 
     logger.info(f"[PIPELINE] Starting {len(pipeline)}-step pipeline for {task_slug} (type={task_info.get('type_key')})")
 
+    # Write initial run status for frontend progress polling
+    run_status = {
+        "status": "running",
+        "current_step": 0,
+        "total_steps": len(pipeline),
+        "completed_steps": [],
+        "started_at": started_at.isoformat(),
+    }
+    try:
+        await tw.write(
+            f"outputs/{started_at.strftime('%Y-%m-%dT%H%M')}/status.json",
+            json.dumps(run_status, indent=2),
+            tags=["status"],
+            lifecycle="ephemeral",
+        )
+    except Exception:
+        pass  # Non-critical — progress is best-effort
+
     # Resolve all pipeline agents upfront
     agents_result = (
         client.table("agents")
@@ -1003,6 +1021,24 @@ use RuntimeDispatch with the spec format described above."""
         except Exception:
             pass
 
+        # Update run status for frontend progress polling
+        run_status["current_step"] = step_num
+        run_status["completed_steps"].append({
+            "step": step_num,
+            "step_name": step_name,
+            "agent_type": agent_type,
+            "agent_slug": agent_slug,
+        })
+        try:
+            await tw.write(
+                f"outputs/{date_folder}/status.json",
+                json.dumps(run_status, indent=2),
+                tags=["status"],
+                lifecycle="ephemeral",
+            )
+        except Exception:
+            pass
+
         logger.info(f"[PIPELINE] Step {step_num} complete ({usage.get('output_tokens', 0)} tokens)")
 
     # =====================================================================
@@ -1027,6 +1063,19 @@ use RuntimeDispatch with the spec format described above."""
         "trigger_type": "scheduled",
     }
     await update_version_for_delivery(client, version_id, final_draft, metadata=version_metadata)
+
+    # Mark run status as completed for frontend progress polling
+    run_status["status"] = "completed"
+    run_status["completed_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        await tw.write(
+            f"outputs/{date_folder}/status.json",
+            json.dumps(run_status, indent=2),
+            tags=["status"],
+            lifecycle="ephemeral",
+        )
+    except Exception:
+        pass
 
     # Save final output to task workspace (same date_folder as step outputs)
     task_output_folder = await tw.save_output(

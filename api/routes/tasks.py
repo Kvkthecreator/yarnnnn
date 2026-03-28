@@ -98,7 +98,7 @@ class TaskRunTriggered(BaseModel):
     task_slug: str
 
 
-class PipelineStepEntry(BaseModel):
+class ProcessStepEntry(BaseModel):
     step: int
     step_name: str
     agent_type: str
@@ -106,11 +106,26 @@ class PipelineStepEntry(BaseModel):
     content: Optional[str] = None
     tokens: Optional[dict] = None
 
+# Keep alias for backwards compat during rename
+PipelineStepEntry = ProcessStepEntry
 
-class PipelineStepsResponse(BaseModel):
-    steps: list[PipelineStepEntry]
-    pipeline_definition: Optional[list] = None  # from task type registry
+
+class ProcessStepsResponse(BaseModel):
+    steps: list[ProcessStepEntry]
+    process_definition: Optional[list] = None  # from task type registry
     type_key: Optional[str] = None
+
+# Keep alias for backwards compat during rename
+PipelineStepsResponse = ProcessStepsResponse
+
+
+class RunStatusResponse(BaseModel):
+    status: str  # "running" | "completed" | "failed" | "not_found"
+    current_step: int = 0
+    total_steps: int = 0
+    completed_steps: list[dict] = []
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 # =============================================================================
@@ -894,11 +909,66 @@ async def get_pipeline_steps(
     # Sort by step number
     steps.sort(key=lambda s: s.step)
 
-    return PipelineStepsResponse(
+    return ProcessStepsResponse(
         steps=steps,
-        pipeline_definition=pipeline_definition,
+        process_definition=pipeline_definition,
         type_key=type_key,
     )
+
+
+@router.get("/{slug}/status")
+async def get_run_status(
+    slug: str,
+    auth: UserClient,
+) -> RunStatusResponse:
+    """
+    Get live execution status for a task's latest run.
+    Reads status.json from the most recent output folder.
+    Used by frontend for progress polling during execution.
+    """
+    from services.task_workspace import TaskWorkspace
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+
+    # Find the most recent status.json by listing output folders
+    prefix = f"/tasks/{slug}/outputs/"
+    result = (
+        auth.client.table("workspace_files")
+        .select("path, content")
+        .eq("user_id", auth.user_id)
+        .like("path", f"{prefix}%/status.json")
+        .order("path", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    if not result.data:
+        return RunStatusResponse(status="not_found")
+
+    try:
+        status_data = _json.loads(result.data[0]["content"])
+        return RunStatusResponse(
+            status=status_data.get("status", "unknown"),
+            current_step=status_data.get("current_step", 0),
+            total_steps=status_data.get("total_steps", 0),
+            completed_steps=status_data.get("completed_steps", []),
+            started_at=status_data.get("started_at"),
+            completed_at=status_data.get("completed_at"),
+        )
+    except (ValueError, _json.JSONDecodeError):
+        return RunStatusResponse(status="not_found")
 
 
 @router.get("/{slug}/outputs/{date_folder}")

@@ -1,6 +1,6 @@
 # Task Types — Deliverable Catalog
 
-> What YARNNN delivers. Each task type is a concrete output produced by a pre-meditated multi-agent pipeline.
+> What YARNNN delivers. Each task type is a concrete output produced by a pre-meditated multi-agent process.
 > Architecture: [docs/architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md)
 > ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
 
@@ -24,7 +24,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Research-backed competitive analysis with charts, diagrams, and evidence-linked findings.
 
-**Pipeline:** Research Agent (investigate web + platforms) → Content Agent (format with charts, brand styling)
+**Process:** Research Agent (investigate web + platforms) → Content Agent (format with charts, brand styling)
 
 **Default schedule:** Weekly
 **Output format:** Branded HTML, exportable as PDF
@@ -45,7 +45,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Deep-dive investigation on a specific topic with data-backed analysis, trend visualizations, and landscape mapping.
 
-**Pipeline:** Research Agent (deep web investigation) → Content Agent (polish with visualizations, professional layout)
+**Process:** Research Agent (deep web investigation) → Content Agent (polish with visualizations, professional layout)
 
 **Default schedule:** Monthly
 **Output format:** Branded HTML, exportable as PDF
@@ -66,7 +66,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Surface-level industry scan with deep-dives on signals that matter. Catches signals others miss, then validates the important ones.
 
-**Pipeline:** Marketing Agent (scan web + platforms for signals) → Research Agent (investigate flagged signals)
+**Process:** Marketing Agent (scan web + platforms for signals) → Research Agent (investigate flagged signals)
 
 **Default schedule:** Weekly
 **Output format:** Branded HTML
@@ -86,7 +86,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Structured investigation of a company, market, or opportunity with risk flags and evidence.
 
-**Pipeline:** Research Agent (investigate across web + platforms) → Content Agent (format with org charts, relationship diagrams)
+**Process:** Research Agent (investigate across web + platforms) → Content Agent (format with org charts, relationship diagrams)
 
 **Default schedule:** On-demand
 **Output format:** Branded HTML, exportable as PDF
@@ -109,7 +109,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Relationship context from your platforms combined with fresh external research on the attendee's company and recent news.
 
-**Pipeline:** CRM Agent (relationship history from Slack/Notion/email) → Research Agent (investigate attendee's company, recent news)
+**Process:** CRM Agent (relationship history from Slack/Notion/email) → Research Agent (investigate attendee's company, recent news)
 
 **Default schedule:** On-demand (before meetings)
 **Output format:** Branded HTML
@@ -129,7 +129,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Executive-quality update with KPI dashboards, metric cards, and narrative context — ready for board or leadership consumption.
 
-**Pipeline:** Research Agent (gather metrics, data, context) → Content Agent (compose dashboard-layout deliverable with charts and KPI cards)
+**Process:** Research Agent (gather metrics, data, context) → Content Agent (compose dashboard-layout deliverable with charts and KPI cards)
 
 **Default schedule:** Monthly or quarterly
 **Output format:** Branded HTML (dashboard layout), exportable as PDF/PPTX
@@ -149,7 +149,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Interaction patterns from Slack synthesized into actionable relationship intelligence — who needs attention, what follow-ups are due.
 
-**Pipeline:** Slack Bot (extract interaction patterns, thread signals) → CRM Agent (synthesize into relationship status and follow-up recommendations)
+**Process:** Slack Bot (extract interaction patterns, thread signals) → CRM Agent (synthesize into relationship status and follow-up recommendations)
 
 **Default schedule:** Weekly
 **Output format:** Branded HTML
@@ -170,7 +170,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Cross-platform status synthesis — team activity from Slack, stakeholder expectations from CRM context, composed into a polished report.
 
-**Pipeline:** Slack Bot (team activity signals) → CRM Agent (stakeholder expectations, commitments) → Content Agent (compose formatted status report)
+**Process:** Slack Bot (team activity signals) → CRM Agent (stakeholder expectations, commitments) → Content Agent (compose formatted status report)
 
 **Default schedule:** Weekly
 **Output format:** Branded HTML, exportable as PDF
@@ -193,7 +193,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Decisions, action items, key discussions, and FYIs extracted from your Slack channels.
 
-**Pipeline:** Slack Bot (single-agent)
+**Process:** Slack Bot (single-agent)
 
 **Default schedule:** Daily or weekly
 **Output format:** Markdown or branded HTML
@@ -213,7 +213,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** What changed in your Notion workspace — new pages, updates, staleness flags, and structure suggestions.
 
-**Pipeline:** Notion Bot (single-agent)
+**Process:** Notion Bot (single-agent)
 
 **Default schedule:** Weekly
 **Output format:** Markdown or branded HTML
@@ -235,7 +235,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Research-backed content with competitive landscape context, formatted with visual assets and brand styling.
 
-**Pipeline:** Research Agent (investigate topic + competitive landscape) → Content Agent (write and format with images, charts)
+**Process:** Research Agent (investigate topic + competitive landscape) → Content Agent (write and format with images, charts)
 
 **Default schedule:** On-demand
 **Output format:** Branded HTML, exportable as PDF
@@ -255,7 +255,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** GTM intelligence transformed into polished launch material — positioning context becomes branded presentation or announcement.
 
-**Pipeline:** Marketing Agent (positioning, competitive context, market signals) → Content Agent (format as presentation, branded HTML, or video)
+**Process:** Marketing Agent (positioning, competitive context, market signals) → Content Agent (format as presentation, branded HTML, or video)
 
 **Default schedule:** On-demand
 **Output format:** Branded HTML (presentation layout), exportable as PDF/PPTX
@@ -277,7 +277,7 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Competitive moves, market signals, and feature matrices — intelligence layer with visual tracking.
 
-**Pipeline:** Marketing Agent (intelligence gathering, web scan, platform signals) → Content Agent (format as dashboard with feature matrices, trend charts)
+**Process:** Marketing Agent (intelligence gathering, web scan, platform signals) → Content Agent (format as dashboard with feature matrices, trend charts)
 
 **Default schedule:** Weekly
 **Output format:** Branded HTML (dashboard layout)

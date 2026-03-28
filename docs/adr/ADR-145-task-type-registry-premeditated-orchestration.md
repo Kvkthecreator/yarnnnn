@@ -1,6 +1,6 @@
 # ADR-145: Task Type Registry — Pre-Meditated Orchestration
 
-**Status:** Proposed
+**Status:** Phases 1-2 Implemented, Phase 2.1 (live progress + terminology) Implemented
 **Date:** 2026-03-26
 **Supersedes:** None
 **Extends:** ADR-138 (Agents as Work Units), ADR-140 (Agent Workforce Model), ADR-141 (Unified Execution Architecture), ADR-143 (Agent Methodology Layer)
@@ -356,11 +356,18 @@ Research Agent is assigned to both "Competitive Intel" and "Market Research" tas
 - Onboarding type selection UI
 - All task types execute as single-agent initially (last pipeline step only)
 
-### Phase 2: Multi-Step Pipeline Execution
+### Phase 2: Multi-Step Pipeline Execution (Implemented)
 - Extend `execute_task()` for pipeline-aware execution
 - Step-scoped output storage (`step-{N}/`)
 - Explicit handoff: step N output injected into step N+1 context
 - Pipeline cost tracking (credits per step)
+
+### Phase 2.1: Live Progress + Terminology Alignment (Implemented, 2026-03-28)
+- **Terminology:** User-facing "pipeline" → "process" (tab label, headers, docs). Internal code retains "pipeline" (field names, functions, logs).
+- **Live execution progress:** `status.json` written to output folder at pipeline start, after each step, and on completion. Frontend Process tab polls `GET /api/tasks/{slug}/status` every 3s during execution.
+- **Three temporal states:** Before run (process definition from registry), During run (live stepper with completed/active/pending), After run (step outputs with expand/collapse).
+- **Component rename:** `PipelineTab.tsx` → `ProcessTab.tsx`. Types: `ProcessStepOutput`, `ProcessStepsResponse`, `RunStatus`.
+- **Backend:** `RunStatusResponse` model, `/api/tasks/{slug}/status` endpoint, `status.json` lifecycle=ephemeral.
 
 ### Phase 3: Pipeline Observation + Feedback Attribution
 - Pipeline observation signals → `/tasks/{slug}/memory/pipeline_observations.md`

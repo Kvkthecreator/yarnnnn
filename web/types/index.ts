@@ -730,10 +730,13 @@ export interface TaskOutput {
 }
 
 // ADR-145: Task Type Registry
-export interface PipelineStepSummary {
+// Process step types (renamed from Pipeline — user-facing term is "process")
+export interface ProcessStepSummary {
   agent_type: string;
   step: string;
 }
+/** @deprecated Use ProcessStepSummary */
+export type PipelineStepSummary = ProcessStepSummary;
 
 export interface TaskType {
   type_key: string;
@@ -743,7 +746,7 @@ export interface TaskType {
   default_schedule: string;
   output_format: string;
   export_options: string[];
-  pipeline_summary: PipelineStepSummary[];
+  pipeline_summary: ProcessStepSummary[];
   context_sources: string[];
   requires_platform: string | null;
 }
@@ -753,7 +756,7 @@ export interface TaskTypesResponse {
   categories: Array<{ key: string; display_name: string }>;
 }
 
-export interface PipelineStepOutput {
+export interface ProcessStepOutput {
   step: number;
   step_name: string;
   agent_type: string;
@@ -761,11 +764,29 @@ export interface PipelineStepOutput {
   content?: string;
   tokens?: { input_tokens: number; output_tokens: number };
 }
+/** @deprecated Use ProcessStepOutput */
+export type PipelineStepOutput = ProcessStepOutput;
 
-export interface PipelineStepsResponse {
-  steps: PipelineStepOutput[];
-  pipeline_definition?: PipelineStepSummary[];
+export interface ProcessStepsResponse {
+  steps: ProcessStepOutput[];
+  process_definition?: ProcessStepSummary[];
   type_key?: string;
+}
+/** @deprecated Use ProcessStepsResponse */
+export type PipelineStepsResponse = ProcessStepsResponse;
+
+export interface RunStatus {
+  status: 'running' | 'completed' | 'failed' | 'not_found';
+  current_step: number;
+  total_steps: number;
+  completed_steps: Array<{
+    step: number;
+    step_name: string;
+    agent_type: string;
+    agent_slug: string;
+  }>;
+  started_at?: string;
+  completed_at?: string;
 }
 
 // ADR-119 Phase 4b: Output manifest (used by agent outputs)

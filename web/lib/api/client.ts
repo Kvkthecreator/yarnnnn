@@ -40,7 +40,8 @@ import type {
   // ADR-145: Task type registry
   TaskType,
   TaskTypesResponse,
-  PipelineStepsResponse,
+  ProcessStepsResponse,
+  RunStatus,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -561,11 +562,15 @@ export const api = {
     getType: (typeKey: string) =>
       request<TaskType>(`/api/tasks/types/${typeKey}`),
 
-    // ADR-145: Pipeline step outputs for a given run
+    // ADR-145: Process step outputs for a given run
     getStepOutputs: (slug: string, dateFolder: string) =>
-      request<PipelineStepsResponse>(
+      request<ProcessStepsResponse>(
         `/api/tasks/${slug}/outputs/${dateFolder}/steps`
       ),
+
+    // Live execution progress
+    getRunStatus: (slug: string) =>
+      request<RunStatus>(`/api/tasks/${slug}/status`),
   },
 
   // Account management
