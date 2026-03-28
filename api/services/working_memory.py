@@ -709,18 +709,25 @@ def format_for_prompt(working_memory: dict) -> str:
     # Context readiness (ADR-144: tells TP what's sparse/missing)
     readiness = working_memory.get("context_readiness", {})
     if readiness:
-        empty_items = [k for k, v in readiness.items() if v == "empty" or v == 0]
-        if empty_items:
-            lines.append(f"\n### Context gaps")
-            for item in empty_items:
+        gap_lines = []
+        for item, val in readiness.items():
+            if val == "empty" or val == 0:
                 if item == "identity":
-                    lines.append("- **Identity**: empty — ask user to update (\"Update my identity\")")
+                    gap_lines.append("- **Identity**: empty — ask user about themselves and their work")
                 elif item == "brand":
-                    lines.append("- **Brand**: empty — suggest updating (\"Update my brand\")")
+                    gap_lines.append("- **Brand**: empty — suggest sharing website or communication style")
                 elif item == "documents":
-                    lines.append("- **Documents**: none uploaded — suggest sharing files for richer context")
+                    gap_lines.append("- **Documents**: none — suggest uploading key files (decks, guides, reports)")
                 elif item == "tasks":
-                    lines.append("- **Tasks**: none created — ensure identity is meaningful first, then suggest task types from catalog")
+                    gap_lines.append("- **Tasks**: none — suggest deliverables from catalog once identity is meaningful")
+            elif val == "sparse":
+                if item == "identity":
+                    gap_lines.append("- **Identity**: sparse — enrich before suggesting tasks (need role + domain + industry)")
+                elif item == "brand":
+                    gap_lines.append("- **Brand**: sparse — could be enriched from website or brand materials")
+        if gap_lines:
+            lines.append("\n### Context gaps")
+            lines.extend(gap_lines)
 
     # Orchestration playbook (ADR-143)
     playbook = working_memory.get("orchestration_playbook")
