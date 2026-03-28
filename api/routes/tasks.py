@@ -746,6 +746,7 @@ async def get_latest_task_output(
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
 
     # Find the most recent output.md by lexicographic sort (ISO dates sort correctly)
+    # Fetch several rows to skip pipeline step outputs (step-N/output.md)
     prefix = ws._full_path("outputs/")
     try:
         result = (
@@ -755,7 +756,7 @@ async def get_latest_task_output(
             .like("path", f"{prefix}%/output.md")
             .in_("lifecycle", ["active", "delivered"])
             .order("path", desc=True)
-            .limit(1)
+            .limit(20)
             .execute()
         )
     except Exception as e:
@@ -770,6 +771,11 @@ async def get_latest_task_output(
         if "/step-" not in row["path"]:
             chosen = row
             break
+
+    # Fallback: if no non-step output, use the latest step output
+    if not chosen and rows:
+        chosen = rows[0]
+
     if not chosen:
         return TaskOutputLatest()
 
