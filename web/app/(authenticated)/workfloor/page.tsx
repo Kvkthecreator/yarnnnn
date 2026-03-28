@@ -15,15 +15,12 @@ import { HOME_ROUTE } from '@/lib/routes';
 import {
   Loader2,
   X,
-  ListChecks,
   LayoutGrid,
   MessageCircle,
   Send,
   Upload,
-  Search,
   Globe,
   UserCircle,
-  Paintbrush,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -353,11 +350,8 @@ function ChatPanel({ taskCount }: { taskCount: number }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
-  // Workfloor-scoped actions: workspace context + task orchestration
+  // Chat-specific actions (workspace actions moved to room overlay pills)
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'update-identity', label: 'Update my identity', icon: UserCircle, verb: 'prompt', onSelect: () => { setInput('Update my identity'); textareaRef.current?.focus(); } },
-    { id: 'update-brand', label: 'Update my brand', icon: Paintbrush, verb: 'prompt', onSelect: () => { setInput('Update my brand'); textareaRef.current?.focus(); } },
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
@@ -561,11 +555,16 @@ export default function WorkfloorPage() {
         )}
 
         {/* Agent Room — full width, isometric display */}
-        <IsometricRoom agents={activeAgents} tasks={tasks} loading={agentsLoading} onTPClick={() => {
-          // Focus the chat input when TP is clicked
-          const chatInput = document.querySelector('textarea[placeholder*="Ask anything"]') as HTMLTextAreaElement;
-          if (chatInput) chatInput.focus();
-        }} />
+        <IsometricRoom
+          agents={activeAgents}
+          tasks={tasks}
+          loading={agentsLoading}
+          onTPClick={() => {
+            const chatInput = document.querySelector('textarea[placeholder*="Ask anything"]') as HTMLTextAreaElement;
+            if (chatInput) chatInput.focus();
+          }}
+          onAction={(msg) => sendMessage(msg, { surface })}
+        />
 
         <div className="max-w-2xl mx-auto px-5">
 
