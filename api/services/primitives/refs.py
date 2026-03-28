@@ -81,6 +81,7 @@ ENTITY_TYPES = {
     "document",
     "action",  # For action discovery
     "system",  # System-level targets (for Execute actions)
+    "task",  # ADR-138: work units
 }
 
 # Special identifiers
@@ -163,6 +164,7 @@ TABLE_MAP = {
     "session": "chat_sessions",
     "domain": "user_memory",  # ADR-059: knowledge_domains removed
     "document": "filesystem_documents",  # ADR-058
+    "task": "tasks",  # ADR-138: work units
 }
 
 
@@ -224,8 +226,8 @@ async def resolve_ref(
         if "type" in ref.query and ref.entity_type == "memory":
             # Filter memories by type/tag
             query = query.contains("tags", [ref.query["type"]])
-        if ref.entity_type == "agent":
-            # Default to excluding archived agents unless explicitly requested
+        if ref.entity_type in ("agent", "task"):
+            # Default to excluding archived unless explicitly requested
             if "status" in ref.query:
                 query = query.eq("status", ref.query["status"])
             else:

@@ -149,4 +149,8 @@ def _format_list_message(entity_type: str, items: list) -> str:
     elif entity_type == "action":
         return f"Found {count} available action(s)"
 
+    elif entity_type == "task":
+        active = sum(1 for i in items if i.get("status") == "active")
+        return f"Found {count} task(s) ({active} active)"
+
     return f"Found {count} {entity_type}(s)"

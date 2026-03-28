@@ -308,31 +308,41 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
 
     # Create tasks row
     now = datetime.now(timezone.utc)
-    try:
-        row = {
-            "user_id": user_id,
-            "slug": slug,
-            "mode": mode,
-            "status": "active",
-            "schedule": schedule,
-            "next_run_at": next_run_at,
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-        }
-        insert_result = auth.client.table("tasks").insert(row).execute()
-        if not insert_result.data:
-            return {"success": False, "error": "insert_failed", "message": "Failed to create task row"}
-        task_id = insert_result.data[0]["id"]
-    except Exception as e:
-        error_str = str(e)
-        if "tasks_user_slug_unique" in error_str:
-            return {
-                "success": False,
-                "error": "duplicate_slug",
-                "message": f"A task with slug '{slug}' already exists.",
+    # Try insert with auto-suffix on duplicate slug
+    task_id = None
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try_slug = slug if attempt == 0 else f"{slug}-{attempt + 1}"
+        try:
+            row = {
+                "user_id": user_id,
+                "slug": try_slug,
+                "mode": mode,
+                "status": "active",
+                "schedule": schedule,
+                "next_run_at": next_run_at,
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
             }
-        logger.error(f"[CREATE_TASK] DB insert failed: {e}")
-        return {"success": False, "error": "insert_failed", "message": error_str}
+            insert_result = auth.client.table("tasks").insert(row).execute()
+            if insert_result.data:
+                task_id = insert_result.data[0]["id"]
+                slug = try_slug  # Use the successful slug going forward
+                break
+        except Exception as e:
+            error_str = str(e)
+            if "tasks_user_slug_unique" in error_str:
+                if attempt < max_attempts - 1:
+                    continue  # Try next suffix
+                return {
+                    "success": False,
+                    "error": "duplicate_slug",
+                    "message": f"A task with slug '{slug}' already exists (tried {max_attempts} suffixes).",
+                }
+            logger.error(f"[CREATE_TASK] DB insert failed: {e}")
+            return {"success": False, "error": "insert_failed", "message": error_str}
+    if not task_id:
+        return {"success": False, "error": "insert_failed", "message": "Failed to create task row"}
 
     # Write TASK.md via TaskWorkspace
     try:
