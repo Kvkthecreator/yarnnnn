@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.28.1] - Context-first cold start: tighten task type suggestion threshold
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Raised the bar for when TP suggests task types. Identity must be *meaningful* (role + domain + industry clear), not just non-empty. "Hi I'm John" is not enough — TP must understand enough to recommend the *right* types. Added explicit "if the user asks directly, help immediately" escape hatch.
+- `services/working_memory.py`: Tasks gap hint now says "ensure identity is meaningful first, then suggest task types from catalog" instead of generic "guide toward first task".
+- Expected behavior: Cold start flows toward identity enrichment → domain understanding → curated task type suggestions. TP won't prematurely push task creation on thin context. Direct user requests still honored immediately.
+
+---
+
 ## [2026.03.27.3] - ADR-145 Gate 3: TP task type catalog awareness
 
 ### Changed

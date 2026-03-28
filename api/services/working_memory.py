@@ -720,7 +720,7 @@ def format_for_prompt(working_memory: dict) -> str:
                 elif item == "documents":
                     lines.append("- **Documents**: none uploaded — suggest sharing files for richer context")
                 elif item == "tasks":
-                    lines.append("- **Tasks**: none created — guide toward first task after context is set")
+                    lines.append("- **Tasks**: none created — ensure identity is meaningful first, then suggest task types from catalog")
 
     # Orchestration playbook (ADR-143)
     playbook = working_memory.get("orchestration_playbook")

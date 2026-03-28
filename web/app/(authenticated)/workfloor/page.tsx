@@ -368,9 +368,9 @@ function ChatPanel({ taskCount }: { taskCount: number }) {
             </div>
             <div className="flex flex-col gap-1.5 px-2">
               {(taskCount === 0 ? [
-                'What kind of deliverable do you need?',
-                'Set up a competitive intelligence brief',
-                'Tell me about yourself and your work',
+                'Tell me about myself and my work',
+                'Help me get set up',
+                'What deliverables can you create for me?',
               ] : [
                 'Review my latest outputs',
                 'Add another deliverable',
