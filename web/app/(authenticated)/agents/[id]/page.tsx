@@ -186,13 +186,13 @@ export default function AgentIdentityPage() {
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-border">
-          <Link
-            href="/workfloor"
+          <button
+            onClick={() => router.back()}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ChevronLeft className="w-4 h-4" />
-            Workfloor
-          </Link>
+            Back
+          </button>
 
           <div className="flex items-center gap-4">
             <div className={cn(

@@ -118,9 +118,9 @@ export default function DocumentDetailPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/docs')}
+              onClick={() => router.back()}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
-              title="Back to Documents"
+              title="Back"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>

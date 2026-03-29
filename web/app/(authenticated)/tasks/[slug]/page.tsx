@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -439,6 +439,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
 
 export default function TaskPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params?.slug as string;
   const { loadScopedHistory } = useTP();
 
@@ -533,9 +534,9 @@ export default function TaskPage() {
     <WorkspaceLayout
       identity={{ icon: <FileText className="w-5 h-5" />, label: displayTitle }}
       breadcrumb={
-        <Link href="/workfloor" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" />
-        </Link>
+        </button>
       }
       panelTabs={panelTabs}
       panelDefaultOpen={true}

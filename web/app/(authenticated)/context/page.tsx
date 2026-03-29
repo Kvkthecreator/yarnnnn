@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Context — yarnnn's Finder
+ * Context — workspace configuration overview
  *
- * File explorer for the entire yarnnn data model:
- * - Workspace (IDENTITY.md, BRAND.md, CONTEXT.md)
- * - Agents (/agents/{slug}/ → AGENT.md, memory/)
- * - Tasks (/tasks/{slug}/ → TASK.md, outputs/)
- * - Platforms (Slack, Notion — connections + sync status)
- * - Documents (uploaded files)
+ * Structured UI for the yarnnn data model:
+ * - Workspace: Identity + Brand (expandable content preview)
+ * - Agents: Inline cards with type, status, description
+ * - Tasks: Inline cards with status, schedule, objective
+ * - Platforms: Connection cards with sync status
+ * - Documents: Uploaded files with download
  */
 
 import { useState, useEffect } from 'react';
@@ -25,10 +25,13 @@ import {
   Upload,
   RefreshCw,
   Download,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { roleDisplayName, roleBadgeColor } from '@/lib/agent-identity';
 import type { Agent, Task, Document } from '@/types';
 
 // =============================================================================
@@ -105,22 +108,23 @@ function WorkspacePanel() {
       ].filter(Boolean).join('\n')
     : null;
 
-  const files = [
-    { name: 'IDENTITY.md', path: '/workspace/IDENTITY.md', preview: identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}` : null, content: identityContent },
-    { name: 'BRAND.md', path: '/workspace/BRAND.md', preview: brand ? 'Brand guidelines' : null, content: brand },
-    { name: 'CONTEXT.md', path: '/workspace/CONTEXT.md', preview: null, content: null },
-    { name: 'preferences.md', path: '/memory/preferences.md', preview: null, content: null },
-    { name: 'notes.md', path: '/memory/notes.md', preview: null, content: null },
-  ];
-
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
-        /workspace/ — your identity and preferences
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        Your identity and brand guidelines
       </p>
-      {files.map(f => (
-        <ExpandableFileRow key={f.name} name={f.name} path={f.path} preview={f.preview} content={f.content} empty={!f.content} />
-      ))}
+      <ExpandableCard
+        title="Identity"
+        preview={identity?.name ? `${identity.name}${identity.role ? ` — ${identity.role}` : ''}` : null}
+        content={identityContent}
+        emptyMessage="No identity configured yet"
+      />
+      <ExpandableCard
+        title="Brand"
+        preview={brand ? 'Brand guidelines configured' : null}
+        content={brand}
+        emptyMessage="No brand guidelines yet"
+      />
     </div>
   );
 }
@@ -136,34 +140,82 @@ function AgentsPanel() {
   if (loading) return <LoadingState />;
   if (agents.length === 0) return <EmptyState message="No agents yet" />;
 
+  const activeAgents = agents.filter(a => a.status !== 'archived');
+
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
-        /agents/ — persistent domain experts
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        Your workforce — {activeAgents.length} agent{activeAgents.length !== 1 ? 's' : ''}
       </p>
-      {agents.filter(a => a.status !== 'archived').map(agent => (
-        <div key={agent.id} className="border border-border rounded-lg overflow-hidden mb-2">
-          <Link
-            href={`/agents/${agent.id}`}
-            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors"
-          >
-            <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
-            <div className="min-w-0 flex-1">
-              <span className="text-sm font-medium truncate block">{agent.title}</span>
-              <span className="text-[11px] text-muted-foreground">/agents/{agent.slug || agent.id}/</span>
+      {activeAgents.map(agent => (
+        <AgentCard key={agent.id} agent={agent} />
+      ))}
+    </div>
+  );
+}
+
+function AgentCard({ agent }: { agent: Agent }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
+      >
+        {expanded
+          ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        }
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium truncate block">{agent.title}</span>
+          <span className={cn('inline-block mt-0.5 px-1.5 py-0.5 text-[10px] rounded font-medium', roleBadgeColor(agent.role))}>
+            {roleDisplayName(agent.role)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {agent.status === 'paused' && (
+            <Pause className="w-3 h-3 text-amber-500" />
+          )}
+          <span className={cn(
+            'w-2 h-2 rounded-full',
+            agent.status === 'active' ? 'bg-green-500' : 'bg-amber-500'
+          )} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3 border-t border-border/50 space-y-2 pt-2">
+          {agent.description && (
+            <p className="text-xs text-muted-foreground">{agent.description}</p>
+          )}
+
+          {agent.agent_instructions && (
+            <div>
+              <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Instructions</span>
+              <div className="mt-1 text-xs text-muted-foreground bg-muted/30 rounded-md px-2.5 py-2 max-h-[120px] overflow-y-auto">
+                <MarkdownRenderer content={agent.agent_instructions} compact />
+              </div>
             </div>
-            <span className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              agent.status === 'active' ? 'bg-green-500' : 'bg-amber-500'
-            )} />
-          </Link>
-          <div className="px-3 pb-2 flex gap-1.5 flex-wrap">
-            <FileChip name="AGENT.md" />
-            <FileChip name="memory/" />
-            {agent.agent_instructions && <FileChip name="instructions" filled />}
+          )}
+
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60 pt-1">
+            {agent.version_count !== undefined && agent.version_count > 0 && (
+              <span>{agent.version_count} run{agent.version_count !== 1 ? 's' : ''}</span>
+            )}
+            {agent.last_run_at && (
+              <span>Last run {formatRelativeTime(agent.last_run_at)}</span>
+            )}
+            <Link
+              href={`/agents/${agent.id}`}
+              className="text-primary hover:underline ml-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              View details →
+            </Link>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -180,35 +232,47 @@ function TasksPanel() {
   if (tasks.length === 0) return <EmptyState message="No tasks yet" />;
 
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground/50 px-1 mb-3">
-        /tasks/ — defined work units
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground/50 px-1">
+        {tasks.length} task{tasks.length !== 1 ? 's' : ''}
       </p>
       {tasks.map(task => (
-        <div key={task.id} className="border border-border rounded-lg overflow-hidden mb-2">
-          <Link
-            href={`/tasks/${task.slug}`}
-            className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors"
-          >
-            <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
-            <div className="min-w-0 flex-1">
-              <span className="text-sm font-medium truncate block">{task.title}</span>
-              <span className="text-[11px] text-muted-foreground">/tasks/{task.slug}/</span>
-            </div>
-            <span className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              task.status === 'active' ? 'bg-green-500' :
-              task.status === 'paused' ? 'bg-amber-500' : 'bg-gray-400'
-            )} />
-          </Link>
-          <div className="px-3 pb-2 flex gap-1.5 flex-wrap">
-            <FileChip name="TASK.md" />
-            <FileChip name="outputs/" />
-            <FileChip name="memory/" />
-          </div>
-        </div>
+        <TaskCard key={task.id} task={task} />
       ))}
     </div>
+  );
+}
+
+function TaskCard({ task }: { task: Task }) {
+  return (
+    <Link
+      href={`/tasks/${task.slug}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+    >
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium truncate block">{task.title}</span>
+        <div className="flex items-center gap-2 mt-0.5">
+          {task.schedule && (
+            <span className="text-[11px] text-muted-foreground">{task.schedule}</span>
+          )}
+          {task.objective?.deliverable && (
+            <span className="text-[11px] text-muted-foreground/50 truncate">
+              {task.schedule ? '·' : ''} {task.objective.deliverable}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {task.status === 'paused' && (
+          <Pause className="w-3 h-3 text-amber-500" />
+        )}
+        <span className={cn(
+          'w-2 h-2 rounded-full',
+          task.status === 'active' ? 'bg-green-500' :
+          task.status === 'paused' ? 'bg-amber-500' : 'bg-gray-400'
+        )} />
+      </div>
+    </Link>
   );
 }
 
@@ -228,7 +292,7 @@ function PlatformsPanel() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground/50 px-1">
-        Platform connections — where external data comes from
+        Connected platforms
       </p>
 
       {platforms.length > 0 ? (
@@ -315,14 +379,14 @@ function DocumentsPanel() {
 // Shared Components
 // =============================================================================
 
-function ExpandableFileRow({ name, path, preview, content, empty }: {
-  name: string;
-  path: string;
+function ExpandableCard({ title, preview, content, emptyMessage }: {
+  title: string;
   preview?: string | null;
   content?: string | null;
-  empty?: boolean;
+  emptyMessage: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const empty = !content;
 
   return (
     <div className={cn(
@@ -330,28 +394,27 @@ function ExpandableFileRow({ name, path, preview, content, empty }: {
       empty ? 'border border-dashed border-border/50 bg-muted/10' : 'border border-border',
     )}>
       <button
-        onClick={() => !empty && content && setExpanded(!expanded)}
+        onClick={() => !empty && setExpanded(!expanded)}
         className={cn(
-          'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
-          !empty && content ? 'hover:bg-muted/50 cursor-pointer' : 'cursor-default',
+          'w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors',
+          !empty ? 'hover:bg-muted/50 cursor-pointer' : 'cursor-default',
         )}
       >
-        {!empty && content ? (
+        {!empty ? (
           expanded
             ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         ) : (
-          <FileText className={cn('w-4 h-4 shrink-0', empty ? 'text-muted-foreground/30' : 'text-muted-foreground')} />
+          <FileText className="w-4 h-4 text-muted-foreground/30 shrink-0" />
         )}
         <div className="min-w-0 flex-1">
-          <span className={cn('text-sm truncate block', empty ? 'text-muted-foreground/40' : 'font-medium')}>{name}</span>
+          <span className={cn('text-sm block', empty ? 'text-muted-foreground/40' : 'font-medium')}>{title}</span>
           {preview && !expanded ? (
             <span className="text-[11px] text-muted-foreground truncate block">{preview}</span>
           ) : empty ? (
-            <span className="text-[11px] text-muted-foreground/30">Empty</span>
+            <span className="text-[11px] text-muted-foreground/30">{emptyMessage}</span>
           ) : null}
         </div>
-        <span className="text-[10px] text-muted-foreground/40 shrink-0">{path}</span>
       </button>
       {expanded && content && (
         <div className="px-3 pb-3 border-t border-border/50">
@@ -424,17 +487,6 @@ function DocumentRow({ doc }: { doc: Document }) {
   );
 }
 
-function FileChip({ name, filled }: { name: string; filled?: boolean }) {
-  return (
-    <span className={cn(
-      'px-1.5 py-0.5 text-[10px] rounded border',
-      filled ? 'border-primary/20 bg-primary/5 text-primary/70' : 'border-border/50 text-muted-foreground/50'
-    )}>
-      {name}
-    </span>
-  );
-}
-
 function LoadingState() {
   return (
     <div className="flex items-center justify-center py-12">
@@ -478,12 +530,12 @@ function formatFileSize(bytes: number): string {
 // Section Config
 // =============================================================================
 
-const SECTIONS: Array<{ id: Section; label: string; icon: typeof FolderOpen; path: string }> = [
-  { id: 'workspace', label: 'Workspace', icon: FolderOpen, path: '/workspace/' },
-  { id: 'agents', label: 'Agents', icon: Users, path: '/agents/' },
-  { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks/' },
-  { id: 'platforms', label: 'Platforms', icon: Link2, path: '' },
-  { id: 'documents', label: 'Documents', icon: Upload, path: '' },
+const SECTIONS: Array<{ id: Section; label: string; icon: typeof FolderOpen }> = [
+  { id: 'workspace', label: 'Workspace', icon: FolderOpen },
+  { id: 'agents', label: 'Agents', icon: Users },
+  { id: 'tasks', label: 'Tasks', icon: ListChecks },
+  { id: 'platforms', label: 'Platforms', icon: Link2 },
+  { id: 'documents', label: 'Documents', icon: Upload },
 ];
 
 // =============================================================================
@@ -505,10 +557,10 @@ export default function ContextPage() {
 
   return (
     <div className="h-full flex">
-      {/* Sidebar — tree navigation */}
+      {/* Sidebar — section navigation */}
       <div className="w-[220px] border-r border-border p-3 space-y-1 shrink-0 overflow-y-auto">
         <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest px-3 mb-2">
-          Explorer
+          Context
         </p>
         {SECTIONS.map(section => (
           <TreeSection
@@ -526,17 +578,11 @@ export default function ContextPage() {
         <div className="max-w-3xl">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
-            <FolderOpen className="w-3.5 h-3.5" />
             <span>Context</span>
             <ChevronRight className="w-3 h-3" />
             <span className="text-foreground font-medium">
               {SECTIONS.find(s => s.id === activeSection)?.label}
             </span>
-            {SECTIONS.find(s => s.id === activeSection)?.path && (
-              <span className="text-muted-foreground/40 ml-1">
-                {SECTIONS.find(s => s.id === activeSection)?.path}
-              </span>
-            )}
           </div>
 
           {renderPanel()}
