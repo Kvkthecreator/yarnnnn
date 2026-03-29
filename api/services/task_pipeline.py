@@ -978,13 +978,29 @@ async def _execute_pipeline(
             user_context=user_context,
         )
 
-        # Inject step-specific preamble
+        # Inject step-specific preamble — BEFORE gathered context for visibility
         step_preamble = f"\n\n## Process Step {step_num}/{len(steps)}: {step_name.title()}\n"
         step_preamble += f"Your role in this process: {step_instruction}\n"
         if step_outputs:
             prior_output = step_outputs[-1]
-            step_preamble += f"\n## Prior Step Output\n{prior_output[:8000]}\n"
-            step_preamble += "\nBuild upon and refine the prior step's work. Do not repeat it verbatim.\n"
+            step_preamble += (
+                f"\n## Prior Step Output (YOUR PRIMARY INPUT)\n"
+                f"The following is the output from the previous step. "
+                f"This is your primary source material — your job is to TRANSFORM this research "
+                f"into the deliverable described above. Every finding, data point, and citation "
+                f"from this input should appear in your output (restructured, not copy-pasted). "
+                f"Do NOT conduct independent research that ignores this input. "
+                f"Do NOT produce a shorter output than this input — you are adding structure, "
+                f"formatting, and visual assets, not condensing.\n\n"
+                f"{prior_output[:8000]}\n"
+            )
+        elif step_num == 1:
+            step_preamble += (
+                "\nYou are the first step in a multi-step process. "
+                "Your output will be the primary input for the next agent. "
+                "Be thorough — include all findings, data points, and sources. "
+                "The next agent cannot research further, only format what you provide.\n"
+            )
 
         # Append to user message (after gathered context)
         user_message += step_preamble

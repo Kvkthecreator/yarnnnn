@@ -57,9 +57,12 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                     "Investigate the competitive landscape using web search and platform context. "
                     "Minimum 3 competitors covered. For each: recent moves (product, pricing, hiring, funding), "
                     "strategic positioning, and threat/opportunity assessment. "
-                    "Every claim needs a source citation (inline, not footnotes). Prefer sources <90 days old. "
-                    "Cross-reference findings — a single-source claim is a signal, not a finding. "
-                    "Structure output as: landscape overview, per-competitor analysis, emerging patterns."
+                    "Every claim needs an inline source citation in this format: "
+                    "'Revenue grew 23% (source: Q4 2025 earnings call)' or "
+                    "'Launched enterprise tier in January (source: company blog, 2025-01-15)'. "
+                    "Prefer sources <90 days old. Cross-reference — single-source claims are signals, not findings. "
+                    "Structure output as: landscape overview, per-competitor analysis, emerging patterns. "
+                    "Be thorough — minimum 500 words. The next agent depends entirely on your research."
                 ),
             },
             {
@@ -67,11 +70,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "step": "compose",
                 "instruction": (
                     "Transform the research into a polished competitive intelligence brief. "
-                    "Required sections: Executive Summary (3 sentences — the insight, not the process), "
-                    "Key Findings (numbered, each with evidence), Competitive Positioning (mermaid quadrant diagram), "
-                    "Trend Analysis (chart for any quantified trends), Implications (what this means for us), Sources. "
-                    "Use charts only where data tells the story better than words. "
-                    "Headings should be scannable assertions ('Competitor X shifted to enterprise'), not topics ('Competitor X')."
+                    "Use these exact markdown headers in this order:\n"
+                    "## Executive Summary\n(3 sentences — the insight, not the process)\n"
+                    "## Key Findings\n(numbered list, each finding has inline evidence: 'Revenue grew 23% (source: Q4 filing)')\n"
+                    "## Competitive Positioning\n(mermaid quadrant or comparison diagram)\n"
+                    "## Trend Analysis\n(chart for any quantified trend data from the research)\n"
+                    "## Implications\n(what this means for our strategy — actionable, not observational)\n"
+                    "## Sources\n(list all sources cited above)\n\n"
+                    "Your output must be LONGER than the research input — you are adding structure, "
+                    "visuals, and interpretation, not condensing. Minimum 500 words."
                 ),
             },
         ],
@@ -289,12 +296,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "compose",
                 "instruction": (
-                    "Compose an executive-quality stakeholder update. "
-                    "Structure: KPI cards at top (metric, value, trend arrow, period comparison), "
-                    "then narrative sections for achievements, challenges, forward look. "
-                    "Charts for any metric with trend data. Tables for milestone tracking. "
-                    "Executive tone: lead with impact, support with data, end with asks. "
-                    "Total length: scannable in 3 minutes. No section longer than 5 bullet points."
+                    "Compose an executive-quality stakeholder update using these exact sections:\n"
+                    "## Key Metrics\n(table or card format: metric name, current value, change vs prior period)\n"
+                    "## Achievements\n(what shipped, closed, or completed — bulleted, max 5 items)\n"
+                    "## Challenges\n(blockers, risks, things behind schedule — each with owner and mitigation)\n"
+                    "## Forward Look\n(next period priorities, upcoming milestones, decisions needed)\n\n"
+                    "Charts for any metric with trend data. Executive tone: lead with impact, "
+                    "support with data, end with asks. "
+                    "Your output must be LONGER than the research input — you are adding structure "
+                    "and visual presentation. Minimum 400 words."
                 ),
             },
         ],

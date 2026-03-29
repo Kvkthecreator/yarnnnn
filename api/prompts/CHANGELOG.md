@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.29.3] - Quality iteration — handoff strength, section conformance, citation format
+
+### Changed
+- `services/task_pipeline.py`: Step handoff preamble rewritten. Prior step output now labeled "YOUR PRIMARY INPUT" with explicit directive: transform this research, don't ignore it, output must be longer than input. Step 1 gets a "your output is the next agent's only input" instruction.
+- `services/task_types.py`: competitive-intel-brief and stakeholder-update compose steps now specify exact markdown headers (`## Executive Summary`, `## Key Findings`, `## Achievements`, `## Challenges`). Research steps now include citation format example and minimum word count. Compose steps have minimum 400-500 word requirement.
+- Expected behavior: Step 2 should produce longer output that visibly builds on step 1. Output should use exact section headers matching quality test checks. Research steps should include inline citations in "(source: X)" format.
+
+### Context
+E2E test baseline (v1): competitive-intel-brief step 2 was 285 words (shorter than step 1's 558), 5% content overlap (step 2 appeared independent), zero citations, missing "Executive Summary" and "Key Findings" section headers.
+
+---
+
 ## [2026.03.29.2] - Output quality hardening — methodology injection, process instructions, task-aware context
 
 ### Changed
