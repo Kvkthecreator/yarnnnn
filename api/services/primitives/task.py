@@ -232,7 +232,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     task_md_content: Optional[str] = None
 
     if type_key:
-        from services.task_types import get_task_type, resolve_pipeline_agents, build_task_md_from_type
+        from services.task_types import get_task_type, resolve_process_agents, build_task_md_from_type
 
         task_type_def = get_task_type(type_key)
         if not task_type_def:
@@ -248,7 +248,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         if not input.get("mode"):
             mode = "reactive" if not schedule else "recurring"
 
-        # Resolve pipeline agents from user's roster
+        # Resolve process agents from user's roster
         agents_result = (
             auth.client.table("agents")
             .select("id, title, slug, role, status")
@@ -257,11 +257,11 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         )
         user_agents = agents_result.data or []
 
-        resolved_steps = resolve_pipeline_agents(type_key, user_agents)
+        resolved_steps = resolve_process_agents(type_key, user_agents)
         if resolved_steps:
             resolved_agent_slugs = [s["agent_slug"] for s in resolved_steps if s["agent_slug"]]
 
-        # Use first pipeline agent as primary (for backward compat)
+        # Use first process agent as primary (for single-step compat)
         if not agent_slug and resolved_agent_slugs:
             agent_slug = resolved_agent_slugs[0]
 

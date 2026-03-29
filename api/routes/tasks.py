@@ -354,7 +354,7 @@ async def list_task_types_endpoint(
 @router.get("/types/{type_key}")
 async def get_task_type_endpoint(type_key: str):
     """Get a single task type definition with full detail."""
-    from services.task_types import get_task_type, get_pipeline_agent_types
+    from services.task_types import get_task_type, get_process_agent_types
 
     task_type = get_task_type(type_key)
     if not task_type:
@@ -363,7 +363,7 @@ async def get_task_type_endpoint(type_key: str):
     return {
         "type_key": type_key,
         **task_type,
-        "pipeline_agent_types": get_pipeline_agent_types(type_key),
+        "process_agent_types": get_process_agent_types(type_key),
     }
 
 

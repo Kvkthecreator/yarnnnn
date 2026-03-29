@@ -565,9 +565,6 @@ def get_process_agent_types(type_key: str) -> list[str]:
     return [step["agent_type"] for step in task_type["process"]]
 
 
-# Backwards-compat alias — callers may still reference the old name
-get_pipeline_agent_types = get_process_agent_types
-
 
 def validate_process(type_key: str) -> list[str]:
     """Validate that all agent types in the process exist in AGENT_TYPES.
@@ -585,9 +582,6 @@ def validate_process(type_key: str) -> list[str]:
             errors.append(f"Step {i+1} ({step['step']}): unknown agent type '{agent_type}'")
     return errors
 
-
-# Backwards-compat alias
-validate_pipeline = validate_process
 
 
 def resolve_process_agents(
@@ -628,9 +622,6 @@ def resolve_process_agents(
         })
     return resolved
 
-
-# Backwards-compat alias
-resolve_pipeline_agents = resolve_process_agents
 
 
 def build_task_md_from_type(

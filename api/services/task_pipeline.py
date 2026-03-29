@@ -813,7 +813,7 @@ alongside any binary — the text is the feedback surface for user edits."""
 
 
 # =============================================================================
-# Multi-Step Pipeline Execution (ADR-145 Gate 2)
+# Multi-Step Process Execution (ADR-145 Gate 2)
 # =============================================================================
 
 async def _execute_pipeline(
@@ -825,9 +825,9 @@ async def _execute_pipeline(
     task_type_def: dict,
     started_at,
 ) -> dict:
-    """Execute a multi-step pipeline — sequential agent execution with handoffs.
+    """Execute a multi-step process — sequential agent execution with handoffs.
 
-    Each pipeline step:
+    Each process step:
     1. Resolve agent by type from user's roster
     2. Gather step-specific context (agent workspace + prior step output)
     3. Generate with step instruction merged into task objective
@@ -845,17 +845,17 @@ async def _execute_pipeline(
     )
     from services.platform_limits import check_credits, record_credits
 
-    pipeline = task_type_def["process"]
+    steps = task_type_def["process"]
     title = task_info.get("title") or task_slug
     delivery_target = task_info.get("delivery", "").strip()
 
-    logger.info(f"[PIPELINE] Starting {len(pipeline)}-step pipeline for {task_slug} (type={task_info.get('type_key')})")
+    logger.info(f"[PIPELINE] Starting {len(steps)}-step process for {task_slug} (type={task_info.get('type_key')})")
 
     # Write initial run status for frontend progress polling
     run_status = {
         "status": "running",
         "current_step": 0,
-        "total_steps": len(pipeline),
+        "total_steps": len(steps),
         "completed_steps": [],
         "started_at": started_at.isoformat(),
     }
@@ -869,7 +869,7 @@ async def _execute_pipeline(
     except Exception:
         pass  # Non-critical — progress is best-effort
 
-    # Resolve all pipeline agents upfront
+    # Resolve all process agents upfront
     agents_result = (
         client.table("agents")
         .select("*")
@@ -902,7 +902,7 @@ async def _execute_pipeline(
     total_usage = {"input_tokens": 0, "output_tokens": 0}
     all_renders: list = []
 
-    for step_idx, step in enumerate(pipeline):
+    for step_idx, step in enumerate(steps):
         step_num = step_idx + 1
         agent_type = step["agent_type"]
         step_name = step["step"]
@@ -919,7 +919,7 @@ async def _execute_pipeline(
         role = agent.get("role", "custom")
         scope = agent.get("scope", "cross_platform")
 
-        logger.info(f"[PIPELINE] Step {step_num}/{len(pipeline)}: {step_name} → {agent_slug} ({agent_type})")
+        logger.info(f"[PIPELINE] Step {step_num}/{len(steps)}: {step_name} → {agent_slug} ({agent_type})")
 
         # --- Gather context for this step ---
         ws = AgentWorkspace(client, user_id, agent_slug)
@@ -947,7 +947,7 @@ async def _execute_pipeline(
         )
 
         # Inject step-specific preamble
-        step_preamble = f"\n\n## Process Step {step_num}/{len(pipeline)}: {step_name.title()}\n"
+        step_preamble = f"\n\n## Process Step {step_num}/{len(steps)}: {step_name.title()}\n"
         step_preamble += f"Your role in this process: {step_instruction}\n"
         if step_outputs:
             prior_output = step_outputs[-1]
@@ -1042,10 +1042,10 @@ use RuntimeDispatch with the spec format described above."""
         logger.info(f"[PIPELINE] Step {step_num} complete ({usage.get('output_tokens', 0)} tokens)")
 
     # =====================================================================
-    # Post-pipeline: Save final output, compose, deliver
+    # Post-process: Save final output, compose, deliver
     # =====================================================================
     if not final_draft or not final_agent:
-        return _fail(task_slug, "Pipeline produced no output")
+        return _fail(task_slug, "Process produced no output")
 
     # Create agent_runs record for the final output
     agent_id = final_agent["id"]
@@ -1059,7 +1059,7 @@ use RuntimeDispatch with the spec format described above."""
         "model": SONNET_MODEL,
         "task_slug": task_slug,
         "type_key": task_info.get("type_key"),
-        "pipeline_steps": len(pipeline),
+        "process_steps": len(steps),
         "trigger_type": "scheduled",
     }
     await update_version_for_delivery(client, version_id, final_draft, metadata=version_metadata)
@@ -1086,7 +1086,7 @@ use RuntimeDispatch with the spec format described above."""
             "version_id": str(version_id),
             "version_number": next_version,
             "type_key": task_info.get("type_key"),
-            "pipeline_steps": len(pipeline),
+            "process_steps": len(steps),
             "tokens": total_usage,
         },
     )
@@ -1179,8 +1179,8 @@ use RuntimeDispatch with the spec format described above."""
 
     # Run log
     try:
-        pipeline_summary = " → ".join(s["step"] for s in pipeline)
-        log_entry = f"v{next_version} {final_status} (pipeline: {pipeline_summary})"
+        process_summary = " → ".join(s["step"] for s in steps)
+        log_entry = f"v{next_version} {final_status} ({process_summary})"
         if delivery_error:
             log_entry += f" — {delivery_error}"
         await tw.append_run_log(log_entry)
@@ -1210,16 +1210,16 @@ use RuntimeDispatch with the spec format described above."""
         await write_activity(
             client=client, user_id=user_id,
             event_type="task_executed",
-            summary=f"{title} v{next_version} {final_status} (pipeline: {len(pipeline)} steps)",
+            summary=f"{title} v{next_version} {final_status} ({len(steps)} steps)",
             event_ref=version_id,
             metadata={
                 "task_slug": task_slug,
                 "type_key": task_info.get("type_key"),
-                "pipeline_steps": len(pipeline),
-                "agent_slugs": [s.get("agent_type") for s in pipeline],
+                "process_steps": len(steps),
+                "agent_slugs": [s.get("agent_type") for s in steps],
                 "step_details": [
                     {"step": i + 1, "step_name": s.get("step", f"step-{i+1}"), "agent_type": s.get("agent_type")}
-                    for i, s in enumerate(pipeline)
+                    for i, s in enumerate(steps)
                 ],
                 "final_status": final_status,
                 "duration_ms": duration_ms,
@@ -1231,7 +1231,7 @@ use RuntimeDispatch with the spec format described above."""
         pass
 
     logger.info(
-        f"[PIPELINE] Complete: {task_slug} → {len(pipeline)} steps, v{next_version} "
+        f"[PIPELINE] Complete: {task_slug} → {len(steps)} steps, v{next_version} "
         f"{final_status} ({duration_ms}ms, {total_usage['input_tokens']+total_usage['output_tokens']} tokens)"
     )
 
@@ -1239,13 +1239,13 @@ use RuntimeDispatch with the spec format described above."""
         "success": final_status == "delivered",
         "task_slug": task_slug,
         "type_key": task_info.get("type_key"),
-        "pipeline_steps": len(pipeline),
+        "process_steps": len(steps),
         "agent_slug": final_agent_slug,
         "run_id": version_id,
         "version_number": next_version,
         "status": final_status,
         "duration_ms": duration_ms,
-        "message": f"v{next_version} {final_status} (pipeline: {len(pipeline)} steps)",
+        "message": f"v{next_version} {final_status} ({len(steps)} steps)",
     }
 
 
