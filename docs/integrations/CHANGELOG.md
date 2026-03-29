@@ -1,6 +1,39 @@
 # Integration Changelog
 
-Track changes to platform integrations, MCP servers, and discovered quirks.
+Track changes to platform integrations and platform perception infrastructure.
+
+---
+
+## 2026-03-29
+
+### GitHub Platform Integration (ADR-147)
+
+**New Platform**:
+- GitHub added as third content platform (Slack + Notion + GitHub)
+- Framing: **perception source for work artifacts** — issues and PRs as knowledge, not code editing
+- OAuth App model with `repo` + `read:user` scopes
+- Token refresh support (GitHub tokens can expire, unlike Slack/Notion)
+
+**Sync**:
+- Issues: open + recently updated, with top 5 comments for context
+- Pull Requests: open + merged, with branch/state metadata
+- Incremental cursor via `updated_at` per repo, 6-month lookback on first sync
+- Heartbeat check via GitHub events API (skip full sync when nothing changed)
+- 14-day TTL (same as Slack — re-fetchable content)
+
+**TP Tools** (read-only — context exploration, not platform action):
+- `platform_github_list_repos` — see connected repos
+- `platform_github_get_issues` — read issues/PRs from a repo
+
+**Tier Limits**: Free 3 repos, Pro unlimited. `total_platforms` bumped to 3.
+
+**Frontend**: GitHub card in Settings → Connected Platforms. Icon, types, onboarding prompt.
+
+**Documentation**: PLATFORM-INTEGRATIONS.md rewritten with "platforms are perception" framing. Removed stale Gmail/Calendar/MCP Gateway/Starter tier references.
+
+**Intentionally excluded**: source code, diffs, CI/CD, releases, commits — operational noise, not compounding knowledge.
+
+**Files**: `github_client.py`, `oauth.py`, `platform_worker.py`, `landscape.py`, `platform_tools.py`, `platform_limits.py`, `types.py`, `ConnectedIntegrationsSection.tsx`, `PlatformIcons.tsx`, `PlatformCard.tsx`, `PlatformFilter.tsx`, `types/index.ts`, `client.ts`.
 
 ---
 

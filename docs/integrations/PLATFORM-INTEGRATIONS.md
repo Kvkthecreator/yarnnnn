@@ -1,330 +1,220 @@
 # Platform Integrations Architecture
 
-> Backend infrastructure documentation for YARNNN platform integrations.
-> Updated 2026-02-23 per ADR-073 (Unified Fetch Architecture).
+> How YARNNN perceives the outside world. Updated 2026-03-29 per ADR-147 (GitHub).
 
-## Overview
+## First Principle: Platforms Are Perception, Not Action
 
-YARNNN integrates with four external platforms. All platform data flows through a **single fetch path** that writes to `platform_content` (ADR-072). All downstream consumers (TP, agents, scheduling heuristics) read from `platform_content` — they do not call external APIs.
+YARNNN is not a Slack client, not a Notion editor, not a code editor. Platforms are **how agents sense the world** — the perception layer that feeds context into the generation pipeline. The primary flow is always:
 
-| Platform | OAuth Provider | Transport | Fetch → `platform_content` | TP Tools (Real-Time) | Agent Source | Agent Export |
-|----------|---------------|-----------|---------------------------|---------------------|-------------------|-------------------|
-| Slack | slack | MCP Gateway | Yes | Yes | Yes (reads `platform_content`) | Yes |
-| Gmail | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
-| Calendar | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
-| Notion | notion | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
+```
+External platform → sync → platform_content → agent context → generated output
+```
 
-## Tier Limits (ADR-053)
+This means:
+- **Read/sync is the core contract.** Every platform must write to `platform_content` via the sync pipeline.
+- **Write-back is secondary and scoped.** Where write tools exist (Slack DM, Notion comment), they serve delivery — getting agent output back to the user in their existing workflow. They are not general-purpose platform manipulation.
+- **TP tools are for context, not creation.** TP's platform tools help the user explore what agents can see ("show me my Slack channels", "what issues are open?"), not replace platform-native workflows.
 
-| Gate | Free | Starter | Pro |
-|------|------|---------|-----|
-| Platform connections | All 4 | All 4 | All 4 |
-| Sources per platform | 2 | 5 | Unlimited |
-| Sync frequency | 1x/day (8am) | 4x/day | Hourly |
-| Active agents | 2 | 5 | Unlimited |
-| Signal processing | Off | On | On |
-| TP daily token budget | 50k | 250k | Unlimited |
-| Calendar source selection | N/A (all calendars) | N/A | N/A |
+## Connected Platforms
 
-**Primary cost gates** (ordered by cost impact):
-1. **Signal processing** — Haiku + potential Sonnet spend per user per cycle; off for free tier
-2. **Daily token budget** — TP conversations consume tokens; direct mapping to Anthropic API spend
-3. **Active agents** — Each agent run consumes Sonnet tokens
-4. **Sources per platform** — More sources = more API calls and storage
-5. **Sync frequency** — More frequent syncs = more API calls
+Three platforms, each representing a distinct knowledge domain:
 
-**Enforcement locations**:
-- Source limits: `platform_limits.py` → `check_source_limit()`, `validate_sources_update()`
-- Token budget: `chat.py` → `check_daily_token_budget()` via SQL RPC `get_daily_token_usage()`
-- Signal processing: `unified_scheduler.py` (skip free), `signal_processing.py` route (403)
-- Agent limits: `signal_processing.py` service → `check_agent_limit()`
-- Sync frequency: `platform_limits.py` → `SYNC_SCHEDULES`, checked in scheduler
+| Platform | Domain | What Agents See | Primary Value |
+|----------|--------|----------------|---------------|
+| **Slack** | Communication | Messages, threads, reactions | Who said what, decisions made, team sentiment |
+| **Notion** | Documentation | Pages, databases, structured content | Knowledge base, specs, plans, reference material |
+| **GitHub** | Code & Work | Issues, pull requests, project activity | What's being built, what's blocked, what shipped |
 
----
+ADR-131 (Gmail/Calendar Sunset) established the bar: platforms must **compound knowledge** — persistent, accumulating, decision-dense content. All three current platforms pass this test. GitHub issues and PRs are especially knowledge-dense: they contain decision rationale, cross-references, and evolve over time.
 
-## Data Flow Architecture (ADR-073)
+### Platform Classification
+
+| Aspect | Slack | Notion | GitHub |
+|--------|-------|--------|--------|
+| Content type | Stream (temporal) | Document (persistent) | Hybrid (issues evolve, PRs have lifecycle) |
+| Sync model | Incremental (message `ts` cursor) | Change detection (`last_edited_time`) | Incremental (`updated_at` cursor) |
+| Source unit | Channel | Page / Database | Repository |
+| TTL | 14 days | 90 days | 14 days |
+| Token expiry | Never (bot token) | Never | Can expire (refresh supported) |
+| TP read tools | list_channels, get_channel_history | search, get_page | list_repos, get_issues |
+| TP write tools | send_message (DM to self) | create_comment (designated page) | None (read-only MVP) |
+| Delivery export | Channel post, thread, Block Kit, DM | Child page, database item, draft | Issue creation (Phase 2) |
+
+## Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ FETCH LAYER (singular — only subsystem calling external APIs)       │
+│ PERCEPTION LAYER (only subsystem calling external APIs)             │
 │                                                                     │
-│ platform_sync_scheduler.py (cron */5, tier-gated)                   │
+│ platform_sync_scheduler.py (cron, tier-gated)                       │
 │   └─ platform_worker.py                                             │
-│        ├─ _sync_slack()     → MCP Gateway → Slack API               │
-│        ├─ _sync_gmail()     → GoogleAPIClient → Gmail API v1        │
-│        ├─ _sync_calendar()  → GoogleAPIClient → Calendar API v3     │
-│        └─ _sync_notion()    → NotionAPIClient → Notion API          │
+│        ├─ _sync_slack()     → SlackAPIClient   → Slack Web API      │
+│        ├─ _sync_notion()    → NotionAPIClient  → Notion REST API    │
+│        └─ _sync_github()    → GitHubAPIClient  → GitHub REST API v3 │
 │                                                                     │
-│ Writes ALL content to platform_content table.                       │
+│ All content → platform_content table (single source of truth).      │
 │ Content starts ephemeral (retained=false, TTL set).                 │
-│ Tier gates: Free=1x/day, Starter=4x/day, Pro=hourly (ADR-053).     │
+│ ADR-112: Atomic sync lock prevents overlapping syncs.               │
+│ ADR-112: Heartbeat fast-path skips full sync when nothing changed.  │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │ writes to
                            ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ CONTENT LAYER (platform_content — single source of truth)           │
+│ CONTENT LAYER (platform_content — perception substrate)             │
 │                                                                     │
-│ Storage:   store_platform_content(), batch writers                   │
-│ Readers:   get_platform_content(), get_content_for_agent(),   │
-│            get_content_summary_for_generation(),                     │
-│            search_platform_content() (pgvector semantic search)      │
-│ Retention: mark_content_retained() when content is consumed         │
-│ Cleanup:   cleanup_expired_content() removes TTL-expired rows       │
+│ Storage:   _store_content() in platform_worker.py                   │
+│ Search:    search_platform_content() (pgvector semantic search)     │
 │ Freshness: has_fresh_content_since() for scheduling decisions       │
-└──────────┬──────────────────┬────────────────────┬──────────────────┘
-           │                  │                    │
-           ▼                  ▼                    ▼
-   TP Chat (Sonnet)    Agent Exec     Scheduling Heuristics
-   (real-time,         (Sonnet synthesis,    (rules + freshness,
-    user-initiated)     system-triggered)     no LLM — decides
-                                              WHEN to trigger)
+│ Retention: mark_content_retained() when consumed by agent           │
+│ Cleanup:   cleanup_expired_content() removes TTL-expired rows       │
+└──────────┬──────────────────┬────────────────────────────────────────┘
+           │                  │
+           ▼                  ▼
+   TP Chat (context)    Task Pipeline (generation)
+   (user explores        (agents consume context
+    what agents see)      to produce output)
 ```
 
-### TP Real-Time Tools (Separate Path)
+### TP Tools: Context Exploration, Not Platform Action
 
-TP tools (Slack send message, Gmail send/draft, Calendar create/update/delete) are **write operations** that go directly to platform APIs. These are not part of the fetch pipeline — they are user-initiated actions through TP, not data retrieval.
+TP's platform tools let users explore what the perception layer sees. They are **not** replacements for native platform UIs.
 
-Read-oriented TP tools (search, list) should migrate to reading from `platform_content` where feasible. Some real-time reads (e.g., checking current calendar availability for scheduling) may continue to use live APIs where freshness is critical.
+| Tool | Purpose | Category |
+|------|---------|----------|
+| `platform_slack_list_channels` | See what Slack channels are visible | Context exploration |
+| `platform_slack_get_channel_history` | Read recent messages from a channel | Context exploration |
+| `platform_slack_send_message` | Send DM to self (output delivery) | Delivery |
+| `platform_notion_search` | Find pages in connected workspace | Context exploration |
+| `platform_notion_get_page` | Read page content | Context exploration |
+| `platform_notion_create_comment` | Comment on designated page (output delivery) | Delivery |
+| `platform_github_list_repos` | See connected repositories | Context exploration |
+| `platform_github_get_issues` | Read issues and PRs from a repo | Context exploration |
 
-```
-TP Write Tools: platform_tools.py → direct platform APIs (Slack, Gmail, Calendar, Notion)
-TP Read Context: working_memory.py → platform_content table
-```
-
----
+**Delivery tools** (Slack DM, Notion comment) are the exception — they exist to push agent output back to where the user already works. They are scoped to "self" destinations by default (your DM, your designated page).
 
 ## Per-Platform Specifications
 
-### Slack (MCP Gateway)
+### Slack
 
-**OAuth Config**: [oauth.py](../../api/integrations/core/oauth.py)
-```
-Scopes: chat:write, channels:read, channels:history, channels:join,
-        groups:read, groups:history, users:read, im:write
-```
+**Transport**: Direct API (`SlackAPIClient`)
+**OAuth Scopes**: `chat:write`, `channels:read`, `channels:history`, `channels:join`, `groups:read`, `groups:history`, `users:read`, `im:write`
+**Token**: Bot token (`xoxb-...`), never expires
+**Storage**: `credentials_encrypted`
 
-**Credential Storage**: `credentials_encrypted` → JSON `{bot_token, team_id}`
-**Decryption**: `TokenManager.decrypt()` → `json.loads()`
-**Token Expiry**: Slack bot tokens do not expire.
-
-**Fetch Spec (platform_worker)**:
+**Sync Spec**:
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` — auto-populated by member count desc (ADR-079) |
-| Time window | All recent messages (no time filter currently — sync token will add `oldest` param) |
-| Items per source | 50 messages per channel |
-| Content stored | Full message text, user, ts, reactions, thread metadata |
-| Content type | `message`, `thread_parent`, `thread_reply` |
-| TTL | 7 days |
-| Sync token | Slack `oldest` param — store last fetched `ts` per channel in `sync_registry` |
-
-**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
-- `platform_slack_send_message` — Send DM to user
-- `platform_slack_list_channels` — List available channels
-
----
-
-### Gmail (Direct API)
-
-**OAuth Config**: Part of unified Google OAuth
-```
-Scopes: gmail.readonly, gmail.send, gmail.compose, gmail.modify
-```
-
-**Credential Storage**: `refresh_token_encrypted`
-**Decryption**: `TokenManager.decrypt()` → refresh token → `GoogleAPIClient._get_access_token()` (1-hour cache)
-**Token Expiry**: Access tokens expire in 1 hour. Refresh handled automatically with caching.
-
-**Fetch Spec (platform_worker)**:
-
-| Aspect | Value |
-|--------|-------|
-| Source filter | `landscape.selected_sources` — auto-populated with INBOX, SENT, STARRED, IMPORTANT, then user labels (ADR-079) |
-| Time window | Last 7 days (recency filter) |
-| Items per source | 50 messages per label (full message fetch via `get_message`) |
-| Content stored | Subject + body snippet (up to 10,000 chars), headers, thread_id |
-| Content type | `email` |
+| Source unit | Channel (public + private the bot can see) |
+| Content synced | Messages, threads (reply_count >= 2), reactions |
+| Content types | `message`, `thread_parent`, `thread_reply` |
+| Cursor | `oldest` ts per channel in `sync_registry` |
 | TTL | 14 days |
-| Sync token | Gmail `historyId` — store per label in `sync_registry`, use `history.list` for delta |
+| Auto-selection | Score by: work-signal name patterns, member count, purpose text (ADR-079) |
 
-**TP Tools**:
-- `platform_gmail_search` — Search messages with Gmail query syntax
-- `platform_gmail_get_thread` — Get full email thread
-- `platform_gmail_send` — Send email
-- `platform_gmail_create_draft` — Create draft for user review
+### Notion
 
----
+**Transport**: Direct API (`NotionAPIClient`)
+**OAuth**: Notion's built-in OAuth (no scope parameter — capabilities set on dev dashboard)
+**Token**: OAuth access token, never expires
+**Storage**: `credentials_encrypted`
 
-### Calendar (Direct API)
+**Why Direct API**: Notion MCP servers require internal `ntn_...` tokens, not OAuth tokens. Direct API works with our OAuth flow.
 
-**OAuth Config**: Shares Google OAuth with Gmail
-```
-Scopes: calendar.readonly, calendar.events.readonly, calendar.events
-```
-
-**Credential Storage**: Same as Gmail (`refresh_token_encrypted` on `google` platform connection)
-**Token Expiry**: Same as Gmail.
-
-**Fetch Spec (platform_worker)**:
+**Sync Spec**:
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` — ALL calendars auto-selected, unlimited in all tiers (ADR-079) |
-| Time window | Next 7 days |
-| Items per source | 50 events per calendar |
-| Content stored | Title, description, location, start/end, attendees, htmlLink |
-| Content type | `event` |
-| TTL | 1 day (events are time-sensitive; re-fetched each cycle) |
-| Sync token | Calendar `syncToken` — store per calendar in `sync_registry` |
+| Source unit | Page or Database |
+| Content synced | Full page text (recursive block extraction), database items |
+| Content types | `page`, `database_item` |
+| Cursor | `last_edited_time` comparison — skip unchanged pages |
+| TTL | 90 days |
+| Auto-selection | Score by: databases > pages, workspace-level > nested, recent > stale (ADR-079) |
 
-**Note**: Calendar's short TTL (1 day) means Pro users (hourly sync) see near-real-time event data. Free users (1x/day) may see stale event info. This is an intentional monetization lever. Calendar source selection is disabled (calendars=-1) — all visible calendars sync.
+### GitHub (ADR-147)
 
-**TP Tools**:
-- `platform_calendar_list_events` — List upcoming events with time filters
-- `platform_calendar_get_event` — Get event details with attendees
-- `platform_calendar_create_event` — Create new calendar events
-- `platform_calendar_update_event` — Modify existing events
-- `platform_calendar_delete_event` — Delete events (with confirmation)
+**Transport**: Direct API (`GitHubAPIClient`)
+**OAuth**: GitHub OAuth App, scopes `repo` + `read:user`
+**Token**: OAuth access token, **can expire** — transparent refresh via `refresh_token_encrypted`
+**Storage**: `credentials_encrypted` + `refresh_token_encrypted`
 
----
+**Conceptual framing**: GitHub is a **work-artifact perception source**, not a code editing interface. YARNNN reads issues and PRs as knowledge artifacts — decisions, blockers, progress, and context — the same way it reads Slack messages or Notion pages. The value is in understanding *what work is happening*, not in manipulating code.
 
-### Notion (Direct API)
+**What agents see from GitHub**:
+- Open/closed issues with labels, assignees, and comment threads → *what's being worked on, what's blocked*
+- Pull requests with state, branches, and descriptions → *what shipped, what's in review*
+- Comment threads → *decision rationale, technical context*
 
-**OAuth Config**: Notion's built-in OAuth (no scopes needed)
+**What agents do NOT see** (intentionally):
+- Source code / diffs — too granular, already in PRs as descriptions
+- CI/CD workflows — operational noise, not knowledge
+- Releases — often auto-generated, low signal
+- Commits — summarized in PR descriptions
 
-**Credential Storage**: `credentials_encrypted` → access token
-**Decryption**: `TokenManager.decrypt()`
-**Token Expiry**: Notion OAuth tokens do not expire.
-
-**Why Direct API (not MCP)**:
-- `@notionhq/notion-mcp-server` requires internal `ntn_...` integration tokens, not OAuth tokens
-- Notion's hosted MCP manages its own OAuth sessions — no way to inject ours
-- `NotionAPIClient` handles all Notion REST operations with our OAuth tokens
-
-**Fetch Spec (platform_worker)**:
+**Sync Spec**:
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` — auto-populated by last_edited desc, deprioritizing Untitled (ADR-079) |
-| Time window | Full page content (no time window — pages are documents, not streams) |
-| Items per source | 1 page = 1 item (page metadata + all content blocks) |
-| Content stored | Full plain text extraction from all block types |
-| Content type | `page` |
-| TTL | 30 days |
-| Sync token | `last_edited_time` comparison — skip re-fetch if page hasn't changed |
+| Source unit | Repository (`owner/repo`) |
+| Content synced | Issues (open + recently updated) + top 5 comments; PRs (open + merged) |
+| Content types | `issue`, `pull_request` |
+| Cursor | `updated_at` per repo, 6-month lookback on first sync |
+| TTL | 14 days (re-fetchable from API) |
+| Rate limiting | 5,000 req/hr per token; back off at <100 remaining |
+| Auto-selection | Score by: user-owned > forks, active > stale, open issues > empty repos (ADR-079) |
+| Token refresh | Automatic on 401 — exchange refresh_token for new access_token, update DB |
 
-**TP Tools**:
-- `platform_notion_search` — Search pages/databases
-- `platform_notion_create_comment` — Add comments
+**Token Refresh** (new pattern for GitHub, not needed by Slack/Notion):
+```
+API call → 401 response
+  → Decrypt refresh_token_encrypted
+    → POST github.com/login/oauth/access_token (grant_type=refresh_token)
+      → Encrypt new tokens → Update platform_connections
+        → Retry original request
+```
 
----
+## Tier Limits (ADR-100)
 
-## OAuth Provider Mapping
+| Gate | Free | Pro ($19/mo) |
+|------|------|-------------|
+| Platform connections | All 3 | All 3 |
+| Slack channels | 5 | Unlimited |
+| Notion pages | 10 | Unlimited |
+| GitHub repos | 3 | Unlimited |
+| Sync frequency | 1x/day | Hourly |
+| Monthly messages | 150 | Unlimited |
+| Active tasks | 2 | 10 |
+| Monthly work credits | 20 | 500 |
 
-| Frontend Display | Backend `platform` Column | OAuth Flow | Notes |
-|-----------------|--------------------------|------------|-------|
-| Slack | `slack` | Slack OAuth | Separate OAuth provider |
-| Gmail | `google` | Google OAuth | Single Google OAuth grants Gmail + Calendar |
-| Calendar | `google` | Google OAuth | Same connection as Gmail, no separate OAuth |
-| Notion | `notion` | Notion OAuth | Separate OAuth provider |
-
-**Legacy Note**: Older records may have `gmail` as the platform value. Backend handles both `google` and `gmail` for Google-sourced integrations.
-
----
+**Enforcement**: `api/services/platform_limits.py` — `TIER_LIMITS`, `PROVIDER_LIMIT_MAP`, source limit checks.
 
 ## Token Management
 
-### Token Types
-
-| Platform | Storage Column | Token Type | Expiry |
-|----------|---------------|------------|--------|
-| Slack | `credentials_encrypted` | Bot token (JSON) | Never |
-| Gmail | `refresh_token_encrypted` | OAuth refresh token | Never (access token: 1 hour) |
-| Calendar | `refresh_token_encrypted` | Same as Gmail | Same as Gmail |
-| Notion | `credentials_encrypted` | OAuth access token | Never |
-
-### Google Token Caching (Phase 1 Hardening)
-
-Google access tokens are cached in-memory per refresh token:
-```
-GoogleAPIClient._token_cache: dict[refresh_token → (access_token, expires_at_monotonic)]
-```
-
-- Cache TTL: refresh 60 seconds before expiry
-- Cache scope: per-process (acceptable for single-instance Render deployment)
-- All API calls use `_request_with_retry` with `httpx.Timeout(30.0, connect=10.0)`
-- Retry: exponential backoff (1s, 2s, 4s) on 429/5xx, 3 max attempts
-
----
-
-## Sync Pipeline
-
-### Trigger
-
-`platform_sync_scheduler.py` runs every 5 minutes (Render cron). Checks which users are due for sync based on tier:
-
-| Tier | Sync Frequency | Min Interval Between Syncs |
-|------|---------------|---------------------------|
-| Free | 1x daily (8am) | 20 hours |
-| Starter | 4x daily | 4 hours |
-| Pro | Hourly | 45 minutes |
-
-### Execution Flow
-
-```
-platform_sync_scheduler.py
-  → get_users_due_for_sync(): query platform_connections, check tier, check sync_registry freshness
-  → process_user_sync(): for each due user
-      → _get_selected_sources(): read landscape.selected_sources per provider
-      → sync_platform(): call platform_worker per provider
-          → _sync_{slack,gmail,notion,calendar}(): fetch from API
-              → _store_platform_content(): upsert to platform_content table
-          → update last_synced_at on platform_connections
-          → write activity_log event (platform_synced)
-```
-
-### Deduplication Strategy
-
-1. **Fetch-level (sync tokens)**: Only request changes since last sync cursor. Reduces API call volume.
-2. **Store-level (content_hash)**: Upsert on `(user_id, platform, resource_id, item_id, content_hash)`. Same content = no new row. Changed content = new row (previous version remains until TTL).
-
-### Content Lifecycle (ADR-072)
-
-```
-Fetched → Stored (ephemeral, TTL set)
-              ↓
-         Consumed by agent/TP → mark_content_retained()
-              ↓
-         Retained (no TTL, persists)
-
-         OR
-
-         Not consumed → TTL expires → cleanup_expired_content() deletes
-```
-
----
+| Platform | Storage Column | Token Type | Expiry | Refresh |
+|----------|---------------|------------|--------|---------|
+| Slack | `credentials_encrypted` | Bot token | Never | N/A |
+| Notion | `credentials_encrypted` | OAuth access token | Never | N/A |
+| GitHub | `credentials_encrypted` | OAuth access token | Can expire | `refresh_token_encrypted` → auto-refresh on 401 |
 
 ## Environment Variables
 
 ```bash
-# Slack
-SLACK_CLIENT_ID=
-SLACK_CLIENT_SECRET=
+# Slack (API service + schedulers decrypt from DB)
+SLACK_CLIENT_ID=       # API only (OAuth initiation)
+SLACK_CLIENT_SECRET=   # API only (OAuth initiation)
 
-# Notion
-NOTION_CLIENT_ID=
-NOTION_CLIENT_SECRET=
+# Notion (schedulers need these for Notion API calls)
+NOTION_CLIENT_ID=      # API + Unified Scheduler + Platform Sync
+NOTION_CLIENT_SECRET=  # API + Unified Scheduler + Platform Sync
 
-# Google (Gmail + Calendar)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+# GitHub (API only — schedulers use encrypted tokens from DB)
+GITHUB_CLIENT_ID=      # API only (OAuth initiation)
+GITHUB_CLIENT_SECRET=  # API only (OAuth initiation)
 
-# Encryption
-INTEGRATION_ENCRYPTION_KEY=  # Required — missing raises ValueError at startup
+# Encryption (all services that decrypt tokens)
+INTEGRATION_ENCRYPTION_KEY=  # API + Unified Scheduler + Platform Sync
 ```
-
----
 
 ## Key Files
 
@@ -332,37 +222,34 @@ INTEGRATION_ENCRYPTION_KEY=  # Required — missing raises ValueError at startup
 |---------|------|
 | Sync scheduler | `api/jobs/platform_sync_scheduler.py` |
 | Sync worker | `api/workers/platform_worker.py` |
-| Content storage (ADR-072) | `api/services/platform_content.py` |
-| Google API client | `api/integrations/core/google_client.py` |
+| Slack API client | `api/integrations/core/slack_client.py` |
 | Notion API client | `api/integrations/core/notion_client.py` |
-| MCP client (Slack) | `api/integrations/core/client.py` |
+| GitHub API client | `api/integrations/core/github_client.py` |
 | Token management | `api/integrations/core/tokens.py` |
 | OAuth flows | `api/integrations/core/oauth.py` |
 | TP platform tools | `api/services/platform_tools.py` |
+| Landscape discovery | `api/services/landscape.py` |
 | Tier limits | `api/services/platform_limits.py` |
 | Freshness tracking | `api/services/freshness.py` |
 
----
-
 ## Adding New Platforms
 
-With ADR-073, new platforms follow a single pattern:
+1. **Start with the question**: What persistent, compounding knowledge does this platform hold? If the answer is "ephemeral data" or "operational noise," don't add it (ADR-131 lesson).
+2. **OAuth**: Add provider config to `oauth.py`
+3. **API Client**: Create `integrations/core/{platform}_client.py` (Direct API pattern — no MCP)
+4. **Sync Worker**: Add `_sync_{platform}()` to `platform_worker.py` with cursor strategy
+5. **Landscape**: Add discovery + scoring to `landscape.py`
+6. **Limits**: Add source limit field to `PlatformLimits` + `PROVIDER_LIMIT_MAP`
+7. **TP Tools** (read-only): Add context exploration tools to `platform_tools.py`
+8. **Delivery** (optional, later): Add exporter for write-back if the platform is a natural delivery destination
 
-1. **OAuth**: Add provider config to `oauth.py`
-2. **API Client**: Create `integrations/core/{platform}_client.py`
-3. **Sync Worker**: Add `_sync_{platform}()` to `platform_worker.py`
-4. **Content Storage**: Define content_type, TTL, and sync token strategy
-5. **TP Tools** (optional): Add to `platform_tools.py` for real-time user actions
-6. **Delivery** (optional): Add exporter for write-back operations
-
-All read operations by TP and agents automatically work via `platform_content` — no per-platform integration needed for reads.
-
----
+All read operations by TP and agents automatically work via `platform_content` — no per-platform integration needed for downstream consumers.
 
 ## Related Documentation
 
-- [ADR-073: Unified Fetch Architecture](../adr/ADR-073-unified-fetch-architecture.md) — current architecture
-- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — `platform_content` schema
-- [ADR-056: Per-Source Sync](../adr/ADR-056-per-source-sync-implementation.md) — selected_sources model
-- [ADR-053: Platform Sync as Monetization](../adr/ADR-053-platform-sync-monetization.md) — tier-based sync frequency
-- [Phase 1 Technical Debt](../development/PHASE-1-TECHNICAL-DEBT.md) — credential/resilience hardening
+- [ADR-147: GitHub Platform Integration](../adr/ADR-147-github-platform-integration.md)
+- [ADR-131: Gmail & Calendar Sunset](../adr/ADR-131-gmail-calendar-sunset.md)
+- [ADR-077: Platform Sync Overhaul](../adr/ADR-077-platform-sync-overhaul.md)
+- [ADR-112: Sync Efficiency & Concurrency Control](../adr/ADR-112-sync-efficiency-concurrency-control.md)
+- [ADR-079: Smart Auto-Selection](../adr/archive/ADR-079-smart-auto-selection-heuristic.md)
+- [ADR-056: Per-Source Sync](../adr/ADR-056-per-source-sync-implementation.md)
