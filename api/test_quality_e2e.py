@@ -47,34 +47,29 @@ TEST_CASES = [
     {
         "type_key": "competitive-intel-brief",
         "focus": "AI agent platforms",
-        "description": "2-step (research→content), document layout, charts expected",
+        "description": "1-step (research agent), document layout, charts + citations expected",
         "quality_checks": {
-            "min_words": 300,
+            "min_words": 1000,
             "required_sections": ["executive summary", "key findings", "implications"],
             "expects_citations": True,
-            "expects_structure": True,  # numbered findings, not wall of text
+            "expects_structure": True,
             "layout_mode": "document",
-            "multi_step": True,
+            "multi_step": False,
         },
     },
     {
         "type_key": "stakeholder-update",
         "focus": "YARNNN AI platform progress",
-        "description": "2-step (research→content), dashboard layout, KPI cards expected",
+        "description": "1-step (content agent), dashboard layout, metrics + sections expected",
         "quality_checks": {
-            "min_words": 200,
+            "min_words": 800,
             "required_sections": ["achievements", "challenges"],
             "expects_citations": False,
             "expects_structure": True,
             "layout_mode": "dashboard",
-            "multi_step": True,
+            "multi_step": False,
         },
     },
-    # slack-recap skipped — requires real Slack connection + synced platform_content
-    # {
-    #     "type_key": "slack-recap",
-    #     ...
-    # },
 ]
 
 

@@ -52,33 +52,22 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "investigate",
+                "step": "research-and-compose",
                 "instruction": (
-                    "Investigate the competitive landscape using web search and platform context. "
-                    "Minimum 3 competitors covered. For each: recent moves (product, pricing, hiring, funding), "
-                    "strategic positioning, and threat/opportunity assessment. "
-                    "Every claim needs an inline source citation in this format: "
-                    "'Revenue grew 23% (source: Q4 2025 earnings call)' or "
-                    "'Launched enterprise tier in January (source: company blog, 2025-01-15)'. "
-                    "Prefer sources <90 days old. Cross-reference — single-source claims are signals, not findings. "
-                    "Structure output as: landscape overview, per-competitor analysis, emerging patterns. "
-                    "Be thorough — minimum 500 words. The next agent depends entirely on your research."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Transform the research into a polished competitive intelligence brief. "
-                    "Use these exact markdown headers in this order:\n"
+                    "Produce a comprehensive competitive intelligence brief. "
+                    "First investigate using web search and platform context, then compose the full deliverable.\n\n"
+                    "RESEARCH PHASE: Cover minimum 3 competitors. For each: recent moves (product, pricing, "
+                    "hiring, funding), strategic positioning, threat/opportunity assessment. "
+                    "Prefer sources <90 days old. Cross-reference — single-source claims are signals, not findings.\n\n"
+                    "OUTPUT: Use these exact markdown headers:\n"
                     "## Executive Summary\n(3 sentences — the insight, not the process)\n"
-                    "## Key Findings\n(numbered list, each finding has inline evidence: 'Revenue grew 23% (source: Q4 filing)')\n"
-                    "## Competitive Positioning\n(mermaid quadrant or comparison diagram)\n"
-                    "## Trend Analysis\n(chart for any quantified trend data from the research)\n"
-                    "## Implications\n(what this means for our strategy — actionable, not observational)\n"
-                    "## Sources\n(list all sources cited above)\n\n"
-                    "Your output must be LONGER than the research input — you are adding structure, "
-                    "visuals, and interpretation, not condensing. Minimum 500 words."
+                    "## Key Findings\n(numbered list, each with inline citation: 'Revenue grew 23% (source: Q4 filing)')\n"
+                    "## Competitive Positioning\n(include a mermaid quadrant or comparison diagram)\n"
+                    "## Trend Analysis\n(include a chart for any quantified trend data)\n"
+                    "## Implications\n(what this means for our strategy — actionable, specific)\n"
+                    "## Sources\n(list all sources cited)\n\n"
+                    "Target: 2000-3000 words. Every claim needs an inline source citation. "
+                    "Use charts and mermaid diagrams where data supports visual communication."
                 ),
             },
         ],
@@ -103,26 +92,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "investigate",
+                "step": "research-and-compose",
                 "instruction": (
-                    "Conduct deep investigation on the assigned topic. Use web search + workspace knowledge. "
-                    "Cover: market size/growth, key players (top 5-10), technology trends, regulatory environment, "
-                    "and demand drivers. Quantify where possible (%, $, growth rates). "
-                    "Source hierarchy: primary (reports, filings) > secondary (articles, analyses). "
-                    "Prefer data <12 months old. Flag conflicting data points explicitly. "
-                    "Structure: landscape overview, market dynamics, key players, trends, data tables."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Transform research into a comprehensive market report. "
-                    "Required sections: Executive Summary (conclusion first), Market Overview (size + growth chart), "
-                    "Competitive Landscape (mermaid positioning map + player comparison table), "
-                    "Trend Analysis (trend charts with interpretation), Opportunities & Risks, Recommendations. "
-                    "Every data-heavy section gets a chart or table. "
-                    "Lead with insights, support with data — not the reverse."
+                    "Produce a comprehensive market research report. "
+                    "Investigate using web search + workspace knowledge, then compose the full deliverable.\n\n"
+                    "RESEARCH: Cover market size/growth, key players (top 5-10), technology trends, "
+                    "regulatory environment, demand drivers. Quantify (%, $, growth rates). "
+                    "Primary sources (reports, filings) > secondary (articles). Data <12 months preferred.\n\n"
+                    "OUTPUT: Use these exact sections:\n"
+                    "## Executive Summary\n(conclusion first, not process)\n"
+                    "## Market Overview\n(size, growth rate — include a chart for market growth)\n"
+                    "## Competitive Landscape\n(mermaid positioning map + player comparison table)\n"
+                    "## Trend Analysis\n(trend charts with 1-sentence interpretation each)\n"
+                    "## Opportunities & Risks\n(table format: opportunity/risk, evidence, impact)\n"
+                    "## Recommendations\n(specific, actionable, prioritized)\n"
+                    "## Sources\n\n"
+                    "Target: 2500-4000 words. Every data-heavy section gets a chart or table. "
+                    "Lead with insights, support with data."
                 ),
             },
         ],
@@ -147,24 +133,20 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "scan",
+                "step": "scan-and-analyze",
                 "instruction": (
-                    "Scan web and connected platforms for industry signals this cycle. "
-                    "Signal types (priority order): pricing changes > product launches > funding rounds > "
-                    "leadership changes > hiring patterns > partnership announcements. "
-                    "For each signal: who, what, when, and a 1-sentence 'so what' assessment. "
-                    "Flag the 3-5 most significant. Drop noise — not everything is worth reporting."
-                ),
-            },
-            {
-                "agent_type": "research",
-                "step": "deep-dive",
-                "instruction": (
-                    "Take the top 2-3 flagged signals and investigate in depth. For each: "
-                    "validate the claim with a second source, gather additional context, "
+                    "Produce an industry signal report. Scan web and platforms, then analyze.\n\n"
+                    "SCAN: Signal types (priority): pricing changes > product launches > funding rounds > "
+                    "leadership changes > hiring patterns > partnerships. "
+                    "For each signal: who, what, when, 1-sentence 'so what'. Drop noise.\n\n"
+                    "DEEP-DIVE: Take top 2-3 signals and investigate. Validate with second source, "
                     "assess strategic impact (high/medium/low with reasoning), "
-                    "and recommend a specific response ('watch', 'adapt', 'act now'). "
-                    "Structure per signal: What happened → Why it matters → What to do."
+                    "recommend response ('watch', 'adapt', 'act now').\n\n"
+                    "OUTPUT:\n"
+                    "## Signal Summary\n(table: signal, source, date, significance)\n"
+                    "## Deep Dives\n(per signal: What happened → Why it matters → What to do)\n"
+                    "## Recommendations\n(prioritized action items)\n\n"
+                    "Target: 1500-2500 words. Include timeline or chart if signals show a pattern."
                 ),
             },
         ],
@@ -189,30 +171,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "investigate",
+                "step": "investigate-and-compose",
                 "instruction": (
-                    "Investigate the subject across 6 dimensions: (1) Organization — leadership, team size, "
-                    "structure, key hires/departures; (2) Financials — revenue indicators, funding, burn signals; "
-                    "(3) Market position — share, growth trajectory, competitive standing; "
-                    "(4) Product — maturity, differentiation, customer evidence; "
-                    "(5) Partnerships — ecosystem, strategic relationships; "
-                    "(6) Risks — regulatory, competitive, execution, market timing. "
-                    "For each dimension: evidence-linked findings, both positive signals and red flags. "
-                    "Use web search aggressively — filings, press, LinkedIn, Crunchbase, industry reports."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Format into a structured due diligence report. Required elements: "
-                    "Executive Summary (go/no-go signal in first sentence), "
-                    "Organization (mermaid org chart if data available), "
-                    "Financial Summary (table with available metrics), "
-                    "Risk Assessment (table: risk, severity, evidence, mitigation), "
-                    "Market Position (competitive positioning diagram), "
-                    "Recommendation (specific, with conditions). "
-                    "Every risk needs evidence. Every positive signal needs evidence. No unsubstantiated claims."
+                    "Produce a structured due diligence report. Investigate thoroughly, then compose.\n\n"
+                    "INVESTIGATE across 6 dimensions: (1) Organization — leadership, team, key hires/departures; "
+                    "(2) Financials — revenue, funding, burn; (3) Market position — share, growth, competition; "
+                    "(4) Product — maturity, differentiation, customers; (5) Partnerships — ecosystem, strategy; "
+                    "(6) Risks — regulatory, competitive, execution, timing. "
+                    "Use web search aggressively — filings, press, LinkedIn, Crunchbase.\n\n"
+                    "OUTPUT:\n"
+                    "## Executive Summary\n(go/no-go signal in first sentence)\n"
+                    "## Organization\n(mermaid org chart if data available, key people table)\n"
+                    "## Financial Summary\n(table: metric, value, source)\n"
+                    "## Market Position\n(mermaid competitive positioning diagram)\n"
+                    "## Risk Assessment\n(table: risk, severity, evidence, mitigation)\n"
+                    "## Recommendation\n(specific, with conditions and caveats)\n"
+                    "## Sources\n\n"
+                    "Target: 2500-4000 words. Every claim needs evidence. No unsubstantiated signals."
                 ),
             },
         ],
@@ -281,30 +256,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf", "pptx"],
         "process": [
             {
-                "agent_type": "research",
-                "step": "gather-data",
-                "instruction": (
-                    "Gather metrics and context for the stakeholder update from workspace, platforms, and web. "
-                    "Organize into 4 buckets: (1) Key Metrics — quantified KPIs with period-over-period change, "
-                    "(2) Achievements — what shipped, closed, or completed this period, "
-                    "(3) Challenges — blockers, risks, things behind schedule with root cause, "
-                    "(4) Forward Look — next period priorities, upcoming milestones, decisions needed. "
-                    "Quantify everything possible. 'Revenue grew 23%' not 'revenue grew significantly'."
-                ),
-            },
-            {
                 "agent_type": "content",
-                "step": "compose",
+                "step": "gather-and-compose",
                 "instruction": (
-                    "Compose an executive-quality stakeholder update using these exact sections:\n"
-                    "## Key Metrics\n(table or card format: metric name, current value, change vs prior period)\n"
-                    "## Achievements\n(what shipped, closed, or completed — bulleted, max 5 items)\n"
-                    "## Challenges\n(blockers, risks, things behind schedule — each with owner and mitigation)\n"
-                    "## Forward Look\n(next period priorities, upcoming milestones, decisions needed)\n\n"
-                    "Charts for any metric with trend data. Executive tone: lead with impact, "
-                    "support with data, end with asks. "
-                    "Your output must be LONGER than the research input — you are adding structure "
-                    "and visual presentation. Minimum 400 words."
+                    "Produce an executive-quality stakeholder update. "
+                    "Gather context from workspace, platforms, and web, then compose.\n\n"
+                    "GATHER: Pull metrics, achievements, challenges, forward look from all available context. "
+                    "Quantify everything — 'Revenue grew 23%' not 'revenue grew significantly'.\n\n"
+                    "OUTPUT: Use these exact sections:\n"
+                    "## Key Metrics\n(table: metric, current value, change vs prior period, status indicator)\n"
+                    "## Achievements\n(what shipped/closed/completed — bulleted, each with impact statement)\n"
+                    "## Challenges\n(blockers/risks — each with owner, root cause, mitigation plan)\n"
+                    "## Forward Look\n(next period priorities, milestones, decisions needed from board)\n\n"
+                    "Include charts for any metric with trend data. "
+                    "Executive tone: lead with impact, support with data, end with specific asks. "
+                    "Target: 1500-2500 words."
                 ),
             },
         ],
@@ -364,7 +330,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "project-status-report": {
         "display_name": "Project Status Report",
-        "description": "Cross-platform status synthesis — team activity, stakeholder expectations, polished report.",
+        "description": "Cross-platform status synthesis — team activity from Slack composed into a polished report.",
         "category": "operations",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -380,29 +346,22 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                     "(2) Blockers — what's stuck and why, who raised it, "
                     "(3) Decisions — what was decided, by whom, in which thread, "
                     "(4) Action items — who owes what, with deadlines if mentioned. "
-                    "Group by project/workstream when identifiable. Skip routine standups and bot noise."
-                ),
-            },
-            {
-                "agent_type": "crm",
-                "step": "add-stakeholder-context",
-                "instruction": (
-                    "Add stakeholder context to the team activity. Surface: "
-                    "commitments to external parties (clients, partners, investors) with dates, "
-                    "expectations from leadership, external deadlines approaching. "
-                    "Cross-reference with team activity: flag gaps (commitment made but no progress signal), "
-                    "misalignments (team working on X but stakeholder expects Y), overdue items."
+                    "Group by project/workstream when identifiable. Skip routine standups and bot noise. "
+                    "Be thorough — the next agent composes the final report entirely from your extraction."
                 ),
             },
             {
                 "agent_type": "content",
                 "step": "compose",
                 "instruction": (
-                    "Compose a polished project status report. "
-                    "Open with: overall status (On Track / At Risk / Blocked) with 1-sentence rationale. "
-                    "Then: Progress Highlights (what shipped/completed), Blockers & Risks (with owners), "
-                    "Stakeholder Commitments (status of each), Next Week Priorities (top 3-5). "
-                    "Keep total length under 1 page equivalent. Every item has an owner name."
+                    "Compose a polished project status report from the extracted Slack activity.\n\n"
+                    "OUTPUT:\n"
+                    "## Status: [On Track / At Risk / Blocked]\n(1-sentence rationale)\n"
+                    "## Progress Highlights\n(what shipped/completed, with owner attribution)\n"
+                    "## Blockers & Risks\n(each with owner, impact, mitigation)\n"
+                    "## Action Items\n(table: owner, task, deadline, status)\n"
+                    "## Next Week Priorities\n(top 3-5, prioritized)\n\n"
+                    "Every item has an owner name. Target: 1000-1500 words."
                 ),
             },
         ],
@@ -500,27 +459,20 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "investigate",
+                "step": "research-and-write",
                 "instruction": (
-                    "Research the content topic for authoritative source material. Cover: "
-                    "what's already published on this topic (gaps in existing coverage), "
-                    "data points and statistics (with sources and dates), "
-                    "expert perspectives and contrarian takes, "
-                    "competitive landscape (who's writing about this, what angle they take). "
-                    "Identify 2-3 unique angles not already covered in existing content."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Write a full content draft (blog post / article) using the research. "
-                    "Structure: compelling hook (not 'In today's fast-paced world'), "
-                    "thesis statement, evidence-backed sections (3-5), actionable conclusion. "
+                    "Produce a research-backed content draft (blog post / article). "
+                    "Research the topic first, then write the full piece.\n\n"
+                    "RESEARCH: What's already published (gaps in coverage), data points with sources, "
+                    "expert perspectives, contrarian takes, competitive landscape of content on this topic. "
+                    "Identify 2-3 unique angles not already covered.\n\n"
+                    "WRITE: Compelling hook (not 'In today's fast-paced world'), thesis statement, "
+                    "3-5 evidence-backed sections, actionable conclusion. "
                     "Embed charts where data supports the narrative. "
-                    "Include competitive positioning diagram if comparing approaches. "
-                    "Target 1000-1500 words. Write in the user's brand voice (see Brand context). "
-                    "Every claim backed by research from the prior step."
+                    "Include positioning diagram if comparing approaches. "
+                    "Write in the user's brand voice (see Brand context). "
+                    "Every claim backed by your research. "
+                    "Target: 1500-2500 words."
                 ),
             },
         ],
@@ -545,27 +497,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "position",
+                "step": "position-and-compose",
                 "instruction": (
-                    "Develop competitive positioning for this launch. Produce: "
-                    "(1) Market context — what's happening that makes this timely, "
-                    "(2) Competitive landscape — who else does this, how we differ (feature matrix), "
-                    "(3) Positioning statement — for [audience], [product] is the [category] that [differentiator], "
-                    "(4) Key messages — 3 messages per audience segment (customers, press, internal), "
-                    "(5) Objection handling — top 3 anticipated objections with responses."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Transform positioning into presentation-ready launch material. "
-                    "Structure as slides: Title + tagline, The Problem, Our Solution, How It Works, "
-                    "Competitive Differentiation (mermaid positioning diagram), Key Messages by Audience, "
-                    "Social/PR quotes (ready to copy), Next Steps. "
-                    "1 idea per slide, 3 bullets max per slide. "
-                    "Slide titles are assertions ('We're the only X that does Y'), not topics ('Our Solution'). "
-                    "Include competitive feature matrix table."
+                    "Produce presentation-ready launch material. "
+                    "Research competitive positioning first, then compose the deck.\n\n"
+                    "POSITIONING: Market context (why now), competitive landscape (feature matrix), "
+                    "positioning statement (for [audience], [product] is [category] that [differentiator]), "
+                    "key messages (3 per audience: customers, press, internal), "
+                    "objection handling (top 3 objections with responses).\n\n"
+                    "OUTPUT as slides (use ## for each slide title):\n"
+                    "## [Product Name] — [Tagline]\n"
+                    "## The Problem\n## Our Solution\n## How It Works\n"
+                    "## Competitive Differentiation\n(mermaid positioning diagram + feature matrix table)\n"
+                    "## Key Messages\n(by audience segment)\n"
+                    "## Social / PR Quotes\n(ready to copy-paste)\n"
+                    "## Next Steps\n\n"
+                    "1 idea per slide, 3 bullets max. Slide titles are assertions "
+                    "('We're the only X that does Y'), not topics. Target: 1500-2000 words."
                 ),
             },
         ],
@@ -592,27 +540,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "gather-intelligence",
+                "step": "gather-and-compose",
                 "instruction": (
-                    "Gather go-to-market intelligence for this cycle. Produce structured data: "
-                    "(1) Feature Matrix — rows=features, columns=competitors, cells=shipped/building/missing/n-a, "
-                    "(2) Signal Log — what each competitor did this period (date, action, significance), "
-                    "(3) Pricing Intel — any pricing changes detected with before/after if available, "
-                    "(4) Opportunity List — gaps where we have advantage or competitors are weak. "
-                    "Quantify signals: 'launched 3 features' not 'active development'. "
-                    "Note what changed vs. last cycle."
-                ),
-            },
-            {
-                "agent_type": "content",
-                "step": "compose",
-                "instruction": (
-                    "Format into a dashboard-style GTM tracker for at-a-glance consumption. "
-                    "Top section: signal count cards (new features, pricing changes, hires). "
-                    "Then: competitive feature matrix (markdown table, color-hint in cell text), "
-                    "signal timeline (most recent first), opportunity windows (ranked by urgency). "
-                    "Charts for any trends with multi-cycle data. "
-                    "Dashboard layout — dense, scannable, no long paragraphs."
+                    "Produce a dashboard-style GTM tracker. "
+                    "Gather intelligence via web search and platforms, then compose.\n\n"
+                    "GATHER: (1) Feature Matrix — rows=features, columns=competitors, "
+                    "cells=shipped/building/missing; (2) Signal Log — what each competitor did "
+                    "(date, action, significance); (3) Pricing Intel — changes with before/after; "
+                    "(4) Opportunities — gaps where we have advantage.\n\n"
+                    "OUTPUT:\n"
+                    "## Signal Summary\n(count cards: new features, pricing changes, funding, hires)\n"
+                    "## Feature Matrix\n(markdown table — competitors as columns)\n"
+                    "## Signal Log\n(most recent first, each with date and significance)\n"
+                    "## Opportunity Windows\n(ranked by urgency, each with recommended action)\n\n"
+                    "Dashboard layout — dense, scannable, no long paragraphs. "
+                    "Charts for trends with multi-cycle data. Target: 1500-2500 words."
                 ),
             },
         ],

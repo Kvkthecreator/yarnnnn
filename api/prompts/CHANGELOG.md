@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.29.4] - Single-agent process collapse — 22 steps → 16, higher output ambition
+
+### Changed
+- `services/task_types.py`: 7 task types collapsed from 2-step to 1-step processes. Multi-step retained only where agents have genuinely different tool access (meeting-prep-brief: crm→research, relationship-health-digest: slack_bot→crm, project-status-report: slack_bot→content). Process instructions rewritten with 2000-3000 word targets (was 300-500). Single agent now researches AND composes in one context window — retains full reasoning context.
+- `services/task_pipeline.py`: Default tool rounds raised (cross_platform 3→5, knowledge 3→5, default 3→5). Agents with asset capabilities (chart, mermaid, image) get minimum 6 rounds — enough for web search + chart generation + prose in one pass.
+- Expected behavior: Single research agent should produce 2000-3000 word competitive intelligence brief with charts, diagrams, and citations in one generation. No handoff information loss. No tool budget splitting.
+
+### Rationale
+See `docs/analysis/output-quality-first-principles-2026-03-29.md`. Multi-step processes were producing output indistinguishable from single-shot because: (1) handoffs destroy reasoning context, (2) tool budgets split across steps, (3) the same model (Sonnet) does both research and composition equally well. Multi-agent value accrues through accumulated memory over time, not through type labels at creation.
+
+---
+
 ## [2026.03.29.3] - Quality iteration — handoff strength, section conformance, citation format
 
 ### Changed

@@ -437,6 +437,20 @@ async def execute_task(
 
         # Single-step execution (existing flow)
         agent_slug = task_info.get("agent_slug", "").strip()
+
+        # For single-step typed tasks, resolve agent from process definition
+        if not agent_slug and type_key:
+            from services.task_types import get_task_type
+            _type_def = get_task_type(type_key)
+            if _type_def and _type_def.get("process"):
+                agent_type = _type_def["process"][0]["agent_type"]
+                roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
+                for a in (roster.data or []):
+                    if a.get("role") == agent_type:
+                        agent_slug = a["slug"]
+                        logger.info(f"[TASK_EXEC] Resolved agent {agent_slug} from type {type_key} process")
+                        break
+
         if not agent_slug:
             return _fail(task_slug, "No agent assigned in TASK.md")
 
@@ -1304,9 +1318,9 @@ use RuntimeDispatch with the spec format described above."""
 
 # Scope → max tool rounds
 _TOOL_ROUNDS = {
-    "platform": 2,
-    "cross_platform": 3,
-    "knowledge": 3,
+    "platform": 3,
+    "cross_platform": 5,
+    "knowledge": 5,
     "research": 6,
     "autonomous": 8,
 }
@@ -1329,11 +1343,13 @@ async def _generate(
     )
 
     role = agent.get("role", "custom")
-    max_tool_rounds = _TOOL_ROUNDS.get(scope, 3)
+    max_tool_rounds = _TOOL_ROUNDS.get(scope, 5)
 
-    # Planner/prepare needs more rounds
-    if role in ("prepare", "planner"):
-        max_tool_rounds = max(max_tool_rounds, 5)
+    # Agents with asset capabilities (chart, mermaid, image) need more rounds
+    # for both research tool calls AND asset generation
+    from services.agent_framework import has_asset_capabilities
+    if has_asset_capabilities(role):
+        max_tool_rounds = max(max_tool_rounds, 6)
 
     headless_tools = get_tools_for_mode("headless")
     executor = create_headless_executor(
