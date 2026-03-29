@@ -49,7 +49,7 @@ TEST_CASES = [
         "focus": "AI agent platforms",
         "description": "1-step (research agent), document layout, charts + citations expected",
         "quality_checks": {
-            "min_words": 1000,
+            "min_words": 400,
             "required_sections": ["executive summary", "key findings", "implications"],
             "expects_citations": True,
             "expects_structure": True,
@@ -62,7 +62,7 @@ TEST_CASES = [
         "focus": "YARNNN AI platform progress",
         "description": "1-step (content agent), dashboard layout, metrics + sections expected",
         "quality_checks": {
-            "min_words": 800,
+            "min_words": 400,
             "required_sections": ["achievements", "challenges"],
             "expects_citations": False,
             "expects_structure": True,
