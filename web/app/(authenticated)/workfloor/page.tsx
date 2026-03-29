@@ -318,6 +318,8 @@ function ChatPanel({ taskCount }: { taskCount: number }) {
   const {
     attachments,
     attachmentPreviews,
+    error: fileError,
+    uploadedDocs,
     handleFileSelect,
     handlePaste,
     removeAttachment,
@@ -438,6 +440,25 @@ function ChatPanel({ taskCount }: { taskCount: number }) {
       {/* Input */}
       <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
         <CommandPicker query={commandQuery ?? ''} onSelect={(cmd) => { setInput(cmd + ' '); setCommandPickerOpen(false); textareaRef.current?.focus(); }} onClose={() => setCommandPickerOpen(false)} isOpen={commandPickerOpen} />
+
+        {fileError && (
+          <div className="mb-2 p-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+            {fileError}
+          </div>
+        )}
+
+        {uploadedDocs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
+            {uploadedDocs.map((doc, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-background border border-border">
+                <span className="truncate max-w-[120px]">{doc.name}</span>
+                <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
+                  {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {attachmentPreviews.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">

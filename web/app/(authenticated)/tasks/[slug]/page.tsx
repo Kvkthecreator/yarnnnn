@@ -297,7 +297,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { attachments, attachmentPreviews, handleFileSelect, handlePaste, removeAttachment, clearAttachments, getImagesForAPI, fileInputRef } = useFileAttachments();
+  const { attachments, attachmentPreviews, error: fileError, uploadedDocs, handleFileSelect, handlePaste, removeAttachment, clearAttachments, getImagesForAPI, fileInputRef } = useFileAttachments();
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, status]);
 
@@ -386,6 +386,25 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
       </div>
 
       <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
+        {fileError && (
+          <div className="mb-2 p-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+            {fileError}
+          </div>
+        )}
+
+        {uploadedDocs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
+            {uploadedDocs.map((doc, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-background border border-border">
+                <span className="truncate max-w-[120px]">{doc.name}</span>
+                <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
+                  {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
