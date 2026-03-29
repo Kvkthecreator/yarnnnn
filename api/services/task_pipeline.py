@@ -126,12 +126,13 @@ async def gather_task_context(
     user_id: str,
     agent: dict,
     agent_slug: str,
+    task_info: Optional[dict] = None,
 ) -> tuple[str, dict]:
     """Gather context for task execution.
 
     Reads from agent workspace (identity, memory, observations) and knowledge base.
-    Knowledge base includes platform content (synced to /knowledge/ by platform sync).
-    Replaces the strategy pattern (PlatformBound/CrossPlatform/Analyst/Research).
+    Knowledge base search is task-aware: uses task objective/title for relevance,
+    not just agent title.
 
     Returns:
         (context_text, context_metadata)
@@ -148,14 +149,29 @@ async def gather_task_context(
     if ws_context:
         sections.append(f"## Agent Context\n{ws_context}")
 
-    # 2. Knowledge base — search for relevant content
-    # This includes platform content (Slack, Notion) synced to /knowledge/ paths
+    # 2. Knowledge base — search using task context for relevance
+    # Task-aware: objective/title drive search, not generic agent title
     role = agent.get("role", "custom")
     title = agent.get("title", "")
+
+    # Build search query from task objective + title (task-aware context gathering)
+    search_query = title  # fallback: agent title
+    if task_info:
+        task_title = task_info.get("title", "")
+        objective = task_info.get("objective", {})
+        objective_parts = [
+            task_title,
+            objective.get("deliverable", ""),
+            objective.get("purpose", ""),
+        ]
+        query_parts = [p for p in objective_parts if p]
+        if query_parts:
+            search_query = " ".join(query_parts)[:200]  # cap length for embedding search
+
     kb = KnowledgeBase(client, user_id)
     try:
         kb_results = await kb.search(
-            query=title,
+            query=search_query,
             limit=10,
         )
         if kb_results:
@@ -238,7 +254,14 @@ def build_task_execution_prompt(
     if agent_instructions:
         system += f"\n\n## Agent Instructions\n{agent_instructions}"
 
-    # ADR-143: Feedback + methodology now loaded via load_context() in gathered context
+    # Agent methodology — craft knowledge from type registry, injected at system level
+    # so it shapes reasoning identity, not buried in gathered context.
+    from services.agent_framework import get_type_playbook
+    playbooks = get_type_playbook(role)
+    if playbooks:
+        system += "\n\n## Methodology"
+        for filename, content in playbooks.items():
+            system += f"\n\n{content}"
 
     # Tool usage guidance
     system += """
@@ -474,7 +497,7 @@ async def execute_task(
         # 6. Gather context
         # =====================================================================
         context_text, context_meta = await gather_task_context(
-            client, user_id, agent, agent_slug,
+            client, user_id, agent, agent_slug, task_info=task_info,
         )
 
         # =====================================================================
@@ -598,9 +621,18 @@ alongside any binary — the text is the feedback surface for user edits."""
         if agent_output_folder and has_capability(role, "compose_html"):
             try:
                 from services.agent_execution import _compose_output_html
+                # Resolve layout_mode from task type registry (default: document)
+                _layout = "document"
+                _type_key = task_info.get("type_key", "").strip()
+                if _type_key:
+                    from services.task_types import get_task_type
+                    _tdef = get_task_type(_type_key)
+                    if _tdef:
+                        _layout = _tdef.get("layout_mode", "document")
                 await _compose_output_html(
                     client, user_id, agent_slug, agent_output_folder,
                     title=title, pending_renders=pending_renders,
+                    layout_mode=_layout,
                 )
                 # Sync composed HTML from agent workspace to task workspace
                 # (agent_execution writes to /agents/, frontend reads from /tasks/)
@@ -928,7 +960,7 @@ async def _execute_pipeline(
         user_context = _load_user_context(client, user_id)
 
         context_text, context_meta = await gather_task_context(
-            client, user_id, agent, agent_slug,
+            client, user_id, agent, agent_slug, task_info=task_info,
         )
 
         # --- Build step-specific prompt ---
@@ -1126,6 +1158,7 @@ use RuntimeDispatch with the spec format described above."""
             await _compose_output_html(
                 client, user_id, final_agent_slug, agent_output_folder,
                 title=title, pending_renders=all_renders,
+                layout_mode=task_type_def.get("layout_mode", "document"),
             )
             # Sync composed HTML from agent workspace to task workspace
             agent_ws = AgentWorkspace(client, user_id, final_agent_slug)
@@ -1589,7 +1622,7 @@ async def _execute_direct(
         ws_instructions = await ws.read("AGENT.md") or ""
         user_context = _load_user_context(client, user_id)
 
-        # Gather context
+        # Gather context (no task_info for legacy single-agent path)
         context_text, context_meta = await gather_task_context(
             client, user_id, agent, agent_slug,
         )

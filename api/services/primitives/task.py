@@ -411,12 +411,21 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                 "task_slug": slug,
                 "type_key": type_key,
                 "agent_slug": agent_slug,
-                "pipeline_agents": resolved_agent_slugs or [agent_slug],
+                "process_agents": resolved_agent_slugs or [agent_slug],
                 "schedule": schedule,
             },
         )
     except Exception:
         pass
+
+    # Build process narration for TP to explain the workflow
+    process_narration = None
+    if type_key and resolved_steps:
+        step_descriptions = []
+        for s in resolved_steps:
+            agent_label = s.get("agent_title") or s.get("agent_type", "agent")
+            step_descriptions.append(f"{agent_label} ({s['step']})")
+        process_narration = " → ".join(step_descriptions)
 
     return {
         "success": True,
@@ -424,11 +433,13 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         "task_slug": slug,
         "type_key": type_key,
         "agent_slug": agent_slug,
-        "pipeline_agents": resolved_agent_slugs or [agent_slug],
+        "process_agents": resolved_agent_slugs or [agent_slug],
+        "process_narration": process_narration,
         "mode": mode,
         "schedule": schedule,
         "next_run_at": next_run_at,
-        "message": f"Created task '{title}'" + (f" ({type_key})" if type_key else "") + f" — {schedule or 'on-demand'}.",
+        "message": f"Created task '{title}'" + (f" ({type_key})" if type_key else "") + f" — {schedule or 'on-demand'}."
+                   + (f" Process: {process_narration}." if process_narration else ""),
         "ui_action": {
             "type": "NAVIGATE",
             "data": {"url": f"/tasks/{slug}", "label": title},

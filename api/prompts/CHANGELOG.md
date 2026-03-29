@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.29.2] - Output quality hardening — methodology injection, process instructions, task-aware context
+
+### Changed
+- `services/task_pipeline.py`: `build_task_execution_prompt()` now injects agent methodology (playbooks from AGENT_TYPES registry) into system prompt. Previously, playbooks were only in gathered context (buried). Now they shape agent reasoning identity.
+- `services/task_pipeline.py`: `gather_task_context()` accepts optional `task_info` parameter. Knowledge base search now uses task objective + title as query (was: agent title). Produces more relevant context for each task execution.
+- `services/task_types.py`: All 13 task type process step instructions rewritten with quantitative targets, structural templates, quality criteria, and output expectations. Each step specifies what to produce, how deep to go, what structure to follow.
+- `services/task_types.py`: Added `layout_mode` field to all 13 task types (document/presentation/dashboard). Determines HTML composition strategy.
+- `services/agent_execution.py`: `_compose_output_html()` accepts `layout_mode` parameter (was hardcoded to "document"). Threaded through from task type registry via task_pipeline.py.
+- `services/primitives/task.py`: CreateTask return value includes `process_narration` (human-readable step summary) and `process_agents` (renamed from `pipeline_agents`). Message includes process explanation.
+- `agents/tp_prompts/onboarding.py`: TP guidance updated — when creating multi-step tasks, explain the process to build user trust.
+- Expected behavior: Significantly higher output quality from (1) agents having craft knowledge in system prompt, (2) task-specific context vs generic, (3) precise step instructions vs vague. Layout modes produce appropriate HTML composition (dashboard for stakeholder updates, presentation for launch material, document for reports).
+
+---
+
 ## [2026.03.29.1] - ADR-147: GitHub Platform Integration — Phase 1
 
 ### Added
