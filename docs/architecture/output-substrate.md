@@ -109,33 +109,43 @@ Agent type → capabilities → for each capability:
 
 ---
 
-## Output Pipeline
+## Output Pipeline (ADR-148)
+
+Three production phases, strictly separated:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 AGENT GENERATION                     │
+│           PHASE 1: GENERATE (LLM)                    │
 │                                                      │
-│  Agent type determines available capabilities.       │
-│  Agent produces:                                     │
+│  Agent produces prose with inline data:              │
 │  ├── Structured markdown (output.md)                 │
-│  ├── Asset references via RuntimeDispatch (if type has  │
-│  │   chart/mermaid/image/video capabilities)           │
-│  └── Structured data (JSON for tables/metrics)       │
+│  ├── Data tables (markdown tables with numeric data) │
+│  └── Mermaid code blocks (diagrams)                  │
 │                                                      │
-│  RuntimeDispatch calls:                                  │
-│  ├── python_render → chart/mermaid/image → SVG/PNG   │
-│  └── node_remotion → video → MP4 [future]            │
+│  Agent does NOT call RuntimeDispatch.                │
+│  All tool rounds reserved for research + context.    │
 └──────────────────┬──────────────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│            POST-GENERATION PIPELINE                  │
+│           PHASE 2: RENDER (mechanical)               │
 │                                                      │
-│  If agent type has compose_html capability:           │
-│  ├── Call POST /compose with output.md + assets       │
-│  ├── Apply layout mode (document/presentation/        │
-│  │   dashboard/data)                                  │
-│  └── Store output.html alongside output.md            │
+│  render_inline_assets() extracts and renders:        │
+│  ├── Numeric data tables → chart via POST /render    │
+│  ├── Mermaid code blocks → SVG via POST /render      │
+│  └── Rendered URLs inserted into markdown            │
+│                                                      │
+│  Zero LLM cost. Mechanical extraction + rendering.   │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│           PHASE 3: COMPOSE (mechanical)              │
+│                                                      │
+│  POST /compose with enriched markdown + asset URLs:  │
+│  ├── Apply composition mode (document/presentation/  │
+│  │   dashboard/data)                                 │
+│  └── Store output.html alongside output.md           │
 └──────────────────┬──────────────────────────────────┘
                    │
                    ▼

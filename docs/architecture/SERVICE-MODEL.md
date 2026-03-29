@@ -98,19 +98,17 @@ Three layers, strictly separated (ADR-141):
 - SQL query: `tasks WHERE next_run_at <= NOW()`
 - For each due task: calls `execute_task()`
 
-**Layer 2 — Task Execution** (Sonnet per task)
+**Layer 2 — Task Execution** (Sonnet per task, then mechanical render + compose)
 ```
 execute_task(slug)
   → Read TASK.md from workspace
-  → Resolve assigned agent(s)
+  → Resolve assigned agent(s) from process definition
   → Check work credits (budget gate)
-  → Gather context:
-      agent workspace (AGENT.md, memory/, observations)
-      + platform content (/platforms/)
-      + user context (/workspace/)
-  → Generate via headless agent (Claude Sonnet, multi-tool-round)
+  → Gather context (task-aware KB search by objective)
+  → GENERATE: headless agent produces prose + inline data tables + mermaid diagrams
+  → RENDER: extract data tables → charts, mermaid → SVGs (mechanical, zero LLM)
+  → COMPOSE: enriched markdown + assets → styled HTML per composition mode
   → Save output to /tasks/{slug}/outputs/{date}/
-  → Compose HTML (if agent has asset capabilities)
   → Deliver to destination (email/Slack/Notion)
   → Update agent memory (self-assessment, observations)
   → Advance next_run_at

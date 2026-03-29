@@ -1,6 +1,6 @@
 # Task Types — Deliverable Catalog
 
-> What YARNNN delivers. Each task type is a concrete output produced by a pre-meditated multi-agent process.
+> What YARNNN delivers. Each task type is a concrete output with a defined process and composition mode.
 > Architecture: [docs/architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md)
 > ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
 
@@ -9,11 +9,13 @@
 ## How Task Types Work
 
 1. User selects a task type (onboarding or TP conversation)
-2. Platform scaffolds the task with the correct agents, schedule, and output spec
-3. Agents execute in sequence — each contributing its specialty
-4. Final output is delivered as branded HTML, with optional PDF/PPTX export
+2. Platform scaffolds the task with the correct agent, schedule, and composition mode
+3. Agent researches, reasons, and writes — producing prose with inline data tables and diagrams
+4. System renders visual assets (charts from tables, diagrams from mermaid blocks)
+5. Compose service assembles everything into styled HTML per composition mode
+6. Output delivered via email/Slack/Notion or viewed in app
 
-Task types are **deliverable-centric**: defined by what you receive, not by which agents produce it.
+Most task types are **single-agent**: one agent handles the full cognitive work (research + composition) in one context window. Multi-step processes are used only where agents need genuinely different tool access (e.g., Slack Bot extracts platform data → CRM Agent synthesizes relationship intelligence).
 
 ---
 
@@ -22,41 +24,41 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### Competitive Intelligence Brief
 `competitive-intel-brief`
 
-**What you get:** Research-backed competitive analysis with charts, diagrams, and evidence-linked findings.
+**What you get:** Research-backed competitive analysis with rendered charts, positioning diagrams, and evidence-linked findings.
 
-**Process:** Research Agent (investigate web + platforms) → Content Agent (format with charts, brand styling)
+**Process:** Research Agent (single-step — investigates and composes the full brief)
 
 **Default schedule:** Weekly
-**Output format:** Branded HTML, exportable as PDF
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Document
+**Export options:** PDF
 
-**Example sections:**
-- Executive summary with lead insight
-- Key findings with evidence sources
-- Market trend charts (bar/line)
-- Competitor positioning diagram (mermaid)
+**Expected output:**
+- Executive summary (insight-first, not process)
+- Key findings with inline source citations
+- Competitive positioning diagram (mermaid → rendered)
+- Market trend charts (data tables → rendered)
 - Strategic implications
-- Linked sources
+- Source list
 
 ---
 
 ### Market Research Report
 `market-research-report`
 
-**What you get:** Deep-dive investigation on a specific topic with data-backed analysis, trend visualizations, and landscape mapping.
+**What you get:** Deep-dive investigation with data-backed analysis, trend visualizations, and landscape mapping.
 
-**Process:** Research Agent (deep web investigation) → Content Agent (polish with visualizations, professional layout)
+**Process:** Research Agent (single-step — investigates and composes)
 
 **Default schedule:** Monthly
-**Output format:** Branded HTML, exportable as PDF
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Document
+**Export options:** PDF
 
-**Example sections:**
-- Research objective and methodology
-- Landscape overview with market map (mermaid)
-- Data analysis with trend charts
-- Key players and positioning
-- Opportunities and risks
+**Expected output:**
+- Executive summary
+- Market overview with growth chart
+- Competitive landscape (positioning map + player table)
+- Trend analysis with charts
+- Opportunities & risks
 - Recommendations
 
 ---
@@ -64,20 +66,17 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### Industry Signal Monitor
 `industry-signal-monitor`
 
-**What you get:** Surface-level industry scan with deep-dives on signals that matter. Catches signals others miss, then validates the important ones.
+**What you get:** Surface-level industry scan with deep-dives on the signals that matter.
 
-**Process:** Marketing Agent (scan web + platforms for signals) → Research Agent (investigate flagged signals)
+**Process:** Marketing Agent (single-step — scans and analyzes)
 
 **Default schedule:** Weekly
-**Output format:** Branded HTML
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Document
 
-**Example sections:**
-- Top signals worth attention (with links)
-- Signal analysis: what it means for your business
-- Competitive moves tracker
-- Emerging trends
-- Recommended actions
+**Expected output:**
+- Signal summary table (signal, source, date, significance)
+- Deep dives on top 2-3 signals
+- Recommended responses (watch / adapt / act now)
 
 ---
 
@@ -86,19 +85,19 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 
 **What you get:** Structured investigation of a company, market, or opportunity with risk flags and evidence.
 
-**Process:** Research Agent (investigate across web + platforms) → Content Agent (format with org charts, relationship diagrams)
+**Process:** Research Agent (single-step — investigates and composes)
 
 **Default schedule:** On-demand
-**Output format:** Branded HTML, exportable as PDF
-**Context sources:** Web search, workspace
+**Composition mode:** Document
+**Export options:** PDF
 
-**Example sections:**
-- Subject overview
-- Organizational structure (mermaid org chart)
-- Financial indicators
-- Risk flags with evidence
-- Market positioning
-- Recommendation
+**Expected output:**
+- Executive summary (go/no-go signal first)
+- Organization (org chart diagram)
+- Financial summary table
+- Risk assessment table (risk, severity, evidence, mitigation)
+- Market position (competitive positioning diagram)
+- Recommendation with conditions
 
 ---
 
@@ -107,81 +106,77 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### Meeting Prep Brief
 `meeting-prep-brief`
 
-**What you get:** Relationship context from your platforms combined with fresh external research on the attendee's company and recent news.
+**What you get:** Relationship context from your platforms combined with fresh external research on attendees.
 
-**Process:** CRM Agent (relationship history from Slack/Notion/email) → Research Agent (investigate attendee's company, recent news)
+**Process:** CRM Agent (relationship history from platforms) → Research Agent (investigate attendee's company + compose brief)
 
-**Default schedule:** On-demand (before meetings)
-**Output format:** Branded HTML
-**Context sources:** Connected platforms, web search, workspace
+**Default schedule:** On-demand
+**Composition mode:** Document
 
-**Example sections:**
-- Meeting context (who, relationship history, current status)
-- Last interaction summary and open items
-- Attendee's recent company news (web research)
-- Suggested talking points
-- Open items tracker table
+**Expected output:**
+- Relationship timeline and last interaction
+- Open items and commitments
+- Attendee's recent company news
+- Suggested agenda and talking points
+- Things to avoid
 
 ---
 
 ### Stakeholder / Board Update
 `stakeholder-update`
 
-**What you get:** Executive-quality update with KPI dashboards, metric cards, and narrative context — ready for board or leadership consumption.
+**What you get:** Executive-quality update with KPI cards, metric charts, and narrative context.
 
-**Process:** Research Agent (gather metrics, data, context) → Content Agent (compose dashboard-layout deliverable with charts and KPI cards)
+**Process:** Content Agent (single-step — gathers context and composes)
 
-**Default schedule:** Monthly or quarterly
-**Output format:** Branded HTML (dashboard layout), exportable as PDF/PPTX
-**Context sources:** Connected platforms, workspace
+**Default schedule:** Monthly
+**Composition mode:** Dashboard
+**Export options:** PDF, PPTX
 
-**Example sections:**
-- KPI dashboard (metric cards with trend indicators)
-- Revenue/growth charts
-- Key achievements with evidence
-- Challenges and mitigations
-- Next period priorities
+**Expected output:**
+- Key metrics table (rendered as KPI cards)
+- Achievement highlights
+- Challenges with owners and mitigations
+- Forward look and decisions needed
 
 ---
 
 ### Relationship Health Digest
 `relationship-health-digest`
 
-**What you get:** Interaction patterns from Slack synthesized into actionable relationship intelligence — who needs attention, what follow-ups are due.
+**What you get:** Interaction patterns from Slack synthesized into actionable relationship intelligence.
 
-**Process:** Slack Bot (extract interaction patterns, thread signals) → CRM Agent (synthesize into relationship status and follow-up recommendations)
+**Process:** Slack Bot (extract interaction patterns) → CRM Agent (synthesize into health report)
 
 **Default schedule:** Weekly
-**Output format:** Branded HTML
-**Context sources:** Slack (requires connection)
+**Composition mode:** Document
 **Requires platform:** Slack
 
-**Example sections:**
-- Relationship health summary (active, cooling, at-risk)
-- Interaction frequency trends
-- Follow-ups due this week
-- Unanswered threads requiring response
-- Relationship notes and context
+**Expected output:**
+- Relationship health by contact (active / cooling / at-risk)
+- Interaction frequency data
+- Follow-up recommendations with specific talking points
+- Top 3 follow-ups this week
 
 ---
 
 ### Project Status Report
 `project-status-report`
 
-**What you get:** Cross-platform status synthesis — team activity from Slack, stakeholder expectations from CRM context, composed into a polished report.
+**What you get:** Team activity from Slack composed into a polished status report.
 
-**Process:** Slack Bot (team activity signals) → CRM Agent (stakeholder expectations, commitments) → Content Agent (compose formatted status report)
+**Process:** Slack Bot (extract team activity) → Content Agent (compose formatted report)
 
 **Default schedule:** Weekly
-**Output format:** Branded HTML, exportable as PDF
-**Context sources:** Slack, workspace
+**Composition mode:** Document
+**Export options:** PDF
 **Requires platform:** Slack
 
-**Example sections:**
-- Status overview (on track / at risk / blocked)
-- Team activity highlights (from Slack)
-- Stakeholder commitments and expectations
-- Blockers and escalations
+**Expected output:**
+- Overall status (On Track / At Risk / Blocked)
+- Progress highlights with attribution
+- Blockers & risks with owners
+- Action items table
 - Next week priorities
 
 ---
@@ -191,40 +186,37 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### Slack Recap
 `slack-recap`
 
-**What you get:** Decisions, action items, key discussions, and FYIs extracted from your Slack channels.
+**What you get:** Decisions, action items, key discussions, and FYIs from your Slack channels.
 
-**Process:** Slack Bot (single-agent)
+**Process:** Slack Bot (single-step)
 
-**Default schedule:** Daily or weekly
-**Output format:** Markdown or branded HTML
-**Context sources:** Slack (requires connection)
+**Default schedule:** Daily
+**Composition mode:** Document
 **Requires platform:** Slack
 
-**Example sections:**
+**Expected output:**
 - Decisions made (with attribution)
-- Action items (owner, deadline, status)
-- Key discussions (summarized with thread links)
-- FYIs (important announcements, shared documents)
+- Action items (owner, deadline)
+- Key discussions (thread summaries)
+- FYIs (announcements, shared documents)
 
 ---
 
 ### Notion Sync Report
 `notion-sync-report`
 
-**What you get:** What changed in your Notion workspace — new pages, updates, staleness flags, and structure suggestions.
+**What you get:** What changed in your Notion workspace — updates, staleness flags, and structure suggestions.
 
-**Process:** Notion Bot (single-agent)
+**Process:** Notion Bot (single-step)
 
 **Default schedule:** Weekly
-**Output format:** Markdown or branded HTML
-**Context sources:** Notion (requires connection)
+**Composition mode:** Document
 **Requires platform:** Notion
 
-**Example sections:**
-- Pages created this period
-- Pages updated (meaningful edits highlighted)
-- Staleness flags (pages not updated in >30 days)
-- Structure suggestions (how new content fits hierarchy)
+**Expected output:**
+- Pages created or meaningfully updated
+- Staleness flags (pages not updated >30 days)
+- Health notes and structure suggestions
 
 ---
 
@@ -233,40 +225,41 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### Content Brief / Blog Draft
 `content-brief`
 
-**What you get:** Research-backed content with competitive landscape context, formatted with visual assets and brand styling.
+**What you get:** Research-backed content draft with competitive landscape context and visual assets.
 
-**Process:** Research Agent (investigate topic + competitive landscape) → Content Agent (write and format with images, charts)
+**Process:** Research Agent (single-step — researches and writes)
 
 **Default schedule:** On-demand
-**Output format:** Branded HTML, exportable as PDF
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Document
+**Export options:** PDF
 
-**Example sections:**
-- Topic overview with market context
-- Key arguments with evidence
-- Competitive positioning chart
-- Draft content with embedded visuals
-- SEO/distribution recommendations
+**Expected output:**
+- Compelling hook and thesis
+- 3-5 evidence-backed sections
+- Embedded charts for data
+- Competitive positioning diagram
+- Actionable conclusion
 
 ---
 
 ### Launch / Announcement Material
 `launch-material`
 
-**What you get:** GTM intelligence transformed into polished launch material — positioning context becomes branded presentation or announcement.
+**What you get:** GTM intelligence transformed into polished presentation-ready launch material.
 
-**Process:** Marketing Agent (positioning, competitive context, market signals) → Content Agent (format as presentation, branded HTML, or video)
+**Process:** Marketing Agent (single-step — positioning and composition)
 
 **Default schedule:** On-demand
-**Output format:** Branded HTML (presentation layout), exportable as PDF/PPTX
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Presentation
+**Export options:** PDF, PPTX
 
-**Example sections:**
-- Market context and timing rationale
-- Positioning statement
-- Competitive differentiation
+**Expected output:**
+- Title + tagline slide
+- Problem → Solution → How It Works slides
+- Competitive differentiation diagram + feature matrix
 - Key messages by audience
-- Visual assets (charts, diagrams)
+- Social/PR quotes
+- Next steps
 
 ---
 
@@ -275,56 +268,34 @@ Task types are **deliverable-centric**: defined by what you receive, not by whic
 ### GTM Tracker
 `gtm-tracker`
 
-**What you get:** Competitive moves, market signals, and feature matrices — intelligence layer with visual tracking.
+**What you get:** Competitive moves, market signals, and feature matrices — intelligence dashboard.
 
-**Process:** Marketing Agent (intelligence gathering, web scan, platform signals) → Content Agent (format as dashboard with feature matrices, trend charts)
+**Process:** Marketing Agent (single-step — gathers and composes)
 
 **Default schedule:** Weekly
-**Output format:** Branded HTML (dashboard layout)
-**Context sources:** Web search, connected platforms, workspace
+**Composition mode:** Dashboard
 
-**Example sections:**
-- Market signals worth attention (with links)
-- Competitive moves table (who, what, impact, action)
-- Feature matrix (your product vs. competitors)
-- Channel performance signals
-- Opportunity windows
+**Expected output:**
+- Signal count cards (features, pricing, funding, hires)
+- Competitive feature matrix table
+- Signal log (most recent first)
+- Opportunity windows ranked by urgency
 
 ---
 
-## Task Type Categories
+## Summary
 
-| Category | Task Types | Primary Value |
-|----------|-----------|---------------|
-| **Intelligence** | Competitive Intel, Market Research, Signal Monitor, Due Diligence | Know what's happening and what it means |
-| **Operations** | Meeting Prep, Stakeholder Update, Relationship Health, Project Status | Keep work organized and stakeholders informed |
-| **Platform** | Slack Recap, Notion Sync | Never miss what happened on your platforms |
-| **Content** | Content Brief, Launch Material | Produce polished, research-backed content |
-| **Tracking** | GTM Tracker | Track competitive landscape continuously |
+| Category | Types | Process Model |
+|----------|-------|---------------|
+| **Intelligence** | 4 types | Single-agent (research or marketing) |
+| **Operations** | 4 types | Mixed — 1 single-agent, 3 multi-step |
+| **Platform** | 2 types | Single-agent (platform bot) |
+| **Content** | 2 types | Single-agent (research or marketing) |
+| **Tracking** | 1 type | Single-agent (marketing) |
 
----
+**Total:** 13 task types, 16 process steps. 10 single-agent, 3 multi-step.
 
-## Schedules
-
-| Schedule | Meaning | Example Types |
-|----------|---------|---------------|
-| `daily` | Every day | Slack Recap |
-| `weekly` | Every week | Competitive Intel, GTM Tracker, Relationship Health |
-| `biweekly` | Every 2 weeks | Industry Signal Monitor |
-| `monthly` | Every month | Market Research, Stakeholder Update |
-| `on-demand` | User or TP triggers manually | Meeting Prep, Due Diligence, Content Brief |
-
----
-
-## Platform Requirements
-
-Some task types require a connected platform:
-
-| Task Type | Required Platform |
-|-----------|------------------|
-| Slack Recap | Slack |
-| Relationship Health Digest | Slack |
-| Project Status Report | Slack |
-| Notion Sync Report | Notion |
-
-All other task types work without platform connections (using web search + workspace context), but produce richer output when platforms are connected.
+Multi-step is used only where agents need different tool access:
+- **meeting-prep-brief**: CRM (platform data) → Research (web search)
+- **relationship-health-digest**: Slack Bot (platform read) → CRM (relationship domain)
+- **project-status-report**: Slack Bot (platform read) → Content (formatting)
