@@ -2,37 +2,30 @@
 
 **The source of truth for YARNNN product narrative, architecture, and implementation decisions.**
 
-## Current Canon (as of 2026-03-18)
+## Current Canon (as of 2026-03-29)
 
-The current product story is:
+**Start here**: [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) — the single end-to-end description of how YARNNN works. Entities, execution flow, services, primitives, perception.
+
+The current product story:
 
 - YARNNN is an autonomous agent platform for recurring knowledge work
-- persistent agents plus accumulated context are the core value proposition
-- the user supervises a running system instead of repeatedly operating prompts
-- output skills enrich the deliverable, but do not change the service model
-
-The current architecture is anchored by:
-
-- [ESSENCE.md](ESSENCE.md) — canonical product narrative
-- [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) — first principles
-- [architecture/agent-framework.md](architecture/agent-framework.md) — Scope × Role × Trigger
-- [adr/ADR-118-skills-as-capability-layer.md](adr/ADR-118-skills-as-capability-layer.md) — output skills + output gateway
-- [adr/ADR-119-workspace-filesystem-architecture.md](adr/ADR-119-workspace-filesystem-architecture.md) — workspace folders + unified outputs
+- Persistent agents + accumulated context = the value proposition
+- Users supervise a running system instead of repeatedly operating prompts
+- Task types are the product surface — deliverable-first, not agent-first
 
 ## Quick Links
 
 | Document | Purpose |
 |----------|---------|
-| [ESSENCE.md](ESSENCE.md) | Canonical product narrative and value proposition |
+| [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) | **How the system works end-to-end** |
+| [ESSENCE.md](ESSENCE.md) | Product narrative and value proposition |
 | [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) | First-principles cognitive architecture |
-| [architecture/agent-framework.md](architecture/agent-framework.md) | Canonical agent model |
-| [adr/ADR-106-agent-workspace-architecture.md](adr/ADR-106-agent-workspace-architecture.md) | Agent workspace filesystem |
-| [adr/ADR-116-agent-identity-inter-agent-knowledge.md](adr/ADR-116-agent-identity-inter-agent-knowledge.md) | Inter-agent identity and reading |
-| [adr/ADR-117-agent-feedback-substrate-developmental-model.md](adr/ADR-117-agent-feedback-substrate-developmental-model.md) | Feedback and learned preferences |
-| [adr/ADR-118-skills-as-capability-layer.md](adr/ADR-118-skills-as-capability-layer.md) | Output skills and output gateway |
-| [adr/ADR-119-workspace-filesystem-architecture.md](adr/ADR-119-workspace-filesystem-architecture.md) | Output folders, lifecycle, project folders |
-| [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) | Service topology and env var parity |
-| [adr/](adr/) | ADR index and archive |
+| [architecture/agent-framework.md](architecture/agent-framework.md) | Agent taxonomy and type registry |
+| [architecture/agent-execution-model.md](architecture/agent-execution-model.md) | Execution model and trigger taxonomy |
+| [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) | Task type registry and process execution |
+| [architecture/workspace-conventions.md](architecture/workspace-conventions.md) | Workspace filesystem (4 roots) |
+| [architecture/output-substrate.md](architecture/output-substrate.md) | Output capabilities and rendering |
+| [adr/](adr/) | Architecture Decision Records (65 ADRs) |
 
 ## Folder Structure
 
@@ -98,14 +91,15 @@ See [adr/README.md](adr/README.md) for template.
 
 | Component | Status | Doc |
 |-----------|--------|-----|
+| **Service model** | **Canonical** | [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) |
 | Product narrative | Current | [ESSENCE.md](ESSENCE.md) |
-| First principles | Current | [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) |
+| First principles | Current (v4.2) | [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) |
 | Agent taxonomy | Current | [architecture/agent-framework.md](architecture/agent-framework.md) |
-| Workspace filesystem | Shipped | [adr/ADR-106-agent-workspace-architecture.md](adr/ADR-106-agent-workspace-architecture.md) |
-| Feedback substrate | Shipped | [adr/ADR-117-agent-feedback-substrate-developmental-model.md](adr/ADR-117-agent-feedback-substrate-developmental-model.md) |
-| Output skills / gateway | Shipped and expanding | [adr/ADR-118-skills-as-capability-layer.md](adr/ADR-118-skills-as-capability-layer.md) |
-| Output folders / lifecycle | Phase 1 shipped | [adr/ADR-119-workspace-filesystem-architecture.md](adr/ADR-119-workspace-filesystem-architecture.md) |
-| Public marketing surface | Needs continual alignment | `web/app/page.tsx`, `web/app/about/page.tsx`, `web/app/faq/page.tsx` |
+| Task type registry | Shipped (ADR-145) | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) |
+| Execution model | Current (ADR-141) | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) |
+| Workspace filesystem | Shipped (ADR-142) | [architecture/workspace-conventions.md](architecture/workspace-conventions.md) |
+| Output substrate | Phase 1 shipped (ADR-130) | [architecture/output-substrate.md](architecture/output-substrate.md) |
+| Primitives | Shipped (ADR-146) | `api/services/primitives/registry.py` |
 
 ## Related Repos (Reference Only)
 

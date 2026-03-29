@@ -33,7 +33,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   'on-demand': 'On demand',
 };
 
-function PipelinePreview({ steps }: { steps: Array<{ agent_type: string; step: string }> }) {
+function ProcessPreview({ steps }: { steps: Array<{ agent_type: string; step: string }> }) {
   if (!steps || steps.length === 0) return null;
   return (
     <div className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
@@ -73,7 +73,7 @@ function TypeCard({
         {type.description}
       </p>
       <div className="flex items-center justify-between">
-        <PipelinePreview steps={type.pipeline_summary} />
+        <ProcessPreview steps={type.pipeline_summary} />
         {type.requires_platform && (
           <span className="text-[8px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground/40">
             requires {type.requires_platform}

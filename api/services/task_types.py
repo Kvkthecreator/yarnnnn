@@ -3,13 +3,13 @@ Task Type Registry — ADR-145 Pre-Meditated Orchestration
 
 Deliverable-first task types. Each type defines:
   - What the user gets (display_name, description, category)
-  - How it's produced (pipeline: ordered agent steps)
+  - How it's produced (process: ordered agent steps)
   - When it runs (default_schedule)
   - What format (output_format, export_options)
   - What context it needs (context_sources, requires_platform)
 
 The registry is the "menu" — onboarding presents these as concrete choices.
-Pipeline execution is mechanical: scheduler resolves steps, runs each agent
+Process execution is mechanical: scheduler resolves steps, runs each agent
 in sequence, passes output forward as explicit handoff.
 
 Canonical docs:
@@ -48,7 +48,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": ["pdf"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "research",
                 "step": "investigate",
@@ -84,7 +84,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "monthly",
         "output_format": "html",
         "export_options": ["pdf"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "research",
                 "step": "investigate",
@@ -120,7 +120,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "marketing",
                 "step": "scan",
@@ -157,7 +157,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "on-demand",
         "output_format": "html",
         "export_options": ["pdf"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "research",
                 "step": "investigate",
@@ -196,7 +196,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "on-demand",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "crm",
                 "step": "gather-context",
@@ -233,7 +233,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "monthly",
         "output_format": "html",
         "export_options": ["pdf", "pptx"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "research",
                 "step": "gather-data",
@@ -271,7 +271,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "slack_bot",
                 "step": "extract",
@@ -309,7 +309,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": ["pdf"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "slack_bot",
                 "step": "extract-activity",
@@ -357,7 +357,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "daily",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "slack_bot",
                 "step": "recap",
@@ -385,7 +385,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "notion_bot",
                 "step": "sync-report",
@@ -416,7 +416,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "on-demand",
         "output_format": "html",
         "export_options": ["pdf"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "research",
                 "step": "investigate",
@@ -453,7 +453,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "on-demand",
         "output_format": "html",
         "export_options": ["pdf", "pptx"],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "marketing",
                 "step": "position",
@@ -492,7 +492,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_schedule": "weekly",
         "output_format": "html",
         "export_options": [],
-        "pipeline": [
+        "process": [
             {
                 "agent_type": "marketing",
                 "step": "gather-intelligence",
@@ -557,16 +557,20 @@ def list_categories() -> list[dict[str, Any]]:
     ]
 
 
-def get_pipeline_agent_types(type_key: str) -> list[str]:
-    """Return ordered list of agent types needed for a task type's pipeline."""
+def get_process_agent_types(type_key: str) -> list[str]:
+    """Return ordered list of agent types needed for a task type's process."""
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
         return []
-    return [step["agent_type"] for step in task_type["pipeline"]]
+    return [step["agent_type"] for step in task_type["process"]]
 
 
-def validate_pipeline(type_key: str) -> list[str]:
-    """Validate that all agent types in the pipeline exist in AGENT_TYPES.
+# Backwards-compat alias — callers may still reference the old name
+get_pipeline_agent_types = get_process_agent_types
+
+
+def validate_process(type_key: str) -> list[str]:
+    """Validate that all agent types in the process exist in AGENT_TYPES.
 
     Returns list of error messages (empty = valid).
     """
@@ -575,18 +579,22 @@ def validate_pipeline(type_key: str) -> list[str]:
         return [f"Unknown task type: {type_key}"]
 
     errors = []
-    for i, step in enumerate(task_type["pipeline"]):
+    for i, step in enumerate(task_type["process"]):
         agent_type = step["agent_type"]
         if agent_type not in AGENT_TYPES:
             errors.append(f"Step {i+1} ({step['step']}): unknown agent type '{agent_type}'")
     return errors
 
 
-def resolve_pipeline_agents(
+# Backwards-compat alias
+validate_pipeline = validate_process
+
+
+def resolve_process_agents(
     type_key: str,
     agents: list[dict],
 ) -> list[dict[str, Any]] | None:
-    """Resolve pipeline steps to actual agents from the user's roster.
+    """Resolve process steps to actual agents from the user's roster.
 
     Args:
         type_key: Task type key
@@ -609,7 +617,7 @@ def resolve_pipeline_agents(
             role_to_agent[role] = agent
 
     resolved = []
-    for step in task_type["pipeline"]:
+    for step in task_type["process"]:
         agent = role_to_agent.get(step["agent_type"])
         resolved.append({
             "agent_type": step["agent_type"],
@@ -619,6 +627,10 @@ def resolve_pipeline_agents(
             "agent_title": agent.get("title") if agent else None,
         })
     return resolved
+
+
+# Backwards-compat alias
+resolve_pipeline_agents = resolve_process_agents
 
 
 def build_task_md_from_type(
@@ -658,9 +670,9 @@ def build_task_md_from_type(
         deliverable_text = f"{deliverable_text} — {focus}"
         purpose_text = f"{purpose_text} (focus: {focus})"
 
-    # Build process section from pipeline
+    # Build process section
     process_lines = []
-    for i, step in enumerate(task_type["pipeline"]):
+    for i, step in enumerate(task_type["process"]):
         agent_label = agent_slugs[i] if agent_slugs and i < len(agent_slugs) else step["agent_type"]
         process_lines.append(f"{i+1}. **{step['step'].title()}** ({agent_label}): {step['instruction']}")
 

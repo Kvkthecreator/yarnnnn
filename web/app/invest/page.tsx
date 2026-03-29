@@ -182,7 +182,7 @@ export default function InvestPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Infrastructure</div>
                     <h3 className="text-base font-medium mb-2">Three-layer execution</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      Mechanical scheduling (zero LLM), task execution pipeline (Sonnet),
+                      Mechanical scheduling (zero LLM), multi-agent task execution (Sonnet),
                       and conversational orchestration. Purpose-built, not an API wrapper.
                     </p>
                   </div>

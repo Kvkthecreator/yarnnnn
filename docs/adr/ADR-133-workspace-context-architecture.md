@@ -1,6 +1,7 @@
 # ADR-133: Workspace Context Architecture
 
-> **Status**: Implementing
+> **Status**: Partially implemented, partially superseded
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project-scope portions dissolved. Workspace-scope portions (IDENTITY.md, BRAND.md) implemented and canonical. See [ADR-144](ADR-144-inference-first-shared-context.md) for the current context model.
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Supersedes**: `/memory/` as user context path (ADR-108), `/brand/default/` as brand path

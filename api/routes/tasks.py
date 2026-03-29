@@ -337,14 +337,14 @@ async def list_task_types_endpoint(
     types = list_task_types(category=category)
     categories = list_categories()
 
-    # Slim down pipeline for API response (don't expose full instructions)
+    # Slim down process for API response (don't expose full instructions)
     for t in types:
         t["pipeline_summary"] = [
             {"agent_type": step["agent_type"], "step": step["step"]}
-            for step in t.get("pipeline", [])
+            for step in t.get("process", [])
         ]
-        # Don't send full pipeline instructions to frontend
-        t.pop("pipeline", None)
+        # Don't send full process instructions to frontend
+        t.pop("process", None)
         # Don't send internal fields
         t.pop("default_objective", None)
 
@@ -862,7 +862,7 @@ async def get_pipeline_steps(
             if task_type_def:
                 pipeline_definition = [
                     {"agent_type": s["agent_type"], "step": s["step"]}
-                    for s in task_type_def.get("pipeline", [])
+                    for s in task_type_def.get("process", [])
                 ]
 
     # Enumerate step folders by querying workspace for step manifests

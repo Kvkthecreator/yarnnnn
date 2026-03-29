@@ -2,7 +2,7 @@
 
 > Canonical reference for the task type registry, process execution model, and orchestration scalability.
 >
-> **Terminology note:** User-facing surfaces use "process" (tab label, headers). Internal code retains "pipeline" (field names, functions, logs). This doc uses "pipeline" for code/architecture, "process" for user-facing concepts.
+> **Terminology:** "Process" is the canonical term for the multi-step agent sequence, used in both user-facing surfaces and the data model (`"process"` field in task type registry). The internal execution engine file is `task_pipeline.py` (the engine IS a pipeline; the data it executes is a "process").
 > ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
 > Product catalog: [docs/features/task-types.md](../features/task-types.md)
 
@@ -33,17 +33,17 @@ TASK_TYPES: dict[str, TaskTypeDefinition] = {
         "default_schedule": str,        # daily | weekly | biweekly | monthly | on-demand
         "output_format": str,           # html | markdown
         "export_options": list[str],    # ["pdf", "pptx", "xlsx"]
-        "pipeline": list[PipelineStep], # Ordered execution steps
+        "process": list[ProcessStep],   # Ordered execution steps
         "context_sources": list[str],   # ["web", "platforms", "workspace"]
         "requires_platform": str|None,  # "slack" | "notion" | None
     }
 }
 ```
 
-### Pipeline Step Schema
+### Process Step Schema
 
 ```python
-PipelineStep = {
+ProcessStep = {
     "agent_type": str,      # Key from AGENT_TYPES registry (ADR-140)
     "step": str,            # Human-readable step name: "investigate", "compose", "extract"
     "instruction": str,     # Step-specific instruction merged into task execution prompt
@@ -56,7 +56,7 @@ PipelineStep = {
 ```
 User selects task type
     → look up TASK_TYPES[type_key]
-    → for each pipeline step:
+    → for each process step:
         → resolve agent from user's roster by agent_type
         → verify required capabilities via AGENT_TYPES registry
         → inject step instruction into execution prompt

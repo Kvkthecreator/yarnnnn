@@ -5,14 +5,14 @@ Mechanical generation pipeline triggered by scheduler. No decision-making — ju
 
 Two execution paths:
   1. Single-step (existing): TASK.md has agent_slug, no type_key → direct generation
-  2. Multi-step pipeline (ADR-145): TASK.md has type_key → resolve pipeline from registry
+  2. Multi-step process (ADR-145): TASK.md has type_key → resolve process steps from registry
      → execute each step sequentially → pass output forward as explicit handoff
 
 Single-step flow:
   Scheduler → Read TASK.md → Resolve agent → Gather context → Generate → Save → Deliver
 
 Multi-step flow:
-  Scheduler → Read TASK.md → Resolve type_key → Look up pipeline
+  Scheduler → Read TASK.md → Resolve type_key → Look up process steps
     → For each step: resolve agent by type → gather context + prior step output → generate
     → Final step output → compose HTML → deliver
 
@@ -399,14 +399,14 @@ async def execute_task(
         task_info = parse_task_md(task_md_content)
 
         # =====================================================================
-        # 1a. Check for multi-step pipeline (ADR-145)
+        # 1a. Check for multi-step process (ADR-145)
         # =====================================================================
         type_key = task_info.get("type_key", "").strip()
         if type_key:
             from services.task_types import get_task_type
             task_type_def = get_task_type(type_key)
-            if task_type_def and len(task_type_def.get("pipeline", [])) > 1:
-                # Multi-step pipeline — delegate to pipeline executor
+            if task_type_def and len(task_type_def.get("process", [])) > 1:
+                # Multi-step process — delegate to process executor
                 result = await _execute_pipeline(
                     client, user_id, task_slug, tw, task_info, task_type_def, started_at,
                 )
@@ -845,7 +845,7 @@ async def _execute_pipeline(
     )
     from services.platform_limits import check_credits, record_credits
 
-    pipeline = task_type_def["pipeline"]
+    pipeline = task_type_def["process"]
     title = task_info.get("title") or task_slug
     delivery_target = task_info.get("delivery", "").strip()
 
@@ -947,8 +947,8 @@ async def _execute_pipeline(
         )
 
         # Inject step-specific preamble
-        step_preamble = f"\n\n## Pipeline Step {step_num}/{len(pipeline)}: {step_name.title()}\n"
-        step_preamble += f"Your role in this pipeline: {step_instruction}\n"
+        step_preamble = f"\n\n## Process Step {step_num}/{len(pipeline)}: {step_name.title()}\n"
+        step_preamble += f"Your role in this process: {step_instruction}\n"
         if step_outputs:
             prior_output = step_outputs[-1]
             step_preamble += f"\n## Prior Step Output\n{prior_output[:8000]}\n"

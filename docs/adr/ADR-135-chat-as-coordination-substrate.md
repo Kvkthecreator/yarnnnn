@@ -1,6 +1,7 @@
 # ADR-135: Chat as Coordination Substrate
 
-> **Status**: Proposed
+> **Status**: Superseded (never implemented)
+> **Superseded by**: [ADR-138](ADR-138-agents-as-work-units.md) — Project layer collapsed. PM dissolved. Tasks replace projects. Chat coordination substrate concept absorbed into TP.
 > **Date**: 2026-03-23
 > **Authors**: KVK, Claude
 > **Supersedes**: Activity-event-only PM communication (ADR-126 agent_pulsed events)
