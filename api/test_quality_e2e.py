@@ -290,21 +290,38 @@ async def run_task_and_evaluate(client, user_id: str, test_case: dict) -> Qualit
         from services.task_workspace import TaskWorkspace
         tw = TaskWorkspace(client, user_id, slug)
 
-        # Get latest output folder
-        outputs = await tw.list("outputs/")
-        if not outputs:
-            result.errors.append("No output folder created")
+        # Get latest output — query workspace_files directly for the most recent output.md
+        output_result = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", TEST_USER_ID)
+            .like("path", f"/tasks/{slug}/outputs/%/output.md")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if not output_result.data:
+            result.errors.append("No output.md found in task workspace")
             return result
 
-        # Find the most recent date folder
-        date_folders = sorted([f.rstrip("/") for f in outputs if not f.startswith(".")], reverse=True)
-        if not date_folders:
-            result.errors.append("No date folder in outputs/")
-            return result
+        output_path = output_result.data[0]["path"]
+        output_md = output_result.data[0]["content"]
+        # Derive the date folder from path: /tasks/{slug}/outputs/{date_folder}/output.md
+        path_parts = output_path.split("/")
+        latest_folder = path_parts[-2]  # e.g., "2026-03-29T0300"
 
-        latest_folder = date_folders[0]
-        output_md = await tw.read(f"outputs/{latest_folder}/output.md")
-        output_html = await tw.read(f"outputs/{latest_folder}/output.html")
+        # Check for HTML
+        html_path = output_path.replace("/output.md", "/output.html")
+        html_result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", TEST_USER_ID)
+            .eq("path", html_path)
+            .limit(1)
+            .execute()
+        )
+        output_html = html_result.data[0]["content"] if html_result.data else None
 
         if not output_md:
             result.errors.append("No output.md in latest output folder")
@@ -313,19 +330,24 @@ async def run_task_and_evaluate(client, user_id: str, test_case: dict) -> Qualit
         result.html_composed = output_html is not None and len(output_html) > 100
         logger.info(f"  ✓ Output read ({count_words(output_md)} words, HTML: {'yes' if result.html_composed else 'no'})")
 
-        # Check for step outputs (multi-step)
+        # Check for step outputs (multi-step) — query directly
         if checks.get("multi_step"):
-            # Step outputs are at outputs/{date}/step-{N}/output.md
-            for step_num in range(1, 5):  # check up to 4 steps
-                step_md = await tw.read(f"outputs/{latest_folder}/step-{step_num}/output.md")
-                if step_md:
-                    result.step_outputs.append({
-                        "folder": f"step-{step_num}",
-                        "words": count_words(step_md),
-                        "preview": step_md[:300],
-                    })
-                else:
-                    break
+            step_result = (
+                client.table("workspace_files")
+                .select("path, content")
+                .eq("user_id", TEST_USER_ID)
+                .like("path", f"/tasks/{slug}/outputs/{latest_folder}/step-%/output.md")
+                .order("path", desc=False)
+                .execute()
+            )
+            for sr in (step_result.data or []):
+                step_content = sr["content"] or ""
+                step_folder = sr["path"].split("/")[-2]  # e.g., "step-1"
+                result.step_outputs.append({
+                    "folder": step_folder,
+                    "words": count_words(step_content),
+                    "preview": step_content[:300],
+                })
             logger.info(f"  ✓ Step outputs: {len(result.step_outputs)} steps found")
 
     except Exception as e:
