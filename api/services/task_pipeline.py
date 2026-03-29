@@ -272,6 +272,13 @@ You have read-only investigation tools: Search, Read, List, WebSearch, GetSystem
 - Prefer generating from the provided context — most tasks have enough.
 - NEVER narrate your tool usage in the final output.
 
+## Visual Assets
+Include visual elements inline — they are automatically rendered by the platform:
+- **Data tables**: Use markdown tables with numeric data. Tables with numbers are automatically rendered as charts (bar, line, or pie depending on data shape).
+- **Diagrams**: Use ```mermaid code blocks for competitive positioning, market maps, org charts, process flows. These are automatically rendered as SVG diagrams.
+- Interleave visuals with prose — aim for a visual element every 2-3 paragraphs.
+- Tables and mermaid blocks are kept in the output alongside their rendered versions.
+
 ## Empty Context Handling
 If context says "(No context available)" or tools return no results:
 - Still produce the output in the requested format.
@@ -525,26 +532,9 @@ async def execute_task(
             user_context=user_context,
         )
 
-        # Skill docs for agents with asset capabilities
-        skill_docs = None
-        if has_asset_capabilities(role):
-            try:
-                from services.agent_execution import _fetch_skill_docs
-                skill_docs = await _fetch_skill_docs()
-                if skill_docs:
-                    system_prompt += f"""
-
-## Output Skill Documentation
-You have access to RuntimeDispatch for producing binary artifacts.
-Construct input specs according to these skill instructions:
-
-{skill_docs}
-
-When producing output that would benefit from a rendered artifact (PDF, PPTX, XLSX, chart),
-use RuntimeDispatch with the spec format described above. Always produce a text version
-alongside any binary — the text is the feedback surface for user edits."""
-            except Exception as e:
-                logger.warning(f"[TASK_EXEC] Skill docs fetch failed: {e}")
+        # ADR-148: No SKILL.md injection, no RuntimeDispatch during headless generation.
+        # Agent writes prose with inline data tables + mermaid blocks.
+        # Post-generation render phase (render_inline_assets) handles chart/diagram rendering.
 
         # Generate via headless agent (multi-tool-round)
         draft, usage, pending_renders = await _generate(
@@ -554,6 +544,16 @@ alongside any binary — the text is the feedback surface for user edits."""
         # Strip contributor assessment before delivery (ADR-128)
         from services.agent_execution import _extract_contributor_assessment
         draft, contributor_assessment = _extract_contributor_assessment(draft)
+
+        # =====================================================================
+        # 7b. Render inline assets — ADR-148 Phase 2 (tables→charts, mermaid→SVG)
+        # =====================================================================
+        rendered_assets = []
+        try:
+            from services.render_assets import render_inline_assets
+            draft, rendered_assets = await render_inline_assets(draft, user_id)
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Inline asset rendering failed (non-fatal): {e}")
 
         # =====================================================================
         # 8. Update agent_runs record with content
@@ -1019,24 +1019,7 @@ async def _execute_pipeline(
         # Append to user message (after gathered context)
         user_message += step_preamble
 
-        # Skill docs for agents with asset capabilities
-        if has_asset_capabilities(role):
-            try:
-                from services.agent_execution import _fetch_skill_docs
-                skill_docs = await _fetch_skill_docs()
-                if skill_docs:
-                    system_prompt += f"""
-
-## Output Skill Documentation
-You have access to RuntimeDispatch for producing binary artifacts.
-Construct input specs according to these skill instructions:
-
-{skill_docs}
-
-When producing output that would benefit from a rendered artifact (chart, diagram, image),
-use RuntimeDispatch with the spec format described above."""
-            except Exception:
-                pass
+        # ADR-148: No SKILL.md / RuntimeDispatch in headless. Agent writes inline data + mermaid.
 
         # --- Generate ---
         draft, usage, pending_renders = await _generate(
@@ -1108,6 +1091,14 @@ use RuntimeDispatch with the spec format described above."""
     # =====================================================================
     if not final_draft or not final_agent:
         return _fail(task_slug, "Process produced no output")
+
+    # Render inline assets — ADR-148 Phase 2 (tables→charts, mermaid→SVG)
+    rendered_assets = []
+    try:
+        from services.render_assets import render_inline_assets
+        final_draft, rendered_assets = await render_inline_assets(final_draft, user_id)
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Inline asset rendering failed (non-fatal): {e}")
 
     # Create agent_runs record for the final output
     agent_id = final_agent["id"]

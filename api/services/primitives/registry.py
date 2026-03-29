@@ -201,9 +201,9 @@ HEADLESS_PRIMITIVES = [
     CREATE_AGENT_TOOL,
     CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
-    # Output (1)
-    RUNTIME_DISPATCH_TOOL,
-]  # 17 tools
+    # ADR-148: RuntimeDispatch removed from headless — assets rendered post-generation
+    # RuntimeDispatch kept in HANDLERS for TP chat usage (explicit user requests)
+]  # 16 tools
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())

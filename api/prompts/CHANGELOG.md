@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.29.5] - ADR-148 Phase 1: Render phase + agent simplification
+
+### Changed
+- `services/render_assets.py`: NEW — `render_inline_assets()` extracts markdown tables with numeric data → renders as charts, mermaid code blocks → renders as SVG diagrams. Mechanical post-generation phase, zero LLM cost. Calls render service `/render` endpoint.
+- `services/task_pipeline.py`: Render phase wired between generation and compose (both single-step and multi-step paths). SKILL.md injection REMOVED from system prompt (~2000 token savings). New "Visual Assets" section in system prompt tells agents to write data tables + mermaid blocks (auto-rendered by platform).
+- `services/primitives/registry.py`: RuntimeDispatch REMOVED from HEADLESS_PRIMITIVES (17→16 tools). Agents no longer call RuntimeDispatch during headless generation. RuntimeDispatch kept in HANDLERS for explicit TP chat usage.
+- Expected behavior: Agents focus entirely on research + writing. Data tables in markdown are automatically rendered as charts (bar/line/pie inferred from data shape). Mermaid blocks rendered as SVG diagrams. All rendering happens post-generation, not competing with tool rounds. System prompt ~2000 tokens shorter.
+
+---
+
 ## [2026.03.29.4] - Single-agent process collapse — 22 steps → 16, higher output ambition
 
 ### Changed
