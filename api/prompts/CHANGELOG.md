@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.29.1] - ADR-147: GitHub Platform Integration — Phase 1
+
+### Added
+- `services/platform_tools.py`: Two GitHub TP tools: `platform_github_list_repos` (list user's repos with metadata) and `platform_github_get_issues` (get issues + PRs for a repo with state/limit filters). Dynamically loaded when GitHub is connected (same pattern as Slack/Notion).
+- `integrations/core/github_client.py`: Direct API client with rate limiting, retry, and token refresh support. Singleton pattern matches Slack/Notion clients.
+- `integrations/core/oauth.py`: GitHub OAuth config with `repo` + `read:user` scopes. Token exchange fetches user profile for metadata.
+- `workers/platform_worker.py`: `_sync_github()` — incremental sync of issues + PRs per selected repo with 6-month lookback. Comment expansion for issues with discussions. Token refresh on 401. GitHub heartbeat check via events API.
+- `services/landscape.py`: `discover_github()` + `_score_github_repos()` — repo discovery with smart scoring (boost: user-owned, active, recent; penalize: forks, archived).
+
+### Changed
+- `services/platform_limits.py`: Added `github_repos` field (Free: 3, Pro: unlimited). `total_platforms` bumped to 3.
+- `integrations/core/types.py`: Added `GITHUB` provider enum + `GitHubDestination` model.
+- `routes/integrations.py`: Added `github` to `PROVIDER_ALIASES`.
+- `services/platform_tools.py`: PROMPT_VERSIONS updated to 2026-03-29 with ADR-147 ref.
+
+### Expected behavior
+- When user connects GitHub, TP gains 2 platform tools: list repos, get issues/PRs.
+- GitHub sync runs on same schedule as Slack/Notion (daily for free, hourly for pro).
+- Token refresh happens transparently on 401 during sync or TP tool calls.
+- Smart defaults auto-select up to tier limit repos (prioritize: user-owned, active, non-fork).
+
+---
+
 ## [2026.03.28.2] - ADR-146 Gate 1: Primitive Hardening — consolidation implemented
 
 ### Changed

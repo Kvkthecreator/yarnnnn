@@ -14,7 +14,8 @@ class IntegrationProvider(str, Enum):
     """Supported integration providers."""
     SLACK = "slack"
     NOTION = "notion"
-    GOOGLE = "google"
+    GITHUB = "github"  # ADR-147: GitHub platform integration
+    GOOGLE = "google"  # ADR-131: sunset, kept for enum compat
     EMAIL = "email"  # Native, not MCP
     DOWNLOAD = "download"  # Native, not MCP
 
@@ -73,3 +74,10 @@ class NotionDestination(BaseModel):
     page_id: str
     page_title: Optional[str] = None
     database_id: Optional[str] = None
+
+
+class GitHubDestination(BaseModel):
+    """GitHub-specific destination (ADR-147)."""
+    repo: str  # owner/repo
+    issue_title: Optional[str] = None
+    labels: list[str] = []

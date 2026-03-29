@@ -264,6 +264,8 @@ async def _sync_platform_inner(
             sync_result = await _sync_slack(client, user_id, integration, selected_sources)
         elif provider == "notion":
             sync_result = await _sync_notion(client, user_id, integration, selected_sources)
+        elif provider == "github":
+            sync_result = await _sync_github(client, user_id, integration, selected_sources)
         else:
             return {
                 "success": False,
@@ -405,6 +407,33 @@ async def _heartbeat_check(client, user_id: str, provider: str, integration: dic
             notion = NotionAPIClient()
             has_changes = await notion.check_recent_changes(access_token, last_synced)
             return not has_changes
+
+        elif provider == "github":
+            # ADR-147: GitHub heartbeat — check events API for recent activity
+            token_mgr = get_token_manager()
+            token = token_mgr.decrypt(integration["credentials_encrypted"])
+            if not token:
+                return False
+
+            # Get user login from metadata
+            metadata = integration.get("metadata", {}) or {}
+            login = metadata.get("login")
+            if not login:
+                return False
+
+            # Check GitHub events for recent activity
+            from integrations.core.github_client import GitHubAPIClient
+            gh = GitHubAPIClient()
+            events = await gh._request("GET", f"/users/{login}/received_events", token, params={"per_page": 1})
+            if isinstance(events, list) and events:
+                latest_event_id = events[0].get("id", "")
+                prev_event_id = sync_cursor.get("github_latest_event_id")
+                if prev_event_id and latest_event_id == prev_event_id:
+                    return True  # No changes
+
+                sync_cursor["github_latest_event_id"] = latest_event_id
+                _update_sync_cursor(client, integration["id"], settings, sync_cursor)
+            return False
 
     except Exception as e:
         logger.debug(f"[HEARTBEAT] Check failed for {provider} (falling through to full sync): {e}")
@@ -898,6 +927,7 @@ async def _store_platform_content(
     ttl_hours = {
         "slack": 336,     # 14 days
         "notion": 2160,   # 90 days
+        "github": 336,    # 14 days (ADR-147: issues/PRs re-fetchable)
     }.get(source_type, 336)
 
     now = datetime.now(timezone.utc)
@@ -945,6 +975,226 @@ async def _store_platform_content(
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Failed to store content: {e}")
         raise  # Re-raise so callers can track failures
+
+
+async def _sync_github(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
+    """
+    Sync GitHub issues and pull requests.
+
+    ADR-147: GitHub platform integration.
+    ADR-056: Only syncs repos in selected_sources list.
+    ADR-073: Incremental sync via updated_at cursor per repo.
+
+    selected_sources: list of "owner/repo" strings
+    """
+    from integrations.core.github_client import get_github_client
+    from integrations.core.tokens import get_token_manager
+
+    token_manager = get_token_manager()
+    token = token_manager.decrypt(integration["credentials_encrypted"])
+    refresh_token_enc = integration.get("refresh_token_encrypted")
+
+    if not token:
+        return {"error": "No GitHub credentials found", "items_synced": 0}
+
+    github_client = get_github_client()
+    items_synced = 0
+
+    # Get sync cursors from sync_registry
+    settings = integration.get("settings", {}) or {}
+    sync_cursors = settings.get("sync_cursor", {}) or {}
+    github_cursors = sync_cursors.get("github_repos", {}) or {}
+
+    # 6-month lookback for first sync (ADR-147 D.7)
+    from datetime import timedelta
+    default_since = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+
+    for repo_full_name in selected_sources:
+        if not repo_full_name or "/" not in repo_full_name:
+            continue
+
+        repo_cursor = github_cursors.get(repo_full_name, {})
+        issues_since = repo_cursor.get("issues_since", default_since)
+        prs_since = repo_cursor.get("prs_since", default_since)
+
+        try:
+            # --- Sync Issues ---
+            issues = await github_client.list_issues(
+                token=token, repo=repo_full_name,
+                state="all", since=issues_since,
+                per_page=50, max_pages=5,
+            )
+
+            # Handle token expired
+            if isinstance(issues, dict) and issues.get("error") == "token_expired":
+                token = await _refresh_github_token(client, integration, token_manager, github_client, refresh_token_enc)
+                if not token:
+                    return {"error": "GitHub token expired and refresh failed", "items_synced": items_synced}
+                issues = await github_client.list_issues(
+                    token=token, repo=repo_full_name,
+                    state="all", since=issues_since,
+                    per_page=50, max_pages=5,
+                )
+
+            if isinstance(issues, list):
+                max_updated = issues_since
+                for issue in issues:
+                    # Skip pull requests (GitHub Issues API returns PRs too)
+                    if issue.get("pull_request"):
+                        continue
+
+                    issue_number = issue.get("number", 0)
+                    title = issue.get("title", "Untitled")
+                    body = issue.get("body") or ""
+                    state = issue.get("state", "open")
+                    author = issue.get("user", {}).get("login", "unknown")
+                    labels = [l.get("name", "") for l in issue.get("labels", [])]
+                    updated = issue.get("updated_at", "")
+
+                    # Build content summary
+                    label_str = f" [{', '.join(labels)}]" if labels else ""
+                    content = f"**{title}** ({state}){label_str}\n\n{body[:3000]}"
+
+                    # Fetch top comments for richer context (if > 0 comments)
+                    comment_count = issue.get("comments", 0)
+                    if comment_count > 0:
+                        comments = await github_client.get_issue_comments(
+                            token=token, repo=repo_full_name,
+                            issue_number=issue_number, per_page=5,
+                        )
+                        if isinstance(comments, list) and comments:
+                            comment_text = "\n\n---\n\n".join(
+                                f"**{c.get('user', {}).get('login', '?')}**: {(c.get('body') or '')[:500]}"
+                                for c in comments[:5]
+                            )
+                            content += f"\n\n### Comments ({comment_count} total)\n\n{comment_text}"
+
+                    try:
+                        await _store_content(
+                            client=client,
+                            user_id=user_id,
+                            source_type="github",
+                            resource_id=repo_full_name,
+                            resource_name=repo_full_name,
+                            item_id=f"issue-{issue_number}",
+                            content=content,
+                            content_type="issue",
+                            metadata={
+                                "number": issue_number,
+                                "state": state,
+                                "labels": labels,
+                                "comments": comment_count,
+                                "url": issue.get("html_url", ""),
+                            },
+                            source_timestamp=updated,
+                            title=title,
+                            author=author,
+                        )
+                        items_synced += 1
+                    except Exception as e:
+                        logger.warning(f"[PLATFORM_WORKER] GitHub: Failed to store issue {repo_full_name}#{issue_number}: {e}")
+
+                    if updated > max_updated:
+                        max_updated = updated
+
+                repo_cursor["issues_since"] = max_updated
+
+            # --- Sync Pull Requests ---
+            prs = await github_client.list_pull_requests(
+                token=token, repo=repo_full_name,
+                state="all", per_page=30, max_pages=3,
+            )
+
+            if isinstance(prs, list):
+                max_pr_updated = prs_since
+                for pr in prs:
+                    pr_number = pr.get("number", 0)
+                    title = pr.get("title", "Untitled PR")
+                    body = pr.get("body") or ""
+                    state = pr.get("state", "open")
+                    merged = pr.get("merged_at") is not None
+                    author = pr.get("user", {}).get("login", "unknown")
+                    updated = pr.get("updated_at", "")
+
+                    # Filter by since cursor
+                    if updated and updated <= prs_since and prs_since != default_since:
+                        continue
+
+                    state_label = "merged" if merged else state
+                    head = pr.get("head", {}).get("ref", "")
+                    base = pr.get("base", {}).get("ref", "")
+
+                    content = f"**{title}** ({state_label}) `{head}` → `{base}`\n\n{body[:3000]}"
+
+                    try:
+                        await _store_content(
+                            client=client,
+                            user_id=user_id,
+                            source_type="github",
+                            resource_id=repo_full_name,
+                            resource_name=repo_full_name,
+                            item_id=f"pr-{pr_number}",
+                            content=content,
+                            content_type="pull_request",
+                            metadata={
+                                "number": pr_number,
+                                "state": state_label,
+                                "head": head,
+                                "base": base,
+                                "url": pr.get("html_url", ""),
+                            },
+                            source_timestamp=updated,
+                            title=title,
+                            author=author,
+                        )
+                        items_synced += 1
+                    except Exception as e:
+                        logger.warning(f"[PLATFORM_WORKER] GitHub: Failed to store PR {repo_full_name}#{pr_number}: {e}")
+
+                    if updated > max_pr_updated:
+                        max_pr_updated = updated
+
+                repo_cursor["prs_since"] = max_pr_updated
+
+            # Update cursor for this repo
+            github_cursors[repo_full_name] = repo_cursor
+
+        except Exception as e:
+            logger.warning(f"[PLATFORM_WORKER] GitHub sync error for {repo_full_name}: {e}")
+
+    # Persist all cursors
+    sync_cursors["github_repos"] = github_cursors
+    _update_sync_cursor(client, integration["id"], settings, sync_cursors)
+
+    logger.info(f"[PLATFORM_WORKER] GitHub sync complete: {items_synced} items from {len(selected_sources)} repos")
+    return {"items_synced": items_synced}
+
+
+async def _refresh_github_token(client, integration: dict, token_manager, github_client, refresh_token_enc) -> Optional[str]:
+    """Refresh an expired GitHub token and update the DB (ADR-147 D.2)."""
+    if not refresh_token_enc:
+        logger.warning("[PLATFORM_WORKER] GitHub token expired but no refresh token available")
+        return None
+
+    refresh_token = token_manager.decrypt(refresh_token_enc)
+    new_tokens = await github_client.refresh_token(refresh_token)
+    if not new_tokens or "access_token" not in new_tokens:
+        return None
+
+    # Update DB with new tokens
+    update_data = {
+        "credentials_encrypted": token_manager.encrypt(new_tokens["access_token"]),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if new_tokens.get("refresh_token"):
+        update_data["refresh_token_encrypted"] = token_manager.encrypt(new_tokens["refresh_token"])
+
+    try:
+        client.table("platform_connections").update(update_data).eq("id", integration["id"]).execute()
+    except Exception as e:
+        logger.error(f"[PLATFORM_WORKER] Failed to update GitHub tokens: {e}")
+
+    return new_tokens["access_token"]
 
 
 # For direct execution (development/testing)

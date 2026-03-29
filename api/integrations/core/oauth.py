@@ -87,6 +87,19 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         scopes=[],  # Notion doesn't use scopes in the same way
         redirect_path="/api/integrations/notion/callback",
     ),
+    # ADR-147: GitHub platform integration
+    "github": OAuthConfig(
+        provider="github",
+        client_id_env="GITHUB_CLIENT_ID",
+        client_secret_env="GITHUB_CLIENT_SECRET",
+        authorize_url="https://github.com/login/oauth/authorize",
+        token_url="https://github.com/login/oauth/access_token",
+        scopes=[
+            "repo",        # Read/write access to repos, issues, PRs
+            "read:user",   # Read user profile info
+        ],
+        redirect_path="/api/integrations/github/callback",
+    ),
     # ADR-131: Gmail and Calendar OAuth configs removed (sunset)
 }
 
@@ -176,6 +189,14 @@ def get_authorization_url(provider: str, user_id: str, redirect_to: Optional[str
             "redirect_uri": config.redirect_uri,
             "response_type": "code",
             "owner": "user",
+            "state": state,
+        }
+    elif provider == "github":
+        # ADR-147: GitHub OAuth — standard OAuth 2.0 with scope
+        params = {
+            "client_id": config.client_id,
+            "redirect_uri": config.redirect_uri,
+            "scope": " ".join(config.scopes),
             "state": state,
         }
     else:
@@ -287,6 +308,57 @@ async def exchange_code_for_token(
                     "workspace_name": data.get("workspace_name"),
                     "bot_id": data.get("bot_id"),
                     "owner": data.get("owner"),
+                },
+                "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
+            }
+
+        elif provider == "github":
+            # ADR-147: GitHub token exchange
+            # Must request JSON response (GitHub defaults to form-encoded)
+            response = await client.post(
+                config.token_url,
+                headers={"Accept": "application/json"},
+                data={
+                    "client_id": config.client_id,
+                    "client_secret": config.client_secret,
+                    "code": code,
+                    "redirect_uri": config.redirect_uri,
+                },
+            )
+            data = response.json()
+
+            if "error" in data:
+                raise ValueError(f"GitHub OAuth error: {data.get('error_description', data.get('error'))}")
+
+            token_manager = get_token_manager()
+
+            # Fetch user profile for metadata
+            user_response = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"token {data['access_token']}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+            )
+            user_data = user_response.json() if user_response.status_code == 200 else {}
+
+            return {
+                "user_id": user_id,
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
+                "refresh_token_encrypted": (
+                    token_manager.encrypt(data["refresh_token"])
+                    if data.get("refresh_token")
+                    else None
+                ),
+                "metadata": {
+                    "login": user_data.get("login"),
+                    "github_user_id": user_data.get("id"),
+                    "avatar_url": user_data.get("avatar_url"),
+                    "name": user_data.get("name"),
+                    "scope": data.get("scope"),
+                    "token_type": data.get("token_type"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
                 "redirect_to": redirect_to,

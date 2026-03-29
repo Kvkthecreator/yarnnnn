@@ -46,6 +46,7 @@ class PlatformLimits:
     """Resource limits for a user tier."""
     slack_channels: int       # -1 for unlimited
     notion_pages: int         # -1 for unlimited
+    github_repos: int         # -1 for unlimited (ADR-147)
     total_platforms: int
     sync_frequency: SyncFrequency
     monthly_messages: int     # -1 for unlimited (Pro)
@@ -57,7 +58,8 @@ TIER_LIMITS = {
     "free": PlatformLimits(
         slack_channels=5,
         notion_pages=10,
-        total_platforms=2,
+        github_repos=3,       # ADR-147: 3 repos for free tier
+        total_platforms=3,
         sync_frequency="1x_daily",
         monthly_messages=150,
         active_tasks=2,
@@ -66,7 +68,8 @@ TIER_LIMITS = {
     "pro": PlatformLimits(
         slack_channels=-1,
         notion_pages=-1,
-        total_platforms=2,
+        github_repos=-1,      # ADR-147: unlimited repos for pro
+        total_platforms=3,
         sync_frequency="hourly",
         monthly_messages=-1,        # Unlimited chat for Pro
         active_tasks=10,
@@ -78,6 +81,7 @@ TIER_LIMITS = {
 PROVIDER_LIMIT_MAP = {
     "slack": "slack_channels",
     "notion": "notion_pages",
+    "github": "github_repos",   # ADR-147
 }
 
 # Sync frequency schedules (times in user's timezone)

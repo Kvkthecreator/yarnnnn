@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 PROVIDER_ALIASES: dict[str, list[str]] = {
     "slack": ["slack"],
     "notion": ["notion"],
+    "github": ["github"],  # ADR-147
 }
 
 

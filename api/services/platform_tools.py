@@ -5,7 +5,8 @@ ADR-076: Tool definitions and handlers for platform operations.
 These tools are dynamically added to TP based on user's connected integrations.
 All platforms use Direct API: SlackAPIClient, NotionAPIClient.
 
-ADR-131: Gmail and Calendar sunset — only Slack and Notion remain.
+ADR-131: Gmail and Calendar sunset.
+ADR-147: GitHub platform integration — list repos, get issues/PRs.
 """
 
 import logging
@@ -22,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 PROMPT_VERSIONS = {
     "platform_tools": {
-        "version": "2026-03-22",
-        "adr_refs": ["ADR-050", "ADR-131"],
-        "changelog": "ADR-131: Gmail and Calendar sunset — only Slack and Notion remain",
+        "version": "2026-03-29",
+        "adr_refs": ["ADR-050", "ADR-131", "ADR-147"],
+        "changelog": "ADR-147: Added GitHub platform tools (list repos, get issues/PRs)",
     },
     "slack": {
         "version": "2026-02-12",
@@ -198,10 +199,58 @@ The user's designated_page_id is in integration metadata. Use it unless user exp
 
 # ADR-131: Gmail and Calendar tools removed (sunset)
 
+# ADR-147: GitHub tools
+GITHUB_TOOLS = [
+    {
+        "name": "platform_github_list_repos",
+        "description": """List GitHub repositories accessible to the user.
+
+Returns repo names, languages, and activity stats. Use to find repo names before calling platform_github_get_issues.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "platform_github_get_issues",
+        "description": """Get recent issues and pull requests from a GitHub repository.
+
+Workflow:
+1. platform_github_list_repos() → find the repo
+2. platform_github_get_issues(repo="owner/repo") → get issues + PRs
+
+Parameters:
+- repo: Full repo name (owner/repo format, e.g. "acme/webapp")
+- state: "open" (default), "closed", or "all"
+- limit: Number of items (default 20, max 50)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo": {
+                    "type": "string",
+                    "description": "Full repo name: owner/repo"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": ["open", "closed", "all"],
+                    "description": "Issue state filter. Default: open"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of issues to retrieve. Default: 20, max: 50."
+                }
+            },
+            "required": ["repo"]
+        }
+    },
+]
+
 # All platform tools by provider
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
+    "github": GITHUB_TOOLS,
 }
 
 
@@ -278,11 +327,12 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     tool = "_".join(parts[2:])  # Handle multi-part tool names
 
     # ADR-076: All platforms use Direct API
-    # ADR-131: Only Slack and Notion remain
     if provider == "slack":
         return await _handle_slack_tool(auth, tool, tool_input)
     elif provider == "notion":
         return await _handle_notion_tool(auth, tool, tool_input)
+    elif provider == "github":
+        return await _handle_github_tool(auth, tool, tool_input)
     else:
         return {"success": False, "error": f"Unknown provider: {provider}"}
 
@@ -594,6 +644,82 @@ async def _execute_notion_tool(
 # ADR-131: _handle_google_tool, _execute_gmail_tool, _execute_calendar_tool deleted (sunset)
 
 
+async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """Handle GitHub tools via Direct API (ADR-147)."""
+    from integrations.core.github_client import get_github_client
+    from integrations.core.tokens import get_token_manager
+
+    try:
+        result = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", "github").eq("status", "active").single().execute()
+
+        if not result.data:
+            return {
+                "success": False,
+                "error": "No active GitHub integration. Connect it in Settings.",
+            }
+
+        token_manager = get_token_manager()
+        token = token_manager.decrypt(result.data["credentials_encrypted"])
+
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Failed to get GitHub credentials: {e}")
+        return {"success": False, "error": "Failed to get GitHub credentials"}
+
+    github_client = get_github_client()
+
+    if tool == "list_repos":
+        repos = await github_client.list_repos(token=token, max_repos=50)
+        if isinstance(repos, dict) and repos.get("error"):
+            return {"success": False, "error": repos.get("error", "GitHub API error")}
+
+        formatted = []
+        for repo in (repos if isinstance(repos, list) else []):
+            formatted.append({
+                "name": repo.get("full_name"),
+                "description": repo.get("description") or "",
+                "language": repo.get("language"),
+                "open_issues": repo.get("open_issues_count", 0),
+                "updated_at": repo.get("updated_at"),
+                "private": repo.get("private", False),
+            })
+        return {"success": True, "result": {"repos": formatted, "count": len(formatted)}}
+
+    elif tool == "get_issues":
+        repo = tool_input.get("repo")
+        if not repo or "/" not in repo:
+            return {"success": False, "error": "repo is required (format: owner/repo)"}
+
+        state = tool_input.get("state", "open")
+        limit = min(tool_input.get("limit", 20), 50)
+
+        issues = await github_client.list_issues(
+            token=token, repo=repo, state=state,
+            per_page=limit, max_pages=1,
+        )
+        if isinstance(issues, dict) and issues.get("error"):
+            return {"success": False, "error": issues.get("error", "GitHub API error")}
+
+        formatted = []
+        for item in (issues if isinstance(issues, list) else []):
+            is_pr = bool(item.get("pull_request"))
+            labels = [l.get("name", "") for l in item.get("labels", [])]
+            formatted.append({
+                "number": item.get("number"),
+                "title": item.get("title"),
+                "state": item.get("state"),
+                "type": "pull_request" if is_pr else "issue",
+                "author": item.get("user", {}).get("login"),
+                "labels": labels,
+                "comments": item.get("comments", 0),
+                "created_at": item.get("created_at"),
+                "updated_at": item.get("updated_at"),
+                "url": item.get("html_url"),
+            })
+        return {"success": True, "result": {"items": formatted, "count": len(formatted), "repo": repo}}
+
+    return {"success": False, "error": f"Unknown GitHub tool: {tool}"}
 
 
 def is_platform_tool(tool_name: str) -> bool:

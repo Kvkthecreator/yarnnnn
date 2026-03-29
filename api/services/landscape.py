@@ -118,6 +118,49 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
 
         return {"resources": resources}
 
+    elif provider == "github":
+        # ADR-147: GitHub landscape discovery — list user's repos
+        from integrations.core.github_client import get_github_client
+
+        token = token_manager.decrypt(integration["credentials_encrypted"])
+        github_client = get_github_client()
+
+        try:
+            repos = await github_client.list_repos(token=token, max_repos=200)
+        except Exception as e:
+            logger.warning(f"[LANDSCAPE] GitHub repo listing failed: {e}")
+            return {"resources": []}
+
+        if isinstance(repos, dict) and repos.get("error"):
+            logger.warning(f"[LANDSCAPE] GitHub API error: {repos}")
+            return {"resources": []}
+
+        resources = []
+        for repo in repos:
+            if not isinstance(repo, dict):
+                continue
+            full_name = repo.get("full_name", "")
+            if not full_name:
+                continue
+            resources.append({
+                "id": full_name,
+                "name": full_name,
+                "type": "repository",
+                "metadata": {
+                    "description": repo.get("description") or "",
+                    "language": repo.get("language"),
+                    "is_fork": repo.get("fork", False),
+                    "is_archived": repo.get("archived", False),
+                    "open_issues": repo.get("open_issues_count", 0),
+                    "stars": repo.get("stargazers_count", 0),
+                    "updated_at": repo.get("updated_at", ""),
+                    "is_private": repo.get("private", False),
+                    "owner_type": "user" if repo.get("owner", {}).get("type") == "User" else "org",
+                },
+            })
+
+        return {"resources": resources}
+
     return {"resources": []}
 
 
@@ -166,6 +209,17 @@ def compute_smart_defaults(
                 "name": r.get("name", ""),
                 "type": r.get("type", "page"),
                 "platform": "notion",
+            })
+
+    elif provider == "github":
+        # ADR-147: Score repos by relevance for solo founders
+        ranked = _score_github_repos(resources)
+        for r in ranked[:max_sources]:
+            selected.append({
+                "id": r["id"],
+                "name": r.get("name", ""),
+                "type": "repository",
+                "platform": "github",
             })
 
     return selected
@@ -304,6 +358,60 @@ def _score_notion_pages(resources: list[dict]) -> list[dict]:
         scored.append((score, edited, r))
 
     # Sort by score descending, then by last_edited descending (recent first)
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [r for _, _, r in scored]
+
+
+# =============================================================================
+# GitHub Repo Scoring (ADR-147)
+# =============================================================================
+
+def _score_github_repos(resources: list[dict]) -> list[dict]:
+    """
+    Score GitHub repos by relevance for solo founders.
+
+    Scoring:
+    - Boost: user-owned (not fork, not archived) (+3)
+    - Boost: has open issues (+1, signals active work)
+    - Boost: recently updated (+2 if updated in last 30d)
+    - Penalty: forks (-4)
+    - Penalty: archived (-5)
+    - Base: stars as tiebreaker
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = (now - timedelta(days=30)).isoformat()
+    scored = []
+
+    for r in resources:
+        meta = r.get("metadata", {})
+        score = 0
+
+        # Fork / archive penalties
+        if meta.get("is_archived"):
+            score -= 5
+        if meta.get("is_fork"):
+            score -= 4
+
+        # Owner boost (user-owned, not fork)
+        if meta.get("owner_type") == "user" and not meta.get("is_fork"):
+            score += 3
+
+        # Active work signals
+        open_issues = meta.get("open_issues", 0)
+        if open_issues > 0:
+            score += 1
+        if open_issues > 5:
+            score += 1
+
+        # Recency boost
+        updated = meta.get("updated_at", "")
+        if updated and updated >= thirty_days_ago:
+            score += 2
+
+        scored.append((score, meta.get("stars", 0), r))
+
     scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
     return [r for _, _, r in scored]
 

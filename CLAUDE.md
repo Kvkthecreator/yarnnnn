@@ -84,7 +84,9 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 
 - **ADR-130**: HTML-Native Output Substrate — Three-Registry Architecture. Three registries: **Agent Type Registry** (v2: 8 user-facing product types — briefer, monitor, researcher, drafter, analyst, writer, planner, scout — plus PM infrastructure; each with display_name, tagline, capabilities), **Capability Registry** (each capability → runtime + tool + skill docs + output type), **Runtime Registry** (where compute happens — internal, python_render, node_remotion, external APIs). Types are product offerings users "hire." Legacy roles (digest, synthesize, research, prepare, custom) mapped via `resolve_role()` + `LEGACY_ROLE_MAP` — no DB migration needed. Multi-agent coordination model: projects are teams (1 PM + 1..N contributors), lean start (1 contributor at scaffold), team grows via Composer/TP/user. HTML-native bet: agents produce markdown + assets, platform composes HTML via compose engine, export (PDF/XLSX) is derivative on-demand. Skills pipeline: SKILL.md convention preserved (Claude Code compatible, marketplace-importable); skills can be built-in (render service), compute-backed (Remotion), or imported (MCP/marketplace). `SKILL_ENABLED_ROLES` → deleted. `classify_seniority()` → deleted. `ROLE_PORTFOLIOS` → deleted. All LLM-facing prompts + code callers migrated to v2 types. Key files: `api/services/agent_framework.py` (three registries + helpers), `web/lib/agent-identity.ts` (display names, colors, taglines), `docs/architecture/output-substrate.md` (canonical), `render/compose.py` (HTML composition engine). Phase 1 implemented (registries, seniority deletion, v2 types, full caller migration). Phase 2 proposed (HTML-native compose integration as post-generation pipeline step). Phase 3 proposed (export pipeline, format-builder skill dissolution, multi-runtime).
 
-- **ADR-131**: Gmail & Calendar Sunset — removes Gmail and Calendar integrations. Google OAuth (`google_client.py`), Gmail sync (`_sync_gmail()`), Calendar sync (`_sync_calendar()`) deleted. Platform count reduced from 4 to 2 (Slack, Notion). `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars removed. Bootstrap platform types reduced to `slack_digest` + `notion_digest`. Tier source limits simplified (no gmail/calendar). Supersedes Gmail/Calendar portions of ADR-077, ADR-100, ADR-112, ADR-113, ADR-122.
+- **ADR-131**: Gmail & Calendar Sunset — removes Gmail and Calendar integrations. Google OAuth (`google_client.py`), Gmail sync (`_sync_gmail()`), Calendar sync (`_sync_calendar()`) deleted. `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars removed. Supersedes Gmail/Calendar portions of ADR-077, ADR-100, ADR-112, ADR-113, ADR-122.
+
+- **ADR-147**: GitHub Platform Integration — adds GitHub as third content platform (Slack + Notion + GitHub). Direct API client with rate limiting + token refresh (GitHub tokens expire). Two TP tools: `platform_github_list_repos`, `platform_github_get_issues`. Sync: issues + PRs from selected repos, incremental via cursor. Tier limits: Free 3 repos, Pro unlimited. Key files: `api/integrations/core/github_client.py`, `api/workers/platform_worker.py` (`_sync_github()`), `api/services/landscape.py` (repo scoring). (Phase 1 Implemented — backend core. Phase 2: frontend + delivery.)
 
 - **ADR-132**: **Project scaffolding superseded by ADR-138.** Work-First Onboarding & Project Scaffolding — replaces platform-first onboarding with work-structure-first model. Two-step structured onboarding: (1) "How is your work structured?" — single-focus vs. multi-scope, (2) define work scopes (each becomes a work unit → project). No LLM parsing for extraction — user provides discrete scopes directly. Platform connections enrich existing work-scoped projects rather than creating generic digests. Work types carry implicit lifecycle (persistent vs. bounded). Lightweight onboarding page (`/onboarding`) shown once after signup, completable in <60s. Fallback: users who skip get current platform-first bootstrap. Work-scoped project types added to registry (`workspace`, `bounded_deliverable`). Agent identities derived from work context (e.g., "Acme Reporter" not "Slack Digest Agent"). `/memory/WORK.md` stores structure + work units. Extends ADR-122, ADR-130. Supersedes ADR-110 (bootstrap as primary path), ADR-113 (onboarding flow). Four phases: P1 (onboarding page + data capture), P2 (work unit classification + scaffolding), P3 (platform source mapping to work units), P4 (orchestrator integration). (Proposed.)
 
@@ -153,6 +155,9 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 **Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
 - `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
 - `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Schedulers for Notion API
+
+**API-only env vars** (not needed on schedulers):
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — ADR-147: only needed for OAuth initiation on API. Schedulers use encrypted tokens from DB for sync.
 
 **MCP Server env vars** (separate from above — MCP server uses service key, not user JWTs):
 - `SUPABASE_SERVICE_KEY` — Service key for RLS bypass (same as Schedulers)
@@ -295,6 +300,7 @@ You MUST:
 - **Clients**: Direct API via `api/integrations/core/{slack,notion}_client.py` — no MCP, no gateway (ADR-076)
 - **Content**: Stored in `platform_content` with TTL-based retention (Slack 14d, Notion 90d)
 - **Tier limits**: Free=5 slack/10 notion, Pro=unlimited — ADR-100 2-tier model
+- **GitHub**: ADR-147. Issues + PRs from selected repos. Incremental sync via `updated_at` cursor. Token refresh on 401. 6-month lookback on first sync, 14-day retention.
 - **Gmail & Calendar**: Removed (ADR-131). Google OAuth, `_sync_gmail()`, `_sync_calendar()`, `google_client.py` deleted.
 
 ### ADR-106: Agent Workspace Architecture
@@ -358,7 +364,7 @@ You MUST:
 | Dashboard Summary | DELETED (2026-03-22) — collapsed into Orchestrator |
 | Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
 | Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
-| Platform API Clients | `api/integrations/core/{slack,notion}_client.py` |
+| Platform API Clients | `api/integrations/core/{slack,notion,github}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |
 | Agent Scheduler | `api/jobs/unified_scheduler.py` (queries `tasks` table for scheduling) |
