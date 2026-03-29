@@ -1,181 +1,328 @@
-# ADR-148: Output Artifact Architecture — Pieces, Composition, Delivery
+# ADR-148: Output Types & Production Phases
 
-> **Status**: Proposed — Phase 2 target (not immediate implementation)
-> **Date**: 2026-03-29
+> **Status**: Proposed
+> **Date**: 2026-03-29 (revised)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-130 (HTML-Native Output Substrate), ADR-145 (Task Type Registry)
-> **Prerequisite**: Single-agent quality ceiling validated first (see `docs/analysis/output-quality-first-principles-2026-03-29.md`)
-> **Rationale**: Artifact architecture becomes structurally necessary when accumulated agent memory and context window economics force sub-agent delegation (Month 3+). Premature implementation adds coordination cost without proportional quality gain. Phase 0 (single-agent, higher ambition) must validate the quality ceiling first.
+> **Supersedes**: The `output.md`-as-sole-artifact model + RuntimeDispatch-during-generation pattern
+> **Analysis**: `docs/analysis/output-quality-first-principles-2026-03-29.md`
 
 ---
 
 ## Context
 
-Multi-step task processes (ADR-145) produce output that is indistinguishable from single-agent output. A 2-step competitive intelligence brief (research agent investigates, content agent composes) produces 300-700 words of markdown — the same artifact a single agent produces in one shot.
+Three iterations of quality testing (2026-03-29) revealed that the output quality gap is not about agent count or process step architecture. It's about **what a finished deliverable is expected to contain** and **how visual assets get from the agent's reasoning to the final output**.
 
-The root cause: **each process step produces a complete `output.md`**, and the compose step rewrites the research step's output rather than contributing additional artifacts. There is no concept of "pieces that assemble into a whole."
+Current state:
+- Agent produces markdown prose (400-700 words) with optional RuntimeDispatch tool calls for charts
+- RuntimeDispatch competes for tool rounds with web search — agent typically chooses research over charts
+- Chart specs require precise JSON construction during generation — error-prone, often fails silently
+- No validation that assets were actually produced
+- Compose service receives markdown with broken image references when charts failed
+- Output looks like structured notes, not a finished deliverable
 
-The architecture promises layout modes (document, presentation, dashboard) that imply professional-grade deliverables — multi-page reports with charts, slide decks with visuals, data dashboards with KPI cards. But the pipeline produces a few hundred words of markdown regardless of layout mode.
-
-E2E test results (2026-03-29):
-- competitive-intel-brief: step 1 = 674 words (research), step 2 = 23 words (compose failed — tool budget consumed by chart attempts)
-- stakeholder-update: step 1 = 540 words, step 2 = 683 words (passed, but still plain markdown)
+Expected state (reverse-engineered from a well-crafted published report):
+- 1500-3000 words of **narrative prose** (paragraphs, not bullet points)
+- 2-3 **rendered charts** interleaved with prose (visual every 2-3 paragraphs)
+- 1-2 **rendered diagrams** (competitive positioning, market maps)
+- Styled **comparison tables**
+- All composed into professional HTML with proper visual rhythm
 
 ---
 
 ## Decision
 
-### Four Domains
+### Three Concepts
 
-**Artifacts** — discrete units of generated content. Each has a type, was produced by a specific agent in a specific process step, and exists independently. Artifacts are ingredients, not the output.
+**Output Type** — what a finished deliverable must contain. Defines the acceptance criteria: prose requirements, asset requirements, structural expectations. Declared per task type in the registry.
 
-**Output** — the composed deliverable. A single HTML artifact assembled from the process step artifacts according to the layout mode. What the user receives and reads. The output is always HTML — PDF/XLSX/PPTX are mechanical exports derived from it.
+**Production Phases** — the sequence that produces a finished deliverable. Three phases, strictly separated:
+1. **Generate** — LLM produces narrative prose with inline data (the cognitive work)
+2. **Render** — mechanical extraction of asset specs from prose, rendered via render service (zero LLM cost)
+3. **Compose** — mechanical assembly of prose + rendered assets into styled HTML (existing compose service)
 
-**Delivery** — transport. Takes the output and moves it to an external destination. A side effect, not a transformation. Can happen 0 times (app-only), 1 time (email), or N times (email + Slack). Delivery is logged on the output, not stored as a separate entity.
+**Delivery** — transport of the composed output to external destinations. Separate from output production.
 
-**Surfacing** — what the app shows. The task page always renders the composed output. Independent of delivery — the app shows all outputs whether or not they were delivered anywhere.
+### Output Type Registry
 
-### Artifact Type System
+Each output type declares what "done" looks like:
 
-Each process step produces one or more typed artifacts:
+```python
+OUTPUT_TYPES = {
+    "report": {
+        "prose": {
+            "min_words": 1500,
+            "style": "narrative",  # flowing paragraphs, not bullet lists
+            "instruction": "Write in flowing paragraphs. Use bullet points only for lists of items. "
+                          "Every section should have 2-3 paragraphs of analysis, not just headers and bullets.",
+        },
+        "assets": {
+            "charts": {
+                "min": 2,
+                "source": "data_tables",      # extract from markdown tables with numeric data
+                "fallback": "mermaid_blocks",  # or from ```mermaid pie/bar blocks
+                "instruction": "Include markdown tables with numeric data for key metrics. "
+                              "These will be automatically rendered as charts.",
+            },
+            "diagrams": {
+                "min": 1,
+                "source": "mermaid_blocks",    # extract from ```mermaid code blocks
+                "instruction": "Include mermaid diagrams for structural relationships "
+                              "(competitive positioning, market maps, org charts).",
+            },
+        },
+        "tables": {"min": 1},
+        "sources": "required",
+        "rhythm": "visual every 2-3 paragraphs",
+    },
 
-| Type | What | Format | Producer |
-|------|------|--------|----------|
-| `text` | Prose analysis, section content, narrative | Markdown (.md) | Any agent |
-| `data` | Structured metrics, comparison tables, signal lists | JSON (.json) or markdown table | Research, Marketing |
-| `chart` | Data visualization (bar, line, pie, scatter) | SVG/PNG via render service | Agents with chart capability |
-| `diagram` | Structural/relational visualization | SVG via mermaid render | Agents with mermaid capability |
-| `image` | Generated or sourced visual | PNG/JPG via render service | Agents with image capability |
-| `table` | Structured comparison data | Markdown table (composed to rich HTML table) | Any agent |
+    "digest": {
+        "prose": {
+            "min_words": 500,
+            "style": "structured",  # sections with attribution, scannable
+            "instruction": "Use structured sections with clear headers. Attribution is mandatory.",
+        },
+        "assets": {
+            "charts": {"min": 0},
+            "diagrams": {"min": 0},
+        },
+        "tables": {"min": 0},
+        "sources": "optional",
+    },
 
-Artifacts are stored in the step output folder:
+    "brief": {
+        "prose": {
+            "min_words": 800,
+            "style": "concise_narrative",  # paragraphs but concise
+            "instruction": "Write concise paragraphs. Each section earns its place. "
+                          "End with specific action items.",
+        },
+        "assets": {
+            "charts": {"min": 0, "source": "data_tables"},
+            "diagrams": {"min": 0, "source": "mermaid_blocks"},
+        },
+        "tables": {"min": 0},
+        "sources": "optional",
+    },
+
+    "dashboard": {
+        "prose": {
+            "min_words": 800,
+            "style": "data_first",  # metrics and tables dominate, prose interprets
+            "instruction": "Lead with data. Use tables for metrics with period-over-period comparison. "
+                          "Prose interprets the data — 1-2 sentences per metric, not paragraphs.",
+        },
+        "assets": {
+            "charts": {
+                "min": 2,
+                "source": "data_tables",
+                "instruction": "Include metric tables — these render as KPI cards and trend charts.",
+            },
+            "diagrams": {"min": 0},
+        },
+        "tables": {"min": 2},
+        "sources": "optional",
+    },
+
+    "presentation": {
+        "prose": {
+            "min_words": 1000,
+            "style": "slides",  # each ## is a slide, 3 bullets max
+            "instruction": "Each ## heading is a slide. Slide titles are assertions, not topics. "
+                          "3 bullets max per slide. Include a visual every other slide.",
+        },
+        "assets": {
+            "charts": {"min": 1, "source": "data_tables"},
+            "diagrams": {
+                "min": 1,
+                "source": "mermaid_blocks",
+                "instruction": "Include at least one positioning or comparison diagram.",
+            },
+        },
+        "tables": {"min": 1},
+        "sources": "optional",
+    },
+
+    "article": {
+        "prose": {
+            "min_words": 1500,
+            "style": "editorial",  # opinionated, voice-driven, long-form
+            "instruction": "Write in the user's brand voice. Opinionated, not neutral. "
+                          "Compelling hook, thesis, evidence sections, actionable conclusion. "
+                          "Never start with 'In today's fast-paced world'.",
+        },
+        "assets": {
+            "charts": {"min": 1, "source": "data_tables"},
+            "diagrams": {"min": 0, "source": "mermaid_blocks"},
+        },
+        "tables": {"min": 0},
+        "sources": "required",
+    },
+}
+```
+
+### Task Type → Output Type Mapping
 
 ```
-/tasks/{slug}/outputs/{date}/
-  step-1/
-    analysis.md          (type: text)
-    competitor_matrix.md  (type: table)
-    funding_data.json     (type: data)
-  step-2/
-    executive_summary.md  (type: text)
-    implications.md       (type: text)
-    market_share.svg      (type: chart)
-    positioning.svg       (type: diagram)
-  manifest.json           (artifact inventory for composition)
-  output.html             (composed final output)
-  output.md               (text-only fallback)
+competitive-intel-brief  → report
+market-research-report   → report
+industry-signal-monitor  → report
+due-diligence-summary    → report
+meeting-prep-brief       → brief
+stakeholder-update       → dashboard
+relationship-health-digest → brief
+project-status-report    → brief
+slack-recap              → digest
+notion-sync-report       → digest
+content-brief            → article
+launch-material          → presentation
+gtm-tracker              → dashboard
 ```
 
-### Process Steps Produce Artifacts, Not Outputs
+### Production Phases
 
-The key change: a process step's instruction tells the agent **what artifacts to produce**, not "write a report." The research step produces research artifacts. The compose step produces presentation artifacts (summaries, visuals, interpretations). Neither step produces the final output.
+#### Phase 1: Generate (LLM — the cognitive work)
 
-Example — competitive-intel-brief:
+The agent produces the full deliverable as markdown. It does NOT call RuntimeDispatch for charts. Instead, it produces **data inline** that post-processing can extract:
 
-```
-Step 1 (research/investigate):
-  Produce:
-  - analysis.md: Competitive landscape analysis (1500+ words, per-competitor sections)
-  - competitor_matrix.md: Feature comparison table (markdown table)
-  - signal_log.md: Recent moves with dates and sources
+**Charts** — agent writes markdown tables with numeric data:
+```markdown
+The AI agent market saw significant funding concentration in enterprise:
 
-Step 2 (content/compose):
-  Produce:
-  - executive_summary.md: 3-sentence insight summary
-  - implications.md: Strategic implications for our positioning
-  - market_share.svg: Chart from any quantified data in analysis
-  - positioning.svg: Mermaid competitive positioning diagram
+| Category | Funding ($M) | Change vs Prior |
+|----------|-------------|-----------------|
+| Enterprise | 450 | +35% |
+| Developer Tools | 280 | +12% |
+| Vertical AI | 180 | +48% |
+
+Enterprise platforms captured the majority of funding...
 ```
 
-### Composition as a Mechanical Phase
+**Diagrams** — agent writes mermaid code blocks:
+```markdown
+The competitive landscape has consolidated into four quadrants:
 
-Composition is NOT an agent step. It's a mechanical post-process phase that:
-1. Reads all artifacts from all process steps
-2. Assembles them per a layout template
-3. Calls the compose service to produce styled HTML
-
-Layout templates define artifact assembly order:
-
-**Document template**:
-```
-[executive_summary] → [analysis with inline charts/diagrams] → [tables] → [implications] → [sources]
-```
-
-**Presentation template**:
-```
-[title slide from task title] → [executive_summary as slide] → [each major finding as slide with chart] → [positioning diagram slide] → [implications slide] → [next steps]
+```mermaid
+quadrantChart
+    title Competitive Positioning
+    x-axis "Platform Breadth" --> "Narrow Focus"
+    y-axis "Manual" --> "Autonomous"
+    quadrant-1 "Enterprise Leaders"
+    quadrant-2 "Vertical Specialists"
+    Microsoft: [0.8, 0.6]
+    YARNNN: [0.3, 0.9]
 ```
 
-**Dashboard template**:
-```
-[KPI cards from data artifacts] → [trend charts] → [signal cards from signal_log] → [comparison tables] → [narrative sections]
+As shown above, Microsoft dominates platform breadth while YARNNN...
 ```
 
-The compose service already supports these layout modes (document, presentation, dashboard, data). The change is feeding it structured artifacts instead of a single markdown blob.
+The agent focuses entirely on **thinking, researching, and writing**. All tool rounds go to web search and context gathering. No tool rounds spent on asset rendering.
 
-### Output/Delivery Separation
+#### Phase 2: Render (Mechanical — zero LLM cost)
 
-**Output** exists whether or not delivery happens:
-- Stored in workspace: `/tasks/{slug}/outputs/{date}/output.html` + `output.md`
-- Always browsable in the app
-- Carries metadata: process steps completed, artifacts used, composition mode, generation tokens
+Post-generation, the pipeline:
+1. Parses the output markdown for renderable content
+2. **Tables with numeric data** → chart render via render service (type inferred: bar for comparisons, line for time series, pie for part-of-whole)
+3. **Mermaid code blocks** → diagram render via render service (existing mermaid skill)
+4. Rendered SVGs uploaded to Supabase Storage
+5. Markdown updated: tables get a rendered chart inserted above/below them, mermaid blocks replaced with `<img>` tags
 
-**Delivery** is a transport action logged on the output:
-- Email: sends output.html with optional PDF attachment
-- Slack: posts condensed summary (executive_summary artifact) with link to full output
-- Notion: writes structured page from artifact tree
-- Delivery failures don't invalidate the output — the deliverable exists, transport just failed
+This is a new function: `render_inline_assets(markdown, user_id) → (enriched_markdown, asset_urls)`.
+
+#### Phase 3: Compose (Mechanical — existing compose service)
+
+Takes enriched markdown (with rendered asset URLs) + layout_mode → styled HTML.
+
+The compose service already handles this. The only change: it now receives markdown with `<img>` tags for rendered charts/diagrams, not broken `![chart](missing.svg)` references.
+
+### Asset Extraction Strategies
+
+| Asset Source | Detection | Render Strategy | Chart Type Inference |
+|---|---|---|---|
+| Markdown table with numeric column | Regex: table rows with numbers | `POST /render` type=chart | 2 columns → bar; time-series header → line; <6 rows + % → pie |
+| Mermaid code block | ` ```mermaid ` fence | `POST /render` type=mermaid | N/A (mermaid self-describes) |
+| Inline chart spec (future) | `<!-- chart: type \| title \| data -->` | `POST /render` type=chart | Explicit in spec |
+
+### Output Validation
+
+After Phase 2, before Phase 3, the pipeline validates the output against the output type requirements:
+
+```python
+def validate_output(markdown: str, output_type: dict, rendered_assets: list) -> list[str]:
+    """Returns list of warnings (not errors — output still proceeds)."""
+    warnings = []
+    word_count = len(markdown.split())
+    if word_count < output_type["prose"]["min_words"]:
+        warnings.append(f"Below minimum words: {word_count} < {output_type['prose']['min_words']}")
+    if len(rendered_assets) < output_type["assets"]["charts"]["min"]:
+        warnings.append(f"Below minimum charts: {len(rendered_assets)} < ...")
+    # ... etc
+    return warnings
+```
+
+Warnings are logged and stored in the manifest — they don't block delivery. Over time, warning patterns inform process instruction refinement.
+
+### Delivery Separation
+
+Delivery is a side effect of output production, not part of it:
+
+- **Output** exists in workspace (`/tasks/{slug}/outputs/{date}/output.html`) whether or not delivery happens
+- **Delivery** reads the composed output and transports it:
+  - Email: sends output.html + optional PDF export
+  - Slack: posts executive summary section (extracted from output) + link to full
+  - Notion: writes structured page from output sections
+- Delivery status is metadata on the output manifest, not a separate entity
+- Delivery failure doesn't invalidate the output — the app always shows it
 
 ---
 
 ## Consequences
 
 ### What changes
-- Process step instructions rewritten around artifact production, not "write a report"
-- Task type registry gains `artifact_spec` per step (what each step should produce)
-- Pipeline saves artifacts with type metadata in the manifest
-- Compose service accepts artifact inventory instead of single markdown blob
-- Compose templates per layout_mode define assembly order
-- Output and delivery are distinct pipeline phases
+- Output type registry added (`api/services/output_types.py`)
+- Task type registry gains `output_type` field (mapping to output type key)
+- Process instructions enriched with output type's prose/asset instructions
+- RuntimeDispatch removed from generation loop (agents no longer call it directly)
+- New `render_inline_assets()` function extracts and renders charts/diagrams post-generation
+- Output validation step added between render and compose
+- SKILL.md injection removed from system prompt (saves ~2000 tokens)
 
 ### What stays the same
-- Agent type registry (capabilities unchanged)
-- Task type registry structure (process steps, layout_mode)
-- Compose service API (/compose endpoint)
-- Delivery service (deliver_from_output_folder)
-- Frontend task page (reads output.html via iframe)
-- Workspace file storage model
+- Agent type registry and capabilities
+- Process step definitions (single-step or multi-step)
+- Compose service API (`POST /compose`)
+- Render service API (`POST /render` — called by post-processing, not by agents)
+- Delivery service
+- Frontend task page (reads output.html)
+- Workspace storage model
 
-### Risks
-- **Complexity**: Artifact-aware composition is more complex than single-markdown composition
-- **Agent compliance**: Agents may not reliably produce separate named artifacts (vs one blob)
-- **Template maintenance**: Layout templates are a new artifact to maintain per layout mode
+### Key Simplification
+- **Agents just write.** No RuntimeDispatch tool calls during generation. No JSON chart spec construction. No tool round competition between research and chart generation. The agent produces prose with inline data — the system handles rendering.
+- **System prompt shrinks.** ~2000 tokens of SKILL.md documentation removed. More room for methodology + context + the actual output.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Artifact-aware manifest + composition template
-- Extend manifest.json to inventory artifacts by type
-- Compose service reads artifact list, assembles by template
-- Process instructions updated for 1-2 task types as proof of concept
-- Validate: competitive-intel-brief produces a 10-page-equivalent HTML report with charts
+### Phase 1: Output type registry + inline asset rendering
+- Create output type registry with 6 types
+- Add `output_type` field to task type registry
+- Implement `render_inline_assets()` — table→chart and mermaid→SVG extraction
+- Remove RuntimeDispatch from headless generation (keep for explicit TP chat usage)
+- Remove SKILL.md injection from task execution system prompt
+- Process instructions updated to include output type prose/asset guidance
+- Validate with competitive-intel-brief: target 1500+ words, 2 rendered charts, 1 diagram
 
-### Phase 2: All task types migrated to artifact model
-- All 13 task type process instructions rewritten around artifact production
-- Artifact validation (step produced expected artifact types)
-- Dashboard and presentation templates validated
+### Phase 2: Output validation + delivery separation
+- Output validation function checks against output type requirements
+- Warnings logged in manifest
+- Delivery service reads composed output (no change to delivery flow)
+- Slack delivery extracts executive summary for condensed post
 
-### Phase 3: Delivery separation
-- Delivery reads composed output, adapts for channel
-- Slack delivery uses executive_summary artifact for condensed post
-- Notion delivery writes structured page from artifact tree
-- Export (PDF/XLSX) derives from composed HTML
-
-### Phase 4: Extended artifact types
-- Video composition (artifact tree → Remotion template → MP4)
-- Platform-native writes (Notion blocks, Slack canvas)
-- Interactive dashboard (HTML with JS charts)
+### Phase 3: Adaptive multi-step
+- Process definitions support both single-step and multi-step
+- Runtime decision: agent has <5 runs → single-step; 5+ runs → multi-step (accumulated knowledge justifies handoff)
+- Multi-step handoff quality validated with E2E tests
 
 ---
 
@@ -183,8 +330,17 @@ The compose service already supports these layout modes (document, presentation,
 
 | ADR | Relationship |
 |-----|-------------|
-| ADR-130 (Output Substrate) | Extended — artifact types formalize what was implicit (chart/mermaid/image capabilities) |
-| ADR-145 (Task Type Registry) | Extended — process steps gain artifact_spec |
-| ADR-118 (Skills/Output Gateway) | Preserved — render service produces chart/diagram/image artifacts |
-| ADR-141 (Execution Architecture) | Extended — composition becomes explicit pipeline phase after all steps |
-| ADR-138 (Agents as Work Units) | Aligned — agents produce artifacts, tasks compose deliverables |
+| ADR-130 (Output Substrate) | Extended — output types formalize the three-concern separation (capability/presentation/export) with explicit completeness criteria |
+| ADR-145 (Task Type Registry) | Extended — task types gain `output_type` field |
+| ADR-118 (Skills/Output Gateway) | Evolved — render service still produces charts/diagrams, but called by post-processing not by agents |
+| ADR-141 (Execution Architecture) | Extended — render phase added between generation and composition |
+| ADR-138 (Agents as Work Units) | Aligned — agents produce prose, system produces deliverables |
+
+---
+
+## Revision History
+
+| Date | Change |
+|------|--------|
+| 2026-03-29 | v1 — Initial: artifact types, composition templates, multi-agent assembly |
+| 2026-03-29 | v2 — Revised: output types as acceptance criteria, production phases (generate→render→compose), inline asset extraction replaces RuntimeDispatch-during-generation. Driven by three iterations of E2E testing showing the real bottleneck is asset rendering, not agent coordination. |
