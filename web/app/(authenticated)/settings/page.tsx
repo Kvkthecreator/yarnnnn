@@ -133,7 +133,7 @@ export default function SettingsPage() {
           .map((p: { provider: string }) => p.provider)
       );
 
-      const connectedCount = ["slack", "notion"].filter((p) =>
+      const connectedCount = ["slack", "notion", "github"].filter((p) =>
         activePlatforms.has(p)
       ).length;
 

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Slack,
   FileCode,
+  Github,
   ChevronDown,
   Check,
   X,
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils';
  * Used in Context Browser and Agent List surfaces.
  */
 
-export type PlatformFilterValue = 'all' | 'slack' | 'notion';
+export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'github';
 
 interface PlatformFilterProps {
   value: PlatformFilterValue;
@@ -47,12 +48,17 @@ const PLATFORM_CONFIG: Record<
     label: 'Notion',
     color: 'text-gray-700 dark:text-gray-300',
   },
+  github: {
+    icon: <Github className="w-3.5 h-3.5" />,
+    label: 'GitHub',
+    color: 'text-gray-900 dark:text-gray-100',
+  },
 };
 
 export function PlatformFilter({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion'],
+  availablePlatforms = ['all', 'slack', 'notion', 'github'],
   counts,
   compact = false,
   className,
@@ -175,7 +181,7 @@ export function PlatformFilter({
 export function PlatformFilterChips({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion'],
+  availablePlatforms = ['all', 'slack', 'notion', 'github'],
   counts,
   className,
 }: Omit<PlatformFilterProps, 'compact'>) {

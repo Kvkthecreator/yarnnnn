@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Slack, FileCode, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Slack, FileCode, Github, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from './card';
 
@@ -49,6 +49,12 @@ const PLATFORM_CONFIG: Record<string, {
     label: 'Notion',
     color: 'text-gray-700 dark:text-gray-300',
     bgColor: 'bg-gray-50 dark:bg-gray-800/50',
+  },
+  github: {
+    icon: <Github className="w-6 h-6" />,
+    label: 'GitHub',
+    color: 'text-gray-900 dark:text-gray-100',
+    bgColor: 'bg-gray-50 dark:bg-gray-900/50',
   },
 };
 

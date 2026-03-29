@@ -746,7 +746,7 @@ export const api = {
 
     // Start import job
     startImport: (
-      provider: "slack" | "notion",
+      provider: "slack" | "notion" | "github",
       data: {
         resource_id: string;
         resource_name?: string;
@@ -834,7 +834,7 @@ export const api = {
 
     // ADR-030: Landscape and Coverage
     // Get platform landscape with coverage state
-    getLandscape: (provider: "slack" | "notion", refresh?: boolean) =>
+    getLandscape: (provider: "slack" | "notion" | "github", refresh?: boolean) =>
       request<{
         provider: string;
         discovered_at: string | null;
@@ -860,7 +860,7 @@ export const api = {
 
     // ADR-072: Get synced platform content from platform_content
     getPlatformContext: (
-      provider: "slack" | "notion",
+      provider: "slack" | "notion" | "github",
       options?: { limit?: number; resourceId?: string; offset?: number }
     ) =>
       request<{
@@ -896,7 +896,7 @@ export const api = {
 
     // Update coverage state (mark as excluded or reset)
     updateCoverage: (
-      provider: "slack" | "notion",
+      provider: "slack" | "notion" | "github",
       resourceId: string,
       coverageState: "excluded" | "uncovered"
     ) =>
@@ -949,7 +949,7 @@ export const api = {
       }>("/api/user/limits"),
 
     // Get selected sources for a platform
-    getSources: (provider: "slack" | "notion") =>
+    getSources: (provider: "slack" | "notion" | "github") =>
       request<{
         sources: Array<{
           id: string;
@@ -967,7 +967,7 @@ export const api = {
 
     // Update selected sources for a platform
     updateSources: (
-      provider: "slack" | "notion",
+      provider: "slack" | "notion" | "github",
       sourceIds: string[]
     ) =>
       request<{
@@ -980,7 +980,7 @@ export const api = {
       }),
 
     // Trigger on-demand sync for a platform
-    triggerSync: (provider: "slack" | "notion") =>
+    triggerSync: (provider: "slack" | "notion" | "github") =>
       request<{
         success: boolean;
         message: string;

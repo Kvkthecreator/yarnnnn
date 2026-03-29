@@ -11,7 +11,7 @@
  */
 
 import { Loader2, CheckCircle2, ArrowRight, Settings, Clock, Zap } from "lucide-react";
-import { SlackIcon, NotionIcon } from "@/components/ui/PlatformIcons";
+import { SlackIcon, NotionIcon, GitHubIcon } from "@/components/ui/PlatformIcons";
 
 interface PlatformOnboardingPromptProps {
   /** Navigate to settings to connect platforms */
@@ -41,7 +41,7 @@ export function PlatformOnboardingPrompt({
       </div>
 
       {/* ADR-053: Simplified platform cards with "pick one" messaging */}
-      <div className="w-full grid grid-cols-2 gap-4 mb-6">
+      <div className="w-full grid grid-cols-3 gap-4 mb-6">
         <PlatformCard
           icon={<SlackIcon className="w-8 h-8" />}
           name="Slack"
@@ -51,6 +51,11 @@ export function PlatformOnboardingPrompt({
           icon={<NotionIcon className="w-8 h-8" />}
           name="Notion"
           description="1 workspace page"
+        />
+        <PlatformCard
+          icon={<GitHubIcon className="w-8 h-8" />}
+          name="GitHub"
+          description="1 repo to start"
         />
       </div>
 

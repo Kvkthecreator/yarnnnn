@@ -159,7 +159,7 @@ export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "c
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
 
 // Integration import source provider
-export type IntegrationProvider = "slack" | "notion";
+export type IntegrationProvider = "slack" | "notion" | "github";
 
 // ADR-109: Scope × Skill × Trigger Framework
 export type Scope =
@@ -600,14 +600,15 @@ export interface PlatformContentResponse {
 // Context Pages: Shared Platform Types
 // =============================================================================
 
-export type PlatformProvider = 'slack' | 'notion';
+export type PlatformProvider = 'slack' | 'notion' | 'github';
 
-export type ApiProvider = "slack" | "notion";
+export type ApiProvider = "slack" | "notion" | "github";
 
 /** Map frontend platform names to backend provider names (identity after provider streamlining) */
 export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
   slack: ['slack'],
   notion: ['notion'],
+  github: ['github'],
 };
 
 /** Get the provider to use for API calls (identity mapping) */
