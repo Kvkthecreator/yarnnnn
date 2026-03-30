@@ -808,31 +808,20 @@ async def _deliver_email_from_manifest(
         default_subject = f"{title} — {timestamp_str}"
     subject = options.get("subject", default_subject)
 
-    # ADR-130 Phase 2: Prefer composed HTML if available
+    # ADR-148: Singular rendering path — always use composed HTML
     if composed_html:
         html_body = composed_html
         logger.info(f"[DELIVERY] Using composed HTML ({len(composed_html)} chars)")
     else:
-        # Fallback: generate HTML from markdown content
-        try:
-            html_body = generate_email_html(
-                content=text_content,
-                variant="default",
-                metadata={
-                    "title": title,
-                    "recipient": target,
-                    "agent_id": agent_id,
-                    "task_slug": task_slug or "",
-                    "version_number": version_number,
-                    "mode": mode,
-                    "date": options.get("date", ""),
-                    "email_count": options.get("email_count", ""),
-                    "is_draft": False,
-                },
-            )
-        except Exception as e:
-            logger.warning(f"[DELIVERY] HTML generation failed, using plain: {e}")
-            html_body = f"<html><body><pre style='white-space:pre-wrap;font-family:sans-serif;'>{text_content}</pre></body></html>"
+        # Compose service didn't run or failed — minimal styled wrapper
+        logger.warning(f"[DELIVERY] No composed HTML — using minimal markdown wrapper")
+        html_body = (
+            f"<html><body><div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;"
+            f"max-width:680px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6'>"
+            f"<h1 style='margin:0 0 16px'>{title}</h1>"
+            f"<pre style='white-space:pre-wrap;font-size:14px'>{text_content}</pre>"
+            f"</div></body></html>"
+        )
 
     # ADR-118 D.3: Include rendered binary attachments from manifest
     files = manifest.get("files", [])

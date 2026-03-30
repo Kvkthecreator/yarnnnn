@@ -128,14 +128,17 @@ For each step in process:
 - Composer heartbeat: periodic workforce assessment
 - The only component that "thinks about" the system
 
-### How Work Gets Delivered
+### How Output Gets Displayed and Delivered
 
-Delivery targets live in TASK.md. Exporters in `api/integrations/exporters/`:
-- **Email**: via Resend API (HTML + optional attachments)
-- **Slack**: post to channel via Slack API
-- **Notion**: write to page via Notion API
+**Singular rendering path** (ADR-148): every task output is composed HTML. No branching based on agent type, no fallback renderers.
 
-Output is HTML-native (ADR-130). Agents produce structured content, the platform renders visually, PDF/XLSX are mechanical exports.
+- **Task page**: Always shows `output.html` via sandboxed iframe
+- **Email**: Always sends composed HTML via Resend API
+- **Slack**: Posts condensed summary + link to full output
+- **Notion**: Writes structured page via Notion API
+- **PDF/XLSX**: Mechanical exports derived from composed HTML (future)
+
+Agents produce structured markdown with inline data tables and mermaid diagrams. The platform renders assets and composes HTML. Delivery transports the composed output to external destinations.
 
 ---
 

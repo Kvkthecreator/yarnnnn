@@ -125,23 +125,33 @@ Delivery is transport, separate from production:
 - RuntimeDispatch tool from headless primitive set
 - SKILL.md fetch + injection during task execution
 - `has_asset_capabilities()` gating for SKILL.md injection
-- `pending_renders` collection from executor auth object
+- `has_capability(role, "compose_html")` gating — compose always runs
+- `generate_email_html()` fallback in delivery — one rendering path
+- MarkdownRenderer as primary output display — now loading state only
+
+### Singular rendering path
+Every task output goes through: generate → render → compose → `output.html`.
+No branching based on agent capabilities. No fallback renderers.
+- **Task page**: Always shows `output.html` via iframe
+- **Email**: Always sends composed HTML
+- **MarkdownRenderer**: Used only for chat messages and loading state, never for task outputs
 
 ---
 
 ## Implementation
 
-### Phase 1: Render phase + agent simplification
-- Implement `render_inline_assets(markdown, user_id)` — extract tables and mermaid, render via render service
-- Remove RuntimeDispatch from `HEADLESS_PRIMITIVES`
-- Remove SKILL.md injection from `build_task_execution_prompt()`
-- Update process instructions: "include data tables and mermaid diagrams"
-- Wire render phase into task_pipeline.py between generation and compose
-- Test: competitive-intel-brief should produce HTML with rendered charts and diagrams
+### Phase 1: Render phase + agent simplification ✓
+- `render_inline_assets()` — extract tables and mermaid, render via render service
+- RuntimeDispatch removed from `HEADLESS_PRIMITIVES`
+- SKILL.md injection removed from task execution system prompt
+- Process instructions updated: "include data tables and mermaid diagrams"
+- Render phase wired into both single-step and multi-step paths
 
-### Phase 2: Validation + delivery cleanup
-- Output validation function
-- Delivery reads composed output only (already works this way)
+### Phase 2: Compose-always + singular rendering ✓
+- Compose runs for every task output regardless of agent type
+- `has_capability(role, "compose_html")` gate removed
+- Delivery uses composed HTML only (no `generate_email_html` fallback)
+- Frontend MarkdownRenderer downgraded to loading state indicator
 
 ---
 

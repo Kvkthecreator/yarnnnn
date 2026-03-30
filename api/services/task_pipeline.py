@@ -639,12 +639,11 @@ async def execute_task(
             logger.warning(f"[TASK_EXEC] Knowledge write failed: {e}")
 
         # =====================================================================
-        # 12. Compose HTML (non-fatal) + sync to task workspace
+        # 12. Compose HTML (always — ADR-148 singular rendering path)
         # =====================================================================
-        if agent_output_folder and has_capability(role, "compose_html"):
+        if agent_output_folder:
             try:
                 from services.agent_execution import _compose_output_html
-                # Resolve layout_mode from task type registry (default: document)
                 _layout = "document"
                 _type_key = task_info.get("type_key", "").strip()
                 if _type_key:
@@ -657,8 +656,6 @@ async def execute_task(
                     title=title, pending_renders=pending_renders,
                     layout_mode=_layout,
                 )
-                # Sync composed HTML from agent workspace to task workspace
-                # (agent_execution writes to /agents/, frontend reads from /tasks/)
                 agent_html = await ws.read(f"outputs/{agent_output_folder}/output.html")
                 if agent_html and task_output_folder:
                     await tw.write(
@@ -668,7 +665,7 @@ async def execute_task(
                         tags=["output", "html"],
                     )
             except Exception as e:
-                logger.warning(f"[TASK_EXEC] Compose HTML failed: {e}")
+                logger.warning(f"[TASK_EXEC] Compose HTML failed (non-fatal): {e}")
 
         # =====================================================================
         # 13. Deliver
@@ -1182,8 +1179,8 @@ async def _execute_pipeline(
     except Exception:
         pass
 
-    # Compose HTML + sync to task workspace
-    if agent_output_folder and has_capability(final_role, "compose_html"):
+    # Compose HTML (always — ADR-148 singular rendering path)
+    if agent_output_folder:
         try:
             await _compose_output_html(
                 client, user_id, final_agent_slug, agent_output_folder,

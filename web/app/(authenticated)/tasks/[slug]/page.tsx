@@ -82,6 +82,7 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
     );
   }
 
+  // ADR-148: Singular rendering path — composed HTML is the primary display
   if (output.html_content) {
     return (
       <iframe
@@ -93,11 +94,15 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
     );
   }
 
-  // API returns 'content' (markdown text) — check both field names for compatibility
+  // Markdown fallback — compose service may not have run yet (loading/error state)
   const mdContent = (output as any).content || output.md_content;
   if (mdContent) {
     return (
       <div className="p-4">
+        <div className="text-xs text-muted-foreground/50 mb-3 flex items-center gap-1.5">
+          <RefreshCw className="w-3 h-3" />
+          <span>Markdown preview — composed view loading</span>
+        </div>
         <MarkdownRenderer content={mdContent} />
       </div>
     );
