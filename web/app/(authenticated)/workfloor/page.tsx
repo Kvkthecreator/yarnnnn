@@ -48,46 +48,28 @@ import { TaskTypeCatalog } from '@/components/workfloor/TaskTypeCatalog';
 // Tabs — Tasks & Context content
 // =============================================================================
 
-function TasksTab({ tasks, onSelectType, showCatalog, setShowCatalog }: {
+function TasksTab({ tasks, onSelectType }: {
   tasks: Task[];
   onSelectType: (typeKey: string, displayName: string) => void;
-  showCatalog: boolean;
-  setShowCatalog: (v: boolean) => void;
 }) {
   const active = tasks.filter(t => t.status !== 'archived');
 
+  // Empty state — show catalog for discovery
   if (active.length === 0) {
     return <TaskTypeCatalog onSelectType={onSelectType} />;
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {active.map(task => (
-        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-xs">
+        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/50 transition-colors text-[11px]">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
+            <span className={cn('w-1 h-1 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
             <span className="truncate">{task.title || task.slug}</span>
           </div>
-          {task.schedule && <span className="text-muted-foreground/40 shrink-0 ml-2">{task.schedule}</span>}
+          {task.schedule && <span className="text-muted-foreground/30 shrink-0 ml-2 text-[10px]">{task.schedule}</span>}
         </Link>
       ))}
-
-      {showCatalog ? (
-        <div className="pt-2 border-t border-border/30">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-medium text-muted-foreground">Add another deliverable</p>
-            <button onClick={() => setShowCatalog(false)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground">Hide</button>
-          </div>
-          <TaskTypeCatalog onSelectType={(k, n) => { onSelectType(k, n); setShowCatalog(false); }} compact />
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowCatalog(true)}
-          className="w-full flex items-center justify-center gap-1 py-2 mt-1 text-[10px] text-muted-foreground/40 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors border border-dashed border-border/30 hover:border-primary/30"
-        >
-          <Plus className="w-3 h-3" /> Add deliverable
-        </button>
-      )}
     </div>
   );
 }
@@ -495,7 +477,7 @@ export default function WorkfloorPage() {
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'tasks' | 'context'>('tasks');
   const [contextSubTab, setContextSubTab] = useState<'identity' | 'brand' | 'documents'>('identity');
-  const [showCatalog, setShowCatalog] = useState(false);
+  // showCatalog removed — catalog only shows for zero-tasks empty state
 
   // Panel visibility
   const [panelOpen, setPanelOpen] = useState(true);
@@ -592,10 +574,7 @@ export default function WorkfloorPage() {
             <div className="flex items-center gap-1">
               {activeTab === 'tasks' && (
                 <button
-                  onClick={() => {
-                    if (activeTasks.length > 0) setShowCatalog(true);
-                    else { /* empty state already shows catalog */ }
-                  }}
+                  onClick={() => prefillChat('Create a task for ')}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
                 >
                   <Plus className="w-3 h-3" /> New Task
@@ -617,7 +596,7 @@ export default function WorkfloorPage() {
 
           {/* Panel content */}
           <div className="flex-1 overflow-y-auto p-3">
-            {activeTab === 'tasks' && <TasksTab tasks={tasks} onSelectType={handleSelectType} showCatalog={showCatalog} setShowCatalog={setShowCatalog} />}
+            {activeTab === 'tasks' && <TasksTab tasks={tasks} onSelectType={handleSelectType} />}
 
             {activeTab === 'context' && (
               <div className="flex flex-col h-full">
