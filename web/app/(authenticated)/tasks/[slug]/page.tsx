@@ -444,7 +444,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
         {messages.length === 0 && !isLoading && (
           <div className="text-center py-6">
             <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
-            <p className="text-[11px] text-muted-foreground/40">Steer this task — adjust focus, review output, or trigger a run</p>
+            <p className="text-[11px] text-muted-foreground/40">Ask anything about this task</p>
           </div>
         )}
 
@@ -532,7 +532,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
               onPaste={handlePaste}
               disabled={isLoading}
               enterKeyHint="send"
-              placeholder="Steer this task..."
+              placeholder="Ask anything or type / ..."
               rows={1}
               className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
