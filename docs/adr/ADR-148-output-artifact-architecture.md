@@ -1,24 +1,20 @@
-# ADR-148: Assets, Render Phase, and Production Pipeline
+# ADR-148: Output Architecture — Assets, Composition, Repurpose
 
-> **Status**: Proposed
-> **Date**: 2026-03-29 (v3)
+> **Status**: Implemented (Phases 1-3), Phase 4 proposed
+> **Date**: 2026-03-29 (v4 — 2026-03-30)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-130 (HTML-Native Output Substrate), ADR-145 (Task Type Registry)
-> **Supersedes**: RuntimeDispatch-during-generation pattern
+> **Supersedes**: RuntimeDispatch-during-generation, dual rendering paths, `generate_email_html` fallback
 > **Analysis**: `docs/analysis/output-quality-first-principles-2026-03-29.md`
 
 ---
 
 ## Context
 
-Three iterations of E2E quality testing revealed that the output quality gap is not about agent count or process architecture. It's about **assets never making it into the output**.
-
-Agents have chart/mermaid/image capabilities and RuntimeDispatch as a tool, but:
-- RuntimeDispatch competes for tool rounds with web search — agents choose research over charts
-- Chart specs require precise JSON construction during generation — error-prone, fails silently
-- No validation that assets were produced
-- Compose service receives markdown with broken image references
-- Result: every output is plain text regardless of composition mode
+Output quality testing revealed three architectural gaps:
+1. Visual assets (charts, diagrams) never made it into outputs — agents competed for tool rounds between research and asset generation
+2. Two redundant rendering paths (compose service vs MarkdownRenderer fallback) produced inconsistent results
+3. No model for adapting outputs to different formats or platforms (LinkedIn, PDF, slides) — this requires editorial judgment for some targets and mechanical conversion for others
 
 ---
 
@@ -26,140 +22,155 @@ Agents have chart/mermaid/image capabilities and RuntimeDispatch as a tool, but:
 
 ### Domain Definitions
 
-**Asset** — a single produced file. Has a type: `text` (markdown), `chart` (SVG/PNG), `diagram` (SVG), `table` (markdown), `image` (PNG/JPG). Assets are atomic units. Each exists as a file.
+**Asset** — a single produced content element within an output. Types: text (markdown), chart (SVG/PNG), diagram (mermaid → SVG), table (markdown), image (PNG/JPG), video (MP4). Assets are atomic.
 
-**Output** — the collection of assets from one task run. Lives in `/tasks/{slug}/outputs/{date}/`. Contains the raw markdown, any rendered assets, and a manifest. An output is not yet composed.
+**Output** — the primary composed deliverable from a task run. One output per run. Always HTML (composed from markdown + rendered assets). Stored at `/tasks/{slug}/outputs/{date}/output.html`. This is what the user sees in the app and receives via email.
 
-**Composition** — mechanical assembly of an output's assets into a single viewable HTML artifact. Uses a composition mode (document, presentation, dashboard). Already exists in the compose service.
+**Repurpose** — any adaptation of the output for a different format, channel, or audience. Two execution paths:
+- **Mechanical** (backend): format conversion that preserves content structure. PDF, XLSX, markdown download.
+- **Editorial** (agent): content adaptation that requires judgment. LinkedIn post, slide deck, executive summary, restructured PDF.
 
-**Delivery** — transport of the composed output to an external destination. A side effect. Separate from production.
+**Transport** — moving a finished artifact (output or repurpose) to an external destination. Email send, Slack post, LinkedIn publish. Mechanical. No content change.
 
-### The Core Change: Render Phase
-
-Insert a mechanical render phase between generation and composition:
+### The Complete Chain
 
 ```
-Generate (LLM)  →  Render (mechanical)  →  Compose (mechanical)  →  Deliver (transport)
-     |                    |                       |                       |
- Agent writes        Extract data tables     Assemble markdown      Email / Slack /
- prose + inline      → render as charts.     + rendered assets      Notion
- data tables +       Extract mermaid blocks  into styled HTML
- mermaid blocks      → render as SVG.        per composition mode
+Task execution
+  → GENERATE: Agent writes prose + inline data tables + mermaid blocks
+  → RENDER: Extract tables→charts, mermaid→SVGs (mechanical, zero LLM)
+  → COMPOSE: Markdown + rendered assets → styled HTML (composition mode)
+  → OUTPUT: output.html stored in task workspace
+
+Output actions:
+  → VIEW: App shows output.html in iframe
+  → TRANSPORT: Email sends output.html, Slack posts summary + link
+  → REPURPOSE (mechanical): PDF, XLSX, DOCX — backend converts
+  → REPURPOSE (editorial): LinkedIn post, slide deck — agent adapts
 ```
 
-**Generate**: The agent writes prose with data inline. Markdown tables with numeric data. Mermaid code blocks for diagrams. No RuntimeDispatch calls. No JSON chart specs. The agent focuses on thinking, researching, and writing. All tool rounds go to web search and context gathering.
+### Production Phases (Implemented)
 
-**Render**: Post-generation, a new function `render_inline_assets()` parses the markdown:
-- Markdown tables with numeric columns → chart render via render service
-- Mermaid code blocks → diagram render via render service
-- Rendered SVGs uploaded to storage, references inserted into markdown
+**Phase 1: Generate** — LLM produces prose with inline data. No RuntimeDispatch during generation. All tool rounds for research + writing. SKILL.md removed from system prompt.
 
-**Compose**: Existing compose service takes enriched markdown (with rendered asset URLs) + composition mode → styled HTML. No change to compose service API.
+**Phase 2: Render** — `render_inline_assets()` extracts:
+- Markdown tables with numeric data → chart render (bar/line/pie inferred)
+- Mermaid code blocks → SVG diagram render
+Zero LLM cost. Mechanical extraction.
 
-### Asset Extraction Strategies
+**Phase 3: Compose** — Always runs (no capability gate). Markdown + rendered asset URLs → styled HTML per composition mode (document/presentation/dashboard/data). Handles all asset types:
+- Mermaid → interactive SVG via mermaid.js
+- Images → figure + figcaption
+- Video → `<video>` element
+- Tables → styled HTML (dashboard mode → KPI cards)
+- Dark mode via CSS variables + `prefers-color-scheme`
 
-| Source in Markdown | Detection | Render Call | Type Inference |
-|---|---|---|---|
-| Table with numeric column | Regex: pipe-delimited rows containing numbers | `POST /render` type=chart | 2 columns → bar; date-like header → line; ≤6 rows + percentages → pie |
-| Mermaid code block | ` ```mermaid ` fence | `POST /render` type=mermaid | Self-described by mermaid syntax |
+### Singular Rendering Path (Implemented)
 
-The agent doesn't need to know about rendering. It writes data tables because that's how you present data in markdown. It writes mermaid blocks because that's how you describe relationships. The system recognizes these patterns and renders them.
+One path. No fallbacks. No branching by agent type.
 
-### What Changes in the Agent's Experience
+- **App display**: Always `output.html` via iframe (`allow-same-origin allow-scripts`)
+- **Email delivery**: Always composed HTML
+- **Markdown fallback**: Loading state only, not a rendering path
 
-**Before**: Agent has ~2000 tokens of SKILL.md in system prompt, must construct RuntimeDispatch JSON specs, loses tool rounds to chart generation, often fails to produce any visuals.
+### Repurpose Model (Proposed — Phase 4)
 
-**After**: Agent has no SKILL.md, no RuntimeDispatch during headless generation. System prompt is ~2000 tokens shorter. Agent writes naturally — prose, tables, mermaid. The system handles rendering.
+**User-facing concept**: "Repurpose" — one button, multiple options. User doesn't see mechanical vs editorial distinction.
 
-Agent instruction includes: "Include markdown tables for numeric data — these are automatically rendered as charts. Include mermaid code blocks for diagrams — these are automatically rendered as visuals."
+**Mechanical repurposes** (backend, no agent):
+| Target | Input | Method |
+|--------|-------|--------|
+| PDF (same layout) | output.html | pandoc HTML→PDF |
+| XLSX | output.md tables | openpyxl extraction |
+| DOCX | output.html | pandoc HTML→DOCX |
+| Markdown download | output.md | Direct file |
 
-### Composition Mode Requirements
+**Editorial repurposes** (agent, requires LLM):
+| Target | Input | What Agent Does |
+|--------|-------|----------------|
+| LinkedIn post | output as context | Write 150-word hook, platform-native format |
+| Slide deck (PPTX) | output as context | Restructure for 1-idea-per-slide format |
+| Executive summary | output as context | Condense to 3-paragraph summary |
+| Platform article (Medium) | output as context | Adapt tone for public audience |
 
-The existing composition modes (document, presentation, dashboard) already define visual assembly. The render phase ensures they receive actual assets:
+**Storage**: Repurposed outputs live under the parent task output:
+```
+/tasks/{slug}/outputs/{date}/
+  output.md           (primary source)
+  output.html         (composed primary)
+  repurpose/
+    linkedin.md       (agent-written)
+    linkedin.html     (composed)
+    slides.md         (agent-written)
+    slides.html       (composed, presentation mode)
+    summary.md        (agent-written)
+```
 
-- **document**: Rendered charts inserted adjacent to their source tables. Mermaid diagrams rendered inline. Tables styled as HTML tables.
-- **presentation**: Each `##` heading = slide. Rendered charts and diagrams placed on their slides. Dense visuals.
-- **dashboard**: Metric tables rendered as KPI cards. Trend data rendered as line charts. Dense grid layout.
+**Routing logic**: The system determines mechanical vs editorial based on the target:
+```python
+MECHANICAL_REPURPOSE = {"pdf", "xlsx", "docx", "markdown"}
+EDITORIAL_REPURPOSE = {"linkedin", "medium", "slides", "summary", "twitter"}
+```
 
-These are existing compose service behaviors. The only change is that they now receive markdown with real rendered asset URLs instead of broken references.
+Mechanical → call render service directly, return file URL.
+Editorial → call agent with output as context + repurpose instruction → generate → render → compose → store.
 
-### Output Validation
+### Upstream Dependencies (Phase 4)
 
-After render, before compose, the pipeline checks:
-- Word count against process instruction targets
-- Number of rendered assets (charts + diagrams produced)
-- Warnings logged in manifest — don't block delivery
+This model impacts multiple layers. All must be updated coherently:
 
-Validation is informational, not gating. Over time, warning patterns inform process instruction refinement.
+**1. Agent Capabilities**
+- No new capability needed. Every agent that can produce an output can repurpose one — it's the same cognitive skill (write content given context). The repurpose instruction tells the agent what format/audience to target.
+- `write_slack` and `write_notion` remain as transport capabilities (posting to platforms), not editorial capabilities.
 
-### Delivery Separation
+**2. Task Process**
+- Repurpose is NOT a process step. It's an on-demand action on an existing output.
+- Task process defines how the primary output is produced. Repurpose happens after.
+- No changes to task type registry or process definitions.
 
-Delivery is transport, separate from production:
-- Output exists in workspace whether or not delivery happens
-- The app always shows all outputs (surfacing)
-- Delivery channels: email (HTML + optional PDF), Slack (summary + link), Notion (structured page)
-- Delivery status is metadata on the output manifest
-- Delivery failure doesn't invalidate the output
+**3. TP Orchestration**
+- TP needs to handle: "publish this to LinkedIn" → identify the task + output → determine mechanical vs editorial → route accordingly.
+- New TP capability: `RepurposeOutput` — takes task_slug, output_date, target_format. TP resolves routing.
+- This is a new primitive, not a process step.
+
+**4. Output Storage**
+- Repurposed outputs stored under `repurpose/` subfolder of the parent output.
+- Manifest updated to track repurpose history.
+
+**5. Delivery/Transport**
+- After editorial repurpose produces the adapted content, transport sends it to the platform.
+- LinkedIn/Medium transport requires OAuth (same pattern as Slack/Notion).
+- Transport is a separate step from repurpose — repurpose produces content, transport sends it.
+
+**6. Frontend**
+- "Repurpose" button replaces current "Export" buttons.
+- Shows available targets (PDF, XLSX, LinkedIn, Slides, etc.).
+- Mechanical targets return immediately (file URL). Editorial targets show progress indicator.
 
 ---
 
-## Consequences
-
-### What changes
-- New `render_inline_assets()` function in task pipeline (post-generation, pre-compose)
-- RuntimeDispatch removed from headless generation tool set
-- SKILL.md injection removed from task execution system prompt (~2000 token savings)
-- Process instructions updated: "include markdown tables for data, mermaid for diagrams"
-- Output validation added between render and compose (warnings in manifest)
-
-### What stays the same
-- Agent type registry and capabilities
-- Task type registry structure (process steps, layout_mode)
-- Compose service API (`POST /compose`)
-- Render service API (`POST /render` — now called by pipeline, not by agents)
-- Delivery service
-- Frontend (reads output.html)
-- Workspace storage
-
-### What's removed
-- RuntimeDispatch tool from headless primitive set
-- SKILL.md fetch + injection during task execution
-- `has_asset_capabilities()` gating for SKILL.md injection
-- `has_capability(role, "compose_html")` gating — compose always runs
-- `generate_email_html()` fallback in delivery — one rendering path
-- MarkdownRenderer as primary output display — now loading state only
-
-### Singular rendering path
-Every task output goes through: generate → render → compose → `output.html`.
-No branching based on agent capabilities. No fallback renderers.
-- **Task page**: Always shows `output.html` via iframe
-- **Email**: Always sends composed HTML
-- **MarkdownRenderer**: Used only for chat messages and loading state, never for task outputs
-
----
-
-## Implementation
+## Implementation Status
 
 ### Phase 1: Render phase + agent simplification ✓
-- `render_inline_assets()` — extract tables and mermaid, render via render service
-- RuntimeDispatch removed from `HEADLESS_PRIMITIVES`
-- SKILL.md injection removed from task execution system prompt
-- Process instructions updated: "include data tables and mermaid diagrams"
-- Render phase wired into both single-step and multi-step paths
+- `render_inline_assets()` — tables→charts, mermaid→SVGs
+- RuntimeDispatch removed from headless
+- SKILL.md removed from system prompt
 
 ### Phase 2: Compose-always + singular rendering ✓
-- Compose runs for every task output regardless of agent type
-- `has_capability(role, "compose_html")` gate removed
-- Delivery uses composed HTML only (no `generate_email_html` fallback)
-- Frontend MarkdownRenderer downgraded to loading state indicator
+- Compose runs for every output regardless of agent type
+- Dark mode + mermaid.js + full asset type handling
+- MarkdownRenderer → loading state only
 
-### Phase 3: Export as derivative of composed HTML ✓
-- PDF skill updated to accept HTML input (pandoc HTML→PDF)
-- XLSX export extracts tables from markdown → openpyxl spreadsheet
+### Phase 3: Mechanical export ✓
+- PDF (HTML→pandoc), XLSX (table extraction), DOCX
 - Export API endpoint: `GET /tasks/{slug}/export?format=pdf|xlsx|docx`
-- Export UI: PDF and XLSX buttons on task page output tab
-- Exports derive from composed output — not a separate rendering path
-- No PPTX yet (needs dedicated skill — future work)
+- Export buttons on task page
+
+### Phase 4: Repurpose model (proposed)
+- Unify export + editorial adaptation under "Repurpose"
+- `RepurposeOutput` primitive for TP
+- Editorial repurpose via agent (LinkedIn, slides, summary)
+- Platform transport (LinkedIn API, Medium API) via OAuth
+- Frontend: single "Repurpose" button with target options
 
 ---
 
@@ -167,10 +178,12 @@ No branching based on agent capabilities. No fallback renderers.
 
 | ADR | Relationship |
 |-----|-------------|
-| ADR-130 (Output Substrate) | Extended — assets formalized, render phase makes the three-concern separation real |
-| ADR-145 (Task Type Registry) | Unchanged — process instructions updated but registry structure same |
-| ADR-118 (Skills/Output Gateway) | Evolved — render service called by pipeline post-processing, not by agents during generation |
-| ADR-141 (Execution Architecture) | Extended — render phase added as explicit pipeline step |
+| ADR-130 (Output Substrate) | Extended — singular rendering, full asset types, repurpose model |
+| ADR-145 (Task Type Registry) | Unchanged — repurpose is on-demand, not a process step |
+| ADR-118 (Skills/Output Gateway) | Evolved — render service for charts/diagrams (post-gen), PDF/XLSX (export) |
+| ADR-141 (Execution Architecture) | Extended — render phase between generate and compose |
+| ADR-138 (Agents as Work Units) | Aligned — agents produce, platform transports. Editorial repurpose is production. |
+| FOUNDATIONS Derived Principle 9 | Aligned — agents produce structured content, platform renders and transports. Repurpose (editorial) is content production. Repurpose (mechanical) is platform rendering. |
 
 ---
 
@@ -178,6 +191,7 @@ No branching based on agent capabilities. No fallback renderers.
 
 | Date | Change |
 |------|--------|
-| 2026-03-29 | v1 — Artifact types, composition templates, multi-agent assembly |
-| 2026-03-29 | v2 — Output types as acceptance criteria, production phases, inline asset extraction |
-| 2026-03-29 | v3 — Simplified: dropped output type registry (requirements belong in process instructions + composition modes). Focused on assets as first-class concept, render phase, and domain separation (assets/output/composition/delivery). |
+| 2026-03-29 | v1 — Artifact types, composition templates |
+| 2026-03-29 | v2 — Output types as acceptance criteria, production phases |
+| 2026-03-29 | v3 — Simplified: assets + render phase + domain separation |
+| 2026-03-30 | v4 — Complete: repurpose model (mechanical + editorial), upstream dependency map, singular rendering path, full asset type handling. Phases 1-3 implemented, Phase 4 proposed. |
