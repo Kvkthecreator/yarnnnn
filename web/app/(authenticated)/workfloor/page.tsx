@@ -41,22 +41,22 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { TaskTypeCatalog } from '@/components/workfloor/TaskTypeCatalog';
 
 
 // =============================================================================
 // Tabs — Tasks & Context content
 // =============================================================================
 
-function TasksTab({ tasks, onSelectType }: {
-  tasks: Task[];
-  onSelectType: (typeKey: string, displayName: string) => void;
-}) {
+function TasksTab({ tasks }: { tasks: Task[] }) {
   const active = tasks.filter(t => t.status !== 'archived');
 
-  // Empty state — show catalog for discovery
   if (active.length === 0) {
-    return <TaskTypeCatalog onSelectType={onSelectType} />;
+    return (
+      <div className="py-6 px-2 text-center">
+        <p className="text-[11px] text-muted-foreground/50">No tasks yet</p>
+        <p className="text-[10px] text-muted-foreground/30 mt-1">Use + New Task to create one via chat</p>
+      </div>
+    );
   }
 
   return (
@@ -519,9 +519,6 @@ export default function WorkfloorPage() {
   const activeAgents = agents.filter(a => a.status !== 'archived');
   const activeTasks = tasks.filter(t => t.status !== 'archived');
 
-  const handleSelectType = useCallback((typeKey: string, displayName: string) => {
-    prefillChat(`Create a "${displayName}" task for `);
-  }, [prefillChat]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -596,7 +593,7 @@ export default function WorkfloorPage() {
 
           {/* Panel content */}
           <div className="flex-1 overflow-y-auto p-3">
-            {activeTab === 'tasks' && <TasksTab tasks={tasks} onSelectType={handleSelectType} />}
+            {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
 
             {activeTab === 'context' && (
               <div className="flex flex-col h-full">
