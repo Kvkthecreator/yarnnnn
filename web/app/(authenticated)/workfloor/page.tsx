@@ -59,8 +59,8 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
   if (active.length === 0) {
     return (
       <div className="py-6 px-2 text-center">
-        <p className="text-[11px] text-muted-foreground/50">No tasks yet</p>
-        <p className="text-[10px] text-muted-foreground/30 mt-1">Use + New Task to create one via chat</p>
+        <p className="text-[13px] text-muted-foreground/50">No tasks yet</p>
+        <p className="text-[11px] text-muted-foreground/30 mt-1">Use + New Task to create one via chat</p>
       </div>
     );
   }
@@ -68,12 +68,12 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
   return (
     <div className="space-y-0.5">
       {active.map(task => (
-        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/50 transition-colors text-[11px]">
+        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-[13px]">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('w-1 h-1 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
             <span className="truncate">{task.title || task.slug}</span>
           </div>
-          {task.schedule && <span className="text-muted-foreground/30 shrink-0 ml-2 text-[10px]">{task.schedule}</span>}
+          {task.schedule && <span className="text-muted-foreground/30 shrink-0 ml-2 text-[11px]">{task.schedule}</span>}
         </Link>
       ))}
     </div>
@@ -125,18 +125,18 @@ function IdentityTab() {
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 prose prose-xs dark:prose-invert max-w-none">
+          <div className="text-[13px] text-muted-foreground/70 bg-muted/20 rounded-lg p-3 prose prose-sm dark:prose-invert max-w-none">
             <MarkdownRenderer content={content} compact />
           </div>
-          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
+          <button onClick={() => setEditing(true)} className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
             Edit
           </button>
         </>
       ) : (
         <div className="py-4 px-2">
-          <p className="text-[11px] text-muted-foreground/60 mb-3">Your identity helps agents understand who you are and what you care about.</p>
-          <p className="text-[10px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
-          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline font-medium">
+          <p className="text-[13px] text-muted-foreground/60 mb-3">Your identity helps agents understand who you are and what you care about.</p>
+          <p className="text-[11px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
+          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[11px] text-primary hover:underline font-medium">
             Write identity
           </button>
         </div>
@@ -190,18 +190,18 @@ function BrandTab() {
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 prose prose-xs dark:prose-invert max-w-none">
+          <div className="text-[13px] text-muted-foreground/70 bg-muted/20 rounded-lg p-3 prose prose-sm dark:prose-invert max-w-none">
             <MarkdownRenderer content={content} compact />
           </div>
-          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
+          <button onClick={() => setEditing(true)} className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
             Edit
           </button>
         </>
       ) : (
         <div className="py-4 px-2">
-          <p className="text-[11px] text-muted-foreground/60 mb-3">Your brand guide shapes how agents write — tone, terminology, audience awareness.</p>
-          <p className="text-[10px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
-          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline font-medium">
+          <p className="text-[13px] text-muted-foreground/60 mb-3">Your brand guide shapes how agents write — tone, terminology, audience awareness.</p>
+          <p className="text-[11px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
+          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[11px] text-primary hover:underline font-medium">
             Write brand guide
           </button>
         </div>
@@ -232,7 +232,7 @@ function DocumentsTab() {
   return (
     <div className="space-y-1">
       {docs.length > 0 ? docs.map(doc => (
-        <div key={doc.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-xs">
+        <div key={doc.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-[13px]">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
               doc.processing_status === 'completed' ? 'bg-green-500' :
@@ -241,12 +241,12 @@ function DocumentsTab() {
             )} />
             <span className="truncate">{doc.filename}</span>
           </div>
-          <span className="text-muted-foreground/40 shrink-0 ml-2">{formatSize(doc.file_size)}</span>
+          <span className="text-muted-foreground/40 shrink-0 ml-2 text-[11px]">{formatSize(doc.file_size)}</span>
         </div>
       )) : (
         <div className="py-4 px-2">
-          <p className="text-[11px] text-muted-foreground/60 mb-2">Documents give agents source material to work from — pitch decks, reports, guidelines.</p>
-          <p className="text-[10px] text-muted-foreground/40">Upload files via the chat input (+) or drag &amp; drop into the conversation.</p>
+          <p className="text-[13px] text-muted-foreground/60 mb-2">Documents give agents source material to work from — pitch decks, reports, guidelines.</p>
+          <p className="text-[11px] text-muted-foreground/40">Upload files via the chat input (+) or drag &amp; drop into the conversation.</p>
         </div>
       )}
     </div>
