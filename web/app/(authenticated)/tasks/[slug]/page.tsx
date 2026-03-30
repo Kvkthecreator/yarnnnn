@@ -556,7 +556,7 @@ export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params?.slug as string;
-  const { loadScopedHistory } = useTP();
+  const { loadScopedHistory, sendMessage } = useTP();
 
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [outputs, setOutputs] = useState<TaskOutput[]>([]);
