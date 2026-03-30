@@ -280,31 +280,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
   );
 }
 
-// =============================================================================
-// Floating action pills — overlay near the room
-// =============================================================================
-
-function RoomActions({ onAction }: { onAction: (msg: string) => void }) {
-  const actions = [
-    { label: 'New deliverable', msg: 'What kind of deliverable do you need?' },
-    { label: 'Update identity', msg: 'Update my identity' },
-    { label: 'Update brand', msg: 'Update my brand' },
-  ];
-
-  return (
-    <div className="flex items-center justify-center gap-2 py-2">
-      {actions.map(a => (
-        <button
-          key={a.label}
-          onClick={() => onAction(a.msg)}
-          className="px-3 py-1.5 text-[10px] font-medium rounded-full border border-border/50 text-muted-foreground/60 hover:text-foreground hover:border-border hover:bg-muted/50 transition-all"
-        >
-          {a.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// RoomActions removed (2026-03-30) — legacy pills replaced by panel-embedded action bar
 
 // =============================================================================
 // Main export
@@ -461,17 +437,9 @@ export function IsometricRoom({ agents, tasks, loading, onTPClick, onAction }: I
         )}
       </div>
 
-      {/* Action pills — float below room on desktop, below strip on mobile */}
-      {onAction && !collapsed && (
-        <div className="hidden md:block">
-          <RoomActions onAction={onAction} />
-        </div>
-      )}
-
       {/* Mobile: Horizontal strip */}
       <div className="md:hidden border-b border-border/30">
         <MobileStrip agents={agents} tasks={tasks} />
-        {onAction && <RoomActions onAction={onAction} />}
       </div>
     </>
   );

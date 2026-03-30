@@ -586,11 +586,11 @@ export default function WorkfloorPage() {
 
       {/* Layer 3: Floating left panel — Tasks/Context */}
       <div className={cn(
-        'absolute left-4 top-4 bottom-20 z-20 w-[340px] flex flex-col transition-all duration-200',
+        'absolute left-4 top-4 bottom-4 z-20 w-[380px] flex flex-col transition-all duration-200',
         panelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none -translate-x-4'
       )}>
         <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
-          {/* Panel header */}
+          {/* Panel header: tabs + actions */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
             <div className="flex gap-1">
               {(['tasks', 'context'] as const).map(tab => (
@@ -606,9 +606,33 @@ export default function WorkfloorPage() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {activeTab === 'tasks' && (
+                <button
+                  onClick={() => {
+                    if (activeTasks.length > 0) setShowCatalog(true);
+                    else { /* empty state already shows catalog */ }
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Plus className="w-3 h-3" /> New Task
+                </button>
+              )}
+              {activeTab === 'context' && (
+                <button
+                  onClick={() => {
+                    sendMessage('Update my context', { surface });
+                    setChatOpen(true);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  <Settings2 className="w-3 h-3" /> Update
+                </button>
+              )}
+              <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Panel content */}
@@ -616,14 +640,14 @@ export default function WorkfloorPage() {
             {activeTab === 'tasks' && <TasksTab tasks={tasks} onSelectType={handleSelectType} showCatalog={showCatalog} setShowCatalog={setShowCatalog} />}
 
             {activeTab === 'context' && (
-              <div>
+              <div className="flex flex-col h-full">
                 <div className="flex gap-1 mb-3 border-b border-border/30 pb-1.5">
                   {(['identity', 'brand', 'documents'] as const).map(sub => (
                     <button
                       key={sub}
                       onClick={() => setContextSubTab(sub)}
                       className={cn(
-                        'px-2.5 py-1 text-[11px] font-medium rounded transition-colors capitalize',
+                        'px-2.5 py-1 text-[11px] font-medium rounded transition-colors capitalize flex-1 text-center',
                         contextSubTab === sub ? 'bg-primary/10 text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground/70'
                       )}
                     >
@@ -631,9 +655,11 @@ export default function WorkfloorPage() {
                     </button>
                   ))}
                 </div>
-                {contextSubTab === 'identity' && <IdentityTab onSendMessage={handleContextUpdate} />}
-                {contextSubTab === 'brand' && <BrandTab onSendMessage={handleContextUpdate} />}
-                {contextSubTab === 'documents' && <DocumentsTab />}
+                <div className="flex-1 min-h-0">
+                  {contextSubTab === 'identity' && <IdentityTab onSendMessage={handleContextUpdate} />}
+                  {contextSubTab === 'brand' && <BrandTab onSendMessage={handleContextUpdate} />}
+                  {contextSubTab === 'documents' && <DocumentsTab />}
+                </div>
               </div>
             )}
           </div>
@@ -642,7 +668,7 @@ export default function WorkfloorPage() {
 
       {/* Layer 4: Floating right panel — Chat */}
       <div className={cn(
-        'absolute right-4 top-4 bottom-20 z-20 w-[380px] flex flex-col transition-all duration-200',
+        'absolute right-4 top-4 bottom-4 z-20 w-[380px] flex flex-col transition-all duration-200',
         chatOpen ? 'opacity-100' : 'opacity-0 pointer-events-none translate-x-4'
       )}>
         <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
@@ -657,49 +683,27 @@ export default function WorkfloorPage() {
         </div>
       </div>
 
-      {/* Layer 5: Bottom action bar — always visible */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
-        {/* Panel toggles (when collapsed) */}
-        {!panelOpen && (
-          <button
-            onClick={() => setPanelOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ListChecks className="w-3.5 h-3.5" /> Tasks
-          </button>
-        )}
-
-        {/* Primary actions */}
-        <button
-          onClick={() => {
-            setActiveTab('tasks');
-            setPanelOpen(true);
-            if (activeTasks.length > 0) setShowCatalog(true);
-          }}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-xl border border-primary/30 bg-primary/10 backdrop-blur-md shadow-lg text-primary hover:bg-primary/20 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> New Task
-        </button>
-
-        <button
-          onClick={() => {
-            sendMessage('Update my context', { surface });
-            setChatOpen(true);
-          }}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Settings2 className="w-3.5 h-3.5" /> Update Context
-        </button>
-
-        {!chatOpen && (
-          <button
-            onClick={() => setChatOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <MessageCircle className="w-3.5 h-3.5" /> Chat
-          </button>
-        )}
-      </div>
+      {/* Layer 5: Bottom toggle bar — only visible when panels are collapsed */}
+      {(!panelOpen || !chatOpen) && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
+          {!panelOpen && (
+            <button
+              onClick={() => setPanelOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ListChecks className="w-3.5 h-3.5" /> Tasks
+            </button>
+          )}
+          {!chatOpen && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" /> Chat
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
