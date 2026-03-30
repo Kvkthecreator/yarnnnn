@@ -29,6 +29,15 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _total_input_tokens(usage: dict) -> int:
+    """Sum all input token fields including prompt cache tokens."""
+    return (
+        usage.get("input_tokens", 0)
+        + usage.get("cache_creation_input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
+    )
+
+
 # =============================================================================
 # TASK.md Parsing
 # =============================================================================
@@ -560,7 +569,7 @@ async def execute_task(
         # =====================================================================
         from services.agent_execution import update_version_for_delivery, SONNET_MODEL
         version_metadata = {
-            "input_tokens": usage.get("input_tokens", 0),
+            "input_tokens": _total_input_tokens(usage),
             "output_tokens": usage.get("output_tokens", 0),
             "model": SONNET_MODEL,
             "task_slug": task_slug,
@@ -823,7 +832,7 @@ async def execute_task(
                     "final_status": final_status,
                     "delivery_error": delivery_error,
                     "duration_ms": duration_ms,
-                    "input_tokens": usage.get("input_tokens", 0),
+                    "input_tokens": _total_input_tokens(usage),
                     "output_tokens": usage.get("output_tokens", 0),
                 },
             )
@@ -1029,7 +1038,7 @@ async def _execute_pipeline(
         # Strip assessment
         draft, _ = _extract_contributor_assessment(draft)
 
-        total_usage["input_tokens"] += usage.get("input_tokens", 0)
+        total_usage["input_tokens"] += _total_input_tokens(usage)
         total_usage["output_tokens"] += usage.get("output_tokens", 0)
         all_renders.extend(pending_renders or [])
 
@@ -1365,7 +1374,7 @@ async def _generate(
         )
 
         if response.usage:
-            total_input_tokens += response.usage.get("input_tokens", 0)
+            total_input_tokens += _total_input_tokens(response.usage)
             total_output_tokens += response.usage.get("output_tokens", 0)
 
         # Agent finished
@@ -1393,7 +1402,7 @@ async def _generate(
                 max_tokens=4000,
             )
             if final_response.usage:
-                total_input_tokens += final_response.usage.get("input_tokens", 0)
+                total_input_tokens += _total_input_tokens(final_response.usage)
                 total_output_tokens += final_response.usage.get("output_tokens", 0)
             draft = final_response.text.strip() if final_response.text else ""
             break
@@ -1442,7 +1451,7 @@ async def _generate(
             messages=messages, system=system_prompt, tools=[], model=SONNET_MODEL, max_tokens=4000,
         )
         if retry_response.usage:
-            total_input_tokens += retry_response.usage.get("input_tokens", 0)
+            total_input_tokens += _total_input_tokens(retry_response.usage)
             total_output_tokens += retry_response.usage.get("output_tokens", 0)
         retry_draft = (retry_response.text or "").strip()
         if len(retry_draft.split()) > len(draft.split()):
@@ -1679,7 +1688,7 @@ async def _execute_direct(
 
         # Save to agent_runs
         await update_version_for_delivery(client, version_id, draft, metadata={
-            "input_tokens": usage.get("input_tokens", 0),
+            "input_tokens": _total_input_tokens(usage),
             "output_tokens": usage.get("output_tokens", 0),
             "model": SONNET_MODEL,
             "trigger_type": (trigger_context or {}).get("type", "manual"),

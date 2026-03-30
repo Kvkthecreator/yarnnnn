@@ -629,33 +629,15 @@ def should_composer_act(assessment: dict) -> tuple[bool, str]:
                 "— system needs reasoning agents (analyses/research)"
             )
 
-    # ADR-115: Workspace density + state-change gate.
-    # Non-dense workspaces route to LLM, but ONLY when workspace state has
-    # actually changed since last LLM assessment. Prevents repeated Haiku calls
-    # with identical context (288/day → ~2-5/day).
+    # ADR-115: Workspace density — non-dense workspaces may need LLM scaffolding.
+    # State-change gate is now applied in run_heartbeat() before the LLM call,
+    # covering ALL heuristic paths uniformly.
     workspace_density = assessment.get("workspace_density", "developing")
     if workspace_density != "dense":
         has_substrate = assessment["agents"]["active"] > 0 or assessment["connected_platforms"]
         if has_substrate:
-            total_runs = assessment.get("total_agent_runs", 0)
             total_kf = assessment.get("knowledge", {}).get("total_files", 0)
-            active_agents = assessment["agents"]["active"]
-
-            # State-change gate: compare current state against last LLM assessment.
-            # If nothing changed, skip — the LLM has no new information.
-            # None means no prior assessment exists → always fire (first time).
-            last = assessment.get("last_assessed_state")
-            if last is not None:
-                state_changed = (
-                    total_kf != last.get("knowledge_files", 0)
-                    or total_runs != last.get("total_agent_runs", 0)
-                    or active_agents != last.get("active_agents", 0)
-                )
-                if not state_changed:
-                    return False, (
-                        f"HEARTBEAT_OK: {workspace_density} workspace, awaiting new signal "
-                        f"(kf={total_kf}, runs={total_runs}, agents={active_agents})"
-                    )
+            total_runs = assessment.get("total_agent_runs", 0)
 
             if workspace_density == "sparse":
                 return True, (
@@ -1220,6 +1202,31 @@ async def run_heartbeat(client: Any, user_id: str) -> dict:
     }
 
     # Step 3: Composer assessment (LLM only when warranted)
+    # State-change gate: if should_act routes to LLM (not lifecycle/deterministic),
+    # check whether workspace state has changed since last LLM assessment.
+    # Prevents spin loops where the same heuristic fires every 5 minutes
+    # with identical context (e.g., orphaned_producers).
+    if should_act and not reason.startswith(("lifecycle_", "cross_agent_")):
+        last = assessment.get("last_assessed_state")
+        if last is not None:
+            current_kf = assessment.get("knowledge", {}).get("total_files", 0)
+            current_runs = assessment.get("total_agent_runs", 0)
+            current_agents = assessment["agents"]["active"]
+            state_changed = (
+                current_kf != last.get("knowledge_files", 0)
+                or current_runs != last.get("total_agent_runs", 0)
+                or current_agents != last.get("active_agents", 0)
+            )
+            if not state_changed:
+                should_act = False
+                reason = (
+                    f"HEARTBEAT_OK: LLM skipped — no state change since last assessment "
+                    f"(kf={current_kf}, runs={current_runs}, agents={current_agents})"
+                )
+                heartbeat_result["should_act"] = False
+                heartbeat_result["reason"] = reason
+                logger.debug(f"[COMPOSER] State-change gate suppressed LLM for {user_id}: {reason}")
+
     if should_act:
         logger.info(f"[COMPOSER] Heartbeat triggered Composer for {user_id}: {reason}")
         composer_result = await run_composer_assessment(client, user_id, assessment, reason)

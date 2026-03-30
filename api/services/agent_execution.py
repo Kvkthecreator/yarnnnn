@@ -43,6 +43,15 @@ from uuid import uuid4
 
 import httpx
 
+
+def _total_input_tokens(usage: dict) -> int:
+    """Sum all input token fields including prompt cache tokens."""
+    return (
+        usage.get("input_tokens", 0)
+        + usage.get("cache_creation_input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
+    )
+
 logger = logging.getLogger(__name__)
 
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
@@ -830,9 +839,9 @@ async def generate_draft_inline(
                 max_tokens=4000,
             )
 
-            # ADR-101: Track tokens from each round
+            # ADR-101: Track tokens from each round (including prompt cache)
             if response.usage:
-                total_input_tokens += response.usage.get("input_tokens", 0)
+                total_input_tokens += _total_input_tokens(response.usage)
                 total_output_tokens += response.usage.get("output_tokens", 0)
 
             # Agent finished or hit token limit — take whatever text exists
@@ -870,9 +879,9 @@ async def generate_draft_inline(
                     model=SONNET_MODEL,
                     max_tokens=4000,
                 )
-                # ADR-101: Track tokens from synthesis call
+                # ADR-101: Track tokens from synthesis call (including prompt cache)
                 if final_response.usage:
-                    total_input_tokens += final_response.usage.get("input_tokens", 0)
+                    total_input_tokens += _total_input_tokens(final_response.usage)
                     total_output_tokens += final_response.usage.get("output_tokens", 0)
                 draft = final_response.text.strip() if final_response.text else ""
                 break
@@ -939,7 +948,7 @@ async def generate_draft_inline(
                 max_tokens=4000,
             )
             if retry_response.usage:
-                total_input_tokens += retry_response.usage.get("input_tokens", 0)
+                total_input_tokens += _total_input_tokens(retry_response.usage)
                 total_output_tokens += retry_response.usage.get("output_tokens", 0)
             retry_draft = (retry_response.text or "").strip()
             if len(retry_draft.split()) > word_count:
