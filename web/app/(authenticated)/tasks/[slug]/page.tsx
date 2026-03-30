@@ -27,8 +27,6 @@ import {
   X,
   ListChecks,
   Target,
-  Pencil,
-  Eye,
   MessageCircle,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
@@ -366,13 +364,11 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
-  // Task-scoped plus menu — only actions relevant to this task
+  // Task-scoped plus menu — clean intents, TP handles clarification
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'run-task', label: 'Run this task now', icon: Play, verb: 'prompt', onSelect: () => { setInput(`Run the task "${taskTitle}" now`); textareaRef.current?.focus(); } },
-    { id: 'adjust-focus', label: 'Adjust focus', icon: Target, verb: 'prompt', onSelect: () => { setInput('For this task, focus on '); textareaRef.current?.focus(); } },
-    { id: 'refine-criteria', label: 'Refine criteria', icon: Pencil, verb: 'prompt', onSelect: () => { setInput('Refine the success criteria for this task: '); textareaRef.current?.focus(); } },
-    { id: 'review-output', label: 'Review latest output', icon: Eye, verb: 'prompt', onSelect: () => { setInput(`Review the latest output of "${taskTitle}" and suggest improvements`); textareaRef.current?.focus(); } },
-    { id: 'web-research', label: 'Web research for this task', icon: Globe, verb: 'prompt', onSelect: () => { setInput(`Search the web for information relevant to "${taskTitle}": `); textareaRef.current?.focus(); } },
+    { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => { setInput('Run this task'); textareaRef.current?.focus(); } },
+    { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => { setInput('Adjust this task'); textareaRef.current?.focus(); } },
+    { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Research for this task'); textareaRef.current?.focus(); } },
   ];
 
   return (
