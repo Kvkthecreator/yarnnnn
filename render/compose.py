@@ -206,7 +206,7 @@ pre.mermaid {
 
 DOCUMENT_CSS = """
 .document {
-  max-width: 800px;
+  max-width: min(800px, 100%);
   margin: 0 auto;
   padding: 3rem 2rem;
 }
@@ -240,7 +240,7 @@ PRESENTATION_CSS = """
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 4rem 8rem;
+  padding: 4rem clamp(2rem, 8vw, 8rem);
   scroll-snap-align: start;
   position: relative;
 }
@@ -249,14 +249,14 @@ PRESENTATION_CSS = """
   content: '';
   position: absolute;
   bottom: 0;
-  left: 8rem;
-  right: 8rem;
+  left: clamp(2rem, 8vw, 8rem);
+  right: clamp(2rem, 8vw, 8rem);
   border-bottom: 1px solid var(--border);
 }
 
 .slide-title {
   text-align: center;
-  padding: 6rem 8rem;
+  padding: 6rem clamp(2rem, 8vw, 8rem);
 }
 
 .slide-title h1 {
@@ -300,7 +300,7 @@ PRESENTATION_CSS = """
 
 DASHBOARD_CSS = """
 .dashboard {
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -313,7 +313,7 @@ DASHBOARD_CSS = """
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -351,7 +351,7 @@ DASHBOARD_CSS = """
 
 DATA_CSS = """
 .data-view {
-  max-width: 1100px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 2rem;
 }
