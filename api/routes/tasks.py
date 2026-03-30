@@ -1247,3 +1247,44 @@ async def export_task_output(
 
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Render service unreachable: {str(e)}")
+
+
+# =============================================================================
+# Repurpose — ADR-148 Phase 4: Adapt output for different format/channel
+# =============================================================================
+
+@router.post("/{slug}/repurpose")
+async def repurpose_task_output(
+    slug: str,
+    auth: UserClient,
+    target: str = "summary",
+    output_date: Optional[str] = None,
+):
+    """
+    Repurpose a task output for a different format or channel.
+
+    ADR-148 Phase 4: Routes mechanical targets (pdf, xlsx) to render service,
+    editorial targets (linkedin, slides, summary) to agent adaptation.
+    """
+    from services.primitives.repurpose import handle_repurpose_output
+
+    # Build a minimal auth-like object for the primitive
+    class _Auth:
+        def __init__(self, client, user_id):
+            self.client = client
+            self.user_id = user_id
+    primitive_auth = _Auth(auth.client, auth.user_id)
+
+    result = await handle_repurpose_output(primitive_auth, {
+        "task_slug": slug,
+        "target": target,
+        "output_date": output_date or "",
+    })
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400 if result.get("error") in ("missing_task_slug", "invalid_target", "no_output", "no_tables") else 502,
+            detail=result.get("message", "Repurpose failed"),
+        )
+
+    return result

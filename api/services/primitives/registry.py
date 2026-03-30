@@ -41,6 +41,7 @@ from .workspace import (
     READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
 )
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
+from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 # ---------------------------------------------------------------------------
@@ -174,9 +175,11 @@ CHAT_PRIMITIVES = [
     MANAGE_TASK_TOOL,
     # Execution
     EXECUTE_TOOL,
+    # Repurpose (ADR-148 Phase 4)
+    REPURPOSE_OUTPUT_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 14 tools — under P5 budget of 15
+]  # 15 tools — at P5 budget
 
 # Headless mode: background agent execution.
 HEADLESS_PRIMITIVES = [
@@ -236,6 +239,7 @@ HANDLERS: dict[str, Callable] = {
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentContext": handle_read_agent_context,
     "RuntimeDispatch": handle_runtime_dispatch,
+    "RepurposeOutput": handle_repurpose_output,
 }
 
 

@@ -17,6 +17,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.2] - ADR-148 Phase 4: RepurposeOutput primitive + editorial adaptation
+
+### Changed
+- `services/primitives/repurpose.py`: NEW — RepurposeOutput primitive. Mechanical targets (pdf, xlsx, docx) route to render service. Editorial targets (linkedin, slides, summary, medium, twitter) invoke agent with output as context + target-specific instructions.
+- `services/primitives/registry.py`: RepurposeOutput in CHAT_PRIMITIVES (15 tools) + HANDLERS.
+- `routes/tasks.py`: `POST /tasks/{slug}/repurpose?target=linkedin` endpoint.
+- Frontend: ExportBar → RepurposeBar with both mechanical and editorial targets.
+- Expected behavior: "LinkedIn" click → agent adapts output for platform → stored as repurpose artifact. PDF/XLSX → render service directly.
+
+---
+
 ## [2026.03.30.1] - ADR-148 Phase 3: Export pipeline (PDF/XLSX from composed HTML)
 
 ### Changed

@@ -66,41 +66,69 @@ function formatRelativeTime(dateStr: string): string {
 // Left Panel: Output Tab
 // =============================================================================
 
-function ExportBar({ slug }: { slug: string }) {
-  const [exporting, setExporting] = useState<string | null>(null);
+function RepurposeBar({ slug }: { slug: string }) {
+  const [active, setActive] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
-  const handleExport = async (format: string) => {
-    setExporting(format);
+  const TARGETS = [
+    { key: 'pdf', label: 'PDF', icon: FileText, type: 'mechanical' as const },
+    { key: 'xlsx', label: 'XLSX', icon: FileText, type: 'mechanical' as const },
+    { key: 'linkedin', label: 'LinkedIn', icon: Send, type: 'editorial' as const },
+    { key: 'summary', label: 'Summary', icon: FileText, type: 'editorial' as const },
+    { key: 'slides', label: 'Slides', icon: Eye, type: 'editorial' as const },
+  ];
+
+  const handleRepurpose = async (target: string, type: string) => {
+    setActive(target);
+    setResult(null);
     try {
-      const result = await api.tasks.export(slug, format);
-      if (result.url) {
-        window.open(result.url, '_blank');
+      if (type === 'mechanical') {
+        const res = await api.tasks.export(slug, target);
+        if (res.url) window.open(res.url, '_blank');
+        setResult('done');
+      } else {
+        const res = await fetch(`/api/tasks/${slug}/repurpose?target=${target}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          setResult(data.message || 'Repurposed');
+        } else {
+          setResult(data.detail || data.message || 'Failed');
+        }
       }
     } catch (e) {
-      console.error(`Export ${format} failed:`, e);
+      console.error(`Repurpose ${target} failed:`, e);
+      setResult('Failed');
     } finally {
-      setExporting(null);
+      setActive(null);
     }
   };
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-muted/20">
-      <span className="text-xs text-muted-foreground mr-1">Export:</span>
-      {['pdf', 'xlsx'].map((fmt) => (
+      <span className="text-xs text-muted-foreground mr-1">Repurpose:</span>
+      {TARGETS.map((t) => (
         <button
-          key={fmt}
-          onClick={() => handleExport(fmt)}
-          disabled={exporting !== null}
-          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border/50 bg-background hover:bg-muted transition-colors disabled:opacity-50"
+          key={t.key}
+          onClick={() => handleRepurpose(t.key, t.type)}
+          disabled={active !== null}
+          className={cn(
+            "inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors disabled:opacity-50",
+            t.type === 'editorial'
+              ? "border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary"
+              : "border-border/50 bg-background hover:bg-muted"
+          )}
         >
-          {exporting === fmt ? (
+          {active === t.key ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Globe className="w-3 h-3" />
+            <t.icon className="w-3 h-3" />
           )}
-          {fmt.toUpperCase()}
+          {t.label}
         </button>
       ))}
+      {result && (
+        <span className="text-xs text-muted-foreground ml-2">{result}</span>
+      )}
     </div>
   );
 }
@@ -128,7 +156,7 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 
   return (
     <div className="flex flex-col h-full">
-      <ExportBar slug={task.slug} />
+      <RepurposeBar slug={task.slug} />
       <div className="flex-1 min-h-0">
         {output.html_content ? (
           <iframe
