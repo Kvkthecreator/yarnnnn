@@ -28,6 +28,7 @@ import {
   ListChecks,
   Target,
   MessageCircle,
+  Presentation,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -75,7 +76,7 @@ function RepurposeBar({ slug }: { slug: string }) {
     { key: 'xlsx', label: 'XLSX', icon: FileText, type: 'mechanical' as const },
     { key: 'linkedin', label: 'LinkedIn', icon: Send, type: 'editorial' as const },
     { key: 'summary', label: 'Summary', icon: FileText, type: 'editorial' as const },
-    { key: 'slides', label: 'Slides', icon: Eye, type: 'editorial' as const },
+    { key: 'slides', label: 'Slides', icon: Presentation, type: 'editorial' as const },
   ];
 
   const handleRepurpose = async (target: string, type: string) => {
