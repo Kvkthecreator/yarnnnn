@@ -275,8 +275,7 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
     # Assign type_key → updates TASK.md with type + process definition from registry
     if new_type_key:
         try:
-            from services.task_types import get_task_type
-            from services.primitives.task import resolve_process_agents
+            from services.task_types import get_task_type, resolve_process_agents
 
             task_type_def = get_task_type(new_type_key)
             if not task_type_def:
