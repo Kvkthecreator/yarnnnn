@@ -26,7 +26,7 @@ import markdown
 class ComposeRequest(BaseModel):
     markdown: str
     title: str = "Output"
-    layout_mode: str = "document"  # document | presentation | dashboard | data
+    layout_mode: str = "document"  # document | presentation | dashboard | data | email
     assets: list[dict] = []  # [{ref: "chart.svg", url: "https://..."}]
     brand_css: Optional[str] = None
     user_id: Optional[str] = None
@@ -382,6 +382,150 @@ DATA_CSS = """
 }
 """
 
+# Email mode: inline-safe CSS for email clients (Gmail, Outlook, Apple Mail).
+# No CSS variables, no flexbox/grid, no prefers-color-scheme, no external fonts.
+EMAIL_CSS = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 { line-height: 1.3; font-weight: 600; color: #1a1a1a; }
+h1 { font-size: 22px; margin-bottom: 16px; }
+h2 { font-size: 18px; margin-top: 24px; margin-bottom: 12px; }
+h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+h4 { font-size: 15px; margin-top: 16px; margin-bottom: 8px; color: #4b5563; }
+
+p { margin-bottom: 14px; }
+
+a { color: #1a56db; text-decoration: none; }
+
+strong { font-weight: 600; color: #1a1a1a; }
+
+ul, ol { margin-bottom: 14px; padding-left: 24px; }
+li { margin-bottom: 6px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 13px;
+}
+th, td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+th {
+  font-weight: 600;
+  color: #4b5563;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+code {
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: Monaco, Menlo, monospace;
+  font-size: 13px;
+}
+
+pre {
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+}
+pre code { background: none; padding: 0; }
+
+blockquote {
+  border-left: 3px solid #1a56db;
+  margin: 16px 0;
+  padding: 10px 16px;
+  color: #4b5563;
+  background: #e1effe;
+  border-radius: 0 6px 6px 0;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 24px 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 16px 0;
+  display: block;
+}
+"""
+
+EMAIL_LAYOUT_CSS = """
+.email-body {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.email-body h1 {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.email-subtitle {
+  color: #9ca3af;
+  font-size: 12px;
+  margin-top: -16px;
+  margin-bottom: 24px;
+}
+
+.email-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.email-footer a.feedback-btn {
+  display: inline-block;
+  background: #111;
+  color: #fff;
+  padding: 10px 24px;
+  text-decoration: none;
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.email-footer .hint {
+  color: #9ca3af;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+.email-footer .meta {
+  color: #9ca3af;
+  font-size: 11px;
+  margin-top: 12px;
+}
+.email-footer .meta a { color: #9ca3af; }
+"""
+
 
 # ---------------------------------------------------------------------------
 # Markdown → HTML rendering
@@ -565,6 +709,11 @@ def _apply_data_layout(html_body: str, title: str) -> str:
     return f'<div class="data-view">\n<h1>{_esc(title)}</h1>\n{html_body}\n</div>'
 
 
+def _apply_email_layout(html_body: str, title: str) -> str:
+    """Wrap HTML in email-safe layout — max 600px, inline-friendly, with footer."""
+    return f'<div class="email-body">\n<h1>{_esc(title)}</h1>\n{html_body}\n</div>'
+
+
 # ---------------------------------------------------------------------------
 # Full document wrapper
 # ---------------------------------------------------------------------------
@@ -596,6 +745,24 @@ def _wrap_full_document(body_html: str, css: str, title: str) -> str:
 </html>"""
 
 
+def _wrap_email_document(body_html: str, css: str, title: str) -> str:
+    """Produce a complete HTML document for email — no external scripts, no mermaid.js."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{_esc(title)}</title>
+<style>
+{css}
+</style>
+</head>
+<body>
+{body_html}
+</body>
+</html>"""
+
+
 def _esc(text: str) -> str:
     """Minimal HTML entity escaping for safe title injection."""
     return (
@@ -615,6 +782,7 @@ _LAYOUT_CSS = {
     "presentation": PRESENTATION_CSS,
     "dashboard": DASHBOARD_CSS,
     "data": DATA_CSS,
+    "email": EMAIL_LAYOUT_CSS,
 }
 
 _LAYOUT_FN = {
@@ -622,6 +790,7 @@ _LAYOUT_FN = {
     "presentation": _apply_presentation_layout,
     "dashboard": _apply_dashboard_layout,
     "data": _apply_data_layout,
+    "email": _apply_email_layout,
 }
 
 
@@ -641,13 +810,15 @@ def compose_html(
     Args:
         md_text: Markdown source content.
         title: Document title (appears in <title> and heading).
-        layout_mode: One of document, presentation, dashboard, data.
+        layout_mode: One of document, presentation, dashboard, data, email.
         assets: List of {ref, url} dicts for resolving local asset paths.
         brand_css: Optional CSS string for brand overrides.
 
     Returns:
         Complete HTML document string.
     """
+    is_email = layout_mode == "email"
+
     # 1. Markdown → HTML fragment
     html_body = _render_markdown_to_html(md_text)
 
@@ -655,16 +826,31 @@ def compose_html(
     if assets:
         html_body = _resolve_asset_urls(html_body, assets)
 
-    # 3. Apply layout mode
+    # 3. Email: strip mermaid code blocks (no JS in email) — show as code instead
+    if is_email:
+        html_body = re.sub(
+            r'<pre class="mermaid">(.*?)</pre>',
+            r'<pre><code>\1</code></pre>',
+            html_body,
+            flags=re.DOTALL,
+        )
+
+    # 4. Apply layout mode
     layout_fn = _LAYOUT_FN.get(layout_mode, _apply_document_layout)
     body_html = layout_fn(html_body, title)
 
-    # 4. Assemble CSS: base + layout + brand
-    layout_css = _LAYOUT_CSS.get(layout_mode, DOCUMENT_CSS)
-    css_parts = [BASE_CSS, layout_css]
+    # 5. Assemble CSS: email uses its own base (no CSS variables), others use BASE_CSS
+    if is_email:
+        layout_css = _LAYOUT_CSS.get(layout_mode, EMAIL_LAYOUT_CSS)
+        css_parts = [EMAIL_CSS, layout_css]
+    else:
+        layout_css = _LAYOUT_CSS.get(layout_mode, DOCUMENT_CSS)
+        css_parts = [BASE_CSS, layout_css]
     if brand_css:
         css_parts.append(f"\n/* Brand overrides */\n{brand_css}")
     full_css = "\n".join(css_parts)
 
-    # 5. Wrap in full HTML document
+    # 6. Wrap in full HTML document (email skips mermaid.js script)
+    if is_email:
+        return _wrap_email_document(body_html, full_css, title)
     return _wrap_full_document(body_html, full_css, title)

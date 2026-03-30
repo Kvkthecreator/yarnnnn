@@ -645,8 +645,7 @@ async def deliver_from_output_folder(
     3. Updates the manifest with delivery status
 
     For email destinations, rendered binary attachments from the manifest are included
-    as download links in the email body — same behavior as the old ResendExporter but
-    sourced from the manifest instead of a broad workspace_files query.
+    as download links in the email body, sourced from the manifest.
 
     Args:
         client: Supabase service client
@@ -784,14 +783,15 @@ async def _deliver_email_from_manifest(
     composed_html: Optional[str] = None,
     task_slug: Optional[str] = None,
 ) -> ExportResult:
-    """ADR-118 D.3 + ADR-130 Phase 2: Email delivery sourced from output folder.
+    """ADR-118 D.3 + ADR-148: Email delivery sourced from output folder.
 
-    If composed HTML exists (ADR-130 Phase 2), uses it as the email body.
-    Otherwise, generates HTML from text content via generate_email_html().
+    Always composes email-optimized HTML via compose engine (layout_mode="email").
+    The pre-composed HTML (output.html) is for web display — email needs its own
+    rendering with inline-safe CSS, no CSS variables, no external scripts.
     Includes rendered binary download links from the manifest.
     """
+    import os
     from jobs.email import send_email
-    from services.platform_output import generate_email_html
 
     target = destination.get("target")
     if not target:
@@ -808,20 +808,41 @@ async def _deliver_email_from_manifest(
         default_subject = f"{title} — {timestamp_str}"
     subject = options.get("subject", default_subject)
 
-    # ADR-148: Singular rendering path — always use composed HTML
-    if composed_html:
-        html_body = composed_html
-        logger.info(f"[DELIVERY] Using composed HTML ({len(composed_html)} chars)")
-    else:
-        # Compose service didn't run or failed — minimal styled wrapper
-        logger.warning(f"[DELIVERY] No composed HTML — using minimal markdown wrapper")
+    # ADR-148: Compose email-specific HTML via render service (layout_mode="email")
+    html_body = await _compose_email_html(text_content, title)
+    if not html_body:
+        # Compose service unreachable — minimal inline fallback
+        logger.warning("[DELIVERY] Email compose failed — using minimal fallback")
         html_body = (
             f"<html><body><div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;"
-            f"max-width:680px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6'>"
-            f"<h1 style='margin:0 0 16px'>{title}</h1>"
+            f"max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6'>"
+            f"<h1 style='margin:0 0 16px;font-size:22px'>{title}</h1>"
             f"<pre style='white-space:pre-wrap;font-size:14px'>{text_content}</pre>"
             f"</div></body></html>"
         )
+
+    # Append email footer (feedback link + yarnnn branding)
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    if task_slug:
+        view_url = f"{app_url}/tasks/{task_slug}"
+    elif agent_id:
+        view_url = f"{app_url}/agents/{agent_id}"
+    else:
+        view_url = app_url
+
+    footer_html = (
+        '<div style="margin-top:32px;padding-top:20px;border-top:1px solid #e5e7eb;text-align:center;">'
+        f'<a href="{view_url}" style="display:inline-block;background:#111;color:#fff;'
+        f'padding:10px 24px;text-decoration:none;border-radius:9999px;font-weight:500;font-size:14px;">'
+        f'Reply with feedback</a>'
+        '<p style="color:#9ca3af;font-size:12px;margin-top:12px;">'
+        'Tell the agent what to change — it learns from your feedback.</p>'
+        f'<p style="color:#9ca3af;font-size:11px;margin-top:12px;">'
+        f'Delivered by <a href="{app_url}" style="color:#9ca3af;">yarnnn</a> · '
+        f'<a href="{app_url}/settings" style="color:#9ca3af;">Manage notifications</a></p>'
+        '</div>'
+    )
+    html_body = html_body.replace("</body>", f"{footer_html}</body>")
 
     # ADR-118 D.3: Include rendered binary attachments from manifest
     files = manifest.get("files", [])
@@ -834,11 +855,11 @@ async def _deliver_email_from_manifest(
             size = f.get("size_bytes", 0)
             size_str = f" ({size // 1024}KB)" if size > 0 else ""
             links.append(
-                f'<li><a href="{url}" style="color:#6366f1;text-decoration:underline;">'
+                f'<li><a href="{url}" style="color:#1a56db;text-decoration:underline;">'
                 f'{fname}</a>{size_str}</li>'
             )
         attachment_html = (
-            '<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">'
+            '<div style="margin-top:24px;padding:16px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">'
             '<p style="margin:0 0 8px 0;font-weight:600;font-size:14px;">Attachments</p>'
             f'<ul style="margin:0;padding-left:20px;">{"".join(links)}</ul>'
             '</div>'
@@ -853,7 +874,7 @@ async def _deliver_email_from_manifest(
             text=text_content,
         )
         if result.success:
-            logger.info(f"[DELIVERY] ADR-118 D.3: Email delivered to {target}, message_id={result.message_id}")
+            logger.info(f"[DELIVERY] Email delivered to {target}, message_id={result.message_id}")
             return ExportResult(
                 status=ExportStatus.SUCCESS,
                 external_id=result.message_id,
@@ -865,11 +886,51 @@ async def _deliver_email_from_manifest(
                 error_message=result.error or "Resend delivery failed",
             )
     except Exception as e:
-        logger.error(f"[DELIVERY] ADR-118 D.3: Email delivery failed: {e}")
+        logger.error(f"[DELIVERY] Email delivery failed: {e}")
         return ExportResult(
             status=ExportStatus.FAILED,
             error_message=str(e),
         )
+
+
+async def _compose_email_html(markdown: str, title: str) -> Optional[str]:
+    """Call render service compose endpoint with layout_mode=email."""
+    import httpx
+    import os
+
+    render_url = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+    render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            headers = {}
+            if render_secret:
+                headers["X-Render-Secret"] = render_secret
+
+            resp = await http.post(
+                f"{render_url}/compose",
+                json={
+                    "markdown": markdown,
+                    "title": title,
+                    "layout_mode": "email",
+                    "assets": [],
+                },
+                headers=headers,
+            )
+
+            if resp.status_code != 200:
+                logger.warning(f"[DELIVERY] Email compose HTTP {resp.status_code}")
+                return None
+
+            data = resp.json()
+            if data.get("success") and data.get("html"):
+                logger.info(f"[DELIVERY] Email composed via render service ({len(data['html'])} chars)")
+                return data["html"]
+            return None
+
+    except Exception as e:
+        logger.warning(f"[DELIVERY] Email compose call failed: {e}")
+        return None
 
 
 async def _get_exporter_context_standalone(

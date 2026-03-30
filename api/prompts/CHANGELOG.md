@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.4] - Email rendering: singular path via compose engine
+
+### Changed
+- `render/compose.py`: Added `email` layout mode — email-safe CSS (no CSS variables, no flexbox/grid, no external scripts, max-width 600px, inline-friendly styles). Mermaid blocks downgraded to code blocks in email mode.
+- `services/delivery.py`: `_deliver_email_from_manifest()` now always composes email HTML via render service (`layout_mode="email"`) instead of sending pre-composed web HTML. Added `_compose_email_html()` helper. Footer with feedback link + yarnnn branding appended directly.
+- `services/platform_output.py`: Deleted `generate_email_html()`, `_generate_default_email_html()`, `_generate_reply_html()`, `_generate_triage_html()`, `_markdown_to_email_html()`, `_email_footer_html()`, `_markdown_to_basic_html()` — all superseded by compose engine email mode.
+- `integrations/exporters/resend.py`: Deleted entire file — `ResendExporter` class no longer needed. Email delivery handled directly in `delivery.py`.
+- `integrations/exporters/registry.py`: Removed `ResendExporter` registration.
+- Expected behavior: Email delivery now produces email-optimized HTML (proper inline CSS, 600px width, no dark mode media queries, no mermaid.js script) instead of sending generic document-mode HTML. Singular rendering path — one compose engine, one email layout mode.
+
+---
+
 ## [2026.03.30.3] - WebSearch: URL fetch mode
 
 ### Changed
