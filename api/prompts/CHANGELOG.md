@@ -6,12 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.03.30.2] - Clarify-first gate for UpdateContext and CreateTask
+## [2026.03.30.2] - Pre-LLM action cards + confirm-before-acting
 
 ### Changed
-- `agents/tp_prompts/behaviors.py`: "Confirming Before Acting" section rewritten as "Clarify-First for Creates & Context Updates". TP must now always present a Clarify() card or text confirmation before calling UpdateContext or CreateTask. Shows current content + options for context updates. Shows plan summary for task creation.
-- Previous behavior: "If the user provides enough context, skip clarification and create directly" → replaced with "Even with full context, confirm the plan before creating."
-- Expected behavior: Both left-panel buttons (+ New Task, Update) and chat PlusMenu entries trigger the same clarification flow in TP chat. User always sees what will happen before TP acts.
+- NEW `web/components/tp/InlineActionCard.tsx`: Pre-LLM structured option cards rendered instantly in chat area when user clicks PlusMenu actions or panel buttons. No LLM round-trip — user picks an option → specific message sent to TP. Includes pre-defined configs for: context updates (identity/brand/documents), new task, run task, adjust task, web research.
+- `web/app/(authenticated)/workfloor/page.tsx`: PlusMenu "Create a task" and "Update context" now show InlineActionCard instead of prefilling input. Panel header buttons (+ New Task, Update) also show cards. Cards present structured options (e.g., "Add new details", "Update from URL", "Rewrite from scratch" for identity updates).
+- `web/app/(authenticated)/tasks/[slug]/page.tsx`: PlusMenu "Run now", "Adjust task", "Web research" now show InlineActionCard with task-specific options.
+- `agents/tp_prompts/behaviors.py`: "Confirming Before Acting" softened to fallback — frontend cards handle primary clarification. TP confirms briefly for specific intents, uses Clarify tool only for vague/ambiguous typed messages.
+- Expected behavior: Button clicks → instant card → user picks option → specific message to TP → TP acts. No wasted LLM call for "what do you want to do?" Both workfloor and task page use same pattern.
 
 ---
 

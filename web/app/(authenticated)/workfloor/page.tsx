@@ -41,6 +41,12 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import {
+  InlineActionCard,
+  type ActionCardConfig,
+  contextUpdateCard,
+  NEW_TASK_CARD,
+} from '@/components/tp/InlineActionCard';
 
 
 // =============================================================================
@@ -251,7 +257,7 @@ function DocumentsTab() {
 // Floating Chat Panel
 // =============================================================================
 
-function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string | null }) {
+function ChatPanel({ taskCount, pendingActionConfig }: { taskCount: number; pendingActionConfig?: ActionCardConfig | null }) {
   const {
     messages,
     sendMessage,
@@ -265,16 +271,28 @@ function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string
 
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
+  const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Accept prefill from parent (panel header buttons)
+  // Accept action card from parent (panel header buttons)
   useEffect(() => {
-    if (prefill) {
-      setInput(prefill);
-      setTimeout(() => textareaRef.current?.focus(), 100);
+    if (pendingActionConfig) {
+      setActionCard(pendingActionConfig);
     }
-  }, [prefill]);
+  }, [pendingActionConfig]);
+
+  const handleActionSelect = (message: string) => {
+    // If message ends with a space, it's a prefill — don't send yet
+    if (message.endsWith(' ')) {
+      setInput(message);
+      setActionCard(null);
+      textareaRef.current?.focus();
+    } else {
+      sendMessage(message, { surface });
+      setActionCard(null);
+    }
+  };
 
   const {
     attachments,
@@ -315,10 +333,10 @@ function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
-  // Consolidated PlusMenu: single "Update context" instead of separate identity/brand
+  // PlusMenu: structured action cards for create/update, direct prefill for simple actions
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a new task'); textareaRef.current?.focus(); } },
-    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => { setInput('Update my context'); textareaRef.current?.focus(); } },
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => setActionCard(NEW_TASK_CARD) },
+    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => setActionCard(contextUpdateCard('context')) },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
@@ -431,6 +449,16 @@ function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string
           </div>
         )}
 
+        {actionCard && (
+          <div className="mb-2">
+            <InlineActionCard
+              config={actionCard}
+              onSelect={handleActionSelect}
+              onDismiss={() => setActionCard(null)}
+            />
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
@@ -484,13 +512,12 @@ export default function WorkfloorPage() {
   const [chatOpen, setChatOpen] = useState(true);
   const [roomCollapsed, setRoomCollapsed] = useState(false);
 
-  // Chat prefill — set by panel buttons, consumed by ChatPanel
-  const [chatPrefill, setChatPrefill] = useState<string | null>(null);
-  const prefillChat = useCallback((text: string) => {
-    setChatPrefill(text);
+  // Action card — set by panel buttons, rendered in ChatPanel
+  const [pendingActionCard, setPendingActionCard] = useState<ActionCardConfig | null>(null);
+  const showActionCard = useCallback((config: ActionCardConfig) => {
+    setPendingActionCard(config);
     setChatOpen(true);
-    // Reset after a tick so the same prefill can be triggered again
-    setTimeout(() => setChatPrefill(null), 200);
+    setTimeout(() => setPendingActionCard(null), 200);
   }, []);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
@@ -573,7 +600,7 @@ export default function WorkfloorPage() {
             <div className="flex items-center gap-1">
               {activeTab === 'tasks' && (
                 <button
-                  onClick={() => prefillChat('Create a new task')}
+                  onClick={() => showActionCard(NEW_TASK_CARD)}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
                 >
                   <Plus className="w-3 h-3" /> New Task
@@ -581,7 +608,7 @@ export default function WorkfloorPage() {
               )}
               {activeTab === 'context' && (
                 <button
-                  onClick={() => prefillChat(`Update my ${contextSubTab}`)}
+                  onClick={() => showActionCard(contextUpdateCard(contextSubTab))}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <Settings2 className="w-3 h-3" /> Update
@@ -637,7 +664,7 @@ export default function WorkfloorPage() {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <ChatPanel taskCount={activeTasks.length} prefill={chatPrefill} />
+          <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} />
         </div>
       </div>
 

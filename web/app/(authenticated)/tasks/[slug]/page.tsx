@@ -41,6 +41,13 @@ import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { ProcessTab } from '@/components/tasks/ProcessTab';
+import {
+  InlineActionCard,
+  type ActionCardConfig,
+  RUN_TASK_CARD,
+  ADJUST_TASK_CARD,
+  RESEARCH_TASK_CARD,
+} from '@/components/tp/InlineActionCard';
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -335,8 +342,20 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   } = useTP();
 
   const [input, setInput] = useState('');
+  const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleActionSelect = (message: string) => {
+    if (message.endsWith(' ')) {
+      setInput(message);
+      setActionCard(null);
+      textareaRef.current?.focus();
+    } else {
+      sendMessage(message, { surface: { type: 'task-detail', taskSlug } });
+      setActionCard(null);
+    }
+  };
   const { attachments, attachmentPreviews, error: fileError, uploadedDocs, handleFileSelect, handlePaste, removeAttachment, clearAttachments, getImagesForAPI, fileInputRef } = useFileAttachments();
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, status]);
@@ -364,11 +383,11 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
   };
 
-  // Task-scoped plus menu — clean intents, TP handles clarification
+  // Task-scoped plus menu — pre-LLM action cards
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => { setInput('Run this task'); textareaRef.current?.focus(); } },
-    { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => { setInput('Adjust this task'); textareaRef.current?.focus(); } },
-    { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Research for this task'); textareaRef.current?.focus(); } },
+    { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => setActionCard(RUN_TASK_CARD) },
+    { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => setActionCard(ADJUST_TASK_CARD) },
+    { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => setActionCard(RESEARCH_TASK_CARD) },
   ];
 
   return (
@@ -440,6 +459,16 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {actionCard && (
+          <div className="mb-2">
+            <InlineActionCard
+              config={actionCard}
+              onSelect={handleActionSelect}
+              onDismiss={() => setActionCard(null)}
+            />
           </div>
         )}
 
