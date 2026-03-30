@@ -92,7 +92,7 @@ function TasksTab({ tasks, onSelectType, showCatalog, setShowCatalog }: {
   );
 }
 
-function IdentityTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
+function IdentityTab() {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -137,41 +137,27 @@ function IdentityTab({ onSendMessage }: { onSendMessage: (msg: string) => void }
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto prose prose-xs dark:prose-invert max-w-none">
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-[300px] overflow-y-auto prose prose-xs dark:prose-invert max-w-none">
             <MarkdownRenderer content={content} compact />
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onSendMessage('Update my context')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
-              Update via chat →
-            </button>
-            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Edit manually
-            </button>
-          </div>
+          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
+            Edit
+          </button>
         </>
       ) : (
         <div className="py-4 px-2">
           <p className="text-[11px] text-muted-foreground/60 mb-3">Your identity helps agents understand who you are and what you care about.</p>
-          <div className="space-y-1.5 text-[10px] text-muted-foreground/40">
-            <p>Try telling the chat:</p>
-            <p className="italic text-muted-foreground/60">&quot;Update my context — I&apos;m [name], [role] at [company]&quot;</p>
-            <p className="italic text-muted-foreground/60">&quot;Update my context from my LinkedIn&quot;</p>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <button onClick={() => onSendMessage('Update my context')} className="text-[10px] text-primary hover:underline font-medium">
-              Update via chat →
-            </button>
-            <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Or edit manually
-            </button>
-          </div>
+          <p className="text-[10px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
+          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline font-medium">
+            Write identity
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-function BrandTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
+function BrandTab() {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -216,34 +202,20 @@ function BrandTab({ onSendMessage }: { onSendMessage: (msg: string) => void }) {
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-48 overflow-y-auto">
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-[300px] overflow-y-auto">
             <MarkdownRenderer content={content} compact />
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onSendMessage('Update my brand')} className="text-[9px] text-primary hover:text-primary/80 font-medium">
-              Update via chat →
-            </button>
-            <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Edit manually
-            </button>
-          </div>
+          <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
+            Edit
+          </button>
         </>
       ) : (
         <div className="py-4 px-2">
           <p className="text-[11px] text-muted-foreground/60 mb-3">Your brand guide shapes how agents write — tone, terminology, audience awareness.</p>
-          <div className="space-y-1.5 text-[10px] text-muted-foreground/40">
-            <p>Try telling the chat:</p>
-            <p className="italic text-muted-foreground/60">&quot;Update my brand from our website&quot;</p>
-            <p className="italic text-muted-foreground/60">&quot;Update my brand — we&apos;re technical but friendly, writing for developers&quot;</p>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <button onClick={() => onSendMessage('Update my brand')} className="text-[10px] text-primary hover:underline font-medium">
-              Update via chat →
-            </button>
-            <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60">
-              Or edit manually
-            </button>
-          </div>
+          <p className="text-[10px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
+          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[10px] text-primary hover:underline font-medium">
+            Write brand guide
+          </button>
         </div>
       )}
     </div>
@@ -297,7 +269,7 @@ function DocumentsTab() {
 // Floating Chat Panel
 // =============================================================================
 
-function ChatPanel({ taskCount, onSendContextUpdate }: { taskCount: number; onSendContextUpdate?: () => void }) {
+function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string | null }) {
   const {
     messages,
     sendMessage,
@@ -313,6 +285,14 @@ function ChatPanel({ taskCount, onSendContextUpdate }: { taskCount: number; onSe
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Accept prefill from parent (panel header buttons)
+  useEffect(() => {
+    if (prefill) {
+      setInput(prefill);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [prefill]);
 
   const {
     attachments,
@@ -356,7 +336,7 @@ function ChatPanel({ taskCount, onSendContextUpdate }: { taskCount: number; onSe
   // Consolidated PlusMenu: single "Update context" instead of separate identity/brand
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
-    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => { setInput('Update my context'); textareaRef.current?.focus(); } },
+    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => { setInput('Update my context — '); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
@@ -505,11 +485,6 @@ export default function WorkfloorPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { surface } = useDesk();
 
-  const handleContextUpdate = useCallback((msg: string) => {
-    sendMessage(msg, { surface });
-    setChatOpen(true);
-  }, [sendMessage, surface]);
-
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -525,6 +500,15 @@ export default function WorkfloorPage() {
   // Panel visibility
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
+
+  // Chat prefill — set by panel buttons, consumed by ChatPanel
+  const [chatPrefill, setChatPrefill] = useState<string | null>(null);
+  const prefillChat = useCallback((text: string) => {
+    setChatPrefill(text);
+    setChatOpen(true);
+    // Reset after a tick so the same prefill can be triggered again
+    setTimeout(() => setChatPrefill(null), 200);
+  }, []);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -554,9 +538,8 @@ export default function WorkfloorPage() {
   const activeTasks = tasks.filter(t => t.status !== 'archived');
 
   const handleSelectType = useCallback((typeKey: string, displayName: string) => {
-    sendMessage(`Create a "${displayName}" task`, { surface });
-    setChatOpen(true);
-  }, [sendMessage, surface]);
+    prefillChat(`Create a "${displayName}" task for `);
+  }, [prefillChat]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -620,10 +603,7 @@ export default function WorkfloorPage() {
               )}
               {activeTab === 'context' && (
                 <button
-                  onClick={() => {
-                    sendMessage('Update my context', { surface });
-                    setChatOpen(true);
-                  }}
+                  onClick={() => prefillChat(`Update my ${contextSubTab} — `)}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <Settings2 className="w-3 h-3" /> Update
@@ -656,8 +636,8 @@ export default function WorkfloorPage() {
                   ))}
                 </div>
                 <div className="flex-1 min-h-0">
-                  {contextSubTab === 'identity' && <IdentityTab onSendMessage={handleContextUpdate} />}
-                  {contextSubTab === 'brand' && <BrandTab onSendMessage={handleContextUpdate} />}
+                  {contextSubTab === 'identity' && <IdentityTab />}
+                  {contextSubTab === 'brand' && <BrandTab />}
                   {contextSubTab === 'documents' && <DocumentsTab />}
                 </div>
               </div>
@@ -679,7 +659,7 @@ export default function WorkfloorPage() {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <ChatPanel taskCount={activeTasks.length} />
+          <ChatPanel taskCount={activeTasks.length} prefill={chatPrefill} />
         </div>
       </div>
 
