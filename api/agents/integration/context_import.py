@@ -213,6 +213,7 @@ Last edited: {page_content.get('last_edited', 'Unknown')}
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
                 system=self.SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}]
             )

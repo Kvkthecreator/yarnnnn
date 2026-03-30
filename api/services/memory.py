@@ -204,6 +204,7 @@ CONVERSATION:
             response = client.messages.create(
                 model=EXTRACTION_MODEL,
                 max_tokens=1024,
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
                 messages=[
                     {"role": "user", "content": prompt + conversation_text}
                 ],

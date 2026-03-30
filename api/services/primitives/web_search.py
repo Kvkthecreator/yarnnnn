@@ -119,6 +119,7 @@ Be factual and cite your sources."""
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             system=system_prompt,
             tools=[WEB_SEARCH_TOOL],
             messages=messages,

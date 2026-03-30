@@ -740,6 +740,7 @@ async def maybe_compact_history(
         response = sdk_client.messages.create(
             model=EXTRACTION_MODEL,
             max_tokens=1024,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             messages=compact_messages,
         )
 

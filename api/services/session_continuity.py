@@ -127,6 +127,7 @@ CONVERSATION:
         response = client.messages.create(
             model=SUMMARY_MODEL,
             max_tokens=256,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             messages=[
                 {"role": "user", "content": prompt + conversation_text}
             ],
@@ -196,6 +197,7 @@ CONVERSATION:
         response = client.messages.create(
             model=SUMMARY_MODEL,
             max_tokens=256,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             messages=[
                 {"role": "user", "content": prompt + conversation_text}
             ],

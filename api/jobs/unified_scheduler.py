@@ -314,7 +314,31 @@ async def run_unified_scheduler():
     supabase = create_client(supabase_url, supabase_key)
 
     now = datetime.now(timezone.utc)
+    is_hourly_tick = now.minute < 5  # First tick of each hour
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
+
+    # -------------------------------------------------------------------------
+    # Shared: Discover active users once, reuse across phases
+    # -------------------------------------------------------------------------
+    try:
+        _conn_result = supabase.table("platform_connections").select(
+            "user_id"
+        ).in_("status", ["connected", "active"]).execute()
+        active_user_ids = list(set(row["user_id"] for row in (_conn_result.data or [])))
+    except Exception:
+        active_user_ids = []
+
+    # Also include users with active agents but no platform connections
+    try:
+        _agent_result = supabase.table("agents").select(
+            "user_id"
+        ).eq("status", "active").execute()
+        all_user_ids_set = set(active_user_ids)
+        for row in (_agent_result.data or []):
+            all_user_ids_set.add(row["user_id"])
+        all_heartbeat_user_ids = list(all_user_ids_set)
+    except Exception:
+        all_heartbeat_user_ids = list(active_user_ids)
 
     # -------------------------------------------------------------------------
     # ADR-141: Task execution — find and run due tasks
@@ -335,28 +359,25 @@ async def run_unified_scheduler():
     # ADR-072: Cleanup Expired Platform Content (hourly)
     # -------------------------------------------------------------------------
     content_cleaned = 0
-    if now.minute < 5:  # Only run cleanup in first 5 minutes of each hour
+    if is_hourly_tick:
         try:
             from services.platform_content import cleanup_expired_content
             content_cleaned = await cleanup_expired_content(supabase)
             if content_cleaned > 0:
                 logger.info(f"[PLATFORM_CONTENT] Cleaned up {content_cleaned} expired items")
-            # Always log cleanup event so system page never shows "never_run"
-            try:
-                from services.activity_log import write_activity as _cw
-                active_users = supabase.table("platform_connections").select(
-                    "user_id"
-                ).eq("status", "active").execute()
-                for uid in set(row["user_id"] for row in (active_users.data or [])):
-                    await _cw(
-                        client=supabase,
-                        user_id=uid,
-                        event_type="content_cleanup",
-                        summary=f"Cleaned {content_cleaned} expired content items",
-                        metadata={"items_deleted": content_cleaned},
-                    )
-            except Exception as e:
-                logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
+                # Only log when items were actually cleaned
+                try:
+                    from services.activity_log import write_activity as _cw
+                    for uid in active_user_ids:
+                        await _cw(
+                            client=supabase,
+                            user_id=uid,
+                            event_type="content_cleanup",
+                            summary=f"Cleaned {content_cleaned} expired content items",
+                            metadata={"items_deleted": content_cleaned},
+                        )
+                except Exception as e:
+                    logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
         except Exception as e:
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
@@ -435,23 +456,7 @@ async def run_unified_scheduler():
         from services.composer import run_heartbeat
         from services.platform_limits import get_user_tier
 
-        # Get all users with substrate: platform connections OR active agents
-        # Platform connections are the onramp, but users with research/knowledge
-        # agents (no platforms) still need Heartbeat (FOUNDATIONS.md: platform ≠ engine)
-        active_conn = supabase.table("platform_connections").select(
-            "user_id"
-        ).in_("status", ["connected", "active"]).execute()
-        heartbeat_user_ids_set = set(
-            row["user_id"] for row in (active_conn.data or [])
-        )
-        # Also include users with active agents but no platform connections
-        active_agents_users = supabase.table("agents").select(
-            "user_id"
-        ).eq("status", "active").execute()
-        for row in (active_agents_users.data or []):
-            heartbeat_user_ids_set.add(row["user_id"])
-
-        for hb_uid in heartbeat_user_ids_set:
+        for hb_uid in all_heartbeat_user_ids:
             # Tier gating: free = daily only (midnight window), pro = every cycle
             tier = get_user_tier(supabase, hb_uid)
             is_midnight_window = now.hour == 0 and now.minute < 5
@@ -470,25 +475,27 @@ async def run_unified_scheduler():
                 lifecycle_actions = composer_result.get("lifecycle_actions", [])
                 composer_lifecycle += len(lifecycle_actions)
 
-                # Write heartbeat event
-                try:
-                    from services.activity_log import write_activity as _chw
-                    await _chw(
-                        client=supabase,
-                        user_id=hb_uid,
-                        event_type="composer_heartbeat",
-                        summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
-                        metadata={
-                            "origin": "cron",  # ADR-114: distinguish from event-driven heartbeats
-                            "should_act": hb_result.get("should_act", False),
-                            "reason": hb_result.get("reason", ""),
-                            "contributors_created": created_count,
-                            "lifecycle_actions": len(lifecycle_actions),
-                            **hb_result.get("assessment_summary", {}),
-                        },
-                    )
-                except Exception:
-                    pass  # Non-fatal
+                # Write heartbeat event only when actionable or hourly (alive signal)
+                should_write = hb_result.get("should_act", False) or is_hourly_tick
+                if should_write:
+                    try:
+                        from services.activity_log import write_activity as _chw
+                        await _chw(
+                            client=supabase,
+                            user_id=hb_uid,
+                            event_type="composer_heartbeat",
+                            summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
+                            metadata={
+                                "origin": "cron",
+                                "should_act": hb_result.get("should_act", False),
+                                "reason": hb_result.get("reason", ""),
+                                "contributors_created": created_count,
+                                "lifecycle_actions": len(lifecycle_actions),
+                                **hb_result.get("assessment_summary", {}),
+                            },
+                        )
+                    except Exception:
+                        pass  # Non-fatal
             except Exception as e:
                 logger.warning(f"[COMPOSER] Heartbeat failed for {hb_uid}: {e}")
     except Exception as e:
@@ -630,47 +637,38 @@ async def run_unified_scheduler():
     errors_encountered: list[str] = []
     # Note: Errors are already logged inline; heartbeat captures aggregate counts
 
-    try:
-        from services.activity_log import write_activity
+    # Write scheduler_heartbeat hourly (not every 5 min) to reduce activity log bloat.
+    # System status page only needs the latest heartbeat per user — hourly is sufficient.
+    if is_hourly_tick:
+        try:
+            from services.activity_log import write_activity
 
-        # Build heartbeat summary
-        heartbeat_summary = f"Scheduler cycle: tasks={task_success}/{tasks_found}, imports={import_success}/{import_count}"
+            heartbeat_summary = f"Scheduler cycle: tasks={task_success}/{tasks_found}, imports={import_success}/{import_count}"
+            heartbeat_metadata = {
+                "tasks_due": tasks_found,
+                "tasks_succeeded": task_success,
+                "tasks_failed": task_failed,
+                "imports_checked": import_count,
+                "imports_triggered": import_success,
+                "composer_users": composer_users,
+                "composer_created": composer_created,
+                "composer_lifecycle": composer_lifecycle,
+                "memory_extracted": memory_extracted,
+                "errors": errors_encountered if errors_encountered else None,
+                "cycle_started_at": now.isoformat(),
+                "cycle_completed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        # Write per-user heartbeat for all users with active connections
-        # so the system page can show scheduler status per user
-        heartbeat_metadata = {
-            "tasks_due": tasks_found,
-            "tasks_succeeded": task_success,
-            "tasks_failed": task_failed,
-            "imports_checked": import_count,
-            "imports_triggered": import_success,
-            "composer_users": composer_users,
-            "composer_created": composer_created,
-            "composer_lifecycle": composer_lifecycle,
-            "memory_extracted": memory_extracted,
-            "errors": errors_encountered if errors_encountered else None,
-            "cycle_started_at": now.isoformat(),
-            "cycle_completed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        # Get all users with active platform connections
-        active_users = supabase.table("platform_connections").select(
-            "user_id"
-        ).eq("status", "active").execute()
-        heartbeat_user_ids = list(set(
-            row["user_id"] for row in (active_users.data or [])
-        ))
-
-        for hb_user_id in heartbeat_user_ids:
-            await write_activity(
-                client=supabase,
-                user_id=hb_user_id,
-                event_type="scheduler_heartbeat",
-                summary=heartbeat_summary,
-                metadata=heartbeat_metadata,
-            )
-    except Exception as e:
-        logger.warning(f"[SCHEDULER] Failed to write heartbeat event: {e}")
+            for hb_user_id in active_user_ids:
+                await write_activity(
+                    client=supabase,
+                    user_id=hb_user_id,
+                    event_type="scheduler_heartbeat",
+                    summary=heartbeat_summary,
+                    metadata=heartbeat_metadata,
+                )
+        except Exception as e:
+            logger.warning(f"[SCHEDULER] Failed to write heartbeat event: {e}")
 
     logger.info(f"Completed: {', '.join(summary_parts)}")
 
