@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.2] - Clarify-first gate for UpdateContext and CreateTask
+
+### Changed
+- `agents/tp_prompts/behaviors.py`: "Confirming Before Acting" section rewritten as "Clarify-First for Creates & Context Updates". TP must now always present a Clarify() card or text confirmation before calling UpdateContext or CreateTask. Shows current content + options for context updates. Shows plan summary for task creation.
+- Previous behavior: "If the user provides enough context, skip clarification and create directly" → replaced with "Even with full context, confirm the plan before creating."
+- Expected behavior: Both left-panel buttons (+ New Task, Update) and chat PlusMenu entries trigger the same clarification flow in TP chat. User always sees what will happen before TP acts.
+
+---
+
 ## [2026.03.30.1] - ADR-148 Phase 3: Export pipeline (PDF/XLSX from composed HTML)
 
 ### Changed

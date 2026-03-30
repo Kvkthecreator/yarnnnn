@@ -317,8 +317,8 @@ function ChatPanel({ taskCount, prefill }: { taskCount: number; prefill?: string
 
   // Consolidated PlusMenu: single "Update context" instead of separate identity/brand
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a task for '); textareaRef.current?.focus(); } },
-    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => { setInput('Update my context — '); textareaRef.current?.focus(); } },
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { setInput('Create a new task'); textareaRef.current?.focus(); } },
+    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => { setInput('Update my context'); textareaRef.current?.focus(); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
@@ -573,7 +573,7 @@ export default function WorkfloorPage() {
             <div className="flex items-center gap-1">
               {activeTab === 'tasks' && (
                 <button
-                  onClick={() => prefillChat('Create a task for ')}
+                  onClick={() => prefillChat('Create a new task')}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
                 >
                   <Plus className="w-3 h-3" /> New Task
@@ -581,7 +581,7 @@ export default function WorkfloorPage() {
               )}
               {activeTab === 'context' && (
                 <button
-                  onClick={() => prefillChat(`Update my ${contextSubTab} — `)}
+                  onClick={() => prefillChat(`Update my ${contextSubTab}`)}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <Settings2 className="w-3 h-3" /> Update
