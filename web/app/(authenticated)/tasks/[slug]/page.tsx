@@ -186,7 +186,7 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 // Left Panel: Task Tab (definition — objective, criteria, output spec)
 // =============================================================================
 
-function TaskDefinitionTab({ task }: { task: TaskDetail }) {
+function TaskDefinitionTab({ task, onChatMessage }: { task: TaskDetail; onChatMessage?: (msg: string) => void }) {
   return (
     <div className="p-5 space-y-6">
       {task.objective && (
@@ -227,7 +227,26 @@ function TaskDefinitionTab({ task }: { task: TaskDetail }) {
       )}
 
       {!task.objective && !task.success_criteria?.length && !task.output_spec?.length && (
-        <p className="text-sm text-muted-foreground py-6">No task definition yet. Use chat to define the objective.</p>
+        <div className="py-6 space-y-3">
+          <p className="text-sm text-muted-foreground">This task needs a definition. Tell the chat what you want:</p>
+          {onChatMessage && (
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: 'Define objective', msg: 'Define the objective for this task' },
+                { label: 'Set audience', msg: 'Set the audience for this task' },
+                { label: 'Add criteria', msg: 'Add success criteria for this task' },
+              ].map((a, i) => (
+                <button
+                  key={i}
+                  onClick={() => onChatMessage(a.msg)}
+                  className="px-2.5 py-1 text-[11px] rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 font-medium transition-colors"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -659,7 +678,7 @@ export default function TaskPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'task' && <TaskDefinitionTab task={task} />}
+          {leftTab === 'task' && <TaskDefinitionTab task={task} onChatMessage={(msg) => sendMessage(msg, { surface: { type: 'task-detail', taskSlug: slug } })} />}
           {leftTab === 'schedule' && (
             <ScheduleTab
               task={task}

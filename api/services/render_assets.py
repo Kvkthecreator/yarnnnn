@@ -227,7 +227,7 @@ async def _render_mermaid(diagram: str, user_id: str) -> Optional[str]:
                 f"{RENDER_SERVICE_URL}/render",
                 json={
                     "type": "mermaid",
-                    "input": {"diagram": diagram},
+                    "input": {"mermaid": diagram},
                     "output_format": "svg",
                     "user_id": user_id,
                 },
