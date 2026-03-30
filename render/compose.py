@@ -58,6 +58,21 @@ BASE_CSS = """
   --border-light: #f3f4f6;
   --surface: #f9fafb;
   --radius: 8px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-bg: #0a0a0a;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: #27272a;
+    --border-light: #18181b;
+    --surface: #18181b;
+    --brand-primary: #60a5fa;
+    --brand-primary-light: #1e3a5f;
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -344,9 +359,23 @@ _MD = markdown.Markdown(
 
 
 def _render_markdown_to_html(md_text: str) -> str:
-    """Convert markdown text to HTML fragment using Python-Markdown."""
+    """Convert markdown text to HTML fragment using Python-Markdown.
+
+    Post-processes mermaid code blocks into mermaid.js-compatible divs.
+    """
     _MD.reset()
-    return _MD.convert(md_text)
+    html = _MD.convert(md_text)
+
+    # Convert <pre><code class="language-mermaid">...</code></pre>
+    # to <pre class="mermaid">...</pre> for mermaid.js rendering
+    html = re.sub(
+        r'<pre><code class="language-mermaid">(.*?)</code></pre>',
+        r'<pre class="mermaid">\1</pre>',
+        html,
+        flags=re.DOTALL,
+    )
+
+    return html
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +516,7 @@ def _apply_data_layout(html_body: str, title: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _wrap_full_document(body_html: str, css: str, title: str) -> str:
-    """Produce a complete <!DOCTYPE html> document."""
+    """Produce a complete <!DOCTYPE html> document with mermaid.js support."""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -500,6 +529,15 @@ def _wrap_full_document(body_html: str, css: str, title: str) -> str:
 </head>
 <body>
 {body_html}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({{
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    flowchart: {{ useMaxWidth: true, htmlLabels: true }},
+    securityLevel: 'loose',
+  }});
+</script>
 </body>
 </html>"""
 
