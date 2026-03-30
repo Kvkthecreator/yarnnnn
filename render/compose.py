@@ -160,12 +160,47 @@ img {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius);
-  margin: 1rem 0;
+  margin: 1.5rem 0;
+  display: block;
+}
+
+/* Image with caption (from alt text) */
+figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+figure img {
+  margin: 0 auto 0.5rem;
+}
+figcaption {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Video embeds */
+video {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 1.5rem 0;
+  display: block;
+  background: var(--surface);
+}
+
+/* Mermaid diagram container */
+pre.mermaid {
+  background: transparent;
+  border: none;
+  padding: 1rem 0;
+  text-align: center;
+  overflow: visible;
 }
 
 @media print {
   body { font-size: 11pt; }
   a { color: inherit; }
+  video { display: none; }
 }
 """
 
@@ -361,18 +396,37 @@ _MD = markdown.Markdown(
 def _render_markdown_to_html(md_text: str) -> str:
     """Convert markdown text to HTML fragment using Python-Markdown.
 
-    Post-processes mermaid code blocks into mermaid.js-compatible divs.
+    Post-processes for rich content rendering:
+    - Mermaid code blocks → mermaid.js-compatible divs
+    - Images with alt text → figure + figcaption
+    - Video links (.mp4, .webm) → <video> elements
     """
     _MD.reset()
     html = _MD.convert(md_text)
 
-    # Convert <pre><code class="language-mermaid">...</code></pre>
-    # to <pre class="mermaid">...</pre> for mermaid.js rendering
+    # Mermaid: <pre><code class="language-mermaid"> → <pre class="mermaid">
     html = re.sub(
         r'<pre><code class="language-mermaid">(.*?)</code></pre>',
         r'<pre class="mermaid">\1</pre>',
         html,
         flags=re.DOTALL,
+    )
+
+    # Images with alt text → figure + figcaption (skip empty alt or "image")
+    def _img_to_figure(match):
+        full = match.group(0)
+        alt = re.search(r'alt="([^"]*)"', full)
+        if alt and alt.group(1) and alt.group(1).lower() not in ("image", "img", ""):
+            return f'<figure>{full}<figcaption>{alt.group(1)}</figcaption></figure>'
+        return full
+
+    html = re.sub(r'<img [^>]+>', _img_to_figure, html)
+
+    # Video links: <img> with .mp4/.webm src → <video> element
+    html = re.sub(
+        r'<img\s+(?:[^>]*?)src="([^"]*\.(?:mp4|webm))"(?:[^>]*?)(?:alt="([^"]*)")?[^>]*/?>',
+        r'<video controls preload="metadata" src="\1" title="\2"></video>',
+        html,
     )
 
     return html
