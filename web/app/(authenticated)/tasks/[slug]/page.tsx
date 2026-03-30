@@ -129,7 +129,7 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
           <iframe
             srcDoc={output.html_content}
             className="w-full h-full min-h-[500px] border-0 bg-white"
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts"
             title="Task output"
           />
         ) : (output as any).content || output.md_content ? (
