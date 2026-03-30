@@ -277,7 +277,7 @@ from compose import ComposeRequest, ComposeResponse, compose_html
 async def compose(req: ComposeRequest, request: Request):
     """ADR-130 Phase 1: Compose markdown + assets into styled HTML.
 
-    Layout modes: document (default), presentation, dashboard, data.
+    Layout modes: document (default), presentation, dashboard, data, email.
     Optionally uploads the HTML to Supabase Storage.
     """
     _validate_render_secret(request)
@@ -290,7 +290,7 @@ async def compose(req: ComposeRequest, request: Request):
     if content_length and int(content_length) > MAX_REQUEST_SIZE:
         raise HTTPException(status_code=413, detail=f"Request too large (max {MAX_REQUEST_SIZE // 1024 // 1024}MB)")
 
-    valid_modes = ("document", "presentation", "dashboard", "data")
+    valid_modes = ("document", "presentation", "dashboard", "data", "email")
     if req.layout_mode not in valid_modes:
         return ComposeResponse(
             success=False,

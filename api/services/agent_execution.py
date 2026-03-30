@@ -1309,6 +1309,15 @@ async def execute_agent_generation(
         if contributor_assessment:
             logger.info(f"[EXEC] ADR-128: Extracted self-assessment (confidence: {contributor_assessment.get('output_confidence', '?')})")
 
+        # 4b. ADR-148 Phase 2: Render inline assets (tables→charts, mermaid→SVG)
+        try:
+            from services.render_assets import render_inline_assets
+            draft, rendered_assets = await render_inline_assets(draft, user_id)
+            if rendered_assets:
+                logger.info(f"[EXEC] ADR-148: Rendered {len(rendered_assets)} inline assets")
+        except Exception as e:
+            logger.warning(f"[EXEC] ADR-148: Inline asset rendering failed (non-fatal): {e}")
+
         # 5. ADR-066: Prepare version for delivery (no staged status)
         # ADR-101: Store execution metadata (tokens, model) on version
         # ADR-049 evolution: Include context provenance for traceability
