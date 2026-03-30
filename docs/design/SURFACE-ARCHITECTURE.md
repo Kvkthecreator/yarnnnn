@@ -39,49 +39,38 @@ The shift: from "chat with your AI assistant" to "supervise your workforce, inte
 ## 1. Workfloor (`/workfloor`)
 
 ### Purpose
-Landing page. User answers: "What's happening with my work?" Output feed is the heartbeat — proof the system is alive.
+Landing page. User answers: "What's happening with my work?" Isometric room provides ambient visual identity; floating panels provide functional access.
 
-### Layout (desktop ≥ 1024px)
+### Layout (desktop ≥ 1024px) — Overlay Architecture (v4, 2026-03-30)
+
+Inspired by Habbo Hotel: room fills the viewport as persistent backdrop, all functional UI floats as overlapping panels. Everything visible in one screen — no scrolling past the room.
 
 ```
-┌─ Left Panel (flex-1) ──────────┬─ Right Panel (400px) ─────────┐
-│                                │                               │
-│  Output Feed                   │  Agent Roster (2×3 grid)      │
-│  ┌──────────────────────────┐  │  ┌──────┐ ┌──────┐           │
-│  │ Weekly Competitive Brief │  │  │ Res  │ │ Cont │           │
-│  │ Market Intelligence · 2h │  │  │ 🟢   │ │ ⏸    │           │
-│  │ ┌─ output preview ────┐ │  │  │ 2 tsk│ │ 1 tsk│           │
-│  │ │ Executive Summary:  │ │  │  └──────┘ └──────┘           │
-│  │ │ CrewAI launched...  │ │  │  ┌──────┐ ┌──────┐           │
-│  │ └────────────────────┘ │  │  │ Mktg │ │ CRM  │           │
-│  └──────────────────────────┘  │  │ 🟢   │ │ ⏸    │           │
-│  ┌──────────────────────────┐  │  │ 1 tsk│ │ 0 tsk│           │
-│  │ Daily Slack Recap       │  │  └──────┘ └──────┘           │
-│  │ Slack Bot · 6h ago      │  │  ┌──────┐ ┌──────┐           │
-│  │ ┌─ output preview ────┐ │  │  │ Slck │ │ Notn │           │
-│  │ │ #engineering: Team   │ │  │  │ 🟢   │ │ 🔴   │           │
-│  │ │ discussed migration  │ │  │  │ 1 tsk│ │ 0 tsk│           │
-│  │ └────────────────────┘ │  │  └──────┘ └──────┘           │
-│  └──────────────────────────┘  │                               │
-│                                │  ─── Quick Stats ───          │
-│  (scrollable, reverse-chrono)  │  Runs this week: 7            │
-│                                │  Next scheduled: Mar 26 09:00 │
-│                                │  Budget: 54/60 units          │
-│                                │                               │
-│                                │  ─── Workspace ───            │
-│                                │  📋 Tasks  📁 Files  🔗 Platforms │
-│                                │  (compact tabs below roster)  │
-└────────────────────────────────┴───────────────────────────────┘
-
-                                 ┌─ Chat Drawer (slides from right, ~400px) ─┐
-                                 │ Global TP                                  │
-                                 │ "Create a task for weekly investor updates" │
-                                 │ ┌────────────────────────────────────────┐ │
-                                 │ │ input + send                          │ │
-                                 │ └────────────────────────────────────────┘ │
-                                 └────────────────────────────────────────────┘
-                                 Triggered by: FAB button (bottom-right) or ⌘K
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  Isometric Agent Room (full viewport, ambient backdrop)         │
+│                                                                 │
+│  ┌── Left Panel (340px) ───┐          ┌── Right Panel (380px) ─┐│
+│  │ [Tasks] [Context]       │          │ Chat                  X ││
+│  │ ─────────────────────── │          │                        ││
+│  │ • Weekly Market Intel  w│          │ Messages...            ││
+│  │ • Daily Slack Recap    d│          │                        ││
+│  │ + Add deliverable       │          │                        ││
+│  │                         │          │ [+ input ...]     Send ││
+│  └─────────────────────────┘          └────────────────────────┘│
+│                                                                 │
+│            [ + New Task ]  [ Update Context ]  [ Chat ]         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+**Panels**: Semi-transparent (`bg-background/90 backdrop-blur-md`), rounded, shadowed. Both collapsible — bottom action bar shows toggle buttons when collapsed.
+
+**Bottom action bar**: Centered, always visible. Primary actions:
+- **+ New Task** — opens Tasks tab in left panel + catalog
+- **Update Context** — sends "Update my context" to TP chat (opens chat if closed)
+- **Chat** — toggle (visible only when chat panel collapsed)
+- **Tasks** — toggle (visible only when left panel collapsed)
 
 ### Left Panel: Output Feed (Hero)
 

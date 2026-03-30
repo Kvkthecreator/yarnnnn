@@ -6,7 +6,9 @@ How users create and update workspace shared context (IDENTITY.md, BRAND.md).
 
 **Inference is the method, not the product.** Users express intent ("update my identity"), the system infers from whatever sources are available (documents, URLs, chat text, platform content). No form fields. Workspace files ARE the context — no separate structured storage.
 
-## Workfloor Surface
+## Workfloor Surface (v4 — overlay layout, 2026-03-30)
+
+Floating panels over isometric room backdrop. Left panel has tabbed Tasks/Context:
 
 ```
 Tasks           — active task list, links to task pages
@@ -16,20 +18,30 @@ Context         — nested sub-navigation:
   └─ Documents  — uploaded file list
 ```
 
+### Button Consolidation (2026-03-30)
+
+"Update my identity" and "Update my brand" consolidated into single **"Update context"** across all surfaces:
+- **Bottom action bar**: "Update Context" button → sends "Update my context" to TP
+- **PlusMenu**: Single "Update context" entry (was separate identity/brand)
+- **Suggestion chips**: "Update my context" (was "Adjust focus for a task")
+- **Context sub-tabs**: Each tab retains "Update via chat →" for targeted updates
+
+TP decides which target (identity vs brand) based on conversation context via `UpdateContext(target=...)` primitive (ADR-146). No user-facing distinction needed.
+
 ### Cold Start (Empty Workspace)
 
 **Chat suggestion chips**: When chat history is empty, the chat panel shows clickable
 suggestion chips that send a message to TP on click:
 - "Tell me about myself and my work" → triggers identity enrichment flow
-- "Update my brand from our website" → triggers brand enrichment flow
-- "Help me set up my first task" → TP uses judgment on readiness
+- "Help me get set up" → TP uses judgment on readiness
+- "What deliverables can you create for me?" → triggers task creation flow
 
 Chips disappear once the user sends any message (conversation replaces them).
 No LLM call on page load — chips are static frontend, TP only fires on interaction.
 
 Each context sub-tab also shows guidance when empty:
 
-- **Identity**: "Your identity helps agents understand who you are. Try: 'Update my identity — I'm [name], [role] at [company]'"
+- **Identity**: "Your identity helps agents understand who you are. Try: 'Update my context — I'm [name], [role] at [company]'"
 - **Brand**: "Your brand guide shapes how agents write. Try: 'Update my brand from our website'"
 - **Documents**: "Upload files via chat input (+) or drag & drop"
 
