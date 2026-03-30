@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.5] - TP: infer-and-act for under-defined tasks
+
+### Changed
+- `agents/tp_prompts/behaviors.py`: Added "When the user asks to update/fill in a task" directive. TP must infer reasonable defaults from task title + user identity when a task is under-defined, rather than asking what to fill in. Act first, let user adjust after. Clarify tool reserved for genuinely ambiguous cases where inference would be wrong.
+- Expected behavior: "Can you update the task and process for this" on a bare task → TP reads task, infers objective/criteria/schedule from title + context, writes definition immediately.
+
+---
+
 ## [2026.03.30.4] - Email rendering: singular path via compose engine
 
 ### Changed
