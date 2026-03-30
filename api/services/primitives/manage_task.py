@@ -26,10 +26,19 @@ MANAGE_TASK_TOOL = {
   ManageTask(task_slug="weekly-briefing", action="trigger")
   ManageTask(task_slug="daily-recap", action="trigger", context="Focus on the product launch discussion")
 
-**action="update"** — Change schedule, delivery, or mode.
+**action="update"** — Change schedule, delivery, mode, or type.
   ManageTask(task_slug="weekly-briefing", action="update", schedule="daily")
   ManageTask(task_slug="weekly-briefing", action="update", delivery="user@example.com")
   ManageTask(task_slug="weekly-briefing", action="update", mode="goal")
+  ManageTask(task_slug="weekly-briefing", action="update", type_key="competitive-intel-brief")
+
+  type_key assigns a task type from the registry, which defines the execution process
+  (multi-step pipeline, agent assignments). Use when a task was created generically
+  and needs a proper process definition. Available type_keys: competitive-intel-brief,
+  market-research-report, industry-signal-monitor, due-diligence-summary,
+  meeting-prep-brief, stakeholder-update, relationship-health-digest,
+  project-status-report, slack-recap, notion-sync-report, content-brief,
+  launch-material, gtm-tracker
 
 **action="pause"** — Stop future scheduled runs (can be resumed later).
   ManageTask(task_slug="weekly-briefing", action="pause")
@@ -64,6 +73,10 @@ MANAGE_TASK_TOOL = {
                 "type": "string",
                 "enum": ["recurring", "goal", "reactive"],
                 "description": "For action='update': new temporal behavior"
+            },
+            "type_key": {
+                "type": "string",
+                "description": "For action='update': assign a task type from the registry (defines execution process + agent pipeline)"
             },
         },
         "required": ["task_slug", "action"]
@@ -231,8 +244,10 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
     if new_delivery is not None:
         changes.append(f"delivery → {new_delivery}")
 
-    if not changes:
-        return {"success": False, "error": "no_changes", "message": "No changes specified. Use schedule, delivery, or mode parameters."}
+    new_type_key = input.get("type_key", "").strip() or None
+
+    if not changes and not new_type_key:
+        return {"success": False, "error": "no_changes", "message": "No changes specified. Use schedule, delivery, mode, or type_key parameters."}
 
     # Apply DB update
     try:
@@ -240,12 +255,13 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
     except Exception as e:
         return {"success": False, "error": "update_failed", "message": str(e)}
 
-    # Update TASK.md delivery field if changed
+    # Update TASK.md for delivery and/or type_key
+    from services.task_workspace import TaskWorkspace
+    import re
+    tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
+
     if new_delivery is not None:
         try:
-            from services.task_workspace import TaskWorkspace
-            import re
-            tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
             task_md = await tw.read_task()
             if task_md:
                 if "**Delivery:**" in task_md:
@@ -254,7 +270,66 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
                     task_md += f"\n**Delivery:** {new_delivery}"
                 await tw.write("TASK.md", task_md, summary=f"Updated delivery: {new_delivery}")
         except Exception as e:
-            logger.warning(f"[MANAGE_TASK] TASK.md update failed (non-fatal): {e}")
+            logger.warning(f"[MANAGE_TASK] TASK.md delivery update failed (non-fatal): {e}")
+
+    # Assign type_key → updates TASK.md with type + process definition from registry
+    if new_type_key:
+        try:
+            from services.task_types import get_task_type
+            from services.primitives.task import resolve_process_agents
+
+            task_type_def = get_task_type(new_type_key)
+            if not task_type_def:
+                return {"success": False, "error": "unknown_type", "message": f"Task type '{new_type_key}' not found in registry."}
+
+            # Read current TASK.md
+            task_md = await tw.read_task() or ""
+
+            # Update or add **Type:** line
+            if "**Type:**" in task_md:
+                task_md = re.sub(r"\*\*Type:\*\*.*", f"**Type:** {new_type_key}", task_md)
+            else:
+                # Insert after first line (title)
+                lines = task_md.split("\n")
+                insert_pos = 1 if len(lines) > 0 else 0
+                lines.insert(insert_pos, f"\n**Type:** {new_type_key}")
+                task_md = "\n".join(lines)
+
+            # Resolve process agents from user's roster
+            user_agents = auth.client.table("agents").select("slug, role, title, status").eq("user_id", auth.user_id).eq("status", "active").execute()
+            resolved_steps = resolve_process_agents(new_type_key, user_agents.data or [])
+
+            # Replace or add ## Process section
+            if "## Process" in task_md:
+                # Remove existing process section
+                before_process = task_md[:task_md.index("## Process")]
+                after_idx = task_md.find("\n## ", task_md.index("## Process") + 1)
+                after_process = task_md[after_idx:] if after_idx != -1 else ""
+                task_md = before_process.rstrip() + "\n\n"
+            else:
+                task_md = task_md.rstrip() + "\n\n"
+
+            # Build process section from resolved steps
+            process_lines = ["## Process\n"]
+            for i, step in enumerate(resolved_steps, 1):
+                process_lines.append(f"### Step {i}: {step.get('step', f'Step {i}')}")
+                process_lines.append(f"- **Agent:** {step.get('agent_slug', 'unassigned')}")
+                process_lines.append(f"- **Type:** {step.get('agent_type', 'unknown')}")
+                if step.get("instruction"):
+                    process_lines.append(f"- **Instruction:** {step['instruction']}")
+                process_lines.append("")
+
+            if "## Process" in task_md:
+                task_md += "\n".join(process_lines) + after_process
+            else:
+                task_md += "\n".join(process_lines)
+
+            await tw.write("TASK.md", task_md, summary=f"Assigned type: {new_type_key} with {len(resolved_steps)} process steps")
+            changes.append(f"type → {new_type_key} ({len(resolved_steps)} steps)")
+
+        except Exception as e:
+            logger.error(f"[MANAGE_TASK] type_key assignment failed: {e}", exc_info=True)
+            return {"success": False, "error": "type_assignment_failed", "message": f"Failed to assign type: {str(e)}"}
 
     return {
         "success": True,

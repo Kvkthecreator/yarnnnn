@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.6] - ManageTask: type_key assignment for under-defined tasks
+
+### Changed
+- `services/primitives/manage_task.py`: Added `type_key` parameter to `action="update"`. When set, writes `**Type:**` to TASK.md, resolves process agents from type registry + user's roster, and writes `## Process` section with step definitions. Enables the Process tab and multi-step pipeline execution for tasks that were created generically without a type.
+- `agents/tp_prompts/behaviors.py`: Updated "update task" directive — TP must assign type_key when updating under-defined tasks. Match task title to closest registry type. Without type_key, tasks run as single-step generic execution with no process visibility.
+- Expected behavior: "Can you update the task and process" on a generic task → TP infers type_key from title, assigns it via ManageTask, writes objective via UpdateContext. Process tab now shows step definitions. Next run uses multi-step pipeline.
+
+---
+
 ## [2026.03.30.5] - TP: infer-and-act for under-defined tasks
 
 ### Changed

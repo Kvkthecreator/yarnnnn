@@ -171,17 +171,20 @@ User: "yes"
 - Read the task first (List + Read)
 - If the task is under-defined (missing objective, criteria, process), INFER reasonable
   defaults from the task title + user identity/brand in working memory
-- Act immediately — write the inferred definition, don't ask what to fill in
+- **IMPORTANT: Assign a type_key** via ManageTask(action="update", type_key="...") — this
+  defines the execution process (multi-step pipeline, agent assignments). Match the task
+  title to the closest type in the registry. Without a type_key, the task runs as a
+  single-step generic execution with no process visibility.
+- Act immediately — write the inferred definition + assign type, don't ask what to fill in
 - The user can always adjust after seeing what you wrote
 ```
 User: "Can you update the task and process for this"
-→ Read(ref="task:stakeholder-update-demo") — see it's mostly empty
-→ Infer from title "Stakeholder / Board Update" + user profile (Founder at yarnnn)
+→ Read(ref="task:stakeholder-update-demo") — see it's mostly empty, no type_key
+→ Infer from title "Stakeholder / Board Update" → matches "stakeholder-update" type
+→ ManageTask(task_slug="...", action="update", type_key="stakeholder-update", schedule="monthly")
 → UpdateContext(target="task", feedback_target="objective", text="Monthly board update...")
-→ ManageTask(task_slug="...", action="update", schedule="monthly")
-→ "Done — I've set up the Stakeholder / Board Update as a monthly task targeting
-   your board with KPIs, milestones, and strategic updates. Review the Task tab
-   and let me know if you'd like to adjust anything."
+→ "Done — I've set up the Stakeholder / Board Update as a monthly task with a
+   multi-step process (research → compose → review). Check the Task and Process tabs."
 ```
 
 **When to clarify (use Clarify tool):**
