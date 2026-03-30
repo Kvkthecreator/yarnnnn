@@ -300,7 +300,71 @@ Still negative. The credit gate helps but **chat is unbounded**.
 
 ---
 
-## 8. Production Readiness Checklist
+## 8. Batch API — Feasibility Assessment
+
+The Anthropic Batch API accepts the same `messages.create()` requests but queues them for processing within a **24-hour window** (usually completes in minutes to a few hours). In return: **50% off** both input and output tokens. The trade-off is latency, not capability — same models, same tools, same outputs.
+
+### Which calls qualify?
+
+| Call Type | Real-time needed? | Batch candidate? |
+|-----------|-------------------|-----------------|
+| Scheduled task runs (cron) | No — user isn't waiting | **Yes** |
+| Composer heartbeat (Haiku) | No — background system | **Yes** |
+| Memory extraction (Haiku) | No — nightly cron | **Yes** |
+| TP chat (user typing) | Yes — streaming response | No |
+| Manual "Run Now" (from UI) | Yes — user clicked and waiting | No |
+| MCP-triggered runs | Depends — usually yes | Maybe |
+
+### How it would work
+
+A routing decision at the top of `_generate()` in `task_pipeline.py`:
+
+```
+if trigger == "scheduled":
+    → Batch API (50% off, response within minutes-hours)
+elif trigger in ("manual", "reactive"):
+    → Standard API (real-time, full price)
+```
+
+Implementation requires: batch submission function (new), polling/webhook handler for completed batches (new), routing decision (small change), failure/timeout handling (new). **Estimated: 2-3 days of work.**
+
+### When it's worth implementing
+
+At current scale (3 users, ~5 runs/week): saves ~$0.45/week. Not worth the complexity.
+
+**Trigger point: ~50+ Pro users with daily tasks.** At that scale: 50 users × 4 daily tasks × 30 days × $0.06 × 50% = **~$180/month saved**. Justifies the 2-3 day investment.
+
+### Decision (2026-03-30)
+
+**Defer Batch API until user scale justifies it.** The composer fix (commit a5a2246) saves more at current scale than Batch API would. Revisit when monthly task execution cost exceeds ~$300.
+
+---
+
+## 9. Deferred Decisions — Revisit Post-Launch with Real Data
+
+### Chat Cost Cap (Pro Unlimited)
+
+Pro "unlimited" chat is an unbounded cost risk. However, setting a cap without usage data risks either:
+- Cap too low → frustrates best users (destructive)
+- Cap too high → nobody hits it (useless)
+
+**Decision**: Ship unlimited. Monitor actual per-user message volumes for first 30 days. Set cap based on P95 usage + 2x headroom. If no user exceeds 500 msgs/month, a 1000-msg cap is safe.
+
+### Multi-Step Credit Scaling
+
+Currently: 3 credits per task run regardless of process steps. A 3-step pipeline costs 3x the LLM but consumes the same credits.
+
+**Decision**: Defer. Only 1 of 3 active tasks uses multi-step. Revisit when multi-step adoption warrants the added credit complexity. Simple fix when needed: `credits = 3 × num_steps`.
+
+### Early Bird Margin Risk
+
+At $9/mo with active usage (6+ tasks, 500+ messages), Early Bird users are margin-negative. However, Early Bird is explicitly designed as an acquisition tool with planned sunset.
+
+**Decision**: Keep as-is for launch. Track Early Bird users' actual cost. Sunset trigger: when paid user base reaches ~100 users OR when aggregate Early Bird margin drops below -20%.
+
+---
+
+## 10. Production Readiness Checklist
 
 | Item | Status | Impact |
 |------|--------|--------|
