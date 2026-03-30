@@ -290,13 +290,13 @@ interface IsometricRoomProps {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
+  collapsed?: boolean;
   onTPClick?: () => void;
   onAction?: (msg: string) => void;
 }
 
-export function IsometricRoom({ agents, tasks, loading, onTPClick, onAction }: IsometricRoomProps) {
+export function IsometricRoom({ agents, tasks, loading, collapsed = false, onTPClick, onAction }: IsometricRoomProps) {
   // ALL hooks must be before any early return (React rules of hooks)
-  const [collapsed, setCollapsed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -351,19 +351,8 @@ export function IsometricRoom({ agents, tasks, loading, onTPClick, onAction }: I
 
   return (
     <>
-      {/* Desktop: Isometric room — collapsible, scales to fill */}
+      {/* Desktop: Isometric room — collapsible via parent, scales to fill */}
       <div ref={containerRef} className="hidden md:block overflow-hidden">
-        {/* Toggle bar */}
-        <button
-          onClick={() => setCollapsed(v => !v)}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-        >
-          <span>{collapsed ? 'Show' : 'Hide'} workfloor</span>
-          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={cn('transition-transform', collapsed && 'rotate-180')}>
-            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-
         {!collapsed && (
           <div
             style={{

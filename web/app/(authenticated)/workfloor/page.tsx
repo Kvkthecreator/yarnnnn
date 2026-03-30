@@ -479,9 +479,10 @@ export default function WorkfloorPage() {
   const [contextSubTab, setContextSubTab] = useState<'identity' | 'brand' | 'documents'>('identity');
   // showCatalog removed — catalog only shows for zero-tasks empty state
 
-  // Panel visibility
+  // Panel + room visibility
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
+  const [roomCollapsed, setRoomCollapsed] = useState(false);
 
   // Chat prefill — set by panel buttons, consumed by ChatPanel
   const [chatPrefill, setChatPrefill] = useState<string | null>(null);
@@ -528,6 +529,7 @@ export default function WorkfloorPage() {
           agents={activeAgents}
           tasks={tasks}
           loading={agentsLoading}
+          collapsed={roomCollapsed}
           onTPClick={() => setChatOpen(true)}
           onAction={(msg) => { sendMessage(msg, { surface }); setChatOpen(true); }}
         />
@@ -639,27 +641,34 @@ export default function WorkfloorPage() {
         </div>
       </div>
 
-      {/* Layer 5: Bottom toggle bar — only visible when panels are collapsed */}
-      {(!panelOpen || !chatOpen) && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
-          {!panelOpen && (
-            <button
-              onClick={() => setPanelOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ListChecks className="w-3.5 h-3.5" /> Tasks
-            </button>
+      {/* Layer 5: Top-center control bar — panel toggles + room hide */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 px-1 py-0.5">
+        <button
+          onClick={() => setPanelOpen(v => !v)}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md transition-colors',
+            panelOpen ? 'text-foreground bg-muted/50' : 'text-muted-foreground/40 hover:text-muted-foreground'
           )}
-          {!chatOpen && (
-            <button
-              onClick={() => setChatOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <MessageCircle className="w-3.5 h-3.5" /> Chat
-            </button>
+        >
+          <ListChecks className="w-3 h-3" /> Tasks
+        </button>
+        <button
+          onClick={() => setChatOpen(v => !v)}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md transition-colors',
+            chatOpen ? 'text-foreground bg-muted/50' : 'text-muted-foreground/40 hover:text-muted-foreground'
           )}
-        </div>
-      )}
+        >
+          <MessageCircle className="w-3 h-3" /> Chat
+        </button>
+        <button
+          onClick={() => setRoomCollapsed(v => !v)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        >
+          {roomCollapsed ? 'Show' : 'Hide'} workfloor
+          <ChevronDown className={cn('w-3 h-3 transition-transform', roomCollapsed && 'rotate-180')} />
+        </button>
+      </div>
     </div>
   );
 }
