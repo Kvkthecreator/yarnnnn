@@ -7,11 +7,12 @@
  * Reads from activity_log table.
  *
  * Categories:
- *   - Agents: task_executed, agent_run (legacy), agent_approved, agent_rejected, agent_bootstrapped
+ *   - Tasks: task_executed, task_created, task_triggered, task_paused, task_resumed
+ *   - Agents: agent_bootstrapped, agent_scheduled, agent_approved, agent_rejected
  *   - Memory: memory_written, session_summary_written
  *   - Sync: platform_synced, content_cleanup
  *   - Chat: chat_session
- *   - System: scheduler_heartbeat, composer_heartbeat (hidden from filters)
+ *   - System: scheduler_heartbeat, composer_heartbeat (excluded server-side)
  */
 
 import { useState, useEffect } from 'react';
@@ -36,11 +37,10 @@ import {
   ThumbsDown,
   Trash2,
   FileOutput,
-  HeartPulse,
   Sparkles,
-  AlertTriangle,
-  ClipboardCheck,
-  FolderPlus,
+  Pause,
+  Zap,
+  CalendarClock,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
@@ -70,10 +70,53 @@ const EVENT_CONFIG: Record<string, {
   color: string;
   category: string;
 }> = {
-  // Agents
-  agent_run: {
-    label: 'Agent',
+  // Task lifecycle (ADR-138/141)
+  task_executed: {
+    label: 'Executed',
+    icon: <FileOutput className="w-4 h-4" />,
+    color: 'text-emerald-500',
+    category: 'tasks',
+  },
+  task_created: {
+    label: 'Created',
+    icon: <Sparkles className="w-4 h-4" />,
+    color: 'text-blue-500',
+    category: 'tasks',
+  },
+  task_triggered: {
+    label: 'Triggered',
+    icon: <Zap className="w-4 h-4" />,
+    color: 'text-amber-500',
+    category: 'tasks',
+  },
+  task_paused: {
+    label: 'Paused',
+    icon: <Pause className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+    category: 'tasks',
+  },
+  task_resumed: {
+    label: 'Resumed',
     icon: <Play className="w-4 h-4" />,
+    color: 'text-green-500',
+    category: 'tasks',
+  },
+  // Agent lifecycle
+  agent_run: {
+    label: 'Agent Run',
+    icon: <Play className="w-4 h-4" />,
+    color: 'text-blue-500',
+    category: 'agents',
+  },
+  agent_bootstrapped: {
+    label: 'Bootstrapped',
+    icon: <Sparkles className="w-4 h-4" />,
+    color: 'text-amber-500',
+    category: 'agents',
+  },
+  agent_scheduled: {
+    label: 'Scheduled',
+    icon: <CalendarClock className="w-4 h-4" />,
     color: 'text-blue-500',
     category: 'agents',
   },
@@ -89,13 +132,7 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-red-500',
     category: 'agents',
   },
-  task_executed: {
-    label: 'Executed',
-    icon: <FileOutput className="w-4 h-4" />,
-    color: 'text-emerald-500',
-    category: 'agents',
-  },
-  // Memory & Analysis
+  // Memory
   memory_written: {
     label: 'Learned',
     icon: <Brain className="w-4 h-4" />,
@@ -108,7 +145,7 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-blue-500',
     category: 'memory',
   },
-  // Sync & Signals
+  // Sync
   platform_synced: {
     label: 'Synced',
     icon: <RefreshCw className="w-4 h-4" />,
@@ -126,13 +163,13 @@ const EVENT_CONFIG: Record<string, {
     label: 'Connected',
     icon: <Link className="w-4 h-4" />,
     color: 'text-green-500',
-    category: 'connections',
+    category: 'sync',
   },
   integration_disconnected: {
     label: 'Disconnected',
     icon: <Unlink className="w-4 h-4" />,
     color: 'text-muted-foreground',
-    category: 'connections',
+    category: 'sync',
   },
   // Chat
   chat_session: {
@@ -140,83 +177,6 @@ const EVENT_CONFIG: Record<string, {
     icon: <MessageSquare className="w-4 h-4" />,
     color: 'text-amber-500',
     category: 'chat',
-  },
-  // System (hidden from filters but renders gracefully)
-  scheduler_heartbeat: {
-    label: 'System',
-    icon: <Activity className="w-4 h-4" />,
-    color: 'text-muted-foreground',
-    category: 'system',
-  },
-  composer_heartbeat: {
-    label: 'Composer',
-    icon: <HeartPulse className="w-4 h-4" />,
-    color: 'text-muted-foreground',
-    category: 'system',
-  },
-  agent_bootstrapped: {
-    label: 'Bootstrapped',
-    icon: <Sparkles className="w-4 h-4" />,
-    color: 'text-amber-500',
-    category: 'agents',
-  },
-  // ADR-117/119: Project activity + duty promotion
-  project_heartbeat: {
-    label: 'Project check-in',
-    icon: <HeartPulse className="w-4 h-4" />,
-    color: 'text-purple-500',
-    category: 'projects',
-  },
-  project_assembled: {
-    label: 'Assembly',
-    icon: <FileOutput className="w-4 h-4" />,
-    color: 'text-green-500',
-    category: 'projects',
-  },
-  project_escalated: {
-    label: 'Needs attention',
-    icon: <AlertTriangle className="w-4 h-4" />,
-    color: 'text-amber-500',
-    category: 'projects',
-  },
-  project_contributor_advanced: {
-    label: 'Early run',
-    icon: <Clock className="w-4 h-4" />,
-    color: 'text-blue-500',
-    category: 'projects',
-  },
-  // ADR-121/123: PM intelligence events
-  project_quality_assessed: {
-    label: 'Quality assessed',
-    icon: <ClipboardCheck className="w-4 h-4" />,
-    color: 'text-purple-500',
-    category: 'projects',
-  },
-  project_contributor_steered: {
-    label: 'Contributor steered',
-    icon: <Brain className="w-4 h-4" />,
-    color: 'text-amber-500',
-    category: 'projects',
-  },
-  // ADR-127: File triage
-  project_file_triaged: {
-    label: 'File triaged',
-    icon: <FileText className="w-4 h-4" />,
-    color: 'text-blue-500',
-    category: 'projects',
-  },
-  // ADR-122: Project scaffolding
-  project_scaffolded: {
-    label: 'Project created',
-    icon: <FolderPlus className="w-4 h-4" />,
-    color: 'text-green-500',
-    category: 'projects',
-  },
-  duty_promoted: {
-    label: 'Promoted',
-    icon: <ArrowRight className="w-4 h-4" />,
-    color: 'text-green-500',
-    category: 'agents',
   },
 };
 
@@ -229,8 +189,8 @@ const DEFAULT_EVENT_CONFIG = {
 
 // Filter categories shown as chips — user-meaningful groupings
 const FILTER_CATEGORIES = [
+  { key: 'tasks', label: 'Tasks' },
   { key: 'agents', label: 'Agents' },
-  { key: 'projects', label: 'Projects' },
   { key: 'memory', label: 'Memory' },
   { key: 'sync', label: 'Sync' },
   { key: 'chat', label: 'Chat' },
@@ -239,11 +199,11 @@ const FILTER_CATEGORIES = [
 type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
 
 // Map category filters to the event_type values they include
-// ADR-141: Category mapping
 const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
-  agents: ['task_executed', 'agent_run', 'agent_approved', 'agent_rejected', 'agent_bootstrapped'],
+  tasks: ['task_executed', 'task_created', 'task_triggered', 'task_paused', 'task_resumed'],
+  agents: ['agent_run', 'agent_bootstrapped', 'agent_scheduled', 'agent_approved', 'agent_rejected'],
   memory: ['memory_written', 'session_summary_written'],
-  sync: ['platform_synced', 'content_cleanup'],
+  sync: ['platform_synced', 'content_cleanup', 'integration_connected', 'integration_disconnected'],
   chat: ['chat_session'],
 };
 
@@ -298,15 +258,21 @@ function getNavigationTarget(
   const metadata = item.metadata || {};
   switch (item.event_type) {
     case 'task_executed':
+    case 'task_created':
+    case 'task_triggered':
+    case 'task_paused':
+    case 'task_resumed':
+      if (metadata.task_slug) {
+        return { href: `/tasks/${metadata.task_slug}`, label: 'View task' };
+      }
+      return null;
     case 'agent_run':
     case 'agent_approved':
     case 'agent_rejected':
     case 'agent_bootstrapped':
+    case 'agent_scheduled':
       if (metadata.agent_id) {
         return { href: `/agents/${metadata.agent_id}`, label: 'View agent' };
-      }
-      if (metadata.task_slug) {
-        return { href: `/tasks/${metadata.task_slug}`, label: 'View task' };
       }
       return null;
     case 'memory_written':
@@ -385,11 +351,9 @@ export default function ActivityPage() {
   };
 
   // Client-side category filter → visible slice → date groups
+  // System events (heartbeats) are excluded server-side
   const filteredActivities = filter === 'all'
-    ? activities.filter((a) => {
-        const cfg = getConfig(a.event_type);
-        return cfg.category !== 'system';
-      })
+    ? activities
     : activities.filter((a) => {
         const eventTypes = CATEGORY_EVENT_TYPES[filter];
         return eventTypes?.includes(a.event_type);
@@ -517,43 +481,21 @@ export default function ActivityPage() {
             {metadata.task_slug && <DetailRow label="Task" value={String(metadata.task_slug)} />}
             {metadata.agent_slug && <DetailRow label="Agent" value={String(metadata.agent_slug)} />}
             {metadata.role && <DetailRow label="Role" value={String(metadata.role)} />}
+            {metadata.process_steps && <DetailRow label="Steps" value={String(metadata.process_steps)} />}
             {metadata.duration_ms && <DetailRow label="Duration" value={`${Math.round(Number(metadata.duration_ms) / 1000)}s`} />}
             {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
+            {metadata.input_tokens && <DetailRow label="Tokens" value={`${Number(metadata.input_tokens).toLocaleString()} in / ${Number(metadata.output_tokens || 0).toLocaleString()} out`} />}
           </>
         );
 
-      case 'project_file_triaged':
+      case 'task_created':
+      case 'task_triggered':
+      case 'task_paused':
+      case 'task_resumed':
         return (
           <>
-            {metadata.source_file && <DetailRow label="Source" value={String(metadata.source_file)} />}
-            {metadata.destination && <DetailRow label="Destination" value={String(metadata.destination)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'project_assembled':
-        return (
-          <>
-            {metadata.assembly_folder && <DetailRow label="Assembly" value={String(metadata.assembly_folder)} />}
-            {metadata.delivery_status && <DetailRow label="Delivery" value={String(metadata.delivery_status)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'project_escalated':
-        return (
-          <>
+            {metadata.task_slug && <DetailRow label="Task" value={String(metadata.task_slug)} />}
             {metadata.reason && <DetailRow label="Reason" value={String(metadata.reason)} />}
-            {metadata.target_agent && <DetailRow label="Target" value={String(metadata.target_agent)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
-          </>
-        );
-
-      case 'project_scaffolded':
-        return (
-          <>
-            {metadata.type_key && <DetailRow label="Type" value={String(metadata.type_key)} />}
-            {metadata.project_slug && <DetailRow label="Project" value={String(metadata.project_slug)} />}
           </>
         );
 

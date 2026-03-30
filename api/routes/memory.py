@@ -543,7 +543,8 @@ async def list_activity(
         if event_type:
             query = query.eq("event_type", event_type)
         else:
-            query = query.neq("event_type", "scheduler_heartbeat")
+            # Exclude system heartbeat events — they're noise for the activity page
+            query = query.not_.in_("event_type", ["scheduler_heartbeat", "composer_heartbeat"])
 
         result = query.execute()
 

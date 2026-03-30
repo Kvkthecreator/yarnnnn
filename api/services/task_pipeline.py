@@ -833,8 +833,8 @@ async def execute_task(
                     "output_tokens": usage.get("output_tokens", 0),
                 },
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Activity log write failed: {e}")
 
         if final_status == "delivered":
             try:
@@ -1287,8 +1287,8 @@ async def _execute_pipeline(
                 "output_tokens": total_usage["output_tokens"],
             },
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Activity log write failed: {e}")
 
     logger.info(
         f"[PIPELINE] Complete: {task_slug} → {len(steps)} steps, v{next_version} "
@@ -1740,8 +1740,8 @@ async def _execute_direct(
                     "trigger_type": (trigger_context or {}).get("type", "manual"),
                 },
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Activity log write failed: {e}")
 
         # Work credits
         try:

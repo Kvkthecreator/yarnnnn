@@ -48,13 +48,18 @@ async def resolve_agent_project_slug_full(client, user_id: str, agent: dict) -> 
     return None
 
 VALID_EVENT_TYPES = frozenset({
-    # ADR-141: Task execution
+    # Task lifecycle (ADR-138/141)
     "task_executed",                # Task pipeline completed (scheduled or manual)
+    "task_created",                 # Task created via TP primitive
+    "task_triggered",               # Task manually triggered (Run Now)
+    "task_paused",                  # Task paused via TP primitive
+    "task_resumed",                 # Task resumed via TP primitive
     # Agent lifecycle
     "agent_run",                    # Legacy: pre-ADR-141 execution events (still in DB)
     "agent_approved",
     "agent_rejected",
-    "agent_bootstrapped",           # ADR-110: Auto-created agent on platform connection
+    "agent_bootstrapped",           # ADR-110/140: Auto-created or scaffolded agent
+    "agent_scheduled",              # Composer lifecycle action
     # Platform & sync
     "platform_synced",
     "integration_connected",
