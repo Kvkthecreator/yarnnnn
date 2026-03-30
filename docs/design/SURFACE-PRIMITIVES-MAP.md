@@ -22,7 +22,8 @@ on the task page. TP receives surface context and should respect these boundarie
 | Update my identity | "Update my identity" | `UpdateSharedContext(target="identity")` |
 | Update my brand | "Update my brand" | `UpdateSharedContext(target="brand")` |
 | Create a task | "Create a task for " | `CreateTask(...)` |
-| Web search | "Search the web for " | `WebSearch(...)` |
+| Web search | "Search the web for " | `WebSearch(query=...)` |
+| Fetch URL | (user pastes URL) | `WebSearch(url=...)` |
 | Upload file | (file dialog) | Attachment flow |
 
 ### Slash Commands (workfloor only)

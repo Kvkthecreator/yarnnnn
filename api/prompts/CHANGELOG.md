@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.3] - WebSearch: URL fetch mode
+
+### Changed
+- `services/primitives/web_search.py`: Extended WebSearch primitive with URL fetch capability. New `url` parameter fetches and extracts text content from a specific webpage using httpx + stdlib HTML parser. Auto-detects when `query` looks like a URL and routes to fetch mode. No new tool added — stays within P5 budget (15 tools).
+- `agents/tp_prompts/tools.py`: Updated WebSearch documentation to show both modes (search vs fetch) with examples.
+- `docs/design/SURFACE-PRIMITIVES-MAP.md`: Added "Fetch URL" row mapping to `WebSearch(url=...)`.
+- Expected behavior: When user pastes a URL, TP calls `WebSearch(url="...")` to read the page content directly instead of searching for it. Fixes the case where pages aren't indexed by search engines.
+
+---
+
 ## [2026.03.30.2] - Pre-LLM action cards + confirm-before-acting
 
 ### Changed

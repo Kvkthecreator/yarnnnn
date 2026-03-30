@@ -46,12 +46,19 @@ TOOLS_SECTION = """---
 
 ### Web Operations
 
-**WebSearch(query, context?, max_results?)** - Search the web for external information
-- `WebSearch(query="latest React 19 features")` - current technical info
-- `WebSearch(query="Acme Corp funding", context="competitor research")` - with context
+**WebSearch(query?, url?, context?, max_results?)** - Search the web OR fetch a specific URL
+
+Two modes:
+- **Search** (pass `query`): `WebSearch(query="latest React 19 features")`
+- **Fetch** (pass `url`): `WebSearch(url="https://example.com/about")`
+
+Examples:
+- `WebSearch(query="Acme Corp funding", context="competitor research")` - web search
+- `WebSearch(url="https://acme.com/about")` - fetch and read a specific page
+- If user pastes a URL, use `url` param to fetch it directly
 
 **When to use WebSearch vs Search:**
-- **WebSearch**: External/internet info (news, docs, research, competitors)
+- **WebSearch**: External/internet info (news, docs, research, competitors, URLs)
 - **Search**: User's own data (Slack messages, uploaded documents)
 
 ---
