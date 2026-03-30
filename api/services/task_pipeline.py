@@ -797,9 +797,14 @@ async def execute_task(
 
             next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
 
-            update_data = {"last_run_at": now.isoformat()}
-            if next_run:
-                update_data["next_run_at"] = next_run.isoformat()
+            update_data = {
+                "last_run_at": now.isoformat(),
+                # Always set next_run_at — either to next scheduled time or None
+                # to clear the optimistic sentinel. Without this, on-demand/reactive
+                # tasks with no schedule get re-picked by the scheduler when the
+                # +2h sentinel expires.
+                "next_run_at": next_run.isoformat() if next_run else None,
+            }
 
             client.table("tasks").update(update_data).eq(
                 "user_id", user_id
@@ -1256,9 +1261,10 @@ async def _execute_pipeline(
         )
         schedule = (task_row.data[0]["schedule"] if task_row.data else None) or {}
         next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
-        update_data = {"last_run_at": now.isoformat()}
-        if next_run:
-            update_data["next_run_at"] = next_run.isoformat()
+        update_data = {
+            "last_run_at": now.isoformat(),
+            "next_run_at": next_run.isoformat() if next_run else None,
+        }
         client.table("tasks").update(update_data).eq("user_id", user_id).eq("slug", task_slug).execute()
     except Exception as e:
         logger.warning(f"[PIPELINE] Schedule update failed: {e}")
