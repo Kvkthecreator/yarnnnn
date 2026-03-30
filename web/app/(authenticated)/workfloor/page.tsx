@@ -125,7 +125,7 @@ function IdentityTab() {
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-[300px] overflow-y-auto prose prose-xs dark:prose-invert max-w-none">
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 prose prose-xs dark:prose-invert max-w-none">
             <MarkdownRenderer content={content} compact />
           </div>
           <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
@@ -190,7 +190,7 @@ function BrandTab() {
         </>
       ) : content ? (
         <>
-          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 max-h-[300px] overflow-y-auto">
+          <div className="text-[11px] text-muted-foreground/70 bg-muted/20 rounded-lg p-2.5 prose prose-xs dark:prose-invert max-w-none">
             <MarkdownRenderer content={content} compact />
           </div>
           <button onClick={() => setEditing(true)} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
