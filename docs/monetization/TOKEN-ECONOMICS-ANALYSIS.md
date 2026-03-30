@@ -364,20 +364,59 @@ At $9/mo with active usage (6+ tasks, 500+ messages), Early Bird users are margi
 
 ---
 
-## 10. Production Readiness Checklist
+## 10. Production Issues Found (2026-03-30 audit)
+
+### 10.1 Reactive Task Re-Run Bug (FIXED)
+
+**Bug:** Reactive tasks with `schedule=NULL` kept re-running every 2 hours indefinitely.
+
+**Root cause:** `schedule = (task_row.data[0]["schedule"]) or {}` — `None or {}` → `{}` (truthy empty dict) → `calculate_next_run_at({})` → falls through to `now + 24h`. Combined with the optimistic +2h sentinel on failure, reactive tasks never stopped.
+
+**Impact on 2026-03-30:** `competitive-intel-brief-demo` ran 5 times (69K-171K input tokens each = ~835K Sonnet tokens = ~$2.50+). This task should run only on-demand.
+
+**Fix:** `or {}` → `or None` in both single-step and multi-step schedule resolution. Added sentinel cleanup in the failure `except` block.
+
+### 10.2 Composer State-Change Gate Timing
+
+The state-change gate (commit a5a2246) **is working correctly** post-deploy. Hourly breakdown shows:
+- **Pre-gate deploy (~02:00 UTC):** 54-60 LLM calls/hour (100% fire rate)
+- **Post-gate deploy:** 0-2 LLM calls/hour (fires only on actual state change)
+
+The high "149 LLM calls today" count is misleading — 140+ were from the pre-fix hours of the 24h window.
+
+### 10.3 Task Input Token Bloat
+
+**Observed:** Task runs using 69K-171K input tokens per run (vs. 9K-20K estimated in Section 2.1).
+
+**Cause:** These are cumulative across all tool rounds. Tasks using WebSearch (headless) accumulate:
+- Round 1: ~15K (system + tools + context)
+- Round 2: ~30K (+ round 1 assistant/tool result)
+- Round 3: ~50K (+ round 2)
+- Each WebSearch call spawns a separate Sonnet call internally (~2K tokens)
+
+**Cost reality:** A research task with 3 tool rounds: ~$0.15-0.25/run (not $0.05-0.08).
+
+**Mitigation options:**
+- Tool result truncation (already implemented in anthropic.py — verify it's working for headless)
+- Limit headless tool rounds (currently 3, could reduce to 2)
+- Use WebSearch URL fetch mode (new — avoids inner Sonnet call for known URLs)
+
+## 11. Production Readiness Checklist
 
 | Item | Status | Impact |
 |------|--------|--------|
 | Token tracking accuracy | **Fixed** (commit a5a2246) | Accurate cost monitoring |
-| Composer spin loop | **Fixed** (commit a5a2246) | ~97% Haiku savings |
+| Composer spin loop | **Fixed** (commit a5a2246, gate verified working) | ~97% Haiku savings |
+| Reactive task re-run | **Fixed** (this commit) | Prevents runaway reactive tasks |
+| Failure sentinel cleanup | **Fixed** (this commit) | Failed tasks don't re-run |
 | Credit enforcement | Implemented | Bounds task execution cost |
 | Message limit (Free) | Implemented (150/mo) | Bounds Free chat cost |
 | Message limit (Pro) | **Unlimited — no gate** | Unbounded chat cost risk |
 | Batch API | Not implemented | Would save ~50% on tasks |
 | Multi-step credit scaling | Not implemented | Credit undercount for pipeline tasks |
 | Memory extraction | **Not firing** (needs investigation) | No impact on cost, may affect quality |
-| Duplicate agents | Exists (2× "Google Workspace Briefer") | Minor — cleanup task |
-| Stuck run | Research Agent stuck in "generating" since 03-30 01:44 | Needs cleanup |
+| Tool round token bloat | **Observed** — 69K-171K/run | Investigate truncation effectiveness |
+| Stuck run (generating) | **Cleaned up** (2026-03-30) | Was blocking agent_run slot |
 
 ---
 

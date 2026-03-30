@@ -793,7 +793,7 @@ async def execute_task(
                 .limit(1)
                 .execute()
             )
-            schedule = (task_row.data[0]["schedule"] if task_row.data else None) or {}
+            schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
 
             next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
 
@@ -866,6 +866,18 @@ async def execute_task(
 
     except Exception as e:
         logger.error(f"[TASK_EXEC] Failed: {task_slug}: {e}")
+        # Clear the optimistic sentinel so failed reactive tasks don't re-run
+        try:
+            task_row = client.table("tasks").select("schedule").eq(
+                "user_id", user_id
+            ).eq("slug", task_slug).limit(1).execute()
+            schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
+            next_run = calculate_next_run_at(schedule, last_run_at=datetime.now(timezone.utc)) if schedule else None
+            client.table("tasks").update({
+                "next_run_at": next_run.isoformat() if next_run else None,
+            }).eq("user_id", user_id).eq("slug", task_slug).execute()
+        except Exception:
+            pass  # Best-effort cleanup
         return _fail(task_slug, str(e))
 
 
@@ -1259,7 +1271,7 @@ async def _execute_pipeline(
             client.table("tasks").select("schedule")
             .eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
         )
-        schedule = (task_row.data[0]["schedule"] if task_row.data else None) or {}
+        schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
         next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
         update_data = {
             "last_run_at": now.isoformat(),
