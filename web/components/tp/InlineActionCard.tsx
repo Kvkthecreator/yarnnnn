@@ -141,3 +141,17 @@ export const RESEARCH_TASK_CARD: ActionCardConfig = {
   ],
   inputPlaceholder: 'Or describe what to research',
 };
+
+/** Task page: "Give feedback" on latest output */
+export const FEEDBACK_TASK_CARD: ActionCardConfig = {
+  title: 'Feedback on output',
+  description: 'How was the latest output?',
+  options: [
+    { label: 'Good — keep this direction', message: 'The latest output was good, keep this direction' },
+    { label: 'Needs more depth', message: 'The latest output needs more depth on ' },
+    { label: 'Wrong focus', message: 'The latest output focused on the wrong things — it should focus on ' },
+    { label: 'Too long / too short', message: 'The latest output was too ' },
+    { label: 'Update criteria based on this', message: 'Based on the latest output, update the success criteria to ' },
+  ],
+  inputPlaceholder: 'Or describe what to improve',
+};

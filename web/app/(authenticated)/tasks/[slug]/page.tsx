@@ -48,6 +48,7 @@ import {
   RUN_TASK_CARD,
   ADJUST_TASK_CARD,
   RESEARCH_TASK_CARD,
+  FEEDBACK_TASK_CARD,
 } from '@/components/tp/InlineActionCard';
 
 function formatRelativeTime(dateStr: string): string {
@@ -435,6 +436,7 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => setActionCard(RUN_TASK_CARD) },
     { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => setActionCard(ADJUST_TASK_CARD) },
+    { id: 'feedback', label: 'Give feedback', icon: MessageCircle, verb: 'prompt', onSelect: () => setActionCard(FEEDBACK_TASK_CARD) },
     { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => setActionCard(RESEARCH_TASK_CARD) },
   ];
 
