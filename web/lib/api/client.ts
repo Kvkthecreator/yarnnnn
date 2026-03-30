@@ -553,6 +553,14 @@ export const api = {
         { method: "POST" }
       ),
 
+    // ADR-148: Export task output as PDF/XLSX/DOCX
+    export: (slug: string, format: string, dateFolder?: string) => {
+      const params = dateFolder ? `&date_folder=${dateFolder}` : "";
+      return request<{ success: boolean; url: string; format: string; title: string }>(
+        `/api/tasks/${slug}/export?format=${format}${params}`
+      );
+    },
+
     // ADR-145: Task type registry
     listTypes: (category?: string) => {
       const params = category ? `?category=${category}` : "";

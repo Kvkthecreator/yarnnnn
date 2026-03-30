@@ -1060,3 +1060,190 @@ async def trigger_task_run(
 
     logger.info(f"[TASKS] Triggered run for task '{slug}' (next_run_at set to now)")
     return TaskRunTriggered(triggered=True, task_slug=slug)
+
+
+# =============================================================================
+# Export — ADR-148: Derive PDF/XLSX from composed output.html
+# =============================================================================
+
+@router.get("/{slug}/export")
+async def export_task_output(
+    slug: str,
+    format: str,  # pdf, xlsx, docx
+    auth: UserClient,
+    date_folder: Optional[str] = None,
+):
+    """
+    Export a task's composed output as PDF, XLSX, or DOCX.
+
+    ADR-148: Exports derive from composed output.html (singular rendering path).
+    Calls render service to convert HTML → requested format.
+    Returns a redirect to the storage URL of the exported file.
+    """
+    import httpx
+    import os
+
+    RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+    RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
+
+    if format not in ("pdf", "xlsx", "docx"):
+        raise HTTPException(status_code=400, detail=f"Unsupported export format: {format}. Use: pdf, xlsx, docx")
+
+    # Get the latest output
+    if date_folder:
+        html_path = f"/tasks/{slug}/outputs/{date_folder}/output.html"
+        md_path = f"/tasks/{slug}/outputs/{date_folder}/output.md"
+    else:
+        # Find latest output
+        result = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq("user_id", auth.user_id)
+            .like("path", f"/tasks/{slug}/outputs/%/output.html")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            html_path = result.data[0]["path"]
+            md_path = html_path.replace("/output.html", "/output.md")
+        else:
+            # Try markdown
+            md_result = (
+                auth.client.table("workspace_files")
+                .select("path")
+                .eq("user_id", auth.user_id)
+                .like("path", f"/tasks/{slug}/outputs/%/output.md")
+                .order("updated_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if md_result.data:
+                html_path = None
+                md_path = md_result.data[0]["path"]
+            else:
+                raise HTTPException(status_code=404, detail="No output found for this task")
+
+    # Read content
+    html_content = None
+    md_content = None
+
+    if html_path:
+        html_result = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", auth.user_id)
+            .eq("path", html_path)
+            .limit(1)
+            .execute()
+        )
+        if html_result.data:
+            html_content = html_result.data[0]["content"]
+
+    md_result = (
+        auth.client.table("workspace_files")
+        .select("content")
+        .eq("user_id", auth.user_id)
+        .eq("path", md_path)
+        .limit(1)
+        .execute()
+    )
+    if md_result.data:
+        md_content = md_result.data[0]["content"]
+
+    if not html_content and not md_content:
+        raise HTTPException(status_code=404, detail="Output content not found")
+
+    # Get task title for the export filename
+    task_result = (
+        auth.client.table("workspace_files")
+        .select("content")
+        .eq("user_id", auth.user_id)
+        .eq("path", f"/tasks/{slug}/TASK.md")
+        .limit(1)
+        .execute()
+    )
+    title = slug  # fallback
+    if task_result.data:
+        first_line = (task_result.data[0]["content"] or "").split("\n")[0]
+        if first_line.startswith("#"):
+            title = first_line.lstrip("# ").strip()
+
+    # Build render request
+    if format in ("pdf", "docx"):
+        skill_type = "pdf"
+        render_input = {"title": title}
+        if html_content:
+            render_input["html"] = html_content
+        else:
+            render_input["markdown"] = md_content
+    elif format == "xlsx":
+        # Extract tables from markdown for XLSX
+        import re
+        tables = []
+        if md_content:
+            table_pattern = re.compile(
+                r'(\|[^\n]+\|\n\|[-:\| ]+\|\n(?:\|[^\n]+\|\n?)+)',
+                re.MULTILINE
+            )
+            for match in table_pattern.finditer(md_content):
+                table_text = match.group(1).strip()
+                lines = table_text.split("\n")
+                if len(lines) < 3:
+                    continue
+                headers = [h.strip() for h in lines[0].strip("|").split("|")]
+                rows = []
+                for line in lines[2:]:
+                    cells = [c.strip().strip("*") for c in line.strip("|").split("|")]
+                    rows.append(cells)
+                tables.append({"name": f"Table {len(tables)+1}", "headers": headers, "rows": rows})
+
+        if not tables:
+            raise HTTPException(status_code=400, detail="No tables found in output to export as XLSX")
+
+        skill_type = "xlsx"
+        render_input = {"title": title, "sheets": tables}
+
+    # Call render service
+    try:
+        headers = {"Content-Type": "application/json"}
+        if RENDER_SERVICE_SECRET:
+            headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
+
+        async with httpx.AsyncClient(timeout=60.0) as http:
+            resp = await http.post(
+                f"{RENDER_SERVICE_URL}/render",
+                json={
+                    "type": skill_type,
+                    "input": render_input,
+                    "output_format": format,
+                    "user_id": auth.user_id,
+                },
+                headers=headers,
+            )
+
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Render service returned {resp.status_code}: {resp.text[:200]}",
+                )
+
+            data = resp.json()
+            if not data.get("success"):
+                raise HTTPException(status_code=502, detail=f"Render failed: {data.get('error')}")
+
+            output_url = data.get("output_url")
+            if not output_url:
+                raise HTTPException(status_code=502, detail="Render service returned no output URL")
+
+            return {
+                "success": True,
+                "format": format,
+                "url": output_url,
+                "title": title,
+                "content_type": data.get("content_type"),
+                "size_bytes": data.get("size_bytes"),
+            }
+
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Render service unreachable: {str(e)}")

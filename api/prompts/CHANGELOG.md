@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.30.1] - ADR-148 Phase 3: Export pipeline (PDF/XLSX from composed HTML)
+
+### Changed
+- `render/skills/pdf/scripts/render.py`: PDF skill now accepts HTML input (preferred) alongside markdown (fallback). HTML→PDF via pandoc preserves composed styling, tables, and layout.
+- `routes/tasks.py`: New `GET /tasks/{slug}/export?format=pdf|xlsx|docx` endpoint. Reads composed output.html → calls render service → returns storage URL. XLSX extracts tables from output.md → openpyxl spreadsheet.
+- `web/app/(authenticated)/tasks/[slug]/page.tsx`: Export bar with PDF and XLSX buttons on task output tab. Opens exported file in new tab.
+- `web/lib/api/client.ts`: `api.tasks.export(slug, format)` client method.
+- Expected behavior: Users can download task outputs as PDF or XLSX directly from the task page. PDF preserves composed HTML styling. XLSX contains all tables from the output.
+
+---
+
 ## [2026.03.29.5] - ADR-148 Phase 1: Render phase + agent simplification
 
 ### Changed

@@ -61,6 +61,45 @@ function formatRelativeTime(dateStr: string): string {
 // Left Panel: Output Tab
 // =============================================================================
 
+function ExportBar({ slug }: { slug: string }) {
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const handleExport = async (format: string) => {
+    setExporting(format);
+    try {
+      const result = await api.tasks.export(slug, format);
+      if (result.url) {
+        window.open(result.url, '_blank');
+      }
+    } catch (e) {
+      console.error(`Export ${format} failed:`, e);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-muted/20">
+      <span className="text-xs text-muted-foreground mr-1">Export:</span>
+      {['pdf', 'xlsx'].map((fmt) => (
+        <button
+          key={fmt}
+          onClick={() => handleExport(fmt)}
+          disabled={exporting !== null}
+          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border/50 bg-background hover:bg-muted transition-colors disabled:opacity-50"
+        >
+          {exporting === fmt ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Globe className="w-3 h-3" />
+          )}
+          {fmt.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | null }) {
   if (!output) {
     return (
@@ -82,33 +121,31 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
     );
   }
 
-  // ADR-148: Singular rendering path — composed HTML is the primary display
-  if (output.html_content) {
-    return (
-      <iframe
-        srcDoc={output.html_content}
-        className="w-full h-full min-h-[500px] border-0 rounded-lg bg-white"
-        sandbox="allow-same-origin"
-        title="Task output"
-      />
-    );
-  }
-
-  // Markdown fallback — compose service may not have run yet (loading/error state)
-  const mdContent = (output as any).content || output.md_content;
-  if (mdContent) {
-    return (
-      <div className="p-4">
-        <div className="text-xs text-muted-foreground/50 mb-3 flex items-center gap-1.5">
-          <RefreshCw className="w-3 h-3" />
-          <span>Markdown preview — composed view loading</span>
-        </div>
-        <MarkdownRenderer content={mdContent} />
+  return (
+    <div className="flex flex-col h-full">
+      <ExportBar slug={task.slug} />
+      <div className="flex-1 min-h-0">
+        {output.html_content ? (
+          <iframe
+            srcDoc={output.html_content}
+            className="w-full h-full min-h-[500px] border-0 bg-white"
+            sandbox="allow-same-origin"
+            title="Task output"
+          />
+        ) : (output as any).content || output.md_content ? (
+          <div className="p-4">
+            <div className="text-xs text-muted-foreground/50 mb-3 flex items-center gap-1.5">
+              <RefreshCw className="w-3 h-3" />
+              <span>Markdown preview — composed view loading</span>
+            </div>
+            <MarkdownRenderer content={(output as any).content || output.md_content || ''} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-8">Output available but content not loaded</p>
+        )}
       </div>
-    );
-  }
-
-  return <p className="text-sm text-muted-foreground text-center py-8">Output available but content not loaded</p>;
+    </div>
+  );
 }
 
 // =============================================================================

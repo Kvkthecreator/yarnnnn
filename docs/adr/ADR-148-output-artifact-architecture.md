@@ -153,6 +153,14 @@ No branching based on agent capabilities. No fallback renderers.
 - Delivery uses composed HTML only (no `generate_email_html` fallback)
 - Frontend MarkdownRenderer downgraded to loading state indicator
 
+### Phase 3: Export as derivative of composed HTML ✓
+- PDF skill updated to accept HTML input (pandoc HTML→PDF)
+- XLSX export extracts tables from markdown → openpyxl spreadsheet
+- Export API endpoint: `GET /tasks/{slug}/export?format=pdf|xlsx|docx`
+- Export UI: PDF and XLSX buttons on task page output tab
+- Exports derive from composed output — not a separate rendering path
+- No PPTX yet (needs dedicated skill — future work)
+
 ---
 
 ## Relationship to Existing ADRs
