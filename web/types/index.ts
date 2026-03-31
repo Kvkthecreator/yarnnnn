@@ -300,9 +300,9 @@ export interface AgentMemory {
     dedup_key?: string;
   }>;
   last_generated_at?: string;
-  // ADR-143: Unified feedback + self-assessment (replaces preferences, observations, supervisor_notes, review_log)
+  // ADR-143/149: Unified feedback + reflections (replaces preferences, observations, supervisor_notes, review_log)
   feedback?: string;           // memory/feedback.md content (rolling 10 entries)
-  self_assessment?: string;    // memory/self_assessment.md content (rolling 5 entries)
+  reflections?: string;        // memory/reflections.md content (rolling 5 entries, ADR-149 rename)
 }
 
 // ADR-138: Task mode (moved from agents to tasks — mode is temporal behavior of work, not identity)

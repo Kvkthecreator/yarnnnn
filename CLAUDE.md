@@ -108,6 +108,8 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 
 - **ADR-144**: Inference-First Shared Context — `UpdateSharedContext` as single TP primitive for workspace identity/brand mutations. Inference (from docs, URLs, chat text, platform content) is the single method for context creation and update — no form fields, no separate onboarding page. Workfloor tabs collapse to 3 top-level sections: Tasks | Context (nested: Identity, Brand, Documents) | Platforms. Context readiness signal (`context_readiness` in working memory) always visible to TP — `is_onboarding` flag dissolved (was dead since ADR-140 pre-scaffolds agents). Cold start: suggestion chips in chat empty state + TP context awareness prompt (always injected, graduated judgment). Supersedes ADR-132 (onboarding page), ADR-113 (onboarding flow). Dissolves: `/onboarding` page, `/api/memory/profile` endpoint, `enrich_context()` standalone function, `is_onboarding` gate. Key files: `api/services/primitives/shared_context.py` (UpdateSharedContext), `api/services/context_inference.py` (`infer_shared_context()`), `api/services/working_memory.py` (context_readiness signal), `api/agents/tp_prompts/onboarding.py` (`CONTEXT_AWARENESS` — always-on). (Phases 1-4 Implemented.)
 
+- **ADR-149**: Task Lifecycle Architecture — TP as Context Manager. Four commitments: (1) two registries fixed (AGENT_TYPES + TASK_TYPES), (2) task instances as living knowledge objects with filesystem-first state, (3) mode as TP management posture (recurring=auto-deliver, goal=evaluate→steer→complete, reactive=dispatch-and-done), (4) feedback + evaluation as unified pipeline. New files per task: `DELIVERABLE.md` (quality contract: output spec + expected assets + inferred user preferences, scaffolded from type registry, evolves via feedback inference), `memory/feedback.md` (user corrections + TP evaluations, distinguished by source tag), `memory/steering.md` (TP cycle-specific management notes). Terminology unification: "reflection" = agent self-awareness (renamed from "contributor assessment"), "evaluation" = TP task quality judgment, "feedback" = user corrections routed by TP. Code renames: `_extract_contributor_assessment()` → `_extract_agent_reflection()`, `self_assessment.md` → `reflections.md`. Pipeline extended: reads DELIVERABLE.md + steering.md + feedback.md. ManageTask gains `evaluate`, `steer`, `complete` actions. UpdateContext `feedback_target="deliverable"` routes to task feedback.md. Task deliverable inference (`task_deliverable_inference.py`) distills feedback → DELIVERABLE.md preferences (same pattern as context_inference.py for IDENTITY.md). Extends ADR-138, ADR-141, ADR-144, ADR-145, ADR-146. (Phase 1 Implemented — terminology + DELIVERABLE.md scaffold.)
+
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
 ### 1. Documentation Alongside Code
@@ -359,7 +361,9 @@ You MUST:
 | Agent Pipeline | `api/services/agent_pipeline.py` |
 | Agent Routes | `api/routes/agents.py` |
 | Task Workspace | `api/services/task_workspace.py` (ADR-138: task filesystem operations) |
-| Task Primitives | `api/services/primitives/task.py` (ADR-138: CreateTask, ReadTask, UpdateTask) |
+| Task Primitives | `api/services/primitives/task.py` (ADR-138: CreateTask) |
+| Task Management | `api/services/primitives/manage_task.py` (ADR-146: ManageTask — trigger/update/pause/resume + ADR-149: evaluate/steer/complete) |
+| Task Deliverable Inference | `api/services/task_deliverable_inference.py` (ADR-149: feedback → DELIVERABLE.md, planned) |
 | Task Routes | `api/routes/tasks.py` (ADR-138: task CRUD) |
 | Dashboard Summary | DELETED (2026-03-22) — collapsed into Orchestrator |
 | Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |

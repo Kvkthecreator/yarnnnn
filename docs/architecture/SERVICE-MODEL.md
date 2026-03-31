@@ -45,7 +45,10 @@ Agent types determine capabilities. Development is knowledge depth (accumulated 
 
 ### Tasks (WHAT)
 
-Defined work units with an objective, schedule, and delivery target.
+Defined work units with an objective, schedule, and delivery target. Two charter files:
+
+- **TASK.md** — operational charter: objective, mode, schedule, delivery, process steps.
+- **DELIVERABLE.md** — output specification: what the final artifact should look like (format, structure, quality criteria, audience). The north star for generation and evaluation.
 
 | Field | Purpose |
 |-------|---------|
@@ -55,7 +58,7 @@ Defined work units with an objective, schedule, and delivery target.
 | `delivery` | Where to send: email, Slack channel, Notion page |
 | `process` | Multi-step agent sequence (from task type registry, if applicable) |
 
-Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring weekly briefing and a goal-based one-off investigation.
+Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring weekly briefing and a goal-based one-off investigation. Mode also signals TP's management posture — recurring tasks get periodic review, goal tasks get completion tracking, reactive tasks get trigger monitoring.
 
 **Task types** (ADR-145): Pre-meditated deliverable definitions. Users select an outcome ("Competitive Intelligence Brief"), and the system resolves it into a deterministic sequence of agent steps. See [task-type-orchestration.md](task-type-orchestration.md).
 
@@ -101,7 +104,7 @@ Three layers, strictly separated (ADR-141):
 **Layer 2 — Task Execution** (Sonnet per task, then mechanical render + compose)
 ```
 execute_task(slug)
-  → Read TASK.md from workspace
+  → Read TASK.md + DELIVERABLE.md + steering.md + feedback.md from workspace
   → Resolve assigned agent(s) from process definition
   → Check work credits (budget gate)
   → Gather context (task-aware KB search by objective)
@@ -110,7 +113,8 @@ execute_task(slug)
   → COMPOSE: enriched markdown + assets → styled HTML per composition mode
   → Save output to /tasks/{slug}/outputs/{date}/
   → Deliver to destination (email/Slack/Notion)
-  → Update agent memory (self-assessment, observations)
+  → Update agent memory (agent reflection, observations)
+  → TP evaluates task output quality against DELIVERABLE.md (evaluation loop)
   → Advance next_run_at
 ```
 
@@ -194,6 +198,16 @@ Four layers of perception feed agent execution (FOUNDATIONS Axiom 2):
 4. **Reflexive** — User feedback (edits, approvals), TP observations (`/workspace/notes.md`, `/workspace/preferences.md`).
 
 The recursive property: external data → agent output → next cycle's context → better output. Accumulated attention compounds.
+
+---
+
+## Feedback, Evaluation, and Reflection (ADR-149)
+
+Three distinct mechanisms drive agent development:
+
+- **Feedback** — User corrections (edits, comments) routed by TP to the appropriate scope: workspace-level (`/workspace/preferences.md`), agent-level (`/agents/{slug}/memory/`), or task-level (`/tasks/{slug}/feedback.md`).
+- **Evaluation** — TP judges task output quality against the DELIVERABLE.md specification. Produces steering directives (`/tasks/{slug}/steering.md`) that guide the next execution cycle.
+- **Reflection** — Agent self-assesses fitness and confidence post-run, written to `/agents/{slug}/memory/reflections.md`. Formerly "contributor assessment." Gives the agent a developmental voice independent of external judgment.
 
 ---
 

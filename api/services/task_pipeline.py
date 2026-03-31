@@ -294,15 +294,15 @@ If context says "(No context available)" or tools return no results:
 - Note briefly that no recent activity was found.
 - A short, properly formatted output is always better than meta-commentary."""
 
-    # Assessment postamble (ADR-128 + success criteria eval)
-    from services.agent_pipeline import _ASSESSMENT_POSTAMBLE, _CRITERIA_EVAL_SECTION
+    # Reflection postamble (ADR-128/149 + success criteria eval)
+    from services.agent_pipeline import _REFLECTION_POSTAMBLE, _CRITERIA_EVAL_SECTION
     criteria = task_info.get("success_criteria", [])
     if criteria:
         criteria_list = "\n".join(f"  - {c}" for c in criteria)
         criteria_eval = _CRITERIA_EVAL_SECTION.format(criteria_list=criteria_list)
     else:
         criteria_eval = ""
-    system += _ASSESSMENT_POSTAMBLE.format(criteria_eval=criteria_eval)
+    system += _REFLECTION_POSTAMBLE.format(criteria_eval=criteria_eval)
 
     # --- User message ---
     user_parts = [f"# Task: {title}"]
@@ -550,9 +550,9 @@ async def execute_task(
             client, user_id, agent, system_prompt, user_message, scope,
         )
 
-        # Strip contributor assessment before delivery (ADR-128)
-        from services.agent_execution import _extract_contributor_assessment
-        draft, contributor_assessment = _extract_contributor_assessment(draft)
+        # Strip agent reflection before delivery (ADR-128/149)
+        from services.agent_execution import _extract_agent_reflection
+        draft, agent_reflection = _extract_agent_reflection(draft)
 
         # =====================================================================
         # 7b. Render inline assets — ADR-148 Phase 2 (tables→charts, mermaid→SVG)
@@ -734,18 +734,18 @@ async def execute_task(
         # 14. Post-generation side effects (all non-fatal)
         # =====================================================================
 
-        # Append to task run log (with self-assessment if available)
+        # Append to task run log (with agent reflection if available)
         try:
             log_entry = f"v{next_version} {final_status}"
             if delivery_error:
                 log_entry += f" — {delivery_error}"
-            if contributor_assessment:
-                confidence = contributor_assessment.get("output_confidence", "unknown")
+            if agent_reflection:
+                confidence = agent_reflection.get("output_confidence", "unknown")
                 # Extract level from "high — reason" format
                 level = confidence.split("—")[0].split("–")[0].strip().lower() if confidence else "unknown"
                 log_entry += f" | confidence={level}"
                 # Include criteria eval if present
-                criteria_met = contributor_assessment.get("criteria_met")
+                criteria_met = agent_reflection.get("criteria_met")
                 if criteria_met:
                     log_entry += f" | criteria: {criteria_met}"
             await tw.append_run_log(log_entry)
@@ -763,11 +763,11 @@ async def execute_task(
             except Exception:
                 pass
 
-        # Self-assessment (ADR-128)
-        if final_status == "delivered" and contributor_assessment:
+        # Agent reflection (ADR-128/149)
+        if final_status == "delivered" and agent_reflection:
             try:
-                from services.agent_execution import _append_self_assessment
-                await _append_self_assessment(ws, contributor_assessment)
+                from services.agent_execution import _append_agent_reflection
+                await _append_agent_reflection(ws, agent_reflection)
             except Exception:
                 pass
 
@@ -910,7 +910,7 @@ async def _execute_pipeline(
     from services.agent_execution import (
         get_next_run_number, create_version_record,
         update_version_for_delivery, SONNET_MODEL,
-        _extract_contributor_assessment, _compose_output_html,
+        _extract_agent_reflection, _compose_output_html,
     )
     from services.platform_limits import check_credits, record_credits
 
@@ -1050,7 +1050,7 @@ async def _execute_pipeline(
         )
 
         # Strip assessment
-        draft, _ = _extract_contributor_assessment(draft)
+        draft, _ = _extract_agent_reflection(draft)
 
         total_usage["input_tokens"] += _total_input_tokens(usage)
         total_usage["output_tokens"] += usage.get("output_tokens", 0)
@@ -1648,7 +1648,7 @@ async def _execute_direct(
     from services.agent_framework import has_asset_capabilities, has_capability
     from services.agent_execution import (
         get_next_run_number, create_version_record, update_version_for_delivery,
-        SONNET_MODEL, _extract_contributor_assessment,
+        SONNET_MODEL, _extract_agent_reflection,
     )
 
     started_at = datetime.now(timezone.utc)
@@ -1699,7 +1699,7 @@ async def _execute_direct(
             client, user_id, agent, system_prompt, user_message, scope,
         )
 
-        draft, contributor_assessment = _extract_contributor_assessment(draft)
+        draft, agent_reflection = _extract_agent_reflection(draft)
 
         # Save to agent_runs
         await update_version_for_delivery(client, version_id, draft, metadata={

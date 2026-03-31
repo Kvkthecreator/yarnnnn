@@ -1,12 +1,13 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v4 — ADR-142 unified filesystem)
-**Date:** 2026-03-25
+**Status:** Canonical (v6 — ADR-149 quality contract + task memory)
+**Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
 - [ADR-119: Workspace Filesystem Architecture](../adr/ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle, versioning
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md) — agents own tasks directly
 - [ADR-142: Unified Filesystem Architecture](../adr/ADR-142-unified-filesystem-architecture.md) — four roots, document pipeline, /knowledge/ dissolved
+- ADR-149 — DELIVERABLE.md quality contract, task memory files, agent reflections
 - [Naming Conventions](naming-conventions.md) — broader naming system
 - [Agent Execution Model](agent-execution-model.md) — how agents interact with workspace
 
@@ -23,7 +24,7 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 | `/workspace/` | User-level | User + TP | Identity, preferences, curated documents (PERMANENT) |
 | `/platforms/` | Cross-agent | Platform sync | Distilled platform content (OWN LIFECYCLE) |
 | `/agents/{slug}/` | Per-agent | Agent + system | WHO — persistent domain identity + memory |
-| `/tasks/{slug}/` | Per-task | Agent + system | WHAT — work definition + outputs + run memory |
+| `/tasks/{slug}/` | Per-task | Agent + system | WHAT — work definition + quality contract + outputs + run memory |
 
 **Dissolved** (ADR-142): `/knowledge/` (absorbed into `/platforms/` + `/tasks/`), `/memory/` (merged into `/workspace/`), `/user_shared/` (absorbed into session-scoped uploads).
 
@@ -93,7 +94,7 @@ Each agent's persistent workspace. Identity, accumulated domain knowledge, and d
 ├── thesis.md                      # Self-evolving domain understanding
 ├── memory/
 │   ├── feedback.md                # Rolling 10-entry feedback history (ADR-143) — TP writes, agent reads
-│   ├── self_assessment.md         # Rolling 5-entry self-eval (ADR-128) — agent writes, TP reads
+│   ├── reflections.md             # Rolling 5-entry agent self-reflection (ADR-149) — agent writes, TP reads
 │   ├── playbook-outputs.md         # How to produce deliverables (ADR-143) — craft
 │   ├── playbook-{topic}.md         # Additional craft knowledge (research, formats)
 │   └── goal.md                    # Current goal and milestones
@@ -111,18 +112,37 @@ Archived to `/history/{filename}/v{N}.md` on overwrite (max 5 versions):
 
 ## `/tasks/{slug}/` — Task Definition + Outputs
 
-Each task's work definition, execution history, and output artifacts.
+Each task's work definition, quality contract, execution history, and output artifacts.
 
 ```
 /tasks/{slug}/
-├── TASK.md                        # Work definition: objective, criteria, process
+├── TASK.md                        # Charter: objective, process, type_key, mode
+├── DELIVERABLE.md                 # Quality contract: output spec + assets + inferred preferences (ADR-149)
 ├── memory/
-│   └── run_log.md                 # Append-only: date, outcome, confidence, criteria eval
-└── outputs/{date}/
-    ├── output.md                  # Primary text output
-    ├── output.html                # Composed HTML output
-    └── manifest.json              # Metadata: sources, delivery status, files
+│   ├── run_log.md                 # Execution history (append-only)
+│   ├── feedback.md                # Task-level feedback: user corrections + TP evaluations (ADR-149)
+│   └── steering.md                # TP management notes for next cycle (ADR-149)
+├── outputs/
+│   ├── latest/                    # Current deliverable (mode-dependent semantics)
+│   │   ├── output.md
+│   │   ├── output.html
+│   │   └── manifest.json
+│   └── {date}/                    # Run history (timestamped folders)
+│       ├── output.md
+│       ├── output.html
+│       └── manifest.json
+└── working/                       # Ephemeral scratch (24h TTL)
 ```
+
+### Mode-Dependent `outputs/` Semantics
+
+The meaning of `latest/` and `{date}/` folders varies by task mode:
+
+| Mode | `latest/` | `{date}/` folders |
+|------|-----------|-------------------|
+| **Recurring** | Points to most recent run | Accumulate (one per cycle) |
+| **Goal** | IS the evolving deliverable (revised each cycle) | Revision snapshots |
+| **Reactive** | Last trigger output | Sparse archive |
 
 ---
 
@@ -205,7 +225,7 @@ Task outputs use `manifest.json` for metadata:
 1. **Use existing directories first.** Don't create new top-level roots.
 2. **Use `.md` extension.** All content is Markdown. Exception: `manifest.json`, `agent-card.json`.
 3. **Use lowercase-kebab-case** for user/agent-created files.
-4. **Capitalize identity files** (`AGENT.md`, `TASK.md`, `IDENTITY.md`).
+4. **Capitalize identity files** (`AGENT.md`, `TASK.md`, `DELIVERABLE.md`, `IDENTITY.md`).
 5. **Date-stamp temporal content** (`2026-03-25.md` for daily, `2026-03-25T1500` for output folders).
 6. **Prefer folders as boundaries.** New coordination needs → new subfolder, not new table.
 
@@ -218,6 +238,7 @@ Task outputs use `manifest.json` for metadata:
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md)
 - [ADR-142: Unified Filesystem Architecture](../adr/ADR-142-unified-filesystem-architecture.md)
 - [ADR-128: Multi-Agent Coherence Protocol](../adr/ADR-128-multi-agent-coherence-protocol.md)
+- ADR-149 — DELIVERABLE.md, task memory files (feedback.md, steering.md), agent reflections
 
 ---
 
@@ -230,3 +251,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-25 | v3 | ADR-138: task workspace, /tasks/{slug}/ added |
 | 2026-03-25 | v4 | ADR-142: unified filesystem. Four roots (/workspace/, /platforms/, /agents/, /tasks/). /knowledge/ dissolved into /platforms/ + /tasks/. /memory/ merged into /workspace/. /user_shared/ dissolved into session-scoped uploads. Document upload pipeline to /workspace/documents/. Three file-sharing contexts (shared docs, chat uploads, platform syncs). |
 | 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |
+| 2026-03-31 | v6 | ADR-149: DELIVERABLE.md quality contract added to /tasks/{slug}/. Task memory expanded: feedback.md (user corrections + TP evaluations), steering.md (TP management notes). outputs/ restructured with latest/ + {date}/ folders and mode-dependent semantics. Agent self_assessment.md renamed to reflections.md. |

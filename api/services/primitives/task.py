@@ -366,6 +366,41 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                 output_spec=output_spec,
             )
         await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
+
+        # ADR-149: Scaffold DELIVERABLE.md from type registry
+        if type_key:
+            from services.task_types import build_deliverable_md_from_type
+            deliverable_md = build_deliverable_md_from_type(type_key)
+            if deliverable_md:
+                await tw.write("DELIVERABLE.md", deliverable_md,
+                              summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
+        else:
+            # Custom task — minimal deliverable scaffold
+            custom_deliverable = (
+                "# Deliverable Specification\n\n"
+                "## Expected Output\n"
+                f"- Format: HTML document\n"
+                f"- Layout: As specified in objective\n\n"
+                "## Expected Assets\n"
+                "- Visual assets optional where data supports\n\n"
+                "## Quality Criteria\n"
+                + ("\n".join(f"- {c}" for c in success_criteria) + "\n" if success_criteria else "- Output addresses the stated objective\n")
+                + "\n## Audience\n"
+                + (objective.get("audience", "") if isinstance(objective, dict) else "")
+                + "\n\n## User Preferences (inferred)\n"
+                "<!-- Populated by feedback inference (ADR-149). Empty at creation. -->\n"
+            )
+            await tw.write("DELIVERABLE.md", custom_deliverable,
+                          summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
+
+        # ADR-149: Seed empty task memory files
+        await tw.write("memory/feedback.md",
+                      "# Task Feedback\n<!-- User corrections + TP evaluations. Newest first. ADR-149. -->\n",
+                      summary="ADR-149: task feedback file", tags=["memory"])
+        await tw.write("memory/steering.md",
+                      "# Steering Notes\n<!-- TP management notes for next cycle. Overwritten per evaluation. ADR-149. -->\n",
+                      summary="ADR-149: task steering file", tags=["memory"])
+
     except Exception as e:
         logger.warning(f"[CREATE_TASK] TASK.md write failed (non-fatal): {e}")
 

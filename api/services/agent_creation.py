@@ -173,12 +173,12 @@ async def create_agent_record(
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
 
-                # ADR-128 Phase 0: Seed cognitive files at creation time
+                # ADR-128/149: Seed reflection file at creation time
                 initial_date = now.strftime("%Y-%m-%d")
                 await ws.write(
-                    "memory/self_assessment.md",
+                    "memory/reflections.md",
                     (
-                        "# Self-Assessment History\n"
+                        "# Agent Reflection History\n"
                         "<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
                         f"## Initial ({initial_date})\n"
                         "- **Mandate**: Not yet assessed — awaiting first run\n"
@@ -186,7 +186,7 @@ async def create_agent_record(
                         "- **Context Currency**: Unknown\n"
                         "- **Output Confidence**: N/A\n"
                     ),
-                    summary="ADR-128: initial self-assessment (awaiting first run)",
+                    summary="ADR-149: initial agent reflection (awaiting first run)",
                 )
 
                 # ADR-143: Seed playbook files from type registry

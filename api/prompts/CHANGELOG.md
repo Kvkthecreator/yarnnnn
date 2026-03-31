@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.1] - ADR-149: Terminology unification + DELIVERABLE.md scaffold
+
+### Changed
+- `services/agent_pipeline.py`: `_ASSESSMENT_POSTAMBLE` → `_REFLECTION_POSTAMBLE`. Prompt block renamed: `## Contributor Assessment` → `## Agent Reflection`. All 9 role prompt references updated.
+- `services/agent_execution.py`: `_extract_contributor_assessment()` → `_extract_agent_reflection()`, `_append_self_assessment()` → `_append_agent_reflection()`. Regex constants renamed. File target: `memory/self_assessment.md` → `memory/reflections.md`. Legacy "Contributor Assessment" regex preserved as fallback for in-flight runs.
+- `services/task_pipeline.py`: All `contributor_assessment` variables → `agent_reflection`. Import and postamble references updated.
+- `services/agent_creation.py`: Agent creation seeds `memory/reflections.md` (was `self_assessment.md`). Header: "Agent Reflection History".
+- `services/workspace.py`: `load_context()` reads `memory/reflections.md`. Label: "Agent Reflections".
+- `services/task_types.py`: All 13 task types gain `default_deliverable` field (output spec, expected assets, quality criteria). New function `build_deliverable_md_from_type()` generates DELIVERABLE.md from registry.
+- `services/primitives/task.py`: `handle_create_task()` scaffolds DELIVERABLE.md + `memory/feedback.md` + `memory/steering.md` at task creation.
+- Expected behavior: Agents now produce `## Agent Reflection` blocks (not "Contributor Assessment"). New tasks get DELIVERABLE.md quality contracts alongside TASK.md. Task memory folder pre-seeded with feedback and steering files.
+
+### Terminology (ADR-149)
+- **Reflection** = agent self-awareness (agent scope, identity development)
+- **Evaluation** = TP judges task output against DELIVERABLE.md (task scope, Phase 3)
+- **Feedback** = user corrections routed by TP (all scopes)
+
+---
+
 ## [2026.03.30.6] - ManageTask: type_key assignment for under-defined tasks
 
 ### Changed

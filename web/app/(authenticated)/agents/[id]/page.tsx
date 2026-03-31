@@ -237,8 +237,8 @@ export default function AgentIdentityPage() {
             <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Memory</h2>
             <div className="space-y-2">
               <MemorySection title="Feedback History" content={memory?.feedback} />
-              <MemorySection title="Self-Assessment" content={memory?.self_assessment} />
-              {!memory?.feedback && !memory?.self_assessment && (
+              <MemorySection title="Agent Reflections" content={memory?.reflections} />
+              {!memory?.feedback && !memory?.reflections && (
                 <p className="text-xs text-muted-foreground/50">No memory accumulated yet.</p>
               )}
             </div>

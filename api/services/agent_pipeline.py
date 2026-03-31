@@ -76,13 +76,14 @@ DEFAULT_INSTRUCTIONS = {
 # Empty string for non-project agents (graceful degradation).
 _MANDATE_CONTEXT_PREAMBLE = """{mandate_context}"""
 
-# ADR-128: Assessment postamble appended to all contributor prompts.
-# Requests structured self-assessment block that gets extracted and stripped before delivery.
-_ASSESSMENT_POSTAMBLE = """
+# ADR-128/149: Reflection postamble appended to all agent prompts.
+# Requests structured self-reflection block that gets extracted and stripped before delivery.
+# Terminology (ADR-149): "reflection" = agent self-awareness, "evaluation" = TP task judgment.
+_REFLECTION_POSTAMBLE = """
 
 ---
-IMPORTANT — SELF-ASSESSMENT (do NOT omit):
-After your main output, include a `## Contributor Assessment` block with these fields:
+IMPORTANT — SELF-REFLECTION (do NOT omit):
+After your main output, include a `## Agent Reflection` block with these fields:
 - **Mandate**: What were you asked to produce? (1 sentence)
 - **Domain Fitness**: Does your scope/context cover the mandate? (high/medium/low + why)
 - **Context Currency**: Was your input fresh and substantial? (high/medium/low + why)
@@ -144,7 +145,7 @@ Rules:
 - Keep each subsection concise — key takeaways, not exhaustive logs
 - Bold action items and decisions for scannability
 
-Write the recap now:""" + _ASSESSMENT_POSTAMBLE,
+Write the recap now:""" + _REFLECTION_POSTAMBLE,
 
     # ADR-131: "prepare" role prompt deleted (Calendar sunset — no meeting prep without calendar data)
 
@@ -200,7 +201,7 @@ Rules:
 - For Slack, group by channel name
 - Keep each section concise — supporting detail, not exhaustive logs
 
-Write the work summary now:""" + _ASSESSMENT_POSTAMBLE,
+Write the work summary now:""" + _REFLECTION_POSTAMBLE,
 
     "monitor": """You are producing an intelligence watch report titled "{title}".
 
@@ -227,7 +228,7 @@ INSTRUCTIONS:
 - Be concise: lead with the most significant items
 - If there's nothing materially new, say so clearly rather than padding
 
-Write the watch report now:""" + _ASSESSMENT_POSTAMBLE,
+Write the watch report now:""" + _REFLECTION_POSTAMBLE,
 
     # research: v3 (2026.03.21) — ADR-128 mandate_context + assessment postamble
     "research": """You are producing Proactive Insights titled "{title}".
@@ -294,7 +295,7 @@ Rules:
 - Never pad with generic insights to fill space
 - "What I'm Watching" section shows progressive learning — tracks what you'll look for next time
 
-Write the proactive insights now:""" + _ASSESSMENT_POSTAMBLE,
+Write the proactive insights now:""" + _REFLECTION_POSTAMBLE,
 
     "custom": """You are producing a custom agent titled "{title}".
 
@@ -317,7 +318,7 @@ INSTRUCTIONS:
 - Write in the appropriate tone for the stated purpose
 - If the description specifies a format (bullets, narrative, tables), use it exactly
 
-Write the agent now:""" + _ASSESSMENT_POSTAMBLE,
+Write the agent now:""" + _REFLECTION_POSTAMBLE,
 
 }  # end ROLE_PROMPTS
 
@@ -359,7 +360,7 @@ Adapt structure to the deliverable type. Common patterns:
 - **Memo**: Purpose → background → analysis → recommendation → next steps
 - **Client update**: Highlights → progress by workstream → upcoming → blockers
 
-Write the deliverable now:""" + _ASSESSMENT_POSTAMBLE
+Write the deliverable now:""" + _REFLECTION_POSTAMBLE
 
 ROLE_PROMPTS["writer"] = """You are producing content titled "{title}".
 
@@ -389,7 +390,7 @@ Adapt to the content type:
 - **Client email**: Context → update → next steps
 - **Social post**: Hook → insight → CTA (concise)
 
-Write the content now:""" + _ASSESSMENT_POSTAMBLE
+Write the content now:""" + _REFLECTION_POSTAMBLE
 
 ROLE_PROMPTS["planner"] = """You are producing a plan or agenda titled "{title}".
 
@@ -418,7 +419,7 @@ STRUCTURE:
 - **Project plan**: Milestones → current status → next steps → risks
 - **Follow-up**: Decisions made → action items → deadlines → open questions
 
-Write the plan now:""" + _ASSESSMENT_POSTAMBLE
+Write the plan now:""" + _REFLECTION_POSTAMBLE
 
 ROLE_PROMPTS["scout"] = """You are producing competitive intelligence titled "{title}".
 
@@ -469,7 +470,7 @@ Rules:
 - If the landscape was quiet, say so — don't pad with irrelevant updates
 - Compare competitor moves to the user's current positioning when possible
 
-Write the intel report now:""" + _ASSESSMENT_POSTAMBLE
+Write the intel report now:""" + _REFLECTION_POSTAMBLE
 
 
 # ADR-121/123: Assembly composition prompt (v3.0 — objective-aware)

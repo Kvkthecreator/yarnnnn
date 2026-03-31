@@ -4,7 +4,7 @@ Feedback Distillation — ADR-143 Phase 2.
 Consolidates all feedback signals into a single memory/feedback.md file.
 Replaces the old preferences.md / supervisor-notes.md / observations.md split.
 
-feedback.md is append-at-top with a rolling 10-entry cap (like self_assessment.md).
+feedback.md is append-at-top with a rolling 10-entry cap (like reflections.md).
 Each entry is a human-readable summary of what changed and why.
 
 Two write paths:
@@ -198,7 +198,7 @@ async def _append_feedback(ws: Any, new_entry: str) -> None:
     """
     Append a feedback entry to memory/feedback.md (newest first, capped).
 
-    Same pattern as _append_self_assessment in agent_execution.py.
+    Same pattern as _append_agent_reflection in agent_execution.py.
     """
     existing = await ws.read("memory/feedback.md") or ""
 

@@ -79,6 +79,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Track competitive landscape and identify strategic opportunities",
             "format": "Structured report with charts and diagrams",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "2000-3000",
+                "layout": ["Executive Summary", "Key Findings", "Competitive Positioning", "Trend Analysis", "Implications", "Sources"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Quantified trend data"},
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Competitor comparison"},
+                {"type": "mermaid", "subtype": "positioning", "min_count": 1, "description": "Competitive positioning map"},
+            ],
+            "quality_criteria": [
+                "Every claim has inline source citation",
+                "Minimum 3 competitors analyzed",
+                "Forward-looking implications not just historical reporting",
+            ],
+        },
     },
 
     "market-research-report": {
@@ -120,6 +137,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Understand market dynamics and inform strategic decisions",
             "format": "Comprehensive report with visualizations",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "3000-5000",
+                "layout": ["Executive Summary", "Market Overview", "Key Players", "Technology Trends", "Opportunities & Threats", "Recommendations", "Sources"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "distribution", "min_count": 1, "description": "Market share or segment breakdown"},
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Growth trend data"},
+                {"type": "mermaid", "subtype": "landscape", "min_count": 1, "description": "Market landscape map"},
+            ],
+            "quality_criteria": [
+                "Data-backed claims with recency noted",
+                "Minimum 5 key players profiled",
+                "Clear opportunity identification",
+            ],
+        },
     },
 
     "industry-signal-monitor": {
@@ -157,6 +191,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "Strategy and product teams",
             "purpose": "Catch important industry signals early and assess their impact",
             "format": "Signal list with deep-dive analysis on top signals",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "1000-2000",
+                "layout": ["Signal Summary", "Key Signals", "Emerging Patterns", "Watch List"],
+            },
+            "assets": [],
+            "quality_criteria": [
+                "Signals categorized by impact level",
+                "Each signal has source and date",
+                "Pattern identification across multiple signals",
+            ],
         },
     },
 
@@ -198,6 +245,22 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "Decision-makers evaluating an opportunity",
             "purpose": "Assess viability and risks of a company, market, or opportunity",
             "format": "Structured report with org charts and risk assessment",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "3000-5000",
+                "layout": ["Executive Summary", "Company Overview", "Financial Analysis", "Risk Assessment", "Competitive Position", "Recommendation"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Financial metrics comparison"},
+                {"type": "mermaid", "subtype": "flowchart", "min_count": 1, "description": "Corporate structure or process diagram"},
+            ],
+            "quality_criteria": [
+                "All claims verified with sources",
+                "Risk factors explicitly identified",
+                "Clear recommendation with supporting evidence",
+            ],
         },
     },
 
@@ -244,6 +307,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Walk into meetings prepared with relationship context and fresh intelligence",
             "format": "Context summary, talking points, open items, and agenda suggestions",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "800-1500",
+                "layout": ["Context", "Last Interaction", "Agenda Items", "Talking Points", "Open Items"],
+            },
+            "assets": [],
+            "quality_criteria": [
+                "Actionable talking points",
+                "References specific prior interactions",
+                "Scannable in under 2 minutes",
+            ],
+        },
     },
 
     "stakeholder-update": {
@@ -281,6 +357,22 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "Board members, investors, or leadership",
             "purpose": "Keep stakeholders informed with professional-quality updates",
             "format": "Dashboard-style report with KPI cards, charts, and narrative",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "2000-3000",
+                "layout": ["Executive Summary", "Key Milestones", "Challenges & Mitigations", "Financial Overview", "Forward Look", "Appendix"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "KPI dashboard or progress metrics"},
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Budget vs actual or milestone tracking"},
+            ],
+            "quality_criteria": [
+                "Board-level polish",
+                "Key milestones with status",
+                "Forward-looking strategic priorities",
+            ],
         },
     },
 
@@ -325,6 +417,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "You, for relationship management",
             "purpose": "Stay on top of professional relationships and never drop the ball",
             "format": "Health summary with follow-up recommendations",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "1000-2000",
+                "layout": ["Summary", "Active Relationships", "Risk Flags", "Follow-ups Due", "Engagement Trends"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Engagement frequency trends"},
+            ],
+            "quality_criteria": [
+                "Actionable follow-up recommendations",
+                "Risk flags for declining engagement",
+                "Personalized per relationship",
+            ],
         },
     },
 
@@ -373,6 +480,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Keep everyone aligned on project progress and blockers",
             "format": "Structured status report with activity highlights",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "1500-2500",
+                "layout": ["Status Summary", "Progress by Workstream", "Blockers & Risks", "Next Week Priorities", "Resource Needs"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Progress tracking or milestone status"},
+            ],
+            "quality_criteria": [
+                "Clear status per workstream",
+                "Blockers explicitly flagged with owners",
+                "Actionable next steps",
+            ],
+        },
     },
 
     # ── Platform Digests ──
@@ -411,6 +533,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Never miss important Slack discussions, decisions, or action items",
             "format": "Structured recap with decisions, action items, discussions, and FYIs",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "500-1500",
+                "layout": ["Highlights", "Decisions Made", "Action Items", "Key Discussions", "FYIs"],
+            },
+            "assets": [],
+            "quality_criteria": [
+                "Decisions and action items clearly attributed",
+                "Thread-level summarization not message-level",
+                "Skip bot messages and routine posts",
+            ],
+        },
     },
 
     "notion-sync-report": {
@@ -443,6 +578,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "You and knowledge base maintainers",
             "purpose": "Keep your Notion workspace healthy and up-to-date",
             "format": "Change summary with staleness flags and suggestions",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "500-1500",
+                "layout": ["Changes Summary", "Updated Pages", "New Content", "Stale Content Flags"],
+            },
+            "assets": [],
+            "quality_criteria": [
+                "Meaningful changes highlighted over formatting edits",
+                "Links to original Notion pages",
+                "Stale content flagged",
+            ],
         },
     },
 
@@ -483,6 +631,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "Content team or direct publishing",
             "purpose": "Produce research-backed content that stands out",
             "format": "Structured content with visual assets",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "2000-4000",
+                "layout": ["Brief Overview", "Target Audience", "Key Messages", "Outline", "Draft Content", "Sources"],
+            },
+            "assets": [
+                {"type": "mermaid", "subtype": "flowchart", "min_count": 1, "description": "Content structure or narrative flow"},
+            ],
+            "quality_criteria": [
+                "Audience-appropriate tone and depth",
+                "Clear key messages",
+                "Draft ready for light editing",
+            ],
         },
     },
 
@@ -525,6 +688,21 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "purpose": "Launch with clear positioning and professional presentation",
             "format": "Presentation-style material with positioning visuals",
         },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "1500-3000",
+                "layout": ["Launch Summary", "Key Messages", "Target Audiences", "Deliverables Checklist", "Timeline", "Draft Content"],
+            },
+            "assets": [
+                {"type": "mermaid", "subtype": "timeline", "min_count": 1, "description": "Launch timeline or rollout plan"},
+            ],
+            "quality_criteria": [
+                "Consistent messaging across all materials",
+                "Clear audience segmentation",
+                "Actionable deliverables checklist",
+            ],
+        },
     },
 
     # ── Data & Tracking ──
@@ -565,6 +743,22 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "audience": "Product, marketing, and strategy teams",
             "purpose": "Track competitive landscape and identify go-to-market opportunities",
             "format": "Dashboard-style tracker with feature matrices and signal cards",
+        },
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "1500-2500",
+                "layout": ["Market Pulse", "Competitive Moves", "Channel Performance", "Opportunities", "Recommendations"],
+            },
+            "assets": [
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Feature matrix or competitive comparison"},
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Channel performance trends"},
+            ],
+            "quality_criteria": [
+                "Signal separated from noise",
+                "Every finding has an implication",
+                "Quantified where possible",
+            ],
         },
     },
 }
@@ -734,5 +928,70 @@ def build_task_md_from_type(
 - Key findings with evidence
 - Visual assets where applicable
 - Sources and references
+"""
+    return md
+
+
+def build_deliverable_md_from_type(
+    type_key: str,
+    audience_override: str | None = None,
+) -> str | None:
+    """Build DELIVERABLE.md content from a task type's default_deliverable spec.
+
+    ADR-149: DELIVERABLE.md is the quality contract — scaffolded from registry,
+    evolves through feedback inference.
+
+    Returns markdown string, or None if type not found or has no deliverable spec.
+    """
+    task_type = TASK_TYPES.get(type_key)
+    if not task_type:
+        return None
+
+    deliverable = task_type.get("default_deliverable")
+    if not deliverable:
+        return None
+
+    objective = task_type.get("default_objective", {})
+    output = deliverable.get("output", {})
+    assets = deliverable.get("assets", [])
+    criteria = deliverable.get("quality_criteria", [])
+
+    # Build Expected Output section
+    layout_str = " → ".join(output.get("layout", []))
+    output_section = (
+        f"## Expected Output\n"
+        f"- Format: {output.get('format', 'html').upper()} document, {output.get('word_count', '1000-2000')} words\n"
+        f"- Layout: {layout_str}\n"
+    )
+
+    # Build Expected Assets section
+    if assets:
+        asset_lines = []
+        for asset in assets:
+            desc = asset.get("description", "")
+            asset_type = asset.get("type", "chart")
+            subtype = asset.get("subtype", "")
+            min_count = asset.get("min_count", 1)
+            asset_lines.append(f"- {subtype.title()} {asset_type}: at least {min_count} — {desc}")
+        assets_section = "## Expected Assets\n" + "\n".join(asset_lines) + "\n"
+    else:
+        assets_section = "## Expected Assets\n- Text-focused deliverable — visual assets optional where data supports\n"
+
+    # Build Quality Criteria section
+    criteria_lines = [f"- {c}" for c in criteria]
+    criteria_section = "## Quality Criteria\n" + "\n".join(criteria_lines) + "\n"
+
+    # Build Audience section
+    audience = audience_override or objective.get("audience", "")
+    audience_section = f"## Audience\n{audience}\n" if audience else ""
+
+    md = f"""# Deliverable Specification
+
+{output_section}
+{assets_section}
+{criteria_section}
+{audience_section}
+## User Preferences (inferred)
+<!-- Populated by feedback inference (ADR-149). Empty at creation. -->
 """
     return md

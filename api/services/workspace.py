@@ -681,8 +681,8 @@ class AgentWorkspace:
                     label = f"Playbook: {topic}"
                 elif base == "feedback":
                     label = "Feedback History"
-                elif base == "self-assessment" or base == "self_assessment":
-                    label = "Self-Assessment"
+                elif base == "reflections" or base == "self-assessment" or base == "self_assessment":
+                    label = "Agent Reflections"
                 else:
                     label = f"Memory: {base.replace('-', ' ').title()}"
                 parts.append(f"## {label}\n{content}")
@@ -1563,7 +1563,7 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
     last_generated_at = await ws.get_state("last_generated_at")
     # ADR-143: Unified feedback file
     feedback = (await ws.read("memory/feedback.md") or "").strip()
-    self_assessment = (await ws.read("memory/self_assessment.md") or "").strip()
+    reflections = (await ws.read("memory/reflections.md") or "").strip()
 
     memory = {}
     if goal:
@@ -1574,8 +1574,8 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
         memory["last_generated_at"] = last_generated_at
     if feedback:
         memory["feedback"] = feedback
-    if self_assessment:
-        memory["self_assessment"] = self_assessment
+    if reflections:
+        memory["reflections"] = reflections
 
     return {
         "agent_instructions": instructions or None,

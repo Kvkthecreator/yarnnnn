@@ -41,9 +41,9 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
   const memory = agent.agent_memory;
   const goal = memory?.goal;
   const feedback = memory?.feedback;
-  const selfAssessment = memory?.self_assessment;
+  const agentReflections = memory?.reflections;
 
-  if (!goal && !feedback && !selfAssessment) {
+  if (!goal && !feedback && !agentReflections) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
@@ -84,13 +84,13 @@ export function MemoryPanel({ agent }: { agent: Agent }) {
           <MarkdownRenderer content={feedback} compact className="text-sm prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0" />
         </div>
       )}
-      {selfAssessment && (
+      {agentReflections && (
         <div className="p-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-md">
           <div className="flex items-center gap-1.5 mb-1.5">
             <Shield className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-            <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Self-Assessment</span>
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-400">Agent Reflections</span>
           </div>
-          <MarkdownRenderer content={selfAssessment} compact className="text-sm prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0" />
+          <MarkdownRenderer content={agentReflections} compact className="text-sm prose-headings:text-xs prose-headings:font-medium prose-headings:mt-2 prose-headings:mb-0.5 prose-ul:my-0.5 prose-li:my-0" />
         </div>
       )}
     </div>

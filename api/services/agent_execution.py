@@ -527,30 +527,32 @@ If the gathered context says "(No context available)" or tools return no results
 
 
 # =============================================================================
-# ADR-128: Contributor Cognitive Model — mandate context + self-assessment
+# ADR-128/149: Agent Reflection — mandate context + self-reflection
+# Terminology (ADR-149): "reflection" = agent self-awareness (agent scope),
+#   "evaluation" = TP task quality judgment (task scope).
 # =============================================================================
 
 async def _build_mandate_context(ws, agent: dict) -> str:
     """
-    Build mandate_context string for contributor prompts (ADR-128 Phase 1).
+    Build mandate_context string for agent prompts (ADR-128 Phase 1).
 
     Reads from workspace:
-    - memory/self_assessment.md (last entry only — prevent self-referential loops)
+    - memory/reflections.md (last entry only — prevent self-referential loops)
 
     Returns empty string if no context available (graceful degradation).
     """
     parts = []
 
-    # Last self-assessment (most recent entry only)
+    # Last self-reflection (most recent entry only)
     try:
-        self_assessment = await ws.read("memory/self_assessment.md")
-        if self_assessment:
+        reflections = await ws.read("memory/reflections.md")
+        if reflections:
             # Extract most recent entry (between first and second ## headers)
-            lines = self_assessment.strip().split("\n")
+            lines = reflections.strip().split("\n")
             entry_lines = []
             found_first = False
             for line in lines:
-                if line.startswith("## ") and not line.startswith("# Self"):
+                if line.startswith("## ") and not line.startswith("# Agent"):
                     if found_first:
                         break  # Stop at second entry
                     found_first = True
@@ -558,7 +560,7 @@ async def _build_mandate_context(ws, agent: dict) -> str:
                 elif found_first:
                     entry_lines.append(line)
             if entry_lines:
-                parts.append(f"YOUR LAST SELF-ASSESSMENT:\n" + "\n".join(entry_lines))
+                parts.append(f"YOUR LAST REFLECTION:\n" + "\n".join(entry_lines))
     except Exception:
         pass
 
@@ -568,12 +570,12 @@ async def _build_mandate_context(ws, agent: dict) -> str:
     return "MANDATE CONTEXT (ADR-128):\n" + "\n\n".join(parts)
 
 
-_ASSESSMENT_BLOCK_RE = re.compile(
-    r"\n---\s*\n*## Contributor Assessment.*",
+_REFLECTION_BLOCK_RE = re.compile(
+    r"\n---\s*\n*## Agent Reflection.*",
     re.DOTALL,
 )
 
-_ASSESSMENT_FIELDS_RE = re.compile(
+_REFLECTION_FIELDS_RE = re.compile(
     r"\*\*Mandate\*\*:\s*(.+?)(?:\n|$)"
     r".*?\*\*Domain Fitness\*\*:\s*(.+?)(?:\n|$)"
     r".*?\*\*Context Currency\*\*:\s*(.+?)(?:\n|$)"
@@ -581,26 +583,43 @@ _ASSESSMENT_FIELDS_RE = re.compile(
     re.DOTALL,
 )
 
+# Legacy regex for old format — handles outputs from before ADR-149 rename
+_LEGACY_ASSESSMENT_BLOCK_RE = re.compile(
+    r"\n---\s*\n*## Contributor Assessment.*",
+    re.DOTALL,
+)
 
-def _extract_contributor_assessment(draft: str) -> tuple[str, Optional[dict]]:
-    """
-    Extract and strip the ## Contributor Assessment block from draft (ADR-128).
 
-    Returns (clean_draft, assessment_dict_or_None).
+def _extract_agent_reflection(draft: str) -> tuple[str, Optional[dict]]:
     """
-    match = _ASSESSMENT_BLOCK_RE.search(draft)
+    Extract and strip the ## Agent Reflection block from draft (ADR-128/149).
+
+    Returns (clean_draft, reflection_dict_or_None).
+    Handles both new "Agent Reflection" and legacy "Contributor Assessment" headers.
+    """
+    match = _REFLECTION_BLOCK_RE.search(draft)
     if not match:
         # Try without the --- separator (some models omit it)
-        alt_match = re.search(r"\n## Contributor Assessment\b.*", draft, re.DOTALL)
-        if not alt_match:
-            return draft, None
-        match = alt_match
+        alt_match = re.search(r"\n## Agent Reflection\b.*", draft, re.DOTALL)
+        if alt_match:
+            match = alt_match
 
-    assessment_text = match.group(0)
+    # Fallback: legacy "Contributor Assessment" header
+    if not match:
+        match = _LEGACY_ASSESSMENT_BLOCK_RE.search(draft)
+    if not match:
+        alt_match = re.search(r"\n## Contributor Assessment\b.*", draft, re.DOTALL)
+        if alt_match:
+            match = alt_match
+
+    if not match:
+        return draft, None
+
+    reflection_text = match.group(0)
     clean_draft = draft[:match.start()].rstrip()
 
     # Parse the 4 fields
-    fields_match = _ASSESSMENT_FIELDS_RE.search(assessment_text)
+    fields_match = _REFLECTION_FIELDS_RE.search(reflection_text)
     if not fields_match:
         return clean_draft, None
 
@@ -611,17 +630,17 @@ def _extract_contributor_assessment(draft: str) -> tuple[str, Optional[dict]]:
         "output_confidence": fields_match.group(4).strip(),
     }
 
-    # Extract criteria eval if present (ADR-138: success criteria self-assessment)
-    criteria_match = re.search(r"\*\*Criteria Met\*\*:\s*(.+?)(?:\n\n|\n---|\Z)", assessment_text, re.DOTALL)
+    # Extract criteria eval if present (ADR-138: success criteria)
+    criteria_match = re.search(r"\*\*Criteria Met\*\*:\s*(.+?)(?:\n\n|\n---|\Z)", reflection_text, re.DOTALL)
     if criteria_match:
         result["criteria_met"] = criteria_match.group(1).strip()
 
     return clean_draft, result
 
 
-async def _append_self_assessment(ws, assessment: dict) -> None:
+async def _append_agent_reflection(ws, reflection: dict) -> None:
     """
-    Append a new self-assessment entry to memory/self_assessment.md (ADR-128).
+    Append a new reflection entry to memory/reflections.md (ADR-128/149).
 
     Rolling history: keeps 5 most recent entries (newest first).
     """
@@ -632,16 +651,16 @@ async def _append_self_assessment(ws, assessment: dict) -> None:
 
     new_entry = (
         f"## Run ({date_str})\n"
-        f"- **Mandate**: {assessment['mandate']}\n"
-        f"- **Domain Fitness**: {assessment['domain_fitness']}\n"
-        f"- **Context Currency**: {assessment['context_currency']}\n"
-        f"- **Output Confidence**: {assessment['output_confidence']}\n"
+        f"- **Mandate**: {reflection['mandate']}\n"
+        f"- **Domain Fitness**: {reflection['domain_fitness']}\n"
+        f"- **Context Currency**: {reflection['context_currency']}\n"
+        f"- **Output Confidence**: {reflection['output_confidence']}\n"
     )
 
-    existing = await ws.read("memory/self_assessment.md") or ""
+    existing = await ws.read("memory/reflections.md") or ""
 
     # Parse existing entries
-    header = "# Self-Assessment History\n<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
+    header = "# Agent Reflection History\n<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
 
     # Split on ## headers (each entry starts with ##)
     entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
@@ -653,9 +672,9 @@ async def _append_self_assessment(ws, assessment: dict) -> None:
     content = header + "\n\n".join(entries) + "\n"
 
     await ws.write(
-        "memory/self_assessment.md",
+        "memory/reflections.md",
         content,
-        summary=f"ADR-128: self-assessment after run ({assessment['output_confidence'][:20]})",
+        summary=f"Agent reflection after run ({reflection['output_confidence'][:20]})",
     )
 
 
@@ -1303,11 +1322,11 @@ async def execute_agent_generation(
             effective_role=effective_role,
         )
 
-        # ADR-128 Phase 1: Extract and strip contributor self-assessment before delivery
-        contributor_assessment = None
-        draft, contributor_assessment = _extract_contributor_assessment(draft)
-        if contributor_assessment:
-            logger.info(f"[EXEC] ADR-128: Extracted self-assessment (confidence: {contributor_assessment.get('output_confidence', '?')})")
+        # ADR-128/149: Extract and strip agent reflection before delivery
+        agent_reflection = None
+        draft, agent_reflection = _extract_agent_reflection(draft)
+        if agent_reflection:
+            logger.info(f"[EXEC] Agent reflection extracted (confidence: {agent_reflection.get('output_confidence', '?')})")
 
         # 4b. ADR-148 Phase 2: Render inline assets (tables→charts, mermaid→SVG)
         try:
@@ -1535,13 +1554,13 @@ async def execute_agent_generation(
                 logger.warning(f"[EXEC] ADR-117: Self-observation failed: {e}")
                 # Non-fatal — don't block delivery
 
-        # ADR-128 Phase 1: Append contributor self-assessment to rolling history
-        if final_status == "delivered" and contributor_assessment:
+        # ADR-128/149: Append agent reflection to rolling history
+        if final_status == "delivered" and agent_reflection:
             try:
-                await _append_self_assessment(ws, contributor_assessment)
-                logger.info(f"[EXEC] ADR-128: Appended self-assessment for {title}")
+                await _append_agent_reflection(ws, agent_reflection)
+                logger.info(f"[EXEC] Agent reflection appended for {title}")
             except Exception as e:
-                logger.warning(f"[EXEC] ADR-128: Self-assessment write failed: {e}")
+                logger.warning(f"[EXEC] Agent reflection write failed: {e}")
                 # Non-fatal
 
         # ADR-116 Phase 4: Auto-generate agent card after successful run

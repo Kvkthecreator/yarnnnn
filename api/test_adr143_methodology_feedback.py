@@ -163,11 +163,11 @@ async def test_playbook_seeding():
             f"{len(playbook_research or '')} chars"
         )
 
-        # Also check self_assessment.md was seeded (existing ADR-128)
-        self_assessment = await ws.read("memory/self_assessment.md")
+        # Also check reflections.md was seeded (ADR-128/149)
+        reflections = await ws.read("memory/reflections.md")
         record(
-            "  self_assessment.md seeded (ADR-128)",
-            self_assessment is not None and "Self-Assessment" in self_assessment,
+            "  reflections.md seeded (ADR-149)",
+            reflections is not None and "Agent Reflection" in reflections,
         )
 
         # Check AGENT.md was seeded
@@ -584,7 +584,7 @@ async def test_observation_redirect():
 # =============================================================================
 
 async def test_full_context_shape():
-    """Verify get_agent_full_context returns feedback/self_assessment, not old fields."""
+    """Verify get_agent_full_context returns feedback/reflections, not old fields."""
     logger.info("Test 8: get_agent_full_context shape")
 
     client = get_service_client()
@@ -612,10 +612,10 @@ async def test_full_context_shape():
 
         memory = context.get("agent_memory") or {}
 
-        # New fields should be present (self_assessment seeded at creation)
+        # New fields should be present (reflections seeded at creation)
         record(
-            "  self_assessment in memory",
-            "self_assessment" in memory,
+            "  reflections in memory",
+            "reflections" in memory,
         )
 
         # Old fields should NOT be present
