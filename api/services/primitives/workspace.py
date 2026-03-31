@@ -53,22 +53,27 @@ Use this to review your prior work before generating new output.""",
 
 WRITE_WORKSPACE_TOOL = {
     "name": "WriteWorkspace",
-    "description": """Write a file to your workspace for future reference.
+    "description": """Write a file to your workspace or to shared context domains.
 
-Use this to persist insights that should survive across runs:
+**Agent workspace** (default scope):
 - Update thesis.md with refined domain understanding
 - Save working/{topic}.md with research notes (ephemeral — auto-cleaned after 24h)
-- Append observations to memory/observations.md
 - Save topic-scoped memory to memory/{topic}.md
 
-Files in working/ are ephemeral scratch — they're auto-cleaned after 24h.
-Everything else persists between runs. What you write now, you can read in future executions.""",
+**Shared context** (scope="context", ADR-151):
+- Write to /workspace/context/{domain}/ — accumulated intelligence shared across all tasks
+- Use during "update-context" steps to persist research findings
+- Example: WriteWorkspace(path="acme-corp/signals.md", content="...", scope="context", domain="competitors")
+- Entity files: {entity-slug}/profile.md, signals.md, product.md, strategy.md
+- Synthesis files: _landscape.md, _overview.md, _portfolio.md
+
+What you write persists between runs and is readable by all tasks that declare this domain in context_reads.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Relative path (e.g., 'thesis.md', 'working/launch-readiness.md')"
+                "description": "Relative path. For scope='agent': e.g., 'thesis.md'. For scope='context': path within the domain folder, e.g., 'acme-corp/signals.md'"
             },
             "content": {
                 "type": "string",
@@ -78,6 +83,15 @@ Everything else persists between runs. What you write now, you can read in futur
                 "type": "string",
                 "enum": ["overwrite", "append"],
                 "description": "Write mode: 'overwrite' replaces the file, 'append' adds to end. Default: overwrite"
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["agent", "context"],
+                "description": "Write scope: 'agent' (default) writes to agent workspace, 'context' writes to /workspace/context/{domain}/"
+            },
+            "domain": {
+                "type": "string",
+                "description": "For scope='context': the context domain to write to (e.g., 'competitors', 'market', 'relationships')"
             }
         },
         "required": ["path", "content"]
@@ -248,26 +262,60 @@ async def handle_read_workspace(auth: Any, input: dict) -> dict:
 
 
 async def handle_write_workspace(auth: Any, input: dict) -> dict:
-    """Handle WriteWorkspace primitive."""
-    from services.workspace import AgentWorkspace, get_agent_slug
-
-    agent = getattr(auth, "agent", None)
-    if not agent:
-        return {"success": False, "error": "no_agent_context", "message": "WriteWorkspace requires agent context"}
-
-    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+    """Handle WriteWorkspace primitive — agent workspace or shared context domains."""
     path = input.get("path", "")
     content = input.get("content", "")
     mode = input.get("mode", "overwrite")
+    scope = input.get("scope", "agent")
+    domain = input.get("domain", "")
 
-    if mode == "append":
-        success = await ws.append(path, content)
+    if scope == "context":
+        # ADR-151: Write to shared context domain /workspace/context/{domain}/
+        if not domain:
+            return {"success": False, "error": "missing_domain", "message": "domain is required for scope='context'"}
+
+        from services.domain_registry import get_domain_folder
+        from services.workspace import UserMemory
+
+        domain_folder = get_domain_folder(domain)
+        if not domain_folder:
+            return {"success": False, "error": "unknown_domain", "message": f"Context domain '{domain}' not found in registry"}
+
+        # Write-scoping: only allow writes to declared context_writes domains
+        # (enforcement is advisory — the task pipeline sets context_writes in auth)
+        full_path = f"{domain_folder}/{path}"
+
+        um = UserMemory(auth.client, auth.user_id)
+        if mode == "append":
+            existing = await um.read(full_path) or ""
+            success = await um.write(full_path, existing + "\n" + content,
+                                     summary=f"Context update: {domain}/{path}")
+        else:
+            success = await um.write(full_path, content,
+                                     summary=f"Context write: {domain}/{path}")
+
+        if success:
+            return {"success": True, "path": f"/workspace/{full_path}", "domain": domain, "scope": "context"}
+        return {"success": False, "error": "write_failed", "message": f"Failed to write: {full_path}"}
+
     else:
-        success = await ws.write(path, content)
+        # Default: write to agent workspace
+        from services.workspace import AgentWorkspace, get_agent_slug
 
-    if success:
-        return {"success": True, "path": path, "mode": mode}
-    return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}
+        agent = getattr(auth, "agent", None)
+        if not agent:
+            return {"success": False, "error": "no_agent_context", "message": "WriteWorkspace requires agent context"}
+
+        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+
+        if mode == "append":
+            success = await ws.append(path, content)
+        else:
+            success = await ws.write(path, content)
+
+        if success:
+            return {"success": True, "path": path, "mode": mode, "scope": "agent"}
+        return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}
 
 
 async def handle_search_workspace(auth: Any, input: dict) -> dict:

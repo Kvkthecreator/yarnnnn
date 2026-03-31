@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.7] - ADR-151 Phase 3: WriteWorkspace gains scope=context for shared domains
+
+### Changed
+- `services/primitives/workspace.py`: WriteWorkspace gains `scope` and `domain` parameters. `scope="context"` + `domain="competitors"` writes to `/workspace/context/competitors/{path}`. Uses UserMemory for workspace-scoped writes. `scope="agent"` (default) preserves existing behavior.
+- Tool description updated with shared context examples (entity files, synthesis files).
+- Expected behavior: Agents in "update-context" process steps can now write research findings to shared context domains. WriteWorkspace(path="acme-corp/signals.md", content="...", scope="context", domain="competitors") → persists in /workspace/context/competitors/acme-corp/signals.md.
+
+---
+
 ## [2026.03.31.6] - ADR-149 Phase 4: UpdateContext feedback_target=deliverable
 
 ### Changed
