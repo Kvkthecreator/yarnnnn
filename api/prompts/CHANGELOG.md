@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.3] - ADR-151 Phase 1: Shared context domains + domain registry
+
+### Changed
+- NEW `services/domain_registry.py`: `CONTEXT_DOMAINS` registry with 6 domains (competitors, market, relationships, projects, content, signals). Entity templates, synthesis files, co-located assets. Helpers: `get_domain()`, `get_entity_template()`, `get_synthesis_content()`.
+- `services/task_types.py`: Replaced `knowledge_schema` with `context_reads` + `context_writes` on all 13 task types. Process step names: `update-knowledge` → `update-context`. Instructions reference `/workspace/context/{domain}/`.
+- `services/primitives/task.py`: `handle_create_task()` scaffolds workspace context domain folders (synthesis files from registry templates) when task's `context_writes` domains don't exist yet.
+- Expected behavior: Task creation auto-scaffolds workspace context domains. Tasks declare which domains they read/write. Accumulated context is workspace-scoped and shared across all tasks.
+
+### Terminology
+- "knowledge" → "context" for the accumulated domain folder and fields (`context_reads`, `context_writes`, `/workspace/context/`)
+- Aligns with existing `UpdateContext` primitive, `context_inference`, `context_readiness`
+
+---
+
 ## [2026.03.31.2] - ADR-149 Phase 2: Pipeline reads DELIVERABLE.md + mode-aware output
 
 ### Changed

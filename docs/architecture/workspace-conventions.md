@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v6 — ADR-149 quality contract + task memory)
+**Status:** Canonical (v7 — ADR-151 accumulated context domains)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -8,6 +8,7 @@
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md) — agents own tasks directly
 - [ADR-142: Unified Filesystem Architecture](../adr/ADR-142-unified-filesystem-architecture.md) — four roots, document pipeline, /knowledge/ dissolved
 - ADR-149 — DELIVERABLE.md quality contract, task memory files, agent reflections
+- ADR-151 — /workspace/context/ accumulated context domains, domain registry
 - [Naming Conventions](naming-conventions.md) — broader naming system
 - [Agent Execution Model](agent-execution-model.md) — how agents interact with workspace
 
@@ -21,7 +22,7 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 
 | Root | Scope | Owner | Purpose |
 |------|-------|-------|---------|
-| `/workspace/` | User-level | User + TP | Identity, preferences, curated documents (PERMANENT) |
+| `/workspace/` | User-level | User + TP | Identity, preferences, curated documents, accumulated context domains (PERMANENT) |
 | `/platforms/` | Cross-agent | Platform sync | Distilled platform content (OWN LIFECYCLE) |
 | `/agents/{slug}/` | Per-agent | Agent + system | WHO — persistent domain identity + memory |
 | `/tasks/{slug}/` | Per-task | Agent + system | WHAT — work definition + quality contract + outputs + run memory |
@@ -30,9 +31,9 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 
 ---
 
-## `/workspace/` — User Context + Curated Documents
+## `/workspace/` — User Context + Curated Documents + Accumulated Context
 
-Everything the workspace "knows" — user identity, learned preferences, and reference material the user explicitly shared.
+Everything the workspace "knows" — user identity, learned preferences, reference material the user explicitly shared, and accumulated context domains built up by agents over time.
 
 ```
 /workspace/
@@ -41,9 +42,21 @@ Everything the workspace "knows" — user identity, learned preferences, and ref
 ├── CONTEXT.md                     # Inferred context (from documents + onboarding)
 ├── preferences.md                 # Learned preferences (from user edit feedback)
 ├── notes.md                       # TP-extracted standing instructions (nightly cron)
-└── documents/                     # User-uploaded reference material
-    ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
-    └── product-roadmap.md         # Extracted text from uploaded DOCX
+├── documents/                     # User-uploaded reference material
+│   ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
+│   └── product-roadmap.md         # Extracted text from uploaded DOCX
+└── context/                       # Accumulated context domains (ADR-151)
+    ├── competitors/               # Per-competitor entity folders
+    │   ├── _landscape.md          # Cross-entity synthesis
+    │   └── {company-slug}/
+    │       ├── profile.md, signals.md, product.md, strategy.md
+    │       └── assets/
+    ├── market/
+    ├── relationships/
+    ├── projects/
+    ├── content/
+    ├── signals/                   # Cross-domain temporal signal log
+    └── assets/                    # Cross-domain shared assets
 ```
 
 ### Uploaded Documents (`/workspace/documents/`)
@@ -57,6 +70,18 @@ When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:
 **TP always knows** about uploaded documents — they're listed in working memory with filenames and upload dates. TP can read them via `Read(ref="workspace:documents/{name}.md")`.
 
 **Distinction from chat uploads:** Pasting/dropping files directly in the chat input creates ephemeral session attachments (inline images, temporary text extraction). These never persist to `/workspace/`. "Upload file" via the plus menu = permanent shared document. Paste in chat = ephemeral session context.
+
+### Accumulated Context Domains (`/workspace/context/`) — ADR-151
+
+Workspace-scoped accumulated context that agents build up over time. Unlike task outputs (which live in `/tasks/{slug}/outputs/`), context domains are **shared across all tasks and agents** — any agent can read from them, and agents write to them as they discover and synthesize information.
+
+A **domain registry** governs the structure. Each domain (competitors, market, relationships, etc.) has its own folder with domain-specific conventions for entity subfolders, synthesis files, and assets. Cross-entity synthesis files use the `_landscape.md` naming convention (underscore prefix = synthesized, not entity-specific).
+
+**Key properties:**
+- **Workspace-scoped, not task-scoped** — accumulated context benefits all agents, not just one task
+- **Domain registry governs structure** — new domains added to the registry, not ad-hoc folders
+- **Entity folders within domains** — e.g., `/workspace/context/competitors/{company-slug}/` with standardized files (profile.md, signals.md, etc.)
+- **Cross-domain files** — `signals/` for temporal signal logs, `assets/` for shared binary/visual assets
 
 ---
 
@@ -133,6 +158,8 @@ Each task's work definition, quality contract, execution history, and output art
 │       └── manifest.json
 └── working/                       # Ephemeral scratch (24h TTL)
 ```
+
+Tasks do NOT have `context/` or `knowledge/` folders — accumulated context lives at `/workspace/context/` (ADR-151). Tasks are thin work units: charter, quality contract, memory, outputs, scratch.
 
 ### Mode-Dependent `outputs/` Semantics
 
@@ -228,6 +255,7 @@ Task outputs use `manifest.json` for metadata:
 4. **Capitalize identity files** (`AGENT.md`, `TASK.md`, `DELIVERABLE.md`, `IDENTITY.md`).
 5. **Date-stamp temporal content** (`2026-03-25.md` for daily, `2026-03-25T1500` for output folders).
 6. **Prefer folders as boundaries.** New coordination needs → new subfolder, not new table.
+7. **Accumulated context goes in `/workspace/context/`.** New context domains must be added to the domain registry (ADR-151). Don't create ad-hoc context folders under `/tasks/` or `/agents/`.
 
 ---
 
@@ -239,6 +267,7 @@ Task outputs use `manifest.json` for metadata:
 - [ADR-142: Unified Filesystem Architecture](../adr/ADR-142-unified-filesystem-architecture.md)
 - [ADR-128: Multi-Agent Coherence Protocol](../adr/ADR-128-multi-agent-coherence-protocol.md)
 - ADR-149 — DELIVERABLE.md, task memory files (feedback.md, steering.md), agent reflections
+- ADR-151 — /workspace/context/ accumulated context domains, domain registry
 
 ---
 
@@ -252,3 +281,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-25 | v4 | ADR-142: unified filesystem. Four roots (/workspace/, /platforms/, /agents/, /tasks/). /knowledge/ dissolved into /platforms/ + /tasks/. /memory/ merged into /workspace/. /user_shared/ dissolved into session-scoped uploads. Document upload pipeline to /workspace/documents/. Three file-sharing contexts (shared docs, chat uploads, platform syncs). |
 | 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |
 | 2026-03-31 | v6 | ADR-149: DELIVERABLE.md quality contract added to /tasks/{slug}/. Task memory expanded: feedback.md (user corrections + TP evaluations), steering.md (TP management notes). outputs/ restructured with latest/ + {date}/ folders and mode-dependent semantics. Agent self_assessment.md renamed to reflections.md. |
+| 2026-03-31 | v7 | ADR-151: /workspace/context/ replaces /workspace/knowledge/. Accumulated context is workspace-scoped, shared across tasks. Domain registry governs structure. Task knowledge/ folder removed. |

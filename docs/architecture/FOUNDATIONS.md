@@ -62,9 +62,11 @@ Perception is not just external platform data. The perception substrate is **eve
 
 2. **User-contributed perception** — uploaded documents in `/workspace/documents/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). TP always knows these exist.
 
-3. **Internal perception** — agent outputs in `/tasks/{slug}/outputs/`. Task outputs ARE the accumulated knowledge — each run's output feeds the next run's context. No separate knowledge layer.
+3. **Internal perception** — accumulated workspace context at `/workspace/context/` (primary intelligence substrate — structured by the context domain registry, ADR-151) + task outputs in `/tasks/{slug}/outputs/` (derived deliverables). Each run's output feeds the next run's context; context domains accumulate cross-task intelligence that any agent can draw from.
 
 4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's observations (`/workspace/notes.md`, `/workspace/preferences.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+
+**Context domains** (ADR-151) are the structural implementation of this recursive perception loop. Each domain (competitors, market, relationships, etc.) is a named accumulation target in `/workspace/context/` where agents deposit and refine intelligence across execution cycles. The domain registry determines what gets accumulated; the recursive property ensures it compounds.
 
 ### Three Intelligence Substrates (ADR-128 Corollary)
 

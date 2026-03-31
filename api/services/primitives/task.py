@@ -401,6 +401,43 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                       "# Steering Notes\n<!-- TP management notes for next cycle. Overwritten per evaluation. ADR-149. -->\n",
                       summary="ADR-149: task steering file", tags=["memory"])
 
+        # ADR-151: Scaffold workspace context domains for this task's context_writes
+        if type_key:
+            try:
+                from services.task_types import get_task_type
+                from services.domain_registry import get_domain, get_domain_folder, get_synthesis_content
+                from services.workspace import UserMemory
+
+                task_type_def = get_task_type(type_key)
+                context_writes = (task_type_def or {}).get("context_writes", [])
+
+                if context_writes:
+                    um = UserMemory(auth.client, user_id)
+                    for domain_key in context_writes:
+                        domain = get_domain(domain_key)
+                        if not domain:
+                            continue
+                        folder = get_domain_folder(domain_key)
+                        if not folder:
+                            continue
+
+                        # Check if domain synthesis file already exists (domain already scaffolded)
+                        synthesis = get_synthesis_content(domain_key)
+                        if synthesis:
+                            synthesis_file, synthesis_template = synthesis
+                            existing = await um.read(f"{folder}/{synthesis_file}")
+                            if not existing:
+                                await um.write(
+                                    f"{folder}/{synthesis_file}",
+                                    synthesis_template,
+                                    summary=f"ADR-151: scaffold {domain_key} domain",
+                                    tags=["context", domain_key],
+                                    metadata={"domain": domain_key, "type": "synthesis"},
+                                )
+                                logger.info(f"[CREATE_TASK] Scaffolded context domain: {domain_key}")
+            except Exception as e:
+                logger.warning(f"[CREATE_TASK] Context domain scaffold failed (non-fatal): {e}")
+
     except Exception as e:
         logger.warning(f"[CREATE_TASK] TASK.md write failed (non-fatal): {e}")
 

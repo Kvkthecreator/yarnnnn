@@ -22,6 +22,7 @@ Three entities, one workspace:
 ```
 WORKSPACE (per user)
 ├── /workspace/           User context: identity, brand, documents
+│   └── /workspace/context/  Accumulated context domains (competitors, market, relationships, etc.)
 ├── /platforms/           Distilled Slack/Notion content
 ├── /agents/{slug}/       Agent identity + memory + outputs
 └── /tasks/{slug}/        Task definition + outputs + run log
@@ -64,7 +65,7 @@ Mode is a property of the task, not the agent. A Research Agent can simultaneous
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
+Virtual filesystem over Postgres (`workspace_files` table). Four content areas: identity, brand, accumulated context domains (`/workspace/context/` — competitors, market, relationships, etc. per ADR-151), and documents. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
 
 ---
 

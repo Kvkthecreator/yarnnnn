@@ -52,16 +52,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/competitors/. These contain accumulated "
                     "competitive intelligence from prior cycles. Research new signals via web search "
                     "and platform context — cover minimum 3 competitors. For each: recent moves "
                     "(product, pricing, hiring, funding), strategic positioning, threat/opportunity. "
                     "Prefer sources <90 days old. Cross-reference — single-source claims are signals, not findings.\n\n"
                     "UPDATE the per-competitor files with new findings — add dated entries to Recent Signals, "
                     "update Strategic Assessment if your view has changed. Create new competitor files for "
-                    "newly discovered competitors. Update knowledge/landscape.md with cross-competitor "
+                    "newly discovered competitors. Update /workspace/context/competitors/landscape.md with cross-competitor "
                     "pattern changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
@@ -70,8 +70,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/competitors/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent competitor profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -105,26 +105,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Forward-looking implications not just historical reporting",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "competitor",
-            "entity_folder": "competitors",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Overview\n<!-- Company description, market position -->\n\n"
-                "## Recent Signals\n<!-- Dated findings, newest first -->\n\n"
-                "## Product & Pricing\n<!-- Current offering, pricing model, recent changes -->\n\n"
-                "## Strategic Assessment\n<!-- Threat level, opportunities, positioning -->\n\n"
-                "## Sources\n<!-- All sources cited, with dates -->\n"
-            ),
-            "synthesis_file": "landscape.md",
-            "synthesis_template": (
-                "# Competitive Landscape\n\n"
-                "## Market Map\n<!-- How competitors position relative to each other -->\n\n"
-                "## Key Trends\n<!-- Cross-competitor patterns -->\n\n"
-                "## Our Position\n<!-- Where we sit relative to competitors -->\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["competitors"],
+        "context_writes": ["competitors", "signals"],
     },
 
     "market-research-report": {
@@ -138,16 +120,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/market/. These contain accumulated "
                     "market intelligence from prior cycles. Research new data via web search and "
                     "platform context — cover market size/growth, key players (top 5-10), technology "
                     "trends, regulatory environment, demand drivers. Quantify (%, $, growth rates). "
                     "Primary sources (reports, filings) > secondary (articles). Data <12 months preferred.\n\n"
                     "UPDATE the per-segment files with new findings — add dated entries, update "
                     "assessments if data has shifted. Create new segment files for newly identified "
-                    "segments. Update knowledge/market-overview.md with cross-segment pattern changes.\n\n"
+                    "segments. Update /workspace/context/market/market-overview.md with cross-segment pattern changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
@@ -155,8 +137,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/market/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent market segment profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -190,26 +172,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Clear opportunity identification",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "market_segment",
-            "entity_folder": "segments",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Market Size & Growth\n<!-- TAM, growth rate, trends -->\n\n"
-                "## Key Players\n<!-- Major companies, market share -->\n\n"
-                "## Technology Trends\n<!-- Emerging tech, adoption curves -->\n\n"
-                "## Opportunities & Threats\n<!-- For our positioning -->\n\n"
-                "## Sources\n"
-            ),
-            "synthesis_file": "market-overview.md",
-            "synthesis_template": (
-                "# Market Overview\n\n"
-                "## Landscape Summary\n\n"
-                "## Cross-Segment Patterns\n\n"
-                "## Strategic Implications\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["market"],
+        "context_writes": ["market", "signals"],
     },
 
     "industry-signal-monitor": {
@@ -225,13 +189,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "marketing",
                 "step": "capture-and-report",
                 "instruction": (
-                    "Read existing knowledge files in knowledge/ (patterns, signal history). "
+                    "Read existing context files in /workspace/context/signals/ (patterns, signal history). "
                     "Gather new signals from web search and platform context. "
                     "Signal types (priority): pricing changes > product launches > funding rounds > "
                     "leadership changes > hiring patterns > partnerships. "
                     "For each signal: who, what, when, 1-sentence 'so what'. Drop noise.\n\n"
-                    "Log new signals to knowledge/signals/. "
-                    "Update knowledge/patterns.md if new cross-signal patterns emerge.\n\n"
+                    "Log new signals to /workspace/context/signals/. "
+                    "Update /workspace/context/signals/patterns.md if new cross-signal patterns emerge.\n\n"
                     "Produce the deliverable emphasizing what's new since last cycle. "
                     "Deep-dive top 2-3 signals: validate with second source, "
                     "assess strategic impact (high/medium/low with reasoning), "
@@ -261,17 +225,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Pattern identification across multiple signals",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "signal_source",
-            "entity_folder": None,
-            "synthesis_file": "patterns.md",
-            "synthesis_template": (
-                "# Emerging Patterns\n\n"
-                "## Active Patterns\n<!-- Patterns observed across multiple signals -->\n\n"
-                "## Watch List\n<!-- Signals to track in future cycles -->\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["signals"],
+        "context_writes": ["signals"],
     },
 
     "due-diligence-summary": {
@@ -285,10 +240,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
-                    "diligence findings from prior investigation. Research new data via web search — "
+                    "Read the existing context files in /workspace/context/competitors/ and /workspace/context/market/. "
+                    "These contain accumulated diligence findings from prior investigation. Research new data via web search — "
                     "filings, press, LinkedIn, Crunchbase. Investigate across 6 dimensions: "
                     "(1) Organization — leadership, team, key hires/departures; "
                     "(2) Financials — revenue, funding, burn; (3) Market position — share, growth, competition; "
@@ -296,7 +251,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                     "(6) Risks — regulatory, competitive, execution, timing.\n\n"
                     "UPDATE the per-area files with new findings — add dated entries, update risk "
                     "assessments if evidence has changed. Create new area files for newly identified "
-                    "diligence areas. Update knowledge/assessment.md with overall risk profile changes.\n\n"
+                    "diligence areas. Update /workspace/context/competitors/assessment.md with overall risk profile changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
@@ -304,8 +259,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/competitors/ and /workspace/context/market/. "
+                    "Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent diligence area files where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -337,25 +293,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Clear recommendation with supporting evidence",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "diligence_area",
-            "entity_folder": "areas",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Findings\n<!-- Key facts and data points -->\n\n"
-                "## Risk Factors\n<!-- Identified risks with severity -->\n\n"
-                "## Open Questions\n<!-- Unresolved items needing further investigation -->\n\n"
-                "## Sources\n"
-            ),
-            "synthesis_file": "assessment.md",
-            "synthesis_template": (
-                "# Due Diligence Assessment\n\n"
-                "## Overall Risk Profile\n\n"
-                "## Key Findings Summary\n\n"
-                "## Recommendation\n"
-            ),
-            "signal_log": False,
-        },
+        "context_reads": ["competitors", "market"],
+        "context_writes": ["competitors", "signals"],
     },
 
     # ── Business Operations ──
@@ -371,9 +310,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "crm",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/relationships/. These contain accumulated "
                     "contact intelligence from prior interactions. Review interaction history with "
                     "this contact/company across connected platforms.\n\n"
                     "UPDATE the contact file with new findings — add dated entries to Past Interactions, "
@@ -387,7 +326,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "research",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Research the attendee and their company: "
+                    "Read ALL context files in /workspace/context/relationships/ and /workspace/context/competitors/. "
+                    "Research the attendee and their company: "
                     "last 30 days of news, product announcements, leadership changes, funding, earnings. "
                     "Produce the deliverable as specified in DELIVERABLE.md — combine accumulated "
                     "relationship context with fresh external research.\n\n"
@@ -419,19 +359,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Scannable in under 2 minutes",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "contact",
-            "entity_folder": "contacts",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Relationship Context\n<!-- How we know them, history -->\n\n"
-                "## Past Interactions\n<!-- Key meetings, outcomes, dated -->\n\n"
-                "## Open Items\n<!-- Pending action items, commitments -->\n\n"
-                "## Notes\n<!-- Preferences, sensitivities, talking points that worked -->\n"
-            ),
-            "synthesis_file": None,
-            "signal_log": False,
-        },
+        "context_reads": ["relationships", "competitors"],
+        "context_writes": ["relationships", "signals"],
     },
 
     "stakeholder-update": {
@@ -445,15 +374,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/competitors/, /workspace/context/market/, "
+                    "/workspace/context/projects/, and /workspace/context/relationships/. These contain accumulated "
                     "workstream intelligence from prior cycles. Gather new data from platforms and "
                     "workspace — pull metrics, achievements, challenges, forward look.\n\n"
                     "UPDATE the per-workstream files with new findings — add dated entries to "
                     "Key Milestones, update Current Status, note new Challenges with owners and "
                     "mitigations. Create new workstream files for newly identified workstreams. "
-                    "Update knowledge/executive-summary.md with cross-workstream status changes. "
+                    "Update /workspace/context/projects/executive-summary.md with cross-workstream status changes. "
                     "Quantify everything — 'Revenue grew 23%' not 'revenue grew significantly'.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
@@ -462,8 +392,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/competitors/, /workspace/context/market/, "
+                    "/workspace/context/projects/, and /workspace/context/relationships/. "
+                    "Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent workstream profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -497,26 +429,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Forward-looking strategic priorities",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "workstream",
-            "entity_folder": "workstreams",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Current Status\n<!-- Progress, health indicator -->\n\n"
-                "## Key Milestones\n<!-- Achieved and upcoming, dated -->\n\n"
-                "## Challenges\n<!-- Active blockers and mitigations -->\n\n"
-                "## Metrics\n<!-- Quantified progress data -->\n"
-            ),
-            "synthesis_file": "executive-summary.md",
-            "synthesis_template": (
-                "# Executive Summary\n\n"
-                "## Overall Status\n\n"
-                "## Key Milestones This Period\n\n"
-                "## Challenges & Mitigations\n\n"
-                "## Forward Look\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["competitors", "market", "projects", "relationships"],
+        "context_writes": ["projects", "signals"],
     },
 
     "relationship-health-digest": {
@@ -530,16 +444,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "crm",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/relationships/. These contain accumulated "
                     "relationship intelligence from prior cycles. Review platform context (especially Slack) "
                     "for the past 7 days — interaction patterns, message frequency, response times, "
                     "thread depth, commitments made.\n\n"
                     "UPDATE the per-relationship files with new findings — add dated entries to "
                     "Engagement History, update Health Indicators with current trends, note new "
                     "Action Items and Risk Flags. Create new relationship files for newly identified "
-                    "contacts. Update knowledge/portfolio.md with at-risk relationships and pattern changes.\n\n"
+                    "contacts. Update /workspace/context/relationships/portfolio.md with at-risk relationships and pattern changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
@@ -547,8 +461,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/relationships/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent relationship profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -580,25 +494,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Personalized per relationship",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "relationship",
-            "entity_folder": "relationships",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Engagement History\n<!-- Interaction frequency, recent touchpoints -->\n\n"
-                "## Health Indicators\n<!-- Response times, sentiment, engagement trend -->\n\n"
-                "## Action Items\n<!-- Follow-ups due, commitments made -->\n\n"
-                "## Risk Flags\n<!-- Declining engagement, competitor mentions -->\n"
-            ),
-            "synthesis_file": "portfolio.md",
-            "synthesis_template": (
-                "# Relationship Portfolio\n\n"
-                "## Health Overview\n\n"
-                "## At-Risk Relationships\n\n"
-                "## Follow-Up Priorities\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["relationships"],
+        "context_writes": ["relationships", "signals"],
     },
 
     "project-status-report": {
@@ -612,15 +509,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/projects/. These contain accumulated "
                     "workstream status from prior cycles. Gather new data from platforms (especially "
                     "Slack) and workspace — progress updates, blockers, decisions, action items.\n\n"
                     "UPDATE the per-workstream files with new findings — add dated entries to "
                     "Progress, update Status and Blockers with current state, note new Next Steps. "
                     "Create new workstream files for newly identified workstreams. "
-                    "Update knowledge/project-health.md with overall status changes and blocker summary.\n\n"
+                    "Update /workspace/context/projects/project-health.md with overall status changes and blocker summary.\n\n"
                     "Group by project/workstream when identifiable. Skip routine standups and bot noise.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
@@ -629,8 +526,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/projects/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent workstream profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -661,25 +558,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Actionable next steps",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "workstream",
-            "entity_folder": "workstreams",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Status\n<!-- Current state, health -->\n\n"
-                "## Progress\n<!-- What happened this cycle -->\n\n"
-                "## Blockers\n<!-- Active blockers with owners -->\n\n"
-                "## Next Steps\n<!-- Upcoming work, priorities -->\n"
-            ),
-            "synthesis_file": "project-health.md",
-            "synthesis_template": (
-                "# Project Health\n\n"
-                "## Overall Status\n\n"
-                "## Blockers Summary\n\n"
-                "## Resource Needs\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["projects"],
+        "context_writes": ["projects", "signals"],
     },
 
     # ── Platform Digests ──
@@ -697,10 +577,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "slack_bot",
                 "step": "capture-and-report",
                 "instruction": (
-                    "Read existing knowledge files in knowledge/ (patterns, signal history). "
+                    "Read existing context files in /workspace/context/signals/ (patterns, signal history). "
                     "Gather new signals from Slack activity since the last run. "
-                    "Log new signals to knowledge/signals/.\n\n"
-                    "Update knowledge/patterns.md if new recurring discussion themes or "
+                    "Log new signals to /workspace/context/signals/.\n\n"
+                    "Update /workspace/context/signals/patterns.md if new recurring discussion themes or "
                     "key-people patterns emerge.\n\n"
                     "Produce the deliverable emphasizing what's new since last cycle. "
                     "Four sections, in this order: "
@@ -736,17 +616,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Skip bot messages and routine posts",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "channel",
-            "entity_folder": None,
-            "synthesis_file": "patterns.md",
-            "synthesis_template": (
-                "# Recurring Patterns\n\n"
-                "## Standing Topics\n<!-- Recurring discussion themes -->\n\n"
-                "## Key People\n<!-- Who drives which discussions -->\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["signals"],
+        "context_writes": ["signals"],
     },
 
     "notion-sync-report": {
@@ -762,10 +633,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "notion_bot",
                 "step": "capture-and-report",
                 "instruction": (
-                    "Read existing knowledge files in knowledge/ (content map, signal history). "
+                    "Read existing context files in /workspace/context/signals/ (content map, signal history). "
                     "Gather new signals from Notion platform context for the past 7 days. "
-                    "Log new signals to knowledge/signals/.\n\n"
-                    "Update knowledge/content-map.md if active areas or stale content patterns "
+                    "Log new signals to /workspace/context/signals/.\n\n"
+                    "Update /workspace/context/signals/content-map.md if active areas or stale content patterns "
                     "have changed.\n\n"
                     "Produce the deliverable emphasizing what's new since last cycle. "
                     "Three sections: (1) Changes — pages created or meaningfully updated "
@@ -798,17 +669,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Stale content flagged",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "page",
-            "entity_folder": None,
-            "synthesis_file": "content-map.md",
-            "synthesis_template": (
-                "# Content Map\n\n"
-                "## Active Areas\n<!-- Pages with frequent updates -->\n\n"
-                "## Stale Content\n<!-- Pages not updated recently -->\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["signals"],
+        "context_writes": ["signals"],
     },
 
     # ── Content & Communications ──
@@ -824,16 +686,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/content/. These contain accumulated "
                     "topic research from prior cycles. Research new data via web search — "
                     "what's already published (gaps in coverage), data points with sources, "
                     "expert perspectives, contrarian takes, competitive landscape of content on this topic.\n\n"
                     "UPDATE the per-topic files with new findings — add dated entries to Key Points, "
                     "update Sources with newly found research, note Audience Considerations. "
                     "Create new topic files for newly identified research areas. "
-                    "Update knowledge/brief-outline.md with key message and structure changes.\n\n"
+                    "Update /workspace/context/content/brief-outline.md with key message and structure changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
@@ -841,8 +703,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/content/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. Reference persistent topic research where it exists.\n\n"
                     "Write in the user's brand voice (see Brand context). "
                     "Compelling hook (not 'In today's fast-paced world'), thesis statement, "
@@ -875,24 +737,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Draft ready for light editing",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "topic",
-            "entity_folder": "research",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Key Points\n<!-- Main arguments and evidence -->\n\n"
-                "## Sources\n<!-- Research findings -->\n\n"
-                "## Audience Considerations\n<!-- What resonates with target audience -->\n"
-            ),
-            "synthesis_file": "brief-outline.md",
-            "synthesis_template": (
-                "# Brief Outline\n\n"
-                "## Key Messages\n\n"
-                "## Structure\n\n"
-                "## Tone & Approach\n"
-            ),
-            "signal_log": False,
-        },
+        "context_reads": ["content"],
+        "context_writes": ["content"],
     },
 
     "launch-material": {
@@ -906,15 +752,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/content/, /workspace/context/competitors/, "
+                    "and /workspace/context/market/. These contain accumulated "
                     "audience and competitive positioning research. Research new data via web search "
                     "and platform context — competitive landscape, audience profiles, market context, "
                     "feature matrices, positioning opportunities.\n\n"
                     "UPDATE the per-audience files with new findings — add dated entries to "
                     "Key Messages, update Profile and Channels. Create new audience files for "
-                    "newly identified segments. Update knowledge/launch-plan.md with core narrative "
+                    "newly identified segments. Update /workspace/context/content/launch-plan.md with core narrative "
                     "and timeline changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
@@ -923,8 +770,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/content/, /workspace/context/competitors/, "
+                    "and /workspace/context/market/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. Reference persistent audience profiles where they exist.\n\n"
                     "OUTPUT as slides (use ## for each slide title). "
                     "1 idea per slide, 3 bullets max. Slide titles are assertions "
@@ -955,24 +803,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Actionable deliverables checklist",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "audience",
-            "entity_folder": "audiences",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Profile\n<!-- Who they are, what they care about -->\n\n"
-                "## Key Messages\n<!-- Tailored messaging for this audience -->\n\n"
-                "## Channels\n<!-- How to reach them -->\n"
-            ),
-            "synthesis_file": "launch-plan.md",
-            "synthesis_template": (
-                "# Launch Plan\n\n"
-                "## Core Narrative\n\n"
-                "## Timeline\n\n"
-                "## Deliverables Checklist\n"
-            ),
-            "signal_log": False,
-        },
+        "context_reads": ["content", "competitors", "market"],
+        "context_writes": ["content"],
     },
 
     # ── Data & Tracking ──
@@ -988,15 +820,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "update-knowledge",
+                "step": "update-context",
                 "instruction": (
-                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "Read the existing context files in /workspace/context/competitors/ and /workspace/context/market/. "
+                    "These contain accumulated "
                     "GTM intelligence from prior cycles. Research new signals via web search and "
                     "platform context — feature launches, pricing changes, campaigns, hiring patterns.\n\n"
                     "UPDATE the per-competitor files with new findings — add dated entries to "
                     "Recent Moves, update Feature Matrix with newly shipped features, note "
                     "Positioning changes. Create new competitor files for newly discovered competitors. "
-                    "Update knowledge/gtm-landscape.md with market pulse and positioning map changes.\n\n"
+                    "Update /workspace/context/competitors/gtm-landscape.md with market pulse and positioning map changes.\n\n"
                     "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
@@ -1004,8 +837,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": (
-                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
-                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "Read ALL context files in /workspace/context/competitors/ and /workspace/context/market/. "
+                    "Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
                     "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
                     "Reference persistent competitor profiles where they exist.\n\n"
                     "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
@@ -1038,24 +872,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Quantified where possible",
             ],
         },
-        "knowledge_schema": {
-            "entity_type": "competitor",
-            "entity_folder": "competitors",
-            "entity_template": (
-                "# {entity_name}\n\n"
-                "## Feature Matrix\n<!-- Feature comparison vs us -->\n\n"
-                "## Recent Moves\n<!-- Product launches, pricing changes, campaigns -->\n\n"
-                "## Positioning\n<!-- How they position vs us -->\n"
-            ),
-            "synthesis_file": "gtm-landscape.md",
-            "synthesis_template": (
-                "# GTM Landscape\n\n"
-                "## Market Pulse\n\n"
-                "## Competitive Positioning Map\n\n"
-                "## Channel Performance Trends\n"
-            ),
-            "signal_log": True,
-        },
+        "context_reads": ["competitors", "market"],
+        "context_writes": ["competitors", "signals"],
     },
 }
 
