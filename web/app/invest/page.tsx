@@ -9,14 +9,16 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Invest — Pre-Seed",
   description:
-    "yarnnn is raising $500K pre-seed to build the application layer for work context: a pre-built AI workforce with persistent agents, accumulated context, and compounding work products.",
+    "yarnnn is raising $500K pre-seed to build AI employees — persistent agents that run autonomously, accumulate domain expertise, and deliver compounding work products. Not tools. Employees.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
     "pre-seed",
     "ai startup fundraise",
+    "ai employees",
     "autonomous ai investment",
-    "work context ai",
+    "ai workforce platform",
+    "ai agent startup",
   ],
 });
 
@@ -46,17 +48,22 @@ export default function InvestPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              The application layer
+              AI employees,
               <br />
-              <span className="text-white/50">for work context.</span>
+              <span className="text-white/50">not AI tools.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Every platform cycle produces an application layer the platform provider
-                doesn&apos;t own. LLMs are no different. yarnnn is building that layer for work —
-                an autonomous AI platform that gives every user a pre-built workforce of
-                specialist agents, connects to their tools, accumulates context over time,
-                and turns supervision into the default operating model.
+                The AI agent industry is bifurcating. One side builds tools &mdash;
+                session-scoped, user-present, interactive. The other side builds employees &mdash;
+                persistent, autonomous, accumulating. Tools reset when you close the tab.
+                Employees show up every day, do the work, and get better with tenure.
+              </p>
+              <p>
+                yarnnn builds AI employees. A pre-built workforce of specialist agents
+                that runs your recurring knowledge work on schedule, learns from your
+                feedback, and compounds quality with every cycle &mdash; whether you open the
+                app or not.
               </p>
               <p className="text-white font-medium">
                 We&apos;re raising $500K pre-seed at $5M post-money.
@@ -87,7 +94,7 @@ export default function InvestPage() {
                 {/* Smaller stats */}
                 <SpotlightCard variant="dark" className="md:col-span-2">
                   <div className="p-5">
-                    <p className="text-2xl font-medium mb-1">$9–19</p>
+                    <p className="text-2xl font-medium mb-1">$9&ndash;19</p>
                     <p className="text-white/40 text-xs">Per month pricing</p>
                   </div>
                 </SpotlightCard>
@@ -99,7 +106,7 @@ export default function InvestPage() {
                 </SpotlightCard>
                 <SpotlightCard variant="dark" className="md:col-span-2">
                   <div className="p-5">
-                    <p className="text-2xl font-medium mb-1">145+</p>
+                    <p className="text-2xl font-medium mb-1">150+</p>
                     <p className="text-white/40 text-xs">Architecture Decision Records</p>
                   </div>
                 </SpotlightCard>
@@ -109,8 +116,8 @@ export default function InvestPage() {
                   <div className="p-6">
                     <h3 className="text-base font-medium mb-3">Use of funds</h3>
                     <div className="text-white/50 text-sm space-y-2">
-                      <p>Senior Tech Lead — accelerate context engine and agent architecture</p>
-                      <p>GTM Lead — drive adoption in solo consultant wedge</p>
+                      <p>Senior Tech Lead &mdash; accelerate execution pipeline and agent architecture</p>
+                      <p>GTM Lead &mdash; drive adoption in solo consultant wedge</p>
                       <p>Candidates identified from enterprise consulting network</p>
                     </div>
                   </div>
@@ -120,8 +127,8 @@ export default function InvestPage() {
                     <h3 className="text-base font-medium mb-3">Stage</h3>
                     <div className="text-white/50 text-sm space-y-2">
                       <p>Delaware C-Corp, pre-revenue</p>
-                      <p>MVP live with platform integrations shipping</p>
-                      <p>Solo founder — full stack built and shipped independently</p>
+                      <p>MVP live with autonomous agent execution shipping</p>
+                      <p>Solo founder &mdash; full stack built and shipped independently</p>
                     </div>
                   </div>
                 </SpotlightCard>
@@ -129,7 +136,89 @@ export default function InvestPage() {
             </div>
           </section>
 
-          {/* What We Built */}
+          {/* The Bifurcation */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">The bifurcation</h2>
+              <p className="text-white/50 mb-16 max-w-2xl">
+                OpenClaw hit 307K GitHub stars in 60 days. Claude shipped Cowork. The
+                demand for AI that does real work is proven. But every one of these products
+                is a tool &mdash; session-scoped, user-present, stateless between runs.
+                Recurring knowledge work requires something structurally different.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+                <SpotlightCard variant="dark" spotlightColor="rgba(255,255,255,0.03)" spotlightSize={400}>
+                  <div className="p-6 md:p-8">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Category 1</div>
+                    <h3 className="text-xl font-medium mb-4">AI Tools</h3>
+                    <div className="space-y-3 text-white/50 text-sm">
+                      <p>Session-scoped. User must be present. Context resets or degrades between uses. Quality of session 51 is roughly equal to session 1.</p>
+                      <div className="pt-3 border-t border-white/[0.06] space-y-1.5 text-white/30 text-xs">
+                        <p>OpenClaw &mdash; local agent, dies when terminal closes</p>
+                        <p>Claude Code &mdash; session-scoped, CLAUDE.md is static</p>
+                        <p>Cowork &mdash; desktop agent, no autonomous execution</p>
+                        <p>ChatGPT &mdash; memory is facts, not domain expertise</p>
+                      </div>
+                    </div>
+                  </div>
+                </SpotlightCard>
+
+                <SpotlightCard variant="dark" spotlightColor="rgba(99,102,241,0.08)" spotlightSize={400}>
+                  <div className="p-6 md:p-8">
+                    <div className="text-xs text-indigo-400/60 uppercase tracking-wider mb-4">Category 2</div>
+                    <h3 className="text-xl font-medium mb-4">AI Employees</h3>
+                    <div className="space-y-3 text-white/50 text-sm">
+                      <p>Persistent. Autonomous. Run on schedule without the user. Feedback becomes learned behavior. Quality compounds with tenure. Day 90 output is irreplaceable.</p>
+                      <div className="pt-3 border-t border-white/[0.06] space-y-1.5 text-xs">
+                        <p className="text-white/60 font-medium">yarnnn &mdash; pre-built AI workforce</p>
+                        <p className="text-white/30">Cloud-native by structural necessity, not preference</p>
+                      </div>
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </div>
+
+              <div className="max-w-2xl text-white/40 text-sm">
+                <p>
+                  The local-first wave proves the demand. Every OpenClaw user who automates
+                  recurring tasks locally will eventually want those tasks to run without them,
+                  accumulate learning, and deliver on schedule. That graduation path &mdash; from
+                  tools to employees &mdash; is yarnnn&apos;s market.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Why Cloud Is Structural */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">Why employees require cloud</h2>
+              <p className="text-white/50 mb-12 max-w-2xl">
+                This isn&apos;t a preference. It&apos;s the structural requirement of
+                the problem space.
+              </p>
+
+              <BentoGrid>
+                {([
+                  { title: "Runs without you", desc: "Agents execute at 6 AM Monday. Your laptop is in your bag. Cloud compute is the only option for autonomous scheduled work.", col: "md:col-span-3" },
+                  { title: "Accumulates over months", desc: "90 days of Slack patterns, feedback history, and domain knowledge requires persistent storage that outlives any session.", col: "md:col-span-3" },
+                  { title: "Cross-platform sync", desc: "Server-side OAuth and always-on polling. Can't sync Slack and Notion while you sleep.", col: "md:col-span-2" },
+                  { title: "Multi-agent coordination", desc: "Research Agent feeds Content Agent on shared state. Local filesystems are single-tenant.", col: "md:col-span-2" },
+                  { title: "Feedback compounds", desc: "Every edit teaches every future run. Persistent memory across weeks, not sessions.", col: "md:col-span-2" },
+                ] as const).map((item) => (
+                  <SpotlightCard key={item.title} variant="dark" className={item.col} spotlightSize={300}>
+                    <div className="p-5">
+                      <h3 className="text-sm font-medium mb-2">{item.title}</h3>
+                      <p className="text-white/40 text-xs leading-relaxed">{item.desc}</p>
+                    </div>
+                  </SpotlightCard>
+                ))}
+              </BentoGrid>
+            </div>
+          </section>
+
+          {/* What's Live */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">What&apos;s live</h2>
@@ -143,6 +232,7 @@ export default function InvestPage() {
                     <p className="text-white/50 text-sm leading-relaxed mb-6">
                       Every user gets a 6-agent roster at sign-up: Research, Content, Marketing,
                       and CRM specialist agents plus Slack and Notion bots. No setup, no configuration.
+                      Agents are employees &mdash; they persist, accumulate, and develop expertise.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {["Research", "Content", "Marketing", "CRM", "Slack Bot", "Notion Bot"].map((a) => (
@@ -152,14 +242,14 @@ export default function InvestPage() {
                   </div>
                 </SpotlightCard>
 
-                {/* Agent + Task model */}
+                {/* Execution */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(14,165,233,0.05)">
                   <div className="p-6 h-full">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Architecture</div>
-                    <h3 className="text-base font-medium mb-2">Agent + Task model</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Execution</div>
+                    <h3 className="text-base font-medium mb-2">Autonomous task pipeline</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      Agents are WHO (identity, capabilities, knowledge). Tasks are WHAT
-                      (objective, cadence, delivery). Three modes: recurring, goal, reactive.
+                      Three-layer architecture: mechanical scheduling (zero LLM), multi-agent execution
+                      (Sonnet), conversational orchestration. Purpose-built, not an API wrapper.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -168,34 +258,34 @@ export default function InvestPage() {
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(225,30,90,0.05)">
                   <div className="p-6 h-full">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Platforms</div>
-                    <h3 className="text-base font-medium mb-2">Slack + Notion</h3>
+                    <h3 className="text-base font-medium mb-2">Slack + Notion + GitHub</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      Connected and syncing. Cross-platform context accumulates with every cycle.
+                      Always-on sync. Cross-platform context accumulates with every cycle.
                       Bots activate when you connect a tool.
                     </p>
                   </div>
                 </SpotlightCard>
 
-                {/* Execution architecture */}
+                {/* Context domains */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
                   <div className="p-6 h-full">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Infrastructure</div>
-                    <h3 className="text-base font-medium mb-2">Three-layer execution</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Intelligence</div>
+                    <h3 className="text-base font-medium mb-2">Shared context domains</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      Mechanical scheduling (zero LLM), multi-agent task execution (Sonnet),
-                      and conversational orchestration. Purpose-built, not an API wrapper.
+                      Six structured domains (competitors, market, relationships, projects, content,
+                      signals) where agents deposit and refine intelligence across cycles.
                     </p>
                   </div>
                 </SpotlightCard>
 
-                {/* Moat — wide card */}
+                {/* Moat */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(245,158,11,0.05)">
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Defensibility</div>
                     <h3 className="text-base font-medium mb-2">Compounding moat</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      90 days of context, feedback, and domain knowledge can&apos;t be replicated.
-                      Switching costs increase automatically with every cycle.
+                      90 days of accumulated context, feedback, and domain knowledge can&apos;t be
+                      replicated by downloading a new tool. Switching costs increase automatically.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -203,29 +293,29 @@ export default function InvestPage() {
             </div>
           </section>
 
-          {/* Thesis */}
+          {/* Investment Thesis */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-8">Investment thesis</h2>
               <div className="max-w-2xl space-y-6 text-white/50">
                 <p>
-                  Context is what makes autonomy meaningful — and cross-platform context
-                  accumulation is the application layer that no existing company is positioned to own.
-                  But the user-facing expression of that layer is not storage alone. It is persistent
-                  agents that turn accumulated context into recurring work products.
+                  The AI agent market is proving massive demand (OpenClaw: 307K stars in 60 days).
+                  But every viral product in this wave is a tool &mdash; session-scoped, stateless,
+                  resets between uses. The structural requirements of recurring knowledge work
+                  (persistence, scheduling, cross-platform sync, feedback loops) can only be met
+                  by cloud-native architecture. This creates a natural bifurcation: tools for
+                  interactive work, employees for autonomous work.
                 </p>
                 <p>
-                  Google didn&apos;t become Salesforce. Facebook didn&apos;t become Shopify. AWS
-                  didn&apos;t become Datadog. General-purpose platforms always look invincible — until
-                  the application layer emerges. LLM providers built code first (the easy case).
-                  Work context is the hard case: unstructured, personal, cross-platform, and
-                  domain-specific. The winner will be the company that turns that substrate into
-                  compounding supervised autonomy.
+                  yarnnn is building the employee layer. A pre-built workforce of persistent
+                  agents that accumulates domain expertise and delivers compounding work products.
+                  The subscription model is self-evident: you pay employees. $19/month for a team
+                  that works while you sleep.
                 </p>
                 <p className="text-white font-medium">
-                  The comparable companies that validated this market — Notion ($11B), Glean ($7.2B),
-                  Granola ($250M), Mem.ai ($110M) — all proved demand for AI-powered context.
-                  yarnnn adds the persistent agent workforce and task execution layer that none of them have.
+                  The local-first wave isn&apos;t competition &mdash; it&apos;s demand validation.
+                  Every user who automates recurring work with a local tool will eventually need it
+                  to run without them. That graduation from tools to employees is yarnnn&apos;s market.
                 </p>
               </div>
             </div>
@@ -238,9 +328,9 @@ export default function InvestPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
                 {([
-                  { value: "$4.35B", label: "TAM — AI productivity tools, 31% CAGR" },
-                  { value: "$1.14B", label: "SAM — 5M solo consultants at $228/yr" },
-                  { value: "$11.4M", label: "Entry SOM — 50K users in 3 years" },
+                  { value: "$4.35B", label: "TAM \u2014 AI productivity tools, 31% CAGR" },
+                  { value: "$1.14B", label: "SAM \u2014 5M solo consultants at $228/yr" },
+                  { value: "$11.4M", label: "Entry SOM \u2014 50K users in 3 years" },
                 ] as const).map((stat) => (
                   <SpotlightCard key={stat.value} variant="dark" spotlightSize={280}>
                     <div className="p-6">
@@ -254,7 +344,8 @@ export default function InvestPage() {
               <p className="text-white/50 max-w-2xl">
                 Entry wedge: solo consultants managing multiple clients with recurring tasks
                 across 3+ tools. Clearest pain, shortest sales cycle, highest willingness to pay.
-                Expansion path: founders, executives, teams, then all knowledge workers.
+                Expansion: founders, executives, teams, then every knowledge worker who wants
+                to supervise AI employees instead of operating AI tools.
               </p>
             </div>
           </section>
@@ -266,17 +357,17 @@ export default function InvestPage() {
 
               <div className="max-w-2xl space-y-6 text-white/50">
                 <p className="text-white font-medium text-lg">
-                  Kevin Kim — Solo Founder & CEO
+                  Kevin Kim &mdash; Solo Founder &amp; CEO
                 </p>
                 <p>
                   Korean-born, US-based. A decade of work spanning enterprise systems, cross-border
-                  operations, and context architecture — from deploying CRM for Japan Tobacco in
+                  operations, and context architecture &mdash; from deploying CRM for Japan Tobacco in
                   post-military Myanmar to building GTM systems for cross-border sales teams.
                 </p>
                 <p>
                   Shipped the entire MVP solo: full-stack application (Next.js + FastAPI + Supabase),
-                  platform integrations, autonomous agent architecture documented across
-                  145+ Architecture Decision Records, and a working context accumulation engine —
+                  platform integrations, autonomous agent execution pipeline documented across
+                  150+ Architecture Decision Records, and a working context accumulation engine &mdash;
                   all before raising a dollar.
                 </p>
               </div>
@@ -290,8 +381,9 @@ export default function InvestPage() {
                 Let&apos;s talk.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                If you&apos;re investing at pre-seed in AI infrastructure, work tools, or
-                autonomous agents — I&apos;d love to share the deck and walk through the architecture.
+                If you&apos;re investing at pre-seed in AI infrastructure, autonomous agents,
+                or the future of knowledge work &mdash; I&apos;d love to share the deck and walk
+                through the architecture.
               </p>
               <a
                 href="mailto:kvkthecreator@gmail.com"

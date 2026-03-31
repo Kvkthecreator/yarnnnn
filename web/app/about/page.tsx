@@ -10,15 +10,16 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — Why we built yarnnn",
   description:
-    "We built yarnnn because AI should do the recurring work, not just answer questions. A pre-built AI workforce with persistent agents that learn your context and deliver on schedule.",
+    "AI tools reset when you close the tab. AI employees show up every day, accumulate expertise, and deliver without being asked. We built yarnnn to be the second kind.",
   path: "/about",
   keywords: [
     "about yarnnn",
     "autonomous ai",
     "ai workforce",
     "ai employee",
-    "agent intelligence",
+    "ai agents",
     "recurring ai work",
+    "cloud ai agents",
   ],
 });
 
@@ -48,24 +49,26 @@ export default function AboutPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              AI should do the work,
+              Tools reset.
               <br />
-              <span className="text-white/50">not just answer questions.</span>
+              <span className="text-white/50">Employees accumulate.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Most AI products are impressive in a single conversation. But close the tab
-                and everything resets. Tomorrow you&apos;re starting from scratch.
+                The best AI products in the world are tools. Open a session, do the work,
+                close the tab. Tomorrow, start over. They&apos;re impressive in the moment
+                and stateless by design.
               </p>
               <p>
-                Real knowledge work is recurring. The same reports, the same updates, the same
-                synthesis across the same tools — week after week. Good AI for this kind of work
-                needs memory, context from your actual systems, and the ability to run without you.
+                But real knowledge work is recurring. The same reports, the same synthesis,
+                the same updates across the same tools &mdash; week after week. That kind
+                of work doesn&apos;t need a better tool. It needs someone who shows up,
+                remembers what happened last time, and does it better this time.
               </p>
               <p className="text-white font-medium">
-                yarnnn is what we built: a team of specialist AI agents — ready on day 1 —
-                that take on your recurring tasks, run on schedule, and get better with every
-                cycle. You assign the work. They execute. You supervise outcomes.
+                yarnnn is what we built: AI employees. A team of specialist agents &mdash; ready
+                on day 1 &mdash; that take on your recurring work, run on schedule, learn
+                from your feedback, and deliver without being asked.
               </p>
             </div>
           </section>
@@ -78,13 +81,31 @@ export default function AboutPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
+                    <h3 className="text-lg font-medium text-white">Employees, not tools</h3>
+                  </div>
+                  <div className="text-white/50">
+                    <p className="mb-4">
+                      The AI agent industry is splitting into two categories. Tools are session-scoped
+                      and interactive &mdash; powerful in the moment, stateless between uses. Employees
+                      are persistent and autonomous &mdash; they accumulate expertise, run on schedule,
+                      and compound quality with tenure. We&apos;re building the second kind.
+                    </p>
+                    <p className="text-white/30 text-sm">
+                      You don&apos;t pay $19/month for a tool you invoke when you remember to. You
+                      pay for employees that work while you sleep.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                  <div>
                     <h3 className="text-lg font-medium text-white">Your team should be ready on day 1</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
                       You shouldn&apos;t have to build an AI workforce from scratch. When you sign up
                       for yarnnn, you get Research, Content, Marketing, and CRM agents plus Slack and
-                      Notion bots — a complete team of specialists, pre-built and ready to take on work.
+                      Notion bots &mdash; a complete team of specialists, pre-built and ready to take on work.
                     </p>
                     <p className="text-white/30 text-sm">
                       Agents are who. Tasks are what. You describe the work, and the right
@@ -101,7 +122,8 @@ export default function AboutPage() {
                     <p className="mb-4">
                       The goal isn&apos;t faster prompting. The goal is to not have to prompt at all.
                       Agents run tasks in the background on schedule and deliver finished work.
-                      You review, redirect, and move on.
+                      You review, redirect, and move on. That&apos;s the difference between operating
+                      a tool and supervising an employee.
                     </p>
                     <p className="text-white/30 text-sm">
                       The shift: from operator to supervisor. From building context to reviewing output.
@@ -116,7 +138,7 @@ export default function AboutPage() {
                   <div className="text-white/50">
                     <p className="mb-4">
                       A good employee gets better by going deeper, not wider. Your Research Agent
-                      doesn&apos;t try to become a Content Agent — it becomes a better researcher.
+                      doesn&apos;t try to become a Content Agent &mdash; it becomes a better researcher.
                       Every edit, every review, every task run builds domain knowledge that compounds.
                     </p>
                     <p className="text-white/30 text-sm">
@@ -128,16 +150,17 @@ export default function AboutPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">The longer it runs, the better it gets</h3>
+                    <h3 className="text-lg font-medium text-white">Cloud-native by necessity</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Day 1, the output is good. Day 90, it&apos;s irreplaceable. An agent that knows
-                      3 months of your Slack and Notion patterns, your feedback history, and your
-                      domain context can&apos;t be replicated by switching to another tool.
+                      Employees need to be always-on. They run at 6 AM while your laptop is in your bag.
+                      They sync Slack at midnight. They accumulate 90 days of context across sessions.
+                      None of this works locally. Cloud isn&apos;t a preference &mdash; it&apos;s a structural
+                      requirement of autonomous, recurring work.
                     </p>
                     <p className="text-white/30 text-sm">
-                      That compounding intelligence is the product. Everything else is support.
+                      The local-first wave builds great tools. We&apos;re building the layer above.
                     </p>
                   </div>
                 </div>
@@ -155,10 +178,10 @@ export default function AboutPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {([
-                  { title: "Not a chatbot", desc: "You can talk to yarnnn, but the product is the tasks that run in the background. Agents execute on schedule — the real work happens when you're not looking." },
-                  { title: "Not template automation", desc: "Agents generate from live context and accumulated memory, not static form fields. Every task run uses fresh data." },
-                  { title: "Not one-shot task execution", desc: "We optimize for recurring, high-context work — tasks that run weekly, daily, or on a cadence — not arbitrary one-off commands." },
-                  { title: "Not uncontrolled automation", desc: "Every task has run history, delivery controls, and explicit user oversight. Supervised autonomy, not a black box." },
+                  { title: "Not a tool you operate", desc: "Tools need you present. yarnnn agents run on schedule, deliver finished work, and learn from your feedback \u2014 whether you open the app or not." },
+                  { title: "Not a local agent", desc: "Local agents die when your laptop closes. yarnnn agents are cloud-native: always-on, always-accumulating, always-available. That\u2019s structural, not preferential." },
+                  { title: "Not one-shot task execution", desc: "We optimize for recurring, high-context work \u2014 tasks that run weekly, daily, or on a cadence \u2014 not arbitrary one-off commands." },
+                  { title: "Not uncontrolled automation", desc: "Every task has run history, delivery controls, and explicit user oversight. You supervise employees. You don\u2019t give them a blank check." },
                 ] as const).map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={300}>
                     <div className="p-6">
@@ -178,9 +201,9 @@ export default function AboutPage() {
 
               <div className="space-y-4">
                 {([
-                  { title: "People who do the same knowledge work every week", desc: "Founders, consultants, chiefs of staff, and team leads who spend hours synthesizing across tools — every Monday, every Friday, before every meeting. Assign those tasks to your agents instead." },
-                  { title: "Teams spread across Slack and Notion", desc: "If your workflow spans multiple platforms, yarnnn's bots sync it all and your agents turn that context into coherent, recurring output." },
-                  { title: "Anyone who wants to supervise instead of execute", desc: "If you'd rather review a finished brief than build one from scratch, yarnnn gives you a team that does the work while you direct." },
+                  { title: "People tired of re-prompting the same work every week", desc: "Founders, consultants, chiefs of staff, and team leads who spend hours synthesizing across tools \u2014 every Monday, every Friday, before every meeting. Assign those tasks to your AI employees instead." },
+                  { title: "Anyone graduating from tools to employees", desc: "If you\u2019ve used ChatGPT or Claude for recurring work and wished it would just \u2026 do it automatically next week, yarnnn is the product you\u2019re looking for." },
+                  { title: "People who want to supervise instead of execute", desc: "If you\u2019d rather review a finished brief Monday morning than build one from scratch, yarnnn gives you a team that does the work while you direct." },
                 ] as const).map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={400}>
                     <div className="p-6">
@@ -200,7 +223,7 @@ export default function AboutPage() {
                 Meet your team. Assign the first task.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Your AI workforce is ready the moment you sign up. No setup required.
+                Your AI employees are ready the moment you sign up. No setup required.
               </p>
               <Link
                 href="/auth/login"

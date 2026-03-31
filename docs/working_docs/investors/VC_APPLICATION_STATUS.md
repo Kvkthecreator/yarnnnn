@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-24
+**Last Updated**: 2026-03-31
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -11,7 +11,7 @@
 
 | # | Fund | Stage | Date Applied | Status | Notes |
 |---|------|-------|-------------|--------|-------|
-| 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
+| 1 | PearX (S26) | Accelerator | 2026-03-04 | **Rejected** | Rejected 2026-03-31. "Not right now" — encouraged to reapply next batch with traction. Same pattern as others: pre-revenue solo founder filtered at volume stage. |
 | 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website. Fund II ($25M) announced 2026-03-18 — "5x Fund I, for outsider founders who don't give up." Backed by Mizzou Endowment, founder of Square, AngelList Fund of Funds. Actively deploying — good timing for our app. |
 | 3 | Hustle Fund | Pre-seed | 2026-03-04 | **Rejected** | Typeform; rejected 2026-03-06 (~2 days). Auto-rejection likely — no deck uploaded (was optional), possibly filtered on solo founder or pre-revenue |
 | 4 | Outlander VC | Pre-seed | 2026-03-04 | **Rejected** | Typeform + video interview completed 2026-03-06; rejected 2026-03-10 by Deepika — "not the right fit for our investment thesis at this time." Offered to stay on email updates |
@@ -20,6 +20,8 @@
 | 7 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
 | 8 | P2S (Pre-Seed to Succeed) | Pre-seed | 2026-03-06 | Submitted | Edda Dealflow form via p2s.vc/apply; AI/B2B/SaaS focus, deck uploaded (IR Deck v16). Confirmation: "Looking forward to meet your project" |
 | 9 | Sazze Partners | Pre-seed | 2026-03-13 | **Rejected** | LinkedIn outreach → Kathy Ku meeting 2026-03-17 → deck sent for team review → rejected 2026-03-24: portfolio conflict with existing fund company. Korean-American founder thesis was a perfect fit but conflict is a non-negotiable blocker. |
+| 10 | Fortitude Ventures | Pre-seed | 2026-03-18 | **Rejected** | Cold email to Joan Kim → meeting 2026-03-31 (3pm PT). New firm (~$20M AUM), $200K–$1M checks, focus on "Autonomy." Team: Sung Joon (2008 co-founder, AVC Eclipse), Lian Kim (Samsung NEXT). **Passed — feedback: (1) "too early" (pre-revenue), (2) "not very defensible — first time founder", (3) "redundant, similar to what you can do with OpenClaw."** Suggested Kevin read emcap.com AI-native services playbook to strengthen positioning. Most substantive feedback received to date — defensibility and differentiation concerns worth addressing. |
+| 11 | Founders Inc / Canopy | Builder program | 2026-03-31 | **In Progress** | 5-week builder program (Apr 15 – May 22). Up to $250K funding + $500K credits for top performers. Application ~90% complete — **BLOCKED: needs 30-60s intro video link + optional demo video.** Deadline: **April 4, 2026.** |
 
 ---
 
@@ -73,7 +75,8 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet. **No DM reply as of 2026-03-13 — liked a post but no engagement. Cold, no further follow-up.**
 - [x] **Sazze Partners**: **CLOSED — passed due to portfolio conflict (2026-03-24).** Kathy Ku meeting held 2026-03-17, deck reviewed by team. Clean no — conflict in existing fund/portfolio, not a fit issue.
 - [x] **Lorimer Ventures (Zach Magdovitz @magdovitz)**: He followed Kevin on X. Operator-investor, $50K–$300K checks, seed-stage, B2B/SaaS. Built tools at Attentive, Yext, Mailchimp. **DM sent 2026-03-17 — awaiting reply.**
-- [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18. Joan replied 2026-03-19 at 4:21 AM PT — "I'd love to find time to chat!" **Meeting booked: Tuesday 3pm–4pm PT.** Kevin replied with Google Meet link.
+- [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18. Joan replied 2026-03-19. **Meeting held 2026-03-31.** Passed — "too early", "not defensible", "redundant/OpenClaw." Most actionable feedback yet. Suggested reading: emcap.com AI-native services playbook. See Submitted #10.
+- [ ] **Founders Inc / Canopy**: Application 90% filled (2026-03-31). **NEEDS: (1) record 30-60s intro video, upload to YouTube/Loom, paste link. (2) Optional demo video. (3) Submit. Deadline: April 4.**
 - [ ] **Mischief VC**: Researched 2026-03-17. Jack Altman's fund, SF, $1–5M checks, seed/Series A, AI/software focus. Strong sector fit — finding contact method to pitch
 - [ ] **NVIDIA Inception**: Free startup program (no equity). Benefits: cloud credits ($25K–$100K AWS), hardware pricing, VC networking events, co-marketing badges. Application started 2026-03-17 — **BLOCKED: requires secondary contact (different person with @yarnnn.com email).** Need to recruit an advisor/friend to list. URL: programs.nvidia.com/phoenix/application. No deadline, rolling.
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
