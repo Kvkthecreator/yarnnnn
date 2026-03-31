@@ -1,63 +1,150 @@
 # Task Types — Deliverable Catalog
 
-> What YARNNN delivers. Each task type is a concrete output with a defined process and composition mode.
-> Architecture: [docs/architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md)
+> What YARNNN delivers. Task types are split into two atomic classes: **context tasks** (accumulate knowledge) and **synthesis tasks** (produce deliverables).
+> Architecture: [docs/architecture/registry-matrix.md](../architecture/registry-matrix.md)
 > ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
 
 ---
 
 ## How Task Types Work
 
-1. User selects a task type (onboarding or TP conversation)
-2. Platform scaffolds the task with the correct agent, schedule, and composition mode
-3. Agent researches, reasons, and writes — producing prose with inline data tables and diagrams
-4. System renders visual assets (charts from tables, diagrams from mermaid blocks)
-5. Compose service assembles everything into styled HTML per composition mode
-6. Output delivered via email/Slack/Notion or viewed in app
+1. User describes work → TP infers task type(s) from registry
+2. Platform scaffolds each task with the correct agent, schedule, and domain wiring
+3. **Context tasks** run on schedule, gather intelligence, and write to workspace context domains — no report output
+4. **Synthesis tasks** read from accumulated context domains, compose prose with inline data tables and diagrams
+5. System renders visual assets (charts from tables, diagrams from mermaid blocks)
+6. Compose service assembles everything into styled HTML per composition mode
+7. Output delivered via email/Slack/Notion or viewed in app
 
-Most task types are **single-agent**: one agent handles the full cognitive work (research + composition) in one context window. Multi-step processes are used only where agents need genuinely different tool access (e.g., Slack Bot extracts platform data → CRM Agent synthesizes relationship intelligence).
+**For full intelligence (e.g., competitive), create BOTH a tracking task AND a synthesis task.** The tracking task accumulates context in `/workspace/context/`; the synthesis task produces reports from it. Without the tracking task, synthesis has nothing to read. Without the synthesis task, accumulated context never becomes a deliverable.
 
 ### Quality Contracts (ADR-149)
 
-Each task type scaffolds a **DELIVERABLE.md** quality contract at `/tasks/{slug}/DELIVERABLE.md`. This file defines what good output looks like for this task type: structure expectations, quality bar, audience assumptions. The agent reads DELIVERABLE.md during execution and the TP uses it as a reference when evaluating output quality.
+Synthesis task types scaffold a **DELIVERABLE.md** quality contract at `/tasks/{slug}/DELIVERABLE.md`. This file defines what good output looks like for this task type: structure expectations, quality bar, audience assumptions. The agent reads DELIVERABLE.md during execution and the TP uses it as a reference when evaluating output quality. Context tasks do not have DELIVERABLE.md — they write to domain folders, not output folders.
 
 ### Context Domains (ADR-151)
 
-Task types declare which workspace context domains they read and write via `context_reads` and `context_writes` fields. For example, a competitive intelligence brief reads from the `competitors` context domain and writes back competitive findings. This enables agents to build and consume shared institutional knowledge in `/workspace/context/`, creating cross-task knowledge accumulation.
+Task types declare which workspace context domains they read and write via `context_reads` and `context_writes` fields. Context tasks primarily WRITE to domains. Synthesis tasks primarily READ from domains. This separation enables cross-task knowledge accumulation in `/workspace/context/`.
 
 ---
 
-## Intelligence & Research
+## Track & Research — Context Tasks
 
-### Competitive Intelligence Brief
-`competitive-intel-brief`
+Context tasks maintain your workspace knowledge. They run on schedule, update domain folders in `/workspace/context/`, and produce **no report output**. Think of them as your always-on research team keeping institutional knowledge current.
 
-**What you get:** Research-backed competitive analysis with rendered charts, positioning diagrams, and evidence-linked findings.
+### Track Competitors
+`track-competitors`
 
-**Process:** Research Agent (single-step — investigates and composes the full brief)
+**What it does:** Monitors competitor activity — product launches, pricing changes, hiring, funding — and writes structured findings to the `competitors` context domain.
 
+**Agent:** Research Agent
 **Default schedule:** Weekly
+**Domains (writes):** competitors, signals
+
+---
+
+### Track Market
+`track-market`
+
+**What it does:** Investigates market trends, sizing, growth vectors, and emerging segments. Writes market intelligence to the `market` context domain.
+
+**Agent:** Research Agent
+**Default schedule:** Monthly
+**Domains (writes):** market, signals
+
+---
+
+### Track Relationships
+`track-relationships`
+
+**What it does:** Extracts relationship signals from connected platforms (Slack messages, meeting patterns) and maintains relationship profiles in the `relationships` context domain.
+
+**Agent:** CRM Agent
+**Default schedule:** Weekly
+**Domains (writes):** relationships, signals
+
+---
+
+### Track Projects
+`track-projects`
+
+**What it does:** Monitors project activity from connected platforms and maintains status snapshots in the `projects` context domain.
+
+**Agent:** Research Agent
+**Default schedule:** Weekly
+**Domains (writes):** projects, signals
+
+---
+
+### Research Topics
+`research-topics`
+
+**What it does:** Deep-dive research on specified topics. Writes findings to the `content_research` context domain for later use by content synthesis tasks.
+
+**Agent:** Research Agent
+**Default schedule:** On-demand
+**Domains (writes):** content_research
+
+---
+
+### Monitor Slack
+`monitor-slack`
+
+**What it does:** Extracts decisions, action items, key discussions, and FYIs from Slack channels. Writes signals for consumption by synthesis tasks.
+
+**Agent:** Slack Bot
+**Default schedule:** Daily
+**Domains (writes):** signals
+**Requires platform:** Slack
+
+---
+
+### Monitor Notion
+`monitor-notion`
+
+**What it does:** Tracks what changed in your Notion workspace — page updates, staleness, structural shifts. Writes signals for consumption by synthesis tasks.
+
+**Agent:** Notion Bot
+**Default schedule:** Weekly
+**Domains (writes):** signals
+**Requires platform:** Notion
+
+---
+
+## Reports & Outputs — Synthesis Tasks
+
+Synthesis tasks read from accumulated context domains and produce deliverables. They are where workspace knowledge becomes polished, delivered output. Each synthesis task declares which domains it reads from — the richer those domains (maintained by context tasks), the better the output.
+
+### Competitive Brief
+`competitive-brief`
+
+**What you get:** Competitive analysis with positioning diagrams, trend charts, and evidence-linked findings — composed from accumulated competitive intelligence.
+
+**Agent:** Content Agent
+**Default schedule:** Weekly
+**Reads from:** competitors, signals
+**Output category:** briefs
 **Composition mode:** Document
 **Export options:** PDF
 
 **Expected output:**
 - Executive summary (insight-first, not process)
 - Key findings with inline source citations
-- Competitive positioning diagram (mermaid → rendered)
-- Market trend charts (data tables → rendered)
+- Competitive positioning diagram (mermaid rendered)
+- Market trend charts (data tables rendered)
 - Strategic implications
-- Source list
 
 ---
 
-### Market Research Report
-`market-research-report`
+### Market Report
+`market-report`
 
-**What you get:** Deep-dive investigation with data-backed analysis, trend visualizations, and landscape mapping.
+**What you get:** Data-backed market analysis with trend visualizations and landscape mapping — composed from accumulated market and competitive intelligence.
 
-**Process:** Research Agent (single-step — investigates and composes)
-
+**Agent:** Content Agent
 **Default schedule:** Monthly
+**Reads from:** market, competitors, signals
+**Output category:** reports
 **Composition mode:** Document
 **Export options:** PDF
 
@@ -71,54 +158,15 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-### Industry Signal Monitor
-`industry-signal-monitor`
+### Meeting Prep
+`meeting-prep`
 
-**What you get:** Surface-level industry scan with deep-dives on the signals that matter.
+**What you get:** Relationship context combined with competitive intelligence — everything you need before a meeting with a key contact.
 
-**Process:** Marketing Agent (single-step — scans and analyzes)
-
-**Default schedule:** Weekly
-**Composition mode:** Document
-
-**Expected output:**
-- Signal summary table (signal, source, date, significance)
-- Deep dives on top 2-3 signals
-- Recommended responses (watch / adapt / act now)
-
----
-
-### Due Diligence Summary
-`due-diligence-summary`
-
-**What you get:** Structured investigation of a company, market, or opportunity with risk flags and evidence.
-
-**Process:** Research Agent (single-step — investigates and composes)
-
+**Agent:** Content Agent
 **Default schedule:** On-demand
-**Composition mode:** Document
-**Export options:** PDF
-
-**Expected output:**
-- Executive summary (go/no-go signal first)
-- Organization (org chart diagram)
-- Financial summary table
-- Risk assessment table (risk, severity, evidence, mitigation)
-- Market position (competitive positioning diagram)
-- Recommendation with conditions
-
----
-
-## Business Operations
-
-### Meeting Prep Brief
-`meeting-prep-brief`
-
-**What you get:** Relationship context from your platforms combined with fresh external research on attendees.
-
-**Process:** CRM Agent (relationship history from platforms) → Research Agent (investigate attendee's company + compose brief)
-
-**Default schedule:** On-demand
+**Reads from:** relationships, competitors, signals
+**Output category:** briefs
 **Composition mode:** Document
 
 **Expected output:**
@@ -130,14 +178,15 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-### Stakeholder / Board Update
+### Stakeholder Update
 `stakeholder-update`
 
-**What you get:** Executive-quality update with KPI cards, metric charts, and narrative context.
+**What you get:** Executive-quality update with KPI cards, metric charts, and narrative context — draws from ALL workspace domains.
 
-**Process:** Content Agent (single-step — gathers context and composes)
-
+**Agent:** Content Agent
 **Default schedule:** Monthly
+**Reads from:** ALL domains
+**Output category:** reports
 **Composition mode:** Dashboard
 **Export options:** PDF, PPTX
 
@@ -149,36 +198,17 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-### Relationship Health Digest
-`relationship-health-digest`
-
-**What you get:** Interaction patterns from Slack synthesized into actionable relationship intelligence.
-
-**Process:** Slack Bot (extract interaction patterns) → CRM Agent (synthesize into health report)
-
-**Default schedule:** Weekly
-**Composition mode:** Document
-**Requires platform:** Slack
-
-**Expected output:**
-- Relationship health by contact (active / cooling / at-risk)
-- Interaction frequency data
-- Follow-up recommendations with specific talking points
-- Top 3 follow-ups this week
-
----
-
 ### Project Status Report
-`project-status-report`
+`project-status`
 
-**What you get:** Team activity from Slack composed into a polished status report.
+**What you get:** Project activity composed into a polished status report from accumulated project tracking data.
 
-**Process:** Slack Bot (extract team activity) → Content Agent (compose formatted report)
-
+**Agent:** Content Agent
 **Default schedule:** Weekly
+**Reads from:** projects, signals
+**Output category:** reports
 **Composition mode:** Document
 **Export options:** PDF
-**Requires platform:** Slack
 
 **Expected output:**
 - Overall status (On Track / At Risk / Blocked)
@@ -189,55 +219,15 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-## Platform Digests
-
-### Slack Recap
-`slack-recap`
-
-**What you get:** Decisions, action items, key discussions, and FYIs from your Slack channels.
-
-**Process:** Slack Bot (single-step)
-
-**Default schedule:** Daily
-**Composition mode:** Document
-**Requires platform:** Slack
-
-**Expected output:**
-- Decisions made (with attribution)
-- Action items (owner, deadline)
-- Key discussions (thread summaries)
-- FYIs (announcements, shared documents)
-
----
-
-### Notion Sync Report
-`notion-sync-report`
-
-**What you get:** What changed in your Notion workspace — updates, staleness flags, and structure suggestions.
-
-**Process:** Notion Bot (single-step)
-
-**Default schedule:** Weekly
-**Composition mode:** Document
-**Requires platform:** Notion
-
-**Expected output:**
-- Pages created or meaningfully updated
-- Staleness flags (pages not updated >30 days)
-- Health notes and structure suggestions
-
----
-
-## Content & Communications
-
-### Content Brief / Blog Draft
+### Content Brief
 `content-brief`
 
-**What you get:** Research-backed content draft with competitive landscape context and visual assets.
+**What you get:** Research-backed content draft with competitive context and visual assets — composed from accumulated topic research.
 
-**Process:** Research Agent (single-step — researches and writes)
-
+**Agent:** Content Agent
 **Default schedule:** On-demand
+**Reads from:** content_research, competitors, signals
+**Output category:** content_output
 **Composition mode:** Document
 **Export options:** PDF
 
@@ -250,20 +240,21 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-### Launch / Announcement Material
+### Launch Material
 `launch-material`
 
-**What you get:** GTM intelligence transformed into polished presentation-ready launch material.
+**What you get:** GTM intelligence transformed into polished launch material — draws from research, competitive, and market context.
 
-**Process:** Marketing Agent (single-step — positioning and composition)
-
+**Agent:** Content Agent
 **Default schedule:** On-demand
+**Reads from:** content_research, competitors, market, signals
+**Output category:** content_output
 **Composition mode:** Presentation
 **Export options:** PDF, PPTX
 
 **Expected output:**
 - Title + tagline slide
-- Problem → Solution → How It Works slides
+- Problem, Solution, How It Works slides
 - Competitive differentiation diagram + feature matrix
 - Key messages by audience
 - Social/PR quotes
@@ -271,16 +262,15 @@ Task types declare which workspace context domains they read and write via `cont
 
 ---
 
-## Data & Tracking
+### GTM Report
+`gtm-report`
 
-### GTM Tracker
-`gtm-tracker`
+**What you get:** Competitive moves, market signals, and feature matrices — intelligence dashboard composed from accumulated competitive and market context.
 
-**What you get:** Competitive moves, market signals, and feature matrices — intelligence dashboard.
-
-**Process:** Marketing Agent (single-step — gathers and composes)
-
+**Agent:** Content Agent
 **Default schedule:** Weekly
+**Reads from:** competitors, market, signals
+**Output category:** reports
 **Composition mode:** Dashboard
 
 **Expected output:**
@@ -293,17 +283,9 @@ Task types declare which workspace context domains they read and write via `cont
 
 ## Summary
 
-| Category | Types | Process Model |
-|----------|-------|---------------|
-| **Intelligence** | 4 types | Single-agent (research or marketing) |
-| **Operations** | 4 types | Mixed — 1 single-agent, 3 multi-step |
-| **Platform** | 2 types | Single-agent (platform bot) |
-| **Content** | 2 types | Single-agent (research or marketing) |
-| **Tracking** | 1 type | Single-agent (marketing) |
+| Class | Types | Agent | Purpose |
+|-------|-------|-------|---------|
+| **Context — Track & Research** | 7 types | research, crm, slack_bot, notion_bot | Accumulate workspace knowledge (no output) |
+| **Synthesis — Reports & Outputs** | 8 types | content | Produce deliverables from accumulated context |
 
-**Total:** 13 task types, 16 process steps. 10 single-agent, 3 multi-step.
-
-Multi-step is used only where agents need different tool access:
-- **meeting-prep-brief**: CRM (platform data) → Research (web search)
-- **relationship-health-digest**: Slack Bot (platform read) → CRM (relationship domain)
-- **project-status-report**: Slack Bot (platform read) → Content (formatting)
+**Total:** 15 task types. Context tasks write to domains. Synthesis tasks read from domains. All synthesis tasks use the Content Agent — composition is a single concern. Context gathering uses specialized agents (Research, CRM, platform bots) matched to the domain.
