@@ -1241,19 +1241,35 @@ async def _execute_pipeline(
         # Inject step-specific preamble — BEFORE gathered context for visibility
         step_preamble = f"\n\n## Process Step {step_num}/{len(steps)}: {step_name.title()}\n"
         step_preamble += f"Your role in this process: {step_instruction}\n"
+
+        # ADR-151: Determine prior step type for diff-aware handoff
+        prior_step_name = steps[step_idx - 1]["step"] if step_idx > 0 else ""
+        is_after_context_update = prior_step_name == "update-context"
+
         if step_outputs:
             prior_output = step_outputs[-1]
-            step_preamble += (
-                f"\n## Prior Step Output (YOUR PRIMARY INPUT)\n"
-                f"The following is the output from the previous step. "
-                f"This is your primary source material — your job is to TRANSFORM this research "
-                f"into the deliverable described above. Every finding, data point, and citation "
-                f"from this input should appear in your output (restructured, not copy-pasted). "
-                f"Do NOT conduct independent research that ignores this input. "
-                f"Do NOT produce a shorter output than this input — you are adding structure, "
-                f"formatting, and visual assets, not condensing.\n\n"
-                f"{prior_output[:8000]}\n"
-            )
+            if is_after_context_update:
+                # ADR-151: Diff-aware handoff — prior step was update-context
+                step_preamble += (
+                    f"\n## Context Update Changelog (from prior step)\n"
+                    f"The following describes what changed in the workspace context this cycle. "
+                    f"Your primary context is the accumulated workspace context (injected above). "
+                    f"Use this changelog to emphasize WHAT'S NEW in your output — the reader "
+                    f"has seen prior reports. Lead with changes, not stable context.\n\n"
+                    f"{prior_output[:8000]}\n"
+                )
+            else:
+                step_preamble += (
+                    f"\n## Prior Step Output (YOUR PRIMARY INPUT)\n"
+                    f"The following is the output from the previous step. "
+                    f"This is your primary source material — your job is to TRANSFORM this research "
+                    f"into the deliverable described above. Every finding, data point, and citation "
+                    f"from this input should appear in your output (restructured, not copy-pasted). "
+                    f"Do NOT conduct independent research that ignores this input. "
+                    f"Do NOT produce a shorter output than this input — you are adding structure, "
+                    f"formatting, and visual assets, not condensing.\n\n"
+                    f"{prior_output[:8000]}\n"
+                )
         elif step_num == 1:
             step_preamble += (
                 "\nYou are the first step in a multi-step process. "

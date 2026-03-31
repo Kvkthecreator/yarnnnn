@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.8] - ADR-151 Phase 4: Diff-aware output derivation
+
+### Changed
+- `services/task_pipeline.py`: Multi-step pipeline handoff now detects when prior step was `update-context`. If so, frames the prior output as "## Context Update Changelog" instead of generic "## Prior Step Output". Instructs derive-output agent to emphasize what changed — "the reader has seen prior reports, lead with changes."
+- Expected behavior: Recurring tasks with update-context → derive-output process steps produce diff-aware outputs. The weekly competitive brief leads with what changed since last week, not a full landscape summary.
+
+---
+
 ## [2026.03.31.7] - ADR-151 Phase 3: WriteWorkspace gains scope=context for shared domains
 
 ### Changed
