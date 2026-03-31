@@ -1,5 +1,10 @@
 """
-Context Domain Registry — ADR-151: Shared Context Domains
+Context Domain Registry — ADR-151: Shared Context Domains (v1)
+
+Version: 1.0 (2026-03-31)
+Changelog:
+  v1.0 (2026-03-31) — Initial: 6 domains (competitors, market, relationships,
+                       projects, content, signals). ADR-151.
 
 The third registry alongside Agent Types (ADR-140) and Task Types (ADR-145).
 Governs the workspace's accumulated context structure at /workspace/context/.
@@ -14,6 +19,16 @@ Design principles:
   4. Assets are domain-scoped — co-located with the context they represent
   5. Domains grow dynamically — registry is starting set, TP can add more
   6. Signal log is cross-domain — temporal events from any domain
+
+Expansion process:
+  1. Add domain dict to CONTEXT_DOMAINS below
+  2. Update task types that should read/write the new domain (context_reads/context_writes)
+  3. Update docs/architecture/workspace-conventions.md with new domain
+  4. Increment version comment above
+  5. Add entry to this file's changelog header
+
+Current ICP: solo founder / small team. Domains designed for this persona.
+Subject to expansion for enterprise, multi-team, or industry-specific use cases.
 
 Canonical reference: docs/adr/ADR-151-shared-knowledge-domains.md
 """
@@ -195,3 +210,60 @@ def get_synthesis_content(domain_key: str) -> Optional[tuple[str, str]]:
     if not domain or not domain.get("synthesis_file"):
         return None
     return (domain["synthesis_file"], domain["synthesis_template"] or "")
+
+
+async def scaffold_all_domains(client, user_id: str) -> list[str]:
+    """Scaffold all context domains for a workspace at onboarding.
+
+    Creates /workspace/context/{domain}/ with synthesis files for all domains
+    in the registry. Idempotent — skips domains already scaffolded.
+
+    Called during user onboarding (alongside agent roster scaffold).
+    Returns list of domain keys that were newly scaffolded.
+
+    Args:
+        client: Supabase service client
+        user_id: User UUID
+    """
+    from services.workspace import UserMemory
+    import logging
+
+    logger = logging.getLogger(__name__)
+    um = UserMemory(client, user_id)
+    scaffolded = []
+
+    for domain_key, domain in CONTEXT_DOMAINS.items():
+        folder = f"context/{domain['folder']}"
+
+        # Check if already scaffolded
+        synthesis = domain.get("synthesis_file")
+        if synthesis:
+            existing = await um.read(f"{folder}/{synthesis}")
+            if existing:
+                continue  # Already scaffolded
+
+        # Scaffold synthesis file
+        if synthesis and domain.get("synthesis_template"):
+            await um.write(
+                f"{folder}/{synthesis}",
+                domain["synthesis_template"],
+                summary=f"Context domain scaffold: {domain_key}",
+            )
+
+        # For signals domain, scaffold today's empty file
+        if domain.get("signal_log"):
+            from datetime import datetime, timezone
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            signal_path = f"{folder}/{today}.md"
+            existing_signal = await um.read(signal_path)
+            if not existing_signal:
+                await um.write(
+                    signal_path,
+                    f"# Signals — {today}\n<!-- Cross-domain temporal signal log. Any task can append. -->\n",
+                    summary=f"Signal log scaffold: {today}",
+                )
+
+        scaffolded.append(domain_key)
+        logger.info(f"[DOMAIN_REGISTRY] Scaffolded context domain: {domain_key}")
+
+    return scaffolded
