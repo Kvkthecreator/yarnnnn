@@ -29,6 +29,75 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+async def _gather_context_domains(
+    client,
+    user_id: str,
+    context_reads: list[str],
+    max_files_per_domain: int = 20,
+    max_content_per_file: int = 3000,
+) -> str:
+    """Read accumulated context from workspace context domains.
+
+    ADR-151: /workspace/context/{domain}/ files are the primary context source.
+    Reads all files from each domain in context_reads, ordered by recency.
+
+    Returns formatted context string with domain sections.
+    """
+    if not context_reads:
+        return ""
+
+    from services.domain_registry import get_domain_folder
+
+    sections = []
+
+    for domain_key in context_reads:
+        folder = get_domain_folder(domain_key)
+        if not folder:
+            continue
+
+        prefix = f"/workspace/{folder}"
+        try:
+            result = (
+                client.table("workspace_files")
+                .select("path, content, updated_at, tags")
+                .eq("user_id", user_id)
+                .like("path", f"{prefix}/%")
+                .order("updated_at", desc=True)
+                .limit(max_files_per_domain)
+                .execute()
+            )
+            rows = result.data or []
+
+            if not rows:
+                continue
+
+            domain_parts = []
+            for row in rows:
+                path = row.get("path", "")
+                content = (row.get("content") or "")[:max_content_per_file]
+                updated = row.get("updated_at", "")[:10]  # Date only
+
+                # Make path relative to domain folder for readability
+                rel_path = path.replace(prefix + "/", "")
+
+                if content.strip():
+                    domain_parts.append(
+                        f"### {rel_path}" + (f" (updated {updated})" if updated else "") +
+                        f"\n{content}"
+                    )
+
+            if domain_parts:
+                sections.append(
+                    f"## Accumulated Context: {domain_key}\n" +
+                    "\n\n".join(domain_parts)
+                )
+
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Context domain read failed for {domain_key}: {e}")
+
+    return "\n\n".join(sections) if sections else ""
+
+
 def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
     """Extract the most recent N feedback entries from task feedback.md.
 
@@ -155,9 +224,11 @@ async def gather_task_context(
 ) -> tuple[str, dict]:
     """Gather context for task execution.
 
-    Reads from agent workspace (identity, memory, observations) and knowledge base.
-    Knowledge base search is task-aware: uses task objective/title for relevance,
-    not just agent title.
+    ADR-151: Context priority order:
+    1. Accumulated context domains (/workspace/context/) — PRIMARY
+    2. Agent workspace (identity, memory, methodology)
+    3. Knowledge base (platform-derived, legacy)
+    4. User notes
 
     Returns:
         (context_text, context_metadata)
@@ -168,6 +239,22 @@ async def gather_task_context(
     await ws.ensure_seeded(agent)
 
     sections = []
+
+    # 0. Accumulated context domains — PRIMARY CONTEXT (ADR-151)
+    # Read from /workspace/context/{domain}/ based on task type's context_reads
+    context_domains_text = ""
+    if task_info:
+        type_key = task_info.get("type_key", "").strip()
+        if type_key:
+            from services.task_types import get_task_type
+            task_type_def = get_task_type(type_key)
+            context_reads = (task_type_def or {}).get("context_reads", [])
+            if context_reads:
+                context_domains_text = await _gather_context_domains(
+                    client, user_id, context_reads,
+                )
+    if context_domains_text:
+        sections.append(context_domains_text)
 
     # 1. Agent workspace context (thesis, memory, observations)
     ws_context = await ws.load_context()

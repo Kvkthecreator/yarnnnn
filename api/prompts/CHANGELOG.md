@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.4] - ADR-151 Phase 2: Pipeline reads workspace context domains
+
+### Changed
+- `services/task_pipeline.py`: New `_gather_context_domains()` reads all files from `/workspace/context/{domain}/` for a task's `context_reads` domains. Ordered by recency. Injected as PRIMARY context in `gather_task_context()` — before agent workspace, knowledge base, and user notes.
+- Expected behavior: Tasks with `context_reads` (all 13 typed tasks) now see accumulated workspace context as their primary input. Research agents reason from accumulated context first, then research new signals. Output quality compounds with accumulated context depth.
+
+---
+
 ## [2026.03.31.3] - ADR-151 Phase 1: Shared context domains + domain registry
 
 ### Changed
