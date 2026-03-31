@@ -1,6 +1,6 @@
 # ADR-149: Task Lifecycle Architecture — TP as Context Manager
 
-**Status:** Phase 1-2 Implemented  
+**Status:** Phase 1-5 Implemented (Phase 6 frontend deferred)  
 **Date:** 2026-03-31  
 **Supersedes:** Portions of ADR-145 (task type registry stays, execution model evolves)  
 **Extends:** ADR-138 (agents as work units), ADR-140 (agent workforce model), ADR-141 (unified execution), ADR-144 (inference-first shared context), ADR-146 (primitive hardening)

@@ -1,6 +1,6 @@
 # ADR-151: Shared Context Domains — Workspace as Accumulated Intelligence
 
-**Status:** Proposed  
+**Status:** Phase 1-4 Implemented (Phase 5 TP domain awareness deferred)  
 **Date:** 2026-03-31  
 **Supersedes:** ADR-150 (task-gated context — wrong; accumulated context must be shared)  
 **Extends:** ADR-149 (task lifecycle), ADR-138 (agents as work units), ADR-140 (agent workforce), ADR-141 (unified execution)  
