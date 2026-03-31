@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.9] - ADR-149 Phase 5: Task deliverable inference
+
+### Changed
+- NEW `services/task_deliverable_inference.py`: `infer_task_deliverable_preferences()` reads task memory/feedback.md → LLM (Sonnet) identifies patterns across user corrections + TP evaluations → merges into DELIVERABLE.md "User Preferences (inferred)" section.
+- Minimum 2 feedback entries required before inference runs (skip for sparse signal).
+- Preserves all DELIVERABLE.md sections (Expected Output, Assets, Quality Criteria, Audience). Only modifies "User Preferences (inferred)."
+- Max 10 preferences, each citing source feedback entry. Contradicted preferences removed.
+- Expected behavior: TP calls this after feedback accumulates (judgment, not cron). User edits "shorten executive summary" + "add Acme Corp" over 3 cycles → DELIVERABLE.md gains: "Executive summary ≤3 sentences" + "Always include Acme Corp."
+
+---
+
 ## [2026.03.31.8] - ADR-151 Phase 4: Diff-aware output derivation
 
 ### Changed
