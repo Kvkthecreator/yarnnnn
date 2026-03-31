@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.16] - TASK.md as sole source of truth — pipeline reads TASK.md not registry
+
+### Changed
+- `services/task_types.py`: `build_task_md_from_type()` now serializes context_reads, context_writes, output_category into TASK.md metadata fields. These are written at creation time and never re-read from the registry.
+- `services/task_pipeline.py`: `parse_task_md()` now extracts context_reads, context_writes, output_category, and process_steps from TASK.md. New section parser for `## Process` extracts step name, agent reference, and instruction.
+- `services/task_pipeline.py`: Pipeline refactored — 4 out of 5 `get_task_type()` registry lookups replaced with reads from `task_info` (parsed TASK.md). Only layout_mode for HTML rendering still uses registry lookup (rendering concern, not task behavior).
+  - `_route_output_to_context_domains()` → reads `task_info["context_writes"]`
+  - `gather_task_context()` → reads `task_info["context_reads"]`
+  - `execute_task()` multi-step check → reads `task_info["process_steps"]`
+  - `execute_task()` single-step agent → reads from process_steps[0].agent_ref
+- `_execute_pipeline()` receives `process_steps` list (from TASK.md) instead of `task_type_def` dict (from registry). Agent resolution supports both slug and role matching.
+- Expected behavior: TASK.md is the sole source of truth for task behavior after creation. TP can modify context_reads, context_writes, process steps in TASK.md and the pipeline adapts. Registries are creation-time templates only.
+
+---
+
 ## [2026.03.31.15] - Workspace initialization — full bootstrap from registries
 
 ### Changed

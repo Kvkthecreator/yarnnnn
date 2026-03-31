@@ -839,12 +839,20 @@ def build_task_md_from_type(
         agent_label = agent_slugs[i] if agent_slugs and i < len(agent_slugs) else step["agent_type"]
         process_lines.append(f"{i+1}. **{step['step'].title()}** ({agent_label}): {step['instruction']}")
 
+    # ADR-152: Serialize all runtime config into TASK.md (not read from registry)
+    context_reads = task_type.get("context_reads", [])
+    context_writes = task_type.get("context_writes", [])
+    output_category = task_type.get("output_category", "")
+
     md = f"""# {title}
 
 **Slug:** {slug}
 **Type:** {type_key}
 **Schedule:** {effective_schedule}
 **Delivery:** {delivery or 'none'}
+**Context Reads:** {', '.join(context_reads) if context_reads else 'none'}
+**Context Writes:** {', '.join(context_writes) if context_writes else 'none'}
+**Output Category:** {output_category or 'none'}
 
 ## Objective
 - **Deliverable:** {deliverable_text}

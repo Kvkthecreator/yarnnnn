@@ -116,19 +116,14 @@ async def _route_output_to_context_domains(
     Writes to /workspace/context/{domain}/signals/{date}.md (cross-domain signal log).
     Non-fatal — failures logged but don't block delivery.
     """
-    type_key = (task_info or {}).get("type_key", "").strip()
-    if not type_key:
-        return  # Custom tasks without type_key don't have context_writes
+    # ADR-152: Read context_writes from task_info (parsed TASK.md), not registry
+    context_writes = (task_info or {}).get("context_writes", [])
+    if not context_writes:
+        return
 
     try:
-        from services.task_types import get_task_type
         from services.directory_registry import get_domain_folder
         from services.workspace import UserMemory
-
-        task_type_def = get_task_type(type_key)
-        context_writes = (task_type_def or {}).get("context_writes", [])
-        if not context_writes:
-            return
 
         um = UserMemory(client, user_id)
         date_str = run_time.strftime("%Y-%m-%d")
@@ -233,6 +228,15 @@ def parse_task_md(content: str) -> dict:
             result["schedule"] = line_stripped.split("**Schedule:**")[1].strip()
         elif line_stripped.startswith("**Delivery:**"):
             result["delivery"] = line_stripped.split("**Delivery:**")[1].strip()
+        elif line_stripped.startswith("**Context Reads:**"):
+            raw = line_stripped.split("**Context Reads:**")[1].strip()
+            result["context_reads"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        elif line_stripped.startswith("**Context Writes:**"):
+            raw = line_stripped.split("**Context Writes:**")[1].strip()
+            result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        elif line_stripped.startswith("**Output Category:**"):
+            raw = line_stripped.split("**Output Category:**")[1].strip()
+            result["output_category"] = raw if raw != "none" else ""
 
     # Parse sections
     current_section = None
@@ -240,6 +244,8 @@ def parse_task_md(content: str) -> dict:
         line_stripped = line.strip()
         if line_stripped == "## Objective":
             current_section = "objective"
+        elif line_stripped == "## Process":
+            current_section = "process"
             continue
         elif line_stripped == "## Success Criteria":
             current_section = "criteria"
@@ -260,6 +266,21 @@ def parse_task_md(content: str) -> dict:
             result["success_criteria"].append(line_stripped[2:])
         elif current_section == "output_spec" and line_stripped.startswith("- "):
             result["output_spec"].append(line_stripped[2:])
+        elif current_section == "process" and re.match(r"^\d+\.\s+\*\*", line_stripped):
+            # Parse: "1. **Update-Context** (research-agent): instruction text"
+            step_match = re.match(
+                r"^\d+\.\s+\*\*(.+?)\*\*\s*\(([^)]+)\)(?::\s*(.*))?",
+                line_stripped,
+            )
+            if step_match:
+                step_name = step_match.group(1).strip().lower().replace(" ", "-")
+                agent_ref = step_match.group(2).strip()
+                instruction_text = (step_match.group(3) or "").strip()
+                result.setdefault("process_steps", []).append({
+                    "step": step_name,
+                    "agent_ref": agent_ref,  # Could be agent_slug or agent_type
+                    "instruction": instruction_text,
+                })
 
     return result
 
@@ -293,19 +314,15 @@ async def gather_task_context(
 
     sections = []
 
-    # 0. Accumulated context domains — PRIMARY CONTEXT (ADR-151)
-    # Read from /workspace/context/{domain}/ based on task type's context_reads
+    # 0. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
+    # Read from /workspace/context/{domain}/ based on TASK.md context_reads (not registry)
     context_domains_text = ""
     if task_info:
-        type_key = task_info.get("type_key", "").strip()
-        if type_key:
-            from services.task_types import get_task_type
-            task_type_def = get_task_type(type_key)
-            context_reads = (task_type_def or {}).get("context_reads", [])
-            if context_reads:
-                context_domains_text = await _gather_context_domains(
-                    client, user_id, context_reads,
-                )
+        context_reads = task_info.get("context_reads", [])
+        if context_reads:
+            context_domains_text = await _gather_context_domains(
+                client, user_id, context_reads,
+            )
     if context_domains_text:
         sections.append(context_domains_text)
 
@@ -629,37 +646,32 @@ async def execute_task(
             pass
 
         # =====================================================================
-        # 1d. Check for multi-step process (ADR-145)
+        # 1d. Check for multi-step process (ADR-152: read from TASK.md, not registry)
         # =====================================================================
-        type_key = task_info.get("type_key", "").strip()
-        if type_key:
-            from services.task_types import get_task_type
-            task_type_def = get_task_type(type_key)
-            if task_type_def and len(task_type_def.get("process", [])) > 1:
-                # Multi-step process — delegate to process executor
-                result = await _execute_pipeline(
-                    client, user_id, task_slug, tw, task_info, task_type_def, started_at,
-                    deliverable_spec=deliverable_spec,
-                    steering_notes=steering_notes,
-                    task_feedback=task_feedback,
-                    task_mode=task_mode,
-                )
-                return result
+        process_steps = task_info.get("process_steps", [])
+        if len(process_steps) > 1:
+            # Multi-step process — delegate to process executor
+            result = await _execute_pipeline(
+                client, user_id, task_slug, tw, task_info, process_steps, started_at,
+                deliverable_spec=deliverable_spec,
+                steering_notes=steering_notes,
+                task_feedback=task_feedback,
+                task_mode=task_mode,
+            )
+            return result
 
         # Single-step execution (existing flow)
         agent_slug = task_info.get("agent_slug", "").strip()
 
-        # For single-step typed tasks, resolve agent from process definition
-        if not agent_slug and type_key:
-            from services.task_types import get_task_type
-            _type_def = get_task_type(type_key)
-            if _type_def and _type_def.get("process"):
-                agent_type = _type_def["process"][0]["agent_type"]
+        # ADR-152: For single-step tasks, resolve agent from TASK.md process_steps
+        if not agent_slug and process_steps:
+            agent_ref = process_steps[0].get("agent_ref") or process_steps[0].get("agent_type", "")
+            if agent_ref:
                 roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
                 for a in (roster.data or []):
-                    if a.get("role") == agent_type:
+                    if a.get("slug") == agent_ref or a.get("role") == agent_ref:
                         agent_slug = a["slug"]
-                        logger.info(f"[TASK_EXEC] Resolved agent {agent_slug} from type {type_key} process")
+                        logger.info(f"[TASK_EXEC] Resolved agent {agent_slug} from TASK.md process")
                         break
 
         if not agent_slug:
@@ -1111,7 +1123,7 @@ async def _execute_pipeline(
     task_slug: str,
     tw,  # TaskWorkspace
     task_info: dict,
-    task_type_def: dict,
+    process_steps: list,  # ADR-152: from TASK.md, not registry
     started_at,
     deliverable_spec: str = "",
     steering_notes: str = "",
@@ -1120,8 +1132,11 @@ async def _execute_pipeline(
 ) -> dict:
     """Execute a multi-step process — sequential agent execution with handoffs.
 
+    ADR-152: process_steps come from parsed TASK.md, not the task type registry.
+    Each step has: {step, agent_ref, instruction}.
+
     Each process step:
-    1. Resolve agent by type from user's roster
+    1. Resolve agent by slug or type from user's roster
     2. Gather step-specific context (agent workspace + prior step output)
     3. Generate with step instruction merged into task objective
     4. Save step output to /tasks/{slug}/outputs/{date}/step-{N}/
@@ -1139,7 +1154,7 @@ async def _execute_pipeline(
     )
     from services.platform_limits import check_credits, record_credits
 
-    steps = task_type_def["process"]
+    steps = process_steps  # ADR-152: from TASK.md, not registry
     title = task_info.get("title") or task_slug
     delivery_target = task_info.get("delivery", "").strip()
 
@@ -1172,10 +1187,14 @@ async def _execute_pipeline(
     )
     all_agents = agents_result.data or []
     role_to_agent = {}
+    slug_to_agent = {}
     for a in all_agents:
         r = a.get("role")
+        s = a.get("slug")
         if r and r not in role_to_agent:
             role_to_agent[r] = a
+        if s:
+            slug_to_agent[s] = a
 
     # Check credits before starting
     try:
@@ -1198,14 +1217,20 @@ async def _execute_pipeline(
 
     for step_idx, step in enumerate(steps):
         step_num = step_idx + 1
-        agent_type = step["agent_type"]
+        # ADR-152: Steps from TASK.md have agent_ref; registry steps have agent_type
+        agent_ref = step.get("agent_ref") or step.get("agent_type", "")
         step_name = step["step"]
-        step_instruction = step["instruction"]
+        step_instruction = step.get("instruction", "")
+        # If instruction is empty (TASK.md may truncate), use generic template
+        if not step_instruction:
+            from services.task_types import STEP_INSTRUCTIONS
+            step_instruction = STEP_INSTRUCTIONS.get(step_name, "")
 
-        agent = role_to_agent.get(agent_type)
+        # Resolve agent: try slug first, then role/type
+        agent = slug_to_agent.get(agent_ref) if agent_ref in slug_to_agent else role_to_agent.get(agent_ref)
         if not agent:
-            logger.warning(f"[PIPELINE] Step {step_num} ({step_name}): no agent of type '{agent_type}' — skipping")
-            step_outputs.append(f"(Step {step_num} skipped: no {agent_type} agent in roster)")
+            logger.warning(f"[PIPELINE] Step {step_num} ({step_name}): no agent '{agent_ref}' — skipping")
+            step_outputs.append(f"(Step {step_num} skipped: no {agent_ref} agent)")
             continue
 
         agent_slug = agent.get("slug", "")
