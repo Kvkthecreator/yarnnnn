@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.13] - ADR-152: Unified Directory Registry + uploads rename + output categories
+
+### Changed
+- NEW `services/directory_registry.py`: Replaces `domain_registry.py`. `WORKSPACE_DIRECTORIES` governs ALL workspace content directories: `uploads/` (user-contributed, was: documents/), `context/` (6 agent-accumulated domains), `outputs/` (3 agent-produced categories: reports, briefs, content). Single source of truth for workspace filesystem.
+- `services/task_types.py`: All 13 task types gain `output_category` field (reports/briefs/content_output) declaring where synthesized outputs get promoted.
+- All callers migrated from `domain_registry` → `directory_registry` (7 files).
+- `services/domain_registry.py` DELETED — absorbed into `directory_registry.py`.
+- `documents/` → `uploads/` naming convention across all docs.
+- `services/primitives/workspace.py`: QueryKnowledge tool description updated with output categories.
+- Expected behavior: One registry governs all workspace directories. Task outputs can be promoted to /workspace/outputs/{category}/ for cross-task reference. "uploads" and "outputs" naming removes ambiguity.
+
+---
+
 ## [2026.03.31.12] - TP meta-awareness: tasks + context domains in working memory
 
 ### Changed

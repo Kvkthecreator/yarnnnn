@@ -2,7 +2,7 @@
 
 **Status:** Canonical  
 **Date:** 2026-03-31  
-**Related:** ADR-140 (Agent Workforce), ADR-145 (Task Type Registry), ADR-151 (Context Domains)
+**Related:** ADR-140 (Agent Workforce), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry)
 
 ---
 
@@ -12,7 +12,7 @@ YARNNN has three registries that work together:
 
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
-| **Context Domains** | What the system accumulates | `domain_registry.py` | `CONTEXT_DOMAINS` |
+| **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
 | **Agent Types** | Who does the work | `agent_framework.py` | `AGENT_TYPES` |
 | **Task Types** | How work gets done | `task_types.py` | `TASK_TYPES` |
 
@@ -37,41 +37,51 @@ YARNNN has three registries that work together:
 
 ### Intelligence & Research
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) |
-|---|---|---|---|---|
-| **Competitive Intel Brief** | recurring | weekly | research → content | R: competitors / W: competitors, signals |
-| **Market Research Report** | recurring | monthly | research → content | R: market / W: market, signals |
-| **Industry Signal Monitor** | recurring | weekly | marketing (single) | R: signals / W: signals |
-| **Due Diligence Summary** | goal | on-demand | research → content | R: competitors, market / W: competitors, signals |
+| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+|---|---|---|---|---|---|
+| **Competitive Intel Brief** | recurring | weekly | research → content | R: competitors / W: competitors, signals | reports |
+| **Market Research Report** | recurring | monthly | research → content | R: market / W: market, signals | reports |
+| **Industry Signal Monitor** | recurring | weekly | marketing (single) | R: signals / W: signals | reports |
+| **Due Diligence Summary** | goal | on-demand | research → content | R: competitors, market / W: competitors, signals | reports |
 
 ### Operations
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) |
-|---|---|---|---|---|
-| **Meeting Prep Brief** | reactive | on-demand | crm → research | R: relationships, competitors / W: relationships, signals |
-| **Stakeholder / Board Update** | recurring | monthly | research → content | R: competitors, market, projects, relationships / W: projects, signals |
-| **Relationship Health Digest** | recurring | weekly | crm → content | R: relationships / W: relationships, signals |
-| **Project Status Report** | recurring | weekly | research → content | R: projects / W: projects, signals |
+| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+|---|---|---|---|---|---|
+| **Meeting Prep Brief** | reactive | on-demand | crm → research | R: relationships, competitors / W: relationships, signals | briefs |
+| **Stakeholder / Board Update** | recurring | monthly | research → content | R: competitors, market, projects, relationships / W: projects, signals | reports |
+| **Relationship Health Digest** | recurring | weekly | crm → content | R: relationships / W: relationships, signals | briefs |
+| **Project Status Report** | recurring | weekly | research → content | R: projects / W: projects, signals | reports |
 
 ### Platform Digests
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) |
-|---|---|---|---|---|
-| **Slack Recap** | recurring | daily | slack_bot (single) | R: signals / W: signals |
-| **Notion Sync Report** | recurring | weekly | notion_bot (single) | R: signals / W: signals |
+| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+|---|---|---|---|---|---|
+| **Slack Recap** | recurring | daily | slack_bot (single) | R: signals / W: signals | briefs |
+| **Notion Sync Report** | recurring | weekly | notion_bot (single) | R: signals / W: signals | briefs |
 
 ### Content & Communications
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) |
-|---|---|---|---|---|
-| **Content Brief / Blog Draft** | goal | on-demand | research → content | R: content / W: content |
-| **Launch / Announcement Material** | goal | on-demand | research → content | R: content, competitors, market / W: content |
+| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+|---|---|---|---|---|---|
+| **Content Brief / Blog Draft** | goal | on-demand | research → content | R: content / W: content | content_output |
+| **Launch / Announcement Material** | goal | on-demand | research → content | R: content, competitors, market / W: content | content_output |
 
 ### Data & Tracking
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) |
-|---|---|---|---|---|
-| **GTM Tracker** | recurring | weekly | marketing → content | R: competitors, market / W: competitors, signals |
+| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+|---|---|---|---|---|---|
+| **GTM Tracker** | recurring | weekly | marketing → content | R: competitors, market / W: competitors, signals | reports |
+
+### Output Categories
+
+Task types declare an `output_category` that determines where promoted outputs land in `/workspace/outputs/`:
+
+| Category | Directory | Typical task types |
+|---|---|---|
+| **reports** | `/workspace/outputs/reports/` | Competitive intel, market research, signal monitor, due diligence, stakeholder update, project status, GTM tracker |
+| **briefs** | `/workspace/outputs/briefs/` | Meeting prep, relationship health, Slack recap, Notion sync |
+| **content_output** | `/workspace/outputs/content/` | Content brief, blog draft, launch material |
 
 ---
 
@@ -118,11 +128,11 @@ YARNNN has three registries that work together:
 ## Expansion Guidelines
 
 ### Adding a New Context Domain
-1. Add entry to `CONTEXT_DOMAINS` in `domain_registry.py`
+1. Add entry to `WORKSPACE_DIRECTORIES` in `directory_registry.py`
 2. Define entity_structure, synthesis_file, signal_log
 3. Update relevant task types with `context_reads`/`context_writes`
 4. Update workspace-conventions.md
-5. Increment domain registry version
+5. Increment directory registry version
 
 ### Adding a New Task Type
 1. Add entry to `TASK_TYPES` in `task_types.py`
@@ -145,8 +155,12 @@ YARNNN has three registries that work together:
 ```
 /workspace/
 ├── IDENTITY.md, BRAND.md          # User context
-├── documents/                      # User-uploaded references
-├── context/                        # ACCUMULATED CONTEXT (domain registry)
+├── uploads/                        # User-uploaded references (was: documents/)
+├── outputs/                        # Promoted agent deliverables (directory registry)
+│   ├── reports/                    # Reports, analyses, digests
+│   ├── briefs/                     # Summaries, prep docs, updates
+│   └── content/                    # Blog drafts, comms, launch material
+├── context/                        # ACCUMULATED CONTEXT (directory registry)
 │   ├── competitors/                # Managed by: competitive-intel, due-diligence, gtm-tracker
 │   ├── market/                     # Managed by: market-research
 │   ├── relationships/              # Managed by: meeting-prep, relationship-health

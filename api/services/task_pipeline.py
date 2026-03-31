@@ -46,7 +46,7 @@ async def _gather_context_domains(
     if not context_reads:
         return ""
 
-    from services.domain_registry import get_domain_folder
+    from services.directory_registry import get_domain_folder
 
     sections = []
 
@@ -122,7 +122,7 @@ async def _route_output_to_context_domains(
 
     try:
         from services.task_types import get_task_type
-        from services.domain_registry import get_domain_folder
+        from services.directory_registry import get_domain_folder
         from services.workspace import UserMemory
 
         task_type_def = get_task_type(type_key)

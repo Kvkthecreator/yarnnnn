@@ -267,7 +267,7 @@ async def handle_write_workspace(auth: Any, input: dict) -> dict:
         if not domain:
             return {"success": False, "error": "missing_domain", "message": "domain is required for scope='context'"}
 
-        from services.domain_registry import get_domain_folder
+        from services.directory_registry import get_domain_folder
         from services.workspace import UserMemory
 
         domain_folder = get_domain_folder(domain)
@@ -351,7 +351,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     try:
         prefix = "/workspace/context/"
         if domain:
-            from services.domain_registry import get_domain_folder
+            from services.directory_registry import get_domain_folder
             domain_folder = get_domain_folder(domain)
             if domain_folder:
                 prefix = f"/workspace/{domain_folder}/"

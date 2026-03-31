@@ -493,7 +493,7 @@ async def _handle_evaluate(auth: Any, task_slug: str) -> dict:
                 task_type_def = get_task_type(type_key)
                 context_reads = (task_type_def or {}).get("context_reads", [])
                 if context_reads:
-                    from services.domain_registry import get_domain_folder
+                    from services.directory_registry import get_domain_folder
                     for domain_key in context_reads:
                         folder = get_domain_folder(domain_key)
                         if folder:

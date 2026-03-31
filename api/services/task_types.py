@@ -107,6 +107,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["competitors"],
         "context_writes": ["competitors", "signals"],
+        "output_category": "briefs",
     },
 
     "market-research-report": {
@@ -174,6 +175,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["market"],
         "context_writes": ["market", "signals"],
+        "output_category": "reports",
     },
 
     "industry-signal-monitor": {
@@ -227,6 +229,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["signals"],
         "context_writes": ["signals"],
+        "output_category": "briefs",
     },
 
     "due-diligence-summary": {
@@ -295,6 +298,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["competitors", "market"],
         "context_writes": ["competitors", "signals"],
+        "output_category": "reports",
     },
 
     # ── Business Operations ──
@@ -361,6 +365,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["relationships", "competitors"],
         "context_writes": ["relationships", "signals"],
+        "output_category": "briefs",
     },
 
     "stakeholder-update": {
@@ -431,6 +436,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["competitors", "market", "projects", "relationships"],
         "context_writes": ["projects", "signals"],
+        "output_category": "reports",
     },
 
     "relationship-health-digest": {
@@ -496,6 +502,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["relationships"],
         "context_writes": ["relationships", "signals"],
+        "output_category": "reports",
     },
 
     "project-status-report": {
@@ -560,6 +567,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["projects"],
         "context_writes": ["projects", "signals"],
+        "output_category": "reports",
     },
 
     # ── Platform Digests ──
@@ -618,6 +626,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["signals"],
         "context_writes": ["signals"],
+        "output_category": "briefs",
     },
 
     "notion-sync-report": {
@@ -671,6 +680,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["signals"],
         "context_writes": ["signals"],
+        "output_category": "briefs",
     },
 
     # ── Content & Communications ──
@@ -739,6 +749,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["content"],
         "context_writes": ["content"],
+        "output_category": "content_output",
     },
 
     "launch-material": {
@@ -805,6 +816,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["content", "competitors", "market"],
         "context_writes": ["content"],
+        "output_category": "content_output",
     },
 
     # ── Data & Tracking ──
@@ -874,6 +886,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "context_reads": ["competitors", "market"],
         "context_writes": ["competitors", "signals"],
+        "output_category": "reports",
     },
 }
 

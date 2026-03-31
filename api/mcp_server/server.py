@@ -395,7 +395,7 @@ async def search_knowledge(
 
     prefix = "/workspace/context/"
     if domain:
-        from services.domain_registry import get_domain_folder
+        from services.directory_registry import get_domain_folder
         domain_folder = get_domain_folder(domain)
         if domain_folder:
             prefix = f"/workspace/{domain_folder}/"

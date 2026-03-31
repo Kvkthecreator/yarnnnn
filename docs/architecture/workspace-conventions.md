@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v7 — ADR-151 accumulated context domains)
+**Status:** Canonical (v8 — ADR-152 unified directory registry)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -9,6 +9,7 @@
 - [ADR-142: Unified Filesystem Architecture](../adr/ADR-142-unified-filesystem-architecture.md) — four roots, document pipeline, /knowledge/ dissolved
 - ADR-149 — DELIVERABLE.md quality contract, task memory files, agent reflections
 - ADR-151 — /workspace/context/ accumulated context domains, domain registry
+- ADR-152 — Unified directory registry, documents/ → uploads/ rename, output categories
 - [Naming Conventions](naming-conventions.md) — broader naming system
 - [Agent Execution Model](agent-execution-model.md) — how agents interact with workspace
 
@@ -22,7 +23,7 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 
 | Root | Scope | Owner | Purpose |
 |------|-------|-------|---------|
-| `/workspace/` | User-level | User + TP | Identity, preferences, curated documents, accumulated context domains (PERMANENT) |
+| `/workspace/` | User-level | User + TP | Identity, preferences, user uploads, accumulated context domains, promoted outputs (PERMANENT) |
 | `/platforms/` | Cross-agent | Platform sync | Distilled platform content (OWN LIFECYCLE) |
 | `/agents/{slug}/` | Per-agent | Agent + system | WHO — persistent domain identity + memory |
 | `/tasks/{slug}/` | Per-task | Agent + system | WHAT — work definition + quality contract + outputs + run memory |
@@ -31,9 +32,11 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 
 ---
 
-## `/workspace/` — User Context + Curated Documents + Accumulated Context
+## `/workspace/` — User Context + Uploads + Accumulated Context + Outputs
 
-Everything the workspace "knows" — user identity, learned preferences, reference material the user explicitly shared, and accumulated context domains built up by agents over time.
+Everything the workspace "knows" — user identity, learned preferences, reference material the user explicitly uploaded, accumulated context domains built up by agents over time, and promoted agent outputs.
+
+> **ADR-152:** `documents/` renamed to `uploads/` for clarity. "documents" was ambiguous (user uploads vs system-produced). "uploads" = user-contributed. "outputs" = system-produced.
 
 ```
 /workspace/
@@ -42,9 +45,13 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 ├── CONTEXT.md                     # Inferred context (from documents + onboarding)
 ├── preferences.md                 # Learned preferences (from user edit feedback)
 ├── notes.md                       # TP-extracted standing instructions (nightly cron)
-├── documents/                     # User-uploaded reference material
+├── uploads/                       # User-uploaded reference material (was: documents/)
 │   ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
 │   └── product-roadmap.md         # Extracted text from uploaded DOCX
+├── outputs/                       # Agent-produced deliverables promoted from tasks
+│   ├── reports/                   # Reports, analyses, digests
+│   ├── briefs/                    # Briefs, summaries, prep docs
+│   └── content/                   # Blog drafts, comms, launch material
 └── context/                       # Accumulated context domains (ADR-151)
     ├── competitors/               # Per-competitor entity folders
     │   ├── _landscape.md          # Cross-entity synthesis
@@ -59,17 +66,26 @@ Everything the workspace "knows" — user identity, learned preferences, referen
     └── assets/                    # Cross-domain shared assets
 ```
 
-### Uploaded Documents (`/workspace/documents/`)
+### User Uploads (`/workspace/uploads/`)
 
 When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:
 1. Backend extracts text
-2. Writes to `/workspace/documents/{slugified-name}.md` (permanent)
+2. Writes to `/workspace/uploads/{slugified-name}.md` (permanent)
 3. Creates chunks + embeddings in `filesystem_chunks` (for search)
 4. Optionally triggers inference to update CONTEXT.md
 
-**TP always knows** about uploaded documents — they're listed in working memory with filenames and upload dates. TP can read them via `Read(ref="workspace:documents/{name}.md")`.
+**TP always knows** about uploaded documents — they're listed in working memory with filenames and upload dates. TP can read them via `Read(ref="workspace:uploads/{name}.md")`.
 
 **Distinction from chat uploads:** Pasting/dropping files directly in the chat input creates ephemeral session attachments (inline images, temporary text extraction). These never persist to `/workspace/`. "Upload file" via the plus menu = permanent shared document. Paste in chat = ephemeral session context.
+
+### Promoted Outputs (`/workspace/outputs/`)
+
+Agent-produced deliverables promoted from tasks. Organized by output category:
+- `reports/` — Reports, analyses, digests, intel briefs
+- `briefs/` — Summaries, prep docs, stakeholder updates
+- `content/` — Blog drafts, launch material, communications
+
+Output categories are defined in the directory registry (`WORKSPACE_DIRECTORIES` in `directory_registry.py`). Tasks declare their `output_category` — when outputs are promoted to workspace scope, they land in the corresponding subfolder.
 
 ### Accumulated Context Domains (`/workspace/context/`) — ADR-151
 
@@ -177,7 +193,7 @@ The meaning of `latest/` and `{date}/` folders varies by task mode:
 
 | Context | Example | Lifecycle | Stored where | TP sees? |
 |---------|---------|-----------|--------------|----------|
-| **Shared document** | "Here's our IR deck" | Permanent | `/workspace/documents/` | Yes — file list in working memory |
+| **Shared document** | "Here's our IR deck" | Permanent | `/workspace/uploads/` | Yes — file list in working memory |
 | **Chat upload** | "Look at this screenshot" | Session TTL (4h) | Inline session attachment | Yes — current conversation only |
 | **Platform sync** | Slack daily digest | Platform TTL | `/platforms/` + `platform_content` | Deprioritized |
 
@@ -239,7 +255,7 @@ Task outputs use `manifest.json` for metadata:
 | Value | Meaning | Set by |
 |-------|---------|--------|
 | `active` | Normal operational file | Default |
-| `permanent` | User-curated, never auto-cleaned | `/workspace/documents/` uploads |
+| `permanent` | User-curated, never auto-cleaned | `/workspace/uploads/` uploads |
 | `ephemeral` | Temporary — auto-cleaned after TTL | `/working/` (24h) |
 | `platform` | Platform-synced — own retention rules | `/platforms/` content |
 | `delivered` | Output that has been delivered | Delivery pipeline |
@@ -282,3 +298,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |
 | 2026-03-31 | v6 | ADR-149: DELIVERABLE.md quality contract added to /tasks/{slug}/. Task memory expanded: feedback.md (user corrections + TP evaluations), steering.md (TP management notes). outputs/ restructured with latest/ + {date}/ folders and mode-dependent semantics. Agent self_assessment.md renamed to reflections.md. |
 | 2026-03-31 | v7 | ADR-151: /workspace/context/ replaces /workspace/knowledge/. Accumulated context is workspace-scoped, shared across tasks. Domain registry governs structure. Task knowledge/ folder removed. |
+| 2026-03-31 | v8 | ADR-152: Unified directory registry. /workspace/documents/ renamed to /workspace/uploads/ (clarity: user-contributed vs system-produced). /workspace/outputs/ added (reports/, briefs/, content/ — promoted agent deliverables). Domain registry → directory registry (WORKSPACE_DIRECTORIES in directory_registry.py). |

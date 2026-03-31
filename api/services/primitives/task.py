@@ -405,7 +405,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         if type_key:
             try:
                 from services.task_types import get_task_type
-                from services.domain_registry import get_domain, get_domain_folder, get_synthesis_content
+                from services.directory_registry import get_domain, get_domain_folder, get_synthesis_content
                 from services.workspace import UserMemory
 
                 task_type_def = get_task_type(type_key)

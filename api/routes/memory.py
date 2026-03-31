@@ -244,8 +244,8 @@ async def _scaffold_default_roster(client, user_id: str):
 
     # ADR-151: Scaffold all context domains at onboarding
     try:
-        from services.domain_registry import scaffold_all_domains
-        scaffolded = await scaffold_all_domains(client, user_id)
+        from services.directory_registry import scaffold_all_directories
+        scaffolded = await scaffold_all_directories(client, user_id)
         if scaffolded:
             logger.info(f"[ROSTER] Scaffolded {len(scaffolded)} context domains for {user_id[:8]}: {', '.join(scaffolded)}")
     except Exception as e:

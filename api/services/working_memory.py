@@ -245,7 +245,7 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
     Returns list of {domain, file_count, latest_update} for each domain
     that has files in /workspace/context/.
     """
-    from services.domain_registry import CONTEXT_DOMAINS, get_domain_folder
+    from services.directory_registry import CONTEXT_DOMAINS, get_domain_folder
     domains = []
     for domain_key in CONTEXT_DOMAINS:
         folder = get_domain_folder(domain_key)
