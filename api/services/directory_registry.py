@@ -25,11 +25,18 @@ Design principles:
   5. Directories grow dynamically — registry is starting set, TP can add more
   6. Signal log is cross-domain — temporal events from any context domain
 
+Malleability:
+  - Registry KEYS are stable identifiers (e.g., "reports", "competitors")
+  - display_name, description, and path can be user-customized by TP at runtime
+  - Task types reference keys, not paths — renaming a path doesn't break references
+  - Entity structure templates are starting points — agents create beyond them
+  - TP can add new directories dynamically (new context domains, output categories)
+
 Expansion process:
   1. Add directory dict to WORKSPACE_DIRECTORIES below
   2. Set type: user_contributed | context | output
   3. For context: define entity_structure, synthesis_file
-  4. For output: define category description
+  4. For output: define naming_convention, index_file
   5. Update task types (context_reads/context_writes/output_category)
   6. Update docs/architecture/workspace-conventions.md
   7. Increment version comment above
@@ -194,6 +201,12 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "display_name": "Reports",
         "description": "Recurring reports, stakeholder updates, status summaries",
         "managed_by": "agent",
+        "naming_convention": "{task_slug}-{date}.md",
+        "index_file": "_index.md",
+        "index_template": (
+            "# Reports\n\n"
+            "<!-- Auto-updated. Most recent first. -->\n"
+        ),
     },
 
     "briefs": {
@@ -202,6 +215,12 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "display_name": "Briefs",
         "description": "Meeting prep, intel briefs, on-demand summaries",
         "managed_by": "agent",
+        "naming_convention": "{task_slug}-{date}.md",
+        "index_file": "_index.md",
+        "index_template": (
+            "# Briefs\n\n"
+            "<!-- Auto-updated. Most recent first. -->\n"
+        ),
     },
 
     "content_output": {
@@ -210,6 +229,12 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "display_name": "Content",
         "description": "Blog posts, launch materials, creative deliverables",
         "managed_by": "agent",
+        "naming_convention": "{task_slug}-{date}.md",
+        "index_file": "_index.md",
+        "index_template": (
+            "# Content\n\n"
+            "<!-- Auto-updated. Most recent first. -->\n"
+        ),
     },
 }
 
