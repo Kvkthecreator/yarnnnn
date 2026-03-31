@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.15] - Workspace initialization — full bootstrap from registries
+
+### Changed
+- NEW `services/workspace_init.py`: `initialize_workspace()` — single function that bootstraps a complete workspace from all three registries. 4 phases: directory structure → agent roster → workspace files → manifest.
+- WORKSPACE.md manifest written at init — snapshot of what was created. Reference document, not runtime config. "The workspace filesystem is the source of truth after initialization."
+- `routes/memory.py`: Onboarding now calls `initialize_workspace()` instead of scattered `_scaffold_default_roster()`. Old function deprecated.
+- Expected behavior: New user signup creates a fully provisioned workspace in one pass — 6 agents, 6 context domains, 3 output categories, identity/brand/playbook templates, and a WORKSPACE.md manifest. After init, registries are never consulted at runtime — workspace is self-contained.
+
+---
+
 ## [2026.03.31.14] - ADR-152: Step instruction templates — process steps are generic
 
 ### Changed

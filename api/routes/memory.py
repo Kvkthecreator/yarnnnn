@@ -160,11 +160,10 @@ async def get_onboarding_state(auth: UserClient):
         )
         has_agents = len(result.data or []) > 0
 
-        # ADR-140: Lazy scaffold default workforce roster on first check
+        # ADR-152: Full workspace initialization on first check
         if not has_agents:
-            await _scaffold_default_roster(auth.client, auth.user_id)
-            # Roster created but no tasks yet — still gate to onboarding
-            # for context enrichment. Return has_agents=True so they see the team.
+            from services.workspace_init import initialize_workspace
+            await initialize_workspace(auth.client, auth.user_id)
             has_agents = True
 
         return OnboardingStateResponse(
@@ -176,10 +175,10 @@ async def get_onboarding_state(auth: UserClient):
 
 
 async def _scaffold_default_roster(client, user_id: str):
-    """Create the default 6-agent workforce roster for a new user (ADR-140).
+    """DEPRECATED — Use workspace_init.initialize_workspace() instead.
 
-    Called lazily on first onboarding-state check. Idempotent — checks
-    for existing agents before creating.
+    Kept temporarily for reference. Will be deleted in next cleanup pass.
+    See: api/services/workspace_init.py (ADR-152)
     """
     from services.agent_framework import AGENT_TYPES, DEFAULT_ROSTER
     from services.agent_creation import create_agent_record
