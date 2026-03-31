@@ -377,56 +377,65 @@ async def get_agent_card(
 async def search_knowledge(
     ctx: Context,
     query: Optional[str] = None,
-    content_class: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    role: Optional[str] = None,
+    domain: Optional[str] = None,
     limit: int = 10,
 ) -> dict:
-    """Search YARNNN's accumulated agent-produced knowledge.
+    """Search YARNNN's accumulated workspace context (ADR-151).
 
-    Searches digests, analyses, briefs, research, and insights produced by
-    YARNNN's agent fleet. Filter by producing agent, role type, or content class.
+    Searches shared context domains: competitors, market, relationships,
+    projects, content, signals. Optionally filter by domain.
 
     Args:
-        query: Optional text search (topic, person, keyword)
-        content_class: Optional filter: digests, analyses, briefs, research, insights
-        agent_id: Optional filter by producing agent UUID
-        role: Optional filter by role type: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
+        query: Optional text search (topic, entity, keyword)
+        domain: Optional filter: competitors, market, relationships, projects, content, signals
         limit: Max results (default 10, max 30)
     """
     auth = ctx.request_context.lifespan_context["auth"]
-    from services.workspace import KnowledgeBase
-
-    kb = KnowledgeBase(auth.client, auth.user_id)
     limit = min(limit, 30)
 
-    has_metadata_filters = agent_id or role
-    if has_metadata_filters or not query:
-        results = await kb.search_by_metadata(
-            query=query,
-            content_class=content_class,
-            agent_id=agent_id,
-            role=role,
-            limit=limit,
-        )
-    else:
-        results = await kb.search(query, content_class=content_class, limit=limit)
+    prefix = "/workspace/context/"
+    if domain:
+        from services.domain_registry import get_domain_folder
+        domain_folder = get_domain_folder(domain)
+        if domain_folder:
+            prefix = f"/workspace/{domain_folder}/"
 
-    items = []
-    for r in results:
-        item = {
-            "path": r.path,
-            "summary": r.summary,
-            "content_preview": r.content[:500] if r.content else None,
-            "updated_at": str(r.updated_at) if r.updated_at else None,
-        }
-        if r.metadata:
-            item["produced_by"] = r.metadata.get("agent_id")
-            item["role"] = r.metadata.get("role")
-            item["scope"] = r.metadata.get("scope")
-        items.append(item)
+    try:
+        if query:
+            result = (
+                auth.client.rpc("search_workspace", {
+                    "p_user_id": auth.user_id,
+                    "p_query": query,
+                    "p_path_prefix": prefix,
+                    "p_limit": limit,
+                }).execute()
+            )
+            rows = result.data or []
+        else:
+            result = (
+                auth.client.table("workspace_files")
+                .select("path, content, summary, updated_at")
+                .eq("user_id", auth.user_id)
+                .like("path", f"{prefix}%")
+                .order("updated_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            rows = result.data or []
 
-    return {"success": True, "results": items, "count": len(items)}
+        items = []
+        for r in rows:
+            items.append({
+                "path": r.get("path", ""),
+                "summary": r.get("summary", ""),
+                "content_preview": (r.get("content") or "")[:500],
+                "updated_at": r.get("updated_at"),
+            })
+
+        return {"success": True, "results": items, "count": len(items), "domain": domain}
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "results": [], "count": 0}
 
 
 @mcp.tool()

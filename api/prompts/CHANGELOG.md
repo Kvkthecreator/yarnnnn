@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.11] - KnowledgeBase class DELETED — full migration to context domains
+
+### Changed
+- `services/workspace.py`: KnowledgeBase class (340 lines) DELETED. All callers migrated to context domain writes via domain_registry.py + UserMemory. Tombstone comment left at deletion site.
+- `services/task_pipeline.py`: All KnowledgeBase writes removed from single-step, multi-step, and direct execution paths. Context signal routing via `_route_output_to_context_domains()` is the sole accumulation path. Legacy /knowledge/ search fallback removed — context domains are the ONLY source.
+- `services/agent_execution.py`: KnowledgeBase write replaced with context signal routing to /workspace/context/signals/. Import removed.
+- `services/primitives/workspace.py`: QueryKnowledge primitive rewritten to search /workspace/context/ via direct workspace_files queries. Old KnowledgeBase search/metadata methods removed. Tool description updated with 6 context domain names.
+- `mcp_server/server.py`: search_knowledge tool rewritten to search /workspace/context/. Old params (content_class, agent_id, role) replaced with domain filter.
+- Expected behavior: Zero /knowledge/ writes or reads in production code. All accumulation flows through /workspace/context/ domains. QueryKnowledge searches context domains. Singular implementation — no legacy fallback.
+
+---
+
 ## [2026.03.31.10] - Pipeline cleanup: conditional KnowledgeBase + context domain signal routing
 
 ### Changed

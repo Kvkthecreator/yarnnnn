@@ -1387,7 +1387,7 @@ async def execute_agent_generation(
 
         # 8. ADR-118 D.3: Save output folder BEFORE delivery (with rendered files from RuntimeDispatch)
         # Output folder is the single delivery source. Fatal if this fails.
-        from services.workspace import AgentWorkspace, get_agent_slug, KnowledgeBase
+        from services.workspace import AgentWorkspace, get_agent_slug
         from services.supabase import get_service_client as _get_svc3
         slug = get_agent_slug(agent)
         svc_client = _get_svc3()
@@ -1414,27 +1414,24 @@ async def execute_agent_generation(
             logger.error(f"[EXEC] ADR-118 D.3: Output folder write FAILED (fatal): {e}")
             output_folder = None
 
-        # 9. ADR-107: Write agent output to /knowledge/ filesystem (non-fatal)
+        # 9. ADR-151: Signal routing to /workspace/context/signals/ (replaces legacy /knowledge/ writes)
         try:
-            kb = KnowledgeBase(svc_client, user_id)
-            knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
-            await kb.write(
-                path=knowledge_path,
-                content=draft,
-                summary=f"{title} v{next_version}",
-                metadata={
-                    "agent_id": str(agent_id),
-                    "run_id": str(version_id),
-                    "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(role, "analyses"),
-                    "role": role,
-                    "scope": scope,
-                    "version_number": next_version,
-                },
-                tags=[role],  # ADR-138: mode is on tasks, not agents
+            from services.workspace import UserMemory
+            from datetime import datetime as _dt, timezone as _tz
+            um = UserMemory(svc_client, user_id)
+            date_str = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+            signal_path = f"context/signals/{date_str}.md"
+            existing = await um.read(signal_path) or f"# Signals — {date_str}\n"
+            signal_entry = (
+                f"\n## {title} v{next_version} ({_dt.now(_tz.utc).strftime('%H:%M UTC')})\n"
+                f"- Agent: {agent_slug}\n"
+                f"- Role: {role}\n"
+                f"- Output: {len(draft)} chars\n"
             )
-            logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
+            await um.write(signal_path, existing + signal_entry,
+                          summary=f"Signal from {agent_slug} v{next_version}")
         except Exception as e:
-            logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
+            logger.warning(f"[EXEC] Context signal routing failed: {e}")
 
         # 9b. ADR-130 Phase 2: Compose HTML from output.md + assets (non-fatal)
         from services.agent_framework import has_capability

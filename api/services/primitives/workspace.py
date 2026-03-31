@@ -125,37 +125,30 @@ Use this to find specific information from your accumulated knowledge.""",
 
 QUERY_KNOWLEDGE_TOOL = {
     "name": "QueryKnowledge",
-    "description": """Search the shared knowledge base.
+    "description": """Search accumulated workspace context (ADR-151).
 
-The knowledge base contains:
-- Agent-produced knowledge artifacts (digests, analyses, briefs, research, insights)
-- Synced content from connected platforms (Slack, Gmail, Notion, Calendar) via fallback
+Context domains contain accumulated intelligence shared across all tasks:
+- /workspace/context/competitors/ — competitor profiles, signals, strategy
+- /workspace/context/market/ — market segments, trends, opportunities
+- /workspace/context/relationships/ — contact profiles, interaction history
+- /workspace/context/projects/ — project status, milestones, blockers
+- /workspace/context/content/ — research, drafts, outlines
+- /workspace/context/signals/ — cross-domain temporal signal log
+- Falls back to platform_content (Slack, Notion) if context domains are empty.
 
-Use this to find evidence relevant to your domain. Search by topic, person, keyword.
-Much more targeted than receiving a full platform dump — query for what you need.
-
-You can filter by the agent that produced the knowledge, by role type, or by content class.
-Use DiscoverAgents first to find agent IDs if you want to query a specific agent's outputs.""",
+Use this to find accumulated intelligence. Search by topic, entity, keyword.
+Optionally filter by domain to narrow results.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query (topic, person, keyword). Optional if filtering by agent_id or role."
+                "description": "Search query (topic, entity, keyword). Leave empty to list recent files."
             },
-            "content_class": {
+            "domain": {
                 "type": "string",
-                "enum": ["digests", "analyses", "briefs", "research", "insights"],
-                "description": "Optional: limit to a specific knowledge category"
-            },
-            "agent_id": {
-                "type": "string",
-                "description": "Optional: filter to knowledge produced by a specific agent (UUID)"
-            },
-            "role": {
-                "type": "string",
-                "enum": ["digest", "prepare", "monitor", "research", "synthesize"],
-                "description": "Optional: filter by the role type that produced the knowledge"
+                "enum": ["competitors", "market", "relationships", "projects", "content", "signals"],
+                "description": "Optional: limit search to a specific context domain"
             },
             "limit": {
                 "type": "integer",
@@ -344,67 +337,84 @@ async def handle_search_workspace(auth: Any, input: dict) -> dict:
 
 
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
-    """Handle QueryKnowledge primitive — searches /knowledge/ with optional metadata filters.
+    """Handle QueryKnowledge primitive — searches /workspace/context/ accumulated domains.
 
-    ADR-116 Phase 1: When agent_id or role filters are provided, uses metadata-aware
-    search (search_knowledge_by_metadata RPC). Otherwise falls back to existing
-    full-text search. Always falls back to platform_content if /knowledge/ is empty.
+    ADR-151: Searches shared workspace context domains. Replaces legacy /knowledge/ search.
+    Optional domain filter narrows to specific context domain.
+    Falls back to platform_content if context domains are empty.
     """
-    from services.workspace import KnowledgeBase
-
-    kb = KnowledgeBase(auth.client, auth.user_id)
-    query = input.get("query") or None
-    content_class = input.get("content_class")
-    agent_id = input.get("agent_id")
-    role = input.get("role")
+    query = input.get("query") or ""
+    domain = input.get("content_class") or input.get("domain")  # content_class kept for backwards compat
     limit = min(input.get("limit", 10), 30)
 
-    # ADR-116: Use metadata search when filters are provided
-    has_metadata_filters = agent_id or role
-    if has_metadata_filters or not query:
-        results = await kb.search_by_metadata(
-            query=query,
-            content_class=content_class,
-            agent_id=agent_id,
-            role=role,
-            limit=limit,
-        )
-    else:
-        results = await kb.search(query, content_class=content_class, limit=limit)
+    # Search /workspace/context/ via workspace_files
+    try:
+        prefix = "/workspace/context/"
+        if domain:
+            from services.domain_registry import get_domain_folder
+            domain_folder = get_domain_folder(domain)
+            if domain_folder:
+                prefix = f"/workspace/{domain_folder}/"
 
-    if not results and query:
-        # Fall back to searching platform_content for external data
-        return await _fallback_platform_content_search(auth, query, None, limit)
+        # Full-text search if query provided, otherwise list recent files
+        if query:
+            # Use workspace_files search (text match)
+            result = (
+                auth.client.rpc("search_workspace", {
+                    "p_user_id": auth.user_id,
+                    "p_query": query,
+                    "p_path_prefix": prefix,
+                    "p_limit": limit,
+                }).execute()
+            )
+            rows = result.data or []
+        else:
+            # List recent files in the domain
+            result = (
+                auth.client.table("workspace_files")
+                .select("path, content, summary, updated_at, metadata")
+                .eq("user_id", auth.user_id)
+                .like("path", f"{prefix}%")
+                .order("updated_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            rows = result.data or []
 
-    result_items = []
-    for r in results:
-        item = {"path": r.path, "summary": r.summary, "content_preview": r.content}
-        # ADR-116: Include provenance metadata when available
-        if r.metadata:
-            item["produced_by"] = r.metadata.get("agent_id")
-            item["role"] = r.metadata.get("role")
-            item["scope"] = r.metadata.get("scope")
-            item["version"] = r.metadata.get("version_number")
-        result_items.append(item)
+        if not rows and query:
+            # Fall back to platform_content for external data
+            return await _fallback_platform_content_search(auth, query, None, limit)
 
-    # ADR-116 Phase 5: Log cross-agent references
-    referenced_ids = set()
-    for item in result_items:
-        produced_by = item.get("produced_by")
-        if produced_by:
-            referenced_ids.add(produced_by)
-    if referenced_ids:
-        await _log_cross_agent_reference(auth, list(referenced_ids))
+        result_items = []
+        for r in rows:
+            path = r.get("path", "")
+            content = r.get("content", "")
+            summary = r.get("summary", "")
+            metadata = r.get("metadata") or {}
+            item = {
+                "path": path,
+                "summary": summary or path.split("/")[-1],
+                "content_preview": content[:500] if content else "",
+                "domain": metadata.get("domain", ""),
+                "updated_at": r.get("updated_at", ""),
+            }
+            result_items.append(item)
 
-    return {
-        "success": True,
-        "query": query,
-        "content_class": content_class,
-        "agent_id": agent_id,
-        "role": role,
-        "count": len(result_items),
-        "results": result_items,
-    }
+        return {
+            "success": True,
+            "query": query,
+            "domain": domain,
+            "count": len(result_items),
+            "results": result_items,
+        }
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[QUERY_KNOWLEDGE] Search failed: {e}")
+        # Fall back to platform content
+        if query:
+            return await _fallback_platform_content_search(auth, query, None, limit)
+        return {"success": True, "query": query, "count": 0, "results": []}
 
 
 async def handle_list_workspace(auth: Any, input: dict) -> dict:
