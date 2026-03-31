@@ -52,22 +52,31 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "research-and-compose",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce a comprehensive competitive intelligence brief. "
-                    "First investigate using web search and platform context, then compose the full deliverable.\n\n"
-                    "RESEARCH PHASE: Cover minimum 3 competitors. For each: recent moves (product, pricing, "
-                    "hiring, funding), strategic positioning, threat/opportunity assessment. "
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "competitive intelligence from prior cycles. Research new signals via web search "
+                    "and platform context — cover minimum 3 competitors. For each: recent moves "
+                    "(product, pricing, hiring, funding), strategic positioning, threat/opportunity. "
                     "Prefer sources <90 days old. Cross-reference — single-source claims are signals, not findings.\n\n"
-                    "OUTPUT: Use these exact markdown headers:\n"
-                    "## Executive Summary\n(3 sentences — the insight, not the process)\n"
-                    "## Key Findings\n(numbered list, each with inline citation: 'Revenue grew 23% (source: Q4 filing)')\n"
-                    "## Competitive Positioning\n(include a mermaid quadrant or comparison diagram)\n"
-                    "## Trend Analysis\n(include a chart for any quantified trend data)\n"
-                    "## Implications\n(what this means for our strategy — actionable, specific)\n"
-                    "## Sources\n(list all sources cited)\n\n"
-                    "Target: 2000-3000 words. Every claim needs an inline source citation. "
-                    "Use charts and mermaid diagrams where data supports visual communication."
+                    "UPDATE the per-competitor files with new findings — add dated entries to Recent Signals, "
+                    "update Strategic Assessment if your view has changed. Create new competitor files for "
+                    "newly discovered competitors. Update knowledge/landscape.md with cross-competitor "
+                    "pattern changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent competitor profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
+                    "Use charts and mermaid diagrams where data supports visual communication. "
+                    "Every claim needs an inline source citation. Target: 2000-3000 words."
                 ),
             },
         ],
@@ -96,6 +105,26 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Forward-looking implications not just historical reporting",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "competitor",
+            "entity_folder": "competitors",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Overview\n<!-- Company description, market position -->\n\n"
+                "## Recent Signals\n<!-- Dated findings, newest first -->\n\n"
+                "## Product & Pricing\n<!-- Current offering, pricing model, recent changes -->\n\n"
+                "## Strategic Assessment\n<!-- Threat level, opportunities, positioning -->\n\n"
+                "## Sources\n<!-- All sources cited, with dates -->\n"
+            ),
+            "synthesis_file": "landscape.md",
+            "synthesis_template": (
+                "# Competitive Landscape\n\n"
+                "## Market Map\n<!-- How competitors position relative to each other -->\n\n"
+                "## Key Trends\n<!-- Cross-competitor patterns -->\n\n"
+                "## Our Position\n<!-- Where we sit relative to competitors -->\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "market-research-report": {
@@ -109,23 +138,30 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "research-and-compose",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce a comprehensive market research report. "
-                    "Investigate using web search + workspace knowledge, then compose the full deliverable.\n\n"
-                    "RESEARCH: Cover market size/growth, key players (top 5-10), technology trends, "
-                    "regulatory environment, demand drivers. Quantify (%, $, growth rates). "
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "market intelligence from prior cycles. Research new data via web search and "
+                    "platform context — cover market size/growth, key players (top 5-10), technology "
+                    "trends, regulatory environment, demand drivers. Quantify (%, $, growth rates). "
                     "Primary sources (reports, filings) > secondary (articles). Data <12 months preferred.\n\n"
-                    "OUTPUT: Use these exact sections:\n"
-                    "## Executive Summary\n(conclusion first, not process)\n"
-                    "## Market Overview\n(size, growth rate — include a chart for market growth)\n"
-                    "## Competitive Landscape\n(mermaid positioning map + player comparison table)\n"
-                    "## Trend Analysis\n(trend charts with 1-sentence interpretation each)\n"
-                    "## Opportunities & Risks\n(table format: opportunity/risk, evidence, impact)\n"
-                    "## Recommendations\n(specific, actionable, prioritized)\n"
-                    "## Sources\n\n"
-                    "Target: 2500-4000 words. Every data-heavy section gets a chart or table. "
-                    "Lead with insights, support with data."
+                    "UPDATE the per-segment files with new findings — add dated entries, update "
+                    "assessments if data has shifted. Create new segment files for newly identified "
+                    "segments. Update knowledge/market-overview.md with cross-segment pattern changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent market segment profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
+                    "Every data-heavy section gets a chart or table. "
+                    "Lead with insights, support with data. Target: 2500-4000 words."
                 ),
             },
         ],
@@ -154,6 +190,26 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Clear opportunity identification",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "market_segment",
+            "entity_folder": "segments",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Market Size & Growth\n<!-- TAM, growth rate, trends -->\n\n"
+                "## Key Players\n<!-- Major companies, market share -->\n\n"
+                "## Technology Trends\n<!-- Emerging tech, adoption curves -->\n\n"
+                "## Opportunities & Threats\n<!-- For our positioning -->\n\n"
+                "## Sources\n"
+            ),
+            "synthesis_file": "market-overview.md",
+            "synthesis_template": (
+                "# Market Overview\n\n"
+                "## Landscape Summary\n\n"
+                "## Cross-Segment Patterns\n\n"
+                "## Strategic Implications\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "industry-signal-monitor": {
@@ -167,19 +223,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "scan-and-analyze",
+                "step": "capture-and-report",
                 "instruction": (
-                    "Produce an industry signal report. Scan web and platforms, then analyze.\n\n"
-                    "SCAN: Signal types (priority): pricing changes > product launches > funding rounds > "
+                    "Read existing knowledge files in knowledge/ (patterns, signal history). "
+                    "Gather new signals from web search and platform context. "
+                    "Signal types (priority): pricing changes > product launches > funding rounds > "
                     "leadership changes > hiring patterns > partnerships. "
                     "For each signal: who, what, when, 1-sentence 'so what'. Drop noise.\n\n"
-                    "DEEP-DIVE: Take top 2-3 signals and investigate. Validate with second source, "
+                    "Log new signals to knowledge/signals/. "
+                    "Update knowledge/patterns.md if new cross-signal patterns emerge.\n\n"
+                    "Produce the deliverable emphasizing what's new since last cycle. "
+                    "Deep-dive top 2-3 signals: validate with second source, "
                     "assess strategic impact (high/medium/low with reasoning), "
                     "recommend response ('watch', 'adapt', 'act now').\n\n"
-                    "OUTPUT:\n"
-                    "## Signal Summary\n(table: signal, source, date, significance)\n"
-                    "## Deep Dives\n(per signal: What happened → Why it matters → What to do)\n"
-                    "## Recommendations\n(prioritized action items)\n\n"
                     "Target: 1500-2500 words. Include timeline or chart if signals show a pattern."
                 ),
             },
@@ -205,6 +261,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Pattern identification across multiple signals",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "signal_source",
+            "entity_folder": None,
+            "synthesis_file": "patterns.md",
+            "synthesis_template": (
+                "# Emerging Patterns\n\n"
+                "## Active Patterns\n<!-- Patterns observed across multiple signals -->\n\n"
+                "## Watch List\n<!-- Signals to track in future cycles -->\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "due-diligence-summary": {
@@ -218,23 +285,31 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "investigate-and-compose",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce a structured due diligence report. Investigate thoroughly, then compose.\n\n"
-                    "INVESTIGATE across 6 dimensions: (1) Organization — leadership, team, key hires/departures; "
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "diligence findings from prior investigation. Research new data via web search — "
+                    "filings, press, LinkedIn, Crunchbase. Investigate across 6 dimensions: "
+                    "(1) Organization — leadership, team, key hires/departures; "
                     "(2) Financials — revenue, funding, burn; (3) Market position — share, growth, competition; "
                     "(4) Product — maturity, differentiation, customers; (5) Partnerships — ecosystem, strategy; "
-                    "(6) Risks — regulatory, competitive, execution, timing. "
-                    "Use web search aggressively — filings, press, LinkedIn, Crunchbase.\n\n"
-                    "OUTPUT:\n"
-                    "## Executive Summary\n(go/no-go signal in first sentence)\n"
-                    "## Organization\n(mermaid org chart if data available, key people table)\n"
-                    "## Financial Summary\n(table: metric, value, source)\n"
-                    "## Market Position\n(mermaid competitive positioning diagram)\n"
-                    "## Risk Assessment\n(table: risk, severity, evidence, mitigation)\n"
-                    "## Recommendation\n(specific, with conditions and caveats)\n"
-                    "## Sources\n\n"
-                    "Target: 2500-4000 words. Every claim needs evidence. No unsubstantiated signals."
+                    "(6) Risks — regulatory, competitive, execution, timing.\n\n"
+                    "UPDATE the per-area files with new findings — add dated entries, update risk "
+                    "assessments if evidence has changed. Create new area files for newly identified "
+                    "diligence areas. Update knowledge/assessment.md with overall risk profile changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent diligence area files where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
+                    "Every claim needs evidence. No unsubstantiated signals. Target: 2500-4000 words."
                 ),
             },
         ],
@@ -262,6 +337,25 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Clear recommendation with supporting evidence",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "diligence_area",
+            "entity_folder": "areas",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Findings\n<!-- Key facts and data points -->\n\n"
+                "## Risk Factors\n<!-- Identified risks with severity -->\n\n"
+                "## Open Questions\n<!-- Unresolved items needing further investigation -->\n\n"
+                "## Sources\n"
+            ),
+            "synthesis_file": "assessment.md",
+            "synthesis_template": (
+                "# Due Diligence Assessment\n\n"
+                "## Overall Risk Profile\n\n"
+                "## Key Findings Summary\n\n"
+                "## Recommendation\n"
+            ),
+            "signal_log": False,
+        },
     },
 
     # ── Business Operations ──
@@ -277,24 +371,29 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "crm",
-                "step": "gather-context",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Review interaction history with this contact/company across connected platforms. "
-                    "Produce: (1) Relationship timeline — key milestones, (2) Last interaction — date, "
-                    "topic, outcome, (3) Open items — promises made by either side with dates, "
-                    "(4) Sentiment — trending positive/neutral/cooling based on response patterns. "
-                    "Flag anything unresolved or overdue. Be specific — 'discussed pricing on March 12' not 'recent discussion'."
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "contact intelligence from prior interactions. Review interaction history with "
+                    "this contact/company across connected platforms.\n\n"
+                    "UPDATE the contact file with new findings — add dated entries to Past Interactions, "
+                    "update Open Items with any new commitments or resolutions, adjust Notes with "
+                    "new preferences or sensitivities observed. Create a new contact file if this is "
+                    "a first interaction.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
             {
                 "agent_type": "research",
-                "step": "investigate",
+                "step": "derive-output",
                 "instruction": (
-                    "Research the attendee and their company: last 30 days of news, product announcements, "
-                    "leadership changes, funding, earnings. Identify 3-5 specific talking points that demonstrate "
-                    "preparation (reference their recent news, not generic industry trends). "
-                    "Combine with relationship context from prior step to produce: "
-                    "suggested agenda (3-5 items, prioritized), talking points per agenda item, "
+                    "Read ALL knowledge files in knowledge/. Research the attendee and their company: "
+                    "last 30 days of news, product announcements, leadership changes, funding, earnings. "
+                    "Produce the deliverable as specified in DELIVERABLE.md — combine accumulated "
+                    "relationship context with fresh external research.\n\n"
+                    "Identify 3-5 specific talking points that demonstrate preparation "
+                    "(reference their recent news, not generic industry trends). "
+                    "Produce: suggested agenda (3-5 items, prioritized), talking points per agenda item, "
                     "things to avoid (sensitive topics from prior interactions)."
                 ),
             },
@@ -320,6 +419,19 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Scannable in under 2 minutes",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "contact",
+            "entity_folder": "contacts",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Relationship Context\n<!-- How we know them, history -->\n\n"
+                "## Past Interactions\n<!-- Key meetings, outcomes, dated -->\n\n"
+                "## Open Items\n<!-- Pending action items, commitments -->\n\n"
+                "## Notes\n<!-- Preferences, sensitivities, talking points that worked -->\n"
+            ),
+            "synthesis_file": None,
+            "signal_log": False,
+        },
     },
 
     "stakeholder-update": {
@@ -332,18 +444,29 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf", "pptx"],
         "process": [
             {
-                "agent_type": "content",
-                "step": "gather-and-compose",
+                "agent_type": "research",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce an executive-quality stakeholder update. "
-                    "Gather context from workspace, platforms, and web, then compose.\n\n"
-                    "GATHER: Pull metrics, achievements, challenges, forward look from all available context. "
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "workstream intelligence from prior cycles. Gather new data from platforms and "
+                    "workspace — pull metrics, achievements, challenges, forward look.\n\n"
+                    "UPDATE the per-workstream files with new findings — add dated entries to "
+                    "Key Milestones, update Current Status, note new Challenges with owners and "
+                    "mitigations. Create new workstream files for newly identified workstreams. "
+                    "Update knowledge/executive-summary.md with cross-workstream status changes. "
                     "Quantify everything — 'Revenue grew 23%' not 'revenue grew significantly'.\n\n"
-                    "OUTPUT: Use these exact sections:\n"
-                    "## Key Metrics\n(table: metric, current value, change vs prior period, status indicator)\n"
-                    "## Achievements\n(what shipped/closed/completed — bulleted, each with impact statement)\n"
-                    "## Challenges\n(blockers/risks — each with owner, root cause, mitigation plan)\n"
-                    "## Forward Look\n(next period priorities, milestones, decisions needed from board)\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent workstream profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
                     "Include charts for any metric with trend data. "
                     "Executive tone: lead with impact, support with data, end with specific asks. "
                     "Target: 1500-2500 words."
@@ -374,6 +497,26 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Forward-looking strategic priorities",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "workstream",
+            "entity_folder": "workstreams",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Current Status\n<!-- Progress, health indicator -->\n\n"
+                "## Key Milestones\n<!-- Achieved and upcoming, dated -->\n\n"
+                "## Challenges\n<!-- Active blockers and mitigations -->\n\n"
+                "## Metrics\n<!-- Quantified progress data -->\n"
+            ),
+            "synthesis_file": "executive-summary.md",
+            "synthesis_template": (
+                "# Executive Summary\n\n"
+                "## Overall Status\n\n"
+                "## Key Milestones This Period\n\n"
+                "## Challenges & Mitigations\n\n"
+                "## Forward Look\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "relationship-health-digest": {
@@ -386,26 +529,30 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "slack_bot",
-                "step": "extract",
+                "agent_type": "crm",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Extract interaction patterns from Slack for the past 7 days. For each key contact/team: "
-                    "message count, avg response time, thread depth, reaction patterns. "
-                    "Identify: (1) relationships going quiet (no interaction in >14 days), "
-                    "(2) unanswered threads (question asked, no reply >48h), "
-                    "(3) commitments made ('I'll send', 'will follow up') without follow-through. "
-                    "Output as structured data: contact, last interaction date, frequency trend, flags."
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "relationship intelligence from prior cycles. Review platform context (especially Slack) "
+                    "for the past 7 days — interaction patterns, message frequency, response times, "
+                    "thread depth, commitments made.\n\n"
+                    "UPDATE the per-relationship files with new findings — add dated entries to "
+                    "Engagement History, update Health Indicators with current trends, note new "
+                    "Action Items and Risk Flags. Create new relationship files for newly identified "
+                    "contacts. Update knowledge/portfolio.md with at-risk relationships and pattern changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
             {
-                "agent_type": "crm",
-                "step": "synthesize",
+                "agent_type": "content",
+                "step": "derive-output",
                 "instruction": (
-                    "Synthesize interaction patterns into a relationship health report. "
-                    "Categorize each relationship: Active (regular engagement), Cooling (declining frequency), "
-                    "At-Risk (going quiet + open commitments). "
-                    "For each at-risk/cooling relationship: specific follow-up recommendation with talking point "
-                    "('Reach out to Alice about the Q4 proposal you discussed March 15'). "
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent relationship profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
+                    "For each at-risk/cooling relationship: specific follow-up recommendation with talking point. "
                     "End with: top 3 follow-ups this week, ranked by urgency."
                 ),
             },
@@ -433,6 +580,25 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Personalized per relationship",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "relationship",
+            "entity_folder": "relationships",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Engagement History\n<!-- Interaction frequency, recent touchpoints -->\n\n"
+                "## Health Indicators\n<!-- Response times, sentiment, engagement trend -->\n\n"
+                "## Action Items\n<!-- Follow-ups due, commitments made -->\n\n"
+                "## Risk Flags\n<!-- Declining engagement, competitor mentions -->\n"
+            ),
+            "synthesis_file": "portfolio.md",
+            "synthesis_template": (
+                "# Relationship Portfolio\n\n"
+                "## Health Overview\n\n"
+                "## At-Risk Relationships\n\n"
+                "## Follow-Up Priorities\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "project-status-report": {
@@ -445,29 +611,29 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "slack_bot",
-                "step": "extract-activity",
+                "agent_type": "research",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Extract team activity from Slack for the past 7 days. Capture: "
-                    "(1) Progress updates — what moved forward, with attribution, "
-                    "(2) Blockers — what's stuck and why, who raised it, "
-                    "(3) Decisions — what was decided, by whom, in which thread, "
-                    "(4) Action items — who owes what, with deadlines if mentioned. "
-                    "Group by project/workstream when identifiable. Skip routine standups and bot noise. "
-                    "Be thorough — the next agent composes the final report entirely from your extraction."
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "workstream status from prior cycles. Gather new data from platforms (especially "
+                    "Slack) and workspace — progress updates, blockers, decisions, action items.\n\n"
+                    "UPDATE the per-workstream files with new findings — add dated entries to "
+                    "Progress, update Status and Blockers with current state, note new Next Steps. "
+                    "Create new workstream files for newly identified workstreams. "
+                    "Update knowledge/project-health.md with overall status changes and blocker summary.\n\n"
+                    "Group by project/workstream when identifiable. Skip routine standups and bot noise.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
                 ),
             },
             {
                 "agent_type": "content",
-                "step": "compose",
+                "step": "derive-output",
                 "instruction": (
-                    "Compose a polished project status report from the extracted Slack activity.\n\n"
-                    "OUTPUT:\n"
-                    "## Status: [On Track / At Risk / Blocked]\n(1-sentence rationale)\n"
-                    "## Progress Highlights\n(what shipped/completed, with owner attribution)\n"
-                    "## Blockers & Risks\n(each with owner, impact, mitigation)\n"
-                    "## Action Items\n(table: owner, task, deadline, status)\n"
-                    "## Next Week Priorities\n(top 3-5, prioritized)\n\n"
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent workstream profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
                     "Every item has an owner name. Target: 1000-1500 words."
                 ),
             },
@@ -495,6 +661,25 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Actionable next steps",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "workstream",
+            "entity_folder": "workstreams",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Status\n<!-- Current state, health -->\n\n"
+                "## Progress\n<!-- What happened this cycle -->\n\n"
+                "## Blockers\n<!-- Active blockers with owners -->\n\n"
+                "## Next Steps\n<!-- Upcoming work, priorities -->\n"
+            ),
+            "synthesis_file": "project-health.md",
+            "synthesis_template": (
+                "# Project Health\n\n"
+                "## Overall Status\n\n"
+                "## Blockers Summary\n\n"
+                "## Resource Needs\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     # ── Platform Digests ──
@@ -510,9 +695,14 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "slack_bot",
-                "step": "recap",
+                "step": "capture-and-report",
                 "instruction": (
-                    "Produce a structured recap of Slack activity since the last run. "
+                    "Read existing knowledge files in knowledge/ (patterns, signal history). "
+                    "Gather new signals from Slack activity since the last run. "
+                    "Log new signals to knowledge/signals/.\n\n"
+                    "Update knowledge/patterns.md if new recurring discussion themes or "
+                    "key-people patterns emerge.\n\n"
+                    "Produce the deliverable emphasizing what's new since last cycle. "
                     "Four sections, in this order: "
                     "(1) Decisions Made — what was decided, by whom, link to thread context; "
                     "(2) Action Items — owner, task, deadline if mentioned; "
@@ -546,6 +736,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Skip bot messages and routine posts",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "channel",
+            "entity_folder": None,
+            "synthesis_file": "patterns.md",
+            "synthesis_template": (
+                "# Recurring Patterns\n\n"
+                "## Standing Topics\n<!-- Recurring discussion themes -->\n\n"
+                "## Key People\n<!-- Who drives which discussions -->\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     "notion-sync-report": {
@@ -559,9 +760,14 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "notion_bot",
-                "step": "sync-report",
+                "step": "capture-and-report",
                 "instruction": (
-                    "Produce a Notion workspace sync report for the past 7 days. "
+                    "Read existing knowledge files in knowledge/ (content map, signal history). "
+                    "Gather new signals from Notion platform context for the past 7 days. "
+                    "Log new signals to knowledge/signals/.\n\n"
+                    "Update knowledge/content-map.md if active areas or stale content patterns "
+                    "have changed.\n\n"
+                    "Produce the deliverable emphasizing what's new since last cycle. "
                     "Three sections: (1) Changes — pages created or meaningfully updated "
                     "(distinguish content edits from formatting-only changes), with summary of what changed; "
                     "(2) Staleness Flags — pages not updated in >30 days that likely need attention "
@@ -592,6 +798,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Stale content flagged",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "page",
+            "entity_folder": None,
+            "synthesis_file": "content-map.md",
+            "synthesis_template": (
+                "# Content Map\n\n"
+                "## Active Areas\n<!-- Pages with frequent updates -->\n\n"
+                "## Stale Content\n<!-- Pages not updated recently -->\n"
+            ),
+            "signal_log": True,
+        },
     },
 
     # ── Content & Communications ──
@@ -607,20 +824,31 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "research",
-                "step": "research-and-write",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce a research-backed content draft (blog post / article). "
-                    "Research the topic first, then write the full piece.\n\n"
-                    "RESEARCH: What's already published (gaps in coverage), data points with sources, "
-                    "expert perspectives, contrarian takes, competitive landscape of content on this topic. "
-                    "Identify 2-3 unique angles not already covered.\n\n"
-                    "WRITE: Compelling hook (not 'In today's fast-paced world'), thesis statement, "
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "topic research from prior cycles. Research new data via web search — "
+                    "what's already published (gaps in coverage), data points with sources, "
+                    "expert perspectives, contrarian takes, competitive landscape of content on this topic.\n\n"
+                    "UPDATE the per-topic files with new findings — add dated entries to Key Points, "
+                    "update Sources with newly found research, note Audience Considerations. "
+                    "Create new topic files for newly identified research areas. "
+                    "Update knowledge/brief-outline.md with key message and structure changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. Reference persistent topic research where it exists.\n\n"
+                    "Write in the user's brand voice (see Brand context). "
+                    "Compelling hook (not 'In today's fast-paced world'), thesis statement, "
                     "3-5 evidence-backed sections, actionable conclusion. "
                     "Embed charts where data supports the narrative. "
-                    "Include positioning diagram if comparing approaches. "
-                    "Write in the user's brand voice (see Brand context). "
-                    "Every claim backed by your research. "
-                    "Target: 1500-2500 words."
+                    "Every claim backed by research. Target: 1500-2500 words."
                 ),
             },
         ],
@@ -647,6 +875,24 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Draft ready for light editing",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "topic",
+            "entity_folder": "research",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Key Points\n<!-- Main arguments and evidence -->\n\n"
+                "## Sources\n<!-- Research findings -->\n\n"
+                "## Audience Considerations\n<!-- What resonates with target audience -->\n"
+            ),
+            "synthesis_file": "brief-outline.md",
+            "synthesis_template": (
+                "# Brief Outline\n\n"
+                "## Key Messages\n\n"
+                "## Structure\n\n"
+                "## Tone & Approach\n"
+            ),
+            "signal_log": False,
+        },
     },
 
     "launch-material": {
@@ -659,22 +905,28 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf", "pptx"],
         "process": [
             {
-                "agent_type": "marketing",
-                "step": "position-and-compose",
+                "agent_type": "research",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce presentation-ready launch material. "
-                    "Research competitive positioning first, then compose the deck.\n\n"
-                    "POSITIONING: Market context (why now), competitive landscape (feature matrix), "
-                    "positioning statement (for [audience], [product] is [category] that [differentiator]), "
-                    "key messages (3 per audience: customers, press, internal), "
-                    "objection handling (top 3 objections with responses).\n\n"
-                    "OUTPUT as slides (use ## for each slide title):\n"
-                    "## [Product Name] — [Tagline]\n"
-                    "## The Problem\n## Our Solution\n## How It Works\n"
-                    "## Competitive Differentiation\n(mermaid positioning diagram + feature matrix table)\n"
-                    "## Key Messages\n(by audience segment)\n"
-                    "## Social / PR Quotes\n(ready to copy-paste)\n"
-                    "## Next Steps\n\n"
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "audience and competitive positioning research. Research new data via web search "
+                    "and platform context — competitive landscape, audience profiles, market context, "
+                    "feature matrices, positioning opportunities.\n\n"
+                    "UPDATE the per-audience files with new findings — add dated entries to "
+                    "Key Messages, update Profile and Channels. Create new audience files for "
+                    "newly identified segments. Update knowledge/launch-plan.md with core narrative "
+                    "and timeline changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. Reference persistent audience profiles where they exist.\n\n"
+                    "OUTPUT as slides (use ## for each slide title). "
                     "1 idea per slide, 3 bullets max. Slide titles are assertions "
                     "('We're the only X that does Y'), not topics. Target: 1500-2000 words."
                 ),
@@ -703,6 +955,24 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Actionable deliverables checklist",
             ],
         },
+        "knowledge_schema": {
+            "entity_type": "audience",
+            "entity_folder": "audiences",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Profile\n<!-- Who they are, what they care about -->\n\n"
+                "## Key Messages\n<!-- Tailored messaging for this audience -->\n\n"
+                "## Channels\n<!-- How to reach them -->\n"
+            ),
+            "synthesis_file": "launch-plan.md",
+            "synthesis_template": (
+                "# Launch Plan\n\n"
+                "## Core Narrative\n\n"
+                "## Timeline\n\n"
+                "## Deliverables Checklist\n"
+            ),
+            "signal_log": False,
+        },
     },
 
     # ── Data & Tracking ──
@@ -718,19 +988,27 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "marketing",
-                "step": "gather-and-compose",
+                "step": "update-knowledge",
                 "instruction": (
-                    "Produce a dashboard-style GTM tracker. "
-                    "Gather intelligence via web search and platforms, then compose.\n\n"
-                    "GATHER: (1) Feature Matrix — rows=features, columns=competitors, "
-                    "cells=shipped/building/missing; (2) Signal Log — what each competitor did "
-                    "(date, action, significance); (3) Pricing Intel — changes with before/after; "
-                    "(4) Opportunities — gaps where we have advantage.\n\n"
-                    "OUTPUT:\n"
-                    "## Signal Summary\n(count cards: new features, pricing changes, funding, hires)\n"
-                    "## Feature Matrix\n(markdown table — competitors as columns)\n"
-                    "## Signal Log\n(most recent first, each with date and significance)\n"
-                    "## Opportunity Windows\n(ranked by urgency, each with recommended action)\n\n"
+                    "Read the existing knowledge files in knowledge/. These contain accumulated "
+                    "GTM intelligence from prior cycles. Research new signals via web search and "
+                    "platform context — feature launches, pricing changes, campaigns, hiring patterns.\n\n"
+                    "UPDATE the per-competitor files with new findings — add dated entries to "
+                    "Recent Moves, update Feature Matrix with newly shipped features, note "
+                    "Positioning changes. Create new competitor files for newly discovered competitors. "
+                    "Update knowledge/gtm-landscape.md with market pulse and positioning map changes.\n\n"
+                    "Your output for this step: a CHANGELOG of what you added, updated, or discovered this cycle."
+                ),
+            },
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": (
+                    "Read ALL knowledge files in knowledge/. Produce the deliverable as specified in "
+                    "DELIVERABLE.md. This is a DERIVATIVE of accumulated knowledge — emphasize what CHANGED "
+                    "since last cycle. The reader has seen prior reports; lead with what's new and what it means. "
+                    "Reference persistent competitor profiles where they exist.\n\n"
+                    "Structure: What's New → What Changed → What It Means → Standing Context (brief).\n\n"
                     "Dashboard layout — dense, scannable, no long paragraphs. "
                     "Charts for trends with multi-cycle data. Target: 1500-2500 words."
                 ),
@@ -759,6 +1037,24 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Every finding has an implication",
                 "Quantified where possible",
             ],
+        },
+        "knowledge_schema": {
+            "entity_type": "competitor",
+            "entity_folder": "competitors",
+            "entity_template": (
+                "# {entity_name}\n\n"
+                "## Feature Matrix\n<!-- Feature comparison vs us -->\n\n"
+                "## Recent Moves\n<!-- Product launches, pricing changes, campaigns -->\n\n"
+                "## Positioning\n<!-- How they position vs us -->\n"
+            ),
+            "synthesis_file": "gtm-landscape.md",
+            "synthesis_template": (
+                "# GTM Landscape\n\n"
+                "## Market Pulse\n\n"
+                "## Competitive Positioning Map\n\n"
+                "## Channel Performance Trends\n"
+            ),
+            "signal_log": True,
         },
     },
 }
