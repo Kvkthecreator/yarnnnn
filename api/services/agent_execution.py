@@ -8,7 +8,6 @@ Flow:
     → check_agent_freshness() (ADR-049)
     → strategy.gather_context() (ADR-045 + ADR-073)
     → generate_draft_inline()
-    → mark_content_retained() (ADR-073)
     → record_source_snapshots() (ADR-049)
     → deliver immediately (ADR-066)
     → write activity_log (ADR-090 Phase 3)
@@ -829,7 +828,6 @@ async def generate_draft_inline(
         max_tool_rounds = max(max_tool_rounds, 5)
 
     # ADR-080: Mode-gated tools and executor
-    # ADR-092: Pass agent sources so headless RefreshPlatformContent can scope to them
     # ADR-106: Pass agent dict so workspace primitives have agent context
     headless_tools = get_tools_for_mode("headless")
     executor = create_headless_executor(
@@ -1199,7 +1197,7 @@ async def _generate_agent_card(client, user_id: str, agent: dict, version_number
         "last_run_at": None,  # Column dropped
         "interop": {
             "mcp_resource": f"workspace://agents/{slug}/",
-            "input_format": "platform_content",
+            "input_format": "workspace_context",
             "output_format": "markdown",
         },
     }
@@ -1344,7 +1342,6 @@ async def execute_agent_generation(
             "input_tokens": usage.get("input_tokens", 0),
             "output_tokens": usage.get("output_tokens", 0),
             "model": SONNET_MODEL,
-            "platform_content_ids": gathered_result.platform_content_ids,
             "items_fetched": gathered_result.items_fetched,
             "sources_used": gathered_result.sources_used,
             "strategy": context_summary.get("strategy", "unknown"),
@@ -1359,7 +1356,6 @@ async def execute_agent_generation(
         sources_for_snapshot = []  # Column dropped — sources no longer on agents table
         await record_source_snapshots(
             client, version_id, sources_for_snapshot,
-            content_ids=gathered_result.platform_content_ids,
         )
 
         # 6. last_run_at column dropped — no-op (was: update agent last_run_at)

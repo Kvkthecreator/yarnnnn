@@ -1,7 +1,7 @@
 # ADR-153: Platform Content Sunset — Task-First External Data Flow
 
-**Status:** Proposed  
-**Date:** 2026-03-31  
+**Status:** Implemented  
+**Date:** 2026-03-31 (proposed), 2026-04-01 (implemented)  
 **Supersedes:** ADR-072 (unified content layer), ADR-077 (platform sync overhaul), ADR-085 (RefreshPlatformContent primitive)  
 **Extends:** ADR-151 (shared context domains), ADR-152 (unified directory registry)
 

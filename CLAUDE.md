@@ -148,21 +148,20 @@ Before completing work:
 
 ### 5. Render Service Parity
 
-YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: output gateway added). When changing environment variables, secrets, or architectural patterns, check ALL services:
+YARNNN runs on **4 Render services** (ADR-083: worker + Redis removed; ADR-118: output gateway added; ADR-153: platform sync removed). When changing environment variables, secrets, or architectural patterns, check ALL services:
 
 | Service | Type | Render ID |
 |---------|------|-----------|
 | yarnnn-api | Web Service | `srv-d5sqotcr85hc73dpkqdg` |
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
-| yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` | **DEPRECATED (ADR-153)** — platform data flows through tasks |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
 | yarnnn-render | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
 
-All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks. Output gateway (yarnnn-render) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
+All execution is inline — no background worker, no Redis. Output gateway (yarnnn-render) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
 
-**Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
-- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
-- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Schedulers for Notion API
+**Critical shared env vars** (must be on API + Unified Scheduler):
+- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Scheduler **cannot run import jobs** without it.
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Scheduler for import jobs
 
 **API-only env vars** (not needed on schedulers):
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — ADR-147: only needed for OAuth initiation on API. Schedulers use encrypted tokens from DB for sync.
@@ -184,16 +183,15 @@ All execution is inline — no background worker, no Redis. Platform sync runs i
 - `RENDER_SERVICE_URL` — URL of yarnnn-render service (defaults to `https://yarnnn-render.onrender.com`)
 - `RENDER_SERVICE_SECRET` — Shared secret for authenticating to POST /render (ADR-118 D.2, must match Render service)
 
-**Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
+**Common mistake**: Adding an env var to the API service but forgetting the Scheduler. The API handles OAuth and stores tokens; Scheduler decrypts and uses them for import jobs.
 
 **Impact triggers** — if you change any of these, check the affected services:
 | If you change... | Also check... |
 |-----------------|--------------|
-| Env vars (any) | All 5 services — use Render MCP `update_environment_variables` |
-| OAuth flow / token handling | Unified Scheduler + Platform Sync (they decrypt & use tokens) |
-| Supabase schema (RPC, tables, RLS) | Unified Scheduler + Platform Sync + MCP Server (all use service key) |
+| Env vars (any) | All 4 services — use Render MCP `update_environment_variables` |
+| OAuth flow / token handling | Unified Scheduler (decrypts & uses tokens for import jobs) |
+| Supabase schema (RPC, tables, RLS) | Unified Scheduler + MCP Server (both use service key) |
 | Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
-| Platform sync logic | Platform Sync cron (runs `platform_worker.py`) |
 | MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
 | Output gateway / artifact rendering | yarnnn-render (independent Docker service, ADR-118) |
 
@@ -271,7 +269,7 @@ You MUST:
 
 **Tables** (use these names, not legacy):
 - `platform_connections` (not `user_integrations`)
-- `platform_content` — unified content layer with retention (ADR-072); includes `platform="yarnnn"` for agent outputs (ADR-102)
+- `platform_content` — **DROPPED (ADR-153)**. Was unified content layer with retention (ADR-072). Platform data now flows through tasks into workspace context domains.
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `agents` — persistent workforce roster (ADR-140). Identity-only: `role` (type key: research, content, marketing, crm, slack_bot, notion_bot), `title`, `scope`, `status`, `type_config`, `agent_instructions`, `agent_memory`. No schedule, no destination, no mode — those live on tasks. Pre-scaffolded at sign-up (6 agents per workspace).
@@ -299,17 +297,11 @@ You MUST:
 - `deliverables`, `deliverable_versions`, `deliverable_*` — renamed to `agents`, `agent_runs`, `agent_*` (ADR-103)
 - `work_tickets`, `work_outputs` — dropped
 
-### ADR-077: Platform Sync Overhaul
+### ADR-077: Platform Sync Overhaul — **SUPERSEDED by ADR-153**
 
-**Three-phase sync model** per platform: landscape discovery → delta detection → content extraction.
+**ADR-153 sunset**: `platform_content` table, `platform_worker.py`, `platform_sync_scheduler.py` all deleted. Platform data now flows through tasks into workspace context domains. Agents call platform APIs live during task execution.
 
-- **Scheduler**: `platform_sync_scheduler.py` (separate from `unified_scheduler.py`) — checks tier-based frequency, dispatches to `platform_worker.py`
-- **Worker**: `platform_worker.py` — `_sync_slack()`, `_sync_notion()` — fully paginated with platform-specific hardening
-- **Clients**: Direct API via `api/integrations/core/{slack,notion}_client.py` — no MCP, no gateway (ADR-076)
-- **Content**: Stored in `platform_content` with TTL-based retention (Slack 14d, Notion 90d)
-- **Tier limits**: Free=5 slack/10 notion, Pro=unlimited — ADR-100 2-tier model
-- **GitHub**: ADR-147. Issues + PRs from selected repos. Incremental sync via `updated_at` cursor. Token refresh on 401. 6-month lookback on first sync, 14-day retention.
-- **Gmail & Calendar**: Removed (ADR-131). Google OAuth, `_sync_gmail()`, `_sync_calendar()`, `google_client.py` deleted.
+**Preserved infrastructure**: `platform_connections` (OAuth tokens), API clients (`slack_client.py`, `notion_client.py`, `github_client.py`), `sync_registry` (observability), `landscape.py` (source discovery).
 
 ### ADR-106: Agent Workspace Architecture
 
@@ -373,8 +365,8 @@ You MUST:
 | Task Deliverable Inference | `api/services/task_deliverable_inference.py` (ADR-149: feedback → DELIVERABLE.md, planned) |
 | Task Routes | `api/routes/tasks.py` (ADR-138: task CRUD) |
 | Dashboard Summary | DELETED (2026-03-22) — collapsed into Orchestrator |
-| Platform Sync Worker | `api/workers/platform_worker.py` — **DEPRECATED (ADR-153)** |
-| Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` — **DEPRECATED (ADR-153)** |
+| Platform Sync Worker | DELETED (ADR-153 — platform_content sunset) |
+| Platform Sync Scheduler | DELETED (ADR-153 — platform_content sunset) |
 | Platform API Clients | `api/integrations/core/{slack,notion,github}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |

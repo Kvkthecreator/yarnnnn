@@ -866,41 +866,7 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
-    // ADR-072: Get synced platform content from platform_content
-    getPlatformContext: (
-      provider: "slack" | "notion" | "github",
-      options?: { limit?: number; resourceId?: string; offset?: number }
-    ) =>
-      request<{
-        items: Array<{
-          id: string;
-          content: string;
-          content_type: string | null;
-          resource_id: string;
-          resource_name: string | null;
-          source_timestamp: string | null;
-          fetched_at: string;  // ADR-072: platform_content uses fetched_at
-          retained: boolean;  // ADR-072: retention flag
-          retained_reason: string | null;  // ADR-072: why retained
-          retained_at: string | null;  // ADR-072: when marked retained
-          expires_at: string | null;  // ADR-072: for ephemeral content
-          metadata: Record<string, unknown>;
-        }>;
-        total_count: number;
-        retained_count: number;  // ADR-072: accumulation visibility
-        freshest_at: string | null;
-        platform: string;
-      }>(
-        `/api/integrations/${provider}/context${
-          options
-            ? `?${new URLSearchParams(
-                Object.entries(options)
-                  .filter(([, v]) => v !== undefined)
-                  .map(([k, v]) => [k === "resourceId" ? "resource_id" : k, String(v)])
-              ).toString()}`
-            : ""
-        }`
-      ),
+    // ADR-153: getPlatformContext DELETED — platform_content sunset
 
     // Update coverage state (mark as excluded or reset)
     updateCoverage: (

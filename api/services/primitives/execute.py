@@ -8,7 +8,7 @@ Usage:
   Execute(action="platform.publish", target="agent:uuid", via="platform:twitter")
   Execute(action="agent.generate", target="agent:uuid")
 
-Note: platform.sync removed (ADR-085) — use RefreshPlatformContent primitive instead.
+Note: platform.sync removed (ADR-153 — platform_content sunset).
 """
 
 from typing import Any
@@ -29,7 +29,7 @@ Actions:
 NOTE: For direct platform operations (send messages, search pages, etc.),
 use MCP tools directly: mcp__slack__*, mcp__notion__*, etc. (ADR-048)
 
-NOTE: platform.sync removed — use RefreshPlatformContent(platform="...") instead (ADR-085).
+NOTE: platform.sync removed (ADR-153 — platform_content sunset).
 
 Examples:
 - Execute(action="agent.generate", target="agent:uuid-123")
@@ -62,7 +62,7 @@ Examples:
 
 # Action catalog with descriptions
 # ADR-048: platform.send and platform.search removed - use MCP tools directly
-# ADR-085: platform.sync removed - use RefreshPlatformContent primitive instead
+# ADR-153: platform.sync removed — platform_content sunset
 ACTION_CATALOG = {
     "platform.publish": {
         "description": "Publish approved agent content to platform",
@@ -130,9 +130,9 @@ async def handle_execute(auth: Any, input: dict) -> dict:
         if action == "platform.sync":
             return {
                 "success": False,
-                "error": "action_moved",
-                "message": "'platform.sync' has been replaced by RefreshPlatformContent(platform='...') "
-                           "which runs a synchronous sync and returns results (ADR-085).",
+                "error": "action_removed",
+                "message": "'platform.sync' has been removed (ADR-153). "
+                           "Create a monitoring task instead.",
                 "available_actions": list(ACTION_CATALOG.keys()),
             }
         return {

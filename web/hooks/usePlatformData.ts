@@ -8,7 +8,6 @@ import type {
   LandscapeResource,
   SelectedSource,
   TierLimits,
-  PlatformContentItem,
 } from '@/types';
 import { getApiProvider } from '@/types';
 
@@ -18,7 +17,7 @@ interface UsePlatformDataReturn {
   selectedIds: Set<string>;
   originalIds: Set<string>;
   tierLimits: TierLimits | null;
-  platformContext: PlatformContentItem[];
+  platformContext: unknown[];
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
@@ -29,7 +28,7 @@ interface UsePlatformDataReturn {
 interface UsePlatformDataOptions {
   /** Skip landscape/sources fetch */
   skipResources?: boolean;
-  /** Skip platform context fetch */
+  /** ADR-153: platform context fetch removed */
   skipContext?: boolean;
 }
 
@@ -44,7 +43,7 @@ export function usePlatformData(
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
   const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
-  const [platformContext, setPlatformContext] = useState<PlatformContentItem[]>([]);
+  const [platformContext] = useState<unknown[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -58,7 +57,6 @@ export function usePlatformData(
         landscapeResult,
         sourcesResult,
         limitsResult,
-        platformContextResult,
       ] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         options?.skipResources
@@ -68,10 +66,6 @@ export function usePlatformData(
           ? Promise.resolve({ sources: [] })
           : api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
-        options?.skipContext
-          ? Promise.resolve({ items: [], total_count: 0, freshest_at: null, platform })
-          : api.integrations.getPlatformContext(apiProvider, { limit: 10 })
-              .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
       ]);
 
       setIntegration(integrationResult as IntegrationData | null);
@@ -88,10 +82,7 @@ export function usePlatformData(
       setSelectedIds(currentIds);
       setOriginalIds(currentIds);
 
-      // Set platform context
-      setPlatformContext(
-        (platformContextResult as { items: PlatformContentItem[] })?.items || []
-      );
+      // ADR-153: platform context fetch removed
     } catch (err) {
       console.error('Failed to load platform data:', err);
       setError('Failed to load platform data');

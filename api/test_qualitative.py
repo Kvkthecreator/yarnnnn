@@ -152,7 +152,7 @@ async def test_2_tool_required():
     result = await run_chat_turn(auth, "Search my Slack messages for anything about product launch")
 
     tools = result["tools_used"]
-    used_search = any(t in ("Search", "RefreshPlatformContent", "platform_slack_get_messages") for t in tools)
+    used_search = any(t in ("Search", "QueryKnowledge", "platform_slack_get_messages") for t in tools)
 
     return TestResult(
         name="2. Tool-required action (Search for Slack content)",

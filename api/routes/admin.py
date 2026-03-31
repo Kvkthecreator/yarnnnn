@@ -789,13 +789,7 @@ class AdminSyncHealth(BaseModel):
 
 
 class AdminPipelineStats(BaseModel):
-    """Pipeline health metrics from platform_content, activity_log, event_trigger_log."""
-    # Content layer
-    content_total: int = 0
-    content_retained: int = 0
-    content_ephemeral: int = 0
-    content_by_platform: dict = {}
-    content_retained_by_reason: dict = {}
+    """Pipeline health metrics from activity_log, event_trigger_log."""
     # Scheduler
     last_heartbeat_at: Optional[str] = None
     heartbeats_24h: int = 0
@@ -880,43 +874,14 @@ async def get_sync_health(admin: AdminAuth):
 
 @router.get("/pipeline-stats", response_model=AdminPipelineStats)
 async def get_pipeline_stats(admin: AdminAuth):
-    """Get pipeline health metrics from platform_content, activity_log, event_trigger_log."""
+    """Get pipeline health metrics from activity_log, event_trigger_log."""
     try:
         client = admin.client
         now = datetime.now(timezone.utc)
         cutoff_24h = (now - timedelta(hours=24)).isoformat()
         cutoff_7d = (now - timedelta(days=7)).isoformat()
 
-        # ─── Content Layer ─────────────────────────────────────────────────────
-        # Total non-expired content
-        total_result = client.table("platform_content").select(
-            "id", count="exact"
-        ).or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}").execute()
-        content_total = total_result.count or 0
-
-        # Retained content
-        retained_result = client.table("platform_content").select(
-            "id", count="exact"
-        ).eq("retained", True).execute()
-        content_retained = retained_result.count or 0
-
-        # By platform
-        content_by_platform = {}
-        for p in ["slack", "notion"]:
-            p_result = client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("platform", p).or_(
-                f"retained.eq.true,expires_at.gt.{now.isoformat()}"
-            ).execute()
-            content_by_platform[p] = p_result.count or 0
-
-        # By retention reason
-        content_retained_by_reason = {}
-        for reason in ["agent_execution", "tp_session"]:
-            r_result = client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("retained", True).eq("retained_reason", reason).execute()
-            content_retained_by_reason[reason] = r_result.count or 0
+        # ADR-153: Content layer metrics removed — platform_content sunset
 
         # ─── Scheduler Health ──────────────────────────────────────────────────
         # Latest heartbeat
@@ -977,11 +942,6 @@ async def get_pipeline_stats(admin: AdminAuth):
             pass  # event_trigger_log may not have data yet
 
         return AdminPipelineStats(
-            content_total=content_total,
-            content_retained=content_retained,
-            content_ephemeral=content_total - content_retained,
-            content_by_platform=content_by_platform,
-            content_retained_by_reason=content_retained_by_reason,
             last_heartbeat_at=last_heartbeat,
             heartbeats_24h=heartbeats_24h,
             agents_scheduled_24h=agents_scheduled_24h,
@@ -1005,35 +965,11 @@ async def admin_trigger_sync(
     provider: str,
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
-    """
-    Admin endpoint to trigger platform sync for a specific user+provider.
-    Protected by service key header. Runs synchronously and returns results.
-    """
-    from workers.platform_worker import _sync_platform_async
-
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
-    if not x_service_key or x_service_key != supabase_key:
-        raise HTTPException(status_code=403, detail="Invalid service key")
-
-    supabase_url = os.environ.get("SUPABASE_URL", "")
-    if not supabase_url or not supabase_key:
-        raise HTTPException(status_code=500, detail="Missing Supabase credentials")
-
-    try:
-        result = await _sync_platform_async(
-            user_id=user_id,
-            provider=provider,
-            selected_sources=None,  # Will be fetched from landscape
-            supabase_url=supabase_url,
-            supabase_key=supabase_key,
-        )
-        return {
-            "user_id": user_id,
-            "provider": provider,
-            "result": result,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+    """ADR-153: Platform sync sunset. This endpoint is deprecated."""
+    return {
+        "error": "deprecated",
+        "message": "Platform sync removed (ADR-153). Use monitoring tasks instead.",
+    }
 
 
 

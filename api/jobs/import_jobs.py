@@ -247,7 +247,6 @@ async def process_slack_import(
 ) -> dict:
     """Process a Slack channel import job."""
     from agents.integration.platform_semantics import extract_slack_channel_signals
-    from services.platform_content import store_slack_items_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -341,18 +340,10 @@ async def process_slack_import(
         current_resource=resource_name,
     )
 
-    # 4. ADR-072: Store raw messages to platform_content (with signals)
-    items_stored = await store_slack_items_batch(
-        db_client=supabase_client,
-        user_id=user_id,
-        channel_id=resource_id,
-        channel_name=resource_name,
-        messages=messages,
-    )
-    logger.info(f"[IMPORT] Stored {items_stored} messages to platform_content")
+    # ADR-153: platform_content storage removed — context flows through tasks
+    items_stored = 0
 
-    # ADR-072: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in platform_content table
+    # Extracted blocks count tracked but NOT stored to memories
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -411,7 +402,7 @@ async def process_notion_import(
     token_manager,
 ) -> dict:
     """Process a Notion page import job."""
-    from services.platform_content import store_notion_item
+    # ADR-153: platform_content storage removed
 
     user_id = job["user_id"]
 
@@ -505,22 +496,9 @@ async def process_notion_import(
         current_resource=resource_name,
     )
 
-    # ADR-058: Store page content to platform_content
-    item_id = await store_notion_item(
-        db_client=supabase_client,
-        user_id=user_id,
-        page_id=resource_id,
-        page_title=resource_name,
-        content=page_content.get("content", ""),
-        metadata={
-            "last_edited": page_content.get("last_edited"),
-            "child_pages": len(page_content.get("child_pages", [])),
-        },
-    )
-    logger.info(f"[IMPORT] Stored Notion page to platform_content: {item_id}")
+    # ADR-153: platform_content storage removed — context flows through tasks
 
-    # ADR-058: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in platform_content only
+    # Extracted blocks count tracked but NOT stored to memories
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete

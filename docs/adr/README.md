@@ -13,7 +13,7 @@ These are the current, active decision records that define yarnnn's architecture
 | [059](ADR-059-simplified-context-model.md) | Simplified Context Model | Accepted |
 | [064](ADR-064-unified-memory-service.md) | Unified Memory Service | Accepted |
 | [067](ADR-067-session-compaction-architecture.md) | Session Compaction & Continuity | Implemented |
-| [072](ADR-072-unified-content-layer-tp-execution-pipeline.md) | Unified Content Layer & TP Execution Pipeline | Accepted |
+| [072](ADR-072-unified-content-layer-tp-execution-pipeline.md) | Unified Content Layer & TP Execution Pipeline | **Superseded by ADR-153** |
 
 ### Platform Sync & Integrations
 
@@ -21,8 +21,8 @@ These are the current, active decision records that define yarnnn's architecture
 |-----|-------|--------|
 | [075](ADR-075-mcp-connector-architecture.md) | MCP Connector Architecture | Implemented |
 | [076](ADR-076-eliminate-mcp-gateway.md) | Eliminate MCP Gateway (Direct API) | Implemented |
-| [077](ADR-077-platform-sync-overhaul.md) | Platform Sync Overhaul | Implemented |
-| [085](ADR-085-refresh-platform-content-primitive.md) | RefreshPlatformContent Primitive | Implemented |
+| [077](ADR-077-platform-sync-overhaul.md) | Platform Sync Overhaul | **Superseded by ADR-153** |
+| [085](ADR-085-refresh-platform-content-primitive.md) | RefreshPlatformContent Primitive | **Superseded by ADR-153** |
 | [086](ADR-086-sync-failure-visibility.md) | Sync Failure Visibility | Implemented |
 | [100](ADR-100-simplified-monetization.md) | Simplified Monetization (2-tier) | Implemented |
 | [112](ADR-112-sync-efficiency-concurrency-control.md) | Sync Efficiency & Concurrency Control | Implemented |

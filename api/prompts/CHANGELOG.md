@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.1] - ADR-153 Phase 4-5: Full infrastructure teardown
+
+### Changed
+- `workers/platform_worker.py`: DELETED — sync worker (1,212 LOC).
+- `jobs/platform_sync_scheduler.py`: DELETED — tier-based sync scheduler (307 LOC).
+- `services/platform_content.py`: DELETED — store/retrieve/search/retain/cleanup (924 LOC).
+- `services/freshness.py`: `sync_stale_sources()` deleted. `platform_content` query in `record_source_snapshots()` removed.
+- `services/agent_execution.py`: `platform_content_ids` metadata removed. RefreshPlatformContent comments cleaned.
+- `services/commands.py`: "search" and "sync" slash commands rewritten for task-first model. "sync" command deleted entirely.
+- `services/primitives/execute.py`: `platform.sync` error message updated for ADR-153.
+- `routes/integrations.py`: `PlatformContentItem`, `PlatformContentResponse` models deleted. `/context` endpoint deleted. `/sync` endpoint dead code removed. `_count_activity()` returns 0. `platform_content.delete()` on re-auth removed.
+- `routes/admin.py`: Pipeline stats content layer metrics removed. Admin sync trigger endpoint deprecated.
+- `jobs/import_jobs.py`: `store_slack_items_batch` and `store_notion_item` calls removed.
+- `render.yaml`: `platform-sync` cron job removed.
+- Frontend: `PlatformSyncStatus.tsx`, `CompactSyncStatus.tsx` deleted. `PlatformContextFeed.tsx` replaced with deprecation notice. Types/hooks cleaned.
+- Migration 136: DROP TABLE `platform_content`, DROP FUNCTION `mark_content_retained`.
+- Expected behavior: No platform_content infrastructure remains. 4 Render services (was 5). Platform data flows through tasks.
+
+---
+
 ## [2026.03.31.18] - ADR-153 Phase 1-3: Platform content sunset — primitives, prompts, pipeline
 
 ### Changed

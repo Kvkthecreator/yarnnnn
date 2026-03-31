@@ -14,8 +14,6 @@ Usage:
 
     # Before generation
     freshness = await check_agent_freshness(client, user_id, agent)
-    if not freshness["all_fresh"]:
-        await sync_stale_sources(client, user_id, freshness["stale_sources"])
 
     # After generation
     await record_source_snapshots(client, run_id, sources_used)
@@ -324,21 +322,8 @@ async def record_source_snapshots(
         snapshots = []
         now = datetime.now(timezone.utc)
 
-        # Build per-resource content usage counts from consumed IDs
+        # ADR-153: platform_content table removed. Content usage tracking no longer available.
         items_used_by_resource: dict[str, int] = {}
-        if content_ids:
-            try:
-                usage_result = (
-                    client.table("platform_content")
-                    .select("resource_id")
-                    .in_("id", content_ids)
-                    .execute()
-                )
-                for row in (usage_result.data or []):
-                    rid = row.get("resource_id", "")
-                    items_used_by_resource[rid] = items_used_by_resource.get(rid, 0) + 1
-            except Exception as e:
-                logger.warning(f"[FRESHNESS] Failed to count content usage per source: {e}")
 
         for source in sources_used:
             platform = source.get("provider") or source.get("platform")
@@ -403,70 +388,6 @@ async def get_source_snapshots(
     except Exception as e:
         logger.warning(f"[FRESHNESS] Failed to get source snapshots: {e}")
         return []
-
-
-# =============================================================================
-# Targeted Sync (ADR-049)
-# =============================================================================
-
-async def sync_stale_sources(
-    client,
-    user_id: str,
-    stale_sources: list[dict],
-) -> dict:
-    """
-    ADR-153: DEPRECATED — platform sync sunset. Platform data flows through tasks.
-
-    Previously synced stale sources before generation. Now returns empty results
-    since platform_content is no longer a context source.
-
-    Args:
-        client: Supabase client
-        user_id: User UUID
-        stale_sources: List of stale source dicts from check_agent_freshness
-
-    Returns:
-        {
-            "synced": [{platform, resource_id, success}],
-            "failed": [{platform, resource_id, error}]
-        }
-    """
-    from workers.platform_worker import sync_platform
-
-    synced = []
-    failed = []
-
-    for source in stale_sources:
-        platform = source.get("platform")
-        resource_id = source.get("resource_id")
-        resource_name = source.get("resource_name", "")
-
-        try:
-            # Direct sync for single stale source (ADR-083: no RQ)
-            result = sync_platform(
-                user_id=user_id,
-                provider=platform,
-                selected_sources=[resource_id] if resource_id else None,
-            )
-
-            synced.append({
-                "platform": platform,
-                "resource_id": resource_id,
-                "success": result.get("success", False),
-            })
-            logger.info(f"[FRESHNESS] Synced {platform}:{resource_id}")
-        except Exception as e:
-            failed.append({
-                "platform": platform,
-                "resource_id": resource_id,
-                "error": str(e),
-            })
-            logger.error(f"[FRESHNESS] Failed to sync {platform}:{resource_id}: {e}")
-
-    return {
-        "synced": synced,
-        "failed": failed,
-    }
 
 
 # =============================================================================

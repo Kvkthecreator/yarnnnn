@@ -219,30 +219,7 @@ class NotionPagesListResponse(BaseModel):
     pages: list[NotionPageResponse]
 
 
-# ADR-072: Platform content response models
-class PlatformContentItem(BaseModel):
-    """A single synced content item from platform_content."""
-    id: str
-    content: str
-    content_type: Optional[str] = None  # message, thread_parent, email, page
-    resource_id: str
-    resource_name: Optional[str] = None
-    source_timestamp: Optional[str] = None
-    fetched_at: str  # ADR-072: platform_content uses fetched_at
-    retained: bool = False  # ADR-072: retention flag
-    retained_reason: Optional[str] = None  # ADR-072: why retained (agent_execution, signal_processing, tp_session)
-    retained_at: Optional[str] = None  # ADR-072: when marked retained
-    expires_at: Optional[str] = None  # ADR-072: for ephemeral content, when it expires
-    metadata: dict[str, Any] = {}
-
-
-class PlatformContentResponse(BaseModel):
-    """ADR-072: Synced content from platform_content for a platform."""
-    items: list[PlatformContentItem]
-    total_count: int
-    retained_count: int = 0  # ADR-072: count of retained items (accumulation visibility)
-    freshest_at: Optional[str] = None
-    platform: str
+# ADR-153: PlatformContentItem and PlatformContentResponse DELETED — platform_content sunset
 
 
 # =============================================================================
@@ -277,7 +254,7 @@ class StartImportRequest(BaseModel):
 class ImportJobResultResponse(BaseModel):
     """Result details for a completed import job."""
     blocks_extracted: int = 0  # ADR-038: renamed from blocks_created (no longer stored to memories)
-    content_stored: int = 0  # ADR-072: items stored to platform_content
+    content_stored: int = 0  # Legacy field — kept for API compat
     items_processed: int = 0
     items_filtered: int = 0
     summary: Optional[str] = None
@@ -481,12 +458,8 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             return result.count or 0
 
         def _count_activity(provider: str) -> int:
-            result = auth.client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).eq(
-                "platform", provider
-            ).gte("fetched_at", seven_days_ago).execute()
-            return result.count or 0
+            # ADR-153: platform_content sunset — return 0, activity tracked via tasks now
+            return 0
 
         def _resource_count_for(provider: str, integration: dict[str, Any]) -> int:
             landscape = integration.get("landscape", {}) or {}
@@ -1623,12 +1596,7 @@ async def oauth_callback(
                 update_data
             ).eq("id", existing.data[0]["id"]).execute()
 
-            # Purge stale data from old workspace (ADR-072 tables)
-            # Delete platform_content from this platform
-            service_client.table("platform_content").delete().eq(
-                "user_id", user_id
-            ).eq("platform", provider).execute()
-
+            # ADR-153: platform_content table removed. Only sync_registry cleanup needed.
             # Delete sync_registry entries for this platform
             service_client.table("sync_registry").delete().eq(
                 "user_id", user_id
@@ -1951,104 +1919,8 @@ async def get_landscape(
 # ADR-052: Platform Context (Synced Content)
 # =============================================================================
 
-@router.get("/integrations/{provider}/context")
-async def get_platform_context(
-    provider: str,
-    limit: int = Query(20, ge=1, le=100, description="Max items to return"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
-    resource_id: Optional[str] = Query(None, description="Filter by specific resource"),
-    auth: UserClient = None
-) -> PlatformContentResponse:
-    """
-    ADR-072: Get synced content from platform_content for a platform.
-
-    This is the actual platform content (messages, emails, pages) that TP knows about.
-    Different from landscape (which shows available resources) and memories (user-stated facts).
-
-    Returns recent synced content, ordered by source_timestamp descending.
-    """
-    if provider not in ["slack", "notion", "yarnnn"]:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
-
-    user_id = auth.user_id
-    now = datetime.utcnow().isoformat()
-
-    # Build query (ADR-072: include retained OR non-expired)
-    query = (
-        auth.client.table("platform_content")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("platform", provider)
-        .or_(f"retained.eq.true,expires_at.gt.{now}")
-        .order("fetched_at", desc=True)
-        .range(offset, offset + limit - 1)
-    )
-
-    if resource_id:
-        query = query.eq("resource_id", resource_id)
-
-    result = query.execute()
-
-    # Get total count
-    count_query = (
-        auth.client.table("platform_content")
-        .select("id", count="exact")
-        .eq("user_id", user_id)
-        .eq("platform", provider)
-        .or_(f"retained.eq.true,expires_at.gt.{now}")
-    )
-    if resource_id:
-        count_query = count_query.eq("resource_id", resource_id)
-
-    count_result = count_query.execute()
-    total_count = count_result.count or 0
-
-    # ADR-072: Get retained count for accumulation visibility
-    retained_count_query = (
-        auth.client.table("platform_content")
-        .select("id", count="exact")
-        .eq("user_id", user_id)
-        .eq("platform", provider)
-        .eq("retained", True)
-    )
-    if resource_id:
-        retained_count_query = retained_count_query.eq("resource_id", resource_id)
-    retained_count_result = retained_count_query.execute()
-    retained_count = retained_count_result.count or 0
-
-    # Build response
-    items = []
-    freshest_at = None
-
-    for row in result.data or []:
-        source_ts = row.get("source_timestamp")
-        if source_ts and (freshest_at is None or source_ts > freshest_at):
-            freshest_at = source_ts
-
-        items.append(PlatformContentItem(
-            id=row["id"],
-            content=row["content"][:500] if row["content"] else "",  # Truncate for list view
-            content_type=row.get("content_type"),
-            resource_id=row["resource_id"],
-            resource_name=row.get("resource_name"),
-            source_timestamp=source_ts,
-            fetched_at=row["fetched_at"],  # ADR-072: Use fetched_at
-            retained=row.get("retained", False),  # ADR-072: retention flag
-            retained_reason=row.get("retained_reason"),  # ADR-072: why retained
-            retained_at=row.get("retained_at"),  # ADR-072: when marked retained
-            expires_at=row.get("expires_at"),  # ADR-072: expiry for ephemeral content
-            metadata=row.get("metadata", {}),
-        ))
-
-    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} content items from {provider} (retained={retained_count})")
-
-    return PlatformContentResponse(
-        items=items,
-        total_count=total_count,
-        retained_count=retained_count,  # ADR-072: accumulation visibility
-        freshest_at=freshest_at,
-        platform=provider,
-    )
+# ADR-153: /integrations/{provider}/context endpoint DELETED — platform_content sunset.
+# Platform data flows through tasks into workspace context domains.
 
 
 @router.patch("/integrations/{provider}/coverage/{resource_id}")
@@ -2275,75 +2147,13 @@ async def trigger_platform_sync(
     background_tasks: BackgroundTasks
 ) -> dict[str, Any]:
     """
-    Trigger an on-demand sync for a platform.
-
     ADR-153: Platform sync sunset. This endpoint is deprecated.
     Platform data flows through tracking tasks into context domains.
-    Use ManageTask(action="trigger") on a monitoring task instead.
     """
-    # ADR-153: sync_platform removed. Return deprecation notice.
     return {
         "success": False,
         "error": "deprecated",
-        "message": "Platform sync is deprecated (ADR-153). Create a monitoring task (Monitor Slack, Monitor Notion) and trigger it instead.",
-    }
-    # Legacy code below — kept for reference only
-    from workers.platform_worker import sync_platform  # noqa: F811 — unreachable
-
-    user_id = auth.user_id
-
-    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
-
-    # Verify integration exists (try aliases)
-    integration_row = None
-    for p in providers_to_try:
-        result = auth.client.table("platform_connections").select(
-            "id, status, landscape, sync_in_progress, sync_started_at"
-        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
-        if result.data:
-            integration_row = result.data[0]
-            break
-
-    if not integration_row:
-        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
-
-    if integration_row["status"] != "active":
-        raise HTTPException(status_code=400, detail=f"{provider} integration is not active")
-
-    # ADR-112: Check if sync is already in progress (non-stale)
-    if integration_row.get("sync_in_progress"):
-        from datetime import datetime, timedelta, timezone as tz
-        started_at = integration_row.get("sync_started_at")
-        if started_at:
-            from dateutil.parser import isoparse
-            started_dt = isoparse(started_at)
-            if (datetime.now(tz.utc) - started_dt) < timedelta(minutes=10):
-                return {
-                    "success": True,
-                    "message": f"Sync already in progress for {provider}",
-                    "sync_in_progress": True,
-                }
-
-    # Get selected sources
-    landscape = integration_row.get("landscape", {}) or {}
-    selected = landscape.get("selected_sources", [])
-
-    if not selected:
-        return {
-            "success": False,
-            "message": "No sources selected. Please select sources first.",
-        }
-
-    # Run sync in background (ADR-083: direct execution, no RQ)
-    source_ids = [s["id"] for s in selected]
-    background_tasks.add_task(sync_platform, user_id, provider, source_ids)
-
-    logger.info(f"[INTEGRATIONS] User {user_id} triggered {provider} sync ({len(selected)} sources)")
-
-    return {
-        "success": True,
-        "message": f"Sync started for {len(selected)} {provider} sources",
-        "sources_count": len(selected),
+        "message": "Platform sync is deprecated (ADR-153). Create a monitoring task and trigger it instead.",
     }
 
 

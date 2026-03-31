@@ -43,8 +43,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   WebSearch: "Searching the web",
   web_search: "Searching the web",  // Legacy alias
 
-  // Platform tools (ADR-039)
-  RefreshPlatformContent: "Refreshing platform data",
+  // Platform tools
   list_integrations: "Checking connected platforms",
   list_platform_resources: "Listing resources",
   sync_platform_resource: "Syncing data",

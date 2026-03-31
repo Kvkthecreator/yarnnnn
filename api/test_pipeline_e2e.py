@@ -1,7 +1,7 @@
 """
 End-to-End Pipeline Test — ADR-072 System State Awareness Validation
 
-Generates synthetic users with platform_content, runs full pipeline,
+Generates synthetic users, runs full pipeline,
 reports failures before quality assessment.
 
 Usage:
@@ -319,35 +319,9 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
                 client.table("platform_connections").insert(conn_row).execute()
         logger.info(f"    ✓ Ensured {len(persona.platforms)} platform_connections")
 
-        # 3. Create platform_content records
-        logger.info(f"  Creating platform_content ({len(persona.content_records)} records)...")
-        for record in persona.content_records:
-            days_ago = record.get("days_ago", 0)
-            source_timestamp = (now - timedelta(days=days_ago)).isoformat()
+        # ADR-153: platform_content creation removed — context flows through tasks
 
-            content_row = {
-                "id": str(uuid4()),
-                "user_id": user_id,
-                "platform": record["platform"],
-                "resource_id": record["resource_name"].replace("/", "_").replace("#", ""),
-                "resource_name": record["resource_name"],
-                "item_id": str(uuid4()),
-                "content": record["content"],
-                "content_type": "message" if record["platform"] == "slack" else "email",
-                "title": record.get("title", ""),
-                "author": record.get("author", persona.name.split()[0].lower()),
-                "is_user_authored": record.get("author", "").lower() == persona.name.split()[0].lower(),
-                "source_timestamp": source_timestamp,
-                "fetched_at": now.isoformat(),
-                "retained": True,  # Simulate post-sync retained state
-                "retained_reason": "test_fixture",
-                "retained_at": now.isoformat(),
-                "created_at": now.isoformat(),
-            }
-            client.table("platform_content").insert(content_row).execute()
-        logger.info(f"    ✓ Created {len(persona.content_records)} platform_content records")
-
-        # 4. Create/update sync_registry entries (upsert to handle existing)
+        # 3. Create/update sync_registry entries (upsert to handle existing)
         logger.info(f"  Creating sync_registry...")
         resources = set((r["platform"], r["resource_name"]) for r in persona.content_records)
         for platform, resource_name in resources:
@@ -446,11 +420,7 @@ async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, p
     except Exception:
         pass
 
-    try:
-        # Delete platform_content with test_fixture retained_reason
-        client.table("platform_content").delete().eq("user_id", user_id).eq("retained_reason", "test_fixture").execute()
-    except Exception:
-        pass
+    # ADR-153: platform_content cleanup removed
 
     try:
         # Delete sync_registry entries for test resources
@@ -595,7 +565,7 @@ async def run_agent_execution(
                 step_name="agent_execution",
                 success=False,
                 error=exec_result.get("message", exec_result.get("error", "No version created")),
-                tables_queried=["agents", "agent_runs", "platform_content"],
+                tables_queried=["agents", "agent_runs"],
             )
 
         # Get the generated content from the version
@@ -622,7 +592,7 @@ async def run_agent_execution(
                 "delivery_status": delivery_status,
                 "delivery_note": "Delivery skipped (no email integration in test)" if delivery_status == "failed" else None,
             },
-            tables_queried=["agents", "agent_runs", "platform_content", "user_memory"],
+            tables_queried=["agents", "agent_runs", "user_memory"],
         )
 
     except Exception as e:

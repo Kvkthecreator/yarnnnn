@@ -160,35 +160,19 @@ Check their roster first — they probably just need a task on an existing agent
     # =========================================================================
     "search": {
         "name": "search",
-        "description": "Search across your connected platforms (Slack, Notion)",
+        "description": "Search across workspace context domains and knowledge",
         "trigger_patterns": ["search my platforms", "find in slack", "find in notion", "search for", "look up"],
         "system_prompt_addition": """
 ---
 
-## Active Command: Platform Search
+## Active Command: Search
 
-User wants to search their connected platform data.
+User wants to search their workspace data.
 
-Use `Search(query="...", scope="platform_content")` to find relevant content. If results seem stale, use `RefreshPlatformContent(platform="...")` first, then search again.
+Use `Search(query="...", scope="workspace")` to find relevant content across context domains.
+Use `QueryKnowledge(query="...")` for semantic search across accumulated knowledge.
 
-Ask the user what they're looking for if not clear from context. You can filter by platform: `Search(query="...", scope="platform_content", platform="slack")`.
-""",
-    },
-
-    "sync": {
-        "name": "sync",
-        "description": "Refresh platform data — pull latest from Slack or Notion",
-        "trigger_patterns": ["sync my", "refresh my", "update my", "pull latest", "resync"],
-        "system_prompt_addition": """
----
-
-## Active Command: Platform Sync
-
-User wants fresh data from their platforms.
-
-Use `RefreshPlatformContent(platform="...")` to pull the latest. If user doesn't specify a platform, check which are connected with `list_integrations()` and ask which to refresh, or refresh all.
-
-Report back what was synced and how many items were updated.
+Ask the user what they're looking for if not clear from context.
 """,
     },
 

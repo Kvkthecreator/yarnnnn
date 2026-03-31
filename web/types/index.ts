@@ -572,29 +572,7 @@ export interface JobsStatusResponse {
   sync_frequency: string;
 }
 
-// ADR-072: Platform content with retention fields
-export interface PlatformContentItem {
-  id: string;
-  content: string;
-  content_type?: string | null;
-  resource_id: string;
-  resource_name?: string | null;
-  source_timestamp?: string | null;
-  fetched_at: string;
-  retained: boolean;
-  retained_reason?: string | null;  // ADR-072: why retained
-  retained_at?: string | null;  // ADR-072: when marked retained
-  expires_at?: string | null;  // ADR-072: for ephemeral content
-  metadata: Record<string, unknown>;
-}
-
-export interface PlatformContentResponse {
-  items: PlatformContentItem[];
-  total_count: number;
-  retained_count: number;  // ADR-072: accumulation visibility
-  freshest_at?: string | null;
-  platform: string;
-}
+// ADR-153: PlatformContentItem and PlatformContentResponse DELETED — platform_content sunset
 
 // =============================================================================
 // Context Pages: Shared Platform Types

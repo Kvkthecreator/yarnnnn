@@ -68,7 +68,6 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   list_platform_resources: List,
   sync_platform_resource: Play,
   get_sync_status: Eye,
-  RefreshPlatformContent: Play,
   // Workspace primitives (ADR-106)
   ReadWorkspace: Eye,
   WriteWorkspace: Plus,

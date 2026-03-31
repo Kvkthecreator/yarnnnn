@@ -18,12 +18,10 @@ import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
 import { PlatformNotConnected } from '@/components/context/PlatformNotConnected';
 import { PlatformHeader } from '@/components/context/PlatformHeader';
-import { CompactSyncStatus } from '@/components/context/CompactSyncStatus';
 import { PlatformTabSwitcher } from '@/components/context/PlatformTabSwitcher';
 import { PlatformContextFeed } from '@/components/context/PlatformContextFeed';
 import { ResourceList } from '@/components/context/ResourceList';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
-import { getSyncMetrics } from '@/components/context/sync-metrics';
 
 const BENEFITS = [
   'Sync pages and databases',
@@ -83,7 +81,6 @@ export default function NotionContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
-  const syncMetrics = getSyncMetrics(data.resources, data.selectedIds);
 
   if (data.loading) {
     return (
@@ -120,19 +117,6 @@ export default function NotionContextPage() {
       <div className="p-4 md:p-6 space-y-4 max-w-6xl">
         <div className="space-y-2">
           <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
-          {data.tierLimits && !(justConnected && data.selectedIds.size === 0) && (
-            <CompactSyncStatus
-              platform="notion"
-              tier={data.tierLimits.tier}
-              syncFrequency={data.tierLimits.limits.sync_frequency}
-              selectedCount={data.selectedIds.size}
-              syncedCount={syncMetrics.syncedResourceCount}
-              errorCount={syncMetrics.errorCount}
-              lastSyncedAt={syncMetrics.lastSyncedAt}
-              selectedResourceIds={Array.from(data.selectedIds)}
-              onSyncTriggered={data.reload}
-            />
-          )}
         </div>
 
         {activeTab === 'sources' && (
