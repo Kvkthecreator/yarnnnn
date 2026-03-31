@@ -404,36 +404,42 @@ Pulse events (`agent_pulsed`, `pm_pulsed`) make agent thinking visible between r
 
 Every project-scoped agent maintains **cognitive files** — persistent self-awareness that survives across executions. These files are seeded at creation time and updated on every run/pulse.
 
-### Contributor Cognitive Model
+### Agent Cognitive Model
 
-Contributors evaluate themselves on four dimensions (analogous to PM's 5 prerequisite layers):
+Agents evaluate themselves on four dimensions after each task execution:
 
 | Dimension | Question | Example signal |
 |-----------|----------|---------------|
-| **Mandate** | What am I supposed to contribute? | PROJECT.md objective + PM brief |
+| **Mandate** | What am I supposed to produce? | TASK.md objective + steering brief |
 | **Domain Fitness** | Does my scope/context cover the mandate? | Platform-scoped agent asked for cross-platform work → low fitness |
 | **Context Currency** | Is my input fresh and substantial enough? | Stale platform data, few items fetched → low currency |
 | **Output Confidence** | How well does this output address the mandate? | Thin output, missing sections → low confidence |
 
-Self-assessment is produced as a `## Contributor Assessment` block in the agent's output, parsed and stripped before delivery, then appended to `memory/self_assessment.md` (rolling history, 5 most recent, newest first).
+Reflection is produced as a `## Agent Reflection` block in the agent's output, parsed and stripped before delivery, then appended to `memory/reflections.md` (rolling history, 5 most recent, newest first).
 
-### Cognitive Files
+### Agent-Level Cognitive Files
 
 | File | Owner | Semantics | Written by | Read by |
 |------|-------|-----------|-----------|---------|
-| `memory/self_assessment.md` | Contributor | Rolling append (5 recent) | Agent after each run | PM during pulse, agent (last entry only) |
-| `memory/directives.md` | Contributor | Append | Agent-via-chat (WriteWorkspace) | Agent during headless run |
-| `memory/project_assessment.md` | PM (project-level) | Overwrite | PM after each pulse | Contributors during headless run |
-| `memory/decisions.md` | PM (project-level) | Append | PM-via-chat (WriteWorkspace) | All project members |
+| `memory/reflections.md` | Agent | Rolling append (5 recent) | Agent after each run | Agent (last entry only) |
+| `memory/directives.md` | Agent | Append | Agent-via-chat (WriteWorkspace) | Agent during headless run |
+
+### Task-Level Files
+
+| File | Owner | Semantics | Written by | Read by |
+|------|-------|-----------|-----------|---------|
+| `DELIVERABLE.md` | Task | Quality contract (format, standards, checklist) | TP/user at task creation | Agent during task execution |
+| `memory/feedback.md` | Task | Accumulated user feedback distilled from edits | Feedback distillation pipeline | Agent during task execution |
+| `memory/steering.md` | Task | TP/user steering directives for next run | TP or user | Agent during task execution |
 
 ### Initialization
 
 Cognitive files are seeded at scaffold time — not lazily on first run:
-- `scaffold_project()` seeds `memory/project_assessment.md` with "No assessment yet — PM has not pulsed."
-- `create_agent_for_project()` seeds `memory/self_assessment.md` with "Not yet assessed — awaiting first run."
-- `AGENT.md` template includes coherence protocol reference.
+- Agent creation seeds `memory/reflections.md` with "Not yet assessed — awaiting first run."
+- Task creation seeds `memory/feedback.md` and `memory/steering.md` as empty.
+- `AGENT.md` template includes cognitive file reference.
 
-This gives PM clear signal on first pulse: "not yet assessed" ≠ "assessed as low confidence" ≠ "legacy agent without cognitive files."
+This gives clear signal on first run: "not yet assessed" ≠ "assessed as low confidence" ≠ "legacy agent without cognitive files."
 
 ### The Coherence Loop
 

@@ -131,7 +131,7 @@ Every agent also:
 - Produces **versioned, immutable output** — every generation is a permanent record you can review.
 - **Sleeps** between executions — zero resource cost when not running.
 - Runs the same **headless agent** under the hood — same intelligence as TP, same primitive access, scoped to background execution.
-- Produces a **self-assessment** each run (ADR-128) — contributors append a `## Contributor Assessment` block to output, which is extracted, appended to `memory/self_assessment.md` (rolling 5 recent), and stripped before delivery. This assessment extraction/stripping phase is part of the headless execution pipeline.
+- Produces a **reflection** each run (ADR-128, ADR-149) — agents append a `## Agent Reflection` block to output, which is extracted, appended to `memory/reflections.md` (rolling 5 recent), and stripped before delivery. This reflection extraction/stripping phase is part of the headless execution pipeline.
 
 The mode shapes how the agent decides *when* to act. The four knowledge layers shape *how* it acts.
 

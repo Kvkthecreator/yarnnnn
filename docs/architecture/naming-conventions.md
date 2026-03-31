@@ -81,7 +81,9 @@ These appear only in ADRs and architecture documentation. They help contributors
 | Project objective + PM brief injected into contributor prompts | **Mandate context** | ADR-128 |
 | Rules for intelligence flow between conversation, filesystem, and agent cognition substrates | **Coherence protocol** | ADR-128 |
 | Workspace memory files that persist agent self-awareness across executions | **Cognitive files** | ADR-128 |
-| Contributor's evaluation of mandate fitness, domain fitness, context currency, output confidence | **Self-assessment** | ADR-128 |
+| Agent's evaluation of mandate fitness, domain fitness, context currency, output confidence | **Agent Reflection** | ADR-149 (renamed from self-assessment) |
+| Quality contract defining format, standards, and checklist for task output | **Quality Contract** | DELIVERABLE.md, ADR-149 |
+| Shared accumulated context organized by domain (competitors, market, etc.) | **Context Domain** | /workspace/context/{domain}/, ADR-151 |
 
 ---
 

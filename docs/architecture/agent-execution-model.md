@@ -104,7 +104,7 @@ execute_task(client, user_id, task_slug)
 ├── 11. Compose HTML (render service, non-fatal)
 ├── 12. Deliver per TASK.md config
 ├── 13. Update tasks.last_run_at + calculate next_run_at
-├── 14. Post-generation: self-observation, self-assessment, agent card
+├── 14. Post-generation: self-observation, agent reflection (ADR-149), agent card
 └── 15. Activity log (task_executed) + work units
 ```
 
@@ -236,7 +236,7 @@ User with 5 weekly tasks: ~$0.25/week generation + $0.03/week heartbeats = **~$0
 ## Anti-Patterns
 
 **Using LLM to decide whether to generate**
-If a task is due (next_run_at <= now), run it. No Haiku pre-assessment. The schedule IS the decision. The old pulse model (Tier 2 Haiku self-assessment) was dissolved because it added cost without changing the outcome — if a task is scheduled, it should run.
+If a task is due (next_run_at <= now), run it. No Haiku pre-assessment. The schedule IS the decision. The old pulse model (Tier 2 Haiku agent reflection) was dissolved because it added cost without changing the outcome — if a task is scheduled, it should run.
 
 **Making the scheduler "smart"**
 The scheduler is a dumb loop: query → execute → update next_run_at. All intelligence about what tasks should exist, what their schedules should be, and whether they should be paused belongs in TP (Layer 3). The scheduler never decides — it only executes what TP has already decided.

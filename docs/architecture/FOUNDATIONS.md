@@ -124,8 +124,8 @@ Agent = Type (capabilities, fixed) + Instructions (persona, configurable)
 
 An agent develops inward through accumulated workspace state:
 - **Memory**: observations, domain thesis, learned preferences (workspace `memory/*.md`)
-- **Feedback**: user edits distilled into behavioral preferences (`memory/preferences.md`)
-- **Self-assessment**: mandate fitness, domain fitness, context currency (`memory/self_assessment.md`)
+- **Feedback**: user edits distilled into behavioral preferences (`memory/feedback.md`)
+- **Reflections**: mandate fitness, domain fitness, context currency (`memory/reflections.md`)
 - **Directives**: accumulated user guidance from conversations (`memory/directives.md`)
 
 A tenured agent produces better output because it knows more about its domain, not because it has more tools. This is the compounding mechanism — each execution cycle benefits from accumulated workspace state.
@@ -138,7 +138,7 @@ Consequential external actions (posting to Slack, sending emails, updating Notio
 
 A developing agent is not just its outputs and feedback — it has a **cognitive state** that persists between executions. This state is materialized in workspace files, seeded at creation time, and updated on every run:
 
-- **`memory/self_assessment.md`** — rolling history (5 most recent) of the agent's self-evaluation: mandate clarity, domain fitness, context currency, output confidence. This is the agent's evolving self-awareness.
+- **`memory/reflections.md`** — rolling history (5 most recent) of the agent's self-evaluation: mandate clarity, domain fitness, context currency, output confidence. This is the agent's evolving self-awareness.
 - **`memory/directives.md`** — accumulated user guidance from conversations that persists across session rotations.
 
 Cognitive files are **not output** — they are coordination infrastructure. They are stripped from delivered content and exist solely to enable cross-agent coherence.

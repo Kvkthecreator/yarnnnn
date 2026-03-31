@@ -86,7 +86,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 **Lifecycle**: Persistent. Memory from six months ago is still in the prompt today unless the user or TP explicitly removes it.
 
-> **ADR-128 extension:** The Memory layer now extends to per-agent **cognitive files** in workspace (`self_assessment.md`, `directives.md`, `project_assessment.md`, `decisions.md`). These persist agent self-awareness across executions and enable cross-agent coordination: PM reads contributor assessments to inform steering; contributors read PM's project assessment as mandate context. Cognitive files follow the same persistence and workspace conventions as `memory/*.md` but serve the coherence protocol between agents rather than user-facing memory.
+> **ADR-128/ADR-149 extension:** The Memory layer now extends to per-agent **cognitive files** in workspace (`reflections.md`, `directives.md`). These persist agent self-awareness across executions. Task-level cognitive files (`feedback.md`, `steering.md`) persist accumulated feedback and steering per work unit. Cognitive files follow the same persistence and workspace conventions as `memory/*.md` but serve agent reflection and task-specific learning rather than user-facing memory.
 
 ---
 
@@ -369,11 +369,11 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
    - Effect: Agent assesses whether existing agents are current or if new work is warranted
    - Enables: Smart `advance_schedule` vs `create_child` vs `observe` decisions (ADR-092)
 
-4. **Cross-agent coherence** (Work → Work, ADR-128)
-   - When: Agent pulse or execution reads another agent's cognitive files
-   - What: PM reads contributor `self_assessment.md`; contributors read PM `project_assessment.md` as mandate context
-   - Effect: Agents coordinate through persistent workspace files rather than direct communication
-   - Enables: PM steering informed by contributor self-awareness; contributor alignment to project objective
+4. **Agent Reflection** (Work → Work, ADR-128, ADR-149)
+   - When: Agent execution reads its own cognitive files and task-level feedback
+   - What: Agent reads `memory/reflections.md` for self-awareness; reads task `memory/feedback.md` and `memory/steering.md` for accumulated guidance
+   - Effect: Agents improve through persistent reflection and accumulated feedback per task
+   - Enables: Developmental trajectory — each execution benefits from prior reflections and user feedback
 
 **Removed** (ADR-087 Phase 2): `process_feedback()` (edit-diff heuristics) and `process_patterns()` (activity log pattern detection). Superseded by the conversational iteration model.
 

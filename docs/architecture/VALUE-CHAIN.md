@@ -54,7 +54,7 @@ Each phase's output is the next phase's input. This is the product's compounding
 - Project with charter files: `PROJECT.md` (objective, success criteria), `TEAM.md` (roster, capabilities), `PROCESS.md` (output spec, cadence, delivery)
 - PM agent scoped to the project
 - Contributor agents typed from the work description (briefer, analyst, researcher, etc.)
-- Agent workspaces seeded: `AGENT.md`, `memory/self_assessment.md`, `memory/preferences.md`
+- Agent workspaces seeded: `AGENT.md`, `memory/reflections.md`, `memory/preferences.md`
 - Cognitive files seeded for coherence protocol
 
 **Design principle**: Deterministic scaffolding. No LLM needed to know that "track competitor pricing weekly" warrants a project with a scout + analyst + PM. Speed and reliability over sophistication. The PM and Composer handle the sophisticated decisions later.
@@ -104,23 +104,26 @@ Each phase's output is the next phase's input. This is the product's compounding
 
 ## Phase 5: Accumulate (days)
 
-**What happens**: The recursive loop begins. Four things compound simultaneously:
+**What happens**: The recursive loop begins. Six things compound simultaneously:
 
 1. **Platform sync continues** — new messages, pages flow in on schedule (daily for free, hourly for pro)
 2. **Agent outputs feed back** — each run's output is written to workspace, becoming searchable input for future runs and for other agents via `QueryKnowledge`
 3. **User feedback refines** — edits, approvals, and dismissals become learned preferences distilled into `memory/preferences.md`
-4. **Agent self-reflection deepens** — post-run observations accumulate in `memory/observations.md`; self-assessments track mandate fitness over time in `memory/self_assessment.md`
+4. **Agent reflections deepen** — post-run observations accumulate in `memory/observations.md`; reflections track mandate fitness over time in `memory/reflections.md` (ADR-149)
+5. **Task knowledge accumulates** — each task builds its own knowledge substrate: `DELIVERABLE.md` (quality contract), `memory/feedback.md` (user corrections + TP evaluations), `memory/steering.md` (TP management notes) (ADR-149)
+6. **Workspace context domains grow** — `/workspace/context/` accumulates structured domain knowledge that agents read and write, creating shared institutional memory across the workforce (ADR-151)
 
 **Who does it**: Platform sync scheduler, agent execution pipeline, feedback distillation service, memory extraction service
 
 **What it produces**:
 - Growing knowledge base: raw platform data + agent-generated insights + user feedback signals
-- Per-agent workspace state: observations, domain thesis, learned preferences, self-assessments
-- PM coordination state: quality assessments, contribution briefs, phase tracking
+- Per-agent workspace state: observations, domain thesis, learned preferences, reflections
+- Per-task knowledge: DELIVERABLE.md quality contracts, feedback history, TP steering notes (ADR-149)
+- Accumulated context domains: `/workspace/context/` structured domain knowledge shared across agents (ADR-151)
 
 **Why this matters**: This is where the moat forms. A briefer on day 30 knows what the user edited out of the last 4 briefings, which channels consistently produce signal, and what format the user prefers. A competitor starting from zero produces a generic summary. The gap widens with every cycle.
 
-**Design principle**: Optimize for accumulation, not extraction (FOUNDATIONS.md Axiom 2). The internal/reflexive perception layers (agent outputs, user feedback, self-assessments) are more valuable long-term than the external layer (platform sync).
+**Design principle**: Optimize for accumulation, not extraction (FOUNDATIONS.md Axiom 2). The internal/reflexive perception layers (agent outputs, user feedback, reflections, task knowledge, context domains) are more valuable long-term than the external layer (platform sync).
 
 **ADRs**: ADR-072 (retention-based accumulation), ADR-117 (feedback distillation), ADR-128 (coherence protocol)
 

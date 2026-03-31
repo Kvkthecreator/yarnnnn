@@ -17,6 +17,14 @@
 
 Most task types are **single-agent**: one agent handles the full cognitive work (research + composition) in one context window. Multi-step processes are used only where agents need genuinely different tool access (e.g., Slack Bot extracts platform data → CRM Agent synthesizes relationship intelligence).
 
+### Quality Contracts (ADR-149)
+
+Each task type scaffolds a **DELIVERABLE.md** quality contract at `/tasks/{slug}/DELIVERABLE.md`. This file defines what good output looks like for this task type: structure expectations, quality bar, audience assumptions. The agent reads DELIVERABLE.md during execution and the TP uses it as a reference when evaluating output quality.
+
+### Context Domains (ADR-151)
+
+Task types declare which workspace context domains they read and write via `context_reads` and `context_writes` fields. For example, a competitive intelligence brief reads from the `competitors` context domain and writes back competitive findings. This enables agents to build and consume shared institutional knowledge in `/workspace/context/`, creating cross-task knowledge accumulation.
+
 ---
 
 ## Intelligence & Research

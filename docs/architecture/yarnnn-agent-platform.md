@@ -23,7 +23,7 @@ You describe your work. The system builds a team of AI specialists — a researc
 |---|---|---|---|---|
 | **Initiation** | User hands off task | User starts session | User prompts | Autonomous — agents pulse, PM coordinates, work delivers on schedule |
 | **Persistence** | Task-scoped | Session-scoped | Session-scoped | Persistent agent teams that exist indefinitely |
-| **Memory** | Work IQ / Microsoft Graph | Local filesystem | Conversation history | Per-agent workspace: memory, preferences, self-assessments, domain thesis — compounding across executions |
+| **Memory** | Work IQ / Microsoft Graph | Local filesystem | Conversation history | Per-agent workspace: memory, preferences, reflections, domain thesis — compounding across executions |
 | **Learning** | None | None | None | Feedback loop: user edits → distilled preferences → better next output |
 | **Coordination** | Single task | Single session | Single conversation | PM-coordinated teams: phased execution, cross-agent handoffs, quality-gated assembly |
 | **Cross-platform** | Microsoft only | Local machine only | None | Slack + Notion — synthesized into work-scoped projects |
@@ -158,7 +158,7 @@ PM pulses on cadence (every 2h)
   → Checks: what phase are we in? What's blocking?
   → Dispatches contributor(s) for current phase with context
   → Contributors execute within injected phase context
-  → PM reads contributor self-assessments on next pulse
+  → PM reads contributor reflections on next pulse
   → PM advances phase, re-steers, or triggers assembly
 ```
 
@@ -181,7 +181,7 @@ Every agent has a pulse — an autonomous sense→decide cycle. The pulse is ups
 ### Three-Tier Funnel (cheap-first)
 
 1. **Tier 1 (deterministic, zero LLM cost):** Fresh content? Budget available? Cadence met? ~80% of pulses resolve here.
-2. **Tier 2 (Haiku self-assessment):** Agent reads own workspace, thesis, observations. Decides whether to generate. ~$0.001/pulse.
+2. **Tier 2 (Haiku agent reflection):** Agent reads own workspace, thesis, observations. Decides whether to generate. ~$0.001/pulse.
 3. **Tier 3 (PM coordination):** PM reads contributor freshness, quality assessments, work plan. Dispatches phases. ~$0.01/pulse.
 
 Decision taxonomy: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in project meeting rooms and dashboards. This is what makes agents a workforce you can watch, not a list of cron outputs.
@@ -199,14 +199,14 @@ Every agent carries layered knowledge in its workspace filesystem:
 ├── memory/
 │   ├── preferences.md      ← Learned from user edits (feedback distillation)
 │   ├── observations.md     ← Self-authored after each run
-│   ├── self_assessment.md  ← Rolling 5-entry mandate/domain/confidence eval
+│   ├── reflections.md      ← Rolling 5-entry agent reflection (ADR-149, renamed from self_assessment)
 │   └── directives.md       ← Accumulated user guidance from chat
 └── outputs/{date}/
     ├── manifest.json       ← Output metadata, delivery status
     └── output.md           ← Generated content
 ```
 
-This is how an agent on its 50th run produces better output than its 1st: it has 50 cycles of accumulated observations, distilled preferences, and refined self-assessments.
+This is how an agent on its 50th run produces better output than its 1st: it has 50 cycles of accumulated observations, distilled preferences, and refined reflections.
 
 ---
 
@@ -295,7 +295,7 @@ No Redis, no queue, no background worker. All execution is inline. Agents sleep 
 
 **LLM stack:**
 - Agent generation + Orchestrator chat: Claude Sonnet 4 (Anthropic)
-- Agent pulse self-assessment: Claude Haiku 4.5 (cost-efficient)
+- Agent pulse agent reflection: Claude Haiku 4.5 (cost-efficient)
 - Memory extraction: Claude Sonnet 4
 - Onboarding inference: Claude Sonnet 4 (one-shot work scope extraction)
 
@@ -326,13 +326,13 @@ Work units = agent runs + assemblies + renders. The system self-governs within b
 - Orchestrator agent (TP) — streaming, full capabilities, context-aware
 - Project type registry + scaffold_project() — deterministic project creation
 - PM agents with phase dispatch, quality assessment, contribution steering
-- Three-tier agent pulse (deterministic → self-assessment → PM coordination)
+- Three-tier agent pulse (deterministic → agent reflection → PM coordination)
 - Agent types: 8 user-facing types + PM infrastructure (three-registry architecture)
 - HTML compose engine + output gateway with 8-skill library
 - Work budget governor (Free 60 / Pro 1000 units/month)
 - Project meeting rooms with @-mention agent chat
 - Three charter files (PROJECT.md, TEAM.md, PROCESS.md)
-- Multi-agent coherence protocol (self-assessments, PM assessments, directive persistence)
+- Multi-agent coherence protocol (reflections, PM assessments, directive persistence)
 - Feedback distillation (user edits → learned preferences)
 - Agent self-reflection (post-run observations)
 - Work-first onboarding (describe work → scaffold projects)

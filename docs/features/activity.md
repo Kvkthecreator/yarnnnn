@@ -81,33 +81,32 @@ Append-only. Written by service role only (no user-facing INSERT).
 | `chat_session` | `chat.py` | At end of each chat turn | Chat |
 | `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min execution cycle | System |
 
-### Project-level events (Tier 2)
+### Task-level events (Tier 2)
 
-These events carry `project_slug` in their JSONB `metadata` field.
+These events carry `task_slug` in their JSONB `metadata` field.
 
-**Agent lifecycle events** (carry `project_slug` via agent's `project_id`):
+**Task lifecycle events** (ADR-138/149):
+
+| event_type | Written by | When |
+|---|---|---|
+| `task_created` | `primitives/task.py` | Task created via CreateTask |
+| `task_executed` | `task_pipeline.py` | After task execution completes |
+| `task_triggered` | `primitives/manage_task.py` | Manual trigger via ManageTask |
+| `task_paused` | `primitives/manage_task.py` | Task paused |
+| `task_resumed` | `primitives/manage_task.py` | Task resumed |
+| `task_evaluated` | `primitives/manage_task.py` | TP evaluated output quality (ADR-149) |
+| `task_steered` | `primitives/manage_task.py` | TP wrote steering notes (ADR-149) |
+| `task_completed` | `primitives/manage_task.py` | Task marked complete (ADR-149) |
+
+**Agent lifecycle events:**
 
 | event_type | Written by | When |
 |---|---|---|
 | `agent_run` | `agent_execution.py` | After agent version generated |
-| `agent_scheduled` | `unified_scheduler.py` | When scheduler triggers an agent |
-| `agent_generated` | `unified_scheduler.py` | After successful agent generation |
 | `agent_approved` | `routes/agents.py` | When user approves a run |
 | `agent_rejected` | `routes/agents.py` | When user rejects a run |
-| `agent_pulsed` | `agent_pulse.py` | On agent pulse cadence (ADR-126) |
 
-**PM coordination events** (carry `project_slug` directly):
-
-| event_type | Written by | When |
-|---|---|---|
-| `pm_pulsed` | `agent_pulse.py` | On PM pulse cadence (ADR-126) |
-| `project_heartbeat` | `agent_execution.py` | PM checked on contributors |
-| `project_assembled` | `agent_execution.py` | PM triggered assembly |
-| `project_escalated` | `agent_execution.py` | PM escalated to TP |
-| `project_contributor_advanced` | `agent_execution.py` | PM advanced contributor schedule |
-| `project_contributor_steered` | `agent_execution.py` | PM wrote contribution brief (ADR-121) |
-| `project_quality_assessed` | `agent_execution.py` | PM assessed contribution quality (ADR-121) |
-| `project_file_triaged` | `agent_execution.py` | PM triaged user_shared/ file (ADR-127) |
+**Note:** PM coordination events (`pm_pulsed`, `project_heartbeat`, etc.) are from the dissolved project layer (ADR-138). They remain in the `VALID_EVENT_TYPES` set for historical data but are no longer written by current code.
 
 ---
 

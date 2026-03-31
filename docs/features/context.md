@@ -101,16 +101,31 @@ User-uploaded PDFs, DOCX, TXT, MD files are chunked, embedded, and stored in `fi
 
 Agent outputs are written to `workspace_files` under `/knowledge/{class}/...` (ADR-107). This is persistent, user-scoped, and shared across agents. Use `QueryKnowledge` to search it from headless execution.
 
-### Agent Cognitive Files — Cross-Agent Context (ADR-128)
+### Agent Cognitive Files — Self-Awareness Context (ADR-128, ADR-149)
 
 In addition to external platform data and shared knowledge, agents read **cognitive context** from workspace files during headless execution:
 
 | What the agent reads | Source path | Purpose |
 |---------------------|-------------|---------|
-| PM's project assessment | `/projects/{slug}/memory/project_assessment.md` | Know which prerequisite layer constrains the project |
-| Own last self-assessment | `/agents/{slug}/memory/self_assessment.md` | Reflect on whether conditions changed since last run |
-| PM contribution brief | `/projects/{slug}/contributions/{slug}/brief.md` | Understand PM's steering directive |
-| User directives | `/agents/{slug}/memory/directives.md` | Durable user guidance from meeting room |
+| Own last reflection | `/agents/{slug}/memory/reflections.md` | Reflect on whether conditions changed since last run |
+| User directives | `/agents/{slug}/memory/directives.md` | Durable user guidance from conversation |
+| Task feedback | `/tasks/{slug}/memory/feedback.md` | Accumulated user feedback distilled from edits |
+| Task steering | `/tasks/{slug}/memory/steering.md` | TP/user steering directives for next run |
+
+### Accumulated Context Domains (ADR-151)
+
+`/workspace/context/` holds accumulated context shared across all tasks and agents. Six domains:
+
+| Domain | Path | Content |
+|--------|------|---------|
+| Competitors | `/workspace/context/competitors/` | Competitive intelligence |
+| Market | `/workspace/context/market/` | Market trends, industry data |
+| Relationships | `/workspace/context/relationships/` | Key contacts, stakeholders |
+| Projects | `/workspace/context/projects/` | Internal project context |
+| Content | `/workspace/context/content/` | Content strategy, brand voice |
+| Signals | `/workspace/context/signals/` | Notable events, triggers |
+
+Context domains are populated by TP inference (ADR-144) and agent execution, providing shared grounding that enriches all task outputs.
 
 This cognitive context is injected as `mandate_context` in the agent's prompt — presented alongside gathered platform/knowledge context. It answers "what am I supposed to contribute and how does PM evaluate the project?" rather than "what data is available?"
 
