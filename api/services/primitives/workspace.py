@@ -134,7 +134,7 @@ Context domains contain accumulated intelligence shared across all tasks:
 - /workspace/context/projects/ — project status, milestones, blockers
 - /workspace/context/content/ — research, drafts, outlines
 - /workspace/context/signals/ — cross-domain temporal signal log
-- Falls back to platform_content (Slack, Notion) if context domains are empty.
+- Context domains are the sole data source. Create tracking tasks to accumulate context.
 
 Use this to find accumulated intelligence. Search by topic, entity, keyword.
 Optionally filter by domain to narrow results.""",
@@ -381,10 +381,6 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             )
             rows = result.data or []
 
-        if not rows and query:
-            # Fall back to platform_content for external data
-            return await _fallback_platform_content_search(auth, query, None, limit)
-
         result_items = []
         for r in rows:
             path = r.get("path", "")
@@ -411,9 +407,6 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"[QUERY_KNOWLEDGE] Search failed: {e}")
-        # Fall back to platform content
-        if query:
-            return await _fallback_platform_content_search(auth, query, None, limit)
         return {"success": True, "query": query, "count": 0, "results": []}
 
 
@@ -438,59 +431,8 @@ async def handle_list_workspace(auth: Any, input: dict) -> dict:
     }
 
 
-async def _fallback_platform_content_search(auth: Any, query: str, platform: str = None, limit: int = 10) -> dict:
-    """
-    Fallback: search platform_content for external platform data when
-    /knowledge/ has no results. Only searches external platforms (not yarnnn).
-    """
-    try:
-        q = (
-            auth.client.table("platform_content")
-            .select("id, platform, resource_name, content, author, source_timestamp")
-            .eq("user_id", auth.user_id)
-            .neq("platform", "yarnnn")  # Exclude legacy yarnnn rows if any remain
-            .textSearch("content", query, {"type": "websearch"})
-            .limit(limit)
-        )
-        if platform:
-            q = q.eq("platform", platform)
-
-        result = q.order("source_timestamp", desc=True).execute()
-
-        items = result.data or []
-
-        # ADR-073: Mark accessed content as retained
-        content_ids = [i["id"] for i in items if i.get("id")]
-        if content_ids:
-            try:
-                from services.platform_content import mark_content_retained
-                await mark_content_retained(auth.client, content_ids, reason="tp_session")
-            except Exception:
-                pass  # Non-fatal
-
-        return {
-            "success": True,
-            "query": query,
-            "count": len(items),
-            "source": "platform_content",
-            "results": [
-                {
-                    "path": f"platform_content/{i['platform']}/{i.get('resource_name', 'unknown')}",
-                    "summary": f"{i['platform']}:{i.get('resource_name', '')} by {i.get('author', 'unknown')}",
-                    "content_preview": i["content"][:500],
-                }
-                for i in items
-            ],
-        }
-    except Exception as e:
-        logger.warning(f"[KNOWLEDGE] Fallback search failed: {e}")
-        return {
-            "success": True,
-            "query": query,
-            "count": 0,
-            "results": [],
-            "message": "No knowledge base content found. Connected platforms may not have synced yet.",
-        }
+# ADR-153: _fallback_platform_content_search DELETED — platform_content sunset.
+# Context domains are the sole data source. No fallback to raw platform data.
 
 
 # =============================================================================

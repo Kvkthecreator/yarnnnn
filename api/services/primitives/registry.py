@@ -24,7 +24,8 @@ from .edit import EDIT_TOOL, handle_edit
 from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
-from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
+# ADR-153: RefreshPlatformContent DELETED — platform_content sunset
+# from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import CREATE_AGENT_TOOL, handle_create_agent
@@ -163,8 +164,7 @@ CHAT_PRIMITIVES = [
     SEARCH_TOOL,
     EDIT_TOOL,
     GET_SYSTEM_STATE_TOOL,
-    # External (3)
-    REFRESH_PLATFORM_CONTENT_TOOL,
+    # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
     # Context mutations — unified (1, was 4)
@@ -188,8 +188,7 @@ HEADLESS_PRIMITIVES = [
     LIST_TOOL,
     SEARCH_TOOL,
     GET_SYSTEM_STATE_TOOL,
-    # External (2)
-    REFRESH_PLATFORM_CONTENT_TOOL,
+    # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     # Workspace (5)
     READ_WORKSPACE_TOOL,
@@ -222,7 +221,7 @@ HANDLERS: dict[str, Callable] = {
     "Search": handle_search,
     "List": handle_list,
     "Execute": handle_execute,
-    "RefreshPlatformContent": handle_refresh_platform_content,
+    # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
     "GetSystemState": handle_get_system_state,
     "Clarify": handle_clarify,

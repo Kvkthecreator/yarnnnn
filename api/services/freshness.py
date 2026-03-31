@@ -415,9 +415,10 @@ async def sync_stale_sources(
     stale_sources: list[dict],
 ) -> dict:
     """
-    Sync only stale sources before generation.
+    ADR-153: DEPRECATED — platform sync sunset. Platform data flows through tasks.
 
-    This is targeted sync - not blanket. Only syncs what's needed.
+    Previously synced stale sources before generation. Now returns empty results
+    since platform_content is no longer a context source.
 
     Args:
         client: Supabase client

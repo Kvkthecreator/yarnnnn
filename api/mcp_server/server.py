@@ -262,39 +262,33 @@ async def search_content(
     query: str,
     platform: Optional[str] = None,
 ) -> dict:
-    """Search YARNNN's synced platform content (Slack messages, emails, Notion pages, calendar events).
+    """Search YARNNN's workspace content (synced platform data, agent outputs, documents).
 
-    Searches across all synced and accumulated content using text matching.
-    Results are from cached/synced data, not live platform queries.
+    Searches across all workspace files using full-text search.
+    Results include synced platform content, agent outputs, and shared documents.
 
     Args:
         query: What to search for (e.g., "project Acme decisions", "budget discussion")
-        platform: Optional filter to a specific platform (slack, gmail, notion, calendar)
+        platform: Optional filter to a specific platform path prefix (slack, notion, github)
     """
     auth = ctx.request_context.lifespan_context["auth"]
 
-    from services.platform_content import search_platform_content
+    path_prefix = f"/platforms/{platform}" if platform else None
 
-    platforms = [platform] if platform else None
-
-    results = await search_platform_content(
-        db_client=auth.client,
-        user_id=auth.user_id,
-        query_text=query,
-        platforms=platforms,
-        limit=20,
-    )
+    result = auth.client.rpc("search_workspace", {
+        "p_user_id": auth.user_id,
+        "p_query": query,
+        "p_path_prefix": path_prefix,
+        "p_limit": 20,
+    }).execute()
 
     items = []
-    for item, score in results:
+    for r in (result.data or []):
         items.append({
-            "platform": item.platform,
-            "resource_name": item.resource_name,
-            "content": item.content[:500] if item.content else None,
-            "title": item.title,
-            "author": item.author,
-            "timestamp": item.source_timestamp.isoformat() if item.source_timestamp else None,
-            "score": score,
+            "path": r["path"],
+            "content": r["content"][:500] if r.get("content") else None,
+            "summary": r.get("summary"),
+            "updated_at": r.get("updated_at"),
         })
 
     return {"success": True, "results": items, "count": len(items)}

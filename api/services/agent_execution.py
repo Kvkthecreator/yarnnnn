@@ -1353,19 +1353,6 @@ async def execute_agent_generation(
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
-        # ADR-073: Mark consumed platform content as retained
-        if gathered_result.platform_content_ids:
-            try:
-                from services.platform_content import mark_content_retained
-                await mark_content_retained(
-                    client,
-                    gathered_result.platform_content_ids,
-                    reason="agent_execution",
-                    ref=version_id,
-                )
-            except Exception as e:
-                logger.warning(f"[EXEC] Failed to mark content retained: {e}")
-
         # ADR-049: Record source snapshots for audit trail
         # sources_used is a list of strings like "platform:slack", "other:document"
         # Build snapshot from the agent's source configs

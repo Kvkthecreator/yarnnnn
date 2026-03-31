@@ -346,7 +346,6 @@ async def gather_task_context(
 
     metadata = {
         "sections": len(sections),
-        "platform_content_ids": [],  # platform content now accessed via knowledge base
         "scope": agent.get("scope", "cross_platform"),
     }
 
@@ -792,24 +791,12 @@ async def execute_task(
             "output_tokens": usage.get("output_tokens", 0),
             "model": SONNET_MODEL,
             "task_slug": task_slug,
-            "platform_content_ids": context_meta.get("platform_content_ids", []),
             "trigger_type": "scheduled",
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
         # =====================================================================
-        # 9. Mark consumed platform content as retained
-        # =====================================================================
-        pc_ids = context_meta.get("platform_content_ids", [])
-        if pc_ids:
-            try:
-                from services.platform_content import mark_content_retained
-                await mark_content_retained(client, pc_ids, reason="task_execution", ref=version_id)
-            except Exception as e:
-                logger.warning(f"[TASK_EXEC] Content retention failed: {e}")
-
-        # =====================================================================
-        # 10. Save output to task workspace (mode-aware, ADR-149)
+        # 9. Save output to task workspace (mode-aware, ADR-149)
         # =====================================================================
         date_folder = started_at.strftime("%Y-%m-%dT%H%M")
 

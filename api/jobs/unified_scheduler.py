@@ -355,31 +355,6 @@ async def run_unified_scheduler():
     else:
         logger.info(f"[TASKS] No due tasks")
 
-    # -------------------------------------------------------------------------
-    # ADR-072: Cleanup Expired Platform Content (hourly)
-    # -------------------------------------------------------------------------
-    content_cleaned = 0
-    if is_hourly_tick:
-        try:
-            from services.platform_content import cleanup_expired_content
-            content_cleaned = await cleanup_expired_content(supabase)
-            if content_cleaned > 0:
-                logger.info(f"[PLATFORM_CONTENT] Cleaned up {content_cleaned} expired items")
-                # Only log when items were actually cleaned
-                try:
-                    from services.activity_log import write_activity as _cw
-                    for uid in active_user_ids:
-                        await _cw(
-                            client=supabase,
-                            user_id=uid,
-                            event_type="content_cleanup",
-                            summary=f"Cleaned {content_cleaned} expired content items",
-                            metadata={"items_deleted": content_cleaned},
-                        )
-                except Exception as e:
-                    logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
-        except Exception as e:
-            logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
     # ADR-119/127: Cleanup Ephemeral Workspace Files (hourly)

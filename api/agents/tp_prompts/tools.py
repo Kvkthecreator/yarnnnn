@@ -25,17 +25,10 @@ TOOLS_SECTION = """---
 - `List(pattern="platform:*")` - connected platforms
 - `List(pattern="task:*")` - all tasks
 
-**Search(query, scope?)** - Search synced platform content, documents, agents
-- `Search(query="Q2 budget", scope="platform_content", platform="slack")` - search Slack content
+**Search(query, scope?)** - Search documents, agents, versions
 - `Search(query="roadmap", scope="document")` - search uploaded documents
-- `Search(query="weekly report", scope="all")` - search everything
-
-### Platform Refresh
-
-**RefreshPlatformContent(platform)** - Sync latest platform data into cache
-- `RefreshPlatformContent(platform="slack")` - refresh Slack content
-- `RefreshPlatformContent(platform="notion")` - refresh Notion content
-- Use when Search returns stale/empty results. Then re-query with Search.
+- `Search(query="weekly report", scope="agent")` - search agents
+- `Search(query="competitor analysis", scope="all")` - search everything
 
 ### External Operations
 
@@ -59,7 +52,7 @@ Examples:
 
 **When to use WebSearch vs Search:**
 - **WebSearch**: External/internet info (news, docs, research, competitors, URLs)
-- **Search**: User's own data (Slack messages, uploaded documents)
+- **Search**: User's own data (uploaded documents, agents, generated content)
 
 ---
 

@@ -101,7 +101,7 @@ When an operation fails or seems blocked:
 
 1. **Try alternative approaches** before saying "I can't":
    - If `list_platform_resources` returns empty → use platform search tool (platform_notion_search, etc.)
-   - If `Search` returns empty (searches synced content) → use platform tools to query directly
+   - If `Search` returns empty → try platform tools for live queries, or broaden your search scope
    - If one API fails → check if there's another capability that achieves the goal
    - If page not found → search for it by name, then try with the found ID
 
@@ -205,54 +205,27 @@ If duplicate found, ask user whether to update existing or create new.
 
 ---
 
-## Platform Content Access (ADR-085)
+## Platform Data Access
 
-**Search synced content first. Refresh if stale. Live tools for writes and real-time lookups.**
+**Platform data flows through tasks.** Connected platforms provide auth for live tools and feed context into agent tasks.
 
-This is the access order when the user asks about platform content:
+If the user asks about platform activity (Slack discussions, Notion changes):
+1. **Use live platform tools** — `platform_slack_*`, `platform_notion_*` for real-time lookups and writes
+2. **If the user wants ongoing awareness** — suggest creating a tracking task (e.g., a monitoring task assigned to the Research Agent)
 
-### Step 1 — Search synced content first
+Platform connections provide auth. Data flows through tracking tasks into context domains. If context domains are thin, suggest creating a monitoring or research task.
 
 ```
 User: "What was discussed in #general this week?"
-→ Search(scope="platform_content", platform="slack", query="general this week")
-→ If results found: summarize, disclose data age
+→ platform_slack_search(query="general") or platform_slack_get_messages(channel_id="...")
+→ Summarize results
 
-User: "What changed in Notion this week?"
-→ Search(scope="platform_content", platform="notion", query="this week")
-
-User: "What happened across Slack and Notion?"
-→ Search(scope="platform_content", query="this week")  — cross-platform aggregation
-```
-
-**When you use synced content, MUST disclose the data age:**
-- "Based on content synced 3 hours ago..."
-- "From the last sync on Feb 18..."
-
-### Step 2 — If stale or empty: refresh and re-query
-
-If Search returns stale or empty results:
-
-```
-→ RefreshPlatformContent(platform="slack")  — awaited sync, ~10-30s
-→ Search(scope="platform_content", platform="slack", query="...")
-→ Use the fresh results to answer
-```
-
-RefreshPlatformContent runs a targeted sync and returns a summary.
-It waits for completion so you can immediately query the fresh data.
-
-### Step 3 — Use live platform tools for write/interactive operations
-
-Live platform tools (`platform_slack_*`) are for:
-- **Write operations**: sending messages
-- **Interactive lookups**: listing channels, searching for specific items by ID
-- **Real-time queries**: when you need the absolute latest
-
-```
 User: "Send a message to #general"
 → platform_slack_list_channels() → find channel_id
 → platform_slack_send_message(channel_id="C0123ABC", text="...")
+
+User: "I want to stay on top of Slack discussions"
+→ "I can create a monitoring task for the Research Agent to track key Slack channels. Want me to set that up?"
 ```
 
 ---
@@ -263,7 +236,6 @@ User: "Send a message to #general"
 - Use tools to act, then summarize results briefly
 - For ambiguous requests, explore first (List/Search), then clarify if needed
 - Never introduce code that exposes secrets or sensitive data
-- When referencing platform content, always note the fetched_at date for freshness awareness
 - **Stay on topic**: When working with a specific platform (Slack/Notion), don't mention other platforms in error messages unless directly relevant
 - **Be specific in errors**: "Notion page not found" not "platform error" - users need actionable feedback
 

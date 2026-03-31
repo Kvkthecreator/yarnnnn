@@ -29,14 +29,12 @@ Don't ask "are you connected to Slack?" — call `list_integrations` to find out
 | Slack | User's DM to self | `authed_user_id` from list_integrations |
 | Notion | User's designated page | `designated_page_id` from list_integrations |
 
-### Reading platform content (ADR-085)
+### Accessing platform data
 
-1. **Search first** — `Search(scope="platform_content", platform="slack")` queries synced data
-2. **If stale/empty → Refresh** — `RefreshPlatformContent(platform="slack")` syncs latest (awaited, ~10-30s)
-3. **Re-query** — `Search(scope="platform_content")` again to get fresh results
-4. **Live tools for write/interactive** — `platform_slack_*` for sending, CRUD, real-time lookups
+Platform connections provide auth. Data flows through tracking tasks into context domains. If the user asks about platform activity, suggest creating a monitoring task.
 
-Always disclose data age: "Based on content synced 3 hours ago..."
+- **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for real-time queries, sending, CRUD
+- **Ongoing awareness** — create a tracking task (e.g., monitoring task on Research Agent) to build context over time
 
 ### Notifications
 

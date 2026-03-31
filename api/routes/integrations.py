@@ -1709,14 +1709,12 @@ async def oauth_callback(
                         f"for {provider} user {user_id_for_auto[:8]}"
                     )
 
-                    # Kick off first sync immediately (BackgroundTask)
+                    # ADR-153: Platform sync removed. Platform data flows through tracking tasks.
+                    # Auto-sync disabled — user creates monitoring tasks post-connection.
                     if smart_selected:
-                        from workers.platform_worker import sync_platform
-                        source_ids = [s["id"] for s in smart_selected]
-                        background_tasks.add_task(sync_platform, user_id_for_auto, provider, source_ids)
                         logger.info(
-                            f"[INTEGRATIONS] ADR-113: Triggered initial sync for {provider} "
-                            f"user {user_id_for_auto[:8]} ({len(source_ids)} sources)"
+                            f"[INTEGRATIONS] ADR-153: Platform connected ({provider}), "
+                            f"{len(smart_selected)} sources selected. Create tracking task to begin accumulation."
                         )
                 else:
                     logger.info(
@@ -2279,11 +2277,18 @@ async def trigger_platform_sync(
     """
     Trigger an on-demand sync for a platform.
 
-    ADR-043 / DECISION-001: Syncs selected sources only.
-    ADR-112: Checks sync lock before dispatching — returns early if sync already in progress.
-    Runs via FastAPI BackgroundTasks, returns immediately.
+    ADR-153: Platform sync sunset. This endpoint is deprecated.
+    Platform data flows through tracking tasks into context domains.
+    Use ManageTask(action="trigger") on a monitoring task instead.
     """
-    from workers.platform_worker import sync_platform
+    # ADR-153: sync_platform removed. Return deprecation notice.
+    return {
+        "success": False,
+        "error": "deprecated",
+        "message": "Platform sync is deprecated (ADR-153). Create a monitoring task (Monitor Slack, Monitor Notion) and trigger it instead.",
+    }
+    # Legacy code below — kept for reference only
+    from workers.platform_worker import sync_platform  # noqa: F811 — unreachable
 
     user_id = auth.user_id
 

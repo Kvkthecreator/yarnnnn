@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.18] - ADR-153 Phase 1-3: Platform content sunset — primitives, prompts, pipeline
+
+### Changed
+- `services/primitives/refresh.py`: DELETED — RefreshPlatformContent primitive removed entirely.
+- `services/primitives/registry.py`: RefreshPlatformContent deregistered from both chat and headless tool lists.
+- `services/primitives/search.py`: `platform_content` scope removed from Search primitive. Only document/agent/version scopes remain. `_search_platform_content()` function deleted.
+- `services/primitives/workspace.py`: QueryKnowledge `platform_content` fallback deleted. `_fallback_platform_content_search()` function deleted. Context domains are sole source.
+- `services/task_pipeline.py`: `mark_content_retained` calls removed. `platform_content_ids` metadata removed.
+- `services/agent_execution.py`: `mark_content_retained` calls removed.
+- `services/primitives/refs.py`: `mark_content_retained` calls removed.
+- `jobs/unified_scheduler.py`: `cleanup_expired_content` call removed.
+- `mcp_server/server.py`: `search_platform_content` removed, replaced with context domain search.
+- `agents/tp_prompts/behaviors.py`: All `Search(scope="platform_content")` examples removed. Task-first guidance added.
+- `agents/tp_prompts/tools.py`: platform_content tool descriptions removed.
+- `agents/tp_prompts/platforms.py`: Search→Refresh→Search pattern removed. Task-first guidance.
+- `routes/integrations.py`: Auto-sync on OAuth callback removed. Manual sync endpoint deprecated.
+- `services/freshness.py`: `sync_stale_sources()` deprecated.
+- Expected behavior: Zero platform_content reads in TP chat or task execution. Context domains are THE data source. Platform APIs called live by agents during task execution.
+
+---
+
 ## [2026.03.31.17] - Task type registry v3: atomic context + synthesis split
 
 ### Changed

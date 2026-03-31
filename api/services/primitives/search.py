@@ -1,21 +1,16 @@
 """
-Search Primitive (ADR-072 Unified Content Layer)
+Search Primitive
 
-Find entities by content using text or semantic search.
+Find entities by content using text search.
 
 Usage:
-  Search(query="database migration", scope="platform_content")
   Search(query="weekly report", scope="agent")
-
-ADR-072: scope="platform_content" searches the unified content layer with
-semantic search (pgvector) when available, falling back to full-text search.
-Supports both retained (permanent) and ephemeral (TTL) content.
+  Search(query="competitor analysis", scope="document")
 
 scope="memory" is NOT a valid search scope. Memory is injected into the
 TP system prompt at session start via working memory. TP already has it.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .refs import TABLE_MAP
@@ -25,14 +20,7 @@ SEARCH_TOOL = {
     "name": "Search",
     "description": """Find entities by content using text search. Returns refs for use with Read.
 
-IMPORTANT — platform content access (ADR-085):
-1. Search(scope="platform_content") is the primary way to query synced platform data
-2. If results are stale or empty, use RefreshPlatformContent(platform="...") to sync latest (~10-30s)
-3. Then re-query with Search — content will be fresh
-4. When using results, disclose the synced_at age to the user
-
 Examples:
-- Search(query="Q2 planning discussion", scope="platform_content") - search synced Slack/Gmail/Notion/Calendar
 - Search(query="weekly status", scope="agent") - search agents
 - Search(query="competitor analysis", scope="document") - search uploaded documents
 - Search(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
@@ -44,11 +32,10 @@ Workflow for documents:
 2. Read(ref="document:<UUID>") → returns full document content
 
 Scopes:
-- platform_content: Synced platform data (Slack, Gmail, Notion, Calendar). May be hours old — disclose age. Use RefreshPlatformContent to get latest.
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
 - agent: Your recurring agents
 - version: Generated agent content (versions). Filter by agent_id to see versions for a specific agent.
-- all: Search everything (platform_content + document + agent)
+- all: Search everything (document + agent)
 
 Note: Memory is NOT a search scope — it is already in your working memory context at session start.""",
     "input_schema": {
@@ -60,17 +47,12 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "document", "agent", "version", "all"],
+                "enum": ["document", "agent", "version", "all"],
                 "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
             },
             "agent_id": {
                 "type": "string",
                 "description": "Filter versions by agent ID (only used with scope='version')"
-            },
-            "platform": {
-                "type": "string",
-                "enum": ["slack", "notion"],
-                "description": "Filter platform_content by platform (optional). For agent outputs, use QueryKnowledge instead."
             },
             "limit": {
                 "type": "integer",
@@ -84,7 +66,6 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
 
 # Searchable fields per entity type
 SEARCH_FIELDS = {
-    "platform_content": ["content"],
     "agent": ["title", "description"],
     "version": ["content"],  # Agent version content
     "document": ["filename"],  # documents table uses 'filename' not 'name'
@@ -97,7 +78,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
 
     Args:
         auth: Auth context with user_id and client
-        input: {"query": "...", "scope": "...", "platform": "...", "limit": N}
+        input: {"query": "...", "scope": "...", "limit": N}
 
     Returns:
         {"success": True, "results": [...], "count": N}
@@ -105,7 +86,6 @@ async def handle_search(auth: Any, input: dict) -> dict:
     """
     query = input.get("query", "").strip()
     scope = input.get("scope", "all")
-    platform_filter = input.get("platform")
     agent_id = input.get("agent_id")
     limit = input.get("limit", 10)
 
@@ -126,8 +106,8 @@ async def handle_search(auth: Any, input: dict) -> dict:
             "message": (
                 "scope='memory' is not searchable — memory is already in your working memory "
                 "context at session start. Check the 'What you've told me' section of your context. "
-                "To search platform content use scope='platform_content' (cache fallback) or "
-                "use live platform tools (platform_slack_*, etc.) for current data."
+                "Use scope='document' for uploaded documents, scope='agent' for agents, "
+                "or scope='all' to search everything."
             ),
         }
 
@@ -135,18 +115,14 @@ async def handle_search(auth: Any, input: dict) -> dict:
         # Determine scopes to search
         # ADR-065: 'all' excludes memory (already in working memory prompt)
         if scope == "all":
-            scopes = ["platform_content", "document", "agent"]
+            scopes = ["document", "agent"]
         else:
             scopes = [scope]
 
         all_results = []
 
         for entity_scope in scopes:
-            if entity_scope == "platform_content":
-                results = await _search_platform_content(
-                    auth, query, platform_filter, limit
-                )
-            elif entity_scope == "document":
+            if entity_scope == "document":
                 # Documents need special handling - search chunks for content
                 results = await _search_document_content(auth, query, limit)
             elif entity_scope == "version":
@@ -155,8 +131,6 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 results = await _search_entity(auth, query, entity_scope, limit)
             all_results.extend(results)
 
-        # Sort by recency for platform_content, then others
-        # Platform content has source_timestamp; entities have created_at
         all_results = all_results[:limit]
 
         return {
@@ -174,79 +148,6 @@ async def handle_search(auth: Any, input: dict) -> dict:
             "error": "search_failed",
             "message": str(e),
         }
-
-
-async def _search_platform_content(
-    auth: Any,
-    query: str,
-    platform_filter: Optional[str],
-    limit: int,
-) -> list[dict]:
-    """
-    Search platform_content table for platform content.
-
-    ADR-072: Unified content layer with retention. Searches both retained
-    (permanent) and ephemeral (TTL) content that hasn't expired.
-    """
-    try:
-        # Build query on platform_content (ADR-072 unified content layer)
-        now = datetime.now(timezone.utc).isoformat()
-        q = auth.client.table("platform_content").select(
-            "id, platform, resource_id, resource_name, content, content_type, "
-            "metadata, source_timestamp, fetched_at, retained, expires_at"
-        ).eq(
-            "user_id", auth.user_id
-        ).or_(
-            f"retained.eq.true,expires_at.gt.{now}"  # Include retained OR non-expired
-        ).ilike(
-            "content", f"%{query}%"
-        )
-
-        # Optional platform filter
-        if platform_filter:
-            q = q.eq("platform", platform_filter)
-
-        # Order by recency and limit
-        result = q.order("fetched_at", desc=True).limit(limit).execute()
-
-        if not result.data:
-            return []
-
-        # ADR-073: Mark accessed content as retained so it survives TTL cleanup
-        content_ids = [item["id"] for item in result.data if item.get("id")]
-        if content_ids:
-            try:
-                from services.platform_content import mark_content_retained
-                await mark_content_retained(auth.client, content_ids, reason="tp_session")
-            except Exception:
-                pass  # Non-fatal — never block search results
-
-        return [
-            {
-                "entity_type": "platform_content",
-                "ref": f"platform_content:{item['id']}",
-                "platform": item["platform"],
-                "resource_name": item.get("resource_name"),
-                "content_type": item.get("content_type"),
-                # ADR-072: fetched_at exposed for freshness awareness
-                "fetched_at": item.get("fetched_at"),
-                "retained": item.get("retained", False),
-                "data": {
-                    "content": item["content"][:500] + "..." if len(item.get("content", "")) > 500 else item.get("content", ""),
-                    "source_timestamp": item.get("source_timestamp"),
-                    "metadata": item.get("metadata", {}),
-                },
-                "score": 0.5,  # Text search doesn't have similarity score
-            }
-            for item in result.data
-        ]
-
-    except Exception as e:
-        # Log but don't fail the search
-        import logging
-        logging.warning(f"[SEARCH] Platform content search failed: {e}")
-        return []
-
 
 
 async def _search_document_content(
