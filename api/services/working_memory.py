@@ -10,13 +10,16 @@ Sources (Memory + Activity layers only):
   activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
-What goes in the prompt (~2,000 tokens, + ~500 for agent scope):
+What goes in the prompt (~2,500 tokens, + ~500 for agent scope):
   - About you: name, role, company, timezone
   - Preferences: tone_*, verbosity_*, preference:*
   - What you've told me: fact:*, instruction:*
   - Active agents (max 5)
+  - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
+  - Context domain health: per-domain file count + freshness ← ADR-151
   - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
   - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
+  - Context readiness: identity/brand/docs/tasks/domains richness ← ADR-144/151
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 Raw platform_content is NOT included here.
@@ -105,6 +108,12 @@ async def build_working_memory(
         asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
     )
 
+    # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
+    active_tasks, context_domains = await asyncio.gather(
+        asyncio.to_thread(_get_active_tasks_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_context_domain_health_sync, user_id, _make_client()),
+    )
+
     working_memory = {
         "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
@@ -118,12 +127,16 @@ async def build_working_memory(
         "system_summary": system_summary,
         "system_reference": _build_system_reference(platforms),
         "user_shared_files": user_shared_files,
+        # ADR-149/151: Active tasks + context domain health for TP meta-awareness
+        "active_tasks": active_tasks,
+        "context_domains": context_domains,
         # ADR-144: Context readiness signal for TP graduated awareness
         "context_readiness": {
             "identity": _classify_richness(identity_content),
             "brand": _classify_richness(brand_content),
             "documents": doc_count,
             "tasks": task_count,
+            "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
         },
     }
 
@@ -191,6 +204,84 @@ def _count_documents_sync(user_id: str, client: Any) -> int:
         return result.count or 0
     except Exception:
         return 0
+
+
+def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
+    """Get active tasks with key metadata for TP awareness (sync). ADR-149/151."""
+    try:
+        result = (
+            client.table("tasks")
+            .select("slug, mode, status, schedule, next_run_at, last_run_at")
+            .eq("user_id", user_id)
+            .in_("status", ["active", "paused"])
+            .order("updated_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        tasks = []
+        for row in (result.data or []):
+            task = {
+                "slug": row.get("slug"),
+                "mode": row.get("mode", "recurring"),
+                "status": row.get("status"),
+                "schedule": row.get("schedule"),
+            }
+            # Format timestamps for readability
+            last_run = row.get("last_run_at")
+            next_run = row.get("next_run_at")
+            if last_run:
+                task["last_run"] = last_run[:16].replace("T", " ")
+            if next_run:
+                task["next_run"] = next_run[:16].replace("T", " ")
+            tasks.append(task)
+        return tasks
+    except Exception:
+        return []
+
+
+def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
+    """Get context domain health summary for TP awareness (sync). ADR-151.
+
+    Returns list of {domain, file_count, latest_update} for each domain
+    that has files in /workspace/context/.
+    """
+    from services.domain_registry import CONTEXT_DOMAINS, get_domain_folder
+    domains = []
+    for domain_key in CONTEXT_DOMAINS:
+        folder = get_domain_folder(domain_key)
+        if not folder:
+            continue
+        prefix = f"/workspace/{folder}/"
+        try:
+            result = (
+                client.table("workspace_files")
+                .select("updated_at")
+                .eq("user_id", user_id)
+                .like("path", f"{prefix}%")
+                .order("updated_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            rows = result.data or []
+            # Count files
+            count_result = (
+                client.table("workspace_files")
+                .select("id", count="exact")
+                .eq("user_id", user_id)
+                .like("path", f"{prefix}%")
+                .execute()
+            )
+            file_count = count_result.count or 0
+            latest = rows[0]["updated_at"][:10] if rows else None
+            domains.append({
+                "domain": domain_key,
+                "file_count": file_count,
+                "latest_update": latest,
+                "health": "active" if file_count > 1 else ("seeded" if file_count == 1 else "empty"),
+            })
+        except Exception:
+            domains.append({"domain": domain_key, "file_count": 0, "latest_update": None, "health": "empty"})
+    return domains
 
 
 def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:

@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.12] - TP meta-awareness: tasks + context domains in working memory
+
+### Changed
+- `services/working_memory.py`: Two new sections injected into TP system prompt:
+  - `active_tasks`: up to 10 tasks with slug, mode, status, schedule, last_run, next_run
+  - `context_domains`: per-domain health (file_count, latest_update, health: active/seeded/empty) for all 6 domains
+- `context_readiness` gains `context_domains` count (how many domains have content)
+- Doc header updated: ~2,500 token budget (was ~2,000)
+- Expected behavior: TP now sees which tasks are active, their modes/schedules, and which context domains have accumulated content. Enables TP to make informed decisions about task management, domain health, and when to evaluate/steer.
+
+---
+
 ## [2026.03.31.11] - KnowledgeBase class DELETED — full migration to context domains
 
 ### Changed
