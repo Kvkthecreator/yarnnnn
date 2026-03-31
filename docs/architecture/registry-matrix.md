@@ -14,74 +14,69 @@ YARNNN has three registries that work together:
 |---|---|---|---|
 | **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
 | **Agent Types** | Who does the work | `agent_framework.py` | `AGENT_TYPES` |
-| **Task Types** | How work gets done | `task_types.py` | `TASK_TYPES` |
+| **Task Types** (v3 atomic) | How work gets done — split into context + synthesis | `task_types.py` | `TASK_TYPES` |
 
-**Read direction:** Domains are upstream → Task types read/write domains → Agent types execute task steps.
+**Read direction:** Domains are upstream → Context tasks WRITE to domains → Synthesis tasks READ from domains → Agent types execute task steps.
 
 ---
 
 ## Domain ↔ Task ↔ Agent Matrix
 
-| Context Domain | Task Types that READ | Task Types that WRITE | Agent Types involved |
+| Context Domain | Context Tasks (WRITE) | Synthesis Tasks (READ) | Agent Types involved |
 |---|---|---|---|
-| **competitors** | competitive-intel, due-diligence, stakeholder-update, meeting-prep, launch-material, gtm-tracker | competitive-intel, due-diligence, gtm-tracker | research, marketing, content |
-| **market** | market-research, stakeholder-update, launch-material, gtm-tracker | market-research | research, content |
-| **relationships** | relationship-health, meeting-prep, stakeholder-update | relationship-health, meeting-prep | crm, research, content |
-| **projects** | project-status, stakeholder-update | project-status, stakeholder-update | research, content |
-| **content** | content-brief, launch-material | content-brief, launch-material | research, content |
-| **signals** | industry-signal, slack-recap, notion-sync | ALL task types (signal routing) | all agent types |
+| **competitors** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material, gtm-report | research, content |
+| **market** | track-market | market-report, launch-material, gtm-report | research, content |
+| **relationships** | track-relationships | meeting-prep, stakeholder-update | crm, content |
+| **projects** | track-projects | project-status, stakeholder-update | research, content |
+| **content_research** | research-topics | content-brief, launch-material | research, content |
+| **signals** | monitor-slack, monitor-notion, ALL context tasks | ALL synthesis tasks | all agent types |
 
 ---
 
-## Task Type Catalog
+## Task Type Catalog (v3 — Atomic Split)
 
-### Intelligence & Research
+Task types are split into two classes: **context tasks** (accumulate workspace knowledge) and **synthesis tasks** (produce deliverables from accumulated context). For full intelligence coverage, create one of each — e.g., `track-competitors` + `competitive-brief`.
 
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
+### Context Tasks — Track & Research
+
+Context tasks maintain your workspace knowledge domains. They run on schedule, update domain folders, and produce NO report output.
+
+| Type Key | Display Name | Schedule | Agent | Domains (writes) |
+|---|---|---|---|---|
+| **track-competitors** | Track Competitors | weekly | research | competitors, signals |
+| **track-market** | Track Market | monthly | research | market, signals |
+| **track-relationships** | Track Relationships | weekly | crm | relationships, signals |
+| **track-projects** | Track Projects | weekly | research | projects, signals |
+| **research-topics** | Research Topics | on-demand | research | content_research |
+| **monitor-slack** | Monitor Slack | daily | slack_bot | signals |
+| **monitor-notion** | Monitor Notion | weekly | notion_bot | signals |
+
+### Synthesis Tasks — Reports & Outputs
+
+Synthesis tasks read from accumulated context domains and produce deliverables.
+
+| Type Key | Display Name | Schedule | Agent | Reads From | Output Category |
 |---|---|---|---|---|---|
-| **Competitive Intel Brief** | recurring | weekly | research → content | R: competitors / W: competitors, signals | reports |
-| **Market Research Report** | recurring | monthly | research → content | R: market / W: market, signals | reports |
-| **Industry Signal Monitor** | recurring | weekly | marketing (single) | R: signals / W: signals | reports |
-| **Due Diligence Summary** | goal | on-demand | research → content | R: competitors, market / W: competitors, signals | reports |
-
-### Operations
-
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
-|---|---|---|---|---|---|
-| **Meeting Prep Brief** | reactive | on-demand | crm → research | R: relationships, competitors / W: relationships, signals | briefs |
-| **Stakeholder / Board Update** | recurring | monthly | research → content | R: competitors, market, projects, relationships / W: projects, signals | reports |
-| **Relationship Health Digest** | recurring | weekly | crm → content | R: relationships / W: relationships, signals | briefs |
-| **Project Status Report** | recurring | weekly | research → content | R: projects / W: projects, signals | reports |
-
-### Platform Digests
-
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
-|---|---|---|---|---|---|
-| **Slack Recap** | recurring | daily | slack_bot (single) | R: signals / W: signals | briefs |
-| **Notion Sync Report** | recurring | weekly | notion_bot (single) | R: signals / W: signals | briefs |
-
-### Content & Communications
-
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
-|---|---|---|---|---|---|
-| **Content Brief / Blog Draft** | goal | on-demand | research → content | R: content / W: content | content_output |
-| **Launch / Announcement Material** | goal | on-demand | research → content | R: content, competitors, market / W: content | content_output |
-
-### Data & Tracking
-
-| Task Type | Default Mode | Schedule | Process | Domains (R/W) | Output Category |
-|---|---|---|---|---|---|
-| **GTM Tracker** | recurring | weekly | marketing → content | R: competitors, market / W: competitors, signals | reports |
+| **competitive-brief** | Competitive Brief | weekly | content | competitors, signals | briefs |
+| **market-report** | Market Report | monthly | content | market, competitors, signals | reports |
+| **meeting-prep** | Meeting Prep | on-demand | content | relationships, competitors, signals | briefs |
+| **stakeholder-update** | Stakeholder Update | monthly | content | ALL domains | reports |
+| **project-status** | Project Status Report | weekly | content | projects, signals | reports |
+| **content-brief** | Content Brief | on-demand | content | content_research, competitors, signals | content_output |
+| **launch-material** | Launch Material | on-demand | content | content_research, competitors, market, signals | content_output |
+| **gtm-report** | GTM Report | weekly | content | competitors, market, signals | reports |
 
 ### Output Categories
 
-Task types declare an `output_category` that determines where promoted outputs land in `/workspace/outputs/`:
+Synthesis tasks declare an `output_category` that determines where promoted outputs land in `/workspace/outputs/`:
 
 | Category | Directory | Typical task types |
 |---|---|---|
-| **reports** | `/workspace/outputs/reports/` | Competitive intel, market research, signal monitor, due diligence, stakeholder update, project status, GTM tracker |
-| **briefs** | `/workspace/outputs/briefs/` | Meeting prep, relationship health, Slack recap, Notion sync |
-| **content_output** | `/workspace/outputs/content/` | Content brief, blog draft, launch material |
+| **reports** | `/workspace/outputs/reports/` | market-report, stakeholder-update, project-status, gtm-report |
+| **briefs** | `/workspace/outputs/briefs/` | competitive-brief, meeting-prep |
+| **content_output** | `/workspace/outputs/content/` | content-brief, launch-material |
+
+Context tasks do NOT produce outputs — they write directly to `/workspace/context/{domain}/`.
 
 ---
 
@@ -102,26 +97,32 @@ Task types declare an `output_category` that determines where promoted outputs l
 
 ## How It Works Together
 
-### Creating a Task
-1. User describes work → TP infers task type from registry
-2. Task type defines: process steps (which agents), context_reads/writes (which domains), default schedule/mode
-3. Task creation scaffolds: TASK.md, DELIVERABLE.md, memory files
-4. Domain folders scaffolded if not yet present (idempotent)
+### Creating Tasks
+1. User describes work → TP infers task type(s) from registry
+2. For full intelligence coverage, TP creates BOTH a context task AND a synthesis task (e.g., `track-competitors` + `competitive-brief`)
+3. Each task type defines: agent assignment, context domains (reads/writes), default schedule/mode
+4. Task creation scaffolds: TASK.md, DELIVERABLE.md (synthesis only), memory files
+5. Domain folders scaffolded if not yet present (idempotent)
 
-### Running a Task (Recurring Example: Competitive Intel)
+### Running a Context Task (Example: Track Competitors)
 1. Scheduler triggers (next_run_at <= now)
-2. Pipeline reads `/workspace/context/competitors/` (accumulated context — PRIMARY)
-3. Step 1: Research Agent updates context (new signals, entity updates)
-4. Step 2: Content Agent derives output (brief emphasizing what changed)
-5. Pipeline writes signal to `/workspace/context/signals/`
-6. Output saved to `/tasks/{slug}/outputs/`
-7. Delivered per TASK.md config
+2. Research Agent gathers fresh intelligence (web search, platform content)
+3. Agent writes findings to `/workspace/context/competitors/` (entity files, analysis)
+4. Agent appends signal to `/workspace/context/signals/`
+5. No output produced — context accumulates silently
+
+### Running a Synthesis Task (Example: Competitive Brief)
+1. Scheduler triggers (next_run_at <= now)
+2. Content Agent reads from `/workspace/context/competitors/` and `/workspace/context/signals/`
+3. Agent composes a deliverable from the accumulated context
+4. Output saved to `/tasks/{slug}/outputs/`
+5. Delivered per TASK.md config
 
 ### Accumulation Across Tasks
-- Competitive intel writes to `competitors/` → Stakeholder update READS from `competitors/`
-- Meeting prep writes to `relationships/` → Relationship health READS from `relationships/`
-- ALL tasks write signals → signals/ provides temporal awareness to all tasks
-- **Context compounds across tasks. No task is isolated.**
+- `track-competitors` writes to `competitors/` → `competitive-brief` and `market-report` READ from it
+- `track-relationships` writes to `relationships/` → `meeting-prep` READS from it
+- ALL context tasks write signals → `signals/` provides temporal awareness to all synthesis tasks
+- **Context compounds across tasks. Synthesis tasks get richer as context tasks accumulate.**
 
 ---
 
@@ -161,11 +162,11 @@ Task types declare an `output_category` that determines where promoted outputs l
 │   ├── briefs/                     # Summaries, prep docs, updates
 │   └── content/                    # Blog drafts, comms, launch material
 ├── context/                        # ACCUMULATED CONTEXT (directory registry)
-│   ├── competitors/                # Managed by: competitive-intel, due-diligence, gtm-tracker
-│   ├── market/                     # Managed by: market-research
-│   ├── relationships/              # Managed by: meeting-prep, relationship-health
-│   ├── projects/                   # Managed by: project-status, stakeholder-update
-│   ├── content/                    # Managed by: content-brief, launch-material
+│   ├── competitors/                # Managed by: track-competitors
+│   ├── market/                     # Managed by: track-market
+│   ├── relationships/              # Managed by: track-relationships
+│   ├── projects/                   # Managed by: track-projects
+│   ├── content_research/           # Managed by: research-topics
 │   ├── signals/                    # Managed by: ALL tasks (temporal signal log)
 │   └── assets/                     # Cross-domain shared assets
 ├── notes.md, preferences.md       # TP observations

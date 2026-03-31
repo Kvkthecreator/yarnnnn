@@ -1,22 +1,29 @@
 """
-Task Type Registry — ADR-145 + ADR-152
+Task Type Registry — ADR-152: Atomic Task Types
 
-Deliverable-first task types. Each type defines:
-  - What the user gets (display_name, description, category)
-  - How it's produced (process: ordered agent steps using STEP_INSTRUCTIONS templates)
-  - When it runs (default_schedule)
-  - What format (output_format, export_options)
-  - What context it needs (context_reads/context_writes from directory registry)
-  - Where output goes (output_category from directory registry)
+Two classes of tasks, dead simple:
+  CONTEXT tasks — maintain a workspace context domain (track, research, monitor)
+  SYNTHESIS tasks — produce outputs from accumulated context (reports, briefs, content)
 
-Process step instructions are GENERIC TEMPLATES (ADR-152) — resolved at runtime
-with actual context domain paths. Per-task-type specificity lives in DELIVERABLE.md
-(quality criteria, format expectations), not in step instructions.
+Users think: "What do I want to track?" → context tasks.
+             "What reports do I want?" → synthesis tasks.
+
+Agents are auto-assigned. The task type determines which agent handles it.
+Process step instructions come from STEP_INSTRUCTIONS (generic templates).
+Per-task-type quality criteria live in DELIVERABLE.md, not here.
+
+Registries are creation-time templates. After task creation, TASK.md is the
+sole source of truth — pipeline reads TASK.md, not this registry.
+
+Version: 3.0 (2026-03-31)
+Changelog:
+  v1.0 — 13 product-named types (ADR-145)
+  v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
+  v3.0 — Atomic split: 7 context + 8 synthesis types. Task-first, user-friendly naming.
 
 Canonical docs:
-  - docs/adr/ADR-145-task-type-registry-premeditated-orchestration.md
-  - docs/adr/ADR-152-unified-directory-registry.md
   - docs/architecture/registry-matrix.md
+  - docs/adr/ADR-152-unified-directory-registry.md
 """
 
 from __future__ import annotations
@@ -63,413 +70,232 @@ STEP_INSTRUCTIONS = {
 
 
 # =============================================================================
-# Task Type Registry
+# Task Type Categories
 # =============================================================================
 
 TASK_TYPE_CATEGORIES = {
-    "intelligence": {"display_name": "Intelligence & Research", "order": 1},
-    "operations": {"display_name": "Business Operations", "order": 2},
-    "platform": {"display_name": "Platform Digests", "order": 3},
-    "content": {"display_name": "Content & Communications", "order": 4},
-    "tracking": {"display_name": "Data & Tracking", "order": 5},
+    "context": {"display_name": "Track & Research", "order": 1},
+    "synthesis": {"display_name": "Reports & Outputs", "order": 2},
+    "platform": {"display_name": "Platform Monitoring", "order": 3},
 }
+
+
+# =============================================================================
+# Task Type Registry (v3 — atomic split)
+# =============================================================================
 
 TASK_TYPES: dict[str, dict[str, Any]] = {
 
-    # ── Intelligence & Research ──
+    # ══════════════════════════════════════════════════════════════════════════
+    # CONTEXT TASKS — maintain workspace context domains
+    # "What do you want to track?"
+    # ══════════════════════════════════════════════════════════════════════════
 
-    "competitive-intel-brief": {
-        "display_name": "Competitive Intelligence Brief",
-        "description": "Research-backed competitive analysis with charts, diagrams, and evidence-linked findings.",
-        "category": "intelligence",
+    "track-competitors": {
+        "display_name": "Track Competitors",
+        "description": "Research and maintain intelligence on competitors — products, pricing, funding, strategy.",
+        "category": "context",
+        "task_class": "context",
         "default_schedule": "weekly",
-        "output_format": "html",
-        "layout_mode": "document",
-        "export_options": ["pdf"],
-        "process": [
-            {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["web", "platforms", "workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "Weekly competitive intelligence brief",
-            "audience": "Leadership and strategy team",
-            "purpose": "Track competitive landscape and identify strategic opportunities",
-            "format": "Structured report with charts and diagrams",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "2000-3000",
-                "layout": ["Executive Summary", "Key Findings", "Competitive Positioning", "Trend Analysis", "Implications", "Sources"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Quantified trend data"},
-                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Competitor comparison"},
-                {"type": "mermaid", "subtype": "positioning", "min_count": 1, "description": "Competitive positioning map"},
-            ],
-            "quality_criteria": [
-                "Every claim has inline source citation",
-                "Minimum 3 competitors analyzed",
-                "Forward-looking implications not just historical reporting",
-            ],
-        },
-        "context_reads": ["competitors"],
-        "context_writes": ["competitors", "signals"],
-        "output_category": "briefs",
-    },
-
-    "market-research-report": {
-        "display_name": "Market Research Report",
-        "description": "Deep-dive investigation on a specific topic with data-backed analysis and trend visualizations.",
-        "category": "intelligence",
-        "default_schedule": "monthly",
-        "output_format": "html",
-        "layout_mode": "document",
-        "export_options": ["pdf"],
-        "process": [
-            {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["web", "platforms", "workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "Market research report",
-            "audience": "Decision-makers and strategists",
-            "purpose": "Understand market dynamics and inform strategic decisions",
-            "format": "Comprehensive report with visualizations",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "3000-5000",
-                "layout": ["Executive Summary", "Market Overview", "Key Players", "Technology Trends", "Opportunities & Threats", "Recommendations", "Sources"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "distribution", "min_count": 1, "description": "Market share or segment breakdown"},
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Growth trend data"},
-                {"type": "mermaid", "subtype": "landscape", "min_count": 1, "description": "Market landscape map"},
-            ],
-            "quality_criteria": [
-                "Data-backed claims with recency noted",
-                "Minimum 5 key players profiled",
-                "Clear opportunity identification",
-            ],
-        },
-        "context_reads": ["market"],
-        "context_writes": ["market", "signals"],
-        "output_category": "reports",
-    },
-
-    "industry-signal-monitor": {
-        "display_name": "Industry Signal Monitor",
-        "description": "Surface-level industry scan with deep-dives on signals that matter.",
-        "category": "intelligence",
-        "default_schedule": "weekly",
-        "output_format": "html",
+        "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
         "process": [
             {
-                "agent_type": "marketing",
-                "step": "capture-and-report",
-                "instruction": STEP_INSTRUCTIONS["capture-and-report"],
+                "agent_type": "research",
+                "step": "update-context",
+                "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
+        "context_reads": ["competitors"],
+        "context_writes": ["competitors", "signals"],
+        "output_category": "",  # Context tasks — no output promotion
         "context_sources": ["web", "platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "Industry signal report",
-            "audience": "Strategy and product teams",
-            "purpose": "Catch important industry signals early and assess their impact",
-            "format": "Signal list with deep-dive analysis on top signals",
+            "deliverable": "Maintained competitor intelligence",
+            "audience": "Internal — feeds synthesis tasks",
+            "purpose": "Keep competitor profiles current with latest signals",
+            "format": "Structured entity files per competitor",
         },
         "default_deliverable": {
             "output": {
-                "format": "html",
-                "word_count": "1000-2000",
-                "layout": ["Signal Summary", "Key Signals", "Emerging Patterns", "Watch List"],
+                "format": "context",
+                "word_count": "n/a",
+                "layout": ["Per-entity profiles", "Signals log", "Landscape synthesis"],
             },
             "assets": [],
             "quality_criteria": [
-                "Signals categorized by impact level",
-                "Each signal has source and date",
-                "Pattern identification across multiple signals",
+                "Minimum 3 competitor profiles maintained",
+                "Each profile updated within last 30 days",
+                "Every finding has a source citation",
+                "Landscape synthesis reflects latest competitive dynamics",
             ],
         },
-        "context_reads": ["signals"],
-        "context_writes": ["signals"],
-        "output_category": "briefs",
     },
 
-    "due-diligence-summary": {
-        "display_name": "Due Diligence Summary",
-        "description": "Structured investigation of a company, market, or opportunity with risk flags and evidence.",
-        "category": "intelligence",
-        "default_schedule": "on-demand",
-        "output_format": "html",
+    "track-market": {
+        "display_name": "Track Market",
+        "description": "Research and maintain intelligence on market segments, sizing, trends, and opportunities.",
+        "category": "context",
+        "task_class": "context",
+        "default_schedule": "monthly",
+        "output_format": "markdown",
         "layout_mode": "document",
-        "export_options": ["pdf"],
+        "export_options": [],
         "process": [
             {
                 "agent_type": "research",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
+        ],
+        "context_reads": ["market"],
+        "context_writes": ["market", "signals"],
+        "output_category": "",
+        "context_sources": ["web", "platforms", "workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Maintained market intelligence",
+            "audience": "Internal — feeds synthesis tasks",
+            "purpose": "Keep market segment analyses current",
+            "format": "Structured segment files with trends and opportunities",
+        },
+        "default_deliverable": {
+            "output": {"format": "context", "word_count": "n/a", "layout": ["Per-segment analyses", "Market overview synthesis"]},
+            "assets": [],
+            "quality_criteria": [
+                "Key market segments identified and profiled",
+                "Trends backed by data with recency noted",
+                "Opportunity assessment updated each cycle",
+            ],
+        },
+    },
+
+    "track-relationships": {
+        "display_name": "Track Relationships",
+        "description": "Maintain contact profiles, interaction history, and relationship health from platform signals.",
+        "category": "context",
+        "task_class": "context",
+        "default_schedule": "weekly",
+        "output_format": "markdown",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
             {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
+                "agent_type": "crm",
+                "step": "update-context",
+                "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
+        "context_reads": ["relationships"],
+        "context_writes": ["relationships", "signals"],
+        "output_category": "",
+        "context_sources": ["platforms", "workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Maintained relationship intelligence",
+            "audience": "Internal — feeds meeting prep and health digests",
+            "purpose": "Keep contact profiles and interaction history current",
+            "format": "Per-contact files with history and open items",
+        },
+        "default_deliverable": {
+            "output": {"format": "context", "word_count": "n/a", "layout": ["Per-contact profiles", "Portfolio synthesis"]},
+            "assets": [],
+            "quality_criteria": [
+                "Active contacts have recent interaction entries",
+                "Open items tracked with owners and dates",
+                "At-risk relationships flagged in portfolio synthesis",
+            ],
+        },
+    },
+
+    "track-projects": {
+        "display_name": "Track Projects",
+        "description": "Maintain project status, milestones, and blockers from platform signals and team activity.",
+        "category": "context",
+        "task_class": "context",
+        "default_schedule": "weekly",
+        "output_format": "markdown",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "research",
+                "step": "update-context",
+                "instruction": STEP_INSTRUCTIONS["update-context"],
+            },
+        ],
+        "context_reads": ["projects"],
+        "context_writes": ["projects", "signals"],
+        "output_category": "",
+        "context_sources": ["platforms", "workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Maintained project intelligence",
+            "audience": "Internal — feeds status reports and stakeholder updates",
+            "purpose": "Keep project status, milestones, and blockers current",
+            "format": "Per-project files with status and milestones",
+        },
+        "default_deliverable": {
+            "output": {"format": "context", "word_count": "n/a", "layout": ["Per-project status", "Portfolio health synthesis"]},
+            "assets": [],
+            "quality_criteria": [
+                "Active projects have current status entries",
+                "Blockers identified with owners",
+                "Milestone tracking up to date",
+            ],
+        },
+    },
+
+    "research-topics": {
+        "display_name": "Research Topics",
+        "description": "Deep research on specific topics — accumulate findings, sources, and outlines for content creation.",
+        "category": "context",
+        "task_class": "context",
+        "default_schedule": "on-demand",
+        "output_format": "markdown",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "research",
+                "step": "update-context",
+                "instruction": STEP_INSTRUCTIONS["update-context"],
+            },
+        ],
+        "context_reads": ["content_research"],
+        "context_writes": ["content_research"],
+        "output_category": "",
         "context_sources": ["web", "workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "Due diligence summary",
-            "audience": "Decision-makers evaluating an opportunity",
-            "purpose": "Assess viability and risks of a company, market, or opportunity",
-            "format": "Structured report with org charts and risk assessment",
+            "deliverable": "Accumulated topic research",
+            "audience": "Internal — feeds content briefs and launch materials",
+            "purpose": "Build deep research base for content creation",
+            "format": "Per-topic research files with sources and outlines",
         },
         "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "3000-5000",
-                "layout": ["Executive Summary", "Company Overview", "Financial Analysis", "Risk Assessment", "Competitive Position", "Recommendation"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Financial metrics comparison"},
-                {"type": "mermaid", "subtype": "flowchart", "min_count": 1, "description": "Corporate structure or process diagram"},
-            ],
-            "quality_criteria": [
-                "All claims verified with sources",
-                "Risk factors explicitly identified",
-                "Clear recommendation with supporting evidence",
-            ],
-        },
-        "context_reads": ["competitors", "market"],
-        "context_writes": ["competitors", "signals"],
-        "output_category": "reports",
-    },
-
-    # ── Business Operations ──
-
-    "meeting-prep-brief": {
-        "display_name": "Meeting Prep Brief",
-        "description": "Relationship context from your platforms combined with fresh external research on attendees.",
-        "category": "operations",
-        "default_schedule": "on-demand",
-        "output_format": "html",
-        "layout_mode": "document",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "crm",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "research",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["web", "platforms", "workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "Meeting preparation brief",
-            "audience": "You, before the meeting",
-            "purpose": "Walk into meetings prepared with relationship context and fresh intelligence",
-            "format": "Context summary, talking points, open items, and agenda suggestions",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "800-1500",
-                "layout": ["Context", "Last Interaction", "Agenda Items", "Talking Points", "Open Items"],
-            },
+            "output": {"format": "context", "word_count": "n/a", "layout": ["Per-topic research", "Source compilation"]},
             "assets": [],
             "quality_criteria": [
-                "Actionable talking points",
-                "References specific prior interactions",
-                "Scannable in under 2 minutes",
+                "Key points backed by cited sources",
+                "Audience considerations documented",
+                "Outline structured for downstream content production",
             ],
         },
-        "context_reads": ["relationships", "competitors"],
-        "context_writes": ["relationships", "signals"],
-        "output_category": "briefs",
     },
 
-    "stakeholder-update": {
-        "display_name": "Stakeholder / Board Update",
-        "description": "Executive-quality update with KPI dashboards, metric cards, and narrative context.",
-        "category": "operations",
-        "default_schedule": "monthly",
-        "output_format": "html",
-        "layout_mode": "dashboard",
-        "export_options": ["pdf", "pptx"],
-        "process": [
-            {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["platforms", "workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "Stakeholder or board update",
-            "audience": "Board members, investors, or leadership",
-            "purpose": "Keep stakeholders informed with professional-quality updates",
-            "format": "Dashboard-style report with KPI cards, charts, and narrative",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "2000-3000",
-                "layout": ["Executive Summary", "Key Milestones", "Challenges & Mitigations", "Financial Overview", "Forward Look", "Appendix"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "KPI dashboard or progress metrics"},
-                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Budget vs actual or milestone tracking"},
-            ],
-            "quality_criteria": [
-                "Board-level polish",
-                "Key milestones with status",
-                "Forward-looking strategic priorities",
-            ],
-        },
-        "context_reads": ["competitors", "market", "projects", "relationships"],
-        "context_writes": ["projects", "signals"],
-        "output_category": "reports",
-    },
+    # ── Platform Monitoring (context, platform-specific) ──
 
-    "relationship-health-digest": {
-        "display_name": "Relationship Health Digest",
-        "description": "Interaction patterns from Slack synthesized into actionable relationship intelligence.",
-        "category": "operations",
-        "default_schedule": "weekly",
-        "output_format": "html",
-        "layout_mode": "document",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "crm",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["platforms", "workspace"],
-        "requires_platform": "slack",
-        "default_objective": {
-            "deliverable": "Relationship health digest",
-            "audience": "You, for relationship management",
-            "purpose": "Stay on top of professional relationships and never drop the ball",
-            "format": "Health summary with follow-up recommendations",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "1000-2000",
-                "layout": ["Summary", "Active Relationships", "Risk Flags", "Follow-ups Due", "Engagement Trends"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Engagement frequency trends"},
-            ],
-            "quality_criteria": [
-                "Actionable follow-up recommendations",
-                "Risk flags for declining engagement",
-                "Personalized per relationship",
-            ],
-        },
-        "context_reads": ["relationships"],
-        "context_writes": ["relationships", "signals"],
-        "output_category": "reports",
-    },
-
-    "project-status-report": {
-        "display_name": "Project Status Report",
-        "description": "Cross-platform status synthesis — team activity from Slack composed into a polished report.",
-        "category": "operations",
-        "default_schedule": "weekly",
-        "output_format": "html",
-        "layout_mode": "document",
-        "export_options": ["pdf"],
-        "process": [
-            {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
-                "agent_type": "content",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_sources": ["platforms", "workspace"],
-        "requires_platform": "slack",
-        "default_objective": {
-            "deliverable": "Project status report",
-            "audience": "Project stakeholders and leadership",
-            "purpose": "Keep everyone aligned on project progress and blockers",
-            "format": "Structured status report with activity highlights",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "1500-2500",
-                "layout": ["Status Summary", "Progress by Workstream", "Blockers & Risks", "Next Week Priorities", "Resource Needs"],
-            },
-            "assets": [
-                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Progress tracking or milestone status"},
-            ],
-            "quality_criteria": [
-                "Clear status per workstream",
-                "Blockers explicitly flagged with owners",
-                "Actionable next steps",
-            ],
-        },
-        "context_reads": ["projects"],
-        "context_writes": ["projects", "signals"],
-        "output_category": "reports",
-    },
-
-    # ── Platform Digests ──
-
-    "slack-recap": {
-        "display_name": "Slack Recap",
-        "description": "Decisions, action items, key discussions, and FYIs from your Slack channels.",
+    "monitor-slack": {
+        "display_name": "Monitor Slack",
+        "description": "Capture signals, decisions, and action items from Slack channels.",
         "category": "platform",
+        "task_class": "context",
         "default_schedule": "daily",
         "output_format": "html",
-        "layout_mode": "document",
+        "layout_mode": "digest",
         "export_options": [],
         "process": [
             {
@@ -478,39 +304,36 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["capture-and-report"],
             },
         ],
+        "context_reads": ["signals"],
+        "context_writes": ["signals"],
+        "output_category": "briefs",  # Platform monitors produce daily digests
         "context_sources": ["platforms"],
         "requires_platform": "slack",
         "default_objective": {
-            "deliverable": "Slack activity recap",
+            "deliverable": "Slack activity digest",
             "audience": "You and your team",
-            "purpose": "Never miss important Slack discussions, decisions, or action items",
-            "format": "Structured recap with decisions, action items, discussions, and FYIs",
+            "purpose": "Capture decisions, action items, and key discussions",
+            "format": "Scannable digest with attribution",
         },
         "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "500-1500",
-                "layout": ["Highlights", "Decisions Made", "Action Items", "Key Discussions", "FYIs"],
-            },
+            "output": {"format": "html", "word_count": "500-1500", "layout": ["Decisions", "Action Items", "Key Discussions", "FYIs"]},
             "assets": [],
             "quality_criteria": [
-                "Decisions and action items clearly attributed",
-                "Thread-level summarization not message-level",
+                "Decisions and action items attributed to people",
+                "Thread-level summary, not message-level",
                 "Skip bot messages and routine posts",
             ],
         },
-        "context_reads": ["signals"],
-        "context_writes": ["signals"],
-        "output_category": "briefs",
     },
 
-    "notion-sync-report": {
-        "display_name": "Notion Sync Report",
-        "description": "What changed in your Notion workspace — updates, staleness flags, and structure suggestions.",
+    "monitor-notion": {
+        "display_name": "Monitor Notion",
+        "description": "Track changes, new content, and stale pages in Notion workspace.",
         "category": "platform",
+        "task_class": "context",
         "default_schedule": "weekly",
         "output_format": "html",
-        "layout_mode": "document",
+        "layout_mode": "digest",
         "export_options": [],
         "process": [
             {
@@ -519,166 +342,339 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["capture-and-report"],
             },
         ],
-        "context_sources": ["platforms"],
-        "requires_platform": "notion",
-        "default_objective": {
-            "deliverable": "Notion workspace sync report",
-            "audience": "You and knowledge base maintainers",
-            "purpose": "Keep your Notion workspace healthy and up-to-date",
-            "format": "Change summary with staleness flags and suggestions",
-        },
-        "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "500-1500",
-                "layout": ["Changes Summary", "Updated Pages", "New Content", "Stale Content Flags"],
-            },
-            "assets": [],
-            "quality_criteria": [
-                "Meaningful changes highlighted over formatting edits",
-                "Links to original Notion pages",
-                "Stale content flagged",
-            ],
-        },
         "context_reads": ["signals"],
         "context_writes": ["signals"],
         "output_category": "briefs",
+        "context_sources": ["platforms"],
+        "requires_platform": "notion",
+        "default_objective": {
+            "deliverable": "Notion sync report",
+            "audience": "You and your team",
+            "purpose": "Track content changes and flag stale pages",
+            "format": "Change log with staleness flags",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "500-1500", "layout": ["Changes Summary", "Updated Pages", "Stale Content"]},
+            "assets": [],
+            "quality_criteria": [
+                "Distinguish meaningful edits from formatting changes",
+                "Flag pages not updated in >30 days",
+                "Links to original Notion pages",
+            ],
+        },
     },
 
-    # ── Content & Communications ──
+    # ══════════════════════════════════════════════════════════════════════════
+    # SYNTHESIS TASKS — produce outputs from accumulated context
+    # "What reports do you want?"
+    # ══════════════════════════════════════════════════════════════════════════
+
+    "competitive-brief": {
+        "display_name": "Competitive Brief",
+        "description": "Weekly competitive intelligence report with charts, positioning analysis, and strategic implications.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_schedule": "weekly",
+        "output_format": "html",
+        "layout_mode": "document",
+        "export_options": ["pdf"],
+        "process": [
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["competitors", "signals"],
+        "context_writes": [],  # Synthesis tasks don't write to context
+        "output_category": "briefs",
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Competitive intelligence brief",
+            "audience": "Leadership and strategy team",
+            "purpose": "Synthesize competitive landscape from accumulated tracking",
+            "format": "Structured report with charts and diagrams",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "2000-3000", "layout": ["Executive Summary", "Key Findings", "Competitive Positioning", "Trend Analysis", "Implications", "Sources"]},
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Quantified trend data"},
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Competitor comparison"},
+                {"type": "mermaid", "subtype": "positioning", "min_count": 1, "description": "Competitive positioning map"},
+            ],
+            "quality_criteria": [
+                "Every claim has inline source citation",
+                "Minimum 3 competitors analyzed",
+                "Forward-looking implications, not just historical reporting",
+                "Emphasize what changed since last cycle",
+            ],
+        },
+    },
+
+    "market-report": {
+        "display_name": "Market Report",
+        "description": "Deep market analysis with segment sizing, player landscape, and opportunity identification.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_schedule": "monthly",
+        "output_format": "html",
+        "layout_mode": "document",
+        "export_options": ["pdf"],
+        "process": [
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["market", "competitors", "signals"],
+        "context_writes": [],
+        "output_category": "reports",
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Market research report",
+            "audience": "Leadership and strategy team",
+            "purpose": "Synthesize market intelligence from accumulated research",
+            "format": "Comprehensive report with data visualizations",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "3000-5000", "layout": ["Executive Summary", "Market Overview", "Key Players", "Technology Trends", "Opportunities & Threats", "Recommendations"]},
+            "assets": [
+                {"type": "chart", "subtype": "distribution", "min_count": 1, "description": "Market share or segment breakdown"},
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Growth trend data"},
+            ],
+            "quality_criteria": [
+                "Data-backed claims with recency noted",
+                "Minimum 5 key players profiled",
+                "Clear opportunity identification",
+            ],
+        },
+    },
+
+    "meeting-prep": {
+        "display_name": "Meeting Prep",
+        "description": "Pre-meeting brief with relationship context, talking points, and open items.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_schedule": "on-demand",
+        "output_format": "html",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["relationships", "competitors", "signals"],
+        "context_writes": [],
+        "output_category": "briefs",
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Meeting preparation brief",
+            "audience": "You — before the meeting",
+            "purpose": "Synthesize relationship context for effective meeting prep",
+            "format": "Scannable brief with talking points",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "800-1500", "layout": ["Context", "Last Interaction", "Agenda Items", "Talking Points", "Open Items"]},
+            "assets": [],
+            "quality_criteria": [
+                "Actionable talking points",
+                "References specific prior interactions",
+                "Scannable in under 2 minutes",
+            ],
+        },
+    },
+
+    "stakeholder-update": {
+        "display_name": "Stakeholder Update",
+        "description": "Board-ready update synthesizing all domains — projects, market, competitive, relationships.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_schedule": "monthly",
+        "output_format": "html",
+        "layout_mode": "document",
+        "export_options": ["pdf"],
+        "process": [
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["competitors", "market", "projects", "relationships", "signals"],
+        "context_writes": [],
+        "output_category": "reports",
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Stakeholder / board update",
+            "audience": "Board members, investors, leadership",
+            "purpose": "Synthesize all domains into executive-level update",
+            "format": "Board-level report with KPI charts and strategic framing",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "2000-3000", "layout": ["Executive Summary", "Key Milestones", "Challenges & Mitigations", "Financial Overview", "Forward Look"]},
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "KPI or progress metrics"},
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Budget vs actual or milestone tracking"},
+            ],
+            "quality_criteria": [
+                "Board-level polish",
+                "Key milestones with status",
+                "Forward-looking strategic priorities",
+            ],
+        },
+    },
+
+    "project-status": {
+        "display_name": "Project Status Report",
+        "description": "Weekly status report per workstream with progress, blockers, and next steps.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_schedule": "weekly",
+        "output_format": "html",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "content",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["projects", "signals"],
+        "context_writes": [],
+        "output_category": "reports",
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Project status report",
+            "audience": "Project stakeholders",
+            "purpose": "Synthesize project tracking into actionable status update",
+            "format": "Status report with workstream breakdown",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "1500-2500", "layout": ["Status Summary", "Progress by Workstream", "Blockers & Risks", "Next Week Priorities"]},
+            "assets": [{"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Progress or milestone status"}],
+            "quality_criteria": [
+                "Clear status per workstream",
+                "Blockers flagged with owners",
+                "Actionable next steps",
+            ],
+        },
+    },
 
     "content-brief": {
-        "display_name": "Content Brief / Blog Draft",
-        "description": "Research-backed content with competitive landscape context and visual assets.",
-        "category": "content",
+        "display_name": "Content Brief",
+        "description": "Blog post, article, or content draft synthesized from accumulated topic research.",
+        "category": "synthesis",
+        "task_class": "synthesis",
         "default_schedule": "on-demand",
         "output_format": "html",
         "layout_mode": "document",
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
         ],
-        "context_sources": ["web", "platforms", "workspace"],
+        "context_reads": ["content_research", "competitors", "signals"],
+        "context_writes": [],
+        "output_category": "content_output",
+        "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "Content brief or blog draft",
-            "audience": "Content team or direct publishing",
-            "purpose": "Produce research-backed content that stands out",
-            "format": "Structured content with visual assets",
+            "deliverable": "Content brief / blog draft",
+            "audience": "Target content audience",
+            "purpose": "Synthesize topic research into publishable content",
+            "format": "Structured draft with key messages and evidence",
         },
         "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "2000-4000",
-                "layout": ["Brief Overview", "Target Audience", "Key Messages", "Outline", "Draft Content", "Sources"],
-            },
-            "assets": [
-                {"type": "mermaid", "subtype": "flowchart", "min_count": 1, "description": "Content structure or narrative flow"},
-            ],
+            "output": {"format": "html", "word_count": "1500-3000", "layout": ["Brief Overview", "Target Audience", "Key Messages", "Draft Content", "Sources"]},
+            "assets": [],
             "quality_criteria": [
                 "Audience-appropriate tone and depth",
                 "Clear key messages",
                 "Draft ready for light editing",
             ],
         },
-        "context_reads": ["content"],
-        "context_writes": ["content"],
-        "output_category": "content_output",
     },
 
     "launch-material": {
-        "display_name": "Launch / Announcement Material",
-        "description": "GTM intelligence transformed into polished launch material with competitive positioning.",
-        "category": "content",
+        "display_name": "Launch Material",
+        "description": "Launch announcements, press materials, and go-to-market content from accumulated research.",
+        "category": "synthesis",
+        "task_class": "synthesis",
         "default_schedule": "on-demand",
         "output_format": "html",
-        "layout_mode": "presentation",
-        "export_options": ["pdf", "pptx"],
+        "layout_mode": "document",
+        "export_options": ["pdf"],
         "process": [
-            {
-                "agent_type": "research",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
             {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
         ],
-        "context_sources": ["web", "platforms", "workspace"],
+        "context_reads": ["content_research", "competitors", "market", "signals"],
+        "context_writes": [],
+        "output_category": "content_output",
+        "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "Launch or announcement material",
-            "audience": "External audience or internal stakeholders",
-            "purpose": "Launch with clear positioning and professional presentation",
-            "format": "Presentation-style material with positioning visuals",
+            "deliverable": "Launch / announcement material",
+            "audience": "External audiences — customers, press, investors",
+            "purpose": "Synthesize competitive positioning and research into launch content",
+            "format": "Launch materials with audience segmentation",
         },
         "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "1500-3000",
-                "layout": ["Launch Summary", "Key Messages", "Target Audiences", "Deliverables Checklist", "Timeline", "Draft Content"],
-            },
-            "assets": [
-                {"type": "mermaid", "subtype": "timeline", "min_count": 1, "description": "Launch timeline or rollout plan"},
-            ],
+            "output": {"format": "html", "word_count": "1500-3000", "layout": ["Launch Summary", "Key Messages", "Target Audiences", "Deliverables Checklist", "Timeline"]},
+            "assets": [{"type": "mermaid", "subtype": "timeline", "min_count": 1, "description": "Launch timeline"}],
             "quality_criteria": [
-                "Consistent messaging across all materials",
+                "Consistent messaging across materials",
                 "Clear audience segmentation",
                 "Actionable deliverables checklist",
             ],
         },
-        "context_reads": ["content", "competitors", "market"],
-        "context_writes": ["content"],
-        "output_category": "content_output",
     },
 
-    # ── Data & Tracking ──
-
-    "gtm-tracker": {
-        "display_name": "GTM Tracker",
-        "description": "Competitive moves, market signals, and feature matrices — intelligence with visual tracking.",
-        "category": "tracking",
+    "gtm-report": {
+        "display_name": "GTM Report",
+        "description": "Go-to-market intelligence report with competitive moves, market signals, and channel performance.",
+        "category": "synthesis",
+        "task_class": "synthesis",
         "default_schedule": "weekly",
         "output_format": "html",
         "layout_mode": "dashboard",
         "export_options": [],
         "process": [
             {
-                "agent_type": "marketing",
-                "step": "update-context",
-                "instruction": STEP_INSTRUCTIONS["update-context"],
-            },
-            {
                 "agent_type": "content",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
         ],
-        "context_sources": ["web", "platforms", "workspace"],
+        "context_reads": ["competitors", "market", "signals"],
+        "context_writes": [],
+        "output_category": "reports",
+        "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "GTM tracker",
+            "deliverable": "GTM tracker report",
             "audience": "Product, marketing, and strategy teams",
-            "purpose": "Track competitive landscape and identify go-to-market opportunities",
-            "format": "Dashboard-style tracker with feature matrices and signal cards",
+            "purpose": "Synthesize competitive and market signals into GTM intelligence",
+            "format": "Dashboard-style report with feature matrices and signal cards",
         },
         "default_deliverable": {
-            "output": {
-                "format": "html",
-                "word_count": "1500-2500",
-                "layout": ["Market Pulse", "Competitive Moves", "Channel Performance", "Opportunities", "Recommendations"],
-            },
+            "output": {"format": "html", "word_count": "1500-2500", "layout": ["Market Pulse", "Competitive Moves", "Channel Performance", "Opportunities", "Recommendations"]},
             "assets": [
                 {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Feature matrix or competitive comparison"},
                 {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Channel performance trends"},
@@ -689,9 +685,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Quantified where possible",
             ],
         },
-        "context_reads": ["competitors", "market"],
-        "context_writes": ["competitors", "signals"],
-        "output_category": "reports",
     },
 }
 
@@ -705,17 +698,20 @@ def get_task_type(type_key: str) -> dict[str, Any] | None:
     return TASK_TYPES.get(type_key)
 
 
-def list_task_types(category: str | None = None) -> list[dict[str, Any]]:
-    """List all task types, optionally filtered by category.
+def list_task_types(category: str | None = None, task_class: str | None = None) -> list[dict[str, Any]]:
+    """List task types, optionally filtered by category or class.
 
-    Returns enriched dicts with `type_key` added.
+    Args:
+        category: Filter by category key (context, synthesis, platform)
+        task_class: Filter by class (context, synthesis)
     """
     result = []
     for key, definition in TASK_TYPES.items():
         if category and definition["category"] != category:
             continue
+        if task_class and definition.get("task_class") != task_class:
+            continue
         result.append({"type_key": key, **definition})
-    # Sort by category order, then by display_name
     cat_order = {k: v["order"] for k, v in TASK_TYPE_CATEGORIES.items()}
     result.sort(key=lambda t: (cat_order.get(t["category"], 99), t["display_name"]))
     return result
@@ -737,16 +733,11 @@ def get_process_agent_types(type_key: str) -> list[str]:
     return [step["agent_type"] for step in task_type["process"]]
 
 
-
 def validate_process(type_key: str) -> list[str]:
-    """Validate that all agent types in the process exist in AGENT_TYPES.
-
-    Returns list of error messages (empty = valid).
-    """
+    """Validate that all agent types in the process exist in AGENT_TYPES."""
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
         return [f"Unknown task type: {type_key}"]
-
     errors = []
     for i, step in enumerate(task_type["process"]):
         agent_type = step["agent_type"]
@@ -755,33 +746,19 @@ def validate_process(type_key: str) -> list[str]:
     return errors
 
 
-
 def resolve_process_agents(
     type_key: str,
     agents: list[dict],
 ) -> list[dict[str, Any]] | None:
-    """Resolve process steps to actual agents from the user's roster.
-
-    Args:
-        type_key: Task type key
-        agents: User's agent roster (list of agent dicts with 'role' and 'slug')
-
-    Returns:
-        List of resolved steps with agent info, or None if type not found.
-        Each step: {agent_type, step, instruction, agent_slug, agent_title}
-        If an agent type isn't in the roster, agent_slug/agent_title are None (graceful degradation).
-    """
+    """Resolve process steps to actual agents from the user's roster."""
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
         return None
-
-    # Build lookup: role → first matching agent
     role_to_agent: dict[str, dict] = {}
     for agent in agents:
         role = agent.get("role")
         if role and role not in role_to_agent:
             role_to_agent[role] = agent
-
     resolved = []
     for step in task_type["process"]:
         agent = role_to_agent.get(step["agent_type"])
@@ -795,7 +772,6 @@ def resolve_process_agents(
     return resolved
 
 
-
 def build_task_md_from_type(
     type_key: str,
     title: str,
@@ -807,17 +783,9 @@ def build_task_md_from_type(
 ) -> str | None:
     """Build TASK.md content from a task type definition.
 
-    Args:
-        type_key: Registry key
-        title: User-provided or default title
-        slug: Task slug
-        focus: Optional focus/topic to customize the objective
-        schedule: Override schedule (or use default from registry)
-        delivery: Delivery target (email address or None)
-        agent_slugs: Resolved agent slugs for the pipeline
-
-    Returns:
-        TASK.md markdown string, or None if type not found.
+    ADR-152: Serializes ALL runtime config into TASK.md — context_reads,
+    context_writes, output_category, process steps. Pipeline reads TASK.md
+    at runtime, not the registry.
     """
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
@@ -826,7 +794,6 @@ def build_task_md_from_type(
     effective_schedule = schedule or task_type["default_schedule"]
     objective = task_type["default_objective"]
 
-    # If user provided a focus, customize the objective
     deliverable_text = objective["deliverable"]
     purpose_text = objective["purpose"]
     if focus:
@@ -839,7 +806,7 @@ def build_task_md_from_type(
         agent_label = agent_slugs[i] if agent_slugs and i < len(agent_slugs) else step["agent_type"]
         process_lines.append(f"{i+1}. **{step['step'].title()}** ({agent_label}): {step['instruction']}")
 
-    # ADR-152: Serialize all runtime config into TASK.md (not read from registry)
+    # ADR-152: Serialize all runtime config into TASK.md
     context_reads = task_type.get("context_reads", [])
     context_writes = task_type.get("context_writes", [])
     output_category = task_type.get("output_category", "")
@@ -848,6 +815,7 @@ def build_task_md_from_type(
 
 **Slug:** {slug}
 **Type:** {type_key}
+**Class:** {task_type.get('task_class', 'synthesis')}
 **Schedule:** {effective_schedule}
 **Delivery:** {delivery or 'none'}
 **Context Reads:** {', '.join(context_reads) if context_reads else 'none'}
@@ -864,10 +832,7 @@ def build_task_md_from_type(
 {chr(10).join(process_lines)}
 
 ## Output Spec
-- Executive summary
-- Key findings with evidence
-- Visual assets where applicable
-- Sources and references
+- Deliverable as specified in DELIVERABLE.md
 """
     return md
 
@@ -878,10 +843,9 @@ def build_deliverable_md_from_type(
 ) -> str | None:
     """Build DELIVERABLE.md content from a task type's default_deliverable spec.
 
-    ADR-149: DELIVERABLE.md is the quality contract — scaffolded from registry,
-    evolves through feedback inference.
-
-    Returns markdown string, or None if type not found or has no deliverable spec.
+    ADR-149/152: DELIVERABLE.md is the quality contract. For context tasks,
+    describes context quality (coverage, freshness). For synthesis tasks,
+    describes document quality (format, assets, audience).
     """
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
@@ -895,37 +859,56 @@ def build_deliverable_md_from_type(
     output = deliverable.get("output", {})
     assets = deliverable.get("assets", [])
     criteria = deliverable.get("quality_criteria", [])
+    task_class = task_type.get("task_class", "synthesis")
 
-    # Build Expected Output section
-    layout_str = " → ".join(output.get("layout", []))
-    output_section = (
-        f"## Expected Output\n"
-        f"- Format: {output.get('format', 'html').upper()} document, {output.get('word_count', '1000-2000')} words\n"
-        f"- Layout: {layout_str}\n"
-    )
+    if task_class == "context":
+        # Context quality specification
+        criteria_lines = [f"- {c}" for c in criteria]
+        audience = audience_override or objective.get("audience", "")
 
-    # Build Expected Assets section
-    if assets:
-        asset_lines = []
-        for asset in assets:
-            desc = asset.get("description", "")
-            asset_type = asset.get("type", "chart")
-            subtype = asset.get("subtype", "")
-            min_count = asset.get("min_count", 1)
-            asset_lines.append(f"- {subtype.title()} {asset_type}: at least {min_count} — {desc}")
-        assets_section = "## Expected Assets\n" + "\n".join(asset_lines) + "\n"
+        md = f"""# Context Quality Specification
+
+## Coverage
+{chr(10).join(criteria_lines)}
+
+## Freshness
+- Entity files updated within scheduled cadence
+- Signal log entries within last cycle
+
+## Depth
+- Each entity has substantive content (not just headers)
+- Synthesis file reflects latest cross-entity patterns
+
+{f"## Audience{chr(10)}{audience}" if audience else ""}
+
+## User Preferences (inferred)
+<!-- Populated by feedback inference (ADR-149). Empty at creation. -->
+"""
     else:
-        assets_section = "## Expected Assets\n- Text-focused deliverable — visual assets optional where data supports\n"
+        # Document quality specification
+        layout_str = " → ".join(output.get("layout", []))
+        output_section = (
+            f"## Expected Output\n"
+            f"- Format: {output.get('format', 'html').upper()} document, {output.get('word_count', '1000-2000')} words\n"
+            f"- Layout: {layout_str}\n"
+        )
 
-    # Build Quality Criteria section
-    criteria_lines = [f"- {c}" for c in criteria]
-    criteria_section = "## Quality Criteria\n" + "\n".join(criteria_lines) + "\n"
+        if assets:
+            asset_lines = [
+                f"- {a.get('subtype', '').title()} {a.get('type', 'chart')}: at least {a.get('min_count', 1)} — {a.get('description', '')}"
+                for a in assets
+            ]
+            assets_section = "## Expected Assets\n" + "\n".join(asset_lines) + "\n"
+        else:
+            assets_section = "## Expected Assets\n- Visual assets optional where data supports\n"
 
-    # Build Audience section
-    audience = audience_override or objective.get("audience", "")
-    audience_section = f"## Audience\n{audience}\n" if audience else ""
+        criteria_lines = [f"- {c}" for c in criteria]
+        criteria_section = "## Quality Criteria\n" + "\n".join(criteria_lines) + "\n"
 
-    md = f"""# Deliverable Specification
+        audience = audience_override or objective.get("audience", "")
+        audience_section = f"## Audience\n{audience}\n" if audience else ""
+
+        md = f"""# Deliverable Specification
 
 {output_section}
 {assets_section}

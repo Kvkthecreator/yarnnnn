@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.17] - Task type registry v3: atomic context + synthesis split
+
+### Changed
+- `services/task_types.py`: Complete rewrite. 13 mixed product types → 15 atomic types:
+  - 7 context tasks: track-competitors, track-market, track-relationships, track-projects, research-topics, monitor-slack, monitor-notion
+  - 8 synthesis tasks: competitive-brief, market-report, meeting-prep, stakeholder-update, project-status, content-brief, launch-material, gtm-report
+- New `task_class` field: "context" or "synthesis" — determines DELIVERABLE.md template
+- Context tasks: single update-context step, context_writes to domains, no output promotion
+- Synthesis tasks: single derive-output step, context_reads from domains, output promoted to category
+- `build_deliverable_md_from_type()`: bifurcated — context tasks get "Context Quality Specification", synthesis tasks get "Deliverable Specification"
+- Categories renamed: "Track & Research" | "Reports & Outputs" | "Platform Monitoring"
+- Expected behavior: Users see "What do you want to track?" → context tasks. "What reports?" → synthesis tasks. Dead simple. Agents auto-assigned by task type.
+
+---
+
 ## [2026.03.31.16] - TASK.md as sole source of truth — pipeline reads TASK.md not registry
 
 ### Changed
