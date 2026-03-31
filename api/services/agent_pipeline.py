@@ -72,7 +72,7 @@ DEFAULT_INSTRUCTIONS = {
 }
 
 # ADR-128: Mandate context preamble injected into all contributor prompts.
-# Provides PM assessment + contribution brief + last self-assessment.
+# Provides last agent reflection for context continuity.
 # Empty string for non-project agents (graceful degradation).
 _MANDATE_CONTEXT_PREAMBLE = """{mandate_context}"""
 
@@ -565,7 +565,7 @@ def build_role_prompt(
         "recipient_context": recipient_text,
         "title": agent.get("title", "Agent"),
         "user_instructions": user_instructions,
-        # ADR-128: Mandate context (project objective + PM brief + last self-assessment)
+        # ADR-128/149: Mandate context (last agent reflection)
         # Empty string for non-project agents — graceful degradation
         "mandate_context": config.get("mandate_context", ""),
     }

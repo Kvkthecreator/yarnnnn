@@ -168,8 +168,8 @@ async def create_agent_record(
                 from services.agent_framework import has_asset_capabilities
                 if has_asset_capabilities(role):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
-                # ADR-128: Agents participate in coherence protocol
-                agent_md += "\n\n## Coherence Protocol\nYou participate in a coherence protocol. You produce a self-assessment on each run that persists between executions."
+                # ADR-128/149: Agents produce reflections on each run
+                agent_md += "\n\n## Coherence Protocol\nYou participate in a coherence protocol. You produce an Agent Reflection on each run that persists between executions."
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
 

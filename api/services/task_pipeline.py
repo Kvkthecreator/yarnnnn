@@ -98,6 +98,59 @@ async def _gather_context_domains(
     return "\n\n".join(sections) if sections else ""
 
 
+async def _route_output_to_context_domains(
+    client,
+    user_id: str,
+    task_slug: str,
+    task_info: dict,
+    draft: str,
+    version_number: int,
+    run_time,
+) -> None:
+    """Route a task output signal to the task's context_writes domains.
+
+    ADR-151: After generation, append a dated signal entry to each domain
+    in the task's context_writes. This ensures context domains get temporal
+    signals even when agents don't explicitly use WriteWorkspace(scope="context").
+
+    Writes to /workspace/context/{domain}/signals/{date}.md (cross-domain signal log).
+    Non-fatal — failures logged but don't block delivery.
+    """
+    type_key = (task_info or {}).get("type_key", "").strip()
+    if not type_key:
+        return  # Custom tasks without type_key don't have context_writes
+
+    try:
+        from services.task_types import get_task_type
+        from services.domain_registry import get_domain_folder
+        from services.workspace import UserMemory
+
+        task_type_def = get_task_type(type_key)
+        context_writes = (task_type_def or {}).get("context_writes", [])
+        if not context_writes:
+            return
+
+        um = UserMemory(client, user_id)
+        date_str = run_time.strftime("%Y-%m-%d")
+        title = (task_info or {}).get("title", task_slug)
+
+        # Write a signal entry to the signals domain (if task writes to signals)
+        if "signals" in context_writes:
+            signal_path = f"context/signals/{date_str}.md"
+            existing = await um.read(signal_path) or f"# Signals — {date_str}\n"
+            signal_entry = (
+                f"\n## {title} v{version_number} ({run_time.strftime('%H:%M UTC')})\n"
+                f"- Task: {task_slug}\n"
+                f"- Output: {len(draft)} chars\n"
+                f"- Summary: {draft[:200].replace(chr(10), ' ').strip()}...\n"
+            )
+            await um.write(signal_path, existing + signal_entry,
+                          summary=f"Signal from {task_slug} v{version_number}")
+
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] Context domain signal routing failed (non-fatal): {e}")
+
+
 def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
     """Extract the most recent N feedback entries from task feedback.md.
 
@@ -261,39 +314,40 @@ async def gather_task_context(
     if ws_context:
         sections.append(f"## Agent Context\n{ws_context}")
 
-    # 2. Knowledge base — search using task context for relevance
-    # Task-aware: objective/title drive search, not generic agent title
-    role = agent.get("role", "custom")
-    title = agent.get("title", "")
+    # 2. Knowledge base — FALLBACK ONLY when context domains returned empty (ADR-151)
+    # If /workspace/context/ domains provided rich context, skip legacy /knowledge/ search.
+    # This makes accumulated context domains truly primary.
+    if not context_domains_text:
+        role = agent.get("role", "custom")
+        title = agent.get("title", "")
 
-    # Build search query from task objective + title (task-aware context gathering)
-    search_query = title  # fallback: agent title
-    if task_info:
-        task_title = task_info.get("title", "")
-        objective = task_info.get("objective", {})
-        objective_parts = [
-            task_title,
-            objective.get("deliverable", ""),
-            objective.get("purpose", ""),
-        ]
-        query_parts = [p for p in objective_parts if p]
-        if query_parts:
-            search_query = " ".join(query_parts)[:200]  # cap length for embedding search
+        search_query = title  # fallback: agent title
+        if task_info:
+            task_title = task_info.get("title", "")
+            objective = task_info.get("objective", {})
+            objective_parts = [
+                task_title,
+                objective.get("deliverable", ""),
+                objective.get("purpose", ""),
+            ]
+            query_parts = [p for p in objective_parts if p]
+            if query_parts:
+                search_query = " ".join(query_parts)[:200]
 
-    kb = KnowledgeBase(client, user_id)
-    try:
-        kb_results = await kb.search(
-            query=search_query,
-            limit=10,
-        )
-        if kb_results:
-            kb_text = "\n\n".join([
-                f"### {getattr(r, 'path', 'unknown')}\n{getattr(r, 'content', '')[:2000]}"
-                for r in kb_results
-            ])
-            sections.append(f"## Knowledge Base\n{kb_text}")
-    except Exception as e:
-        logger.warning(f"[TASK_EXEC] Knowledge search failed (non-fatal): {e}")
+        kb = KnowledgeBase(client, user_id)
+        try:
+            kb_results = await kb.search(
+                query=search_query,
+                limit=10,
+            )
+            if kb_results:
+                kb_text = "\n\n".join([
+                    f"### {getattr(r, 'path', 'unknown')}\n{getattr(r, 'content', '')[:2000]}"
+                    for r in kb_results
+                ])
+                sections.append(f"## Knowledge Base (legacy fallback)\n{kb_text}")
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Knowledge search failed (non-fatal): {e}")
 
     # 3. User memories
     try:
@@ -831,8 +885,9 @@ async def execute_task(
             logger.warning(f"[TASK_EXEC] Agent output folder write failed: {e}")
 
         # =====================================================================
-        # 11. Write to knowledge base (accumulation)
+        # 11. Write to knowledge base (legacy accumulation) + context domains (ADR-151)
         # =====================================================================
+        # Legacy: write to /knowledge/ for backward compat + QueryKnowledge search
         try:
             kb = KnowledgeBase(client, user_id)
             knowledge_path = KnowledgeBase.get_knowledge_path(role, title)
@@ -851,6 +906,13 @@ async def execute_task(
             )
         except Exception as e:
             logger.warning(f"[TASK_EXEC] Knowledge write failed: {e}")
+
+        # ADR-151: Route signal entry to context_writes domains
+        # This ensures context domains get temporal signals even when agents
+        # don't use WriteWorkspace(scope="context") during generation.
+        await _route_output_to_context_domains(
+            client, user_id, task_slug, task_info, draft, next_version, started_at,
+        )
 
         # =====================================================================
         # 12. Compose HTML (always — ADR-148 singular rendering path)
@@ -1446,7 +1508,7 @@ async def _execute_pipeline(
     except Exception as e:
         logger.warning(f"[PIPELINE] Agent output folder write failed: {e}")
 
-    # Knowledge base accumulation
+    # Knowledge base accumulation (legacy) + context domains (ADR-151)
     try:
         kb = KnowledgeBase(client, user_id)
         knowledge_path = KnowledgeBase.get_knowledge_path(final_role, title)
@@ -1459,6 +1521,11 @@ async def _execute_pipeline(
         )
     except Exception:
         pass
+
+    # ADR-151: Route signal entry to context_writes domains
+    await _route_output_to_context_domains(
+        client, user_id, task_slug, task_info, final_draft, next_version, started_at,
+    )
 
     # Compose HTML (always — ADR-148 singular rendering path)
     if agent_output_folder:

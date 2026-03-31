@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.10] - Pipeline cleanup: conditional KnowledgeBase + context domain signal routing
+
+### Changed
+- `services/task_pipeline.py`: KnowledgeBase.search() now conditional — only runs if /workspace/context/ domain reads returned empty. Makes accumulated context domains truly primary, /knowledge/ truly secondary fallback.
+- `services/task_pipeline.py`: New `_route_output_to_context_domains()` helper writes signal entries to /workspace/context/signals/{date}.md after task execution. Both single-step and multi-step paths route signals.
+- `services/agent_creation.py`: "self-assessment" → "Agent Reflection" in AGENT.md coherence protocol text.
+- `services/agent_pipeline.py`: Stale comments updated (self-assessment → agent reflection).
+- Expected behavior: Tasks with accumulated context domains skip legacy /knowledge/ search. Every task execution writes a signal entry to the shared signals domain for temporal awareness.
+
+---
+
 ## [2026.03.31.9] - ADR-149 Phase 5: Task deliverable inference
 
 ### Changed
