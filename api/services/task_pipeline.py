@@ -29,6 +29,22 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
+    """Extract the most recent N feedback entries from task feedback.md.
+
+    ADR-149: feedback.md has entries like '## Feedback (date, source: ...)' or
+    '## Evaluation (date, source: ...)'. Returns the last N entries as a string.
+    """
+    if not feedback_md or not feedback_md.strip():
+        return ""
+    entries = re.split(r"(?=^## )", feedback_md, flags=re.MULTILINE)
+    entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
+    if not entries:
+        return ""
+    recent = entries[:max_entries]  # Already newest-first (append-at-top convention)
+    return "\n\n".join(recent)
+
+
 def _total_input_tokens(usage: dict) -> int:
     """Sum all input token fields including prompt cache tokens."""
     return (
@@ -222,11 +238,17 @@ def build_task_execution_prompt(
     agent_instructions: str,
     context: str,
     user_context: Optional[list] = None,
+    deliverable_spec: str = "",
+    steering_notes: str = "",
+    task_feedback: str = "",
+    task_mode: str = "recurring",
+    prior_output: str = "",
 ) -> tuple[str, str]:
     """Build system prompt and user message for task execution.
 
-    ADR-143: Preferences/feedback now injected via gathered context (load_context()),
-    not as a separate parameter.
+    ADR-143: Preferences/feedback now injected via gathered context (load_context()).
+    ADR-149: DELIVERABLE.md injected into system prompt. Steering + feedback into user message.
+             Goal mode injects prior output as primary context.
 
     Returns:
         (system_prompt, user_message)
@@ -294,6 +316,17 @@ If context says "(No context available)" or tools return no results:
 - Note briefly that no recent activity was found.
 - A short, properly formatted output is always better than meta-commentary."""
 
+    # ADR-149: DELIVERABLE.md — quality contract injection
+    if deliverable_spec and deliverable_spec.strip():
+        # Strip the header and comments, keep the spec sections
+        spec_clean = deliverable_spec.strip()
+        if spec_clean.startswith("# Deliverable Specification"):
+            spec_clean = spec_clean.split("\n", 1)[-1].strip()
+        # Remove HTML comments
+        spec_clean = re.sub(r"<!--.*?-->", "", spec_clean, flags=re.DOTALL).strip()
+        if spec_clean:
+            system += f"\n\n## Deliverable Specification\nYour output MUST match this quality contract:\n{spec_clean}"
+
     # Reflection postamble (ADR-128/149 + success criteria eval)
     from services.agent_pipeline import _REFLECTION_POSTAMBLE, _CRITERIA_EVAL_SECTION
     criteria = task_info.get("success_criteria", [])
@@ -333,6 +366,29 @@ If context says "(No context available)" or tools return no results:
         user_parts.append("\n## Output Format")
         for s in output_spec:
             user_parts.append(f"- {s}")
+
+    # ADR-149: Goal mode — prior output as primary context
+    if task_mode == "goal" and prior_output:
+        user_parts.append(
+            "\n## Prior Output (YOUR PRIMARY INPUT)\n"
+            "You are revising this deliverable. Improve based on steering notes "
+            "and feedback below. Build on what exists — do not start from scratch.\n\n"
+            f"{prior_output[:8000]}"
+        )
+
+    # ADR-149: Steering notes — TP's cycle-specific guidance
+    if steering_notes and steering_notes.strip():
+        clean_steering = steering_notes.strip()
+        # Strip file header/comments
+        if clean_steering.startswith("# Steering Notes"):
+            clean_steering = clean_steering.split("\n", 1)[-1].strip()
+        clean_steering = re.sub(r"<!--.*?-->", "", clean_steering, flags=re.DOTALL).strip()
+        if clean_steering:
+            user_parts.append(f"\n## Steering Notes (from task manager)\n{clean_steering}")
+
+    # ADR-149: Recent task feedback — user corrections + TP evaluations
+    if task_feedback and task_feedback.strip():
+        user_parts.append(f"\n## Recent Feedback\nIncorporate these corrections:\n{task_feedback}")
 
     # Gathered context
     user_parts.append(f"\n## Gathered Context\n{context}")
@@ -438,7 +494,34 @@ async def execute_task(
         task_info = parse_task_md(task_md_content)
 
         # =====================================================================
-        # 1a. Check for multi-step process (ADR-145)
+        # 1b. Read DELIVERABLE.md + task memory (ADR-149)
+        # =====================================================================
+        deliverable_spec = await tw.read("DELIVERABLE.md") or ""
+        steering_notes = await tw.read("memory/steering.md") or ""
+        task_feedback_raw = await tw.read("memory/feedback.md") or ""
+        # Extract last 3 feedback entries for prompt injection (keep it concise)
+        task_feedback = _extract_recent_feedback(task_feedback_raw, max_entries=3)
+
+        # =====================================================================
+        # 1c. Read mode from tasks table (ADR-149)
+        # =====================================================================
+        task_mode = "recurring"  # default
+        try:
+            mode_row = (
+                client.table("tasks")
+                .select("mode")
+                .eq("user_id", user_id)
+                .eq("slug", task_slug)
+                .limit(1)
+                .execute()
+            )
+            if mode_row.data:
+                task_mode = mode_row.data[0].get("mode") or "recurring"
+        except Exception:
+            pass
+
+        # =====================================================================
+        # 1d. Check for multi-step process (ADR-145)
         # =====================================================================
         type_key = task_info.get("type_key", "").strip()
         if type_key:
@@ -448,6 +531,10 @@ async def execute_task(
                 # Multi-step process — delegate to process executor
                 result = await _execute_pipeline(
                     client, user_id, task_slug, tw, task_info, task_type_def, started_at,
+                    deliverable_spec=deliverable_spec,
+                    steering_notes=steering_notes,
+                    task_feedback=task_feedback,
+                    task_mode=task_mode,
                 )
                 return result
 
@@ -531,6 +618,13 @@ async def execute_task(
         )
 
         # =====================================================================
+        # 6b. Goal mode: read prior output for revision context (ADR-149)
+        # =====================================================================
+        prior_output = ""
+        if task_mode == "goal":
+            prior_output = await tw.read("outputs/latest/output.md") or ""
+
+        # =====================================================================
         # 7. Build prompt and generate
         # =====================================================================
         system_prompt, user_message = build_task_execution_prompt(
@@ -539,6 +633,11 @@ async def execute_task(
             agent_instructions=ws_instructions,
             context=context_text,
             user_context=user_context,
+            deliverable_spec=deliverable_spec,
+            steering_notes=steering_notes,
+            task_feedback=task_feedback,
+            task_mode=task_mode,
+            prior_output=prior_output,
         )
 
         # ADR-148: No SKILL.md injection, no RuntimeDispatch during headless generation.
@@ -590,17 +689,45 @@ async def execute_task(
                 logger.warning(f"[TASK_EXEC] Content retention failed: {e}")
 
         # =====================================================================
-        # 10. Save output to task workspace
+        # 10. Save output to task workspace (mode-aware, ADR-149)
         # =====================================================================
-        task_output_folder = await tw.save_output(
-            content=draft,
-            agent_slug=agent_slug,
-            manifest_data={
-                "version_id": str(version_id),
-                "version_number": next_version,
-                "tokens": usage,
-            },
-        )
+        date_folder = started_at.strftime("%Y-%m-%dT%H%M")
+
+        if task_mode == "goal":
+            # Goal mode: archive prior output, write to latest/ (revision pattern)
+            prior_latest = await tw.read("outputs/latest/output.md")
+            if prior_latest:
+                await tw.write(
+                    f"outputs/{date_folder}/output.md", prior_latest,
+                    summary=f"Archive prior version before revision",
+                    tags=["output", "archive"],
+                )
+            await tw.write(
+                "outputs/latest/output.md", draft,
+                summary=f"Goal revision v{next_version}",
+                tags=["output", "latest"],
+            )
+            task_output_folder = "latest"
+        else:
+            # Recurring + reactive: new dated folder + overwrite latest/
+            task_output_folder = await tw.save_output(
+                content=draft,
+                agent_slug=agent_slug,
+                manifest_data={
+                    "version_id": str(version_id),
+                    "version_number": next_version,
+                    "tokens": usage,
+                },
+            )
+            # Also write to latest/ for easy access
+            try:
+                await tw.write(
+                    "outputs/latest/output.md", draft,
+                    summary=f"Latest output v{next_version}",
+                    tags=["output", "latest"],
+                )
+            except Exception:
+                pass  # Non-critical
 
         # Also save to agent workspace (for agent's output history)
         agent_output_folder = None
@@ -893,6 +1020,10 @@ async def _execute_pipeline(
     task_info: dict,
     task_type_def: dict,
     started_at,
+    deliverable_spec: str = "",
+    steering_notes: str = "",
+    task_feedback: str = "",
+    task_mode: str = "recurring",
 ) -> dict:
     """Execute a multi-step process — sequential agent execution with handoffs.
 
@@ -902,6 +1033,7 @@ async def _execute_pipeline(
     3. Generate with step instruction merged into task objective
     4. Save step output to /tasks/{slug}/outputs/{date}/step-{N}/
 
+    ADR-149: Reads DELIVERABLE.md + steering + feedback. Mode-aware output write.
     Final step's output becomes the task deliverable.
     """
     from services.task_workspace import TaskWorkspace
@@ -1013,6 +1145,10 @@ async def _execute_pipeline(
             agent_instructions=ws_instructions,
             context=context_text,
             user_context=user_context,
+            deliverable_spec=deliverable_spec,
+            steering_notes=steering_notes if step_num == len(steps) else "",  # Only last step gets steering
+            task_feedback=task_feedback if step_num == len(steps) else "",    # Only last step gets feedback
+            task_mode=task_mode,
         )
 
         # Inject step-specific preamble — BEFORE gathered context for visibility
@@ -1153,19 +1289,44 @@ async def _execute_pipeline(
     except Exception:
         pass
 
-    # Save final output to task workspace (same date_folder as step outputs)
-    task_output_folder = await tw.save_output(
-        content=final_draft,
-        agent_slug=final_agent_slug,
-        date_folder=date_folder,
-        manifest_data={
-            "version_id": str(version_id),
-            "version_number": next_version,
-            "type_key": task_info.get("type_key"),
-            "process_steps": len(steps),
-            "tokens": total_usage,
-        },
-    )
+    # Save final output to task workspace (mode-aware, ADR-149)
+    if task_mode == "goal":
+        # Goal: archive prior, write to latest/
+        prior_latest = await tw.read("outputs/latest/output.md")
+        if prior_latest:
+            await tw.write(
+                f"outputs/{date_folder}/output.md", prior_latest,
+                summary="Archive prior version before revision",
+                tags=["output", "archive"],
+            )
+        await tw.write(
+            "outputs/latest/output.md", final_draft,
+            summary=f"Goal revision v{next_version}",
+            tags=["output", "latest"],
+        )
+        task_output_folder = date_folder
+    else:
+        # Recurring + reactive: new dated folder + overwrite latest/
+        task_output_folder = await tw.save_output(
+            content=final_draft,
+            agent_slug=final_agent_slug,
+            date_folder=date_folder,
+            manifest_data={
+                "version_id": str(version_id),
+                "version_number": next_version,
+                "type_key": task_info.get("type_key"),
+                "process_steps": len(steps),
+                "tokens": total_usage,
+            },
+        )
+        try:
+            await tw.write(
+                "outputs/latest/output.md", final_draft,
+                summary=f"Latest output v{next_version}",
+                tags=["output", "latest"],
+            )
+        except Exception:
+            pass
 
     # Save to agent workspace
     ws = AgentWorkspace(client, user_id, final_agent_slug)

@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.2] - ADR-149 Phase 2: Pipeline reads DELIVERABLE.md + mode-aware output
+
+### Changed
+- `services/task_pipeline.py`: `execute_task()` now reads DELIVERABLE.md, steering.md, feedback.md from task workspace after TASK.md. Reads `mode` from tasks table. Goal mode reads prior output from `outputs/latest/output.md` for revision context.
+- `services/task_pipeline.py`: `build_task_execution_prompt()` gains 5 new params: `deliverable_spec`, `steering_notes`, `task_feedback`, `task_mode`, `prior_output`. DELIVERABLE.md injected into system prompt as "## Deliverable Specification". Steering notes + feedback injected into user message. Goal mode prepends prior output as primary input.
+- `services/task_pipeline.py`: Mode-aware output write strategy. Goal mode archives prior to `{date}/` and writes to `outputs/latest/`. Recurring/reactive write to `{date}/` and copy to `outputs/latest/`.
+- `services/task_pipeline.py`: `_execute_pipeline()` (multi-step) receives and passes same context. DELIVERABLE.md injected into all steps. Steering + feedback only to final step.
+- Expected behavior: Agents now see the DELIVERABLE.md quality spec in their system prompt. Goal tasks revise in-place rather than creating independent outputs. Steering notes from TP evaluations shape next run.
+
+---
+
 ## [2026.03.31.1] - ADR-149: Terminology unification + DELIVERABLE.md scaffold
 
 ### Changed
