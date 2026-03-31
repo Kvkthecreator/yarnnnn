@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.5] - ADR-149 Phase 3: ManageTask evaluate/steer/complete
+
+### Changed
+- `services/primitives/manage_task.py`: Three new actions on ManageTask primitive:
+  - `evaluate` — LLM (Haiku) compares latest output against DELIVERABLE.md. Returns {criteria_met, gaps, context_health, quality_assessment, recommendation}. Auto-writes to memory/feedback.md (source: evaluation). Checks context domain health via ADR-151.
+  - `steer` — Writes cycle-specific guidance to memory/steering.md. Pipeline reads this on next execution. Overwritten (not accumulated).
+  - `complete` — Sets status=completed, clears next_run_at. For goal tasks when criteria met.
+- Tool description updated with examples. Enum expanded: trigger|update|pause|resume|evaluate|steer|complete. New `steering` parameter for steer action.
+- Expected behavior: TP can now manage task lifecycle post-run. Goal mode: evaluate → steer/complete. Recurring: periodic evaluate → steer if degrading. Reactive: no evaluation.
+
+---
+
 ## [2026.03.31.4] - ADR-151 Phase 2: Pipeline reads workspace context domains
 
 ### Changed

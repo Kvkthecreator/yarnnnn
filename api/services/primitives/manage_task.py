@@ -1,16 +1,20 @@
 """
-ManageTask Primitive — ADR-146: Primitive Hardening
+ManageTask Primitive — ADR-146 + ADR-149: Primitive Hardening + Task Lifecycle
 
-Unified task lifecycle primitive. Replaces 4 separate primitives:
-- TriggerTask → action="trigger"
-- UpdateTask → action="update"
-- PauseTask → action="pause"
-- ResumeTask → action="resume"
+Unified task lifecycle primitive. 7 actions:
+- trigger  — run task immediately
+- update   — change schedule, delivery, mode, type
+- pause    — stop scheduled runs
+- resume   — restore scheduled runs
+- evaluate — TP reads output + DELIVERABLE.md → quality judgment (ADR-149)
+- steer    — TP writes cycle-specific guidance to steering.md (ADR-149)
+- complete — mark task done, clear scheduling (ADR-149)
 
 Design principle P3 (One Tool Per Decision): TP decides "manage this task"
 and picks the action. One tool, one decision.
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -44,7 +48,20 @@ MANAGE_TASK_TOOL = {
   ManageTask(task_slug="weekly-briefing", action="pause")
 
 **action="resume"** — Restore scheduled runs for a paused task.
-  ManageTask(task_slug="weekly-briefing", action="resume")""",
+  ManageTask(task_slug="weekly-briefing", action="resume")
+
+**action="evaluate"** — Assess the latest output against DELIVERABLE.md quality spec (ADR-149).
+  ManageTask(task_slug="weekly-briefing", action="evaluate")
+  Returns: criteria_met, gaps, context_health, quality_assessment. Auto-writes evaluation to memory/feedback.md.
+  Use after runs complete (mandatory for goal mode, periodic for recurring, skip for reactive).
+
+**action="steer"** — Write cycle-specific guidance for the next run (ADR-149).
+  ManageTask(task_slug="weekly-briefing", action="steer", steering="Focus on Acme Corp pricing changes next cycle")
+  Writes to memory/steering.md — read by pipeline on next execution.
+
+**action="complete"** — Mark task as completed, stop all future runs (ADR-149).
+  ManageTask(task_slug="due-diligence-report", action="complete")
+  Sets status=completed, clears next_run_at. Use when goal task criteria are met.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -54,12 +71,16 @@ MANAGE_TASK_TOOL = {
             },
             "action": {
                 "type": "string",
-                "enum": ["trigger", "update", "pause", "resume"],
+                "enum": ["trigger", "update", "pause", "resume", "evaluate", "steer", "complete"],
                 "description": "What to do with the task"
             },
             "context": {
                 "type": "string",
                 "description": "For action='trigger': optional context to inject for this run"
+            },
+            "steering": {
+                "type": "string",
+                "description": "For action='steer': guidance for the next execution cycle"
             },
             "schedule": {
                 "type": "string",
@@ -96,8 +117,9 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
     if not task_slug:
         return {"success": False, "error": "missing_slug", "message": "task_slug is required"}
 
-    if action not in ("trigger", "update", "pause", "resume"):
-        return {"success": False, "error": "invalid_action", "message": "action must be one of: trigger, update, pause, resume"}
+    valid_actions = ("trigger", "update", "pause", "resume", "evaluate", "steer", "complete")
+    if action not in valid_actions:
+        return {"success": False, "error": "invalid_action", "message": f"action must be one of: {', '.join(valid_actions)}"}
 
     if action == "trigger":
         return await _handle_trigger(auth, task_slug, input)
@@ -107,6 +129,12 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
         return await _handle_pause(auth, task_slug)
     elif action == "resume":
         return await _handle_resume(auth, task_slug)
+    elif action == "evaluate":
+        return await _handle_evaluate(auth, task_slug)
+    elif action == "steer":
+        return await _handle_steer(auth, task_slug, input)
+    elif action == "complete":
+        return await _handle_complete(auth, task_slug)
 
     return {"success": False, "error": "unknown_action", "message": f"Unhandled action: {action}"}
 
@@ -412,4 +440,277 @@ async def _handle_resume(auth: Any, task_slug: str) -> dict:
         "task_slug": task_slug,
         "next_run_at": next_run,
         "message": f"Task '{task_slug}' resumed. Next run: {next_run or 'to be scheduled'}.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# ADR-149: Evaluation, Steering, Completion
+# ---------------------------------------------------------------------------
+
+EVALUATE_MODEL = "claude-haiku-4-5-20251001"  # Cost-conscious evaluation
+
+
+async def _handle_evaluate(auth: Any, task_slug: str) -> dict:
+    """Evaluate latest task output against DELIVERABLE.md quality spec.
+
+    ADR-149: TP reads output + DELIVERABLE.md → produces structured quality
+    assessment → writes to memory/feedback.md (source: evaluation).
+
+    Returns assessment dict for TP to act on (steer, complete, or no action).
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.anthropic import get_anthropic_client
+
+    task = await _find_task(auth, task_slug)
+    if task.get("error"):
+        return task
+
+    tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
+
+    # Read latest output
+    latest_output = await tw.read("outputs/latest/output.md")
+    if not latest_output:
+        return {"success": False, "error": "no_output", "message": f"No output found for task '{task_slug}'. Run the task first."}
+
+    # Read DELIVERABLE.md
+    deliverable_spec = await tw.read("DELIVERABLE.md")
+    if not deliverable_spec:
+        return {"success": False, "error": "no_deliverable", "message": f"No DELIVERABLE.md found for task '{task_slug}'."}
+
+    # Read task mode
+    mode = task.get("mode", "recurring")
+
+    # Read context domain health (ADR-151)
+    context_health = ""
+    try:
+        from services.task_types import get_task_type
+        from services.task_pipeline import parse_task_md
+        task_md = await tw.read_task()
+        if task_md:
+            task_info = parse_task_md(task_md)
+            type_key = task_info.get("type_key", "").strip()
+            if type_key:
+                task_type_def = get_task_type(type_key)
+                context_reads = (task_type_def or {}).get("context_reads", [])
+                if context_reads:
+                    from services.domain_registry import get_domain_folder
+                    for domain_key in context_reads:
+                        folder = get_domain_folder(domain_key)
+                        if folder:
+                            prefix = f"/workspace/{folder}"
+                            result = (
+                                auth.client.table("workspace_files")
+                                .select("path, updated_at")
+                                .eq("user_id", auth.user_id)
+                                .like("path", f"{prefix}/%")
+                                .order("updated_at", desc=True)
+                                .limit(5)
+                                .execute()
+                            )
+                            files = result.data or []
+                            if files:
+                                latest_update = files[0].get("updated_at", "")[:10]
+                                context_health += f"- {domain_key}: {len(files)} files, latest update {latest_update}\n"
+                            else:
+                                context_health += f"- {domain_key}: empty (no accumulated context yet)\n"
+    except Exception as e:
+        logger.warning(f"[MANAGE_TASK] Context health check failed: {e}")
+
+    # LLM evaluation (Haiku for cost)
+    eval_prompt = f"""You are evaluating a task output against its quality specification.
+
+DELIVERABLE SPECIFICATION:
+{deliverable_spec[:3000]}
+
+LATEST OUTPUT (truncated):
+{latest_output[:4000]}
+
+TASK MODE: {mode}
+{"CONTEXT DOMAIN HEALTH:" + chr(10) + context_health if context_health else ""}
+
+Evaluate this output. Return a JSON object with:
+- "criteria_met": "X/Y" (how many quality criteria are satisfied)
+- "gaps": ["list of specific gaps or missing elements"]
+- "context_health": "healthy|thin|empty" (based on domain health above)
+- "quality_assessment": one sentence summary
+- "recommendation": "deliver" | "steer" | "escalate" (what TP should do next)
+
+For goal mode: recommend "deliver" only when ALL criteria are met.
+For recurring mode: recommend "deliver" (always auto-delivers), but note quality trajectory.
+
+Return ONLY the JSON object, no other text."""
+
+    try:
+        anthropic = get_anthropic_client()
+        response = anthropic.messages.create(
+            model=EVALUATE_MODEL,
+            max_tokens=500,
+            messages=[{"role": "user", "content": eval_prompt}],
+        )
+        eval_text = response.content[0].text.strip()
+
+        # Parse JSON response
+        try:
+            # Handle markdown code blocks
+            if eval_text.startswith("```"):
+                eval_text = eval_text.split("```")[1]
+                if eval_text.startswith("json"):
+                    eval_text = eval_text[4:]
+                eval_text = eval_text.strip()
+            assessment = json.loads(eval_text)
+        except (json.JSONDecodeError, IndexError):
+            assessment = {
+                "criteria_met": "unknown",
+                "gaps": [],
+                "context_health": "unknown",
+                "quality_assessment": eval_text[:200],
+                "recommendation": "escalate",
+            }
+
+    except Exception as e:
+        logger.error(f"[MANAGE_TASK] Evaluation LLM call failed: {e}")
+        return {"success": False, "error": "evaluation_failed", "message": str(e)}
+
+    # Write evaluation to memory/feedback.md (source: evaluation)
+    now = datetime.now(timezone.utc)
+    date_str = now.strftime("%Y-%m-%d %H:%M")
+    eval_entry = (
+        f"## Evaluation ({date_str}, source: evaluation)\n"
+        f"- Criteria: {assessment.get('criteria_met', 'unknown')}\n"
+        f"- Gaps: {', '.join(assessment.get('gaps', [])) or 'none identified'}\n"
+        f"- Context health: {assessment.get('context_health', 'unknown')}\n"
+        f"- Quality: {assessment.get('quality_assessment', 'no assessment')}\n"
+        f"- Recommendation: {assessment.get('recommendation', 'unknown')}\n"
+    )
+
+    try:
+        existing_feedback = await tw.read("memory/feedback.md") or ""
+        # Prepend (newest first)
+        if existing_feedback.startswith("# Task Feedback"):
+            header = existing_feedback.split("\n", 2)
+            rest = header[2] if len(header) > 2 else ""
+            updated = f"{header[0]}\n{header[1] if len(header) > 1 else ''}\n\n{eval_entry}\n{rest}"
+        else:
+            updated = f"# Task Feedback\n\n{eval_entry}\n{existing_feedback}"
+        await tw.write("memory/feedback.md", updated,
+                      summary=f"Evaluation: {assessment.get('criteria_met', '?')} criteria met")
+    except Exception as e:
+        logger.warning(f"[MANAGE_TASK] Evaluation write to feedback.md failed: {e}")
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=auth.client, user_id=auth.user_id,
+            event_type="task_evaluated",
+            summary=f"Evaluated {task_slug}: {assessment.get('criteria_met', '?')} criteria, rec: {assessment.get('recommendation', '?')}",
+            event_ref=task.get("id"),
+            metadata={"task_slug": task_slug, **assessment},
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "assessment": assessment,
+        "message": f"Evaluated '{task_slug}': {assessment.get('quality_assessment', 'assessment complete')}",
+    }
+
+
+async def _handle_steer(auth: Any, task_slug: str, input: dict) -> dict:
+    """Write cycle-specific guidance to memory/steering.md.
+
+    ADR-149: TP writes management notes that the pipeline reads on next execution.
+    Steering is overwritten each time (latest guidance only, not accumulated).
+    """
+    steering_text = input.get("steering", "").strip()
+
+    if not steering_text:
+        return {"success": False, "error": "missing_steering", "message": "steering text is required for action='steer'"}
+
+    task = await _find_task(auth, task_slug)
+    if task.get("error"):
+        return task
+
+    from services.task_workspace import TaskWorkspace
+    tw = TaskWorkspace(auth.client, auth.user_id, task_slug)
+
+    now = datetime.now(timezone.utc)
+    date_str = now.strftime("%Y-%m-%d %H:%M")
+
+    steering_content = (
+        f"# Steering Notes\n"
+        f"<!-- Written by TP. Read by pipeline on next execution. Overwritten per evaluation. -->\n\n"
+        f"## Guidance ({date_str})\n"
+        f"{steering_text}\n"
+    )
+
+    try:
+        await tw.write("memory/steering.md", steering_content,
+                      summary=f"Steering: {steering_text[:50]}")
+    except Exception as e:
+        return {"success": False, "error": "write_failed", "message": str(e)}
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=auth.client, user_id=auth.user_id,
+            event_type="task_steered",
+            summary=f"Steered {task_slug}: {steering_text[:60]}",
+            event_ref=task.get("id"),
+            metadata={"task_slug": task_slug, "steering": steering_text[:200]},
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "message": f"Steering notes written for '{task_slug}'. Next run will incorporate this guidance.",
+    }
+
+
+async def _handle_complete(auth: Any, task_slug: str) -> dict:
+    """Mark task as completed. Clear scheduling.
+
+    ADR-149: Used when goal task criteria are met, or manual completion.
+    Sets status=completed, clears next_run_at. Irreversible without manual DB update.
+    """
+    now = datetime.now(timezone.utc)
+
+    task = await _find_task(auth, task_slug)
+    if task.get("error"):
+        return task
+
+    if task["status"] == "completed":
+        return {"success": True, "task_slug": task_slug, "message": f"Task '{task_slug}' is already completed."}
+
+    try:
+        auth.client.table("tasks").update({
+            "status": "completed",
+            "next_run_at": None,
+            "updated_at": now.isoformat(),
+        }).eq("id", task["id"]).execute()
+    except Exception as e:
+        return {"success": False, "error": "update_failed", "message": str(e)}
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        await write_activity(
+            client=auth.client, user_id=auth.user_id,
+            event_type="task_completed",
+            summary=f"Completed task: {task_slug}",
+            event_ref=task["id"],
+            metadata={"task_slug": task_slug, "mode": task.get("mode")},
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "message": f"Task '{task_slug}' marked as completed. No further runs will be scheduled.",
     }
