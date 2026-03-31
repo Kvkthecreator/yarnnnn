@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.14] - ADR-152: Step instruction templates — process steps are generic
+
+### Changed
+- `services/task_types.py`: New `STEP_INSTRUCTIONS` dict with 3 generic templates (update-context, derive-output, capture-and-report). All 23 process step instructions across 13 task types replaced with `STEP_INSTRUCTIONS["step-name"]` references. Zero hardcoded path-specific instructions remain.
+- Per-task-type specificity (format, quality criteria, audience requirements) lives in DELIVERABLE.md — not in step instructions.
+- Pipeline injects actual domain paths at runtime from task type's context_reads/context_writes.
+- Expected behavior: Process steps are reusable across any task type + any context domain. TP can create new domains and task types dynamically — step instructions adapt because they're generic templates.
+
+---
+
 ## [2026.03.31.13] - ADR-152: Unified Directory Registry + uploads rename + output categories
 
 ### Changed
