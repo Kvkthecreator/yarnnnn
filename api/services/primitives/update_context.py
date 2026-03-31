@@ -37,7 +37,8 @@ Call this whenever you learn something worth persisting. Pick the right target:
   UpdateContext(target="agent", agent_slug="research-agent", text="Reports are too long, be more concise")
 
 **target="task"** — User gives feedback about a specific task's output
-  UpdateContext(target="task", task_slug="weekly-briefing", text="Focus on pricing this week", feedback_target="criteria")
+  UpdateContext(target="task", task_slug="weekly-briefing", text="Charts need better labels")
+  UpdateContext(target="task", task_slug="weekly-briefing", text="Focus on pricing", feedback_target="criteria")
 
 For identity/brand: inference merges with existing content — nothing is lost.
 For memory: appends (deduped). For agent/task: appends feedback entry.""",
@@ -63,8 +64,8 @@ For memory: appends (deduped). For agent/task: appends feedback entry.""",
             },
             "feedback_target": {
                 "type": "string",
-                "enum": ["criteria", "objective", "output_spec", "run_log"],
-                "description": "For target='task' only: where in TASK.md to apply feedback. Default: run_log"
+                "enum": ["deliverable", "criteria", "objective", "output_spec", "run_log"],
+                "description": "For target='task': where to route feedback. 'deliverable' (default) writes to memory/feedback.md for DELIVERABLE.md inference. Others patch TASK.md sections directly."
             },
             "document_contents": {
                 "type": "array",
@@ -260,13 +261,17 @@ async def _handle_agent_feedback(auth: Any, input: dict) -> dict:
 
 
 async def _handle_task_feedback(auth: Any, input: dict) -> dict:
-    """Write task-specific feedback to TASK.md or run_log. Was: WriteTaskFeedback."""
+    """Write task-specific feedback to memory/feedback.md (default) or TASK.md sections.
+
+    ADR-149/151: feedback_target="deliverable" (default) writes to memory/feedback.md
+    for DELIVERABLE.md inference. Other targets patch TASK.md sections directly.
+    """
     from services.task_workspace import TaskWorkspace
     from datetime import datetime, timezone
 
     task_slug = input.get("task_slug", "")
     feedback_text = input.get("text", "")
-    feedback_target = input.get("feedback_target", "run_log")
+    feedback_target = input.get("feedback_target", "deliverable")  # Default changed: ADR-149
 
     if not task_slug:
         return {"success": False, "error": "missing_task_slug", "message": "task_slug is required for target='task'"}
@@ -279,7 +284,22 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d %H:%M")
 
-        if feedback_target == "run_log":
+        if feedback_target == "deliverable":
+            # ADR-149: Primary path — write to memory/feedback.md for DELIVERABLE.md inference
+            entry = f"## User Feedback ({date_str}, source: user_conversation)\n- {feedback_text}\n"
+            existing = await tw.read("memory/feedback.md") or ""
+            # Prepend (newest first)
+            if existing.startswith("# Task Feedback"):
+                header_lines = existing.split("\n", 2)
+                rest = header_lines[2] if len(header_lines) > 2 else ""
+                updated = f"{header_lines[0]}\n{header_lines[1] if len(header_lines) > 1 else ''}\n\n{entry}\n{rest}"
+            else:
+                updated = f"# Task Feedback\n\n{entry}\n{existing}"
+            await tw.write("memory/feedback.md", updated,
+                          summary=f"User feedback: {feedback_text[:50]}")
+            return {"success": True, "message": f"Feedback recorded for {task_slug} (will inform next run via DELIVERABLE.md inference)"}
+
+        elif feedback_target == "run_log":
             entry = f"\n## Feedback ({date_str})\n- {feedback_text}\n"
             existing = await tw.read("memory/run_log.md") or ""
             await tw.write("memory/run_log.md", existing + entry,
@@ -287,6 +307,7 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
             return {"success": True, "message": f"Feedback recorded in run log for {task_slug}"}
 
         else:
+            # Direct TASK.md section patching (criteria, objective, output_spec)
             task_md = await tw.read("TASK.md")
             if not task_md:
                 return {"success": False, "error": "not_found", "message": f"TASK.md not found for {task_slug}"}

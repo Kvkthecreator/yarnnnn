@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.31.6] - ADR-149 Phase 4: UpdateContext feedback_target=deliverable
+
+### Changed
+- `services/primitives/update_context.py`: `feedback_target` enum gains `"deliverable"` as new default (was `"run_log"`). When target="task" with feedback_target="deliverable", writes to `memory/feedback.md` (newest-first prepend, source: user_conversation). This is the primary feedback path — feeds DELIVERABLE.md inference in Phase F.
+- Existing targets preserved: `criteria`/`objective`/`output_spec` patch TASK.md directly; `run_log` appends to run log.
+- Tool description updated with deliverable example.
+- Expected behavior: User says "charts need better labels" → TP routes via UpdateContext(target="task", text="...", feedback_target="deliverable") → memory/feedback.md → future DELIVERABLE.md inference.
+
+---
+
 ## [2026.03.31.5] - ADR-149 Phase 3: ManageTask evaluate/steer/complete
 
 ### Changed
