@@ -480,19 +480,15 @@ async def _handle_evaluate(auth: Any, task_slug: str) -> dict:
     # Read task mode
     mode = task.get("mode", "recurring")
 
-    # Read context domain health (ADR-151)
+    # Read context domain health (ADR-151/152: from TASK.md, not registry)
     context_health = ""
     try:
-        from services.task_types import get_task_type
         from services.task_pipeline import parse_task_md
         task_md = await tw.read_task()
         if task_md:
             task_info = parse_task_md(task_md)
-            type_key = task_info.get("type_key", "").strip()
-            if type_key:
-                task_type_def = get_task_type(type_key)
-                context_reads = (task_type_def or {}).get("context_reads", [])
-                if context_reads:
+            context_reads = task_info.get("context_reads", [])
+            if context_reads:
                     from services.directory_registry import get_domain_folder
                     for domain_key in context_reads:
                         folder = get_domain_folder(domain_key)
