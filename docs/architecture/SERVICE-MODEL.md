@@ -23,7 +23,6 @@ Three entities, one workspace:
 WORKSPACE (per user)
 ├── /workspace/           User context: identity, brand, documents
 │   └── /workspace/context/  Accumulated context domains (competitors, market, relationships, etc.)
-├── /platforms/           Distilled Slack/Notion content
 ├── /agents/{slug}/       Agent identity + memory + outputs
 └── /tasks/{slug}/        Task definition + outputs + run log
 ```
@@ -65,7 +64,7 @@ Mode is a property of the task, not the agent. A Research Agent can simultaneous
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Four content areas: identity, brand, accumulated context domains (`/workspace/context/` — competitors, market, relationships, etc. per ADR-151), and documents. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
+Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — competitors, market, relationships, etc. per ADR-151). Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
 
 ---
 
@@ -155,7 +154,7 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 |---------|------|-------------|
 | **yarnnn-api** | Web (FastAPI) | API endpoints, TP chat, OAuth, all user-facing operations |
 | **yarnnn-unified-scheduler** | Cron (*/5 min) | Task execution, workspace cleanup, memory extraction, Composer heartbeat |
-| **yarnnn-platform-sync** | Cron (*/5 min) | Slack/Notion content sync (tier-gated frequency) |
+| **yarnnn-platform-sync** | Cron (*/5 min) | Platform connection health checks, OAuth token refresh (ADR-153: bulk content sync sunset) |
 | **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code access |
 | **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering |
 
@@ -193,9 +192,9 @@ See `api/services/primitives/registry.py` for the canonical source.
 
 Four layers of perception feed agent execution (FOUNDATIONS Axiom 2):
 
-1. **External** — Platform sync fills `/platforms/` from Slack and Notion. TTL-based (Slack 14d, Notion 90d).
-2. **User-contributed** — Uploaded documents in `/workspace/documents/`. Permanent reference material.
-3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/`. Each run's output feeds the next run's context.
+1. **External** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Signals flow into `/workspace/context/` domains. Platform connections provide auth infrastructure; there is no intermediate staging table (ADR-153).
+2. **User-contributed** — Uploaded documents in `/workspace/uploads/`. Permanent reference material.
+3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/` + accumulated context in `/workspace/context/`. Each run's output feeds the next run's context.
 4. **Reflexive** — User feedback (edits, approvals), TP observations (`/workspace/notes.md`, `/workspace/preferences.md`).
 
 The recursive property: external data → agent output → next cycle's context → better output. Accumulated attention compounds.
@@ -217,7 +216,7 @@ Three distinct mechanisms drive agent development:
 - **Chat is free** — TP conversation is the onramp
 - **Work is metered** — autonomous task runs consume credits
 - **Two tiers**: Free (limited runs/month) and Pro ($19/mo, generous allocation)
-- **Two platforms**: Slack and Notion (Gmail/Calendar sunset per ADR-131)
+- **Three platforms**: Slack, Notion, and GitHub (Gmail/Calendar sunset per ADR-131, GitHub added per ADR-147)
 
 ---
 
@@ -259,3 +258,4 @@ Three distinct mechanisms drive agent development:
 | Date | Change |
 |------|--------|
 | 2026-03-29 | v1 — Initial creation. Consolidates service topology from CLAUDE.md, execution model from agent-execution-model.md, entity model from FOUNDATIONS.md/ADR-138/ADR-140, primitives from registry.py. Establishes single canonical service description. |
+| 2026-03-31 | v1.1 — ADR-153 platform_content sunset. Perception model updated: agents call platform APIs live, no intermediate staging. /platforms/ removed from entity model. Platform sync cron role updated. |

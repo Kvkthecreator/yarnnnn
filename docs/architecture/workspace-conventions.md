@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v8 — ADR-152 unified directory registry)
+**Status:** Canonical (v9 — ADR-153 platform_content sunset)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -19,16 +19,15 @@
 
 YARNNN's workspace is a **virtual filesystem of human-readable files** backed by Postgres (`workspace_files` table). Path conventions are the schema. New capabilities extend paths, not database tables.
 
-**Four top-level roots** (ADR-142):
+**Three top-level roots** (ADR-142, updated ADR-153):
 
 | Root | Scope | Owner | Purpose |
 |------|-------|-------|---------|
 | `/workspace/` | User-level | User + TP | Identity, preferences, user uploads, accumulated context domains, promoted outputs (PERMANENT) |
-| `/platforms/` | Cross-agent | Platform sync | Distilled platform content (OWN LIFECYCLE) |
 | `/agents/{slug}/` | Per-agent | Agent + system | WHO — persistent domain identity + memory |
 | `/tasks/{slug}/` | Per-task | Agent + system | WHAT — work definition + quality contract + outputs + run memory |
 
-**Dissolved** (ADR-142): `/knowledge/` (absorbed into `/platforms/` + `/tasks/`), `/memory/` (merged into `/workspace/`), `/user_shared/` (absorbed into session-scoped uploads).
+**Dissolved** (ADR-142, ADR-153): `/knowledge/` (absorbed into `/platforms/` + `/tasks/`), `/memory/` (merged into `/workspace/`), `/user_shared/` (absorbed into session-scoped uploads), `/platforms/` (ADR-153: platform data now flows through tracking tasks into `/workspace/context/` domains).
 
 ---
 
@@ -101,27 +100,9 @@ A **domain registry** governs the structure. Each domain (competitors, market, r
 
 ---
 
-## `/platforms/` — Distilled Platform Content
+## `/platforms/` — DEPRECATED (ADR-153)
 
-Summaries written by the platform sync pipeline. Each platform gets a subfolder, each source gets dated files.
-
-```
-/platforms/
-├── slack/
-│   ├── general/
-│   │   └── 2026-03-25.md          # Daily channel summary
-│   └── engineering/
-│       └── 2026-03-25.md
-└── notion/
-    └── product-roadmap/
-        └── 2026-03-25.md
-```
-
-**Own lifecycle:** Platform content has retention rules (Slack 14d, Notion 90d) separate from workspace files. Raw data stays in `platform_content` table (high-volume, TTL-managed). `/platforms/` holds distilled summaries only.
-
-**Deprioritized for TP:** Working memory says "Slack synced 2h ago (5 channels)" — not full content. Agents search via `Search(scope="platform")`.
-
-**Not nested under `/workspace/`:** Platform data has fundamentally different lifecycle, volume, and metadata characteristics. Keeping it as a separate root maintains data handling clarity.
+> **Deprecated.** Platform data now flows through tracking tasks into `/workspace/context/` domains. The `/platforms/` root is no longer written to or read from. Agents call platform APIs (Slack, Notion, GitHub) live during task execution and write structured context to `/workspace/context/` domains. Connect a platform, create a monitoring task, and accumulated context builds organically.
 
 ---
 
@@ -189,13 +170,12 @@ The meaning of `latest/` and `{date}/` folders varies by task mode:
 
 ---
 
-## Three File-Sharing Contexts
+## Two File-Sharing Contexts
 
 | Context | Example | Lifecycle | Stored where | TP sees? |
 |---------|---------|-----------|--------------|----------|
 | **Shared document** | "Here's our IR deck" | Permanent | `/workspace/uploads/` | Yes — file list in working memory |
 | **Chat upload** | "Look at this screenshot" | Session TTL (4h) | Inline session attachment | Yes — current conversation only |
-| **Platform sync** | Slack daily digest | Platform TTL | `/platforms/` + `platform_content` | Deprioritized |
 
 ---
 
@@ -257,7 +237,7 @@ Task outputs use `manifest.json` for metadata:
 | `active` | Normal operational file | Default |
 | `permanent` | User-curated, never auto-cleaned | `/workspace/uploads/` uploads |
 | `ephemeral` | Temporary — auto-cleaned after TTL | `/working/` (24h) |
-| `platform` | Platform-synced — own retention rules | `/platforms/` content |
+| `platform` | DEPRECATED (ADR-153) — was platform-synced content | Legacy `/platforms/` content |
 | `delivered` | Output that has been delivered | Delivery pipeline |
 | `archived` | Previous version kept for history | Version archival |
 
@@ -299,3 +279,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-31 | v6 | ADR-149: DELIVERABLE.md quality contract added to /tasks/{slug}/. Task memory expanded: feedback.md (user corrections + TP evaluations), steering.md (TP management notes). outputs/ restructured with latest/ + {date}/ folders and mode-dependent semantics. Agent self_assessment.md renamed to reflections.md. |
 | 2026-03-31 | v7 | ADR-151: /workspace/context/ replaces /workspace/knowledge/. Accumulated context is workspace-scoped, shared across tasks. Domain registry governs structure. Task knowledge/ folder removed. |
 | 2026-03-31 | v8 | ADR-152: Unified directory registry. /workspace/documents/ renamed to /workspace/uploads/ (clarity: user-contributed vs system-produced). /workspace/outputs/ added (reports/, briefs/, content/ — promoted agent deliverables). Domain registry → directory registry (WORKSPACE_DIRECTORIES in directory_registry.py). |
+| 2026-03-31 | v9 | ADR-153: platform_content sunset. /platforms/ deprecated — platform data flows through tracking tasks into /workspace/context/ domains. Four roots → three roots. Platform sync file-sharing context removed. |

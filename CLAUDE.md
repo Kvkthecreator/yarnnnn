@@ -114,6 +114,8 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 
 - **ADR-152**: Unified Directory Registry — consolidates workspace directory governance into single registry. Renames Context Domain Registry → Directory Registry (`api/services/directory_registry.py`, `WORKSPACE_DIRECTORIES`). `documents/` renamed to `uploads/` (clarity: user-contributed vs system-produced). `/workspace/outputs/` added with three output categories: `reports`, `briefs`, `content_output`. Task types declare `output_category` — promoted outputs land in `/workspace/outputs/{category}/`. Absorbs ADR-151 domain registry into unified directory structure. Extends ADR-145, ADR-151. Key files: `api/services/directory_registry.py` (WORKSPACE_DIRECTORIES), `docs/architecture/registry-matrix.md` (output categories in task type catalog), `docs/architecture/workspace-conventions.md` (v8). (Phase 1 Implemented — registry rename, uploads/ rename, output categories.)
 
+- **ADR-153**: Platform Content Sunset — Task-First External Data Flow. **Supersedes ADR-072** (unified content layer), **ADR-077** (platform sync overhaul), **ADR-085** (RefreshPlatformContent). Full deletion of `platform_content` as a context source. Platform connections kept for OAuth/auth only. Platform data flows exclusively through tracking tasks into `/workspace/context/` domains. Deleted: `RefreshPlatformContent` primitive, `Search(scope="platform_content")` scope, `_fallback_platform_content_search()`, `mark_content_retained()` calls, platform sync auto-trigger on OAuth, TP prompt platform_content references. `/platforms/` filesystem directory deprecated. Manual sync endpoint deprecated. `sync_stale_sources()` deprecated. Context domains are THE sole data source. (Phase 1-3 Implemented — primitives, prompts, pipeline cleanup. Phase 4-5 in progress — docs, DB table.)
+
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
 ### 1. Documentation Alongside Code
@@ -152,7 +154,7 @@ YARNNN runs on **5 Render services** (ADR-083: worker + Redis removed; ADR-118: 
 |---------|------|-----------|
 | yarnnn-api | Web Service | `srv-d5sqotcr85hc73dpkqdg` |
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
-| yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` |
+| yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` | **DEPRECATED (ADR-153)** — platform data flows through tasks |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
 | yarnnn-render | Web Service (Docker) | `srv-d6sirjffte5s73f90pfg` |
 
@@ -371,8 +373,8 @@ You MUST:
 | Task Deliverable Inference | `api/services/task_deliverable_inference.py` (ADR-149: feedback → DELIVERABLE.md, planned) |
 | Task Routes | `api/routes/tasks.py` (ADR-138: task CRUD) |
 | Dashboard Summary | DELETED (2026-03-22) — collapsed into Orchestrator |
-| Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
-| Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
+| Platform Sync Worker | `api/workers/platform_worker.py` — **DEPRECATED (ADR-153)** |
+| Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` — **DEPRECATED (ADR-153)** |
 | Platform API Clients | `api/integrations/core/{slack,notion,github}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |

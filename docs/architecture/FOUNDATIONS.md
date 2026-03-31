@@ -58,9 +58,9 @@ Perception is not just external platform data. The perception substrate is **eve
 
 ### Four Layers of Perception (ADR-142)
 
-1. **External perception** — platform sync fills `platform_content` from Slack and Notion, distilled to `/platforms/` workspace files. Raw data has TTLs; summaries persist.
+1. **External perception** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Raw platform signals are processed by agents and written as structured context to `/workspace/context/` domains. No intermediate staging (ADR-153: `platform_content` table and `/platforms/` root sunset).
 
-2. **User-contributed perception** — uploaded documents in `/workspace/documents/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). TP always knows these exist.
+2. **User-contributed perception** — uploaded documents in `/workspace/uploads/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). TP always knows these exist.
 
 3. **Internal perception** — accumulated workspace context at `/workspace/context/` (primary intelligence substrate — structured by the context domain registry, ADR-151) + task outputs in `/tasks/{slug}/outputs/` (derived deliverables). Each run's output feeds the next run's context; context domains accumulate cross-task intelligence that any agent can draw from.
 
@@ -86,15 +86,15 @@ The **coherence protocol** (ADR-128) defines three flows that keep substrates al
 ### The Recursive Property
 
 ```
-External platforms → /platforms/ (distilled) → agent execution → task output →
-  /tasks/{slug}/outputs/ → next agent execution → ...
+External platforms → live API calls → agent execution → task output →
+  /tasks/{slug}/outputs/ + /workspace/context/ → next agent execution → ...
        ↑                                          |
-       └── user uploads (/workspace/documents/) ──┘
+       └── user uploads (/workspace/uploads/) ────┘
        └── user feedback (/workspace/preferences.md) ──┘
        └── TP observations (/workspace/notes.md) ──┘
 ```
 
-The workspace filesystem (four roots: `/workspace/`, `/platforms/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142).
+The workspace filesystem (three roots: `/workspace/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142, ADR-153).
 
 ### Implication: Optimize for Accumulation, Not Extraction
 
