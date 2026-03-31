@@ -1,6 +1,6 @@
 # ADR-150: Task Knowledge Substrate — Accumulation as Primary Artifact
 
-**Status:** Proposed  
+**Status:** Superseded by ADR-151 (shared knowledge domains). Task-gated knowledge was architecturally wrong — it contradicts Axiom 2 (shared workspace as OS) and prevents cross-task knowledge compounding. The core insight (knowledge as primary artifact, output as derivative) was correct and is preserved in ADR-151. The error was scoping knowledge to tasks instead of the shared workspace.  
 **Date:** 2026-03-31  
 **Extends:** ADR-149 (task lifecycle), ADR-138 (agents as work units), ADR-141 (unified execution)  
 **Implements:** FOUNDATIONS.md Axiom 2 (recursive perception), Axiom 3 (agents as developing entities), Axiom 4 (value from accumulated attention)
