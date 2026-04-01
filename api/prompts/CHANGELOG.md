@@ -14,6 +14,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.7] - ADR-154 Phase 2: Mode + bootstrap + phase-aware execution
+
+### Changed
+- `services/task_types.py`: v4.0 — `default_mode` on all 15 task types. `bootstrap` criteria on 5 context task types (min_entities, required_files, bootstrap_cadence). `update-context:bootstrap` step instruction override. `get_default_mode()`, `get_bootstrap_criteria()`, `evaluate_bootstrap_status()` helpers.
+- `services/task_pipeline.py`: `parse_task_md` now parses `**Mode:**` and `**Class:**`. Pipeline reads mode from TASK.md (removed DB query). `calculate_next_run_at` is phase-aware (bootstrap → aggressive cadence). `build_task_execution_prompt` accepts `task_phase`, overrides step instruction to bootstrap variant. Phase detection from awareness.md before prompt building.
+- `services/primitives/task.py`: Mode from registry via `get_default_mode()` (was: inferred from schedule). First-run-on-creation for tasks with bootstrap criteria (next_run_at=now).
+- `routes/tasks.py`: `mode` selected from DB. `TaskResponse` includes mode, type_key, task_class, phase. `_parse_task_md` extracts mode/type/class.
+- `services/task_types.py`: `build_task_md_from_type` now writes `**Mode:**` to TASK.md.
+
+### Design
+- Mode is a first-class property declared per task type, not inferred from schedule presence.
+- Phase (bootstrap/steady) is derived at runtime from tracker state vs bootstrap criteria.
+- Bootstrap phase: run immediately on creation, use aggressive cadence (daily), inject discovery-focused prompt.
+- Steady phase: declared cadence, standard prompt.
+
+---
+
 ## [2026.04.01.6] - ADR-154: Execution boundary reform — who/what/how file separation
 
 ### Changed

@@ -244,9 +244,10 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
             if schedule == "on-demand":
                 schedule = None  # reactive tasks don't have a schedule
 
-        # Set mode based on schedule
+        # ADR-154: Mode from registry, not inferred from schedule
         if not input.get("mode"):
-            mode = "reactive" if not schedule else "recurring"
+            from services.task_types import get_default_mode
+            mode = get_default_mode(type_key)
 
         # Resolve process agents from user's roster
         agents_result = (
@@ -303,8 +304,17 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     if not schedule:
         schedule = "weekly"
 
-    # Calculate next_run_at
-    next_run_at = _compute_next_run(schedule) if schedule else None
+    # ADR-154: First run on creation for tasks with bootstrap criteria
+    # Bootstrap phase → run immediately. Otherwise → standard cadence.
+    has_bootstrap = False
+    if type_key:
+        from services.task_types import get_bootstrap_criteria
+        has_bootstrap = bool(get_bootstrap_criteria(type_key))
+
+    if has_bootstrap:
+        next_run_at = datetime.now(timezone.utc).isoformat()
+    else:
+        next_run_at = _compute_next_run(schedule) if schedule else None
 
     # Create tasks row
     now = datetime.now(timezone.utc)

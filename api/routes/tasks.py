@@ -61,6 +61,7 @@ class TaskResponse(BaseModel):
     id: str
     slug: str
     status: str
+    mode: Optional[str] = None  # ADR-154: recurring | goal | reactive
     schedule: Optional[str] = None
     next_run_at: Optional[str] = None
     last_run_at: Optional[str] = None
@@ -68,6 +69,8 @@ class TaskResponse(BaseModel):
     updated_at: str
     # Enriched from TASK.md
     title: Optional[str] = None
+    type_key: Optional[str] = None  # ADR-154: task type key
+    task_class: Optional[str] = None  # ADR-154: context | synthesis
     objective: Optional[dict] = None
     process: Optional[dict] = None
     agent_slugs: Optional[list] = None
@@ -77,6 +80,8 @@ class TaskResponse(BaseModel):
     context_reads: Optional[list] = None
     context_writes: Optional[list] = None
     output_category: Optional[str] = None
+    # ADR-154: Phase + bootstrap
+    phase: Optional[str] = None  # bootstrap | steady | complete
     # Enriched from workspace (detail endpoint only)
     run_log: Optional[str] = None
 
@@ -289,8 +294,19 @@ def _parse_task_md(content: str) -> dict:
     if output_spec:
         result["output_spec"] = output_spec
 
-    # Context reads/writes/output_category (top-level bold fields)
+    # Top-level bold metadata fields
     for line in lines:
+        # ADR-154: Mode, Type, Class
+        mode_match = re.match(r"\*\*Mode:\*\*\s*(.*)", line)
+        if mode_match:
+            result["mode"] = mode_match.group(1).strip()
+        type_match = re.match(r"\*\*Type:\*\*\s*(.*)", line)
+        if type_match:
+            result["type_key"] = type_match.group(1).strip()
+        class_match = re.match(r"\*\*Class:\*\*\s*(.*)", line)
+        if class_match:
+            result["task_class"] = class_match.group(1).strip()
+
         cr_match = re.match(r"\*\*Context Reads:\*\*\s*(.*)", line)
         if cr_match:
             raw = cr_match.group(1).strip()
@@ -320,16 +336,24 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
     # Title: prefer TASK.md title, fall back to slug
     title = (task_md_parsed.get("title") if task_md_parsed else None) or row["slug"]
 
+    # ADR-154: Mode from DB (scheduling index), enriched from TASK.md
+    mode = row.get("mode")
+    if not mode and task_md_parsed:
+        mode = task_md_parsed.get("mode")
+
     return TaskResponse(
         id=str(row["id"]),
         slug=row["slug"],
         status=row["status"],
+        mode=mode,
         schedule=row.get("schedule"),
         next_run_at=row["next_run_at"] if row.get("next_run_at") else None,
         last_run_at=row["last_run_at"] if row.get("last_run_at") else None,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         title=title,
+        type_key=task_md_parsed.get("type_key") if task_md_parsed else None,
+        task_class=task_md_parsed.get("task_class") if task_md_parsed else None,
         objective=objective,
         process=process,
         agent_slugs=task_md_parsed.get("agent_slugs") if task_md_parsed else None,
@@ -407,7 +431,7 @@ async def list_tasks(
 
     query = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -446,7 +470,7 @@ async def get_task(
 
     result = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
@@ -559,7 +583,7 @@ async def update_task(
     # Fetch existing
     existing = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
@@ -643,7 +667,7 @@ async def archive_task(
     # Verify exists
     existing = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)

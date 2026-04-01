@@ -1,5 +1,5 @@
 """
-Task Type Registry — ADR-152: Atomic Task Types
+Task Type Registry — ADR-152 + ADR-154: Atomic Task Types
 
 Two classes of tasks, dead simple:
   CONTEXT tasks — maintain a workspace context domain (track, research, monitor)
@@ -15,15 +15,22 @@ Per-task-type quality criteria live in DELIVERABLE.md, not here.
 Registries are creation-time templates. After task creation, TASK.md is the
 sole source of truth — pipeline reads TASK.md, not this registry.
 
-Version: 3.0 (2026-03-31)
+Mode + Bootstrap (ADR-154):
+  Each task type declares default_mode (recurring/goal/reactive) and optional
+  bootstrap criteria. Bootstrap defines the minimum domain state before a context
+  task transitions from aggressive bootstrapping to steady-state cadence.
+  Phase (bootstrap/steady/complete) is derived by the pipeline at runtime.
+
+Version: 4.0 (2026-04-01)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
   v3.0 — Atomic split: 7 context + 8 synthesis types. Task-first, user-friendly naming.
+  v4.0 — ADR-154: default_mode + bootstrap criteria on all task types. Phase-aware execution.
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
-  - docs/adr/ADR-152-unified-directory-registry.md
+  - docs/adr/ADR-154-execution-boundary-reform.md
 """
 
 from __future__ import annotations
@@ -49,6 +56,20 @@ STEP_INSTRUCTIONS = {
         "newly discovered items. Update synthesis files with cross-entity pattern changes.\n\n"
         "Append to the cross-domain signal log with dated entries for this cycle.\n\n"
         "Your output for this step: a CHANGELOG of what you added, updated, or discovered."
+    ),
+
+    # ADR-154: Phase-specific override for bootstrap
+    "update-context:bootstrap": (
+        "You are BOOTSTRAPPING this context domain — it is empty or has very few entities. "
+        "Your PRIMARY goal is DISCOVERY: find and profile new entities to build the foundation.\n\n"
+        "1. Use web search aggressively to discover entities in this domain.\n"
+        "2. For each entity found, create its folder and write at minimum a profile.md.\n"
+        "3. Use WriteWorkspace(scope='context', domain='{domain}') for EVERY entity file.\n"
+        "4. Prioritize breadth over depth — get 3+ entities profiled, not 1 deep.\n"
+        "5. Update the synthesis file with a landscape overview once entities exist.\n\n"
+        "Check the Entity Tracker in your context to see how many entities exist "
+        "and what the minimum target is.\n\n"
+        "Your output for this step: a CHANGELOG of entities discovered and profiled."
     ),
 
     "derive-output": (
@@ -96,7 +117,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Research and maintain intelligence on competitors — products, pricing, funding, strategy.",
         "category": "context",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
+        "bootstrap": {
+            "min_entities": 3,
+            "required_files": ["profile"],
+            "bootstrap_cadence": "daily",
+        },
         "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
@@ -139,7 +166,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Research and maintain intelligence on market segments, sizing, trends, and opportunities.",
         "category": "context",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "monthly",
+        "bootstrap": {
+            "min_entities": 2,
+            "required_files": ["analysis"],
+            "bootstrap_cadence": "weekly",
+        },
         "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
@@ -177,7 +210,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Maintain contact profiles, interaction history, and relationship health from platform signals.",
         "category": "context",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
+        "bootstrap": {
+            "min_entities": 3,
+            "required_files": ["profile"],
+            "bootstrap_cadence": "daily",
+        },
         "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
@@ -215,7 +254,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Maintain project status, milestones, and blockers from platform signals and team activity.",
         "category": "context",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
+        "bootstrap": {
+            "min_entities": 2,
+            "required_files": ["status"],
+            "bootstrap_cadence": "daily",
+        },
         "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
@@ -253,7 +298,13 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Deep research on specific topics — accumulate findings, sources, and outlines for content creation.",
         "category": "context",
         "task_class": "context",
+        "default_mode": "goal",
         "default_schedule": "on-demand",
+        "bootstrap": {
+            "min_entities": 1,
+            "required_files": ["research"],
+            "bootstrap_cadence": "daily",
+        },
         "output_format": "markdown",
         "layout_mode": "document",
         "export_options": [],
@@ -293,6 +344,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Capture signals, decisions, and action items from Slack channels.",
         "category": "platform",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
         "layout_mode": "digest",
@@ -331,6 +383,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Track changes, new content, and stale pages in Notion workspace.",
         "category": "platform",
         "task_class": "context",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
         "layout_mode": "digest",
@@ -374,6 +427,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Weekly competitive intelligence report with charts, positioning analysis, and strategic implications.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
         "layout_mode": "document",
@@ -417,6 +471,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Deep market analysis with segment sizing, player landscape, and opportunity identification.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
         "layout_mode": "document",
@@ -458,6 +513,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Pre-meeting brief with relationship context, talking points, and open items.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "html",
         "layout_mode": "document",
@@ -496,6 +552,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Board-ready update synthesizing all domains — projects, market, competitive, relationships.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
         "layout_mode": "document",
@@ -537,6 +594,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Weekly status report per workstream with progress, blockers, and next steps.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
         "layout_mode": "document",
@@ -575,6 +633,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Blog post, article, or content draft synthesized from accumulated topic research.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
         "layout_mode": "document",
@@ -613,6 +672,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Launch announcements, press materials, and go-to-market content from accumulated research.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
         "layout_mode": "document",
@@ -651,6 +711,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "description": "Go-to-market intelligence report with competitive moves, market signals, and channel performance.",
         "category": "synthesis",
         "task_class": "synthesis",
+        "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
         "layout_mode": "dashboard",
@@ -696,6 +757,49 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 def get_task_type(type_key: str) -> dict[str, Any] | None:
     """Look up a task type by key. Returns None if not found."""
     return TASK_TYPES.get(type_key)
+
+
+def get_default_mode(type_key: str) -> str:
+    """Get the default mode for a task type. Falls back to 'recurring'."""
+    task_type = TASK_TYPES.get(type_key)
+    if not task_type:
+        return "recurring"
+    return task_type.get("default_mode", "recurring")
+
+
+def get_bootstrap_criteria(type_key: str) -> Optional[dict]:
+    """Get bootstrap criteria for a task type. Returns None if no bootstrap."""
+    task_type = TASK_TYPES.get(type_key)
+    if not task_type:
+        return None
+    return task_type.get("bootstrap")
+
+
+def evaluate_bootstrap_status(
+    type_key: str,
+    entity_count: int,
+    entities_with_required_files: int,
+) -> str:
+    """Evaluate whether a task has completed bootstrap.
+
+    ADR-154: Deterministic phase detection. Returns 'bootstrap' or 'steady'.
+
+    Args:
+        type_key: Task type key
+        entity_count: Total entities in the domain
+        entities_with_required_files: Entities that have all required files
+
+    Returns:
+        'bootstrap' if criteria not met, 'steady' if met
+    """
+    bootstrap = get_bootstrap_criteria(type_key)
+    if not bootstrap:
+        return "steady"  # No bootstrap criteria → always steady
+
+    min_entities = bootstrap.get("min_entities", 1)
+    if entities_with_required_files >= min_entities:
+        return "steady"
+    return "bootstrap"
 
 
 def list_task_types(category: str | None = None, task_class: str | None = None) -> list[dict[str, Any]]:
@@ -811,11 +915,14 @@ def build_task_md_from_type(
     context_writes = task_type.get("context_writes", [])
     output_category = task_type.get("output_category", "")
 
+    effective_mode = task_type.get("default_mode", "recurring")
+
     md = f"""# {title}
 
 **Slug:** {slug}
 **Type:** {type_key}
 **Class:** {task_type.get('task_class', 'synthesis')}
+**Mode:** {effective_mode}
 **Schedule:** {effective_schedule}
 **Delivery:** {delivery or 'none'}
 **Context Reads:** {', '.join(context_reads) if context_reads else 'none'}

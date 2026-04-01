@@ -253,7 +253,53 @@ async def _post_run_domain_scan(
             level = confidence.split("—")[0].split("–")[0].strip() if confidence else "unknown"
             awareness_lines.append(f"- **Agent reflection:** confidence={level}")
 
-        # Domain state section (for context tasks)
+        # Phase detection (ADR-154)
+        type_key = (task_info or {}).get("type_key", "")
+        task_phase = "steady"
+        if type_key and context_writes:
+            from services.task_types import get_bootstrap_criteria, evaluate_bootstrap_status
+            bootstrap = get_bootstrap_criteria(type_key)
+            if bootstrap:
+                required_files = bootstrap.get("required_files", [])
+                # Count entities that have all required files across all write domains
+                total_qualified = 0
+                total_entities = 0
+                for dk in context_writes:
+                    if dk == "signals" or not has_entity_tracker(dk):
+                        continue
+                    for slug, edata in entities_touched.get(dk, []) and [] or []:
+                        pass  # entities_touched only has slugs
+                # Use the tracker data we already built
+                for dk in context_writes:
+                    if dk == "signals" or dk not in entities_touched and dk not in all_domains:
+                        continue
+                    tracker_path_check = get_tracker_path(dk)
+                    if not tracker_path_check:
+                        continue
+                    tracker_content_check = await um.read(tracker_path_check)
+                    if not tracker_content_check:
+                        continue
+                    for line in tracker_content_check.split("\n"):
+                        if line.startswith("|") and "Slug" not in line and "---" not in line:
+                            parts = [p.strip() for p in line.split("|")]
+                            if len(parts) >= 5:
+                                total_entities += 1
+                                files_str = parts[3] if len(parts) > 3 else ""
+                                entity_files = [f.strip() for f in files_str.split(",") if f.strip() and f.strip() != "—"]
+                                if all(rf in entity_files for rf in required_files):
+                                    total_qualified += 1
+                task_phase = evaluate_bootstrap_status(type_key, total_entities, total_qualified)
+
+        # Domain state + phase section
+        awareness_lines.append(f"\n## Phase: {task_phase}")
+        if task_phase == "bootstrap":
+            bootstrap_info = get_bootstrap_criteria(type_key) or {}
+            min_e = bootstrap_info.get("min_entities", "?")
+            awareness_lines.append(f"- Bootstrap in progress: {total_qualified}/{min_e} entities meet criteria")
+            awareness_lines.append(f"- Total entities discovered: {total_entities}")
+        else:
+            awareness_lines.append("- Domain established. Normal cadence.")
+
         if context_writes:
             awareness_lines.append("\n## Domain State")
             for domain_key in context_writes:
@@ -265,13 +311,12 @@ async def _post_run_domain_scan(
                 if tracker_path:
                     tracker_content = await um.read(tracker_path)
                     if tracker_content:
-                        # Extract just the health summary
                         health_start = tracker_content.find("## Domain Health")
                         if health_start >= 0:
                             awareness_lines.append(f"### {domain_key}")
                             awareness_lines.append(tracker_content[health_start:].strip())
 
-        # Next cycle focus (derived from staleness)
+        # Next cycle focus (derived from staleness + phase)
         stale_entities: list[str] = []
         for domain_key in (context_writes or context_reads):
             if not has_entity_tracker(domain_key) or domain_key == "signals":
@@ -288,12 +333,16 @@ async def _post_run_domain_scan(
                                 if slug:
                                     stale_entities.append(f"{slug} ({domain_key})")
 
-        if stale_entities:
-            awareness_lines.append(f"\n## Next Cycle Focus")
+        awareness_lines.append(f"\n## Next Cycle Focus")
+        if task_phase == "bootstrap":
+            awareness_lines.append("- **BOOTSTRAP PRIORITY:** Discover and profile new entities to meet minimum criteria.")
+            if stale_entities:
+                for se in stale_entities:
+                    awareness_lines.append(f"- {se}: stale — update alongside discovery")
+        elif stale_entities:
             for se in stale_entities:
                 awareness_lines.append(f"- {se}: stale — prioritize update")
         else:
-            awareness_lines.append(f"\n## Next Cycle Focus")
             awareness_lines.append("- All entities current. Discover new entities or deepen existing profiles.")
 
         awareness_content = "\n".join(awareness_lines) + "\n"
@@ -382,6 +431,10 @@ def parse_task_md(content: str) -> dict:
             result["slug"] = line_stripped.split("**Slug:**")[1].strip()
         elif line_stripped.startswith("**Type:**"):
             result["type_key"] = line_stripped.split("**Type:**")[1].strip()
+        elif line_stripped.startswith("**Mode:**"):
+            result["mode"] = line_stripped.split("**Mode:**")[1].strip()
+        elif line_stripped.startswith("**Class:**"):
+            result["task_class"] = line_stripped.split("**Class:**")[1].strip()
         elif line_stripped.startswith("**Schedule:**"):
             result["schedule"] = line_stripped.split("**Schedule:**")[1].strip()
         elif line_stripped.startswith("**Delivery:**"):
@@ -554,12 +607,12 @@ def build_task_execution_prompt(
     task_feedback: str = "",
     task_mode: str = "recurring",
     prior_output: str = "",
+    task_phase: str = "steady",
 ) -> tuple[str, str]:
     """Build system prompt and user message for task execution.
 
-    ADR-143: Preferences/feedback now injected via gathered context (load_context()).
-    ADR-149: DELIVERABLE.md injected into system prompt. Steering + feedback into user message.
-             Goal mode injects prior output as primary context.
+    ADR-154: Phase-aware. Bootstrap phase overrides step instructions.
+    ADR-149: DELIVERABLE.md injected into system prompt.
 
     Returns:
         (system_prompt, user_message)
@@ -659,8 +712,21 @@ If context says "(No context available)" or tools return no results:
             val = objective.get(key)
             if val:
                 user_parts.append(f"- **{key.capitalize()}:** {val}")
-        # Pipeline step instruction (ADR-145)
+        # ADR-154: Phase-aware step instruction
         step_instruction = objective.get("step_instruction")
+        if task_phase == "bootstrap" and step_instruction:
+            # Override with bootstrap-specific instruction if available
+            from services.task_types import STEP_INSTRUCTIONS
+            bootstrap_key = None
+            for key in STEP_INSTRUCTIONS:
+                if key.endswith(":bootstrap") and key.replace(":bootstrap", "") in (step_instruction[:30] or ""):
+                    bootstrap_key = key
+                    break
+            # Simpler: check if update-context:bootstrap exists and step is update-context
+            if "update-context:bootstrap" in STEP_INSTRUCTIONS:
+                # Check if original instruction matches update-context
+                if STEP_INSTRUCTIONS.get("update-context", "")[:50] in step_instruction[:50]:
+                    step_instruction = STEP_INSTRUCTIONS["update-context:bootstrap"]
         if step_instruction:
             user_parts.append(f"\n**Your specific role:** {step_instruction}")
 
@@ -713,17 +779,27 @@ If context says "(No context available)" or tools return no results:
 # Cadence Calculation
 # =============================================================================
 
-def calculate_next_run_at(schedule, last_run_at: Optional[datetime] = None) -> Optional[datetime]:
-    """Calculate next_run_at from schedule string or dict. Pure math, no LLM.
+def calculate_next_run_at(
+    schedule,
+    last_run_at: Optional[datetime] = None,
+    phase: str = "steady",
+    bootstrap_cadence: Optional[str] = None,
+) -> Optional[datetime]:
+    """Calculate next_run_at from schedule string. Pure math, no LLM.
 
-    ADR-138: schedule is stored as a simple string ('daily', 'weekly', 'monthly')
-    or cron expression in the tasks table.
+    ADR-154: Phase-aware. During bootstrap, uses bootstrap_cadence (typically
+    'daily') instead of the declared schedule. This runs context tasks
+    aggressively until bootstrap criteria are met.
     """
     now = last_run_at or datetime.now(timezone.utc)
 
-    # Handle string schedules (ADR-138 tasks table format)
-    if isinstance(schedule, str):
-        s = schedule.lower().strip()
+    # ADR-154: Use bootstrap cadence if in bootstrap phase
+    effective_schedule = schedule
+    if phase == "bootstrap" and bootstrap_cadence:
+        effective_schedule = bootstrap_cadence
+
+    if isinstance(effective_schedule, str):
+        s = effective_schedule.lower().strip()
         if s == "daily":
             return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
         elif s == "weekly":
@@ -736,10 +812,9 @@ def calculate_next_run_at(schedule, last_run_at: Optional[datetime] = None) -> O
                 return now.replace(year=now.year + 1, month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
             return now.replace(month=now.month + 1, day=1, hour=9, minute=0, second=0, microsecond=0)
         else:
-            # Unknown or cron — default to 24h
             return now + timedelta(hours=24)
 
-    # Legacy dict format (from old agent scheduling)
+    # Legacy dict format
     if isinstance(schedule, dict):
         try:
             from jobs.unified_scheduler import calculate_next_pulse_from_schedule
@@ -814,22 +889,9 @@ async def execute_task(
         task_feedback = _extract_recent_feedback(task_feedback_raw, max_entries=3)
 
         # =====================================================================
-        # 1c. Read mode from tasks table (ADR-149)
+        # 1c. Read mode from TASK.md (ADR-154 — single source of truth)
         # =====================================================================
-        task_mode = "recurring"  # default
-        try:
-            mode_row = (
-                client.table("tasks")
-                .select("mode")
-                .eq("user_id", user_id)
-                .eq("slug", task_slug)
-                .limit(1)
-                .execute()
-            )
-            if mode_row.data:
-                task_mode = mode_row.data[0].get("mode") or "recurring"
-        except Exception:
-            pass
+        task_mode = task_info.get("mode", "recurring")
 
         # =====================================================================
         # 1d. Check for multi-step process (ADR-152: read from TASK.md, not registry)
@@ -932,6 +994,17 @@ async def execute_task(
             prior_output = await tw.read("outputs/latest/output.md") or ""
 
         # =====================================================================
+        # 6c. Detect phase from awareness.md (ADR-154)
+        # =====================================================================
+        task_phase = "steady"
+        try:
+            _awareness_check = await tw.read("awareness.md") or ""
+            if "## Phase: bootstrap" in _awareness_check or "no prior cycles" in _awareness_check:
+                task_phase = "bootstrap"
+        except Exception:
+            pass
+
+        # =====================================================================
         # 7. Build prompt and generate
         # =====================================================================
         system_prompt, user_message = build_task_execution_prompt(
@@ -945,6 +1018,7 @@ async def execute_task(
             task_feedback=task_feedback,
             task_mode=task_mode,
             prior_output=prior_output,
+            task_phase=task_phase,
         )
 
         # ADR-148: No SKILL.md injection, no RuntimeDispatch during headless generation.
@@ -1176,7 +1250,7 @@ async def execute_task(
                 pass
 
         # =====================================================================
-        # 15. Update scheduling
+        # 15. Update scheduling (ADR-154: phase-aware)
         # =====================================================================
         now = datetime.now(timezone.utc)
         try:
@@ -1191,7 +1265,26 @@ async def execute_task(
             )
             schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
 
-            next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+            # ADR-154: Phase-aware cadence — read phase from awareness.md
+            _phase = "steady"
+            _bootstrap_cadence = None
+            try:
+                _awareness = await tw.read("awareness.md") or ""
+                if "## Phase: bootstrap" in _awareness:
+                    _phase = "bootstrap"
+                _type_key = task_info.get("type_key", "")
+                if _type_key:
+                    from services.task_types import get_bootstrap_criteria
+                    _bc = get_bootstrap_criteria(_type_key)
+                    if _bc:
+                        _bootstrap_cadence = _bc.get("bootstrap_cadence")
+            except Exception:
+                pass
+
+            next_run = calculate_next_run_at(
+                schedule, last_run_at=now,
+                phase=_phase, bootstrap_cadence=_bootstrap_cadence,
+            ) if schedule else None
 
             update_data = {
                 "last_run_at": now.isoformat(),

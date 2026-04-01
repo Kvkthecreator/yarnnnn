@@ -42,29 +42,29 @@ Task types are split into two classes: **context tasks** (accumulate workspace k
 
 Context tasks maintain your workspace knowledge domains. They run on schedule, update domain folders, and produce NO report output.
 
-| Type Key | Display Name | Schedule | Agent | Domains (writes) |
-|---|---|---|---|---|
-| **track-competitors** | Track Competitors | weekly | research | competitors, signals |
-| **track-market** | Track Market | monthly | research | market, signals |
-| **track-relationships** | Track Relationships | weekly | crm | relationships, signals |
-| **track-projects** | Track Projects | weekly | research | projects, signals |
-| **research-topics** | Research Topics | on-demand | research | content_research |
-| **monitor-slack** | Monitor Slack | daily | slack_bot | signals |
-| **monitor-notion** | Monitor Notion | weekly | notion_bot | signals |
+| Type Key | Display Name | Mode | Schedule | Bootstrap | Domains (writes) |
+|---|---|---|---|---|---|
+| **track-competitors** | Track Competitors | recurring | weekly | 3 entities, profile | competitors, signals |
+| **track-market** | Track Market | recurring | monthly | 2 entities, analysis | market, signals |
+| **track-relationships** | Track Relationships | recurring | weekly | 3 entities, profile | relationships, signals |
+| **track-projects** | Track Projects | recurring | weekly | 2 entities, status | projects, signals |
+| **research-topics** | Research Topics | goal | on-demand | 1 entity, research | content_research |
+| **monitor-slack** | Monitor Slack | recurring | daily | — | signals |
+| **monitor-notion** | Monitor Notion | recurring | weekly | — | signals |
 
 ### Synthesis Tasks — Reports & Outputs
 
 Synthesis tasks read from accumulated context domains and produce deliverables.
 
-| Type Key | Display Name | Schedule | Agent | Reads From | Output Category |
+| Type Key | Display Name | Mode | Schedule | Reads From | Output Category |
 |---|---|---|---|---|---|
-| **competitive-brief** | Competitive Brief | weekly | content | competitors, signals | briefs |
-| **market-report** | Market Report | monthly | content | market, competitors, signals | reports |
-| **meeting-prep** | Meeting Prep | on-demand | content | relationships, competitors, signals | briefs |
-| **stakeholder-update** | Stakeholder Update | monthly | content | ALL domains | reports |
-| **project-status** | Project Status Report | weekly | content | projects, signals | reports |
-| **content-brief** | Content Brief | on-demand | content | content_research, competitors, signals | content_output |
-| **launch-material** | Launch Material | on-demand | content | content_research, competitors, market, signals | content_output |
+| **competitive-brief** | Competitive Brief | recurring | weekly | competitors, signals | briefs |
+| **market-report** | Market Report | recurring | monthly | market, competitors, signals | reports |
+| **meeting-prep** | Meeting Prep | reactive | on-demand | relationships, competitors, signals | briefs |
+| **stakeholder-update** | Stakeholder Update | recurring | monthly | ALL domains | reports |
+| **project-status** | Project Status Report | recurring | weekly | projects, signals | reports |
+| **content-brief** | Content Brief | goal | on-demand | content_research, competitors, signals | content_output |
+| **launch-material** | Launch Material | goal | on-demand | content_research, competitors, market, signals | content_output |
 | **gtm-report** | GTM Report | weekly | content | competitors, market, signals | reports |
 
 ### Output Categories
