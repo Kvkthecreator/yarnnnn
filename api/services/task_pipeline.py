@@ -782,24 +782,18 @@ If context says "(No context available)" or tools return no results:
 def calculate_next_run_at(
     schedule,
     last_run_at: Optional[datetime] = None,
-    phase: str = "steady",
-    bootstrap_cadence: Optional[str] = None,
 ) -> Optional[datetime]:
     """Calculate next_run_at from schedule string. Pure math, no LLM.
 
-    ADR-154: Phase-aware. During bootstrap, uses bootstrap_cadence (typically
-    'daily') instead of the declared schedule. This runs context tasks
-    aggressively until bootstrap criteria are met.
+    ADR-154: Schedule is just schedule — no phase override. Phase affects
+    execution depth (tool rounds, prompt), not frequency. The journalist
+    model: first run is deep research, subsequent runs are delta updates,
+    but the check-in rhythm stays the same.
     """
     now = last_run_at or datetime.now(timezone.utc)
 
-    # ADR-154: Use bootstrap cadence if in bootstrap phase
-    effective_schedule = schedule
-    if phase == "bootstrap" and bootstrap_cadence:
-        effective_schedule = bootstrap_cadence
-
-    if isinstance(effective_schedule, str):
-        s = effective_schedule.lower().strip()
+    if isinstance(schedule, str):
+        s = schedule.lower().strip()
         if s == "daily":
             return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
         elif s == "weekly":
@@ -1028,6 +1022,7 @@ async def execute_task(
         # Generate via headless agent (multi-tool-round)
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
+            task_phase=task_phase,
         )
 
         # Strip agent reflection before delivery (ADR-128/149)
@@ -1265,26 +1260,7 @@ async def execute_task(
             )
             schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
 
-            # ADR-154: Phase-aware cadence — read phase from awareness.md
-            _phase = "steady"
-            _bootstrap_cadence = None
-            try:
-                _awareness = await tw.read("awareness.md") or ""
-                if "## Phase: bootstrap" in _awareness:
-                    _phase = "bootstrap"
-                _type_key = task_info.get("type_key", "")
-                if _type_key:
-                    from services.task_types import get_bootstrap_criteria
-                    _bc = get_bootstrap_criteria(_type_key)
-                    if _bc:
-                        _bootstrap_cadence = _bc.get("bootstrap_cadence")
-            except Exception:
-                pass
-
-            next_run = calculate_next_run_at(
-                schedule, last_run_at=now,
-                phase=_phase, bootstrap_cadence=_bootstrap_cadence,
-            ) if schedule else None
+            next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
 
             update_data = {
                 "last_run_at": now.isoformat(),
@@ -1877,10 +1853,7 @@ async def _execute_pipeline(
 # Generation (reuses headless agent loop from agent_execution)
 # =============================================================================
 
-# Scope → max tool rounds
-# ADR-154: Bumped from 3-8 to 5-12. Context tasks need rounds for
-# research + read existing + write multiple entity files. Awareness.md
-# scopes focus so extra rounds don't cause sprawl.
+# Scope → max tool rounds (steady state)
 _TOOL_ROUNDS = {
     "platform": 5,
     "cross_platform": 8,
@@ -1888,6 +1861,10 @@ _TOOL_ROUNDS = {
     "research": 10,
     "autonomous": 12,
 }
+
+# ADR-154: Bootstrap multiplier — first run is deep research (journalist model).
+# Phase affects depth (tool rounds), not frequency (schedule).
+_BOOTSTRAP_ROUND_MULTIPLIER = 2  # 2x rounds during bootstrap
 
 
 async def _generate(
@@ -1897,6 +1874,7 @@ async def _generate(
     system_prompt: str,
     user_message: str,
     scope: str,
+    task_phase: str = "steady",
 ) -> tuple[str, dict, list, list, int]:
     """Run the headless generation loop.
 
@@ -1913,8 +1891,11 @@ async def _generate(
     role = agent.get("role", "custom")
     max_tool_rounds = _TOOL_ROUNDS.get(scope, 5)
 
+    # ADR-154: Bootstrap phase gets 2x tool rounds — deep research on first run
+    if task_phase == "bootstrap":
+        max_tool_rounds = max_tool_rounds * _BOOTSTRAP_ROUND_MULTIPLIER
+
     # Agents with asset capabilities (chart, mermaid, image) need more rounds
-    # for both research tool calls AND asset generation
     from services.agent_framework import has_asset_capabilities
     if has_asset_capabilities(role):
         max_tool_rounds = max(max_tool_rounds, 6)

@@ -122,7 +122,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "bootstrap": {
             "min_entities": 3,
             "required_files": ["profile"],
-            "bootstrap_cadence": "daily",
         },
         "output_format": "markdown",
         "layout_mode": "document",
@@ -171,7 +170,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "bootstrap": {
             "min_entities": 2,
             "required_files": ["analysis"],
-            "bootstrap_cadence": "weekly",
         },
         "output_format": "markdown",
         "layout_mode": "document",
@@ -215,7 +213,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "bootstrap": {
             "min_entities": 3,
             "required_files": ["profile"],
-            "bootstrap_cadence": "daily",
         },
         "output_format": "markdown",
         "layout_mode": "document",
@@ -259,7 +256,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "bootstrap": {
             "min_entities": 2,
             "required_files": ["status"],
-            "bootstrap_cadence": "daily",
         },
         "output_format": "markdown",
         "layout_mode": "document",
@@ -303,7 +299,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "bootstrap": {
             "min_entities": 1,
             "required_files": ["research"],
-            "bootstrap_cadence": "daily",
         },
         "output_format": "markdown",
         "layout_mode": "document",
