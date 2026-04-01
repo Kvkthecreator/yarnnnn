@@ -57,7 +57,7 @@ export function ContextSetup({
   // --- State ---
   const [submitting, setSubmitting] = useState(false);
 
-  const hasContent = links.length > 0 || uploadedDocs.some(d => d.status === 'done') || notes.trim().length > 0;
+  const hasContent = links.length > 0 || linkInput.trim().length > 0 || uploadedDocs.some(d => d.status === 'done') || notes.trim().length > 0;
   const isUploading = uploadedDocs.some(d => d.status === 'uploading');
 
   // --- Link handlers ---
@@ -132,7 +132,21 @@ export function ContextSetup({
 
   // --- Submit ---
   const handleSubmit = useCallback(() => {
-    if (!hasContent || isUploading) return;
+    // Auto-add any pending link input before submitting
+    let finalLinks = [...links];
+    if (linkInput.trim()) {
+      const url = linkInput.trim();
+      const normalized = url.startsWith('http') ? url : 'https://' + url;
+      try {
+        new URL(normalized);
+        if (!finalLinks.includes(normalized)) {
+          finalLinks.push(normalized);
+        }
+      } catch { /* ignore invalid */ }
+    }
+
+    const hasFinalContent = finalLinks.length > 0 || uploadedDocs.some(d => d.status === 'done') || notes.trim().length > 0;
+    if (!hasFinalContent || isUploading) return;
     setSubmitting(true);
 
     const parts: string[] = [];
@@ -142,9 +156,9 @@ export function ContextSetup({
       parts.push(notes.trim());
     }
 
-    // Links
-    if (links.length > 0) {
-      parts.push(`\nHere are some links about me and my work:\n${links.map(l => `- ${l}`).join('\n')}`);
+    // Links — explicit format so TP knows to fetch them
+    if (finalLinks.length > 0) {
+      parts.push(`\nPlease read these links about me and my work:\n${finalLinks.map(l => `- ${l}`).join('\n')}\nFetch each URL and use the content to update my identity and brand.`);
     }
 
     // Uploaded files
@@ -155,7 +169,7 @@ export function ContextSetup({
 
     const message = parts.join('\n');
     onSubmit(message);
-  }, [hasContent, isUploading, notes, links, uploadedDocs, onSubmit]);
+  }, [isUploading, notes, links, linkInput, uploadedDocs, onSubmit]);
 
   return (
     <div className={cn(
