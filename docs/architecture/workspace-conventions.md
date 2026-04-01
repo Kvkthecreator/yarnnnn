@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v9 — ADR-153 platform_content sunset)
+**Status:** Canonical (v10 — TP awareness model hardened)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -181,25 +181,15 @@ The meaning of `latest/` and `{date}/` folders varies by task mode:
 
 ## TP Awareness Model
 
-Working memory injection at session start:
+TP's understanding of the workspace comes from three layers. Full architecture documented in [TP-DESIGN-PRINCIPLES.md](TP-DESIGN-PRINCIPLES.md#awareness-architecture).
 
-```
-### Your workspace
-- IDENTITY.md: Kevin, Founder at YARNNN
-- BRAND.md: set
-- preferences.md: 3 learned preferences
+**Layer 1: Ground truth** — `context_readiness` dict computed fresh at session start from actual workspace state. Identity/brand richness, task count, document count, domain health. Disposable — dies at session end.
 
-### Uploaded documents (2)
-- ir-deck-march-2026.md (PDF, 487KB, uploaded 2h ago)
-- product-roadmap.md (DOCX, 120KB, uploaded 3d ago)
+**Layer 2: Workspace files** — IDENTITY.md, BRAND.md, notes.md, preferences.md. Persistent, user-visible, written by TP and system hooks. TP's accumulated qualitative understanding.
 
-### Your team (6 agents)
-- Research Agent, Content Agent, Marketing Agent, CRM Agent, Slack Bot, Notion Bot
+**Layer 3: Behavioral guidance** — `CONTEXT_AWARENESS` prompt (always injected). Priorities, judgment rules, task catalog.
 
-### Connected platforms
-- Slack: synced 2h ago (5 channels)
-- Notion: synced 1d ago (12 pages)
-```
+**Agent-level awareness** (headless) — system hooks write to agent workspace after execution: `memory/run_log.md`, `memory/feedback.md`, `memory/reflections.md`. Agent reads on next run.
 
 ---
 
@@ -280,3 +270,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-31 | v7 | ADR-151: /workspace/context/ replaces /workspace/knowledge/. Accumulated context is workspace-scoped, shared across tasks. Domain registry governs structure. Task knowledge/ folder removed. |
 | 2026-03-31 | v8 | ADR-152: Unified directory registry. /workspace/documents/ renamed to /workspace/uploads/ (clarity: user-contributed vs system-produced). /workspace/outputs/ added (reports/, briefs/, content/ — promoted agent deliverables). Domain registry → directory registry (WORKSPACE_DIRECTORIES in directory_registry.py). |
 | 2026-03-31 | v9 | ADR-153: platform_content sunset. /platforms/ deprecated — platform data flows through tracking tasks into /workspace/context/ domains. Four roots → three roots. Platform sync file-sharing context removed. |
+| 2026-04-01 | v10 | TP Awareness Model hardened — three-layer architecture (ground truth, workspace files, behavioral guidance), agent-level hooks documented. Cross-ref TP-DESIGN-PRINCIPLES.md. |

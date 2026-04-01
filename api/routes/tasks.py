@@ -74,6 +74,9 @@ class TaskResponse(BaseModel):
     delivery: Optional[str] = None
     success_criteria: Optional[list] = None
     output_spec: Optional[list] = None
+    context_reads: Optional[list] = None
+    context_writes: Optional[list] = None
+    output_category: Optional[str] = None
     # Enriched from workspace (detail endpoint only)
     run_log: Optional[str] = None
 
@@ -286,6 +289,22 @@ def _parse_task_md(content: str) -> dict:
     if output_spec:
         result["output_spec"] = output_spec
 
+    # Context reads/writes/output_category (top-level bold fields)
+    for line in lines:
+        cr_match = re.match(r"\*\*Context Reads:\*\*\s*(.*)", line)
+        if cr_match:
+            raw = cr_match.group(1).strip()
+            result["context_reads"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        cw_match = re.match(r"\*\*Context Writes:\*\*\s*(.*)", line)
+        if cw_match:
+            raw = cw_match.group(1).strip()
+            result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        oc_match = re.match(r"\*\*Output Category:\*\*\s*(.*)", line)
+        if oc_match:
+            raw = oc_match.group(1).strip()
+            if raw and raw != "none":
+                result["output_category"] = raw
+
     return result
 
 
@@ -317,6 +336,9 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         delivery=task_md_parsed.get("delivery") if task_md_parsed else None,
         success_criteria=task_md_parsed.get("success_criteria") if task_md_parsed else None,
         output_spec=task_md_parsed.get("output_spec") if task_md_parsed else None,
+        context_reads=task_md_parsed.get("context_reads") if task_md_parsed else None,
+        context_writes=task_md_parsed.get("context_writes") if task_md_parsed else None,
+        output_category=task_md_parsed.get("output_category") if task_md_parsed else None,
     )
 
 

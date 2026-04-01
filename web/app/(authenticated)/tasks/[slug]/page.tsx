@@ -683,64 +683,51 @@ export default function TaskPage() {
           {leftTab === 'context' && (
             <div className="p-5 space-y-4">
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context Domains</h3>
-              {task.task_md ? (() => {
-                const reads = task.task_md.match(/\*\*Context Reads:\*\*\s*(.*)/)?.[1]?.split(',').map(s => s.trim()).filter(s => s && s !== 'none') || [];
-                const writes = task.task_md.match(/\*\*Context Writes:\*\*\s*(.*)/)?.[1]?.split(',').map(s => s.trim()).filter(s => s && s !== 'none') || [];
-                const outputCat = task.task_md.match(/\*\*Output Category:\*\*\s*(.*)/)?.[1]?.trim();
-                return (
-                  <div className="space-y-3">
-                    {reads.length > 0 && (
-                      <div>
-                        <p className="text-[11px] text-muted-foreground mb-1">Reads from:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {reads.map(d => (
-                            <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                              {d}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {writes.length > 0 && (
-                      <div>
-                        <p className="text-[11px] text-muted-foreground mb-1">Writes to:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {writes.map(d => (
-                            <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
-                              {d}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {outputCat && outputCat !== 'none' && (
-                      <div>
-                        <p className="text-[11px] text-muted-foreground mb-1">Output promoted to:</p>
-                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                          {outputCat}
+              <div className="space-y-3">
+                {(task.context_reads?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground mb-1">Reads from:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {task.context_reads!.map(d => (
+                        <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          {d}
                         </span>
-                      </div>
-                    )}
-                    {reads.length === 0 && writes.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No context domains configured for this task.
-                      </p>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                );
-              })() : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Task definition not loaded.
-                </p>
-              )}
-              {/* Agent assignment */}
+                )}
+                {(task.context_writes?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground mb-1">Writes to:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {task.context_writes!.map(d => (
+                        <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {task.output_category && (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground mb-1">Output promoted to:</p>
+                    <span className="px-2 py-0.5 text-[11px] rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                      {task.output_category}
+                    </span>
+                  </div>
+                )}
+                {!task.context_reads?.length && !task.context_writes?.length && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No context domains configured for this task.
+                  </p>
+                )}
+              </div>
               {task.agent_slugs && task.agent_slugs.length > 0 && (
                 <div className="pt-3 border-t border-border/50">
                   <p className="text-[11px] text-muted-foreground mb-1">Assigned agent:</p>
                   <p className="text-sm font-medium">{task.agent_slugs.join(', ')}</p>
                 </div>
               )}
-              {/* Mode */}
               {task.mode && (
                 <div>
                   <p className="text-[11px] text-muted-foreground mb-1">Mode:</p>

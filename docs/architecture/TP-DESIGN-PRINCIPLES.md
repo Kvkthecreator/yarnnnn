@@ -101,6 +101,72 @@ Action cards are NOT forms that bypass TP. They're INPUT SURFACES that feed into
 
 ---
 
+## Awareness Architecture
+
+TP's understanding of the workspace comes from three layers, each with a distinct role:
+
+### Layer 1: Ground Truth (computed fresh, disposable)
+
+Computed at session start by `build_working_memory()`. Dies at session end. Never persisted.
+
+| Signal | Source | What TP sees |
+|--------|--------|-------------|
+| `context_readiness.identity` | `_classify_richness(IDENTITY.md)` | `empty \| sparse \| rich` |
+| `context_readiness.brand` | `_classify_richness(BRAND.md)` | `empty \| sparse \| rich` |
+| `context_readiness.documents` | `filesystem_documents` count | integer |
+| `context_readiness.tasks` | `tasks` count (non-archived) | integer |
+| `context_readiness.context_domains` | count of domains with >0 files | integer |
+| `active_tasks` | `tasks` table query (top 10) | slug, mode, status, schedule, last/next run |
+| `context_domains` | per-domain file count + freshness | domain, file_count, latest_update, health |
+
+`context_readiness` renders into the prompt as "Context gaps." `active_tasks` and `context_domains` are computed but not yet rendered (infrastructure ready).
+
+**Purpose:** Ground truth prevents staleness. TP validates its own understanding against these signals every session.
+
+### Layer 2: Workspace Files (persistent, user-visible)
+
+Files TP reads at session start and writes during conversation via `UpdateContext`:
+
+| File | Purpose | Written by |
+|------|---------|-----------|
+| `IDENTITY.md` | Who the user is | TP via `UpdateContext(target="identity")` |
+| `BRAND.md` | Output style/voice | TP via `UpdateContext(target="brand")` |
+| `notes.md` | Standing instructions | Nightly cron (memory extraction) |
+| `preferences.md` | Learned output preferences | Feedback distillation |
+
+These are the workspace's accumulated knowledge about the user. They persist across sessions and are the primary context TP uses for judgment.
+
+### Layer 3: Behavioral Guidance (static prompt, always injected)
+
+`CONTEXT_AWARENESS` prompt in `tp_prompts/onboarding.py`. Tells TP:
+- Priority order: identity -> brand -> tasks
+- Behavioral rules: one suggestion at a time, never gate, no technical language
+- Navigation awareness: use what the user is viewing as context
+- Task type catalog: what to suggest and when
+
+**Key design choice:** This is GUIDANCE, not rules. TP uses judgment. The prompt sets priorities that TP can override when the user's intent is clear.
+
+### How the layers interact
+
+1. Session starts -> Layer 1 computes ground truth (what exists now)
+2. Layer 2 files are read into working memory (what TP knows qualitatively)
+3. Layer 3 guidance is injected into system prompt (how to act on signals)
+4. TP reads all three -> makes judgment calls -> acts via primitives
+5. Primitives update workspace files (Layer 2) -> next session, Layer 1 reflects the change
+
+**No feedback loops.** Layer 1 is read-only (computed, not optimized against). Layer 2 is TP's own notes (qualitative, not scored). Layer 3 is static guidance. TP can't "game" any of these.
+
+### Agent-level awareness (headless)
+
+Work-level agents don't have conversations. Their awareness comes from system hooks:
+- `memory/run_log.md` — appended after each task execution
+- `memory/feedback.md` — written by feedback distillation after user edits
+- `memory/reflections.md` — extracted from agent output after generation
+
+These are mechanical (no LLM judgment in the hook). The agent reads them on next execution and adjusts.
+
+---
+
 ## Anti-Patterns
 
 | Anti-Pattern | Why It's Wrong | What To Do Instead |

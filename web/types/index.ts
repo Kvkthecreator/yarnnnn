@@ -701,10 +701,12 @@ export interface Task {
 }
 
 export interface TaskDetail extends Task {
-  task_md?: string;            // raw TASK.md content
   run_log?: string;            // memory/run_log.md content
   success_criteria?: string[];
   output_spec?: string[];
+  context_reads?: string[];    // context domains this task reads from
+  context_writes?: string[];   // context domains this task writes to
+  output_category?: string;    // output category for promotion
 }
 
 export interface TaskCreate {
