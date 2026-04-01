@@ -123,7 +123,7 @@ class AgentWorkspace:
 
     # ADR-119 Phase 3: Evolving files that get version history on overwrite.
     # Output folders version by date accumulation, not overwrite history.
-    _EVOLVING_PATTERNS = {"AGENT.md", "thesis.md"}
+    _EVOLVING_PATTERNS = {"AGENT.md"}  # ADR-154: thesis.md dissolved
     _EVOLVING_DIRS = {"memory/"}
     _MAX_HISTORY_VERSIONS = 5
 
@@ -424,224 +424,63 @@ class AgentWorkspace:
             await self.write("AGENT.md", instructions,
                              summary="Agent identity and behavioral instructions")
 
-        # Seed memory/ from agent_memory JSONB
-        memory = agent.get("agent_memory") or {}
-
-        # Observations → memory/observations.md
-        observations = memory.get("observations", [])
-        if observations:
-            lines = []
-            for obs in observations:
-                date = obs.get("date", "")
-                note = obs.get("note", "")
-                source = obs.get("source", "trigger")
-                lines.append(f"- [{date}] ({source}) {note}")
-            await self.write("memory/observations.md", "\n".join(lines),
-                             summary="Accumulated observations")
-
-        # Review log → memory/review-log.md
-        review_log = memory.get("review_log", [])
-        if review_log:
-            lines = []
-            for entry in review_log:
-                date = entry.get("date", "")
-                action = entry.get("action", "")
-                note = entry.get("note", "")
-                lines.append(f"- [{date}] ({action}) {note}")
-            await self.write("memory/review-log.md", "\n".join(lines),
-                             summary="Review pass history")
-
-        # Goal → memory/goal.md
-        goal = memory.get("goal")
-        if goal:
-            desc = goal.get("description", "")
-            status = goal.get("status", "")
-            milestones = goal.get("milestones", [])
-            content = f"# Goal\n\n{desc}\n\n**Status:** {status}"
-            if milestones:
-                content += "\n\n## Milestones\n"
-                for m in milestones:
-                    content += f"- {m}\n"
-            await self.write("memory/goal.md", content,
-                             summary="Agent goal and milestones")
-
-        # Created agents (coordinator dedup) → memory/created-agents.md
-        created_agents = memory.get("created_agents", [])
-        if created_agents:
-            lines = []
-            for cd in created_agents:
-                date = cd.get("date", "")
-                title = cd.get("title", "")
-                key = cd.get("dedup_key", "none")
-                lines.append(f"- [{date}] {title} (key: {key})")
-            await self.write("memory/created-agents.md", "\n".join(lines),
-                             summary="Coordinator dedup log")
-
-        # Last generated at → memory/state.md (operational metadata)
-        last_gen = memory.get("last_generated_at")
-        if last_gen:
-            await self.write("memory/state.md",
-                             f"last_generated_at: {last_gen}",
-                             summary="Operational state")
+        # ADR-154: Legacy agent_memory JSONB migration REMOVED.
+        # Dissolved files (observations, review-log, goal, created-agents, state)
+        # are no longer written. Execution state lives on tasks, not agents.
 
         logger.info(f"[WORKSPACE] Seeded workspace from DB columns: {self._slug}")
 
     # =========================================================================
-    # Structured reads for execution pipeline
+    # =========================================================================
+    # ADR-154: Dissolved agent-level accessors — safe no-ops
+    # These methods are called from various code paths but no longer write
+    # to agent workspace. Execution state lives on tasks; domain knowledge
+    # lives in /workspace/context/. Kept as no-ops to avoid breaking callers.
     # =========================================================================
 
     async def get_observations(self) -> list[dict]:
-        """Read observations as structured list (for threshold counting)."""
-        content = await self.read("memory/observations.md")
-        if not content:
-            return []
-        entries = []
-        for line in content.strip().split("\n"):
-            line = line.strip()
-            if line.startswith("- ["):
-                # Parse: - [date] (source) note
-                try:
-                    rest = line[3:]  # after "- ["
-                    date_end = rest.index("]")
-                    date = rest[:date_end]
-                    rest = rest[date_end + 1:].strip()
-                    if rest.startswith("("):
-                        src_end = rest.index(")")
-                        source = rest[1:src_end]
-                        note = rest[src_end + 1:].strip()
-                    else:
-                        source = "unknown"
-                        note = rest
-                    entries.append({"date": date, "source": source, "note": note})
-                except (ValueError, IndexError):
-                    entries.append({"date": "", "source": "", "note": line})
-        return entries
+        """ADR-154: Dissolved. Returns empty list."""
+        return []
 
     async def get_review_log(self) -> list[dict]:
-        """Read review log as structured list."""
-        content = await self.read("memory/review-log.md")
-        if not content:
-            return []
-        entries = []
-        for line in content.strip().split("\n"):
-            line = line.strip()
-            if line.startswith("- ["):
-                try:
-                    rest = line[3:]
-                    date_end = rest.index("]")
-                    date = rest[:date_end]
-                    rest = rest[date_end + 1:].strip()
-                    if rest.startswith("("):
-                        src_end = rest.index(")")
-                        action = rest[1:src_end]
-                        note = rest[src_end + 1:].strip()
-                    else:
-                        action = "unknown"
-                        note = rest
-                    entries.append({"date": date, "action": action, "note": note})
-                except (ValueError, IndexError):
-                    entries.append({"date": "", "action": "", "note": line})
-        return entries
+        """ADR-154: Dissolved. Returns empty list."""
+        return []
 
     async def get_created_agents(self) -> list[dict]:
-        """Read created agents dedup log (coordinator mode)."""
-        content = await self.read("memory/created-agents.md")
-        if not content:
-            return []
-        entries = []
-        for line in content.strip().split("\n"):
-            line = line.strip()
-            if line.startswith("- ["):
-                try:
-                    rest = line[3:]
-                    date_end = rest.index("]")
-                    date = rest[:date_end]
-                    rest = rest[date_end + 1:].strip()
-                    # Parse: title (key: dedup_key)
-                    if "(key:" in rest:
-                        key_start = rest.index("(key:")
-                        title = rest[:key_start].strip()
-                        dedup_key = rest[key_start + 5:].rstrip(")").strip()
-                    else:
-                        title = rest
-                        dedup_key = "none"
-                    entries.append({"date": date, "title": title, "dedup_key": dedup_key})
-                except (ValueError, IndexError):
-                    entries.append({"date": "", "title": line, "dedup_key": "none"})
-        return entries
+        """ADR-154: Dissolved. Returns empty list."""
+        return []
 
     async def get_goal(self) -> Optional[dict]:
-        """Read goal from memory/goal.md."""
-        content = await self.read("memory/goal.md")
-        if not content:
-            return None
-        # Parse simple structure
-        desc = ""
-        status = ""
-        for line in content.split("\n"):
-            line = line.strip()
-            if line.startswith("# Goal"):
-                continue
-            elif line.startswith("**Status:**"):
-                status = line.replace("**Status:**", "").strip()
-            elif line and not line.startswith("##") and not line.startswith("-"):
-                if not desc:
-                    desc = line
-        return {"description": desc, "status": status} if desc else None
+        """ADR-154: Dissolved. Returns None."""
+        return None
 
     async def get_state(self, key: str) -> Optional[str]:
-        """Read an operational state value from memory/state.md."""
-        content = await self.read("memory/state.md")
-        if not content:
-            return None
-        for line in content.strip().split("\n"):
-            if line.startswith(f"{key}:"):
-                return line[len(key) + 1:].strip()
+        """ADR-154: Dissolved. Returns None."""
         return None
 
     async def set_state(self, key: str, value: str) -> bool:
-        """Set an operational state value in memory/state.md."""
-        content = await self.read("memory/state.md") or ""
-        lines = content.strip().split("\n") if content.strip() else []
-        updated = False
-        for i, line in enumerate(lines):
-            if line.startswith(f"{key}:"):
-                lines[i] = f"{key}: {value}"
-                updated = True
-                break
-        if not updated:
-            lines.append(f"{key}: {value}")
-        return await self.write("memory/state.md", "\n".join(lines),
-                                summary="Operational state")
+        """ADR-154: Dissolved. No-op, returns True."""
+        return True
 
     async def append_observation(self, note: str, source: str = "trigger") -> int:
-        """ADR-143: Redirect observations to feedback.md.
-
-        Preserves the API so existing callers (trigger_dispatch, edit primitive) don't break.
-        Returns 0 (count no longer meaningful).
-        """
-        import re as _re
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-        new_entry = f"## Observation ({timestamp}, {source})\n- {note}\n"
-
-        existing = await self.read("memory/feedback.md") or ""
-        header = "# Feedback History\n<!-- Most recent first. Max 10 entries. TP writes, agent reads. -->\n\n"
-        entries = _re.split(r"(?=^## )", existing, flags=_re.MULTILINE)
-        entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
-        entries = [new_entry.strip()] + entries[:9]
-        content = header + "\n\n".join(entries) + "\n"
-        await self.write("memory/feedback.md", content, summary="ADR-143: observation → feedback")
+        """ADR-154: Dissolved. No-op, returns 0."""
         return 0
 
     async def clear_observations(self) -> bool:
-        """ADR-143: No-op. Observations now part of feedback.md (capped, self-cleaning)."""
+        """ADR-154: Dissolved. No-op, returns True."""
         return True
 
     async def append_created_agent(self, title: str, dedup_key: str) -> bool:
-        """Append to coordinator created agents log."""
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        line = f"- [{date}] {title} (key: {dedup_key})"
-        return await self.append("memory/created-agents.md", line)
+        """ADR-154: Dissolved. No-op, returns True."""
+        return True
+
+    async def record_observation(self, note: str, source: str = "review") -> bool:
+        """ADR-154: Dissolved. No-op, returns True."""
+        return True
+
+    async def update_thesis(self, thesis: str) -> bool:
+        """ADR-154: Dissolved. Domain understanding lives in context domains."""
+        return True
 
     # =========================================================================
     # Convenience methods for common workspace patterns
@@ -678,19 +517,6 @@ class AgentWorkspace:
                 parts.append(f"## Playbook: {topic}\n{content}")
 
         return "\n\n---\n\n".join(parts) if parts else ""
-
-    async def record_observation(self, note: str, source: str = "review") -> bool:
-        """ADR-143: Redirect to append_observation → feedback.md."""
-        await self.append_observation(note, source=source)
-        return True
-
-    async def update_thesis(self, thesis: str) -> bool:
-        """Update the agent's thesis (full replacement)."""
-        return await self.write(
-            "thesis.md",
-            thesis,
-            summary="Agent's current domain understanding",
-        )
 
     # ----- Duty helpers (ADR-117 Phase 3) -----
 

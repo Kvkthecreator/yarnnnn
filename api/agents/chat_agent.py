@@ -179,13 +179,9 @@ class ChatAgent(BaseAgent):
                 text = agent_md if isinstance(agent_md, str) else agent_md.get("content", "")
                 parts.append(f"## Your Identity (AGENT.md)\n{text[:2000]}")
 
-            # Load thesis.md (domain understanding)
-            thesis = await ws.read("thesis.md")
-            if thesis:
-                text = thesis if isinstance(thesis, str) else thesis.get("content", "")
-                parts.append(f"## Your Domain Thesis\n{text[:2000]}")
+            # ADR-154: thesis.md dissolved — domain understanding in /workspace/context/
 
-            # Load memory files (observations, preferences)
+            # Load memory files (playbooks only per ADR-154)
             memory_files = await ws.list("memory/")
             if memory_files:
                 memory_parts = []

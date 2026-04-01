@@ -460,34 +460,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.warning(f"[CREATE_TASK] TASK.md write failed (non-fatal): {e}")
 
-    # Update primary agent's memory/tasks.json
-    try:
-        from services.workspace import AgentWorkspace
-        aw = AgentWorkspace(auth.client, user_id, agent_slug)
-        existing_raw = await aw.read("memory/tasks.json")
-        if existing_raw:
-            try:
-                tasks_list = _json.loads(existing_raw)
-            except (ValueError, TypeError):
-                tasks_list = []
-        else:
-            tasks_list = []
-
-        tasks_list.append({
-            "task_slug": slug,
-            "title": title,
-            "type_key": type_key,
-            "schedule": schedule,
-            "created_at": now.isoformat(),
-        })
-        await aw.write(
-            "memory/tasks.json",
-            _json.dumps(tasks_list, indent=2),
-            summary=f"Task assignments for {agent_slug}",
-            tags=["tasks", "memory"],
-        )
-    except Exception as e:
-        logger.warning(f"[CREATE_TASK] Agent tasks.json update failed (non-fatal): {e}")
+    # ADR-154: memory/tasks.json dissolved — task assignments tracked via TASK.md, not agent memory
 
     # Activity log
     try:

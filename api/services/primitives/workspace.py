@@ -27,23 +27,17 @@ READ_WORKSPACE_TOOL = {
     "name": "ReadWorkspace",
     "description": """Read a file from your workspace.
 
-Your workspace contains your accumulated knowledge:
-- AGENT.md — your identity and behavioral instructions (like CLAUDE.md)
-- thesis.md — your current understanding of your domain
-- memory/observations.md — observations from past review passes
-- memory/preferences.md — learned preferences from user edits
-- memory/{topic}.md — topic-scoped memory files
-- working/{topic}.md — your intermediate research notes (ephemeral)
-- outputs/{date}/output.md — your past outputs (one folder per run)
-- outputs/{date}/manifest.json — metadata about each run
+Your workspace contains your identity and methodology:
+- AGENT.md — your identity and behavioral instructions
+- memory/playbook-*.md — your methodology files
 
-Use this to review your prior work before generating new output.""",
+Use this to review your identity. For domain context, use QueryKnowledge or read from context domains via scope='context'.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Relative path within your workspace (e.g., 'thesis.md', 'working/competitive-landscape.md')"
+                "description": "Relative path within your workspace (e.g., 'AGENT.md', 'memory/playbook-outputs.md')"
             }
         },
         "required": ["path"]
@@ -53,27 +47,25 @@ Use this to review your prior work before generating new output.""",
 
 WRITE_WORKSPACE_TOOL = {
     "name": "WriteWorkspace",
-    "description": """Write a file to your workspace or to shared context domains.
+    "description": """Write a file to shared context domains or your agent workspace.
 
-**Agent workspace** (default scope):
-- Update thesis.md with refined domain understanding
-- Save working/{topic}.md with research notes (ephemeral — auto-cleaned after 24h)
-- Save topic-scoped memory to memory/{topic}.md
-
-**Shared context** (scope="context", ADR-151):
+**Shared context** (scope="context") — PRIMARY USE:
 - Write to /workspace/context/{domain}/ — accumulated intelligence shared across all tasks
 - Use during "update-context" steps to persist research findings
 - Example: WriteWorkspace(path="acme-corp/signals.md", content="...", scope="context", domain="competitors")
 - Entity files: {entity-slug}/profile.md, signals.md, product.md, strategy.md
 - Synthesis files: _landscape.md, _overview.md, _portfolio.md
 
-What you write persists between runs and is readable by all tasks that declare this domain in context_reads.""",
+**Agent workspace** (default scope):
+- Rarely needed — agent workspace is identity only (AGENT.md, playbooks)
+
+What you write to context domains persists between runs and is readable by all tasks that declare this domain in context_reads.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Relative path. For scope='agent': e.g., 'thesis.md'. For scope='context': path within the domain folder, e.g., 'acme-corp/signals.md'"
+                "description": "Relative path. For scope='context': path within the domain folder, e.g., 'acme-corp/signals.md'. For scope='agent': e.g., 'AGENT.md'"
             },
             "content": {
                 "type": "string",
