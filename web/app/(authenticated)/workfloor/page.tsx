@@ -674,21 +674,26 @@ export default function WorkfloorPage() {
 
       {/* Right: Chat panel (slides in) or FAB (floating) */}
       {chatOpen && (
-        <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+        <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background overflow-hidden">
+          {/* Chat header — always visible, never scrolls */}
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
             <div className="flex items-center gap-2">
+              <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
               <span className="text-xs font-medium">TP</span>
               {selectedFile && (
-                <span className="text-[10px] text-muted-foreground/50 truncate max-w-[180px]">
-                  viewing {selectedFile.name}
+                <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
+                  · viewing {selectedFile.name}
                 </span>
               )}
             </div>
-            <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted">
+            <button onClick={() => setChatOpen(false)} className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
-          <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
+          {/* Chat content — scrolls independently */}
+          <div className="flex-1 min-h-0">
+            <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
+          </div>
         </div>
       )}
 
