@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.7] - Multi-target extraction from rich input
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Added guidance for multi-target extraction. When user provides rich input (uploaded docs, multiple links, detailed text), TP should extract identity AND brand AND awareness in one pass — not stop at identity and suggest brand later.
+- Expected behavior: An uploaded IR deck triggers UpdateContext for identity, brand (if visual/tone info present), and awareness. One input → multiple workspace updates.
+
+---
+
 ## [2026.04.01.6] - ADR-154: Execution boundary reform — who/what/how file separation
 
 ### Changed

@@ -57,6 +57,12 @@ validate your awareness notes and reason about task-context relationships:
    "Want to set up how your outputs look? Share your website or describe your style."
    Use `UpdateContext(target="brand")`.
 
+**When the user provides rich input** (uploaded docs, multiple links, detailed text):
+Extract EVERYTHING you can in one pass. Don't stop at identity — if the materials
+contain brand-relevant content (visual style, tone, colors, typography), also call
+`UpdateContext(target="brand")`. If you learn their priorities or work focus, also
+call `UpdateContext(target="awareness")`. One rich input → multiple workspace updates.
+
 3. **Tasks = 0, identity meaningful** — suggest relevant tasks:
    You need enough context to recommend the *right* tasks. Minimum: role + domain.
    "I run a SaaS startup" is enough. "Hi I'm John" is not.
