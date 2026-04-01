@@ -597,9 +597,14 @@ export default function WorkfloorPage() {
         />
       </div>
 
-      {/* Layer 1b: Content viewer overlay — shows when file selected from Files tab */}
+      {/* Layer 1b: Content viewer — shows when file selected from Files tab */}
+      {/* Positioned between left panel (w-[380px] + left-4) and right chat (w-[380px] + right-4) */}
       {selectedFile && activeTab === 'files' && (
-        <div className="absolute inset-0 z-10 bg-background overflow-auto">
+        <div className={cn(
+          "absolute top-4 bottom-4 z-10 bg-background/95 backdrop-blur-sm rounded-lg border border-border/50 overflow-auto shadow-sm",
+          panelOpen ? "left-[400px]" : "left-4",
+          chatOpen ? "right-[400px]" : "right-4",
+        )}>
           <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/95 sticky top-0 z-10">
             <span className="text-xs text-muted-foreground truncate">{selectedFile.path}</span>
             <button

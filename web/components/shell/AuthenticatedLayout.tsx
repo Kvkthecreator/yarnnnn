@@ -99,12 +99,9 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-139: Navigation — Workfloor (home), browse pages, then system pages
-const BROWSE_PAGES: RouteItem[] = [
-  { id: 'tasks', label: 'Tasks', icon: ListChecks, path: '/tasks' },
-  { id: 'agents', label: 'Agents', icon: Users, path: '/agents' },
-  { id: 'context', label: 'Context', icon: FolderOpen, path: '/context' },
-];
+// ADR-152: Tasks/Agents/Context now in workfloor left panel (Files tab).
+// Browse pages reduced — only Activity and Settings in nav dropdown.
+const BROWSE_PAGES: RouteItem[] = [];
 
 const SECONDARY_PAGES: RouteItem[] = [
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
