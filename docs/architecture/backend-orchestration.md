@@ -1,38 +1,39 @@
 # Backend Orchestration — Canonical Reference
 
-**Version**: 5.0
-**Last updated**: 2026-03-30 (ADR-138/141: task-based execution, ADR-131: Gmail/Calendar removed, ADR-118: output gateway)
+**Version**: 6.0
+**Last updated**: 2026-04-01 (ADR-153: platform-sync service removed, platform_content sunset)
 **Status**: Canonical — single authoritative reference for all background processing.
 
 ---
 
 ## Overview
 
-YARNNN runs 5 Render services sharing a single codebase:
+YARNNN runs 4 Render services sharing a single codebase:
 
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, TP chat, manual triggers |
-| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task execution, composer, memory, cleanup |
-| 3 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
-| 4 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
-| 5 | `yarnnn-render` | `srv-d6sirjffte5s73f90pfg` | Web Service (Docker) | Always-on | Output gateway — PDF, PPTX, charts, HTML (ADR-118) |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task execution, composer, memory, cleanup, import jobs |
+| 3 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
+| 4 | `yarnnn-render` | `srv-d6sirjffte5s73f90pfg` | Web Service (Docker) | Always-on | Output gateway — PDF, PPTX, charts, HTML (ADR-118) |
+
+Platform sync service removed (ADR-153). Platform data flows through tasks into workspace context domains.
 
 All execution is inline — no background worker, no Redis. On-demand operations use FastAPI BackgroundTasks.
 
 ### Data Flow
 
 ```
-External APIs ──[Sync]──→ platform_content ──→ workspace knowledge
-                                                       │
-                                              [Task Pipeline]
-                                                       │
-                                                       ▼
-                                              workspace outputs → agent_runs
-                                                       │
-                                              [Delivery]
-                                                       ▼
-                                              Email (+ optional render)
+External APIs ──[Import Jobs]──→ workspace context domains
+                                         │
+                                [Task Pipeline]
+                                         │
+                                         ▼
+                                workspace outputs → agent_runs
+                                         │
+                                [Delivery]
+                                         ▼
+                                Email (+ optional render)
 
 chat_sessions ──[Memory Extraction]──→ user_memory ──→ injected into TP
 
@@ -72,8 +73,7 @@ activity_log ◄── ALL features (observability)
 
 | Consumer | File | Trigger | Cost |
 |----------|------|---------|------|
-| Platform sync | `workers/platform_worker.py` | Sync cron | Platform API calls only |
-| Content cleanup | `services/platform_content.py` | Hourly cron | DB deletes |
+| Import jobs | `jobs/import_jobs.py` | Every 5 min | Platform API calls only |
 | Workspace cleanup | `services/workspace.py` | Hourly cron | DB deletes |
 | Import jobs | `jobs/import_jobs.py` | Every 5 min | DB + platform API |
 | Scheduler heartbeat | `jobs/unified_scheduler.py` | Every 5 min | DB queries + activity writes |
@@ -112,45 +112,12 @@ Each tick executes these phases in order:
 
 ---
 
-## Platform Sync Scheduler
-
-**File**: `api/jobs/platform_sync_scheduler.py`
-**Render cron**: `*/5 * * * *` — `cd api && python -m jobs.platform_sync_scheduler`
-
-**Zero LLM cost.** Pure DB queries + platform API calls.
-
-### Per-Tick Flow
-
-1. Query `platform_connections` for connected users
-2. Per user: check tier-based sync schedule (`should_sync_now()`)
-3. Per eligible platform: dispatch to `platform_worker.py`
-
-### Platforms
-
-| Platform | Client | TTL | Key Feature |
-|----------|--------|-----|-------------|
-| Slack | `SlackAPIClient` | 14d | Thread expansion, user resolution |
-| Notion | `NotionAPIClient` | 90d | Recursive blocks (depth 3), database query |
-| GitHub | `GitHubAPIClient` | 14d | Issues + PRs, token refresh on 401 |
-
-Gmail and Calendar removed (ADR-131).
-
-### Sync Frequency
-
-| Tier | Frequency | Schedule |
-|------|-----------|----------|
-| Free | Daily | 8am + 6pm user timezone |
-| Pro | Hourly | Top of each hour |
-
----
-
 ## Observability
 
 ### activity_log Events
 
 | Event Type | Writer | Frequency | Purpose |
 |-----------|--------|-----------|---------|
-| `platform_synced` | `platform_worker.py` | Per sync | Sync tracking |
 | `task_executed` | `task_pipeline.py` | Per task run | Execution audit |
 | `agent_bootstrapped` | `composer.py` | On agent creation | Composer actions |
 | `memory_written` | `memory.py` | Nightly | Memory extraction |
@@ -175,9 +142,7 @@ Gmail and Calendar removed (ADR-131).
 
 | Table | Written by (backend) | Read by (backend) |
 |-------|---------------------|------------------|
-| `platform_content` | Platform sync, content cleanup | Task pipeline (context gathering), TP Search |
-| `sync_registry` | Platform sync | Sync scheduler (freshness), system state |
-| `platform_connections` | OAuth | Scheduler (user discovery), sync scheduler |
+| `platform_connections` | OAuth | Scheduler (user discovery), import jobs |
 | `agents` | Composer, API routes | Task pipeline, scheduler |
 | `tasks` | API routes, TP primitives | Scheduler (`next_run_at` query) |
 | `agent_runs` | Task pipeline | Frontend, delivery |
@@ -194,27 +159,26 @@ Gmail and Calendar removed (ADR-131).
 
 **Critical shared env vars** — when changing, check ALL services:
 
-| Env Var | API | Scheduler | Sync | MCP | Render |
-|---------|-----|-----------|------|-----|--------|
-| `SUPABASE_URL` | yes | yes | yes | yes | yes |
-| `SUPABASE_SERVICE_KEY` | yes | yes | yes | yes | yes |
-| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | yes | — | — |
-| `SLACK_CLIENT_ID/SECRET` | yes | — | yes | — | — |
-| `NOTION_CLIENT_ID/SECRET` | yes | yes | yes | — | — |
-| `GITHUB_CLIENT_ID/SECRET` | yes | — | — | — | — |
-| `ANTHROPIC_API_KEY` | yes | yes | — | — | — |
-| `RESEND_API_KEY` | yes | yes | — | — | — |
-| `RENDER_SERVICE_URL` | yes | yes | — | — | — |
-| `RENDER_SERVICE_SECRET` | yes | yes | — | — | yes |
-| `MCP_BEARER_TOKEN` | — | — | — | yes | — |
-| `MCP_USER_ID` | — | — | — | yes | — |
+| Env Var | API | Scheduler | MCP | Render |
+|---------|-----|-----------|-----|--------|
+| `SUPABASE_URL` | yes | yes | yes | yes |
+| `SUPABASE_SERVICE_KEY` | yes | yes | yes | yes |
+| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | — | — |
+| `SLACK_CLIENT_ID/SECRET` | yes | — | — | — |
+| `NOTION_CLIENT_ID/SECRET` | yes | yes | — | — |
+| `GITHUB_CLIENT_ID/SECRET` | yes | — | — | — |
+| `ANTHROPIC_API_KEY` | yes | yes | — | — |
+| `RESEND_API_KEY` | yes | yes | — | — |
+| `RENDER_SERVICE_URL` | yes | yes | — | — |
+| `RENDER_SERVICE_SECRET` | yes | yes | — | yes |
+| `MCP_BEARER_TOKEN` | — | — | yes | — |
+| `MCP_USER_ID` | — | — | yes | — |
 
 ---
 
 ## Design Principles
 
-1. **Single fetch path**: Platform sync is the ONLY feature calling external platform APIs. Everything else reads `platform_content` or `workspace_files`.
-2. **Content retention** (ADR-072): Synced content starts ephemeral with TTL. Task pipeline marks consumed content as retained. Cleanup deletes expired non-retained content.
+1. **Task-first data flow** (ADR-153): Platform data flows through import jobs into workspace context domains. No `platform_content` table.
 3. **Implicit memory** (ADR-064): No explicit memory tools for TP. Nightly cron extracts facts.
 4. **Delivery-first** (ADR-066): No approval gate. Task pipeline delivers immediately after generation.
 5. **Mechanical scheduling** (ADR-141): Zero LLM cost for scheduling. Pure SQL: `next_run_at <= now()`.
