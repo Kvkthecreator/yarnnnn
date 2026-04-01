@@ -13,7 +13,7 @@ YARNNN has three registries that work together:
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
 | **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
-| **Agent Types** | Who does the work | `agent_framework.py` | `AGENT_TYPES` |
+| **Agent Templates** (v4 domain-steward) | Who does the work — domain-steward + synthesizer + bot | `agent_framework.py` | `AGENT_TEMPLATES` |
 | **Task Types** (v3 atomic) | How work gets done — split into context + synthesis | `task_types.py` | `TASK_TYPES` |
 
 **Read direction:** Domains are upstream → Context tasks WRITE to domains → Synthesis tasks READ from domains → Agent types execute task steps.
@@ -22,14 +22,15 @@ YARNNN has three registries that work together:
 
 ## Domain ↔ Task ↔ Agent Matrix
 
-| Context Domain | Context Tasks (WRITE) | Synthesis Tasks (READ) | Agent Types involved |
+| Context Domain | Context Tasks (WRITE) | Synthesis Tasks (READ) | Agent (domain steward) |
 |---|---|---|---|
-| **competitors** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material, gtm-report | research, content |
-| **market** | track-market | market-report, launch-material, gtm-report | research, content |
-| **relationships** | track-relationships | meeting-prep, stakeholder-update | crm, content |
-| **projects** | track-projects | project-status, stakeholder-update | research, content |
-| **content_research** | research-topics | content-brief, launch-material | research, content |
-| **signals** | monitor-slack, monitor-notion, ALL context tasks | ALL synthesis tasks | all agent types |
+| **competitors/** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material, gtm-report | Competitive Intelligence |
+| **market/** | track-market | market-report, launch-material, gtm-report | Market Research |
+| **relationships/** | track-relationships | meeting-prep, stakeholder-update | Business Development |
+| **projects/** | track-projects | project-status, stakeholder-update | Operations |
+| **content/** | research-topics | content-brief, launch-material | Marketing & Creative |
+| **signals/** | monitor-slack, monitor-notion, ALL context tasks | ALL synthesis tasks | Slack Bot, Notion Bot |
+| **(cross-domain)** | — | stakeholder-update, market-report | Executive Reporting (synthesizer) |
 
 ---
 
@@ -82,16 +83,18 @@ Context tasks do NOT produce outputs — they write directly to `/workspace/cont
 
 ## Agent Roster (Default — Pre-Scaffolded at Signup)
 
-| Agent Type | Class | Capabilities | Typical Task Steps | Domain Affinity |
-|---|---|---|---|---|
-| **Research Agent** | agent | web_search, investigate, chart, mermaid | update-context (research), derive-output | competitors, market, projects |
-| **Content Agent** | agent | compose_html, chart, mermaid | derive-output (composition) | reads all, writes none |
-| **Marketing Agent** | agent | web_search, read_platforms | update-context (GTM), capture-and-report | competitors, market, signals |
-| **CRM Agent** | agent | read_platforms, read_workspace | update-context (relationships) | relationships |
-| **Slack Bot** | bot | read_platforms, write_slack | capture-and-report | signals |
-| **Notion Bot** | bot | read_platforms, write_notion | capture-and-report | signals |
+| Agent | Class | Domain Owned | Capabilities Summary |
+|---|---|---|---|
+| **Competitive Intelligence** | domain-steward | competitors/ | web_search, investigate, chart |
+| **Market Research** | domain-steward | market/ | web_search, investigate, chart |
+| **Business Development** | domain-steward | relationships/ | read_platforms, investigate |
+| **Operations** | domain-steward | projects/ | read_platforms, chart |
+| **Marketing & Creative** | domain-steward | content/ | web_search, chart, image, video_render, compose_html |
+| **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
+| **Slack Bot** | platform-bot | signals/ (Slack) | read_platforms, write_slack |
+| **Notion Bot** | platform-bot | signals/ (Notion) | read_platforms, write_notion |
 
-**Key principle:** Agents carry SKILL (capabilities). Tasks assign agents to DOMAINS. Agent IDENTITY specializes over time through accumulated domain experience.
+**Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
 
 ---
 

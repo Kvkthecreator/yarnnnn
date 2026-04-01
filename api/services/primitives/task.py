@@ -490,6 +490,13 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
     except Exception:
         pass
 
+    # Update WORKSPACE.md manifest (living manifest — ADR-152)
+    try:
+        from services.workspace_init import update_workspace_manifest
+        await update_workspace_manifest(auth.client, user_id)
+    except Exception:
+        pass  # Non-fatal
+
     # Build process narration for TP to explain the workflow
     process_narration = None
     if type_key and resolved_steps:

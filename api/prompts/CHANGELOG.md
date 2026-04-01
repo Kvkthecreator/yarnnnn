@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.2] - Agent registry v4: domain-steward model + living WORKSPACE.md
+
+### Changed
+- `services/agent_framework.py`: `AGENT_TYPES` → `AGENT_TEMPLATES` (v4). 8 templates: 5 domain-stewards (competitive_intel, market_research, business_dev, operations, marketing), 1 synthesizer (executive), 2 bots.
+- `services/task_types.py`: All 15 task types updated with v4 agent_type values.
+- `services/workspace_init.py`: `update_workspace_manifest()` keeps WORKSPACE.md current as a living manifest.
+- DB migration 137: v4 role CHECK constraint.
+- Templates are bootstrapping — AGENT.md is runtime source of truth post-creation.
+
+---
+
 ## [2026.04.01.1] - ADR-153 Phase 4-5: Full infrastructure teardown
 
 ### Changed

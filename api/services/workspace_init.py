@@ -135,38 +135,142 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
     return result
 
 
-def _build_workspace_manifest(init_result: dict, timestamp: datetime) -> str:
-    """Build WORKSPACE.md — snapshot of workspace initialization.
+async def update_workspace_manifest(client: Any, user_id: str) -> bool:
+    """Update WORKSPACE.md with current workspace state.
 
-    This is a reference document, not a runtime config. The workspace
-    filesystem is the source of truth after initialization.
+    Called after agent/domain/task creation to keep manifest current.
+    TP reads WORKSPACE.md at session start for meta-awareness.
+
+    Returns True on success.
     """
-    from services.directory_registry import WORKSPACE_DIRECTORIES
-    from services.agent_framework import DEFAULT_ROSTER
+    from services.workspace import UserMemory
 
-    agents_section = "\n".join(f"- {a['title']} ({a['role']})" for a in DEFAULT_ROSTER)
+    um = UserMemory(client, user_id)
+    now = datetime.now(timezone.utc)
+
+    try:
+        # Query actual workspace state (not registry defaults)
+        agents_result = (
+            client.table("agents")
+            .select("title, role, status, slug")
+            .eq("user_id", user_id)
+            .neq("status", "archived")
+            .order("created_at")
+            .execute()
+        )
+        agents = agents_result.data or []
+
+        tasks_result = (
+            client.table("tasks")
+            .select("slug, mode, status, schedule")
+            .eq("user_id", user_id)
+            .neq("status", "archived")
+            .order("created_at")
+            .execute()
+        )
+        tasks = tasks_result.data or []
+
+        # Build agent table with domain assignments
+        from services.agent_framework import get_agent_domain
+        agent_lines = []
+        for a in agents:
+            domain = get_agent_domain(a.get("role", ""))
+            domain_str = f"`{domain}/`" if domain else "(cross-domain)" if a.get("role") == "executive" else "(platform)"
+            agent_lines.append(f"| {a['title']} | {a.get('role', '?')} | {domain_str} | {a['status']} |")
+
+        # Build task table
+        task_lines = []
+        for t in tasks:
+            task_lines.append(f"| {t['slug']} | {t.get('mode', '?')} | {t.get('schedule', 'on-demand')} | {t['status']} |")
+
+        # Count context domain files
+        from services.directory_registry import CONTEXT_DOMAINS, get_directory_path
+        domain_lines = []
+        for domain_key in CONTEXT_DOMAINS:
+            path = get_directory_path(domain_key)
+            if path:
+                prefix = f"/workspace/{path}/"
+                try:
+                    count_result = (
+                        client.table("workspace_files")
+                        .select("id", count="exact")
+                        .eq("user_id", user_id)
+                        .like("path", f"{prefix}%")
+                        .execute()
+                    )
+                    file_count = count_result.count or 0
+                except Exception:
+                    file_count = 0
+                domain_lines.append(f"| {domain_key} | {file_count} files |")
+
+        manifest = f"""# Workspace
+
+Last updated: {now.strftime('%Y-%m-%d %H:%M UTC')}
+
+## Agents ({len(agents)})
+
+| Agent | Role | Domain | Status |
+|---|---|---|---|
+{chr(10).join(agent_lines) if agent_lines else "| (none) | | | |"}
+
+## Tasks ({len(tasks)})
+
+| Task | Mode | Schedule | Status |
+|---|---|---|---|
+{chr(10).join(task_lines) if task_lines else "| (none) | | | |"}
+
+## Context Domains
+
+| Domain | Content |
+|---|---|
+{chr(10).join(domain_lines) if domain_lines else "| (none) | |"}
+
+---
+*This manifest reflects current workspace state. Updated on agent/domain/task creation.*
+"""
+
+        await um.write("WORKSPACE.md", manifest, summary="Workspace manifest updated")
+        return True
+
+    except Exception as e:
+        logger.warning(f"[WORKSPACE_INIT] Manifest update failed: {e}")
+        return False
+
+
+def _build_workspace_manifest(init_result: dict, timestamp: datetime) -> str:
+    """Build initial WORKSPACE.md at workspace creation time."""
+    from services.directory_registry import WORKSPACE_DIRECTORIES
+    from services.agent_framework import DEFAULT_ROSTER, get_agent_domain
+
+    agent_lines = []
+    for a in DEFAULT_ROSTER:
+        domain = get_agent_domain(a['role'])
+        domain_str = f"`{domain}/`" if domain else "(cross-domain)" if a['role'] == 'executive' else "(platform)"
+        agent_lines.append(f"| {a['title']} | {a['role']} | {domain_str} | active |")
 
     context_domains = [
-        f"- {k}: {v['display_name']}"
+        f"| {k} | 0 files |"
         for k, v in WORKSPACE_DIRECTORIES.items()
         if v.get("type") == "context"
-    ]
-    output_categories = [
-        f"- {k}: {v['display_name']}"
-        for k, v in WORKSPACE_DIRECTORIES.items()
-        if v.get("type") == "output"
     ]
 
     return f"""# Workspace
 
 Initialized: {timestamp.strftime('%Y-%m-%d %H:%M UTC')}
 
-## Structure
+## Agents ({len(DEFAULT_ROSTER)})
 
-### Agents
-{agents_section}
+| Agent | Role | Domain | Status |
+|---|---|---|---|
+{chr(10).join(agent_lines)}
 
-### Context Domains
+## Tasks (0)
+
+| Task | Mode | Schedule | Status |
+|---|---|---|---|
+| (none — create tasks to begin) | | | |
+
+## Context Domains
 {chr(10).join(context_domains)}
 
 ### Output Categories
