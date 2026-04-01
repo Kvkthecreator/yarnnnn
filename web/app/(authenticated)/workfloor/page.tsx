@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  FolderOpen,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -36,7 +37,7 @@ import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceDashboard } from '@/components/workspace/WorkspaceDashboard';
-import { IsometricRoom } from '@/components/workfloor/IsometricRoom';
+// IsometricRoom removed — dashboard activity feed replaces it
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
@@ -531,14 +532,14 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'files'>('files');
+  // activeTab removed — left panel is Files only, no tabs
   const [fileTree, setFileTree] = useState<import('@/types').WorkspaceTreeNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<import('@/types').WorkspaceTreeNode | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
 
   // Load file tree when Files tab is activated
   useEffect(() => {
-    if (activeTab !== 'files' || fileTree.length > 0) return;
+    if (fileTree.length > 0) return;
     setFileTreeLoading(true);
     // Only show /workspace in file tree — agents have the room, tasks have the Tasks tab
     api.workspace.getTree('/workspace').then((workspace) => {
@@ -546,12 +547,12 @@ export default function WorkfloorPage() {
     }).catch(err => {
       console.error('Failed to load file tree:', err);
     }).finally(() => setFileTreeLoading(false));
-  }, [activeTab, fileTree.length]);
+  }, [fileTree.length]);
   // showCatalog removed — catalog only shows for zero-tasks empty state
 
   // File-aware surface context for TP chat
   // When a file is selected, merge navigation context into the surface
-  const effectiveSurface = selectedFile && activeTab === 'files'
+  const effectiveSurface = selectedFile
     ? {
         ...surface,
         type: 'workspace-explorer',
@@ -609,25 +610,12 @@ export default function WorkfloorPage() {
         panelOpen ? "left-[400px]" : "left-0",
         chatOpen ? "right-[400px]" : "right-0",
       )}>
-        <WorkspaceDashboard
-          tasks={tasks}
-          agents={agents}
-          isometricRoom={
-            <IsometricRoom
-              agents={activeAgents}
-              tasks={tasks}
-              loading={agentsLoading}
-              collapsed={false}
-              onTPClick={() => setChatOpen(true)}
-              onAction={(msg) => { sendMessage(msg, { surface }); setChatOpen(true); }}
-            />
-          }
-        />
+        <WorkspaceDashboard tasks={tasks} agents={agents} />
       </div>
 
       {/* Layer 1b: Content viewer — shows when file selected from Files tab */}
       {/* Positioned between left panel (w-[380px] + left-4) and right chat (w-[380px] + right-4) */}
-      {selectedFile && activeTab === 'files' && (
+      {selectedFile && (
         <div className={cn(
           "absolute top-4 bottom-4 z-10 bg-background/95 backdrop-blur-sm rounded-lg border border-border/50 overflow-auto shadow-sm",
           panelOpen ? "left-[400px]" : "left-4",
@@ -656,37 +644,16 @@ export default function WorkfloorPage() {
         panelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none -translate-x-4'
       )}>
         <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
-          {/* Panel header: tabs + actions */}
+          {/* Panel header: Files explorer */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
-            <div className="flex gap-1">
-              {(['tasks', 'files'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={cn(
-                    'px-2.5 py-1 text-xs font-medium rounded-md transition-colors capitalize',
-                    activeTab === tab ? 'bg-muted text-foreground' : 'text-muted-foreground/40 hover:text-muted-foreground'
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
+            <span className="text-xs font-medium text-muted-foreground">Files</span>
             <div className="flex items-center gap-1">
-              {activeTab === 'tasks' && (
-                <button
-                  onClick={() => showActionCard(NEW_TASK_CARD)}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
-                >
-                  <Plus className="w-3 h-3" /> New Task
-                </button>
-              )}
-              {activeTab === 'files' && selectedFile && (
+              {selectedFile && (
                 <button
                   onClick={() => setSelectedFile(null)}
                   className="text-[10px] text-muted-foreground/60 hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted"
                 >
-                  Close file
+                  Close
                 </button>
               )}
               <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
@@ -695,12 +662,9 @@ export default function WorkfloorPage() {
             </div>
           </div>
 
-          {/* Panel content */}
-          <div className="flex-1 overflow-y-auto p-3">
-            {activeTab === 'tasks' && <TasksTab tasks={tasks} />}
-
-            {activeTab === 'files' && (
-              <div className="flex flex-col h-full -mx-3 -mt-1">
+          {/* Panel content — Files only */}
+          <div className="flex-1 overflow-y-auto">
+              <div className="flex flex-col h-full">
                 {fileTreeLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -713,7 +677,6 @@ export default function WorkfloorPage() {
                   />
                 )}
               </div>
-            )}
           </div>
         </div>
       </div>
@@ -728,7 +691,7 @@ export default function WorkfloorPage() {
           <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">TP</span>
-              {selectedFile && activeTab === 'files' && (
+              {selectedFile && (
                 <span className="text-[10px] text-muted-foreground/50 truncate max-w-[180px]">
                   viewing {selectedFile.name}
                 </span>
@@ -742,28 +705,23 @@ export default function WorkfloorPage() {
         </div>
       </div>
 
-      {/* Layer 5: Top-center control bar — panel toggles + room hide */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 px-1 py-0.5">
+      {/* Panel re-open buttons — only show when a panel is closed */}
+      {!panelOpen && (
         <button
-          onClick={() => setPanelOpen(v => !v)}
-          className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md transition-colors',
-            panelOpen ? 'text-foreground bg-muted/50' : 'text-muted-foreground/40 hover:text-muted-foreground'
-          )}
+          onClick={() => setPanelOpen(true)}
+          className="absolute left-2 top-2 z-30 p-2 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 text-muted-foreground hover:text-foreground"
         >
-          <ListChecks className="w-3 h-3" /> Tasks
+          <FolderOpen className="w-4 h-4" />
         </button>
+      )}
+      {!chatOpen && (
         <button
-          onClick={() => setChatOpen(v => !v)}
-          className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md transition-colors',
-            chatOpen ? 'text-foreground bg-muted/50' : 'text-muted-foreground/40 hover:text-muted-foreground'
-          )}
+          onClick={() => setChatOpen(true)}
+          className="absolute right-2 top-2 z-30 p-2 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 text-muted-foreground hover:text-foreground"
         >
-          <MessageCircle className="w-3 h-3" /> Chat
+          <MessageCircle className="w-4 h-4" />
         </button>
-        {/* Hide workfloor toggle removed — dashboard replaces isometric room */}
-      </div>
+      )}
     </div>
   );
 }
