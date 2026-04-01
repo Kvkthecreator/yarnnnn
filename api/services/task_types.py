@@ -188,7 +188,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
-        "context_reads": ["relationships"],
+        "context_reads": ["relationships", "signals"],  # ADR-154: needs platform signals
         "context_writes": ["relationships", "signals"],
         "output_category": "",
         "context_sources": ["platforms", "workspace"],
@@ -226,7 +226,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
-        "context_reads": ["projects"],
+        "context_reads": ["projects", "signals"],  # ADR-154: needs platform signals
         "context_writes": ["projects", "signals"],
         "output_category": "",
         "context_sources": ["platforms", "workspace"],

@@ -1,8 +1,11 @@
 """
-Workspace Directory Registry — ADR-152: Unified Directory Registry (v1)
+Workspace Directory Registry — ADR-152: Unified Directory Registry (v2)
 
-Version: 1.0 (2026-03-31)
+Version: 2.0 (2026-04-01)
 Changelog:
+  v2.0 (2026-04-01) — ADR-154: Entity tracker (_tracker.md) for entity-bearing domains.
+                       Pipeline-maintained materialized view of domain contents.
+                       get_tracker_template(), has_entity_tracker(), build_tracker_md() added.
   v1.0 (2026-03-31) — Initial: unified registry absorbing CONTEXT_DOMAINS from ADR-151.
                        Three directory types: user_contributed (uploads), context (6 domains),
                        output (reports, briefs). Replaces domain_registry.py.
@@ -94,6 +97,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Our Position\n"
         ),
         "shared_assets": ["competitor-matrix.svg"],
+        "tracker_file": "_tracker.md",
     },
 
     "market": {
@@ -115,6 +119,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Strategic Implications\n"
         ),
         "shared_assets": ["market-map.svg"],
+        "tracker_file": "_tracker.md",
     },
 
     "relationships": {
@@ -138,6 +143,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Follow-Up Priorities\n"
         ),
         "shared_assets": [],
+        "tracker_file": "_tracker.md",
     },
 
     "projects": {
@@ -160,6 +166,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Resource Needs\n"
         ),
         "shared_assets": ["project-roadmap.svg"],
+        "tracker_file": "_tracker.md",
     },
 
     "content_research": {
@@ -177,6 +184,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "synthesis_file": None,
         "synthesis_template": None,
         "shared_assets": [],
+        "tracker_file": "_tracker.md",
     },
 
     "signals": {
@@ -307,6 +315,71 @@ def get_output_category_path(category: str) -> Optional[str]:
     return None
 
 
+def has_entity_tracker(key: str) -> bool:
+    """Check if a context domain has an entity tracker (_tracker.md)."""
+    d = WORKSPACE_DIRECTORIES.get(key)
+    return bool(d and d.get("tracker_file"))
+
+
+def get_tracker_path(key: str) -> Optional[str]:
+    """Get the full workspace-relative path to a domain's _tracker.md."""
+    d = WORKSPACE_DIRECTORIES.get(key)
+    if not d or not d.get("tracker_file"):
+        return None
+    return f"{d['path']}/{d['tracker_file']}"
+
+
+def build_tracker_md(domain_key: str, entities: list[dict]) -> str:
+    """Build _tracker.md content from a list of entity dicts.
+
+    ADR-154: Pipeline-maintained materialized view. Never LLM-generated.
+
+    Args:
+        domain_key: Domain registry key (e.g., "competitors")
+        entities: List of dicts with keys: slug, name, last_updated, files, status
+
+    Returns:
+        Formatted markdown string for _tracker.md
+    """
+    d = WORKSPACE_DIRECTORIES.get(domain_key, {})
+    display_name = d.get("display_name", domain_key.title())
+    entity_type = d.get("entity_type", "entity")
+
+    lines = [f"# Entity Tracker — {display_name}\n"]
+
+    if entities:
+        lines.append("| Slug | Last Updated | Files | Status |")
+        lines.append("|------|-------------|-------|--------|")
+        for e in entities:
+            slug = e.get("slug", "?")
+            updated = e.get("last_updated", "—")
+            files = ", ".join(e.get("files", [])) if e.get("files") else "—"
+            status = e.get("status", "active")
+            lines.append(f"| {slug} | {updated} | {files} | {status} |")
+    else:
+        lines.append(f"_No {entity_type} entities tracked yet._")
+
+    # Domain health summary
+    total = len(entities)
+    active = sum(1 for e in entities if e.get("status") == "active")
+    stale = sum(1 for e in entities if e.get("status") == "stale")
+    discovered = sum(1 for e in entities if e.get("status") == "discovered")
+
+    lines.append(f"\n## Domain Health")
+    lines.append(f"- Total entities: {total}")
+    lines.append(f"- Active: {active}")
+    if stale:
+        lines.append(f"- Stale: {stale}")
+    if discovered:
+        lines.append(f"- Discovered (not yet profiled): {discovered}")
+
+    synthesis = d.get("synthesis_file")
+    if synthesis:
+        lines.append(f"- Synthesis file: {synthesis}")
+
+    return "\n".join(lines) + "\n"
+
+
 # Keep CONTEXT_DOMAINS as a filtered view for callers that need only context dirs
 CONTEXT_DOMAINS = {k: v for k, v in WORKSPACE_DIRECTORIES.items() if v.get("type") == "context"}
 
@@ -336,11 +409,20 @@ async def scaffold_all_directories(client, user_id: str) -> list[str]:
             synthesis = directory.get("synthesis_file")
             if synthesis:
                 existing = await um.read(f"{path}/{synthesis}")
-                if existing:
-                    continue
-                template = directory.get("synthesis_template") or ""
-                await um.write(f"{path}/{synthesis}", template,
-                              summary=f"Directory scaffold: {key}")
+                if not existing:
+                    template = directory.get("synthesis_template") or ""
+                    await um.write(f"{path}/{synthesis}", template,
+                                  summary=f"Directory scaffold: {key}")
+
+            # ADR-154: Scaffold _tracker.md for entity-bearing domains
+            tracker = directory.get("tracker_file")
+            if tracker:
+                tracker_path = f"{path}/{tracker}"
+                existing_tracker = await um.read(tracker_path)
+                if not existing_tracker:
+                    tracker_content = build_tracker_md(key, [])
+                    await um.write(tracker_path, tracker_content,
+                                  summary=f"Entity tracker scaffold: {key}")
 
             # Signal domains get today's file
             if directory.get("signal_log"):

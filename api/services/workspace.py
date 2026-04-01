@@ -648,87 +648,34 @@ class AgentWorkspace:
     # =========================================================================
 
     async def load_context(self) -> str:
-        """
-        Load the agent's working context for generation.
-        Returns a formatted string of AGENT.md + thesis + memory + working notes.
+        """Load the agent's identity context for generation.
+
+        ADR-154: Agent workspace is WHO only — identity + methodology.
+        Execution state (reflections, feedback, working notes) lives on tasks.
+        Domain knowledge lives in /workspace/context/ domains.
+
+        Returns formatted string of AGENT.md + playbooks.
         """
         parts = []
 
-        # AGENT.md first — identity and directives (like CLAUDE.md)
+        # AGENT.md — identity and directives (like CLAUDE.md)
         agent_md = await self.read("AGENT.md")
         if agent_md:
             parts.append(f"## Agent Directives\n{agent_md}")
 
-        thesis = await self.read("thesis.md")
-        if thesis:
-            parts.append(f"## Current Thesis\n{thesis}")
-
-        # Load all memory files (topic-scoped, like Claude Code's memory/)
+        # Playbook files — methodology (WHO: how this agent type thinks)
         memory_files = await self.list("memory/")
         for filename in memory_files:
             if filename.endswith("/"):
                 continue
+            base = filename.replace(".md", "")
+            # ADR-154: Only load playbook files from agent memory/
+            if not (base.startswith("playbook-") or base.startswith("methodology-")):
+                continue
             content = await self.read(f"memory/{filename}")
             if content:
-                # ADR-143: Label files by type for clear context injection
-                base = filename.replace(".md", "")
-                if base.startswith("playbook-"):
-                    topic = base.replace("playbook-", "").replace("-", " ").title()
-                    label = f"Playbook: {topic}"
-                elif base.startswith("methodology-"):
-                    # Legacy naming — treat same as playbook
-                    topic = base.replace("methodology-", "").replace("-", " ").title()
-                    label = f"Playbook: {topic}"
-                elif base == "feedback":
-                    label = "Feedback History"
-                elif base == "reflections" or base == "self-assessment" or base == "self_assessment":
-                    label = "Agent Reflections"
-                else:
-                    label = f"Memory: {base.replace('-', ' ').title()}"
-                parts.append(f"## {label}\n{content}")
-
-        # Load recent working notes
-        working = await self.list("working/")
-        for filename in working[-3:]:  # Last 3 working notes
-            if filename.endswith("/"):
-                continue
-            note = await self.read(f"working/{filename}")
-            if note:
-                parts.append(f"## Working Note: {filename}\n{note}")
-
-        # ADR-119 Phase 2: Inject project context for contributing agents.
-        # If memory/projects.json exists, load each project's intent + preferences.
-        # ADR-121: Also inject PM contribution briefs as steering directives.
-        projects_json = await self.read("memory/projects.json")
-        if projects_json:
-            import json as _json
-            try:
-                projects_list = _json.loads(projects_json)
-                for proj in projects_list:
-                    slug = proj.get("project_slug", "")
-                    if not slug:
-                        continue
-                    pw = ProjectWorkspace(self._db, self._user_id, slug)
-                    project_ctx = await pw.load_context()
-                    if project_ctx:
-                        expected = proj.get("expected_contribution", "")
-                        header = f"## Contributing To: {proj.get('title', slug)}"
-                        if expected:
-                            header += f"\n**Your expected contribution:** {expected}"
-                        # ADR-121: Read PM brief if it exists — steering directive
-                        brief = await pw.read_brief(self._slug) if self._slug else None
-                        if brief:
-                            header += f"\n\n**PM Directive (brief):**\n{brief}"
-                        # ADR-128 Phase 4: Read PM's project assessment
-                        try:
-                            pm_assessment = await pw.read("memory/project_assessment.md")
-                            if pm_assessment and "No assessment yet" not in pm_assessment:
-                                header += f"\n\n**Project Assessment (from PM):**\n{pm_assessment[:500]}"
-                        except Exception:
-                            pass
-                        parts.append(f"{header}\n{project_ctx}")
-            except _json.JSONDecodeError:
-                pass
+                topic = base.replace("playbook-", "").replace("methodology-", "").replace("-", " ").title()
+                parts.append(f"## Playbook: {topic}\n{content}")
 
         return "\n\n---\n\n".join(parts) if parts else ""
 

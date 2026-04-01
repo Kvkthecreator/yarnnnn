@@ -401,6 +401,11 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                       "# Steering Notes\n<!-- TP management notes for next cycle. Overwritten per evaluation. ADR-149. -->\n",
                       summary="ADR-149: task steering file", tags=["memory"])
 
+        # ADR-154: Seed task awareness file
+        await tw.write("awareness.md",
+                      "# Task Awareness\n\nFirst run — no prior cycles.\n",
+                      summary="ADR-154: task awareness file", tags=["awareness"])
+
         # ADR-151: Scaffold workspace context domains for this task's context_writes
         if type_key:
             try:
@@ -435,6 +440,20 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                                     metadata={"domain": domain_key, "type": "synthesis"},
                                 )
                                 logger.info(f"[CREATE_TASK] Scaffolded context domain: {domain_key}")
+
+                        # ADR-154: Scaffold _tracker.md for entity-bearing domains
+                        from services.directory_registry import has_entity_tracker, get_tracker_path, build_tracker_md
+                        if has_entity_tracker(domain_key):
+                            tracker_path = get_tracker_path(domain_key)
+                            if tracker_path:
+                                existing_tracker = await um.read(tracker_path)
+                                if not existing_tracker:
+                                    tracker_content = build_tracker_md(domain_key, [])
+                                    await um.write(
+                                        tracker_path, tracker_content,
+                                        summary=f"ADR-154: entity tracker for {domain_key}",
+                                        tags=["tracker", domain_key],
+                                    )
             except Exception as e:
                 logger.warning(f"[CREATE_TASK] Context domain scaffold failed (non-fatal): {e}")
 

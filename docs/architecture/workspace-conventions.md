@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v10 — TP awareness model hardened)
+**Status:** Canonical (v11 — ADR-154 execution boundary reform)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -54,15 +54,16 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 │   └── content/                   # Blog drafts, comms, launch material
 └── context/                       # Accumulated context domains (ADR-151)
     ├── competitors/               # Per-competitor entity folders
-    │   ├── _landscape.md          # Cross-entity synthesis
+    │   ├── _tracker.md            # Entity registry + freshness (ADR-154, pipeline-maintained)
+    │   ├── _landscape.md          # Cross-entity synthesis (agent-written)
     │   └── {company-slug}/
     │       ├── profile.md, signals.md, product.md, strategy.md
     │       └── assets/
-    ├── market/
+    ├── market/                    # Same pattern: _tracker.md + _overview.md + entities
     ├── relationships/
     ├── projects/
     ├── content/
-    ├── signals/                   # Cross-domain temporal signal log
+    ├── signals/                   # Cross-domain temporal signal log (no tracker)
     └── assets/                    # Cross-domain shared assets
 ```
 
@@ -107,43 +108,34 @@ A **domain registry** governs the structure. Each domain (competitors, market, r
 
 ---
 
-## `/agents/{slug}/` — Agent Identity + Memory
+## `/agents/{slug}/` — WHO: Agent Identity Only
 
-Each agent's persistent workspace. Identity, accumulated domain knowledge, and developmental state.
+Each agent's persistent identity. ADR-154: thinned to identity + methodology only. Execution state (reflections, feedback, working notes) lives on tasks. Domain knowledge lives in `/workspace/context/`.
 
 ```
 /agents/{slug}/
 ├── AGENT.md                       # Identity + behavioral instructions (like CLAUDE.md)
-├── thesis.md                      # Self-evolving domain understanding
-├── memory/
-│   ├── feedback.md                # Rolling 10-entry feedback history (ADR-143) — TP writes, agent reads
-│   ├── reflections.md             # Rolling 5-entry agent self-reflection (ADR-149) — agent writes, TP reads
-│   ├── playbook-outputs.md         # How to produce deliverables (ADR-143) — craft
-│   ├── playbook-{topic}.md         # Additional craft knowledge (research, formats)
-│   └── goal.md                    # Current goal and milestones
-├── working/                       # Ephemeral scratch (24h TTL)
-└── history/                       # Version archives (ADR-119)
-    └── {filename}/v{N}.md
+└── memory/
+    ├── playbook-outputs.md        # How to produce deliverables (ADR-143) — craft methodology
+    └── playbook-{topic}.md        # Additional craft knowledge (research, formats)
 ```
 
-### Evolving Files (Auto-Versioned)
-
-Archived to `/history/{filename}/v{N}.md` on overwrite (max 5 versions):
-- `AGENT.md`, `thesis.md`, all `memory/*.md`
+**Dissolved files (ADR-154):** `thesis.md` (redundant with domain synthesis files), `memory/reflections.md` (→ task awareness.md), `memory/feedback.md` (→ task feedback.md), `memory/tasks.json` (dead), `memory/goal.md` (dead), `memory/observations.md` (dead), `memory/review-log.md` (dead), `memory/created-agents.md` (dead), `memory/state.md` (dead), `working/` (→ task working/).
 
 ---
 
-## `/tasks/{slug}/` — Task Definition + Outputs
+## `/tasks/{slug}/` — HOW: Work Order + Execution State + Outputs
 
-Each task's work definition, quality contract, execution history, and output artifacts.
+Each task's work definition, quality contract, cycle-to-cycle awareness, execution history, and output artifacts.
 
 ```
 /tasks/{slug}/
 ├── TASK.md                        # Charter: objective, process, type_key, mode
 ├── DELIVERABLE.md                 # Quality contract: output spec + assets + inferred preferences (ADR-149)
+├── awareness.md                   # Cycle-to-cycle execution state (ADR-154, pipeline-maintained)
 ├── memory/
-│   ├── run_log.md                 # Execution history (append-only)
-│   ├── feedback.md                # Task-level feedback: user corrections + TP evaluations (ADR-149)
+│   ├── run_log.md                 # Execution history (append-only audit trail)
+│   ├── feedback.md                # User corrections + TP evaluations (ADR-149) — sole feedback location
 │   └── steering.md                # TP management notes for next cycle (ADR-149)
 ├── outputs/
 │   ├── latest/                    # Current deliverable (mode-dependent semantics)
@@ -190,7 +182,7 @@ TP's understanding of the workspace comes from three layers. Full architecture d
 
 **Layer 3: Behavioral guidance** — `CONTEXT_AWARENESS` prompt (always injected). Priorities, judgment rules, task catalog.
 
-**Agent-level awareness** (headless) — system hooks write to agent workspace after execution: `memory/run_log.md`, `memory/feedback.md`, `memory/reflections.md`. Agent reads on next run.
+**Task-level awareness** (headless, ADR-154) — pipeline writes `awareness.md` to task workspace after execution. Contains: last cycle metadata, entities touched, domain health, next cycle focus. Agent reads on next run via `gather_task_context()`. Domain `_tracker.md` also injected for context tasks.
 
 ---
 
@@ -272,3 +264,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-31 | v8 | ADR-152: Unified directory registry. /workspace/documents/ renamed to /workspace/uploads/ (clarity: user-contributed vs system-produced). /workspace/outputs/ added (reports/, briefs/, content/ — promoted agent deliverables). Domain registry → directory registry (WORKSPACE_DIRECTORIES in directory_registry.py). |
 | 2026-03-31 | v9 | ADR-153: platform_content sunset. /platforms/ deprecated — platform data flows through tracking tasks into /workspace/context/ domains. Four roots → three roots. Platform sync file-sharing context removed. |
 | 2026-04-01 | v10 | TP Awareness Model hardened — three-layer architecture (ground truth, workspace files, behavioral guidance), agent-level hooks documented. Cross-ref TP-DESIGN-PRINCIPLES.md. AWARENESS.md added to /workspace/ as TP's persistent situational notes. |
+| 2026-04-01 | v11 | ADR-154: Execution boundary reform. Agent workspace thinned to identity only (AGENT.md + playbooks). Dissolved: thesis.md, reflections.md, feedback.md, working/, 6 dead files. Task awareness.md added (cycle-to-cycle state). Domain _tracker.md added (entity registry, pipeline-maintained). context_reads fixed for track-relationships/track-projects. Tool round budget increased. |

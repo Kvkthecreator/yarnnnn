@@ -166,17 +166,21 @@ Context tasks do NOT produce outputs — they write directly to `/workspace/cont
 │   └── content/                    # Blog drafts, comms, launch material
 ├── context/                        # ACCUMULATED CONTEXT (directory registry)
 │   ├── competitors/                # Managed by: track-competitors
+│   │   ├── _tracker.md             # Entity registry (pipeline-maintained, ADR-154)
+│   │   ├── _landscape.md           # Cross-entity synthesis (agent-written)
+│   │   └── {entity}/              # Per-entity files
 │   ├── market/                     # Managed by: track-market
 │   ├── relationships/              # Managed by: track-relationships
 │   ├── projects/                   # Managed by: track-projects
 │   ├── content_research/           # Managed by: research-topics
-│   ├── signals/                    # Managed by: ALL tasks (temporal signal log)
+│   ├── signals/                    # Managed by: ALL tasks (temporal signal log, no tracker)
 │   └── assets/                     # Cross-domain shared assets
 ├── notes.md, preferences.md       # TP observations
 
-/agents/{slug}/                     # Agent identity + methodology
-├── AGENT.md, memory/reflections.md, memory/feedback.md, playbook-*.md
+/agents/{slug}/                     # WHO — identity only (ADR-154)
+├── AGENT.md                        # Identity + behavioral instructions
+└── playbook-*.md                   # Type-seeded methodology
 
-/tasks/{slug}/                      # Work order + derived output
-├── TASK.md, DELIVERABLE.md, memory/, outputs/
+/tasks/{slug}/                      # HOW — work order + execution state + output
+├── TASK.md, DELIVERABLE.md, awareness.md, memory/, outputs/
 ```

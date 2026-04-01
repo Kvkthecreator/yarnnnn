@@ -168,26 +168,10 @@ async def create_agent_record(
                 from services.agent_framework import has_asset_capabilities
                 if has_asset_capabilities(role):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
-                # ADR-128/149: Agents produce reflections on each run
-                agent_md += "\n\n## Coherence Protocol\nYou participate in a coherence protocol. You produce an Agent Reflection on each run that persists between executions."
+                # ADR-154: Coherence protocol removed from agent level — reflections
+                # are now per-task via awareness.md, not per-agent.
                 await ws.write("AGENT.md", agent_md,
                                summary="Agent identity and behavioral instructions")
-
-                # ADR-128/149: Seed reflection file at creation time
-                initial_date = now.strftime("%Y-%m-%d")
-                await ws.write(
-                    "memory/reflections.md",
-                    (
-                        "# Agent Reflection History\n"
-                        "<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
-                        f"## Initial ({initial_date})\n"
-                        "- **Mandate**: Not yet assessed — awaiting first run\n"
-                        "- **Domain Fitness**: Unknown\n"
-                        "- **Context Currency**: Unknown\n"
-                        "- **Output Confidence**: N/A\n"
-                    ),
-                    summary="ADR-149: initial agent reflection (awaiting first run)",
-                )
 
                 # ADR-143: Seed playbook files from type registry
                 from services.agent_framework import get_type_playbook

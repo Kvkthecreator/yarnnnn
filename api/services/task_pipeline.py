@@ -98,7 +98,7 @@ async def _gather_context_domains(
     return "\n\n".join(sections) if sections else ""
 
 
-async def _route_output_to_context_domains(
+async def _post_run_domain_scan(
     client,
     user_id: str,
     task_slug: str,
@@ -106,30 +106,35 @@ async def _route_output_to_context_domains(
     draft: str,
     version_number: int,
     run_time,
+    tools_used: Optional[list] = None,
+    agent_reflection: Optional[dict] = None,
+    duration_s: float = 0,
+    tool_rounds: int = 0,
 ) -> None:
-    """Route a task output signal to the task's context_writes domains.
+    """Post-execution: scan domains, update trackers, update task awareness.
 
-    ADR-151: After generation, append a dated signal entry to each domain
-    in the task's context_writes. This ensures context domains get temporal
-    signals even when agents don't explicitly use WriteWorkspace(scope="context").
+    ADR-154: Replaces _route_output_to_context_domains(). Three responsibilities:
+    1. Signal log entry (preserved from old function)
+    2. Scan entity-bearing domains → update _tracker.md (materialized view)
+    3. Update task awareness.md with cycle state
 
-    Writes to /workspace/context/{domain}/signals/{date}.md (cross-domain signal log).
-    Non-fatal — failures logged but don't block delivery.
+    All deterministic — no LLM calls. Non-fatal — failures logged.
     """
-    # ADR-152: Read context_writes from task_info (parsed TASK.md), not registry
+    from services.directory_registry import (
+        get_domain_folder, has_entity_tracker, build_tracker_md, get_tracker_path,
+    )
+    from services.workspace import UserMemory
+    from services.task_workspace import TaskWorkspace
+
     context_writes = (task_info or {}).get("context_writes", [])
-    if not context_writes:
-        return
+    context_reads = (task_info or {}).get("context_reads", [])
+    title = (task_info or {}).get("title", task_slug)
+    um = UserMemory(client, user_id)
+    tw = TaskWorkspace(client, user_id, task_slug)
+    date_str = run_time.strftime("%Y-%m-%d")
 
+    # ── 1. Signal log entry (preserved) ──
     try:
-        from services.directory_registry import get_domain_folder
-        from services.workspace import UserMemory
-
-        um = UserMemory(client, user_id)
-        date_str = run_time.strftime("%Y-%m-%d")
-        title = (task_info or {}).get("title", task_slug)
-
-        # Write a signal entry to the signals domain (if task writes to signals)
         if "signals" in context_writes:
             signal_path = f"context/signals/{date_str}.md"
             existing = await um.read(signal_path) or f"# Signals — {date_str}\n"
@@ -141,9 +146,162 @@ async def _route_output_to_context_domains(
             )
             await um.write(signal_path, existing + signal_entry,
                           summary=f"Signal from {task_slug} v{version_number}")
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] Signal log write failed (non-fatal): {e}")
+
+    # ── 2. Domain entity scan → _tracker.md ──
+    # Scan all domains this task writes to (for context tasks)
+    entities_touched: dict[str, list[str]] = {}  # domain → [entity slugs]
+    all_domains = set(context_writes) | set(context_reads)
+
+    for domain_key in all_domains:
+        if not has_entity_tracker(domain_key):
+            continue
+
+        folder = get_domain_folder(domain_key)
+        if not folder:
+            continue
+
+        try:
+            tracker_path = get_tracker_path(domain_key)
+            prefix = f"/workspace/{folder}/"
+
+            # List all files in this domain
+            result = (
+                client.table("workspace_files")
+                .select("path, updated_at")
+                .eq("user_id", user_id)
+                .like("path", f"{prefix}%")
+                .order("updated_at", desc=True)
+                .limit(200)
+                .execute()
+            )
+            rows = result.data or []
+
+            # Extract entity subfolders from paths
+            # e.g., /workspace/context/competitors/acme-corp/profile.md → acme-corp
+            entity_files: dict[str, dict] = {}  # slug → {last_updated, files}
+            for row in rows:
+                path = row.get("path", "")
+                rel = path.replace(prefix, "")
+                parts = rel.split("/")
+                if len(parts) < 2:
+                    continue  # Top-level files (_tracker.md, _landscape.md) — skip
+                entity_slug = parts[0]
+                if entity_slug.startswith("_"):
+                    continue  # Synthesis/tracker files
+                filename = parts[1].replace(".md", "")
+
+                if entity_slug not in entity_files:
+                    entity_files[entity_slug] = {
+                        "slug": entity_slug,
+                        "last_updated": row.get("updated_at", "")[:10],
+                        "files": [],
+                        "status": "active",
+                    }
+                if filename not in entity_files[entity_slug]["files"]:
+                    entity_files[entity_slug]["files"].append(filename)
+
+            # Calculate staleness based on task schedule
+            schedule = task_info.get("schedule", "weekly")
+            stale_days = {"daily": 3, "weekly": 10, "monthly": 45}.get(schedule, 14)
+            from datetime import timedelta
+            stale_cutoff = (run_time - timedelta(days=stale_days)).strftime("%Y-%m-%d")
+
+            entities_list = []
+            for slug, edata in sorted(entity_files.items()):
+                if edata["last_updated"] and edata["last_updated"] < stale_cutoff:
+                    edata["status"] = "stale"
+                elif not edata["files"]:
+                    edata["status"] = "discovered"
+                entities_list.append(edata)
+
+            # Track which entities were touched this cycle (updated today)
+            touched = [e["slug"] for e in entities_list if e.get("last_updated") == date_str]
+            if touched:
+                entities_touched[domain_key] = touched
+
+            # Write _tracker.md
+            if tracker_path:
+                tracker_content = build_tracker_md(domain_key, entities_list)
+                await um.write(tracker_path, tracker_content,
+                              summary=f"Entity tracker update: {domain_key}")
+
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Domain scan failed for {domain_key} (non-fatal): {e}")
+
+    # ── 3. Update task awareness.md ──
+    try:
+        awareness_lines = ["# Task Awareness\n"]
+
+        # Last cycle section
+        awareness_lines.append("## Last Cycle")
+        awareness_lines.append(f"- **Run:** {run_time.strftime('%Y-%m-%d %H:%M UTC')} (v{version_number})")
+        if duration_s:
+            awareness_lines.append(f"- **Duration:** {duration_s:.0f}s, {tool_rounds} tool rounds")
+        if entities_touched:
+            for dk, slugs in entities_touched.items():
+                awareness_lines.append(f"- **Entities touched ({dk}):** {', '.join(slugs)}")
+        if tools_used:
+            # Summarize tool usage
+            from collections import Counter
+            tool_counts = Counter(tools_used)
+            tool_summary = ", ".join(f"{name} ({count})" for name, count in tool_counts.most_common())
+            awareness_lines.append(f"- **Tools used:** {tool_summary}")
+        if agent_reflection:
+            confidence = agent_reflection.get("output_confidence", "unknown")
+            level = confidence.split("—")[0].split("–")[0].strip() if confidence else "unknown"
+            awareness_lines.append(f"- **Agent reflection:** confidence={level}")
+
+        # Domain state section (for context tasks)
+        if context_writes:
+            awareness_lines.append("\n## Domain State")
+            for domain_key in context_writes:
+                if domain_key == "signals":
+                    continue
+                if not has_entity_tracker(domain_key):
+                    continue
+                tracker_path = get_tracker_path(domain_key)
+                if tracker_path:
+                    tracker_content = await um.read(tracker_path)
+                    if tracker_content:
+                        # Extract just the health summary
+                        health_start = tracker_content.find("## Domain Health")
+                        if health_start >= 0:
+                            awareness_lines.append(f"### {domain_key}")
+                            awareness_lines.append(tracker_content[health_start:].strip())
+
+        # Next cycle focus (derived from staleness)
+        stale_entities: list[str] = []
+        for domain_key in (context_writes or context_reads):
+            if not has_entity_tracker(domain_key) or domain_key == "signals":
+                continue
+            tracker_path = get_tracker_path(domain_key)
+            if tracker_path:
+                tracker_content = await um.read(tracker_path)
+                if tracker_content:
+                    for line in tracker_content.split("\n"):
+                        if "| stale |" in line.lower():
+                            parts = line.split("|")
+                            if len(parts) >= 2:
+                                slug = parts[1].strip()
+                                if slug:
+                                    stale_entities.append(f"{slug} ({domain_key})")
+
+        if stale_entities:
+            awareness_lines.append(f"\n## Next Cycle Focus")
+            for se in stale_entities:
+                awareness_lines.append(f"- {se}: stale — prioritize update")
+        else:
+            awareness_lines.append(f"\n## Next Cycle Focus")
+            awareness_lines.append("- All entities current. Discover new entities or deepen existing profiles.")
+
+        awareness_content = "\n".join(awareness_lines) + "\n"
+        await tw.write("awareness.md", awareness_content,
+                      summary=f"Task awareness update v{version_number}")
 
     except Exception as e:
-        logger.warning(f"[TASK_EXEC] Context domain signal routing failed (non-fatal): {e}")
+        logger.warning(f"[TASK_EXEC] Awareness update failed (non-fatal): {e}")
 
 
 def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
@@ -295,27 +453,57 @@ async def gather_task_context(
     agent: dict,
     agent_slug: str,
     task_info: Optional[dict] = None,
+    task_slug: Optional[str] = None,
 ) -> tuple[str, dict]:
     """Gather context for task execution.
 
-    ADR-151: Context priority order:
-    1. Accumulated context domains (/workspace/context/) — PRIMARY
-    2. Agent workspace (identity, memory, methodology)
-    3. Knowledge base (platform-derived, legacy)
-    4. User notes
+    ADR-154: Context priority order (who/what/how):
+    1. Task awareness (HOW) — cycle-to-cycle execution state
+    2. Domain tracker (WHAT) — entity registry + freshness (context tasks)
+    3. Accumulated context domains (WHAT) — /workspace/context/ files
+    4. Agent identity (WHO) — AGENT.md only (no thesis, no working notes)
+    5. User notes — workspace-level standing instructions
 
     Returns:
         (context_text, context_metadata)
     """
     from services.workspace import AgentWorkspace, UserMemory
+    from services.task_workspace import TaskWorkspace
 
     ws = AgentWorkspace(client, user_id, agent_slug)
     await ws.ensure_seeded(agent)
 
     sections = []
 
-    # 0. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
-    # Read from /workspace/context/{domain}/ based on TASK.md context_reads (not registry)
+    # 0. Task awareness — cycle-to-cycle state (ADR-154)
+    if task_slug:
+        try:
+            tw = TaskWorkspace(client, user_id, task_slug)
+            awareness = await tw.read("awareness.md")
+            if awareness and "no prior cycles" not in awareness:
+                sections.append(f"## Execution Awareness\n{awareness}")
+        except Exception as e:
+            logger.debug(f"[TASK_EXEC] Awareness read failed: {e}")
+
+    # 1. Domain tracker — entity registry for context tasks (ADR-154)
+    if task_info:
+        context_writes = task_info.get("context_writes", [])
+        if context_writes:
+            from services.directory_registry import has_entity_tracker, get_tracker_path
+            um_tracker = UserMemory(client, user_id)
+            for domain_key in context_writes:
+                if domain_key == "signals" or not has_entity_tracker(domain_key):
+                    continue
+                tracker_path = get_tracker_path(domain_key)
+                if tracker_path:
+                    try:
+                        tracker_content = await um_tracker.read(tracker_path)
+                        if tracker_content:
+                            sections.append(f"## Entity Tracker: {domain_key}\n{tracker_content}")
+                    except Exception:
+                        pass
+
+    # 2. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
     context_domains_text = ""
     if task_info:
         context_reads = task_info.get("context_reads", [])
@@ -326,14 +514,13 @@ async def gather_task_context(
     if context_domains_text:
         sections.append(context_domains_text)
 
-    # 1. Agent workspace context (thesis, memory, observations)
+    # 3. Agent identity — AGENT.md only (ADR-154: no thesis, no working notes)
+    # load_context() still used for now — will be thinned in Phase 2b
     ws_context = await ws.load_context()
     if ws_context:
         sections.append(f"## Agent Context\n{ws_context}")
 
-    # 2. (ADR-151: Legacy /knowledge/ search REMOVED — context domains are sole source)
-
-    # 3. User memories
+    # 4. User notes — workspace-level standing instructions
     try:
         um = UserMemory(client, user_id)
         notes = await um.read("notes.md")
@@ -730,10 +917,11 @@ async def execute_task(
         user_context = _load_user_context(client, user_id)
 
         # =====================================================================
-        # 6. Gather context
+        # 6. Gather context (ADR-154: includes awareness + tracker)
         # =====================================================================
         context_text, context_meta = await gather_task_context(
             client, user_id, agent, agent_slug, task_info=task_info,
+            task_slug=task_slug,
         )
 
         # =====================================================================
@@ -764,7 +952,7 @@ async def execute_task(
         # Post-generation render phase (render_inline_assets) handles chart/diagram rendering.
 
         # Generate via headless agent (multi-tool-round)
-        draft, usage, pending_renders = await _generate(
+        draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
         )
 
@@ -851,10 +1039,15 @@ async def execute_task(
             logger.warning(f"[TASK_EXEC] Agent output folder write failed: {e}")
 
         # =====================================================================
-        # 11. Write to context domains (ADR-151 — replaces legacy /knowledge/ writes)
+        # 11. Post-run domain scan + awareness update (ADR-154)
         # =====================================================================
-        await _route_output_to_context_domains(
+        run_duration = (datetime.now(timezone.utc) - started_at).total_seconds()
+        await _post_run_domain_scan(
             client, user_id, task_slug, task_info, draft, next_version, started_at,
+            tools_used=_tools_used,
+            agent_reflection=agent_reflection,
+            duration_s=run_duration,
+            tool_rounds=_tool_rounds,
         )
 
         # =====================================================================
@@ -971,24 +1164,8 @@ async def execute_task(
         except Exception:
             pass
 
-        # Self-observation (ADR-117)
-        if final_status == "delivered" and draft:
-            try:
-                from services.agent_execution import _extract_run_observation
-                observation = _extract_run_observation(
-                    draft, [], context_meta.get("sections", 0), role,
-                )
-                await ws.record_observation(observation, source="self")
-            except Exception:
-                pass
-
-        # Agent reflection (ADR-128/149)
-        if final_status == "delivered" and agent_reflection:
-            try:
-                from services.agent_execution import _append_agent_reflection
-                await _append_agent_reflection(ws, agent_reflection)
-            except Exception:
-                pass
+        # ADR-154: Agent self-observation and reflection REMOVED from agent workspace.
+        # Reflections are now folded into task awareness.md by _post_run_domain_scan().
 
         # Agent card (ADR-116)
         if final_status == "delivered":
@@ -1235,6 +1412,7 @@ async def _execute_pipeline(
 
         context_text, context_meta = await gather_task_context(
             client, user_id, agent, agent_slug, task_info=task_info,
+            task_slug=task_slug,
         )
 
         # --- Build step-specific prompt ---
@@ -1302,7 +1480,7 @@ async def _execute_pipeline(
         # ADR-148: No SKILL.md / RuntimeDispatch in headless. Agent writes inline data + mermaid.
 
         # --- Generate ---
-        draft, usage, pending_renders = await _generate(
+        draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
         )
 
@@ -1464,9 +1642,11 @@ async def _execute_pipeline(
     except Exception as e:
         logger.warning(f"[PIPELINE] Agent output folder write failed: {e}")
 
-    # Context domain signal routing (ADR-151 — replaces legacy /knowledge/ writes)
-    await _route_output_to_context_domains(
+    # Post-run domain scan + awareness update (ADR-154)
+    pipeline_duration = (datetime.now(timezone.utc) - started_at).total_seconds()
+    await _post_run_domain_scan(
         client, user_id, task_slug, task_info, final_draft, next_version, started_at,
+        duration_s=pipeline_duration,
     )
 
     # Compose HTML (always — ADR-148 singular rendering path)
@@ -1605,12 +1785,15 @@ async def _execute_pipeline(
 # =============================================================================
 
 # Scope → max tool rounds
+# ADR-154: Bumped from 3-8 to 5-12. Context tasks need rounds for
+# research + read existing + write multiple entity files. Awareness.md
+# scopes focus so extra rounds don't cause sprawl.
 _TOOL_ROUNDS = {
-    "platform": 3,
-    "cross_platform": 5,
-    "knowledge": 5,
-    "research": 6,
-    "autonomous": 8,
+    "platform": 5,
+    "cross_platform": 8,
+    "knowledge": 8,
+    "research": 10,
+    "autonomous": 12,
 }
 
 
@@ -1621,8 +1804,12 @@ async def _generate(
     system_prompt: str,
     user_message: str,
     scope: str,
-) -> tuple[str, dict, list]:
-    """Run the headless generation loop. Returns (draft, usage, pending_renders)."""
+) -> tuple[str, dict, list, list, int]:
+    """Run the headless generation loop.
+
+    Returns (draft, usage, pending_renders, tools_used, tool_rounds).
+    ADR-154: tools_used and tool_rounds returned for awareness.md.
+    """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_tools_for_mode, create_headless_executor
     from services.agent_pipeline import validate_output
@@ -1751,7 +1938,7 @@ async def _generate(
     pending_renders = getattr(executor, "auth", None)
     pending_renders = getattr(pending_renders, "pending_renders", []) if pending_renders else []
 
-    return draft, usage, pending_renders
+    return draft, usage, pending_renders, tools_used, round_num
 
 
 # =============================================================================
@@ -1968,7 +2155,7 @@ async def _execute_direct(
                 pass
 
         # Generate
-        draft, usage, pending_renders = await _generate(
+        draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
         )
 

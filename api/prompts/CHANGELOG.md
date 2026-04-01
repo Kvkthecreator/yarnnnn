@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.6] - ADR-154: Execution boundary reform — who/what/how file separation
+
+### Changed
+- `services/task_pipeline.py`: `_route_output_to_context_domains()` replaced by `_post_run_domain_scan()`. Post-run now scans entity-bearing domains, updates `_tracker.md` (materialized view), and writes task `awareness.md` (cycle-to-cycle execution state). `_generate()` returns tools_used + tool_rounds for awareness injection. Tool round budget increased (5-12, was 3-8).
+- `services/task_pipeline.py`: `gather_task_context()` now injects awareness.md + _tracker.md into prompt. Agent context thinned — no thesis, no feedback, no reflections, no working notes.
+- `services/workspace.py`: `AgentWorkspace.load_context()` thinned to AGENT.md + playbooks only. Thesis, feedback, reflections, working notes, project context removed.
+- `services/agent_creation.py`: Stopped seeding `memory/reflections.md` at agent creation. Coherence protocol note removed from AGENT.md.
+- `services/task_types.py`: `track-relationships` and `track-projects` context_reads now include `signals`.
+- `services/directory_registry.py`: `tracker_file` field added to entity-bearing domains. `build_tracker_md()`, `has_entity_tracker()`, `get_tracker_path()` helpers added. Scaffold creates `_tracker.md`.
+- `services/primitives/task.py`: Task creation scaffolds `awareness.md` and `_tracker.md` for context domains.
+
+### Design
+- **Who/What/How principle**: Agent files = identity only (AGENT.md + playbooks). Domain files = accumulated intelligence + tracker. Task files = work order + execution state.
+- **_tracker.md** is a pipeline-maintained materialized view — deterministic, not LLM-generated. Agent creates entity files via WriteWorkspace; pipeline scans filesystem and derives tracker state.
+- **awareness.md** is the task's cycle-to-cycle working memory — what happened last cycle, domain health, next cycle focus. Replaces agent reflections.md + observations.
+- Agent reflection (from output) folded into awareness.md by `_post_run_domain_scan()`.
+- No execution state bleed between tasks sharing the same agent.
+
+---
+
 ## [2026.04.01.5] - Persistent TP awareness: AWARENESS.md + ground truth rendering
 
 ### Added
