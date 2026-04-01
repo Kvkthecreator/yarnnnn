@@ -1043,23 +1043,20 @@ async def trigger_task_run(
             detail=f"Cannot trigger run: task status is '{task['status']}' (must be 'active')",
         )
 
-    # Set next_run_at to now so the scheduler picks it up
-    now = datetime.now(timezone.utc).isoformat()
-    result = (
-        auth.client.table("tasks")
-        .update({
-            "next_run_at": now,
-            "updated_at": now,
-        })
-        .eq("user_id", auth.user_id)
-        .eq("slug", slug)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to trigger task run")
+    # Execute task inline — same pipeline as scheduler, instant results
+    try:
+        from services.supabase import get_service_client
+        from services.task_pipeline import execute_task
 
-    logger.info(f"[TASKS] Triggered run for task '{slug}' (next_run_at set to now)")
-    return TaskRunTriggered(triggered=True, task_slug=slug)
+        svc_client = get_service_client()
+        exec_result = await execute_task(svc_client, auth.user_id, slug)
+
+        logger.info(f"[TASKS] Inline execution for '{slug}': {exec_result.get('status', 'unknown')}")
+        return TaskRunTriggered(triggered=True, task_slug=slug)
+
+    except Exception as e:
+        logger.error(f"[TASKS] Inline execution failed for '{slug}': {e}")
+        raise HTTPException(status_code=500, detail=f"Task execution failed: {str(e)}")
 
 
 # =============================================================================

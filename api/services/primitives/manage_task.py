@@ -187,7 +187,11 @@ async def _find_task(auth: Any, task_slug: str, select: str = "id, slug, status,
 
 
 async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
-    """Run task immediately. Was: handle_trigger_task."""
+    """Run task immediately — executes inline, not via scheduler queue.
+
+    Calls execute_task() directly for instant results. Output goes to the same
+    paths as scheduler-triggered runs (agent_runs, workspace files, task outputs).
+    """
     context = input.get("context")
     now = datetime.now(timezone.utc)
 
@@ -198,16 +202,7 @@ async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
     if task["status"] != "active":
         return {"success": False, "error": "not_active", "message": f"Task '{task_slug}' is {task['status']} — cannot trigger."}
 
-    # Set next_run_at to now
-    try:
-        auth.client.table("tasks").update({
-            "next_run_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-        }).eq("id", task["id"]).execute()
-    except Exception as e:
-        return {"success": False, "error": "update_failed", "message": str(e)}
-
-    # Optionally write trigger context
+    # Optionally write trigger context before execution
     if context:
         try:
             from services.task_workspace import TaskWorkspace
@@ -222,28 +217,50 @@ async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[MANAGE_TASK] Context write failed (non-fatal): {e}")
 
-    # Activity log
+    # Execute task inline — same pipeline as scheduler, instant results
     try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_triggered", summary=f"Triggered task: {task_slug}",
-            event_ref=task["id"],
-            metadata={"task_slug": task_slug, "has_context": bool(context)},
-        )
-    except Exception:
-        pass
+        from services.supabase import get_service_client
+        from services.task_pipeline import execute_task
 
-    return {
-        "success": True,
-        "task_id": task["id"],
-        "task_slug": task_slug,
-        "message": f"Task '{task_slug}' triggered — will run on next scheduler tick.",
-        "ui_action": {
-            "type": "NAVIGATE",
-            "data": {"url": f"/tasks/{task_slug}", "label": f"View {task_slug}"},
-        },
-    }
+        svc_client = get_service_client()
+        result = await execute_task(svc_client, auth.user_id, task_slug)
+
+        # Activity log
+        try:
+            from services.activity_log import write_activity
+            await write_activity(
+                client=auth.client, user_id=auth.user_id,
+                event_type="task_triggered", summary=f"Triggered task: {task_slug} — {result.get('status', 'unknown')}",
+                event_ref=task["id"],
+                metadata={"task_slug": task_slug, "has_context": bool(context), "result": result.get("status")},
+            )
+        except Exception:
+            pass
+
+        if result.get("success"):
+            return {
+                "success": True,
+                "task_id": task["id"],
+                "task_slug": task_slug,
+                "message": f"Task '{task_slug}' executed successfully. {result.get('message', '')}",
+                "run_result": result,
+                "ui_action": {
+                    "type": "NAVIGATE",
+                    "data": {"url": f"/tasks/{task_slug}", "label": f"View {task_slug}"},
+                },
+            }
+        else:
+            return {
+                "success": False,
+                "task_slug": task_slug,
+                "error": "execution_failed",
+                "message": f"Task execution failed: {result.get('message', 'unknown error')}",
+                "run_result": result,
+            }
+
+    except Exception as e:
+        logger.error(f"[MANAGE_TASK] Inline execution failed for {task_slug}: {e}")
+        return {"success": False, "error": "execution_error", "message": str(e)}
 
 
 async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
