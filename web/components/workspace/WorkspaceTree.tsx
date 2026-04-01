@@ -66,7 +66,7 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
         onClick={handleClick}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
-          isSelected && "bg-accent text-accent-foreground",
+          isSelected && "bg-primary/10 text-primary font-medium",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >

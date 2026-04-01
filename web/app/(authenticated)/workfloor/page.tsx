@@ -542,8 +542,14 @@ export default function WorkfloorPage() {
     if (fileTree.length > 0) return;
     setFileTreeLoading(true);
     // Only show /workspace in file tree — agents have the room, tasks have the Tasks tab
-    api.workspace.getTree('/workspace').then((workspace) => {
-      setFileTree(workspace);
+    Promise.all([
+      api.workspace.getTree('/workspace'),
+      api.workspace.getTree('/tasks'),
+    ]).then(([workspace, tasks]) => {
+      setFileTree([
+        ...workspace,
+        { name: 'tasks', path: '/tasks', type: 'folder' as const, children: tasks },
+      ]);
     }).catch(err => {
       console.error('Failed to load file tree:', err);
     }).finally(() => setFileTreeLoading(false));
@@ -652,8 +658,20 @@ export default function WorkfloorPage() {
       {/* Center: Activity feed or file content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {selectedFile ? (
-          <div className="flex-1 overflow-auto bg-background">
-            <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
+          <div className="flex-1 overflow-auto bg-background flex flex-col">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                ← Back
+              </button>
+              <span className="text-xs text-muted-foreground/50">·</span>
+              <span className="text-xs text-muted-foreground truncate">{selectedFile.name}</span>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
+            </div>
           </div>
         ) : (
           <div className="flex-1 overflow-auto">
