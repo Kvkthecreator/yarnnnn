@@ -3,7 +3,7 @@ System routes - Operations status (ADR-073, ADR-084)
 
 Provides operational visibility into background orchestration:
 - Platform sync status with per-resource detail from sync_registry
-- Content accumulation from platform_content
+- Content accumulation (ADR-153: platform_content removed, context via tasks)
 - Background job status from activity_log
 - Sync schedule observability: timezone, windows, hit/miss status (ADR-084)
 
@@ -46,7 +46,7 @@ class ResourceSyncStatus(BaseModel):
 
 
 class PlatformContentSummary(BaseModel):
-    """Content counts for a platform from platform_content."""
+    """ADR-153: platform_content dropped. Returns zeros for API compat."""
     total_items: int = 0
     retained_items: int = 0
     ephemeral_items: int = 0
@@ -265,41 +265,11 @@ async def get_system_status(auth: UserClient):
         registry_by_platform.setdefault(p, []).append(row)
 
     # ─── Platform Content Counts (per platform) ───────────────────────────────
-    content_platforms = ["slack", "notion"]
-    content_counts: dict[str, PlatformContentSummary] = {}
-
-    for cp in content_platforms:
-        try:
-            # Total non-expired
-            total_result = auth.client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).eq("platform", cp).or_(
-                f"retained.eq.true,expires_at.gt.{now.isoformat()}"
-            ).execute()
-            total = total_result.count or 0
-
-            # Retained
-            retained_result = auth.client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).eq("platform", cp).eq("retained", True).execute()
-            retained = retained_result.count or 0
-
-            # Freshest
-            freshest_result = auth.client.table("platform_content").select(
-                "fetched_at"
-            ).eq("user_id", user_id).eq("platform", cp).order(
-                "fetched_at", desc=True
-            ).limit(1).execute()
-            freshest_at = freshest_result.data[0]["fetched_at"] if freshest_result.data else None
-
-            content_counts[cp] = PlatformContentSummary(
-                total_items=total,
-                retained_items=retained,
-                ephemeral_items=total - retained,
-                freshest_at=freshest_at,
-            )
-        except Exception:
-            content_counts[cp] = PlatformContentSummary()
+    # ADR-153: platform_content table dropped. Return empty summaries.
+    content_counts: dict[str, PlatformContentSummary] = {
+        "slack": PlatformContentSummary(),
+        "notion": PlatformContentSummary(),
+    }
 
     # ─── Build Platform Sync Status ────────────────────────────────────────────
     platform_sync = []

@@ -35,7 +35,7 @@ class DangerZoneStats(BaseModel):
     projects: int
     chat_sessions: int
     platform_connections: int
-    platform_content: int
+    platform_content: int = 0  # ADR-153: table dropped, kept for API compat
 
 
 class OperationResult(BaseModel):
@@ -200,7 +200,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         projects = _count_workspace_paths(client, user_id, "/projects/")
         chat_sessions = _count_rows(client, "chat_sessions", user_id)
         platform_connections = _count_rows(client, "platform_connections", user_id)
-        platform_content = _count_rows(client, "platform_content", user_id)
+        # ADR-153: platform_content table dropped
 
         return DangerZoneStats(
             workspace_files=workspace_files,
@@ -208,7 +208,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             projects=projects,
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
-            platform_content=platform_content,
         )
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to get danger zone stats: {e}")
@@ -271,7 +270,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
 
     Deletes:
     - platform_connections, integration_import_jobs, sync_registry
-    - integration_sync_config, platform_content
+    - integration_sync_config
     - workspace_files under /knowledge/ (synced content)
     - export_log, agent_export_preferences
     """
@@ -286,7 +285,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         deleted["integration_import_jobs"] = _delete_rows(client, "integration_import_jobs", user_id)
         deleted["sync_registry"] = _delete_rows(client, "sync_registry", user_id)
         deleted["integration_sync_config"] = _delete_rows(client, "integration_sync_config", user_id)
-        deleted["platform_content"] = _delete_rows(client, "platform_content", user_id)
+        # ADR-153: platform_content table dropped
         deleted["slack_user_cache"] = _delete_rows(client, "slack_user_cache", user_id, optional=True)
 
         # Export preferences (no user_id column — resolve via agent_ids)
@@ -349,7 +348,6 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "integration_sync_config",
             "notifications",
             "platform_connections",
-            "platform_content",
             "project_resources",
             "sync_registry",
             "agent_context_log",
