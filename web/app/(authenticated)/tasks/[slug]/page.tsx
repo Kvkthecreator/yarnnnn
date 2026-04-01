@@ -28,7 +28,7 @@ import {
   ListChecks,
   Target,
   MessageCircle,
-  Presentation,
+  // Presentation removed — repurpose bar simplified
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -68,69 +68,34 @@ function formatRelativeTime(dateStr: string): string {
 // Left Panel: Output Tab
 // =============================================================================
 
-function RepurposeBar({ slug }: { slug: string }) {
+function ExportButton({ slug }: { slug: string }) {
   const [active, setActive] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
 
-  const TARGETS = [
-    { key: 'pdf', label: 'PDF', icon: FileText, type: 'mechanical' as const },
-    { key: 'xlsx', label: 'XLSX', icon: FileText, type: 'mechanical' as const },
-    { key: 'linkedin', label: 'LinkedIn', icon: Send, type: 'editorial' as const },
-    { key: 'summary', label: 'Summary', icon: FileText, type: 'editorial' as const },
-    { key: 'slides', label: 'Slides', icon: Presentation, type: 'editorial' as const },
-  ];
-
-  const handleRepurpose = async (target: string, type: string) => {
-    setActive(target);
-    setResult(null);
+  const handleExport = async (format: string) => {
+    setActive(format);
     try {
-      if (type === 'mechanical') {
-        const res = await api.tasks.export(slug, target);
-        if (res.url) window.open(res.url, '_blank');
-        setResult('done');
-      } else {
-        const res = await fetch(`/api/tasks/${slug}/repurpose?target=${target}`, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          setResult(data.message || 'Repurposed');
-        } else {
-          setResult(data.detail || data.message || 'Failed');
-        }
-      }
+      const res = await api.tasks.export(slug, format);
+      if (res.url) window.open(res.url, '_blank');
     } catch (e) {
-      console.error(`Repurpose ${target} failed:`, e);
-      setResult('Failed');
+      console.error(`Export ${format} failed:`, e);
     } finally {
       setActive(null);
     }
   };
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-muted/20">
-      <span className="text-xs text-muted-foreground mr-1">Repurpose:</span>
-      {TARGETS.map((t) => (
+    <div className="flex items-center gap-1.5">
+      {['pdf'].map((fmt) => (
         <button
-          key={t.key}
-          onClick={() => handleRepurpose(t.key, t.type)}
+          key={fmt}
+          onClick={() => handleExport(fmt)}
           disabled={active !== null}
-          className={cn(
-            "inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors disabled:opacity-50",
-            t.type === 'editorial'
-              ? "border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary"
-              : "border-border/50 bg-background hover:bg-muted"
-          )}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-border/50 bg-background hover:bg-muted transition-colors disabled:opacity-50"
         >
-          {active === t.key ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <t.icon className="w-3 h-3" />
-          )}
-          {t.label}
+          {active === fmt ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+          {fmt.toUpperCase()}
         </button>
       ))}
-      {result && (
-        <span className="text-xs text-muted-foreground ml-2">{result}</span>
-      )}
     </div>
   );
 }
@@ -158,7 +123,12 @@ function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | nu
 
   return (
     <div className="flex flex-col h-full">
-      <RepurposeBar slug={task.slug} />
+      {/* Export — only PDF, compact, only when content exists */}
+      {(output.html_content || output.md_content) && (
+        <div className="flex items-center justify-end px-4 py-1.5 border-b border-border/30">
+          <ExportButton slug={task.slug} />
+        </div>
+      )}
       <div className="flex-1 min-h-0">
         {output.html_content ? (
           <iframe
