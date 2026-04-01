@@ -532,41 +532,8 @@ If the gathered context says "(No context available)" or tools return no results
 # =============================================================================
 
 async def _build_mandate_context(ws, agent: dict) -> str:
-    """
-    Build mandate_context string for agent prompts (ADR-128 Phase 1).
-
-    Reads from workspace:
-    - memory/reflections.md (last entry only — prevent self-referential loops)
-
-    Returns empty string if no context available (graceful degradation).
-    """
-    parts = []
-
-    # Last self-reflection (most recent entry only)
-    try:
-        reflections = await ws.read("memory/reflections.md")
-        if reflections:
-            # Extract most recent entry (between first and second ## headers)
-            lines = reflections.strip().split("\n")
-            entry_lines = []
-            found_first = False
-            for line in lines:
-                if line.startswith("## ") and not line.startswith("# Agent"):
-                    if found_first:
-                        break  # Stop at second entry
-                    found_first = True
-                    entry_lines.append(line)
-                elif found_first:
-                    entry_lines.append(line)
-            if entry_lines:
-                parts.append(f"YOUR LAST REFLECTION:\n" + "\n".join(entry_lines))
-    except Exception:
-        pass
-
-    if not parts:
-        return ""
-
-    return "MANDATE CONTEXT (ADR-128):\n" + "\n\n".join(parts)
+    """ADR-154: Dissolved. Reflections now live on task awareness.md, not agent workspace."""
+    return ""
 
 
 _REFLECTION_BLOCK_RE = re.compile(
@@ -638,43 +605,8 @@ def _extract_agent_reflection(draft: str) -> tuple[str, Optional[dict]]:
 
 
 async def _append_agent_reflection(ws, reflection: dict) -> None:
-    """
-    Append a new reflection entry to memory/reflections.md (ADR-128/149).
-
-    Rolling history: keeps 5 most recent entries (newest first).
-    """
-    from datetime import datetime, timezone as _tz
-
-    now = datetime.now(_tz.utc)
-    date_str = now.strftime("%Y-%m-%d %H:%M")
-
-    new_entry = (
-        f"## Run ({date_str})\n"
-        f"- **Mandate**: {reflection['mandate']}\n"
-        f"- **Domain Fitness**: {reflection['domain_fitness']}\n"
-        f"- **Context Currency**: {reflection['context_currency']}\n"
-        f"- **Output Confidence**: {reflection['output_confidence']}\n"
-    )
-
-    existing = await ws.read("memory/reflections.md") or ""
-
-    # Parse existing entries
-    header = "# Agent Reflection History\n<!-- Updated each run. Most recent first. Max 5 entries. -->\n\n"
-
-    # Split on ## headers (each entry starts with ##)
-    entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
-    entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
-
-    # Prepend new entry, cap at 5
-    entries = [new_entry.strip()] + entries[:4]
-
-    content = header + "\n\n".join(entries) + "\n"
-
-    await ws.write(
-        "memory/reflections.md",
-        content,
-        summary=f"Agent reflection after run ({reflection['output_confidence'][:20]})",
-    )
+    """ADR-154: Dissolved. Reflections now folded into task awareness.md by _post_run_domain_scan()."""
+    pass
 
 
 # ADR-109: Scope-aware tool round limits

@@ -1,18 +1,17 @@
 """
-Feedback Distillation — ADR-143 Phase 2.
+Feedback Distillation — ADR-143 Phase 2, updated ADR-154.
 
-Consolidates all feedback signals into a single memory/feedback.md file.
-Replaces the old preferences.md / supervisor-notes.md / observations.md split.
-
-feedback.md is append-at-top with a rolling 10-entry cap (like reflections.md).
-Each entry is a human-readable summary of what changed and why.
+Routes user feedback signals to the appropriate task's memory/feedback.md.
+ADR-154: Feedback is per-task (HOW), not per-agent (WHO).
 
 Two write paths:
-  1. Edit-based (this module) — called from agents.py PATCH run endpoint
-  2. Conversational (UpdateContext target="agent") — called by TP (ADR-146)
+  1. Edit-based — called from agents.py PATCH run endpoint. Resolves task_slug
+     from the run's metadata, writes to /tasks/{slug}/memory/feedback.md.
+  2. Conversational — called by TP via UpdateContext(target="agent" or "deliverable").
+     For agent-targeted feedback with no task context, writes to the agent's
+     most recent task's feedback file.
 
-The agent reads feedback.md on every run via load_context(). The LLM
-infers patterns from the entries — no classification logic needed.
+The task pipeline reads memory/feedback.md on every run via build_task_execution_prompt().
 """
 
 from __future__ import annotations
@@ -20,12 +19,33 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 # Maximum feedback entries to keep (newest first)
 _MAX_FEEDBACK_ENTRIES = 10
+
+
+async def _resolve_task_slug_for_agent(client: Any, agent_id: str) -> Optional[str]:
+    """Find the most recent task_slug for an agent from agent_runs metadata."""
+    try:
+        result = (
+            client.table("agent_runs")
+            .select("metadata")
+            .eq("agent_id", agent_id)
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        for row in (result.data or []):
+            meta = row.get("metadata") or {}
+            task_slug = meta.get("task_slug")
+            if task_slug:
+                return task_slug
+    except Exception as e:
+        logger.warning(f"[FEEDBACK] Could not resolve task_slug for agent {agent_id}: {e}")
+    return None
 
 
 async def distill_feedback_to_workspace(
@@ -34,15 +54,11 @@ async def distill_feedback_to_workspace(
     agent: dict,
 ) -> bool:
     """
-    Append a feedback entry to memory/feedback.md from edit signals.
+    Append a feedback entry from edit signals to the task's feedback.md.
 
-    Called after a user approves/edits/rejects an agent run. Reads the
-    latest run's edit_categories and formats a human-readable entry.
-
-    Returns True if feedback was written, False otherwise.
+    ADR-154: Routes to task-level feedback, not agent-level.
+    Resolves task_slug from the run's metadata.
     """
-    from services.workspace import AgentWorkspace, get_agent_slug
-
     agent_id = agent.get("id")
     if not agent_id:
         return False
@@ -51,7 +67,7 @@ async def distill_feedback_to_workspace(
         # Fetch the most recent run with feedback signals
         result = (
             client.table("agent_runs")
-            .select("version_number, edit_categories, edit_distance_score, feedback_notes, status")
+            .select("version_number, edit_categories, edit_distance_score, feedback_notes, status, metadata")
             .eq("agent_id", agent_id)
             .in_("status", ["approved", "delivered", "rejected"])
             .order("version_number", desc=True)
@@ -68,13 +84,23 @@ async def distill_feedback_to_workspace(
         if not entry:
             return False
 
-        ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
-        await _append_feedback(ws, entry)
+        # ADR-154: Resolve task_slug from run metadata
+        task_slug = (run.get("metadata") or {}).get("task_slug")
+        if not task_slug:
+            task_slug = await _resolve_task_slug_for_agent(client, agent_id)
 
-        logger.info(
-            f"[FEEDBACK] Wrote feedback for {agent.get('title', agent_id)} "
-            f"run #{run.get('version_number')}"
-        )
+        if task_slug:
+            from services.task_workspace import TaskWorkspace
+            tw = TaskWorkspace(client, user_id, task_slug)
+            await _append_feedback_to_task(tw, entry)
+            logger.info(
+                f"[FEEDBACK] Wrote feedback to task {task_slug} for "
+                f"{agent.get('title', agent_id)} run #{run.get('version_number')}"
+            )
+        else:
+            logger.warning(f"[FEEDBACK] No task_slug found for agent {agent_id} — feedback dropped")
+            return False
+
         return True
 
     except Exception as e:
@@ -88,15 +114,14 @@ async def write_feedback_entry(
     agent: dict,
     feedback_text: str,
     source: str = "conversation",
+    task_slug: Optional[str] = None,
 ) -> bool:
     """
-    Write a conversational feedback entry to an agent's feedback.md.
+    Write a conversational feedback entry to the task's feedback.md.
 
-    Called by TP via UpdateContext(target="agent") when the user gives
-    feedback about an agent's work in conversation.
+    ADR-154: Routes to task-level feedback. If task_slug not provided,
+    resolves from the agent's most recent run metadata.
     """
-    from services.workspace import AgentWorkspace, get_agent_slug
-
     agent_id = agent.get("id")
     if not agent_id or not feedback_text:
         return False
@@ -104,13 +129,21 @@ async def write_feedback_entry(
     try:
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d %H:%M")
-
         entry = f"## Feedback ({date_str}, {source})\n- {feedback_text}\n"
 
-        ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
-        await _append_feedback(ws, entry)
+        # Resolve task_slug
+        if not task_slug:
+            task_slug = await _resolve_task_slug_for_agent(client, agent_id)
 
-        logger.info(f"[FEEDBACK] Conversational feedback for {agent.get('title', agent_id)}")
+        if task_slug:
+            from services.task_workspace import TaskWorkspace
+            tw = TaskWorkspace(client, user_id, task_slug)
+            await _append_feedback_to_task(tw, entry)
+            logger.info(f"[FEEDBACK] Conversational feedback → task {task_slug}")
+        else:
+            logger.warning(f"[FEEDBACK] No task_slug for agent {agent_id} — feedback dropped")
+            return False
+
         return True
 
     except Exception as e:
@@ -123,7 +156,7 @@ def _build_feedback_entry(run: dict) -> str:
     Build a human-readable feedback entry from a run's edit signals.
 
     Converts edit_categories + feedback_notes + status into a concise
-    description of what happened, readable by the agent on next run.
+    description of what changed and why, readable by the agent on next run.
     """
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d %H:%M")
@@ -151,7 +184,6 @@ def _build_feedback_entry(run: dict) -> str:
     has_edits = additions or deletions or restructures or rewrites
 
     if not has_edits and not feedback_notes:
-        # Approved without changes — brief positive entry
         lines.append(f"## Run {version} ({date_str}, approved)")
         lines.append("- Approved without changes. Current approach is working.")
         return "\n".join(lines) + "\n"
@@ -159,22 +191,15 @@ def _build_feedback_entry(run: dict) -> str:
     source = "edited" if has_edits else "approved"
     lines.append(f"## Run {version} ({date_str}, {source})")
 
-    # Additions — user added content
     for item in additions[:3]:
         lines.append(f"- User added: {item}")
-
-    # Deletions — user removed content
     for item in deletions[:3]:
         lines.append(f"- User removed: {item}")
-
-    # Restructures — user moved sections
     for item in restructures[:2]:
         if isinstance(item, dict):
             lines.append(f"- User restructured: moved '{item.get('section', '?')}' {item.get('direction', '')}")
         else:
             lines.append(f"- User restructured: {item}")
-
-    # Rewrites — user rephrased
     for item in rewrites[:2]:
         if isinstance(item, dict):
             orig = item.get("original", "")[:50]
@@ -183,38 +208,33 @@ def _build_feedback_entry(run: dict) -> str:
         else:
             lines.append(f"- User rephrased content")
 
-    # Explicit feedback notes
     if feedback_notes:
         lines.append(f"- User said: \"{feedback_notes}\"")
-
-    # Edit intensity signal
     if edit_score is not None and edit_score > 0.5:
         lines.append(f"- Note: significant edits (distance: {edit_score:.1%})")
 
     return "\n".join(lines) + "\n"
 
 
-async def _append_feedback(ws: Any, new_entry: str) -> None:
+async def _append_feedback_to_task(tw, new_entry: str) -> None:
     """
-    Append a feedback entry to memory/feedback.md (newest first, capped).
+    Append a feedback entry to task memory/feedback.md (newest first, capped).
 
-    Same pattern as _append_agent_reflection in agent_execution.py.
+    ADR-154: Writes to TaskWorkspace, not AgentWorkspace.
     """
-    existing = await ws.read("memory/feedback.md") or ""
+    existing = await tw.read("memory/feedback.md") or ""
 
-    header = "# Feedback History\n<!-- Most recent first. Max 10 entries. TP writes, agent reads. -->\n\n"
+    header = "# Task Feedback\n<!-- User corrections + TP evaluations. Newest first. ADR-149/154. -->\n\n"
 
-    # Split on ## headers (each entry starts with ##)
     entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
     entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
 
-    # Prepend new entry, cap at max
     entries = [new_entry.strip()] + entries[:_MAX_FEEDBACK_ENTRIES - 1]
 
     content = header + "\n\n".join(entries) + "\n"
 
-    await ws.write(
+    await tw.write(
         "memory/feedback.md",
         content,
-        summary="ADR-143: feedback entry",
+        summary="ADR-154: feedback entry (task-level)",
     )
