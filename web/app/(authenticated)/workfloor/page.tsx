@@ -36,6 +36,7 @@ import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceDashboard } from '@/components/workspace/WorkspaceDashboard';
+import { IsometricRoom } from '@/components/workfloor/IsometricRoom';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
@@ -602,13 +603,26 @@ export default function WorkfloorPage() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      {/* Layer 1: Dashboard — workspace status, respects panel widths */}
+      {/* Layer 1: Activity feed + compact room, respects panel widths */}
       <div className={cn(
-        "absolute top-0 bottom-0 overflow-auto",
+        "absolute top-0 bottom-0 overflow-hidden flex flex-col",
         panelOpen ? "left-[400px]" : "left-0",
         chatOpen ? "right-[400px]" : "right-0",
       )}>
-        <WorkspaceDashboard tasks={tasks} agents={agents} />
+        <WorkspaceDashboard
+          tasks={tasks}
+          agents={agents}
+          isometricRoom={
+            <IsometricRoom
+              agents={activeAgents}
+              tasks={tasks}
+              loading={agentsLoading}
+              collapsed={false}
+              onTPClick={() => setChatOpen(true)}
+              onAction={(msg) => { sendMessage(msg, { surface }); setChatOpen(true); }}
+            />
+          }
+        />
       </div>
 
       {/* Layer 1b: Content viewer — shows when file selected from Files tab */}
