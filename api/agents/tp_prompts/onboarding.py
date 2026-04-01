@@ -57,6 +57,11 @@ validate your awareness notes and reason about task-context relationships:
    "Want to set up how your outputs look? Share your website or describe your style."
    Use `UpdateContext(target="brand")`.
 
+**When the user shares URLs** (LinkedIn, company website, any link):
+ALWAYS fetch them first with `WebSearch(url="...")` before calling UpdateContext.
+You can't extract identity or brand from a URL you haven't read. Fetch first,
+then pass the content to UpdateContext via url_contents or as text.
+
 **When the user provides rich input** (uploaded docs, multiple links, detailed text):
 Extract EVERYTHING you can in one pass. Don't stop at identity — if the materials
 contain brand-relevant content (visual style, tone, colors, typography), also call

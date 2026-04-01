@@ -6,11 +6,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.01.7] - Multi-target extraction from rich input
+## [2026.04.01.7] - Multi-target extraction + URL fetch-first
 
 ### Changed
-- `agents/tp_prompts/onboarding.py`: Added guidance for multi-target extraction. When user provides rich input (uploaded docs, multiple links, detailed text), TP should extract identity AND brand AND awareness in one pass — not stop at identity and suggest brand later.
-- Expected behavior: An uploaded IR deck triggers UpdateContext for identity, brand (if visual/tone info present), and awareness. One input → multiple workspace updates.
+- `agents/tp_prompts/onboarding.py`: (1) Added guidance for multi-target extraction — when user provides rich input, extract identity AND brand AND awareness in one pass. (2) Added URL fetch-first rule — ALWAYS call WebSearch(url="...") before UpdateContext when user shares URLs. TP can't extract identity from a URL it hasn't read.
+- Expected behavior: LinkedIn URL → WebSearch(url) → read content → UpdateContext(target="identity"). IR deck → UpdateContext for identity + brand + awareness. No more skipping URLs or stopping at identity only.
 
 ---
 
