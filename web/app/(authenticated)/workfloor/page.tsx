@@ -506,7 +506,7 @@ export default function WorkfloorPage() {
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'files'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'files'>('files');
   const [fileTree, setFileTree] = useState<import('@/types').WorkspaceTreeNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<import('@/types').WorkspaceTreeNode | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -515,16 +515,9 @@ export default function WorkfloorPage() {
   useEffect(() => {
     if (activeTab !== 'files' || fileTree.length > 0) return;
     setFileTreeLoading(true);
-    Promise.all([
-      api.workspace.getTree('/workspace'),
-      api.workspace.getTree('/agents'),
-      api.workspace.getTree('/tasks'),
-    ]).then(([workspace, agents, tasks]) => {
-      setFileTree([
-        { name: 'workspace', path: '/workspace', type: 'folder', children: workspace },
-        { name: 'agents', path: '/agents', type: 'folder', children: agents },
-        { name: 'tasks', path: '/tasks', type: 'folder', children: tasks },
-      ]);
+    // Only show /workspace in file tree — agents have the room, tasks have the Tasks tab
+    api.workspace.getTree('/workspace').then((workspace) => {
+      setFileTree(workspace);
     }).catch(err => {
       console.error('Failed to load file tree:', err);
     }).finally(() => setFileTreeLoading(false));
@@ -605,15 +598,6 @@ export default function WorkfloorPage() {
           panelOpen ? "left-[400px]" : "left-4",
           chatOpen ? "right-[400px]" : "right-4",
         )}>
-          <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/95 sticky top-0 z-10">
-            <span className="text-xs text-muted-foreground truncate">{selectedFile.path}</span>
-            <button
-              onClick={() => setSelectedFile(null)}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted"
-            >
-              Close
-            </button>
-          </div>
           <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
         </div>
       )}
@@ -663,9 +647,12 @@ export default function WorkfloorPage() {
                 </button>
               )}
               {activeTab === 'files' && selectedFile && (
-                <span className="text-[10px] text-muted-foreground/60 truncate max-w-[120px]">
-                  {selectedFile.name}
-                </span>
+                <button
+                  onClick={() => setSelectedFile(null)}
+                  className="text-[10px] text-muted-foreground/60 hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted"
+                >
+                  Close file
+                </button>
               )}
               <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
                 <X className="w-3.5 h-3.5" />
@@ -702,9 +689,16 @@ export default function WorkfloorPage() {
         chatOpen ? 'opacity-100' : 'opacity-0 pointer-events-none translate-x-4'
       )}>
         <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
-          {/* Chat header */}
+          {/* Chat header — shows TP context awareness */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
-            <span className="text-xs font-medium">Chat</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium">TP</span>
+              {selectedFile && activeTab === 'files' && (
+                <span className="text-[10px] text-muted-foreground/50 truncate max-w-[180px]">
+                  viewing {selectedFile.name}
+                </span>
+              )}
+            </div>
             <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
               <X className="w-3.5 h-3.5" />
             </button>

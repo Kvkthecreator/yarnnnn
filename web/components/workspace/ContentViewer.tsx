@@ -145,17 +145,11 @@ function FileView({ path }: { path: string }) {
 
   return (
     <div className="p-4 overflow-auto h-full">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-medium">{path.split('/').pop()}</h2>
-          <p className="text-xs text-muted-foreground">{path}</p>
-        </div>
-        {file.updated_at && (
-          <span className="text-xs text-muted-foreground">
-            Updated {file.updated_at.slice(0, 16).replace('T', ' ')}
-          </span>
-        )}
-      </div>
+      {file.updated_at && (
+        <p className="text-[10px] text-muted-foreground/50 mb-2 text-right">
+          {file.updated_at.slice(0, 16).replace('T', ' ')}
+        </p>
+      )}
       <div className="prose prose-sm dark:prose-invert max-w-none">
         <MarkdownRenderer content={file.content} />
       </div>
