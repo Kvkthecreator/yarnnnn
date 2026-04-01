@@ -683,6 +683,7 @@ export interface Task {
   slug: string;
   title: string;
   status: TaskStatus;
+  mode?: TaskMode;             // recurring | goal | reactive
   schedule?: string;           // cron or human-readable cadence
   next_run_at?: string;
   last_run_at?: string;

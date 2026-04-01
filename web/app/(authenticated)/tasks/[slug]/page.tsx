@@ -565,7 +565,8 @@ export default function TaskPage() {
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'task' | 'schedule' | 'process'>('output');
+  const [leftTab, setLeftTab] = useState<'output' | 'deliverable' | 'schedule' | 'context'>('output');
+  const [deliverableMd, setDeliverableMd] = useState<string | null>(null);
 
   const refreshData = useCallback(() => {
     if (!slug) return;
@@ -595,11 +596,13 @@ export default function TaskPage() {
       api.tasks.get(slug).catch(() => null),
       api.tasks.listOutputs(slug, 10).catch(() => ({ outputs: [], total: 0 })),
       api.tasks.getLatestOutput(slug).catch(() => null),
-    ]).then(([taskData, outputsData, latestOutput]) => {
+      api.workspace.getFile(`/tasks/${slug}/DELIVERABLE.md`).catch(() => null),
+    ]).then(([taskData, outputsData, latestOutput, deliverableFile]) => {
       if (!taskData) { setError('Task not found'); setLoading(false); return; }
       setTask(taskData);
       setOutputs(outputsData?.outputs || []);
       setSelectedOutput(latestOutput || null);
+      if (deliverableFile?.content) setDeliverableMd(deliverableFile.content);
       setLoading(false);
     }).catch(() => { setError('Failed to load task'); setLoading(false); });
   }, [slug]);
@@ -663,16 +666,21 @@ export default function TaskPage() {
       <div className="flex flex-col flex-1 min-h-0">
         {/* Tab bar */}
         <div className="flex border-b border-border shrink-0 px-5">
-          {(['output', 'task', 'schedule', 'process'] as const).map(tab => (
+          {([
+            { key: 'output', label: 'Output' },
+            { key: 'deliverable', label: 'Deliverable' },
+            { key: 'schedule', label: 'Schedule' },
+            { key: 'context', label: 'Context' },
+          ] as const).map(tab => (
             <button
-              key={tab}
-              onClick={() => setLeftTab(tab)}
+              key={tab.key}
+              onClick={() => setLeftTab(tab.key)}
               className={cn(
-                'px-3 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize',
-                leftTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/40 hover:text-muted-foreground'
+                'px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                leftTab === tab.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/40 hover:text-muted-foreground'
               )}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -680,7 +688,19 @@ export default function TaskPage() {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
           {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'task' && <TaskDefinitionTab task={task} onChatMessage={(msg) => sendMessage(msg, { surface: { type: 'task-detail', taskSlug: slug } })} />}
+          {leftTab === 'deliverable' && (
+            <div className="p-5 space-y-4">
+              {deliverableMd ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <MarkdownRenderer content={deliverableMd} />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No deliverable spec yet. Ask TP to set one up.
+                </p>
+              )}
+            </div>
+          )}
           {leftTab === 'schedule' && (
             <ScheduleTab
               task={task}
@@ -690,7 +710,82 @@ export default function TaskPage() {
               onRefresh={refreshData}
             />
           )}
-          {leftTab === 'process' && <ProcessTab task={task} selectedOutput={selectedOutput} />}
+          {leftTab === 'context' && (
+            <div className="p-5 space-y-4">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context Domains</h3>
+              {task.task_md ? (() => {
+                const reads = task.task_md.match(/\*\*Context Reads:\*\*\s*(.*)/)?.[1]?.split(',').map(s => s.trim()).filter(s => s && s !== 'none') || [];
+                const writes = task.task_md.match(/\*\*Context Writes:\*\*\s*(.*)/)?.[1]?.split(',').map(s => s.trim()).filter(s => s && s !== 'none') || [];
+                const outputCat = task.task_md.match(/\*\*Output Category:\*\*\s*(.*)/)?.[1]?.trim();
+                return (
+                  <div className="space-y-3">
+                    {reads.length > 0 && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">Reads from:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {reads.map(d => (
+                            <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {writes.length > 0 && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">Writes to:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {writes.map(d => (
+                            <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {outputCat && outputCat !== 'none' && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">Output promoted to:</p>
+                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                          {outputCat}
+                        </span>
+                      </div>
+                    )}
+                    {reads.length === 0 && writes.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No context domains configured for this task.
+                      </p>
+                    )}
+                  </div>
+                );
+              })() : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Task definition not loaded.
+                </p>
+              )}
+              {/* Agent assignment */}
+              {task.agent_slugs && task.agent_slugs.length > 0 && (
+                <div className="pt-3 border-t border-border/50">
+                  <p className="text-[11px] text-muted-foreground mb-1">Assigned agent:</p>
+                  <p className="text-sm font-medium">{task.agent_slugs.join(', ')}</p>
+                </div>
+              )}
+              {/* Mode */}
+              {task.mode && (
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">Mode:</p>
+                  <span className={cn(
+                    "px-2 py-0.5 text-[11px] rounded-full",
+                    task.mode === 'recurring' && "bg-blue-500/10 text-blue-600",
+                    task.mode === 'goal' && "bg-amber-500/10 text-amber-600",
+                    task.mode === 'reactive' && "bg-gray-500/10 text-gray-600",
+                  )}>
+                    {task.mode}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </WorkspaceLayout>
