@@ -313,7 +313,7 @@ async def record_source_snapshots(
         client: Supabase client
         version_id: UUID of the agent run
         sources_used: List of source configs that were used
-        content_ids: Optional list of platform_content IDs consumed during generation
+        content_ids: Deprecated — was platform_content IDs, now unused
 
     Returns:
         True on success, False on failure

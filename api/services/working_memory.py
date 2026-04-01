@@ -22,8 +22,6 @@ What goes in the prompt (~2,500 tokens, + ~500 for agent scope):
   - Context readiness: identity/brand/docs/tasks/domains richness ← ADR-144/151
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
-Raw platform_content is NOT included here.
-TP fetches it via Search when needed.
 TP can invoke GetSystemState primitive for detailed operational state.
 """
 

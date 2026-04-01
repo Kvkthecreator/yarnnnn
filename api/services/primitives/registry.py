@@ -24,8 +24,6 @@ from .edit import EDIT_TOOL, handle_edit
 from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
-# ADR-153: RefreshPlatformContent DELETED — platform_content sunset
-# from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import CREATE_AGENT_TOOL, handle_create_agent

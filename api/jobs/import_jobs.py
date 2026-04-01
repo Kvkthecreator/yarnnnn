@@ -9,7 +9,7 @@ Flow:
 1. Query pending import jobs from integration_import_jobs table
 2. Fetch user's platform credentials from platform_connections
 3. Fetch data via Direct API (Slack channels, Notion pages)
-4. Store results in platform_content (ADR-058 Knowledge Base Architecture)
+4. Store results to workspace context (ADR-153: platform_content removed)
 5. Update sync_registry with sync status
 6. Update job status
 
@@ -232,9 +232,7 @@ async def update_coverage_state(
     )
 
 
-# NOTE: Platform content stored in platform_content table (ADR-058).
-# Knowledge entries (knowledge_entries) are reserved for user-stated facts and inferred preferences.
-# See: ADR-058-knowledge-base-architecture.md
+# NOTE: Platform content flows through tasks into workspace context domains (ADR-153).
 
 
 async def process_slack_import(
@@ -599,7 +597,6 @@ async def process_import_job(supabase_client, job: dict) -> bool:
 
         logger.info(
             f"[IMPORT] ✓ Completed job {job_id}: "
-            f"{result.get('ephemeral_stored', 0)} items stored to platform_content, "
             f"{result.get('blocks_extracted', 0)} blocks extracted"
         )
         return True

@@ -8,14 +8,12 @@ Examples:
   agent:latest            # Most recent
   platform:slack                # By provider name
   platform:slack/credentials    # Sub-entity
-  platform_content:*            # All platform content
   session:current               # Special reference
 
 Entity types:
   - agent: Content agents
   - version: Agent versions (generated content)
   - platform: Connected platforms (platform_connections)
-  - platform_content: Unified content layer (ADR-072)
   - memory: Knowledge entries (user facts, preferences)
   - session: Chat sessions
   - domain: Knowledge domains
@@ -24,7 +22,6 @@ Entity types:
   - system: System-level targets (signals, scheduler, etc.)
 
 NOTE: Per ADR-059, 'memory' maps to user_memory (replaces knowledge_entries).
-      Platform content (Slack/Gmail/Notion imports) lives in platform_content (ADR-072).
 
 Special identifiers:
   - new: For Write operations (create)
@@ -74,7 +71,6 @@ ENTITY_TYPES = {
     "agent",
     "version",  # Agent versions (generated content)
     "platform",
-    "platform_content",  # ADR-072: unified content layer
     "memory",  # ADR-059: user_memory
     "session",
     "domain",
@@ -159,7 +155,6 @@ TABLE_MAP = {
     "agent": "agents",
     "version": "agent_runs",  # Generated agent content
     "platform": "platform_connections",
-    "platform_content": "platform_content",  # ADR-072: unified content layer
     "memory": "user_memory",  # ADR-059: Replaces knowledge_entries
     "session": "chat_sessions",
     "domain": "user_memory",  # ADR-059: knowledge_domains removed
@@ -460,10 +455,11 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
             content = item.pop("final_content", None) or item.pop("draft_content", None) or ""
             item["content"] = content[:500] + "..." if len(content) > 500 else content
             # Strip verbose content IDs from list view (available on single reads)
-            if item.get("metadata") and "platform_content_ids" in item["metadata"]:
+            # Strip verbose IDs from list view metadata
+            if item.get("metadata"):
                 item["metadata"] = {
                     k: v for k, v in item["metadata"].items()
-                    if k != "platform_content_ids"
+                    if k not in ("platform_content_ids",)
                 }
         return result.data or []
 

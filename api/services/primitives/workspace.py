@@ -7,7 +7,7 @@ workspace, the shared knowledge base, and other agents.
 - ReadWorkspace: read from agent's workspace
 - WriteWorkspace: write to agent's workspace (thesis, observations, working notes)
 - SearchWorkspace: full-text search within agent's workspace
-- QueryKnowledge: search /knowledge/ filesystem with metadata filters + platform_content fallback
+- QueryKnowledge: search workspace context domains with metadata filters
 - DiscoverAgents: find other agents by role/scope/status (ADR-116 Phase 2)
 """
 
@@ -341,7 +341,6 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
 
     ADR-151: Searches shared workspace context domains. Replaces legacy /knowledge/ search.
     Optional domain filter narrows to specific context domain.
-    Falls back to platform_content if context domains are empty.
     """
     query = input.get("query") or ""
     domain = input.get("content_class") or input.get("domain")  # content_class kept for backwards compat

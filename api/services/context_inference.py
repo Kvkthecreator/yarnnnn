@@ -83,7 +83,6 @@ async def infer_shared_context(
     text: str = "",
     document_contents: Optional[list] = None,
     url_contents: Optional[list] = None,
-    platform_content: Optional[list] = None,
     existing_content: str = "",
 ) -> str:
     """Infer workspace shared context from provided sources.
@@ -95,7 +94,6 @@ async def infer_shared_context(
         text: Direct text from user (chat message, description)
         document_contents: [{filename, content}] from uploaded documents
         url_contents: [{url, content}] from web search/fetch
-        platform_content: [{source, content}] from platform search
         existing_content: Current file content (for merge, not overwrite)
 
     Returns:
@@ -119,13 +117,6 @@ async def infer_shared_context(
             content = item.get("content", "")[:3000]
             if content:
                 parts.append(f"--- URL: {url} ---\n{content}")
-    if platform_content:
-        for item in (platform_content or [])[:3]:
-            source = item.get("source", "platform")
-            content = item.get("content", "")[:3000]
-            if content:
-                parts.append(f"--- Platform ({source}) ---\n{content}")
-
     if not parts:
         logger.warning("[INFERENCE] No source material provided")
         return existing_content or ""

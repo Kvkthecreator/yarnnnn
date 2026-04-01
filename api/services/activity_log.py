@@ -64,7 +64,7 @@ VALID_EVENT_TYPES = frozenset({
     "platform_synced",
     "integration_connected",
     "integration_disconnected",
-    "content_cleanup",              # Expired platform_content cleaned up
+    "content_cleanup",              # Legacy — kept for historical events
     # Sessions & memory
     "chat_session",
     "memory_written",

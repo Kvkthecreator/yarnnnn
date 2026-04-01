@@ -3,8 +3,7 @@ Agent Pipeline Utilities
 
 ADR-109: Role-keyed prompt templates and validation.
          Scope × Role × Trigger framework (skill renamed to role for agent behavioral axis).
-ADR-073: Live API fetch functions removed — execution strategies
-         read from platform_content (unified fetch architecture).
+ADR-073: Live API fetch functions removed — agents read from workspace context.
 
 Contains:
 - ROLE_PROMPTS: Per-role prompt templates for LLM synthesis
