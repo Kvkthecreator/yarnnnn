@@ -79,6 +79,28 @@ TP receives navigation context with every chat message when the user browses the
 
 ---
 
+## Action Cards + Chat = Unified Flow
+
+Conversation starter chips, inline action cards, and chat messages are ONE fluid system — not separate UX patterns.
+
+**The flow:**
+1. **Chip** starts the conversation ("Tell me about myself and my work")
+2. **Action card** appears with guided input (URL field, file upload, text area)
+3. **User provides input** via the action card (paste LinkedIn, upload deck, type description)
+4. **TP processes** the input (calls UpdateContext, CreateTask, etc.)
+5. **TP responds** in chat with confirmation + next suggestion
+
+Action cards are NOT forms that bypass TP. They're INPUT SURFACES that feed into the chat. Whatever the user provides through an action card becomes a message that TP processes with full judgment.
+
+**Key principle:** Every action card resolves to a TP primitive call. The card provides the UI surface; TP provides the judgment. The user never fills out a form that goes straight to a database — it always flows through TP.
+
+**Examples:**
+- Identity setup card: URL field + file upload + text area → sends to TP → `UpdateContext(target="identity")`
+- New task card: task description field → sends to TP → `CreateTask(type_key="...")`
+- Feedback card: text area → sends to TP → `UpdateContext(target="task", feedback_target="deliverable")`
+
+---
+
 ## Anti-Patterns
 
 | Anti-Pattern | Why It's Wrong | What To Do Instead |

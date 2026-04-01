@@ -59,7 +59,7 @@ What to tune:
 - Ensure task catalog is current (15 atomic types: 7 tracking + 8 synthesis)
 - Trust TP judgment for edge cases (user jumps ahead = let them)
 
-### Concern 2: UX Surfacing (frontend code, separate from TP)
+### Concern 2: UX Surfacing (chips + action cards, flowing INTO TP)
 
 Empty state action cards / suggestion chips in the chat panel. These are UI elements that trigger TP conversations — NOT TP's judgment encoded in UI.
 
@@ -71,7 +71,25 @@ Empty state action cards / suggestion chips in the chat panel. These are UI elem
 | tasks == 0 | "What should I track?" | Sends message to TP → TP handles |
 | operational | "What's new?" / context-specific | Sends message to TP → TP handles |
 
-**The chips are conversation starters, not commands.** They send a natural language message to TP. TP decides what to do based on its judgment + workspace state. The UI doesn't bypass TP's judgment.
+**Chips + action cards + chat = one fluid flow.** (See TP-DESIGN-PRINCIPLES.md)
+
+1. Chip starts the conversation ("Tell me about myself")
+2. Action card appears with guided input (URL field, file upload, text)
+3. User provides input through the card
+4. Input flows to TP as a message → TP processes with full judgment
+5. TP responds with confirmation + next suggestion
+
+Action cards are INPUT SURFACES, not forms. They feed into TP, not around it.
+
+**Identity setup action card:**
+- Paste URL field (LinkedIn, company website)
+- Upload file button (pitch deck, one-pager)
+- Text area ("just describe your work")
+- All inputs flow to TP → `UpdateContext(target="identity")`
+
+**Task creation action card:**
+- Description field ("what do you want to track?")
+- Flows to TP → TP infers type_key → `CreateTask(...)`
 
 ### Concern 3: Viewing-aware suggestions
 

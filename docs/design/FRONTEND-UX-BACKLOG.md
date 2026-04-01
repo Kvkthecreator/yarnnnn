@@ -5,6 +5,14 @@
 
 ---
 
+## Design Principle: Chips + Action Cards + Chat = One Flow
+
+Every user interaction flows through TP. Action cards are input surfaces, not forms.
+Chip → action card → user input → TP processes → response + next suggestion.
+See: TP-DESIGN-PRINCIPLES.md "Action Cards + Chat = Unified Flow"
+
+---
+
 ## P0: Fix before launch
 
 ### Nav breadcrumb
