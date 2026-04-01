@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.4] - Onboarding prompt tune: schedules, no-gate, navigation awareness
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Fixed schedule values (track-competitors=weekly not daily, track-market=monthly). Removed contradictory gating language ("Do NOT suggest task types yet" → "use judgment on readiness"). Added navigation awareness section. Simplified structure. Agent names updated (Competitive Intelligence, etc.). Removed "Do NOT" directives in favor of judgment-based guidance.
+- Expected behavior: TP uses judgment for cold start progression. Never blocks. Uses navigation context as additional signal. Suggests one thing at a time based on priorities, not rules.
+
+---
+
 ## [2026.04.01.3] - TP prompt rewrite for new architecture
 
 ### Changed
