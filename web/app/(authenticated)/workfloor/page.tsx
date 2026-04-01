@@ -684,8 +684,8 @@ export default function WorkfloorPage() {
                 </span>
               )}
             </div>
-            <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
-              <X className="w-3.5 h-3.5" />
+            <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted">
+              <X className="w-4 h-4" />
             </button>
           </div>
           <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
