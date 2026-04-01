@@ -603,49 +603,11 @@ export default function WorkfloorPage() {
 
 
   return (
-    <div className="relative h-full overflow-hidden">
-      {/* Layer 1: Activity feed + compact room, respects panel widths */}
-      <div className={cn(
-        "absolute top-0 bottom-0 overflow-hidden flex flex-col",
-        panelOpen ? "left-[400px]" : "left-0",
-        chatOpen ? "right-[400px]" : "right-0",
-      )}>
-        <WorkspaceDashboard tasks={tasks} agents={agents} />
-      </div>
-
-      {/* Layer 1b: Content viewer — shows when file selected from Files tab */}
-      {/* Positioned between left panel (w-[380px] + left-4) and right chat (w-[380px] + right-4) */}
-      {selectedFile && (
-        <div className={cn(
-          "absolute top-4 bottom-4 z-10 bg-background/95 backdrop-blur-sm rounded-lg border border-border/50 overflow-auto shadow-sm",
-          panelOpen ? "left-[400px]" : "left-4",
-          chatOpen ? "right-[400px]" : "right-4",
-        )}>
-          <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
-        </div>
-      )}
-
-      {/* Layer 2: Bootstrap banner */}
-      {bootstrapProvider && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30">
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5 backdrop-blur-sm">
-            <div>
-              <p className="text-sm font-medium">Connected {bootstrapProvider.charAt(0).toUpperCase() + bootstrapProvider.slice(1)}!</p>
-              <p className="text-xs text-muted-foreground">Syncing...</p>
-            </div>
-            <button onClick={() => setBootstrapProvider(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-          </div>
-        </div>
-      )}
-
-      {/* Layer 3: Floating left panel — Tasks/Context */}
-      <div className={cn(
-        'absolute left-4 top-4 bottom-4 z-20 w-[380px] flex flex-col transition-all duration-200',
-        panelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none -translate-x-4'
-      )}>
-        <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
-          {/* Panel header: Files explorer */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
+    <div className="flex h-full overflow-hidden">
+      {/* Left: Icon strip (collapsed) or Files panel (expanded) */}
+      {panelOpen ? (
+        <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <span className="text-xs font-medium text-muted-foreground">Files</span>
             <div className="flex items-center gap-1">
               {selectedFile && (
@@ -661,34 +623,49 @@ export default function WorkfloorPage() {
               </button>
             </div>
           </div>
-
-          {/* Panel content — Files only */}
           <div className="flex-1 overflow-y-auto">
-              <div className="flex flex-col h-full">
-                {fileTreeLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <WorkspaceTree
-                    nodes={fileTree}
-                    selectedPath={selectedFile?.path}
-                    onSelect={(node) => setSelectedFile(node)}
-                  />
-                )}
+            {fileTreeLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
+            ) : (
+              <WorkspaceTree
+                nodes={fileTree}
+                selectedPath={selectedFile?.path}
+                onSelect={(node) => setSelectedFile(node)}
+              />
+            )}
           </div>
         </div>
+      ) : (
+        <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
+          <button
+            onClick={() => setPanelOpen(true)}
+            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+            title="Files"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Center: Activity feed or file content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {selectedFile ? (
+          <div className="flex-1 overflow-auto bg-background">
+            <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto">
+            <WorkspaceDashboard tasks={tasks} agents={agents} />
+          </div>
+        )}
       </div>
 
-      {/* Layer 4: Floating right panel — Chat */}
-      <div className={cn(
-        'absolute right-4 top-4 bottom-4 z-20 w-[380px] flex flex-col transition-all duration-200',
-        chatOpen ? 'opacity-100' : 'opacity-0 pointer-events-none translate-x-4'
-      )}>
-        <div className="flex flex-col flex-1 min-h-0 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-lg overflow-hidden">
-          {/* Chat header — shows TP context awareness */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 shrink-0">
+      {/* Right: Chat panel or icon strip */}
+      {chatOpen ? (
+        <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">TP</span>
               {selectedFile && (
@@ -703,24 +680,16 @@ export default function WorkfloorPage() {
           </div>
           <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
         </div>
-      </div>
-
-      {/* Panel re-open buttons — only show when a panel is closed */}
-      {!panelOpen && (
-        <button
-          onClick={() => setPanelOpen(true)}
-          className="absolute left-2 top-2 z-30 p-2 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 text-muted-foreground hover:text-foreground"
-        >
-          <FolderOpen className="w-4 h-4" />
-        </button>
-      )}
-      {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          className="absolute right-2 top-2 z-30 p-2 bg-background/80 backdrop-blur-md rounded-lg border border-border/30 text-muted-foreground hover:text-foreground"
-        >
-          <MessageCircle className="w-4 h-4" />
-        </button>
+      ) : (
+        <div className="w-10 shrink-0 border-l border-border flex flex-col items-center py-2 gap-2 bg-background">
+          <button
+            onClick={() => setChatOpen(true)}
+            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+            title="Chat"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        </div>
       )}
     </div>
   );
