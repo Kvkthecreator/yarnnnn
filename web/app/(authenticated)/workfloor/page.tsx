@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { IsometricRoom } from '@/components/workfloor/IsometricRoom';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
+import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
@@ -258,7 +259,7 @@ function DocumentsTab() {
 // Floating Chat Panel
 // =============================================================================
 
-function ChatPanel({ taskCount, pendingActionConfig }: { taskCount: number; pendingActionConfig?: ActionCardConfig | null }) {
+function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCount: number; pendingActionConfig?: ActionCardConfig | null; surfaceOverride?: any }) {
   const {
     messages,
     sendMessage,
@@ -268,7 +269,8 @@ function ChatPanel({ taskCount, pendingActionConfig }: { taskCount: number; pend
     respondToClarification,
     tokenUsage,
   } = useTP();
-  const { surface } = useDesk();
+  const { surface: deskSurface } = useDesk();
+  const surface = surfaceOverride || deskSurface; // File selection overrides desk surface
 
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
@@ -529,6 +531,17 @@ export default function WorkfloorPage() {
   }, [activeTab, fileTree.length]);
   // showCatalog removed — catalog only shows for zero-tasks empty state
 
+  // File-aware surface context for TP chat
+  // When a file is selected, merge navigation context into the surface
+  const effectiveSurface = selectedFile && activeTab === 'files'
+    ? {
+        ...surface,
+        type: 'workspace-explorer',
+        path: selectedFile.path,
+        navigation_type: selectedFile.type,
+      }
+    : surface;
+
   // Panel + room visibility
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
@@ -583,6 +596,22 @@ export default function WorkfloorPage() {
           onAction={(msg) => { sendMessage(msg, { surface }); setChatOpen(true); }}
         />
       </div>
+
+      {/* Layer 1b: Content viewer overlay — shows when file selected from Files tab */}
+      {selectedFile && activeTab === 'files' && (
+        <div className="absolute inset-0 z-10 bg-background overflow-auto">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/95 sticky top-0 z-10">
+            <span className="text-xs text-muted-foreground truncate">{selectedFile.path}</span>
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted"
+            >
+              Close
+            </button>
+          </div>
+          <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
+        </div>
+      )}
 
       {/* Layer 2: Bootstrap banner */}
       {bootstrapProvider && (
@@ -675,7 +704,7 @@ export default function WorkfloorPage() {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} />
+          <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
         </div>
       </div>
 
