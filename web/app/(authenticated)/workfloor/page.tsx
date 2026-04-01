@@ -602,8 +602,12 @@ export default function WorkfloorPage() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      {/* Layer 1: Dashboard — workspace status at a glance (replaces isometric room) */}
-      <div className="absolute inset-0 overflow-auto">
+      {/* Layer 1: Dashboard — workspace status, respects panel widths */}
+      <div className={cn(
+        "absolute top-0 bottom-0 overflow-auto",
+        panelOpen ? "left-[400px]" : "left-0",
+        chatOpen ? "right-[400px]" : "right-0",
+      )}>
         <WorkspaceDashboard tasks={tasks} agents={agents} />
       </div>
 
