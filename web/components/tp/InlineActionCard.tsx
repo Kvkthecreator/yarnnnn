@@ -77,46 +77,6 @@ export function InlineActionCard({ config, onSelect, onDismiss }: InlineActionCa
 // Pre-defined action card configs
 // =============================================================================
 
-/** Cold start: Set up identity — the first onboarding step */
-export const IDENTITY_SETUP_CARD: ActionCardConfig = {
-  title: 'Tell me about yourself',
-  description: 'Any of these work — share what you have',
-  options: [
-    { label: 'Paste my LinkedIn URL', message: 'Here is my LinkedIn: ' },
-    { label: 'Paste my company website', message: 'Here is my company website: ' },
-    { label: 'Upload a pitch deck', message: 'I want to upload a document about my company' },
-    { label: 'Just describe my work', message: 'I am ' },
-  ],
-  inputPlaceholder: 'Or just type about yourself',
-};
-
-/** Set up brand / output style */
-export const BRAND_SETUP_CARD: ActionCardConfig = {
-  title: 'Set up your output style',
-  description: 'How should your reports and briefs look?',
-  options: [
-    { label: 'Use my website style', message: 'Match the style of my website: ' },
-    { label: 'Professional & formal', message: 'Use a professional, formal tone for all outputs' },
-    { label: 'Casual & direct', message: 'Use a casual, direct tone for all outputs' },
-    { label: 'Describe my style', message: 'My communication style is ' },
-  ],
-  inputPlaceholder: 'Or describe your preferred style',
-};
-
-/** Context update — general purpose */
-export function contextUpdateCard(target: string): ActionCardConfig {
-  return {
-    title: `Update ${target}`,
-    description: `What would you like to change about your ${target}?`,
-    options: [
-      { label: 'Add new details', message: `Add new details to my ${target}` },
-      { label: 'Update from a URL', message: `Update my ${target} from ` },
-      { label: 'Rewrite', message: `Rewrite my ${target}` },
-    ],
-    inputPlaceholder: 'Or describe the change',
-  };
-}
-
 /** Create a new task — atomic types (track + report) */
 export const NEW_TASK_CARD: ActionCardConfig = {
   title: 'What do you need?',
