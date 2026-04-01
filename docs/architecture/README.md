@@ -20,15 +20,6 @@ Start with SERVICE-MODEL.md — it's the single entry point for how the system w
 | [task-type-orchestration.md](task-type-orchestration.md) | Task type registry, mode semantics, pipeline integration |
 | [output-substrate.md](output-substrate.md) | Three-registry architecture (ADR-130), HTML-native output, compose engine |
 | [naming-conventions.md](naming-conventions.md) | Naming strategy: user-facing → developer → architecture tiers |
-| [supervision-model.md](supervision-model.md) | UI/UX supervision model (product framing) |
-
-## Redirects (stubs pointing to canonical sources)
-
-| Document | Points to |
-|----------|-----------|
-| [agents.md](agents.md) | → SERVICE-MODEL.md + agent-framework.md |
-| [context-pipeline.md](context-pipeline.md) | → ADR-142/138 (workspace filesystem) |
-| [primitives.md](primitives.md) | → ADR-146 + registry code |
 
 ## Reading Order
 
@@ -50,6 +41,7 @@ Historical documents preserved for reference. Do not use for current architectur
 - `agent-model-comparison.md` — ADR-092 era agent model comparison (model has changed 3x since)
 - `tp-prompt-guide.md` — TP prompt v6.1 guide (TP rewritten multiple times since)
 - `VALUE-CHAIN.md` — ADR-132 era value realization chain (superseded by ADR-138)
+- `supervision-model.md` — early UI/UX supervision framing (core insight absorbed into FOUNDATIONS.md Axiom 5)
 - `mcp-integration-system.md` — pre-ADR-076 MCP Gateway architecture
 - `tp-configuration.md` — pre-v3 TP prompt configuration
 - `DECISION-001-platform-sync-strategy.md` — early platform sync decision

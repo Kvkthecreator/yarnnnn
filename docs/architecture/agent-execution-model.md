@@ -8,7 +8,7 @@
 - [ADR-141: Unified Execution Architecture](../adr/ADR-141-unified-execution-architecture.md) — governing ADR
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md) — task model
 - [ADR-140: Agent Workforce Model](../adr/ADR-140-agent-workforce-model.md) — roster model
-- [Supervision Model](supervision-model.md) — the complementary UI/UX framing
+- [FOUNDATIONS.md](FOUNDATIONS.md) — axioms governing the system (Axiom 5: user-as-supervisor)
 
 ---
 
