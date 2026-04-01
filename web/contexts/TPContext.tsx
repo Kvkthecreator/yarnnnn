@@ -221,6 +221,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     // Skip if already loaded for this scope
     const scopeKey = taskSlug ? `task:${taskSlug}` : agentId ?? '__global__';
     if (lastLoadedScopeRef.current === scopeKey) return;
+
+    // Clear messages IMMEDIATELY on scope change — prevents bleed from prior scope
+    dispatch({ type: 'CLEAR_MESSAGES' });
     lastLoadedScopeRef.current = scopeKey;
 
     try {
