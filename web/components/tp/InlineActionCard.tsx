@@ -77,35 +77,58 @@ export function InlineActionCard({ config, onSelect, onDismiss }: InlineActionCa
 // Pre-defined action card configs
 // =============================================================================
 
-/** Workfloor: "Update my {target}" action */
+/** Cold start: Set up identity — the first onboarding step */
+export const IDENTITY_SETUP_CARD: ActionCardConfig = {
+  title: 'Tell me about yourself',
+  description: 'Any of these work — share what you have',
+  options: [
+    { label: 'Paste my LinkedIn URL', message: 'Here is my LinkedIn: ' },
+    { label: 'Paste my company website', message: 'Here is my company website: ' },
+    { label: 'Upload a pitch deck', message: 'I want to upload a document about my company' },
+    { label: 'Just describe my work', message: 'I am ' },
+  ],
+  inputPlaceholder: 'Or just type about yourself',
+};
+
+/** Set up brand / output style */
+export const BRAND_SETUP_CARD: ActionCardConfig = {
+  title: 'Set up your output style',
+  description: 'How should your reports and briefs look?',
+  options: [
+    { label: 'Use my website style', message: 'Match the style of my website: ' },
+    { label: 'Professional & formal', message: 'Use a professional, formal tone for all outputs' },
+    { label: 'Casual & direct', message: 'Use a casual, direct tone for all outputs' },
+    { label: 'Describe my style', message: 'My communication style is ' },
+  ],
+  inputPlaceholder: 'Or describe your preferred style',
+};
+
+/** Context update — general purpose */
 export function contextUpdateCard(target: string): ActionCardConfig {
   return {
     title: `Update ${target}`,
-    description: target === 'documents' ? undefined : `What would you like to change about your ${target}?`,
-    options: target === 'documents' ? [
-      { label: 'Upload a file', message: 'I want to upload a document' },
-    ] : [
+    description: `What would you like to change about your ${target}?`,
+    options: [
       { label: 'Add new details', message: `Add new details to my ${target}` },
       { label: 'Update from a URL', message: `Update my ${target} from ` },
-      { label: 'Update from an uploaded doc', message: `Update my ${target} from my uploaded documents` },
-      { label: 'Rewrite from scratch', message: `Rewrite my ${target}` },
+      { label: 'Rewrite', message: `Rewrite my ${target}` },
     ],
     inputPlaceholder: 'Or describe the change',
   };
 }
 
-/** Workfloor: "Create a new task" action */
+/** Create a new task — atomic types (track + report) */
 export const NEW_TASK_CARD: ActionCardConfig = {
-  title: 'Create a new task',
-  description: 'What kind of recurring work do you need?',
+  title: 'What do you need?',
+  description: 'Track something, or get a report?',
   options: [
-    { label: 'Market research', message: 'Create a market research task' },
-    { label: 'Competitive intel', message: 'Create a competitive intelligence task' },
-    { label: 'Content brief', message: 'Create a content brief task' },
-    { label: 'Platform digest', message: 'Create a platform digest task' },
-    { label: 'Something else', message: 'Create a task for ' },
+    { label: 'Track competitors', message: 'I want to track my competitors' },
+    { label: 'Track market', message: 'I want to track my market' },
+    { label: 'Weekly competitive brief', message: 'I want a weekly competitive intelligence brief' },
+    { label: 'Stakeholder update', message: 'I want a monthly stakeholder update' },
+    { label: 'Something else', message: 'I want to create a task for ' },
   ],
-  inputPlaceholder: 'Or describe the task',
+  inputPlaceholder: 'Or describe what you need',
 };
 
 /** Task page: "Run this task" action */

@@ -48,6 +48,8 @@ import {
   type ActionCardConfig,
   contextUpdateCard,
   NEW_TASK_CARD,
+  IDENTITY_SETUP_CARD,
+  BRAND_SETUP_CARD,
 } from '@/components/tp/InlineActionCard';
 
 
@@ -339,7 +341,7 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
   // PlusMenu: structured action cards for create/update, direct prefill for simple actions
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => setActionCard(NEW_TASK_CARD) },
-    { id: 'update-context', label: 'Update context', icon: Settings2, verb: 'prompt', onSelect: () => setActionCard(contextUpdateCard('context')) },
+    { id: 'update-identity', label: 'Update identity', icon: Settings2, verb: 'prompt', onSelect: () => setActionCard(IDENTITY_SETUP_CARD) },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
   ];
@@ -357,23 +359,43 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
               </p>
             </div>
             <div className="flex flex-col gap-1.5 px-2">
-              {(taskCount === 0 ? [
-                'Tell me about myself and my work',
-                'What can you track for me?',
-                'Help me get set up',
-              ] : [
-                'How are my tasks doing?',
-                'What should I focus on?',
-                'Create a new task',
-              ]).map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => { sendMessage(chip, { surface }); }}
-                  className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
-                >
-                  {chip}
-                </button>
-              ))}
+              {taskCount === 0 ? (
+                <>
+                  <button
+                    onClick={() => setActionCard(IDENTITY_SETUP_CARD)}
+                    className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                  >
+                    Tell me about myself and my work
+                  </button>
+                  <button
+                    onClick={() => setActionCard(NEW_TASK_CARD)}
+                    className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                  >
+                    What can you track for me?
+                  </button>
+                  <button
+                    onClick={() => { sendMessage('Help me get set up', { surface }); }}
+                    className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                  >
+                    Help me get set up
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { sendMessage('How are my tasks doing?', { surface }); }}
+                    className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                  >
+                    How are my tasks doing?
+                  </button>
+                  <button
+                    onClick={() => setActionCard(NEW_TASK_CARD)}
+                    className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
+                  >
+                    Create a new task
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
