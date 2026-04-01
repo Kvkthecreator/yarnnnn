@@ -16,7 +16,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from routes.dependencies import UserClient
+from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
 
