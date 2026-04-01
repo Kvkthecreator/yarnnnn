@@ -696,10 +696,10 @@ export default function WorkfloorPage() {
       {!chatOpen && (
         <button
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center"
+          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center"
           title="Open chat"
         >
-          <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="yarnnn" className="w-7 h-7 invert dark:invert-0" />
+          <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="yarnnn" className="w-12 h-12" />
         </button>
       )}
     </div>
