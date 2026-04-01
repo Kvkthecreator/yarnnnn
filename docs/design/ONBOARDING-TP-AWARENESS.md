@@ -42,76 +42,45 @@ This mirrors the "viewing" concept: TP sees workspace state → knows exactly wh
 
 ## Proposed Design
 
-### Step 1: Harden the onboarding prompt
+Two separate concerns:
 
-Make the rules explicit and mechanical:
+### Concern 1: TP Prompt Guidance (NOT mechanical rules)
 
-```
-## Onboarding State Machine
+See `docs/architecture/TP-DESIGN-PRINCIPLES.md` — TP judges, we don't hardcode.
 
-READ context_readiness from working memory.
+The onboarding prompt (`onboarding.py`) provides:
+- **Context**: workspace readiness signals (already in working memory)
+- **Priorities**: identity → brand → tasks (already stated)
+- **Philosophy**: one thing at a time, don't overwhelm (already stated)
 
-IF identity == "empty":
-  → Your ONE job: learn about the user. Ask about their role, company, domain.
-  → DO NOT mention brand, tasks, or anything else.
-  → When they share info, call UpdateContext(target="identity").
+What to tune:
+- Strengthen the "one thing" emphasis — TP sometimes suggests multiple gaps
+- Add the "viewing" context awareness to onboarding guidance
+- Ensure task catalog is current (15 atomic types: 7 tracking + 8 synthesis)
+- Trust TP judgment for edge cases (user jumps ahead = let them)
 
-ELSE IF identity == "sparse":  
-  → Identity exists but thin. Ask to enrich: what industry? what's your focus area?
-  → DO NOT suggest tasks yet.
+### Concern 2: UX Surfacing (frontend code, separate from TP)
 
-ELSE IF brand == "empty":
-  → Identity is set. Now suggest brand: "Want to set up how your outputs look? 
-    Share your website or describe your communication style."
-  → ONE suggestion. Don't list other gaps.
+Empty state action cards / suggestion chips in the chat panel. These are UI elements that trigger TP conversations — NOT TP's judgment encoded in UI.
 
-ELSE IF tasks == 0:
-  → Identity + brand set. Now suggest tasks from the catalog.
-  → Start with context tasks: "What do you want me to track?"
-  → Use the task type catalog in working memory.
-
-ELSE:
-  → Workspace is set up. Normal operation.
-```
-
-### Step 2: UpdateContext returns readiness
-
-After writing identity/brand, return the new readiness classification:
-
-```python
-# In handle_update_context():
-result = {
-    "success": True,
-    "target": target,
-    "readiness": _classify_richness(new_content),  # "sparse" or "rich"
-    "message": f"Updated {target}. Readiness: {readiness}.",
-}
-```
-
-TP sees this → knows whether to suggest enriching more or move to next gap.
-
-### Step 3: Empty state action cards
-
-Frontend suggestion chips map to the current onboarding state:
-
-| State | Chip text | TP action |
+| Workspace State | Suggestion Chips | What happens on click |
 |---|---|---|
-| identity empty | "Tell me about yourself" | UpdateContext(target=identity) |
-| identity sparse | "Tell me more about your work" | UpdateContext(target=identity) |
-| brand empty | "Set up your output style" | UpdateContext(target=brand) |
-| tasks == 0 | "What should I track for you?" | CreateTask conversation |
-| operational | "What's new?" / "How are my tasks doing?" | Normal conversation |
+| identity empty | "Tell me about yourself" | Sends message to TP → TP handles |
+| identity sparse | "Tell me more about your work" | Sends message to TP → TP handles |
+| brand empty | "Set up your output style" | Sends message to TP → TP handles |
+| tasks == 0 | "What should I track?" | Sends message to TP → TP handles |
+| operational | "What's new?" / context-specific | Sends message to TP → TP handles |
 
-Chips change based on `context_readiness` — always showing the ONE next step.
+**The chips are conversation starters, not commands.** They send a natural language message to TP. TP decides what to do based on its judgment + workspace state. The UI doesn't bypass TP's judgment.
 
-### Step 4: Viewing-aware nudges
+### Concern 3: Viewing-aware suggestions
 
-When user is browsing the Files tab:
-- Viewing empty context/competitors/ → "Want to start tracking competitors?"
-- Viewing IDENTITY.md (sparse) → "This could use more detail. Tell me about your industry."
-- Viewing empty tasks/ → "Ready to create your first task?"
+When user browses Files tab, the chips can be contextual:
+- Viewing empty context/ → "What should I track for you?"
+- Viewing IDENTITY.md → "Want to update your identity?"
+- Viewing a task → task-specific chips (run, evaluate, etc.)
 
-The navigation context enables contextual, non-generic nudges.
+This is frontend logic reading navigation state + context_readiness → choosing which conversation-starter chips to show. TP still makes all decisions.
 
 ---
 
