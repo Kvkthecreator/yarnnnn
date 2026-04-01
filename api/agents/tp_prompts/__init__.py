@@ -23,33 +23,47 @@ def build_system_prompt(
     *,
     with_tools: bool = False,
     context: str = "",
-) -> str:
+) -> list[dict]:
     """
-    Build the full system prompt from modular sections.
+    Build the full system prompt as content blocks for prompt caching.
+
+    Static sections (identity, tools, behaviors) are cached via cache_control.
+    Dynamic sections (working memory context) are NOT cached — they change per turn.
 
     Args:
         with_tools: Include tool documentation
         context: Working memory / context section
 
     Returns:
-        Complete system prompt string
+        List of content blocks for the Anthropic system parameter
     """
     if not with_tools:
-        # Simple prompt without tools
-        return SIMPLE_PROMPT.format(context=context)
+        # Simple prompt without tools — all dynamic (contains context)
+        return [{"type": "text", "text": SIMPLE_PROMPT.format(context=context)}]
 
     # Full prompt with tools
-    # ADR-144: CONTEXT_AWARENESS always included — TP uses working memory
-    # context_readiness signals to judge what guidance to offer.
-    sections = [
+    # Static: identity + behaviors + tools + platforms + context awareness
+    # These sections are identical across turns within a session (~10K tokens).
+    static_sections = [
         BASE_PROMPT,
         BEHAVIORS_SECTION,
         TOOLS_SECTION,
         PLATFORMS_SECTION,
         CONTEXT_AWARENESS,
     ]
+    static_prompt = "\n\n".join(sections for sections in static_sections)
+    # Remove the {context} placeholder from static — context goes in dynamic block
+    static_prompt = static_prompt.replace("{context}", "")
 
-    prompt = "\n\n".join(sections)
-    prompt = prompt.replace("{context}", context)
-
-    return prompt
+    # Dynamic: working memory context (changes per turn)
+    return [
+        {
+            "type": "text",
+            "text": static_prompt,
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
+            "text": f"\n\n## Working Memory & Context\n{context}" if context else "",
+        },
+    ]

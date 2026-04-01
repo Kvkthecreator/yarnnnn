@@ -121,11 +121,13 @@ class ThinkingPartnerAgent(BaseAgent):
         selected_domain_name: Optional[str] = None,
         command_prompt: Optional[str] = None,
         injected_context: Optional[dict] = None,
-    ) -> str:
-        """Build system prompt with memory context.
+    ) -> list[dict]:
+        """Build system prompt as content blocks for prompt caching.
 
         ADR-059: Uses modular prompts from tp_prompts/ directory.
         ADR-144: Context awareness always injected (graduated, not binary).
+        Static sections (identity, tools, behaviors) are cached.
+        Dynamic sections (working memory, surface content) are NOT cached.
 
         Args:
             context: Memory context bundle (legacy)
@@ -160,18 +162,18 @@ class ThinkingPartnerAgent(BaseAgent):
         if surface_content:
             context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
-        # ADR-059: Use modular prompt builder
+        # ADR-059: Use modular prompt builder — returns content blocks
         # ADR-144: Context awareness always included — graduated, not binary
-        prompt = build_modular_prompt(
+        blocks = build_modular_prompt(
             with_tools=with_tools,
             context=context_text,
         )
 
-        # ADR-025: Inject skill prompt if a skill is active
+        # ADR-025: Inject skill prompt as additional dynamic block
         if command_prompt:
-            prompt = prompt + "\n" + command_prompt
+            blocks.append({"type": "text", "text": "\n" + command_prompt})
 
-        return prompt
+        return blocks
 
     async def execute(
         self,

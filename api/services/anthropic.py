@@ -115,12 +115,23 @@ def _parse_response(response) -> ChatResponse:
     # ADR-101: Extract token usage from response (including cache metrics)
     usage = None
     if hasattr(response, 'usage') and response.usage:
+        cache_creation = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
+        cache_read = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
         usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
-            "cache_creation_input_tokens": getattr(response.usage, 'cache_creation_input_tokens', 0) or 0,
-            "cache_read_input_tokens": getattr(response.usage, 'cache_read_input_tokens', 0) or 0,
+            "cache_creation_input_tokens": cache_creation,
+            "cache_read_input_tokens": cache_read,
         }
+        # Log cache efficiency for observability
+        total_input = response.usage.input_tokens + cache_creation + cache_read
+        if total_input > 0:
+            cache_pct = round(cache_read / total_input * 100) if cache_read else 0
+            logger.info(
+                f"[TOKENS] in={response.usage.input_tokens} out={response.usage.output_tokens} "
+                f"cache_create={cache_creation} cache_read={cache_read} "
+                f"cache_hit={cache_pct}% model={getattr(response, 'model', '?')}"
+            )
 
     return ChatResponse(
         content=response.content,
@@ -131,9 +142,21 @@ def _parse_response(response) -> ChatResponse:
     )
 
 
+def _prepare_system(system: str | list[dict]) -> list[dict]:
+    """Normalize system prompt to content blocks for prompt caching.
+
+    Accepts either a plain string (wrapped as a single text block)
+    or a list of content blocks (passed through). Callers that want
+    prompt caching should pass a list with cache_control on static blocks.
+    """
+    if isinstance(system, str):
+        return [{"type": "text", "text": system}]
+    return system
+
+
 async def chat_completion(
     messages: list[dict],
-    system: str,
+    system: str | list[dict],
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 4096,
 ) -> str:
@@ -142,7 +165,7 @@ async def chat_completion(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str}
-        system: System prompt
+        system: System prompt (string or content blocks with cache_control)
         model: Model ID
         max_tokens: Maximum response tokens
 
@@ -154,10 +177,9 @@ async def chat_completion(
     response = await client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        system=system,
+        system=_prepare_system(system),
         messages=messages,
         extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-        cache_control={"type": "ephemeral"},
     )
 
     return response.content[0].text
@@ -165,7 +187,7 @@ async def chat_completion(
 
 async def chat_completion_with_tools(
     messages: list[dict],
-    system: str,
+    system: str | list[dict],
     tools: list[dict],
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 4096,
@@ -176,7 +198,7 @@ async def chat_completion_with_tools(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str|list}
-        system: System prompt
+        system: System prompt (string or content blocks with cache_control)
         tools: List of tool definitions
         model: Model ID
         max_tokens: Maximum response tokens
@@ -190,11 +212,10 @@ async def chat_completion_with_tools(
     kwargs = {
         "model": model,
         "max_tokens": max_tokens,
-        "system": system,
+        "system": _prepare_system(system),
         "messages": messages,
         "tools": tools,
         "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
-        "cache_control": {"type": "ephemeral"},
     }
 
     if tool_choice:
@@ -206,7 +227,7 @@ async def chat_completion_with_tools(
 
 async def chat_completion_stream(
     messages: list[dict],
-    system: str,
+    system: str | list[dict],
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 4096,
 ) -> AsyncGenerator[str, None]:
@@ -215,7 +236,7 @@ async def chat_completion_stream(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str}
-        system: System prompt
+        system: System prompt (string or content blocks with cache_control)
         model: Model ID
         max_tokens: Maximum response tokens
 
@@ -227,10 +248,9 @@ async def chat_completion_stream(
     async with client.messages.stream(
         model=model,
         max_tokens=max_tokens,
-        system=system,
+        system=_prepare_system(system),
         messages=messages,
         extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-        cache_control={"type": "ephemeral"},
     ) as stream:
         async for text in stream.text_stream:
             yield text
@@ -245,7 +265,7 @@ class StreamEvent:
 
 async def chat_completion_stream_with_tools(
     messages: list[dict],
-    system: str,
+    system: str | list[dict],
     tools: list[dict],
     tool_executor: Any,  # Callable[[str, dict], Awaitable[dict]]
     model: str = "claude-sonnet-4-20250514",
@@ -287,14 +307,14 @@ async def chat_completion_stream_with_tools(
         full_response = None
 
         # Build kwargs for the stream call
+        system_blocks = _prepare_system(system)
         stream_kwargs = {
             "model": model,
             "max_tokens": max_tokens,
-            "system": system,
+            "system": system_blocks,
             "messages": working_messages,
             "tools": tools,
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
-            "cache_control": {"type": "ephemeral"},
         }
         # Only use tool_choice on first round to force initial tool use
         # After that, let model decide (it might want to respond after action)
@@ -315,6 +335,14 @@ async def chat_completion_stream_with_tools(
             total_output_tokens += full_response.usage.output_tokens
             cache_creation = getattr(full_response.usage, 'cache_creation_input_tokens', 0) or 0
             cache_read = getattr(full_response.usage, 'cache_read_input_tokens', 0) or 0
+            # Log cache efficiency per round
+            total_in = full_response.usage.input_tokens + cache_creation + cache_read
+            cache_pct = round(cache_read / total_in * 100) if total_in and cache_read else 0
+            logger.info(
+                f"[TOKENS] stream round={round_num} in={full_response.usage.input_tokens} "
+                f"out={full_response.usage.output_tokens} cache_create={cache_creation} "
+                f"cache_read={cache_read} cache_hit={cache_pct}%"
+            )
             # Emit usage event after each round
             yield StreamEvent(
                 type="usage",
@@ -420,13 +448,16 @@ async def chat_completion_stream_with_tools(
 
     # Make one final call without tools to force a text response
     try:
+        # Append summary instruction to the system blocks
+        summary_blocks = _prepare_system(system) + [
+            {"type": "text", "text": "\n\n[SYSTEM: You've used several tools. Now provide a brief summary response to the user based on what you found. Do not request any more tools.]"}
+        ]
         final_response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            system=system + "\n\n[SYSTEM: You've used several tools. Now provide a brief summary response to the user based on what you found. Do not request any more tools.]",
+            system=summary_blocks,
             messages=working_messages,
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-            cache_control={"type": "ephemeral"},
             # No tools - force text response
         )
 

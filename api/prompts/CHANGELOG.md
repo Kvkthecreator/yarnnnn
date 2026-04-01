@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.02.1] - Fix prompt caching + token observability
+
+### Changed
+- `services/anthropic.py`: All 4 API functions now accept `system` as `str | list[dict]`. Removed invalid `cache_control` top-level kwarg (was silently ignored — caching was never working). Added `_prepare_system()` to normalize strings to content blocks. Added `[TOKENS]` log line with cache hit% after every API call.
+- `agents/tp_prompts/__init__.py`: `build_system_prompt()` now returns `list[dict]` content blocks. Static sections (identity, behaviors, tools, platforms, context awareness) get `cache_control: {"type": "ephemeral"}`. Dynamic section (working memory context) is uncached. Saves ~90% on static portion (~10K tokens) for turns 2+ in a session.
+- `agents/thinking_partner.py`: `_build_system_prompt()` returns `list[dict]` instead of `str`. Command prompts appended as additional content blocks.
+- `services/task_pipeline.py`: `build_task_execution_prompt()` returns `(list[dict], str)` instead of `(str, str)`. System prompt block gets `cache_control` — saves on tool rounds 2+ within same task execution.
+- Expected behavior: `cache_read_input_tokens > 0` in API responses. `[TOKENS]` log lines show cache_hit% for cost monitoring. ~30-40% reduction in effective input token cost for TP chat, ~50%+ for multi-round task executions.
+
+---
+
 ## [2026.04.01.7] - Multi-target extraction + URL fetch-first
 
 ### Changed

@@ -608,14 +608,17 @@ def build_task_execution_prompt(
     task_mode: str = "recurring",
     prior_output: str = "",
     task_phase: str = "steady",
-) -> tuple[str, str]:
-    """Build system prompt and user message for task execution.
+) -> tuple[list[dict], str]:
+    """Build system prompt (as cached content blocks) and user message.
 
     ADR-154: Phase-aware. Bootstrap phase overrides step instructions.
     ADR-149: DELIVERABLE.md injected into system prompt.
+    Prompt caching: system prompt is stable across tool rounds within
+    one task execution — cache_control on the block saves ~90% on
+    rounds 2+ of the same execution.
 
     Returns:
-        (system_prompt, user_message)
+        (system_blocks, user_message)
     """
     role = agent.get("role", "custom")
     title = task_info.get("title", "Untitled Task")
@@ -776,7 +779,16 @@ If context says "(No context available)" or tools return no results:
 
     user_message = "\n".join(user_parts)
 
-    return system, user_message
+    # Return system prompt as cached content block — stable across tool rounds
+    system_blocks = [
+        {
+            "type": "text",
+            "text": system,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+    return system_blocks, user_message
 
 
 # =============================================================================
@@ -2222,13 +2234,16 @@ async def _execute_direct(
             user_context=user_context,
         )
 
-        # Skill docs
+        # Skill docs — append as additional content block
         if has_asset_capabilities(role):
             try:
                 from services.agent_execution import _fetch_skill_docs
                 skill_docs = await _fetch_skill_docs()
                 if skill_docs:
-                    system_prompt += f"\n\n## Output Skill Documentation\n{skill_docs}"
+                    system_prompt.append({
+                        "type": "text",
+                        "text": f"\n\n## Output Skill Documentation\n{skill_docs}",
+                    })
             except Exception:
                 pass
 
