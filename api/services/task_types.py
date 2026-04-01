@@ -60,16 +60,22 @@ STEP_INSTRUCTIONS = {
 
     # ADR-154: Phase-specific override for bootstrap
     "update-context:bootstrap": (
-        "You are BOOTSTRAPPING this context domain — it is empty or has very few entities. "
-        "Your PRIMARY goal is DISCOVERY: find and profile new entities to build the foundation.\n\n"
-        "1. Use web search aggressively to discover entities in this domain.\n"
-        "2. For each entity found, create its folder and write at minimum a profile.md.\n"
-        "3. Use WriteWorkspace(scope='context', domain='{domain}') for EVERY entity file.\n"
-        "4. Prioritize breadth over depth — get 3+ entities profiled, not 1 deep.\n"
-        "5. Update the synthesis file with a landscape overview once entities exist.\n\n"
-        "Check the Entity Tracker in your context to see how many entities exist "
-        "and what the minimum target is.\n\n"
-        "Your output for this step: a CHANGELOG of entities discovered and profiled."
+        "You are BOOTSTRAPPING this context domain — it has few or no entity profiles yet.\n\n"
+        "YOUR #1 PRIORITY: Create entity files using WriteWorkspace. Text output is secondary.\n\n"
+        "REQUIRED STEPS:\n"
+        "1. WebSearch to discover key entities in this domain (companies, people, segments, etc.)\n"
+        "2. For EACH entity found, call WriteWorkspace with:\n"
+        "   - scope='context'\n"
+        "   - domain=<your assigned domain>\n"
+        "   - path='<entity-slug>/profile.md' (e.g., 'openai/profile.md')\n"
+        "   - content: substantive profile with real findings, not placeholder headers\n"
+        "3. Create at least 3 entity profiles. Each must have real content.\n"
+        "4. After entities are created, update the synthesis file (_landscape.md) with an overview.\n\n"
+        "EXAMPLE WriteWorkspace call:\n"
+        "  WriteWorkspace(path='openai/profile.md', content='# OpenAI\\n\\n## Overview\\nOpenAI is...', "
+        "scope='context', domain='competitors')\n\n"
+        "The Entity Tracker shows how many entities exist. Your goal is to meet the minimum.\n\n"
+        "Your text output: a brief CHANGELOG of entities created. The entity FILES are the real deliverable."
     ),
 
     "derive-output": (

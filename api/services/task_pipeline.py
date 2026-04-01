@@ -714,19 +714,23 @@ If context says "(No context available)" or tools return no results:
                 user_parts.append(f"- **{key.capitalize()}:** {val}")
         # ADR-154: Phase-aware step instruction
         step_instruction = objective.get("step_instruction")
-        if task_phase == "bootstrap" and step_instruction:
-            # Override with bootstrap-specific instruction if available
+        task_class = task_info.get("task_class", "")
+        type_key = task_info.get("type_key", "")
+
+        if task_phase == "bootstrap" and task_class == "context":
+            # Bootstrap context task — inject discovery-focused instruction
             from services.task_types import STEP_INSTRUCTIONS
-            bootstrap_key = None
-            for key in STEP_INSTRUCTIONS:
-                if key.endswith(":bootstrap") and key.replace(":bootstrap", "") in (step_instruction[:30] or ""):
-                    bootstrap_key = key
-                    break
-            # Simpler: check if update-context:bootstrap exists and step is update-context
-            if "update-context:bootstrap" in STEP_INSTRUCTIONS:
-                # Check if original instruction matches update-context
-                if STEP_INSTRUCTIONS.get("update-context", "")[:50] in step_instruction[:50]:
-                    step_instruction = STEP_INSTRUCTIONS["update-context:bootstrap"]
+            bootstrap_instruction = STEP_INSTRUCTIONS.get("update-context:bootstrap", "")
+            if bootstrap_instruction:
+                # Replace {domain} placeholder with actual domain from context_writes
+                context_writes = task_info.get("context_writes", [])
+                primary_domain = next((d for d in context_writes if d != "signals"), "")
+                step_instruction = bootstrap_instruction.replace("{domain}", primary_domain)
+        elif not step_instruction and task_class == "context":
+            # Steady-state context task without explicit step instruction
+            from services.task_types import STEP_INSTRUCTIONS
+            step_instruction = STEP_INSTRUCTIONS.get("update-context", "")
+
         if step_instruction:
             user_parts.append(f"\n**Your specific role:** {step_instruction}")
 
