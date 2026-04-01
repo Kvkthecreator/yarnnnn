@@ -53,18 +53,28 @@ class ChatHistoryMessage(BaseModel):
 
 
 class SurfaceContext(BaseModel):
-    """Surface context for TP - what the user is currently viewing."""
-    type: str  # e.g., "agent-review", "work-output", "idle", "task-detail"
+    """Surface context for TP - what the user is currently viewing.
+
+    Workspace Explorer (ADR-152): path + navigation_type provide filesystem
+    navigation context. TP uses this to scope suggestions and primitives.
+    """
+    type: str  # e.g., "agent-review", "work-output", "idle", "task-detail", "workspace-explorer"
+    # Workspace Explorer navigation (ADR-152)
+    path: Optional[str] = None  # Full filesystem path: /workspace/context/competitors/acme-corp/profile.md
+    navigation_type: Optional[str] = None  # file | directory | task | agent | workspace
+    domain: Optional[str] = None  # Context domain if within /workspace/context/{domain}/
+    entity: Optional[str] = None  # Entity slug if viewing entity file
+    # Legacy fields (still used by existing surfaces)
     agentId: Optional[str] = None
-    projectSlug: Optional[str] = None  # ADR-119 P4b: project-scoped chat
+    agentSlug: Optional[str] = None
+    projectSlug: Optional[str] = None  # Deprecated (projects dissolved)
     taskSlug: Optional[str] = None  # Task-scoped chat sessions
     versionId: Optional[str] = None
     workId: Optional[str] = None
     outputId: Optional[str] = None
     memoryId: Optional[str] = None
     documentId: Optional[str] = None
-    domainId: Optional[str] = None  # ADR-034: Domain scoping
-    # Additional fields as needed based on DeskSurface types
+    domainId: Optional[str] = None
 
 
 class ImageAttachment(BaseModel):
@@ -845,6 +855,49 @@ Config: {d.get('type_config', {})}
         elif surface_type == "context-browser":
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
+
+        elif surface_type == "workspace-explorer" and surface.path:
+            # ADR-152: User is navigating the workspace explorer
+            path = surface.path
+            nav_type = surface.navigation_type or "file"
+            domain = surface.domain or ""
+            entity = surface.entity or ""
+
+            context_parts = [f"## Currently Viewing: {path}"]
+            context_parts.append(f"Navigation: {nav_type}")
+
+            if domain:
+                context_parts.append(f"Context domain: {domain}")
+            if entity:
+                context_parts.append(f"Entity: {entity}")
+            if surface.taskSlug:
+                context_parts.append(f"Task: {surface.taskSlug}")
+            if surface.agentSlug:
+                context_parts.append(f"Agent: {surface.agentSlug}")
+
+            # Load file content preview if viewing a file
+            if nav_type == "file":
+                try:
+                    result = (
+                        client.table("workspace_files")
+                        .select("content, updated_at")
+                        .eq("user_id", user_id)
+                        .eq("path", path)
+                        .limit(1)
+                        .execute()
+                    )
+                    if result.data:
+                        content = result.data[0].get("content", "")
+                        updated = result.data[0].get("updated_at", "")[:16]
+                        if content:
+                            preview = content[:3000]
+                            context_parts.append(f"Last updated: {updated}")
+                            context_parts.append(f"\n### File Content\n{preview}")
+                except Exception:
+                    pass
+
+            context_parts.append("\nScope your responses to what the user is viewing. Suggest relevant actions.")
+            return "\n".join(context_parts)
 
         # For list views and idle, no specific content needed
         return None

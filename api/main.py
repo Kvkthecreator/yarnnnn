@@ -52,7 +52,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, tasks
+from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, tasks, workspace
 
 app = FastAPI(
     title="YARNNN API",
@@ -109,3 +109,4 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 # Tasks routes (ADR-138)
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(workspace.router, prefix="/api", tags=["workspace"])
