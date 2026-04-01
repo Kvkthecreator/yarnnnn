@@ -250,7 +250,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
 
     "marketing": {
         "class": "domain-steward",
-        "domain": "content",
+        "domain": "content_research",
         "display_name": "Marketing & Creative",
         "tagline": "Creates content and go-to-market materials",
         "capabilities": [
