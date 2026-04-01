@@ -575,6 +575,27 @@ export interface JobsStatusResponse {
 // ADR-153: PlatformContentItem and PlatformContentResponse DELETED — platform_content sunset
 
 // =============================================================================
+// Workspace Explorer (ADR-152)
+// =============================================================================
+
+export interface WorkspaceTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  updated_at?: string;
+  summary?: string;
+  children?: WorkspaceTreeNode[];
+}
+
+export interface WorkspaceFile {
+  path: string;
+  content?: string;
+  summary?: string;
+  updated_at?: string;
+  metadata?: Record<string, any>;
+}
+
+// =============================================================================
 // Context Pages: Shared Platform Types
 // =============================================================================
 

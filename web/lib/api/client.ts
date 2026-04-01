@@ -42,6 +42,9 @@ import type {
   TaskTypesResponse,
   ProcessStepsResponse,
   RunStatus,
+  // ADR-152: Workspace Explorer
+  WorkspaceTreeNode,
+  WorkspaceFile,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -579,6 +582,21 @@ export const api = {
     // Live execution progress
     getRunStatus: (slug: string) =>
       request<RunStatus>(`/api/tasks/${slug}/status`),
+  },
+
+  // Workspace Explorer (ADR-152)
+  workspace: {
+    getTree: (root: string = "/workspace") =>
+      request<WorkspaceTreeNode[]>(`/api/workspace/tree?root=${encodeURIComponent(root)}`),
+
+    getFile: (path: string) =>
+      request<WorkspaceFile>(`/api/workspace/file?path=${encodeURIComponent(path)}`),
+
+    editFile: (path: string, content: string, summary?: string) =>
+      request<{ success: boolean; path: string; updated_at: string }>(
+        `/api/workspace/file`,
+        { method: "PATCH", body: JSON.stringify({ path, content, summary }) }
+      ),
   },
 
   // Account management
