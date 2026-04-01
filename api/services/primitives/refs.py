@@ -456,11 +456,7 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
             item["content"] = content[:500] + "..." if len(content) > 500 else content
             # Strip verbose content IDs from list view (available on single reads)
             # Strip verbose IDs from list view metadata
-            if item.get("metadata"):
-                item["metadata"] = {
-                    k: v for k, v in item["metadata"].items()
-                    if k not in ("platform_content_ids",)
-                }
+            # ADR-153: platform_content_ids filter removed (field no longer exists)
         return result.data or []
 
     elif ref.identifier == "latest":
