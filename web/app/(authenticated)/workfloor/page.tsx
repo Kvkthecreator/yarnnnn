@@ -561,7 +561,7 @@ export default function WorkfloorPage() {
 
   // Panel + room visibility
   const [panelOpen, setPanelOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false); // Default closed — FAB to open
   // roomCollapsed removed — isometric room replaced by dashboard
 
   // Action card — set by panel buttons, rendered in ChatPanel
@@ -672,8 +672,8 @@ export default function WorkfloorPage() {
         )}
       </div>
 
-      {/* Right: Chat panel or icon strip */}
-      {chatOpen ? (
+      {/* Right: Chat panel (slides in) or FAB (floating) */}
+      {chatOpen && (
         <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <div className="flex items-center gap-2">
@@ -690,16 +690,17 @@ export default function WorkfloorPage() {
           </div>
           <ChatPanel taskCount={activeTasks.length} pendingActionConfig={pendingActionCard} surfaceOverride={effectiveSurface} />
         </div>
-      ) : (
-        <div className="w-10 shrink-0 border-l border-border flex flex-col items-center py-2 gap-2 bg-background">
-          <button
-            onClick={() => setChatOpen(true)}
-            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-            title="Chat"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </button>
-        </div>
+      )}
+
+      {/* FAB — yarnnn logo, opens chat */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center"
+          title="Open chat"
+        >
+          <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="yarnnn" className="w-7 h-7 invert dark:invert-0" />
+        </button>
       )}
     </div>
   );
