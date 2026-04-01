@@ -68,3 +68,6 @@ docs/working_docs/previous_versions/*.pages
 # Lock files (LibreOffice etc.)
 .~lock.*
 *.tmp
+
+# Analysis source dumps (large, third-party)
+docs/analysis/src_claudeCC/
