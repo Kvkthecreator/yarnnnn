@@ -352,17 +352,19 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
           <div className="py-6 space-y-3">
             <div className="text-center">
               <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
-              <p className="text-[11px] text-muted-foreground/40">Get started</p>
+              <p className="text-[11px] text-muted-foreground/40">
+                {taskCount === 0 ? 'Get started' : 'Quick actions'}
+              </p>
             </div>
             <div className="flex flex-col gap-1.5 px-2">
               {(taskCount === 0 ? [
                 'Tell me about myself and my work',
+                'What can you track for me?',
                 'Help me get set up',
-                'What deliverables can you create for me?',
               ] : [
-                'Review my latest outputs',
-                'Add another deliverable',
-                'Update my context',
+                'How are my tasks doing?',
+                'What should I focus on?',
+                'Create a new task',
               ]).map(chip => (
                 <button
                   key={chip}
