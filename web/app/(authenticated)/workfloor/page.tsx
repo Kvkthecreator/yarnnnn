@@ -48,7 +48,6 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import {
   InlineActionCard,
   type ActionCardConfig,
-  NEW_TASK_CARD,
 } from '@/components/tp/InlineActionCard';
 import { ContextSetup } from '@/components/tp/ContextSetup';
 
@@ -341,7 +340,7 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
 
   // PlusMenu: structured action cards for create/update, direct prefill for simple actions
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => setActionCard(NEW_TASK_CARD) },
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?', { surface }); } },
     { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => { setActionCard(null); setShowContextSetup(true); } },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setInput('Search the web for '); textareaRef.current?.focus(); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => fileInputRef.current?.click() },
@@ -373,7 +372,7 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
                     How are my tasks doing?
                   </button>
                   <button
-                    onClick={() => setActionCard(NEW_TASK_CARD)}
+                    onClick={() => { sendMessage('I want to create a new task. What do you suggest?', { surface }); }}
                     className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
                   >
                     Create a new task

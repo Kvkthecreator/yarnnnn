@@ -77,20 +77,6 @@ export function InlineActionCard({ config, onSelect, onDismiss }: InlineActionCa
 // Pre-defined action card configs
 // =============================================================================
 
-/** Create a new task — atomic types (track + report) */
-export const NEW_TASK_CARD: ActionCardConfig = {
-  title: 'What do you need?',
-  description: 'Track something, or get a report?',
-  options: [
-    { label: 'Track competitors', message: 'I want to track my competitors' },
-    { label: 'Track market', message: 'I want to track my market' },
-    { label: 'Weekly competitive brief', message: 'I want a weekly competitive intelligence brief' },
-    { label: 'Stakeholder update', message: 'I want a monthly stakeholder update' },
-    { label: 'Something else', message: 'I want to create a task for ' },
-  ],
-  inputPlaceholder: 'Or describe what you need',
-};
-
 /** Task page: "Run this task" action */
 export const RUN_TASK_CARD: ActionCardConfig = {
   title: 'Run this task',
