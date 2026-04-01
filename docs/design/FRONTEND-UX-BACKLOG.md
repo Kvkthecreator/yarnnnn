@@ -20,10 +20,10 @@ See: TP-DESIGN-PRINCIPLES.md "Action Cards + Chat = Unified Flow"
 - Should show current location: task title, or "Tasks" section name
 - Nav dropdown should be context-aware (highlight current section)
 
-### Workfloor dashboard (default main panel)
-- Replace isometric room with workspace dashboard when nothing selected
-- Show: upcoming scheduled runs, recent completions, context domain health
-- Data already available from tasks table + workspace_files
+### Workfloor dashboard (default main panel) — SHIPPED
+- Isometric room replaced with WorkspaceDashboard component
+- Shows: upcoming scheduled runs, recent activity, quick stats
+- Empty state guides users to create first task via chat
 
 ### Files tab layout polish
 - Content viewer positioning between panels needs responsive handling

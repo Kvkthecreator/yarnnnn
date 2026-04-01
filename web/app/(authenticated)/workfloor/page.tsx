@@ -35,7 +35,7 @@ import { useFileAttachments } from '@/hooks/useFileAttachments';
 import type { Agent, Task, Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
-import { IsometricRoom } from '@/components/workfloor/IsometricRoom';
+import { WorkspaceDashboard } from '@/components/workspace/WorkspaceDashboard';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
@@ -562,7 +562,7 @@ export default function WorkfloorPage() {
   // Panel + room visibility
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
-  const [roomCollapsed, setRoomCollapsed] = useState(false);
+  // roomCollapsed removed — isometric room replaced by dashboard
 
   // Action card — set by panel buttons, rendered in ChatPanel
   const [pendingActionCard, setPendingActionCard] = useState<ActionCardConfig | null>(null);
@@ -602,16 +602,9 @@ export default function WorkfloorPage() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      {/* Layer 1: Isometric room fills entire viewport as backdrop */}
-      <div className="absolute inset-0">
-        <IsometricRoom
-          agents={activeAgents}
-          tasks={tasks}
-          loading={agentsLoading}
-          collapsed={roomCollapsed}
-          onTPClick={() => setChatOpen(true)}
-          onAction={(msg) => { sendMessage(msg, { surface }); setChatOpen(true); }}
-        />
+      {/* Layer 1: Dashboard — workspace status at a glance (replaces isometric room) */}
+      <div className="absolute inset-0 overflow-auto">
+        <WorkspaceDashboard tasks={tasks} agents={agents} />
       </div>
 
       {/* Layer 1b: Content viewer — shows when file selected from Files tab */}
@@ -751,13 +744,7 @@ export default function WorkfloorPage() {
         >
           <MessageCircle className="w-3 h-3" /> Chat
         </button>
-        <button
-          onClick={() => setRoomCollapsed(v => !v)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-md text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-        >
-          {roomCollapsed ? 'Show' : 'Hide'} workfloor
-          <ChevronDown className={cn('w-3 h-3 transition-transform', roomCollapsed && 'rotate-180')} />
-        </button>
+        {/* Hide workfloor toggle removed — dashboard replaces isometric room */}
       </div>
     </div>
   );
