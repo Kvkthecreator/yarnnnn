@@ -530,6 +530,26 @@ DEFAULT_BRAND_MD = """\
 Your agents read this on every run.)
 """
 
+DEFAULT_AWARENESS_MD = """\
+# Awareness
+
+<!-- TP's situational notes — shift handoff for cross-session continuity.
+     Updated by TP when something meaningful changes (tasks created, priorities learned,
+     context enriched). Not a health score — qualitative understanding. -->
+
+## Current Focus
+(New workspace — no prior sessions yet.)
+
+## Tasks
+(No tasks created yet.)
+
+## Context State
+(No context domains populated yet.)
+
+## Next Steps
+(Waiting for user to share who they are and what they're working on.)
+"""
+
 
 # Default roster created at sign-up (ADR-140)
 DEFAULT_ROSTER = [

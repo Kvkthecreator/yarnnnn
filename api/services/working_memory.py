@@ -10,16 +10,19 @@ Sources (Memory + Activity layers only):
   activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
-What goes in the prompt (~2,500 tokens, + ~500 for agent scope):
+What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - About you: name, role, company, timezone
+  - Identity: IDENTITY.md content ← ADR-144
+  - Brand: BRAND.md content ← ADR-143
+  - Awareness: AWARENESS.md — TP's persistent situational notes (shift handoff)
+  - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
+  - Context domains: per-domain file count + freshness + health ← ADR-151
+  - Context readiness: identity/brand/docs/tasks/domains richness ← ADR-144/151
   - Preferences: tone_*, verbosity_*, preference:*
   - What you've told me: fact:*, instruction:*
   - Active agents (max 5)
-  - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
-  - Context domain health: per-domain file count + freshness ← ADR-151
   - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
   - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
-  - Context readiness: identity/brand/docs/tasks/domains richness ← ADR-144/151
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 TP can invoke GetSystemState primitive for detailed operational state.
@@ -97,9 +100,10 @@ async def build_working_memory(
         _get_workspace_file_sync, user_id, "playbook-orchestration.md", _make_client()
     )
 
-    # ADR-144: Read identity + compute context readiness
-    identity_content = await asyncio.to_thread(
-        _get_workspace_file_sync, user_id, "IDENTITY.md", _make_client()
+    # ADR-144: Read identity + awareness + compute context readiness
+    identity_content, awareness_content = await asyncio.gather(
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "IDENTITY.md", _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "AWARENESS.md", _make_client()),
     )
     task_count, doc_count = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
@@ -118,6 +122,7 @@ async def build_working_memory(
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
         "brand": brand_content.strip() if brand_content else None,
+        "awareness": awareness_content,
         "orchestration_playbook": orchestration_playbook,
         "agents": agents,
         "platforms": platforms,
@@ -795,7 +800,41 @@ def format_for_prompt(working_memory: dict) -> str:
     if brand:
         lines.append(f"\n### Brand\n{brand}")
 
-    # Context readiness (ADR-144: tells TP what's sparse/missing)
+    # Awareness (persistent TP situational notes)
+    awareness = working_memory.get("awareness")
+    if awareness and awareness.strip():
+        # Truncate to prevent prompt bloat (2000 chars ≈ 500 tokens)
+        content = awareness.strip()
+        if len(content) > 2000:
+            content = content[:2000] + "\n\n(truncated)"
+        lines.append(f"\n### Awareness (your notes from prior sessions)\n{content}")
+
+    # Active tasks (ADR-149/151: ground truth for TP reasoning)
+    active_tasks = working_memory.get("active_tasks", [])
+    if active_tasks:
+        lines.append(f"\n### Active tasks ({len(active_tasks)})")
+        for t in active_tasks:
+            parts = [f"**{t['slug']}**", t.get("mode", ""), t.get("status", "")]
+            if t.get("schedule"):
+                parts.append(t["schedule"])
+            if t.get("last_run"):
+                parts.append(f"last: {t['last_run']}")
+            if t.get("next_run"):
+                parts.append(f"next: {t['next_run']}")
+            lines.append(f"- {' | '.join(p for p in parts if p)}")
+
+    # Context domains (ADR-151: ground truth domain health)
+    context_domains = working_memory.get("context_domains", [])
+    if context_domains:
+        lines.append("\n### Context domains")
+        for d in context_domains:
+            health = d.get("health", "empty")
+            count = d.get("file_count", 0)
+            latest = d.get("latest_update")
+            freshness = f", updated {latest}" if latest else ""
+            lines.append(f"- **{d['domain']}**: {health} ({count} files{freshness})")
+
+    # Context readiness (ADR-144: computed ground truth signals)
     readiness = working_memory.get("context_readiness", {})
     if readiness:
         gap_lines = []

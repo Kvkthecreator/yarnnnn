@@ -40,15 +40,19 @@ Call this whenever you learn something worth persisting. Pick the right target:
   UpdateContext(target="task", task_slug="weekly-briefing", text="Charts need better labels")
   UpdateContext(target="task", task_slug="weekly-briefing", text="Focus on pricing", feedback_target="criteria")
 
+**target="awareness"** — Update your situational awareness notes (shift handoff)
+  UpdateContext(target="awareness", text="User focused on competitive intel. Two tracking tasks active...")
+
 For identity/brand: inference merges with existing content — nothing is lost.
-For memory: appends (deduped). For agent/task: appends feedback entry.""",
+For memory: appends (deduped). For agent/task: appends feedback entry.
+For awareness: full replacement — write your current understanding as a living document.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "target": {
                 "type": "string",
-                "enum": ["identity", "brand", "memory", "agent", "task"],
-                "description": "What to update: identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback)"
+                "enum": ["identity", "brand", "memory", "agent", "task", "awareness"],
+                "description": "What to update: identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
             },
             "text": {
                 "type": "string",
@@ -104,8 +108,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
     target = input.get("target")
     text = input.get("text", "").strip()
 
-    if target not in ("identity", "brand", "memory", "agent", "task"):
-        return {"success": False, "error": "invalid_target", "message": "target must be one of: identity, brand, memory, agent, task"}
+    if target not in ("identity", "brand", "memory", "agent", "task", "awareness"):
+        return {"success": False, "error": "invalid_target", "message": "target must be one of: identity, brand, memory, agent, task, awareness"}
 
     if not text:
         return {"success": False, "error": "empty_text", "message": "text is required"}
@@ -118,6 +122,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
         return await _handle_agent_feedback(auth, input)
     elif target == "task":
         return await _handle_task_feedback(auth, input)
+    elif target == "awareness":
+        return await _handle_awareness(auth, text)
 
     return {"success": False, "error": "unknown_target", "message": f"Unhandled target: {target}"}
 
@@ -218,6 +224,35 @@ async def _handle_memory(auth: Any, text: str) -> dict:
     except Exception as e:
         logger.error(f"[UPDATE_CONTEXT] Memory save failed: {e}")
         return {"success": False, "error": "save_failed", "message": str(e)}
+
+
+async def _handle_awareness(auth: Any, text: str) -> dict:
+    """Direct write to AWARENESS.md — TP's situational notes. Full replacement."""
+    from services.workspace import UserMemory
+
+    try:
+        um = UserMemory(auth.client, auth.user_id)
+
+        # Truncate to prevent unbounded growth (2000 chars ≈ 500 tokens)
+        content = text.strip()
+        if len(content) > 2000:
+            content = content[:2000] + "\n\n(truncated — keep awareness notes concise)"
+
+        ok = await um.write("AWARENESS.md", content, summary="TP awareness updated")
+        if not ok:
+            return {"success": False, "error": "write_failed", "message": "Failed to write AWARENESS.md"}
+
+        logger.info(f"[UPDATE_CONTEXT] AWARENESS.md updated ({len(content)} chars)")
+        return {
+            "success": True,
+            "target": "awareness",
+            "filename": "AWARENESS.md",
+            "message": "Awareness notes updated",
+        }
+
+    except Exception as e:
+        logger.error(f"[UPDATE_CONTEXT] Awareness update failed: {e}")
+        return {"success": False, "error": "execution_error", "message": str(e)}
 
 
 async def _handle_agent_feedback(auth: Any, input: dict) -> dict:

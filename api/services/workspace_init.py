@@ -93,11 +93,13 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             TP_ORCHESTRATION_PLAYBOOK,
             DEFAULT_IDENTITY_MD,
             DEFAULT_BRAND_MD,
+            DEFAULT_AWARENESS_MD,
         )
 
         workspace_files = {
             "IDENTITY.md": (DEFAULT_IDENTITY_MD, "User identity template"),
             "BRAND.md": (DEFAULT_BRAND_MD, "Default brand baseline"),
+            "AWARENESS.md": (DEFAULT_AWARENESS_MD, "TP situational awareness"),
             "playbook-orchestration.md": (TP_ORCHESTRATION_PLAYBOOK, "TP orchestration playbook"),
             "preferences.md": ("# Preferences\n<!-- Learned from user feedback. -->\n", "Preferences placeholder"),
             "notes.md": ("# Notes\n<!-- TP-extracted facts and instructions. -->\n", "Notes placeholder"),

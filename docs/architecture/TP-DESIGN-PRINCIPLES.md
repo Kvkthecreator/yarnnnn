@@ -123,7 +123,7 @@ Computed at session start by `build_working_memory()`. Dies at session end. Neve
 
 **Purpose:** Ground truth prevents staleness. TP validates its own understanding against these signals every session.
 
-### Layer 2: Workspace Files (persistent, user-visible)
+### Layer 2: Workspace Files (persistent)
 
 Files TP reads at session start and writes during conversation via `UpdateContext`:
 
@@ -131,10 +131,11 @@ Files TP reads at session start and writes during conversation via `UpdateContex
 |------|---------|-----------|
 | `IDENTITY.md` | Who the user is | TP via `UpdateContext(target="identity")` |
 | `BRAND.md` | Output style/voice | TP via `UpdateContext(target="brand")` |
+| `AWARENESS.md` | TP's situational notes (shift handoff) | TP via `UpdateContext(target="awareness")` |
 | `notes.md` | Standing instructions | Nightly cron (memory extraction) |
 | `preferences.md` | Learned output preferences | Feedback distillation |
 
-These are the workspace's accumulated knowledge about the user. They persist across sessions and are the primary context TP uses for judgment.
+IDENTITY.md and BRAND.md carry facts about the user. AWARENESS.md carries TP's qualitative understanding of the workspace — current focus, task state, context health, next steps. It's a shift handoff note, not a health score. Direct write (no inference layer), full replacement each time.
 
 ### Layer 3: Behavioral Guidance (static prompt, always injected)
 

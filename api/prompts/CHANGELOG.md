@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.5] - Persistent TP awareness: AWARENESS.md + ground truth rendering
+
+### Added
+- `services/working_memory.py`: Read `/workspace/AWARENESS.md` into working memory. Render as "Awareness (your notes from prior sessions)" section. Render `active_tasks` as "Active tasks" and `context_domains` as "Context domains" — both were previously computed but never shown to TP (dead data, now live).
+- `services/primitives/update_context.py`: `target="awareness"` — direct write to AWARENESS.md (no inference layer, full replacement).
+- `agents/tp_prompts/onboarding.py`: "Situational Awareness" section — when to read/write awareness notes, write style guidance, ground truth cross-referencing.
+- `services/workspace_init.py`: AWARENESS.md scaffolded at workspace initialization alongside IDENTITY.md, BRAND.md.
+- `services/agent_framework.py`: `DEFAULT_AWARENESS_MD` template.
+
+### Changed
+- `services/primitives/update_context.py`: target enum expanded: identity, brand, memory, agent, task → + awareness.
+- `services/working_memory.py`: Prompt token budget updated ~2500 → ~3000 to accommodate awareness + task/domain sections.
+
+### Design
+- AWARENESS.md is TP's shift-handoff note — qualitative, direct-write, full replacement. Not a health score.
+- `context_readiness` (computed signals) kept alongside as ground truth validation.
+- `active_tasks` and `context_domains` now rendered — TP can reason about task-context relationships ("this task reads competitors but competitors is empty").
+- 2000-char cap on awareness content in both read and write paths.
+
+---
+
 ## [2026.04.01.4] - Onboarding prompt tune: schedules, no-gate, navigation awareness
 
 ### Changed
