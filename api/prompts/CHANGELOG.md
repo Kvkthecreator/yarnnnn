@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.01.3] - TP prompt rewrite for new architecture
+
+### Changed
+- `agents/tp_prompts/base.py`: 8-agent roster (domain-stewards + synthesizer + bots). "output" not "deliverable" terminology rule.
+- `agents/tp_prompts/behaviors.py`: "project types" → "task types". WORKSPACE.md reference for routing. Domain-steward agent names in examples.
+- `agents/tp_prompts/task_scope.py`: evaluate/steer/complete/trigger actions with ManageTask syntax.
+- `agents/tp_prompts/tools.py`: 8-agent workforce model. ManageTask gains evaluate/steer/complete docs. "deliverable" → "output".
+- `agents/tp_prompts/onboarding.py`: 15 atomic task types (7 Track & Research + 8 Reports & Outputs). WORKSPACE.md reference. "Suggest BOTH tracking + synthesis" guidance.
+- `agents/tp_prompts/platforms.py`: Context domain explanation expanded. Tracking tasks as platform data bridge.
+- Expected behavior: TP understands domain-steward agents, task-first model, context domains, evaluate/steer/complete lifecycle, WORKSPACE.md as manifest. No "deliverable" or "project type" language.
+
+---
+
 ## [2026.04.01.2] - Agent registry v4: domain-steward model + living WORKSPACE.md
 
 ### Changed

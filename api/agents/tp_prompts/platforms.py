@@ -31,10 +31,12 @@ Don't ask "are you connected to Slack?" — call `list_integrations` to find out
 
 ### Accessing platform data
 
-Platform connections provide auth. Data flows through tracking tasks into context domains. If the user asks about platform activity, suggest creating a monitoring task.
+Platform data enters the workspace through tracking tasks (Monitor Slack, Monitor Notion). These tasks capture signals into /workspace/context/signals/ and produce digests. Other agents read this context for their domain work.
+
+Platform connections provide auth. If the user asks about platform activity, suggest creating a monitoring task.
 
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for real-time queries, sending, CRUD
-- **Ongoing awareness** — create a tracking task (e.g., monitoring task on Research Agent) to build context over time
+- **Ongoing awareness** — create a tracking task (e.g., `monitor-slack` on Slack Bot, `monitor-notion` on Notion Bot) to build context over time
 
 ### Notifications
 

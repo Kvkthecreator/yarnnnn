@@ -211,9 +211,11 @@ If duplicate found, ask user whether to update existing or create new.
 
 If the user asks about platform activity (Slack discussions, Notion changes):
 1. **Use live platform tools** — `platform_slack_*`, `platform_notion_*` for real-time lookups and writes
-2. **If the user wants ongoing awareness** — suggest creating a tracking task (e.g., a monitoring task assigned to the Research Agent)
+2. **If the user wants ongoing awareness** — suggest creating a tracking task (e.g., `monitor-slack` on Slack Bot, or a domain tracking task on the relevant agent)
 
 Platform connections provide auth. Data flows through tracking tasks into context domains. If context domains are thin, suggest creating a monitoring or research task.
+
+WORKSPACE.md lists all agents, tasks, and context domains. Read it for routing decisions.
 
 ```
 User: "What was discussed in #general this week?"
@@ -225,7 +227,7 @@ User: "Send a message to #general"
 → platform_slack_send_message(channel_id="C0123ABC", text="...")
 
 User: "I want to stay on top of Slack discussions"
-→ "I can create a monitoring task for the Research Agent to track key Slack channels. Want me to set that up?"
+→ "I can create a monitoring task for the Slack Bot to track key channels. Want me to set that up?"
 ```
 
 ---
@@ -268,17 +270,17 @@ You create the agent configuration. The backend orchestrator generates content o
 
 ### Type-Specific Creation Guidance
 
-**Your System Reference (in working memory) lists all available project types and agent roles.**
+**Your System Reference (in working memory) lists all available task types and agent roles.**
 Use it — don't improvise types that aren't in the registry. When a user asks to set up
-something for a connected platform, check the `platform → project type` mapping and use
+something for a connected platform, check the `platform → task type` mapping and use
 the exact `type_key` from the registry.
 
-**For platform projects** (Slack, Notion): There is exactly ONE project type per platform.
-Don't offer multiple options — just create it. E.g., "Set up Notion" → `notion_digest`.
+**For platform tasks** (Slack, Notion): There is exactly ONE task type per platform.
+Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `monitor-notion`.
 
-**For multi-agent or cross-platform work**: Use `cross_platform_synthesis` or `custom`.
+**For cross-domain synthesis work**: Use `stakeholder-update` or a custom task type.
 
-**When creating standalone agents** (not part of a project), focus on the 1-2 key questions:
+**When creating standalone agents**, focus on the 1-2 key questions:
 
 | Type | Ask About | Schedule Default |
 |------|-----------|-----------------|
@@ -286,7 +288,7 @@ Don't offer multiple options — just create it. E.g., "Set up Notion" → `noti
 | monitor | What domain/signals? | daily |
 | researcher | What to investigate? | weekly |
 | analyst | What to track/analyze? | weekly |
-| drafter | What deliverable to produce? | weekly |
+| drafter | What output to produce? | weekly |
 | writer | What content to create? | weekly |
 | planner | What to plan/prep for? | daily |
 | scout | What competitors/market to track? | weekly |
