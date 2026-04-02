@@ -25,8 +25,8 @@ import { cn } from '@/lib/utils';
 const ICON_MAP: Record<string, { icon: typeof FileText; color: string }> = {
   // Markdown
   '.md': { icon: FileText, color: 'text-blue-500' },
-  // HTML
-  '.html': { icon: Globe, color: 'text-orange-500' },
+  // HTML — rendered reports/deliverables, not web pages
+  '.html': { icon: BookOpen, color: 'text-violet-500' },
   // Images
   '.png': { icon: Image, color: 'text-green-500' },
   '.jpg': { icon: Image, color: 'text-green-500' },
