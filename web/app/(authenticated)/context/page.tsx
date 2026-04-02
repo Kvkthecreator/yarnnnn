@@ -29,6 +29,7 @@ import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ChatPanel } from '@/components/tp/ChatPanel';
+import { ContextSetup } from '@/components/tp/ContextSetup';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
@@ -137,6 +138,8 @@ export default function ContextPage() {
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
+  // ADR-155: Workspace maturity phase for setup-phase layout
+  const [phase, setPhase] = useState<'setup' | 'scaffolded' | 'active' | null>(null);
 
   // Virtual root for resolveNodeByPath/buildBreadcrumbs (not displayed)
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
@@ -160,6 +163,8 @@ export default function ContextPage() {
       });
 
       setTreeNodes(nodes);
+      // ADR-155: Track workspace maturity phase
+      setPhase(nav.readiness?.phase || 'active');
       // Don't auto-select root — let user pick from tree
       setSelectedPath((prev) => {
         if (prev) {
@@ -306,6 +311,25 @@ export default function ContextPage() {
             </div>
             <div className="flex-1 overflow-auto">
               <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
+            </div>
+          </div>
+        ) : phase === 'setup' ? (
+          /* ADR-155: Setup phase — ContextSetup as hero content */
+          <div className="flex items-center justify-center h-full p-8">
+            <div className="w-full max-w-lg">
+              <ContextSetup
+                onSubmit={(msg) => {
+                  sendMessage(msg, { surface: effectiveSurface });
+                  setChatOpen(true);
+                  // Refresh tree after inference completes (~4s)
+                  setTimeout(loadExplorer, 5000);
+                }}
+                showSkipOptions
+                onSkipAction={(msg) => {
+                  sendMessage(msg, { surface: effectiveSurface });
+                  setChatOpen(true);
+                }}
+              />
             </div>
           </div>
         ) : (
