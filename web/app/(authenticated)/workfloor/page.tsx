@@ -57,6 +57,8 @@ import { ContextSetup } from '@/components/tp/ContextSetup';
 // Tabs — Tasks & Context content
 // =============================================================================
 
+import { FileIcon } from '@/components/workspace/FileIcon';
+
 // =============================================================================
 // DomainBrowser — entity card listing for a context domain
 // =============================================================================
@@ -143,11 +145,19 @@ function DomainBrowser({
               {entity.preview && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{entity.preview}</p>
               )}
-              <div className="flex gap-1 mt-2">
+              <div className="flex gap-1.5 mt-2">
                 {entity.files.map(f => (
-                  <span key={f.name} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  <button
+                    key={f.name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectEntity(f.path);
+                    }}
+                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
+                  >
+                    <FileIcon filename={f.name} size="sm" />
                     {f.name.replace('.md', '')}
-                  </span>
+                  </button>
                 ))}
               </div>
             </button>
@@ -708,7 +718,7 @@ export default function WorkfloorPage() {
       {panelOpen ? (
         <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-xs font-medium text-muted-foreground">yarnnn</span>
+            <span className="text-sm font-medium text-muted-foreground">yarnnn</span>
             <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
               <X className="w-3.5 h-3.5" />
             </button>

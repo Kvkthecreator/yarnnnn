@@ -14,7 +14,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Circle, FolderOpen, FileText, Upload, Settings, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Circle, FolderOpen, FileText, Settings, Plus } from 'lucide-react';
+import { FileIcon } from './FileIcon';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
@@ -78,13 +79,13 @@ export function WorkspaceNav({
 
   if (loading) {
     return (
-      <div className="p-3 text-xs text-muted-foreground">Loading...</div>
+      <div className="p-3 text-sm text-muted-foreground">Loading...</div>
     );
   }
 
   if (!nav) {
     return (
-      <div className="p-3 text-xs text-muted-foreground">Failed to load navigation</div>
+      <div className="p-3 text-sm text-muted-foreground">Failed to load navigation</div>
     );
   }
 
@@ -106,14 +107,14 @@ export function WorkspaceNav({
           ) : undefined}
         >
           {nav.tasks.length === 0 && (
-            <div className="px-3 py-1.5 text-xs text-muted-foreground">No tasks yet</div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground">No tasks yet</div>
           )}
           {nav.tasks.map(task => (
             <button
               key={task.slug}
               onClick={() => onSelectTask(task.slug)}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
                 selectedItem === `task:${task.slug}` && "bg-accent"
               )}
             >
@@ -138,14 +139,14 @@ export function WorkspaceNav({
           onToggle={() => toggle('domains')}
         >
           {nav.domains.length === 0 && (
-            <div className="px-3 py-1.5 text-xs text-muted-foreground">No domains yet</div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground">No domains yet</div>
           )}
           {nav.domains.map(domain => (
             <button
               key={domain.key}
               onClick={() => onSelectDomain(domain.key)}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
                 selectedItem === `domain:${domain.key}` && "bg-accent"
               )}
             >
@@ -172,7 +173,7 @@ export function WorkspaceNav({
                 key={section.key}
                 onClick={() => onSelectFile(section.path)}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
                   selectedItem === `output:${section.key}` && "bg-accent"
                 )}
               >
@@ -198,11 +199,11 @@ export function WorkspaceNav({
                 key={file.path}
                 onClick={() => onSelectFile(file.path)}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
                   selectedItem === file.path && "bg-accent"
                 )}
               >
-                <Upload className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <FileIcon filename={file.name} size="sm" />
                 <span className="truncate flex-1">{file.name}</span>
               </button>
             ))}
@@ -222,7 +223,7 @@ export function WorkspaceNav({
                 key={file.path}
                 onClick={() => onSelectFile(file.path)}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
                   selectedItem === file.path && "bg-accent"
                 )}
               >
@@ -256,7 +257,7 @@ function NavSection({
     <div className="mb-1">
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-1 px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground"
+        className="w-full flex items-center gap-1 px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground"
       >
         {expanded ? (
           <ChevronDown className="w-3 h-3" />
