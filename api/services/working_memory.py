@@ -133,13 +133,14 @@ async def build_working_memory(
         # ADR-149/151: Active tasks + context domain health for TP meta-awareness
         "active_tasks": active_tasks,
         "context_domains": context_domains,
-        # ADR-144: Context readiness signal for TP graduated awareness
+        # ADR-144/155: Context readiness signal for TP graduated awareness
         "context_readiness": {
             "identity": _classify_richness(identity_content),
             "brand": _classify_richness(brand_content),
             "documents": doc_count,
             "tasks": task_count,
             "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
+            "inference_state": _get_inference_state(awareness_content),
         },
     }
 
@@ -178,6 +179,20 @@ def _classify_richness(content: Optional[str]) -> str:
     if len(stripped) < 100 or stripped.count("\n") < 3:
         return "sparse"
     return "rich"
+
+
+def _get_inference_state(awareness_content: Optional[str]) -> str:
+    """Classify workspace inference state from AWARENESS.md. ADR-155.
+
+    Returns: empty | scaffolded | validated
+    """
+    if not awareness_content or "## Inference State" not in awareness_content:
+        return "empty"
+    if "source: researched" in awareness_content:
+        return "validated"
+    if "Scaffolded Domains" in awareness_content:
+        return "scaffolded"
+    return "empty"
 
 
 def _count_tasks_sync(user_id: str, client: Any) -> int:

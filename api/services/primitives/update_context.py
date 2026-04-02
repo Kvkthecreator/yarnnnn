@@ -162,12 +162,28 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
             return {"success": False, "error": "write_failed", "message": f"Failed to write {filename}"}
 
         logger.info(f"[UPDATE_CONTEXT] Updated {filename} ({len(new_content)} chars)")
+
+        # ADR-155: Trigger workspace-wide inference after identity update.
+        # Scaffolds entity stubs across all context domains from identity.
+        inference_result = None
+        if target == "identity":
+            try:
+                from services.workspace_inference import run_workspace_inference
+                inference_result = await run_workspace_inference(auth.client, auth.user_id)
+                if inference_result.get("success"):
+                    total = inference_result.get("total_files", 0)
+                    domains = len(inference_result.get("scaffolded", {}))
+                    logger.info(f"[UPDATE_CONTEXT] Workspace inference: {total} files across {domains} domains")
+            except Exception as e:
+                logger.warning(f"[UPDATE_CONTEXT] Workspace inference failed (non-fatal): {e}")
+
         return {
             "success": True,
             "target": target,
             "filename": filename,
             "content": new_content,
             "message": f"Updated {filename} successfully",
+            "inference": inference_result if inference_result and inference_result.get("success") else None,
         }
 
     except Exception as e:

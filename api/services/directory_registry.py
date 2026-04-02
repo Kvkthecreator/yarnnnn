@@ -259,6 +259,89 @@ def get_entity_template(key: str, entity_name: str) -> dict[str, str]:
     }
 
 
+def get_entity_stub_content(
+    domain_key: str,
+    entity_name: str,
+    known_facts: list[str] | None = None,
+    source: str = "inferred",
+) -> dict[str, str]:
+    """Get entity template files enriched with known facts and source tags.
+
+    ADR-155: Creates entity stubs with inferred content + gap markers.
+    First section gets known_facts injected; remaining sections get [Needs research].
+
+    Args:
+        domain_key: Registry key (e.g., "competitors")
+        entity_name: Display name for the entity
+        known_facts: List of facts inferred from identity
+        source: Source tag (inferred|user_stated|researched)
+
+    Returns:
+        {filename: enriched_content} dict
+    """
+    from datetime import datetime, timezone
+
+    base_templates = get_entity_template(domain_key, entity_name)
+    if not base_templates:
+        return {}
+
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    source_tag = f"<!-- source: {source} | date: {date_str} -->"
+    facts_text = ""
+    if known_facts:
+        facts_text = "\n".join(f"- {f}" for f in known_facts)
+        facts_text = f"\n{facts_text}\n\n[Inferred from workspace identity — needs research to verify and expand]"
+    else:
+        facts_text = "\n[Inferred from workspace identity — needs research]"
+
+    enriched = {}
+    for i, (filename, template) in enumerate(base_templates.items()):
+        content = f"{source_tag}\n{template}"
+        if i == 0:
+            # First file (usually profile.md/analysis.md): inject facts into first section
+            # Find the first ## section and append facts after its header
+            sections = content.split("\n## ")
+            if len(sections) >= 2:
+                # Inject facts after first section header
+                first_section_lines = sections[1].split("\n", 1)
+                header = first_section_lines[0]
+                rest = first_section_lines[1] if len(first_section_lines) > 1 else ""
+                sections[1] = f"{header}\n{facts_text}\n{rest}"
+                content = "\n## ".join(sections)
+
+            # Mark remaining empty sections with [Needs research]
+            content = _mark_empty_sections(content)
+        else:
+            # Non-primary files: mark all sections as needing research
+            content = _mark_empty_sections(content)
+
+        enriched[filename] = content
+
+    return enriched
+
+
+def _mark_empty_sections(content: str) -> str:
+    """Add [Needs research] to sections that have headers but no content."""
+    import re
+    lines = content.split("\n")
+    result = []
+    for i, line in enumerate(lines):
+        result.append(line)
+        # If this is a section header and next line is empty or another header
+        if line.startswith("## ") and not line.startswith("## Overview"):
+            # Check if section body is empty
+            next_content = ""
+            for j in range(i + 1, min(i + 3, len(lines))):
+                stripped = lines[j].strip()
+                if stripped and not stripped.startswith("#") and not stripped.startswith("<!--"):
+                    next_content = stripped
+                    break
+            if not next_content:
+                result.append("[Needs research]")
+                result.append("")
+    return "\n".join(result)
+
+
 def get_synthesis_content(key: str) -> Optional[tuple[str, str]]:
     """Get the synthesis file path and template for a context directory."""
     d = WORKSPACE_DIRECTORIES.get(key)

@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.02.3] - ADR-155 Phase 1: Workspace-wide inference engine
+
+### Added
+- `services/workspace_inference.py`: NEW — workspace-wide inference engine. Haiku reads IDENTITY.md + BRAND.md → outputs entity roster across all context domains → scaffolds entity stubs with `[Needs research]` gap markers and `<!-- source: inferred -->` tags.
+- `services/directory_registry.py`: `get_entity_stub_content()` — enriches entity templates with known facts + source tags + gap markers.
+- `services/primitives/update_context.py`: After identity write, triggers `run_workspace_inference()` synchronously. Response includes `inference` key with scaffolding summary.
+- `services/working_memory.py`: `inference_state` (empty|scaffolded|validated) added to `context_readiness`. TP now sees whether workspace has been inference-scaffolded.
+- Expected behavior: User provides identity ("dev tools startup competing with Cursor") → system scaffolds competitors/market/relationships domain stubs → TP can narrate "I've set up 4 competitors and 2 market segments." Bootstrap research starts warm, not cold.
+
+---
+
 ## [2026.04.02.2] - Self-directing execution loop (Next Cycle Directive)
 
 ### Changed
