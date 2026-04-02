@@ -59,6 +59,10 @@ interface WorkspaceLayoutProps {
   panelDefaultOpen?: boolean;
   /** Default panel width as percentage (default: 50, clamped 25-65) */
   panelDefaultPct?: number;
+  /** Controlled panel open state */
+  panelOpen?: boolean;
+  /** Callback when panel open state changes */
+  onPanelOpenChange?: (open: boolean) => void;
   /** Controlled active tab (parent can drive tab selection) */
   activeTabId?: string;
   /** Callback when active tab changes */
@@ -79,12 +83,14 @@ export function WorkspaceLayout({
   panelHeader,
   panelDefaultOpen = true,
   panelDefaultPct = DEFAULT_PANEL_PCT,
+  panelOpen: controlledPanelOpen,
+  onPanelOpenChange,
   activeTabId,
   onActiveTabChange,
 }: WorkspaceLayoutProps) {
   // On mobile (< lg), always start with panel closed to show chat first.
   // On desktop, respect the caller's default.
-  const [panelOpen, setPanelOpen] = useState(() => {
+  const [internalPanelOpen, setInternalPanelOpen] = useState(() => {
     if (typeof window === 'undefined') return panelDefaultOpen;
     return window.innerWidth >= 1024 ? panelDefaultOpen : false;
   });
@@ -92,6 +98,12 @@ export function WorkspaceLayout({
   const [panelPct, setPanelPct] = useState(panelDefaultPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const panelOpen = controlledPanelOpen ?? internalPanelOpen;
+  const setPanelOpen = useCallback((open: boolean) => {
+    setInternalPanelOpen(open);
+    onPanelOpenChange?.(open);
+  }, [onPanelOpenChange]);
 
   // Support controlled or uncontrolled active tab
   const activeTab = activeTabId ?? internalActiveTab;

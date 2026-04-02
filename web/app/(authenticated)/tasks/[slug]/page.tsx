@@ -795,6 +795,7 @@ export default function TaskPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutationPending, setMutationPending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   const refreshData = useCallback(async () => {
     if (!slug) return;
@@ -948,7 +949,7 @@ export default function TaskPage() {
         </span>
       </div>
       <button
-        onClick={() => router.back()}
+        onClick={() => setChatOpen(false)}
         className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <X className="h-4 w-4" />
@@ -971,6 +972,8 @@ export default function TaskPage() {
       panelHeader={tpPanelHeader}
       panelDefaultOpen={true}
       panelDefaultPct={32}
+      panelOpen={chatOpen}
+      onPanelOpenChange={setChatOpen}
     >
       <TaskWorkspace
         task={task}
