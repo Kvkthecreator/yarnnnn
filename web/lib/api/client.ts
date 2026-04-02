@@ -48,12 +48,9 @@ import type {
 } from "@/types";
 import type {
   AdminOverviewStats,
-  AdminMemoryStats,
-  AdminDocumentStats,
-  AdminChatStats,
+  AdminTokenUsage,
+  AdminExecutionStats,
   AdminUserRow,
-  AdminSyncHealth,
-  AdminPipelineStats,
 } from "@/types/admin";
 
 const API_BASE_URL =
@@ -355,27 +352,22 @@ export const api = {
   // Admin endpoints (requires admin access)
   admin: {
     stats: () => request<AdminOverviewStats>("/api/admin/stats"),
+    tokenUsage: (days: number = 7) =>
+      request<AdminTokenUsage>(`/api/admin/token-usage?days=${days}`),
+    executionStats: () => request<AdminExecutionStats>("/api/admin/execution-stats"),
     users: () => request<AdminUserRow[]>("/api/admin/users"),
-    memoryStats: () => request<AdminMemoryStats>("/api/admin/memory-stats"),
-    documentStats: () => request<AdminDocumentStats>("/api/admin/document-stats"),
-    chatStats: () => request<AdminChatStats>("/api/admin/chat-stats"),
     exportUsers: async () => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/admin/export/users`, {
         credentials: "include",
         headers,
       });
-
       if (!response.ok) {
         throw new APIError(response.status, response.statusText);
       }
-
-      // Get filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get("Content-Disposition");
       const filenameMatch = contentDisposition?.match(/filename=(.+)/);
       const filename = filenameMatch ? filenameMatch[1] : "yarnnn_users.xlsx";
-
-      // Create blob and trigger download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -392,15 +384,12 @@ export const api = {
         credentials: "include",
         headers,
       });
-
       if (!response.ok) {
         throw new APIError(response.status, response.statusText);
       }
-
       const contentDisposition = response.headers.get("Content-Disposition");
       const filenameMatch = contentDisposition?.match(/filename=(.+)/);
       const filename = filenameMatch ? filenameMatch[1] : "yarnnn_report.xlsx";
-
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -411,9 +400,6 @@ export const api = {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     },
-    // ADR-073: Pipeline observability
-    syncHealth: () => request<AdminSyncHealth>("/api/admin/sync-health"),
-    pipelineStats: () => request<AdminPipelineStats>("/api/admin/pipeline-stats"),
   },
 
   // ADR-018: Agents endpoints
