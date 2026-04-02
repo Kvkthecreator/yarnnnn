@@ -23,6 +23,8 @@ What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - Active agents (max 5)
   - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
   - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
+  - Work budget: credits used/limit/exhausted ← ADR-156
+  - Agent health: flagged agents with low approval rates ← ADR-156
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 TP can invoke GetSystemState primitive for detailed operational state.
@@ -111,9 +113,12 @@ async def build_working_memory(
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
-    active_tasks, context_domains = await asyncio.gather(
+    # ADR-156: Work budget + agent health signals (replaces Composer awareness)
+    active_tasks, context_domains, work_budget, agent_health = await asyncio.gather(
         asyncio.to_thread(_get_active_tasks_sync, user_id, _make_client()),
         asyncio.to_thread(_get_context_domain_health_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_work_budget_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_agent_health_sync, user_id, _make_client()),
     )
 
     working_memory = {
@@ -133,6 +138,9 @@ async def build_working_memory(
         # ADR-149/151: Active tasks + context domain health for TP meta-awareness
         "active_tasks": active_tasks,
         "context_domains": context_domains,
+        # ADR-156: Work budget + agent health (replaces Composer awareness)
+        "work_budget": work_budget,
+        "agent_health": agent_health,
         # ADR-144/155: Context readiness signal for TP graduated awareness
         "context_readiness": {
             "identity": _classify_richness(identity_content),
@@ -776,6 +784,70 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
     return summary
 
 
+def _get_work_budget_sync(user_id: str, client: Any) -> dict:
+    """Fetch work budget status (sync, for thread pool). ADR-156."""
+    try:
+        from services.platform_limits import check_credits
+        allowed, used, limit = check_credits(client, user_id)
+        return {"used": used, "limit": limit, "exhausted": not allowed}
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch work budget: {e}")
+        return {"used": 0, "limit": -1, "exhausted": False}
+
+
+def _get_agent_health_sync(user_id: str, client: Any) -> list:
+    """Fetch agent health flags — only flagged agents shown. ADR-156.
+
+    Returns agents with low approval rates so TP can surface concerns.
+    Only includes agents with >= 5 runs and < 50% approval (early warning).
+    """
+    try:
+        agents_result = client.table("agents").select(
+            "id, title, slug, role"
+        ).eq("user_id", user_id).eq("status", "active").execute()
+        agents = agents_result.data or []
+        if not agents:
+            return []
+
+        agent_ids = [a["id"] for a in agents]
+
+        runs_result = client.table("agent_runs").select(
+            "agent_id, status"
+        ).in_("agent_id", agent_ids).execute()
+        runs = runs_result.data or []
+
+        # Compute per-agent stats
+        stats: dict[str, dict] = {}
+        for run in runs:
+            aid = run["agent_id"]
+            if aid not in stats:
+                stats[aid] = {"total": 0, "approved": 0}
+            stats[aid]["total"] += 1
+            if run.get("status") == "approved":
+                stats[aid]["approved"] += 1
+
+        flagged = []
+        for agent in agents:
+            aid = agent["id"]
+            agent_stats = stats.get(aid)
+            if not agent_stats or agent_stats["total"] < 5:
+                continue
+            approval_rate = agent_stats["approved"] / agent_stats["total"]
+            if approval_rate < 0.50:
+                flagged.append({
+                    "title": agent.get("title", "Untitled"),
+                    "slug": agent.get("slug", ""),
+                    "approval_rate": round(approval_rate, 2),
+                    "run_count": agent_stats["total"],
+                    "flag": "underperforming" if approval_rate < 0.30 else "needs_attention",
+                })
+
+        return flagged
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch agent health: {e}")
+        return []
+
+
 # --- Formatting ---
 
 def estimate_working_memory_tokens(working_memory: dict) -> int:
@@ -1049,5 +1121,24 @@ def format_for_prompt(working_memory: dict) -> str:
         failed = system_summary.get("failed_jobs_24h", 0)
         if failed > 0:
             lines.append(f"- Failed jobs (24h): {failed}")
+
+    # ADR-156: Work budget status
+    work_budget = working_memory.get("work_budget", {})
+    budget_limit = work_budget.get("limit", -1)
+    if budget_limit != -1:
+        used = work_budget.get("used", 0)
+        exhausted = work_budget.get("exhausted", False)
+        if exhausted:
+            lines.append(f"\n### Work budget: EXHAUSTED ({used}/{budget_limit} credits used)")
+        elif used > 0:
+            lines.append(f"\n### Work budget: {used}/{budget_limit} credits used")
+
+    # ADR-156: Agent health flags (only flagged agents shown)
+    agent_health = working_memory.get("agent_health", [])
+    if agent_health:
+        lines.append(f"\n### Agent health concerns")
+        for ah in agent_health:
+            pct = f"{ah['approval_rate']:.0%}"
+            lines.append(f"- {ah['title']}: {pct} approval over {ah['run_count']} runs ({ah['flag']})")
 
     return "\n".join(lines)

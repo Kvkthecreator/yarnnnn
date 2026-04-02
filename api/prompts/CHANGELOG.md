@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.1] - ADR-156: Composer sunset — single intelligence layer
+
+### Removed
+- `services/composer.py`: DELETED — entire Composer module removed. Background Haiku LLM making autonomous workforce composition decisions violated single-intelligence-layer principle.
+- `services/composer.py` COMPOSER_SYSTEM_PROMPT: DELETED — no more background orchestration prompt.
+- `services/agent_execution.py`: Removed `maybe_trigger_heartbeat()` call after agent delivery. No event-driven Composer triggers.
+
+### Changed
+- `jobs/unified_scheduler.py`: Composer heartbeat loop replaced with deterministic `_pause_underperformers()` — zero LLM, mechanical rule (>=8 runs AND <30% approval → pause). Same hygiene pattern as workspace file cleanup.
+- `services/working_memory.py`: Added `work_budget` (used/limit/exhausted) and `agent_health` (flagged agents with low approval rates) signals. Pure SQL, surfaced to TP in conversation so it can suggest actions.
+- Expected behavior: TP sees workforce health signals in working memory and surfaces suggestions conversationally ("Your Weekly Briefing has 25% approval over 10 runs. Want me to pause it?"). User decides. No autonomous agent creation.
+
+---
+
 ## [2026.04.02.4] - ADR-155 revised: TP-driven scaffolding (no shadow inference)
 
 ### Changed

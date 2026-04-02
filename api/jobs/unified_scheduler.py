@@ -28,7 +28,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from croniter import croniter
 
@@ -300,6 +300,109 @@ async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int
 
 
 # =============================================================================
+# ADR-156: Deterministic Lifecycle Hygiene (replaces Composer)
+# Zero LLM — mechanical rules only. Runs in scheduler cron.
+# =============================================================================
+
+UNDERPERFORMER_MIN_RUNS = 8
+UNDERPERFORMER_MAX_APPROVAL = 0.30
+
+
+async def _pause_underperformers(client: Any, user_id: str) -> int:
+    """
+    Pause agents with consistently low approval rates.
+
+    Rule: >= UNDERPERFORMER_MIN_RUNS runs AND < UNDERPERFORMER_MAX_APPROVAL approval rate
+    AND origin != 'user_configured' (respect user's explicit choices).
+
+    Returns count of agents paused this cycle.
+    """
+    # Get active agents with their run stats
+    agents_result = client.table("agents").select(
+        "id, title, role, origin"
+    ).eq("user_id", user_id).eq("status", "active").execute()
+    agents = agents_result.data or []
+    if not agents:
+        return 0
+
+    agent_ids = [a["id"] for a in agents]
+
+    # Batch query: approval rates per agent
+    runs_result = client.table("agent_runs").select(
+        "agent_id, status"
+    ).in_("agent_id", agent_ids).execute()
+    runs = runs_result.data or []
+
+    # Compute per-agent stats
+    stats: dict[str, dict] = {}
+    for run in runs:
+        aid = run["agent_id"]
+        if aid not in stats:
+            stats[aid] = {"total": 0, "approved": 0}
+        stats[aid]["total"] += 1
+        if run.get("status") == "approved":
+            stats[aid]["approved"] += 1
+
+    paused_count = 0
+    for agent in agents:
+        aid = agent["id"]
+        # Skip user-configured agents — respect explicit choices
+        if agent.get("origin") == "user_configured":
+            continue
+
+        agent_stats = stats.get(aid)
+        if not agent_stats:
+            continue
+
+        total = agent_stats["total"]
+        if total < UNDERPERFORMER_MIN_RUNS:
+            continue
+
+        approval_rate = agent_stats["approved"] / total
+        if approval_rate >= UNDERPERFORMER_MAX_APPROVAL:
+            continue
+
+        # Pause the underperformer
+        try:
+            client.table("agents").update(
+                {"status": "paused"}
+            ).eq("id", aid).execute()
+
+            # Write coaching feedback
+            from services.feedback_distillation import write_feedback_entry
+            await write_feedback_entry(
+                client=client,
+                user_id=user_id,
+                agent=agent,
+                feedback_text=f"Auto-paused: {approval_rate:.0%} approval over {total} runs. Review output quality and deliverable spec.",
+                source="system_lifecycle",
+            )
+
+            # Log activity
+            from services.activity_log import write_activity
+            await write_activity(
+                client=client,
+                user_id=user_id,
+                event_type="agent_scheduled",
+                summary=f"Auto-paused {agent['title']} ({approval_rate:.0%} approval over {total} runs)",
+                metadata={
+                    "agent_id": aid,
+                    "lifecycle_action": "paused",
+                    "approval_rate": round(approval_rate, 2),
+                    "run_count": total,
+                    "origin": "lifecycle_hygiene",
+                },
+            )
+
+            paused_count += 1
+            logger.info(f"[LIFECYCLE] Paused {agent['title']} ({approval_rate:.0%} approval, {total} runs)")
+        except Exception as e:
+            logger.warning(f"[LIFECYCLE] Failed to pause {agent['title']}: {e}")
+
+    return paused_count
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -429,61 +532,20 @@ async def run_unified_scheduler():
         logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-111 Phase 3: TP Composer Heartbeat
-    # Cheap data query per user → Composer assessment only when warranted.
-    # Free: daily (midnight UTC). Pro: every cycle (cheap-first = negligible cost).
+    # ADR-156: Deterministic lifecycle hygiene (replaces Composer heartbeat)
+    # Zero LLM — mechanical rule: pause agents with >=8 runs AND <30% approval
+    # that are NOT user-configured. Runs once per cycle.
     # -------------------------------------------------------------------------
-    composer_users = 0
-    composer_created = 0
-    composer_lifecycle = 0  # ADR-111 Phase 5: lifecycle actions (pause, expand)
+    lifecycle_paused = 0
     try:
-        from services.composer import run_heartbeat
-        from services.platform_limits import get_user_tier
-
-        for hb_uid in all_heartbeat_user_ids:
-            # Tier gating: free = daily only (midnight window), pro = every cycle
-            tier = get_user_tier(supabase, hb_uid)
-            is_midnight_window = now.hour == 0 and now.minute < 5
-            if tier == "free" and not is_midnight_window:
-                continue
-
+        for lc_uid in all_heartbeat_user_ids:
             try:
-                hb_result = await run_heartbeat(supabase, hb_uid)
-                composer_users += 1
-
-                composer_result = hb_result.get("composer_result") or {}
-                created_count = len(composer_result.get("contributors_created", []))
-                composer_created += created_count
-
-                # ADR-111 Phase 5: Count lifecycle actions from Heartbeat
-                lifecycle_actions = composer_result.get("lifecycle_actions", [])
-                composer_lifecycle += len(lifecycle_actions)
-
-                # Write heartbeat event only when actionable or hourly (alive signal)
-                should_write = hb_result.get("should_act", False) or is_hourly_tick
-                if should_write:
-                    try:
-                        from services.activity_log import write_activity as _chw
-                        await _chw(
-                            client=supabase,
-                            user_id=hb_uid,
-                            event_type="composer_heartbeat",
-                            summary=f"Composer heartbeat: {hb_result.get('reason', 'OK')}",
-                            metadata={
-                                "origin": "cron",
-                                "should_act": hb_result.get("should_act", False),
-                                "reason": hb_result.get("reason", ""),
-                                "contributors_created": created_count,
-                                "lifecycle_actions": len(lifecycle_actions),
-                                **hb_result.get("assessment_summary", {}),
-                            },
-                        )
-                    except Exception:
-                        pass  # Non-fatal
+                paused = await _pause_underperformers(supabase, lc_uid)
+                lifecycle_paused += paused
             except Exception as e:
-                logger.warning(f"[COMPOSER] Heartbeat failed for {hb_uid}: {e}")
+                logger.warning(f"[LIFECYCLE] Underperformer check failed for {lc_uid}: {e}")
     except Exception as e:
-        logger.warning(f"[COMPOSER] Heartbeat phase skipped: {e}")
+        logger.warning(f"[LIFECYCLE] Lifecycle phase skipped: {e}")
 
     # -------------------------------------------------------------------------
     # Memory Extraction + Session Summaries (ADR-064, ADR-067 Phase 1)
@@ -607,13 +669,8 @@ async def run_unified_scheduler():
     ]
     if memory_extracted > 0:
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
-    if composer_users > 0:
-        composer_summary = f"composer={composer_users} users"
-        if composer_created > 0:
-            composer_summary += f" ({composer_created} created)"
-        if composer_lifecycle > 0:
-            composer_summary += f" ({composer_lifecycle} lifecycle)"
-        summary_parts.append(composer_summary)
+    if lifecycle_paused > 0:
+        summary_parts.append(f"lifecycle={lifecycle_paused} paused")
 
     # -------------------------------------------------------------------------
     # ADR-072: Write scheduler_heartbeat event for system state awareness
@@ -634,9 +691,7 @@ async def run_unified_scheduler():
                 "tasks_failed": task_failed,
                 "imports_checked": import_count,
                 "imports_triggered": import_success,
-                "composer_users": composer_users,
-                "composer_created": composer_created,
-                "composer_lifecycle": composer_lifecycle,
+                "lifecycle_paused": lifecycle_paused,
                 "memory_extracted": memory_extracted,
                 "errors": errors_encountered if errors_encountered else None,
                 "cycle_started_at": now.isoformat(),
