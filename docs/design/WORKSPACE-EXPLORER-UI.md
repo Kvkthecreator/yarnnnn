@@ -1,71 +1,73 @@
 # Workspace Explorer UI — Unified Navigation + Scoped Chat
 
-**Status:** Proposed  
-**Date:** 2026-04-01  
+**Status:** Implemented (v1 explorer shell)  
+**Date:** 2026-04-02  
 **Depends on:** ADR-152 (directory registry), ADR-149 (task lifecycle), Agent Templates v4
 
 ---
 
 ## Overview
 
-Three-panel layout inspired by IDE + file explorer:
+Three-panel layout inspired by Finder / Windows Explorer:
 
 - **Left Panel:** Workspace file explorer (unified tree, no tabs)
-- **Main Panel:** Context-dependent content viewer (directory listing, file viewer, task detail, output viewer)
+- **Main Panel:** Context-dependent content viewer (directory listing + type-aware file preview)
 - **Right Panel:** Scoped chat (TP with navigation-aware context)
 
-The filesystem IS the navigation. No artificial separation between context, tasks, and agents. Everything is a path in the workspace.
+The explorer now uses one navigation model. No separate domain-card browser, no dashboard-vs-explorer split. The filesystem is presented as browseable folders/files, with a synthetic root that preserves user-facing visibility rules.
 
 ---
 
 ## Left Panel: Workspace Explorer
 
-Unified file tree mirroring `workspace_files` paths. No distinction tabs.
+Unified file tree with synthetic roots:
 
 ```
-/workspace/
-├── IDENTITY.md
-├── BRAND.md
-├── WORKSPACE.md
-├── uploads/
-├── context/
-│   ├── competitors/
+yarnnn
+├── Tasks/
+│   ├── Market Landscape Tracking/
+│   │   ├── TASK.md
+│   │   ├── DELIVERABLE.md
+│   │   ├── outputs/
+│   │   └── awareness.md
+│   └── ...
+├── Domains/
+│   ├── Competitors/
 │   │   ├── _landscape.md
-│   │   └── acme-corp/
-│   ├── market/
-│   ├── relationships/
-│   ├── projects/
-│   ├── content/
-│   └── signals/
-└── outputs/
-    ├── reports/
-    ├── briefs/
-    └── content/
-
-/agents/
-├── competitive-intelligence/
-│   ├── AGENT.md
-│   └── memory/
-├── market-research/
-└── ...
-
-/tasks/
-├── track-competitors/
-│   ├── TASK.md
-│   ├── DELIVERABLE.md
-│   └── memory/
-├── competitive-brief/
-└── ...
+│   │   ├── anthropic/
+│   │   │   ├── profile.md
+│   │   │   └── signals.md
+│   │   └── ...
+│   └── ...
+├── Uploads/
+└── Settings/
+    ├── IDENTITY.md
+    ├── BRAND.md
+    └── AWARENESS.md
 ```
 
 **Behavior:**
 - Click folder → main panel shows directory listing
 - Click file → main panel shows file viewer
-- Click task folder → main panel shows task detail view
 - Folder expand/collapse for navigation
-- File counts shown on folders (e.g., "competitors/ (5 entities)")
-- Last-updated timestamps on folders for freshness signal
-- Color coding: context/ (blue), outputs/ (green), tasks/ (orange), agents/ (purple)
+- Top-level folders preserve current visibility rules rather than exposing every raw system path
+- Tasks are relabeled from slug → title in the explorer
+- Context domains are relabeled from key → display name in the explorer
+- Left panel collapse/expand behavior is unchanged from the prior workfloor shell
+
+### Task launch behavior
+
+Task nodes are visible inside the explorer as filesystem context, but the task
+surface is still an app, not a raw browser:
+
+- Click `/tasks/{slug}` → launch `/tasks/{slug}`
+- Click task outputs → launch `/tasks/{slug}?folder={date_folder}`
+- Click `DELIVERABLE.md` → launch `/tasks/{slug}?section=deliverable`
+- Click `TASK.md` / `awareness.md` → launch `/tasks/{slug}?section=context`
+
+This preserves one consistent split:
+- Workfloor = Explorer/Finder
+- Task page = opened task application
 
 ---
 
@@ -74,53 +76,26 @@ Unified file tree mirroring `workspace_files` paths. No distinction tabs.
 Depends on what's selected in the explorer:
 
 ### Directory Listing View
-When a folder is selected. Shows files as a list with:
+When a folder is selected. Shows a details-style list with:
 - File name
-- Last updated timestamp
-- Preview (first line of content)
-- File type icon
+- Kind
+- Last modified timestamp
+- Preview summary when available
 
 ### File Viewer
-When a `.md` file is selected. Shows:
-- Rendered markdown
-- Edit button (inline editing for IDENTITY.md, BRAND.md, TASK.md, DELIVERABLE.md)
-- Metadata: path, last updated, updated by (agent/user)
+When a file is selected. Type-aware preview:
+- `.md` → rendered markdown
+- `.html` → inline iframe preview
+- `.png/.jpg/.svg/.gif/.webp` → image preview
+- `.pdf` → inline PDF preview when URL-backed
+- `.csv` → table preview
+- `.xlsx/.pptx` and other binary outputs → open/download affordance
+- `.txt/.json` and fallback types → text preview
 
-### Task Detail View
-When a task folder or TASK.md is selected. Shows:
-- **Header:** Task title, mode badge (recurring/goal/reactive), status, schedule
-- **Tabs:** Output | Task | Deliverable | Context | Schedule | Process
-  - **Output:** Latest output rendered (HTML iframe or markdown)
-  - **Task:** TASK.md content (objective, process, agents)
-  - **Deliverable:** DELIVERABLE.md content (quality spec, expected assets, inferred preferences)
-  - **Context:** Which domains this task reads/writes, with entity counts and freshness
-  - **Schedule:** Run history, next run, evaluation history, steering notes
-  - **Process:** Process steps with agent assignments
-
-### Agent Detail View
-When an agent folder or AGENT.md is selected. Shows:
-- Agent title, role, status, domain owned
-- AGENT.md content (identity, instructions)
-- Memory: reflections, feedback, playbooks
-- Domain health: entity count, freshness of owned domain
-- Task assignments: which tasks this agent handles
-
-### Output Viewer
-When an `.html` output file is selected. Shows:
-- Rendered HTML in iframe
-- Repurpose actions (PDF, XLSX, etc.)
-- Evaluation summary if available
-
-### Media Viewer
-When an image/SVG/chart is selected. Shows:
-- Image preview
-- Metadata (source task, generation date)
-
-### IDE-Style Tabs
-- Multiple items can be open simultaneously
-- Tab bar above main panel
-- Close button on each tab
-- Click in explorer opens new tab (or focuses existing)
+### Breadcrumb Header
+- The top bar shows the current explorer path as clickable breadcrumbs
+- Current selection kind or item count appears at the far right
+- Back-navigation is path-based, not a separate domain browser mode
 
 ---
 
@@ -147,14 +122,12 @@ interface NavigationContext {
 
 | Navigation state | TP receives | Scoped suggestions |
 |---|---|---|
-| `/workspace/` root | "User at workspace root" | Workspace overview, task suggestions |
-| `/workspace/context/competitors/` | "Browsing competitor context" | Track Competitors status, create entity, evaluate health |
-| `/workspace/context/competitors/acme-corp/` | "Viewing Acme Corp entity" | Update Acme, research Acme, create brief about Acme |
-| `/tasks/track-competitors/` | "Viewing Track Competitors task" | Trigger, evaluate, steer, schedule, feedback |
-| `/tasks/competitive-brief/` (output tab) | "Viewing competitive brief output" | Evaluate quality, give feedback, re-run |
-| `/agents/competitive-intelligence/` | "Viewing CI agent" | Agent health, reflections, task list |
+| `/explorer` root | "User at explorer root" | Workspace overview, task suggestions |
+| `/explorer/domains` | "Browsing context domains" | Domain health, create tracking task |
+| `/workspace/context/competitors/anthropic/profile.md` | "Viewing Anthropic profile" | Update entity, research, compare |
+| `/tasks/track-competitors` | "Launching task app" | Run, steer, review output |
+| `/tasks/track-competitors/outputs/.../output.html` | "Launching task app on a specific run" | Evaluate, repurpose, export |
 | `/workspace/IDENTITY.md` | "Viewing identity" | Update identity, inference |
-| `/workspace/outputs/reports/` | "Browsing reports" | Create report task, search outputs |
 
 ### Prompt Injection
 
@@ -204,10 +177,10 @@ POST /api/chat
 }
 ```
 
-### New API Endpoints Needed
-- `GET /api/workspace/tree` — file tree for explorer (paths, types, updated_at)
-- `GET /api/workspace/file?path=...` — file content by path
-- `PATCH /api/workspace/file?path=...` — edit file inline (for IDENTITY.md, DELIVERABLE.md, etc.)
+### Supporting API Shape
+- `GET /api/workspace/tree` — file tree for explorer
+- `GET /api/workspace/file?path=...` — file content + content type + content URL
+- `PATCH /api/workspace/file?path=...` — edit file inline (existing)
 
 ---
 

@@ -1,19 +1,15 @@
 'use client';
 
 /**
- * Workfloor — ADR-139 v4: Habbo-style overlay layout
+ * Workfloor — Explorer shell with scoped TP drawer
  *
- * Isometric room fills viewport as ambient backdrop.
- * Floating panels overlay the room:
- * - Left: Tasks/Context panel (collapsible, tabbed)
- * - Right: TP Chat panel (collapsible)
- * - Bottom: Action bar (New Task, Update Context) + suggestion chips
- *
- * No vertical stacking — everything visible in one screen.
+ * Finder / Windows Explorer mental model:
+ * - Left: hierarchical workspace explorer (collapsible)
+ * - Center: folder details view + type-aware file preview
+ * - Right: TP chat drawer (collapsible)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HOME_ROUTE } from '@/lib/routes';
 import {
@@ -25,21 +21,15 @@ import {
   Globe,
   Settings2,
   ListChecks,
-  ChevronDown,
-  ChevronUp,
-  Plus,
   FolderOpen,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import type { Agent, Task, Document } from '@/types';
+import type { Task } from '@/types';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
-import { WorkspaceDashboard } from '@/components/workspace/WorkspaceDashboard';
-// IsometricRoom removed — dashboard activity feed replaces it
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
-import { WorkspaceNav } from '@/components/workspace/WorkspaceNav';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -52,345 +42,160 @@ import {
 } from '@/components/tp/InlineActionCard';
 import { ContextSetup } from '@/components/tp/ContextSetup';
 
+type TreeNode = import('@/types').WorkspaceTreeNode;
 
-// =============================================================================
-// Tabs — Tasks & Context content
-// =============================================================================
+const EXPLORER_ROOT_PATH = '/explorer';
 
-import { FileIcon } from '@/components/workspace/FileIcon';
-
-// =============================================================================
-// DomainBrowser — entity card listing for a context domain
-// =============================================================================
-
-function DomainBrowser({
-  domainKey,
-  onBack,
-  onSelectEntity,
-}: {
-  domainKey: string;
-  onBack: () => void;
-  onSelectEntity: (path: string) => void;
-}) {
-  const [data, setData] = useState<{
-    display_name: string;
-    entity_type: string | null;
-    synthesis_files: Array<{
-      name: string; filename: string; path: string; updated_at: string | null; preview: string | null;
-    }>;
-    entities: Array<{
-      slug: string; name: string; last_updated: string | null;
-      preview: string | null;
-      files: Array<{ name: string; path: string; updated_at: string | null }>;
-    }>;
-    entity_count: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    api.workspace.getDomainEntities(domainKey)
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [domainKey]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="p-4">
-        <button onClick={onBack} className="text-xs text-muted-foreground hover:text-foreground mb-4">← Back</button>
-        <p className="text-sm text-muted-foreground">Domain not found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 overflow-auto bg-background">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-        <button onClick={onBack} className="text-xs text-muted-foreground hover:text-foreground">← Back</button>
-        <span className="text-xs text-muted-foreground/50">·</span>
-        <span className="text-sm font-medium">{data.display_name}</span>
-        <span className="text-xs text-muted-foreground">{data.entity_count} {data.entity_type || 'entities'}{data.entity_count !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Synthesis files — domain-level summaries */}
-      {data.synthesis_files && data.synthesis_files.length > 0 && (
-        <div className="px-4 pt-4 pb-2">
-          {data.synthesis_files.map((sf: { name: string; filename: string; path: string; preview: string | null }) => (
-            <button
-              key={sf.path}
-              onClick={() => onSelectEntity(sf.path)}
-              className="w-full text-left p-3 rounded-lg border border-dashed border-border hover:border-foreground/20 hover:bg-muted/30 transition-colors mb-2"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <FileIcon filename={sf.filename} size="sm" />
-                <span className="text-sm font-medium text-muted-foreground">{sf.name}</span>
-              </div>
-              {sf.preview && (
-                <p className="text-xs text-muted-foreground/70 line-clamp-2 ml-5">{sf.preview}</p>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {data.entities.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="text-sm text-muted-foreground">No {data.entity_type || 'entities'} tracked yet</p>
-          <p className="text-xs text-muted-foreground/50 mt-1">Create a tracking task to start accumulating</p>
-        </div>
-      ) : (
-        <div className="p-4 grid gap-3">
-          {data.entities.map(entity => (
-            <button
-              key={entity.slug}
-              onClick={() => {
-                const profileFile = entity.files.find(f => f.name === 'profile.md');
-                if (profileFile) onSelectEntity(profileFile.path);
-              }}
-              className="text-left p-3 rounded-lg border border-border hover:border-foreground/20 hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium">{entity.name}</span>
-                {entity.last_updated && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {entity.last_updated.slice(0, 10)}
-                  </span>
-                )}
-              </div>
-              {entity.preview && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{entity.preview}</p>
-              )}
-              <div className="flex gap-1.5 mt-2">
-                {entity.files.map(f => (
-                  <button
-                    key={f.name}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectEntity(f.path);
-                    }}
-                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
-                  >
-                    <FileIcon filename={f.name} size="sm" />
-                    {f.name.replace('.md', '')}
-                  </button>
-                ))}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function asNodeArray(value: unknown): TreeNode[] {
+  return Array.isArray(value) ? value as TreeNode[] : [];
 }
 
-
-function TasksTab({ tasks }: { tasks: Task[] }) {
-  const active = tasks.filter(t => t.status !== 'archived');
-
-  if (active.length === 0) {
-    return (
-      <div className="py-6 px-2 text-center">
-        <p className="text-[13px] text-muted-foreground/50">No tasks yet</p>
-        <p className="text-[11px] text-muted-foreground/30 mt-1">Use + New Task to create one via chat</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-0.5">
-      {active.map(task => (
-        <Link key={task.id} href={`/tasks/${task.slug}`} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-[13px]">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', task.status === 'active' ? 'bg-green-500' : 'bg-amber-500')} />
-            <span className="truncate">{task.title || task.slug}</span>
-          </div>
-          {task.schedule && <span className="text-muted-foreground/30 shrink-0 ml-2 text-[11px]">{task.schedule}</span>}
-        </Link>
-      ))}
-    </div>
-  );
+function relabelTopLevelNodes(nodes: TreeNode[] | undefined, labelMap: Record<string, string>): TreeNode[] {
+  return asNodeArray(nodes).map((node) => ({
+    ...node,
+    name: labelMap[node.name] || node.name,
+  }));
 }
 
-function IdentityTab() {
-  const [content, setContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [saving, setSaving] = useState(false);
+function filterNodes(nodes: TreeNode[] | undefined, predicate: (node: TreeNode) => boolean): TreeNode[] {
+  return asNodeArray(nodes)
+    .filter(predicate)
+    .map((node) => ({
+      ...node,
+      children: node.children ? filterNodes(node.children, predicate) : undefined,
+    }));
+}
 
-  useEffect(() => {
-    api.identity.get().then(res => { if (res?.exists && res.content) { setContent(res.content); setDraft(res.content); } }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+function resolveNodeByPath(root: TreeNode, targetPath: string): TreeNode | null {
+  if (root.path === targetPath) {
+    return root;
+  }
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await api.identity.save(draft);
-      setContent(draft);
-      setEditing(false);
-    } catch (e) { console.error(e); }
-    setSaving(false);
+  for (const child of root.children || []) {
+    const match = resolveNodeByPath(child, targetPath);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
+  const trail: TreeNode[] = [];
+
+  function walk(node: TreeNode): boolean {
+    trail.push(node);
+    if (node.path === targetPath) {
+      return true;
+    }
+    for (const child of node.children || []) {
+      if (walk(child)) {
+        return true;
+      }
+    }
+    trail.pop();
+    return false;
+  }
+
+  walk(root);
+  return trail;
+}
+
+function buildExplorerRoot(input: {
+  tasksTree?: TreeNode[];
+  domainTree?: TreeNode[];
+  uploadTree?: TreeNode[];
+  taskTitles: Record<string, string>;
+  domainTitles: Record<string, string>;
+  settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
+}): TreeNode {
+  const tasksChildren = relabelTopLevelNodes(input.tasksTree, input.taskTitles);
+  const domainChildren = relabelTopLevelNodes(
+    filterNodes(input.domainTree, (node) => {
+      const lower = node.path.toLowerCase();
+      return !lower.endsWith('/_tracker.md') && !lower.startsWith('/workspace/context/signals');
+    }),
+    input.domainTitles
+  );
+  const uploadChildren = asNodeArray(input.uploadTree);
+  const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
+
+  const uploadsFolder: TreeNode = {
+    name: 'Uploads',
+    path: `${EXPLORER_ROOT_PATH}/uploads`,
+    type: 'folder',
+    summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
+    children: uploadChildren,
   };
 
-  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
-
-  return (
-    <div className="space-y-2">
-      {editing ? (
-        <>
-          <textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={8}
-            placeholder="# Identity\n\n## Who\nName, Role at Company..."
-            className="w-full text-xs bg-muted/30 border border-border rounded px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y font-mono"
-          />
-          <div className="flex gap-1.5 pt-0.5">
-            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {saving ? '...' : 'Save'}
-            </button>
-            <button onClick={() => { setDraft(content || ''); setEditing(false); }} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
-              Cancel
-            </button>
-          </div>
-        </>
-      ) : content ? (
-        <>
-          <div className="text-[13px] text-muted-foreground/70 bg-muted/20 rounded-lg p-3 prose prose-sm dark:prose-invert max-w-none">
-            <MarkdownRenderer content={content} compact />
-          </div>
-          <button onClick={() => setEditing(true)} className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
-            Edit
-          </button>
-        </>
-      ) : (
-        <div className="py-4 px-2">
-          <p className="text-[13px] text-muted-foreground/60 mb-3">Your identity helps agents understand who you are and what you care about.</p>
-          <p className="text-[11px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
-          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[11px] text-primary hover:underline font-medium">
-            Write identity
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BrandTab() {
-  const [content, setContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.brand.get().then(res => { if (res?.exists && res.content) { setContent(res.content); setDraft(res.content); } }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await api.brand.save(draft);
-      setContent(draft);
-      setEditing(false);
-    } catch (e) { console.error(e); }
-    setSaving(false);
+  const settingsFolder: TreeNode = {
+    name: 'Settings',
+    path: `${EXPLORER_ROOT_PATH}/settings`,
+    type: 'folder',
+    summary: settingsFiles.length ? `${settingsFiles.length} files` : 'No settings files yet',
+    children: settingsFiles.map((file) => ({
+      name: file.filename,
+      path: file.path,
+      type: 'file' as const,
+      updated_at: file.updated_at || undefined,
+      summary: file.name,
+    })),
   };
 
-  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
-
-  return (
-    <div className="space-y-2">
-      {editing ? (
-        <>
-          <textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={8}
-            placeholder="Brand voice, tone, terminology, style guidelines..."
-            className="w-full text-xs bg-muted/30 border border-border rounded px-2.5 py-2 mx-0 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
-          />
-          <div className="flex gap-1.5 px-0 pt-0.5">
-            <button onClick={handleSave} disabled={saving} className="px-2.5 py-1 text-[10px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {saving ? '...' : 'Save'}
-            </button>
-            <button onClick={() => { setDraft(content || ''); setEditing(false); }} className="px-2.5 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:bg-muted/50">
-              Cancel
-            </button>
-          </div>
-        </>
-      ) : content ? (
-        <>
-          <div className="text-[13px] text-muted-foreground/70 bg-muted/20 rounded-lg p-3 prose prose-sm dark:prose-invert max-w-none">
-            <MarkdownRenderer content={content} compact />
-          </div>
-          <button onClick={() => setEditing(true)} className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 mt-1">
-            Edit
-          </button>
-        </>
-      ) : (
-        <div className="py-4 px-2">
-          <p className="text-[13px] text-muted-foreground/60 mb-3">Your brand guide shapes how agents write — tone, terminology, audience awareness.</p>
-          <p className="text-[11px] text-muted-foreground/40 mb-3">Use the <span className="font-medium text-muted-foreground/60">Update</span> button above to tell the chat, or write directly:</p>
-          <button onClick={() => { setDraft(''); setEditing(true); }} className="text-[11px] text-primary hover:underline font-medium">
-            Write brand guide
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  return {
+    name: 'yarnnn',
+    path: EXPLORER_ROOT_PATH,
+    type: 'folder',
+    children: [
+      {
+        name: 'Tasks',
+        path: `${EXPLORER_ROOT_PATH}/tasks`,
+        type: 'folder',
+        summary: tasksChildren.length ? `${tasksChildren.length} active tasks` : 'No tasks yet',
+        children: tasksChildren,
+      },
+      {
+        name: 'Domains',
+        path: `${EXPLORER_ROOT_PATH}/domains`,
+        type: 'folder',
+        summary: domainChildren.length ? `${domainChildren.length} context domains` : 'No domains yet',
+        children: domainChildren,
+      },
+      uploadsFolder,
+      settingsFolder,
+    ],
+  };
 }
 
-function DocumentsTab() {
-  const [docs, setDocs] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.documents.list()
-      .then(res => setDocs(res.documents || []))
-      .catch(() => [])
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="flex items-center justify-center p-4"><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /></div>;
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes}B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+function getTaskLaunchPath(path: string): string | null {
+  const match = path.match(/^\/tasks\/([^/]+)(?:\/(.*))?$/);
+  if (!match) {
+    return null;
   }
 
-  return (
-    <div className="space-y-1">
-      {docs.length > 0 ? docs.map(doc => (
-        <div key={doc.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-[13px]">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
-              doc.processing_status === 'completed' ? 'bg-green-500' :
-              doc.processing_status === 'failed' ? 'bg-red-500' :
-              'bg-amber-500'
-            )} />
-            <span className="truncate">{doc.filename}</span>
-          </div>
-          <span className="text-muted-foreground/40 shrink-0 ml-2 text-[11px]">{formatSize(doc.file_size)}</span>
-        </div>
-      )) : (
-        <div className="py-4 px-2">
-          <p className="text-[13px] text-muted-foreground/60 mb-2">Documents give agents source material to work from — pitch decks, reports, guidelines.</p>
-          <p className="text-[11px] text-muted-foreground/40">Upload files via the chat input (+) or drag &amp; drop into the conversation.</p>
-        </div>
-      )}
-    </div>
-  );
+  const slug = match[1];
+  const remainder = match[2] || '';
+
+  if (!remainder) {
+    return `/tasks/${slug}`;
+  }
+
+  if (remainder === 'DELIVERABLE.md') {
+    return `/tasks/${slug}?section=deliverable`;
+  }
+
+  if (remainder === 'TASK.md' || remainder === 'awareness.md') {
+    return `/tasks/${slug}?section=context`;
+  }
+
+  if (remainder === 'outputs' || remainder.startsWith('outputs/')) {
+    const parts = remainder.split('/');
+    const folder = parts.length >= 2 ? parts[1] : null;
+    return folder ? `/tasks/${slug}?folder=${encodeURIComponent(folder)}` : `/tasks/${slug}?section=runs`;
+  }
+
+  return `/tasks/${slug}`;
 }
 
 // =============================================================================
@@ -649,49 +454,60 @@ function ChatPanel({ taskCount, pendingActionConfig, surfaceOverride }: { taskCo
 // =============================================================================
 
 export default function WorkfloorPage() {
-  const { loadScopedHistory, sendMessage } = useTP();
+  const { loadScopedHistory } = useTP();
   const { surface } = useDesk();
 
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(true);
-  const [tasksLoading, setTasksLoading] = useState(true);
-  const [bootstrapProvider, setBootstrapProvider] = useState<string | null>(null);
-  // activeTab removed — left panel is Files only, no tabs
-  const [fileTree, setFileTree] = useState<import('@/types').WorkspaceTreeNode[]>([]);
-  const [selectedFile, setSelectedFile] = useState<import('@/types').WorkspaceTreeNode | null>(null);
+  const [explorerRoot, setExplorerRoot] = useState<TreeNode | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
 
-  // Load file tree when Files tab is activated
-  useEffect(() => {
-    if (fileTree.length > 0) return;
+  const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
-    // Only show /workspace in file tree — agents have the room, tasks have the Tasks tab
-    Promise.all([
-      api.workspace.getTree('/workspace'),
-      api.workspace.getTree('/tasks'),
-    ]).then(([workspace, tasks]) => {
-      setFileTree([
-        ...workspace,
-        { name: 'tasks', path: '/tasks', type: 'folder' as const, children: tasks },
+    try {
+      const [nav, tasksTree, domainTree, uploadTree] = await Promise.all([
+        api.workspace.getNav(),
+        api.workspace.getTree('/tasks'),
+        api.workspace.getTree('/workspace/context'),
+        api.workspace.getTree('/workspace/uploads'),
       ]);
-    }).catch(err => {
-      console.error('Failed to load file tree:', err);
-    }).finally(() => setFileTreeLoading(false));
-  }, [fileTree.length]);
-  // showCatalog removed — catalog only shows for zero-tasks empty state
+
+      const navTasks = Array.isArray(nav?.tasks) ? nav.tasks : [];
+      const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
+      const taskTitles = Object.fromEntries(navTasks.map((task) => [task.slug, task.title]));
+      const domainTitles = Object.fromEntries(navDomains.map((domain) => [domain.key, domain.display_name]));
+      const nextRoot = buildExplorerRoot({
+        tasksTree: asNodeArray(tasksTree),
+        domainTree: asNodeArray(domainTree),
+        uploadTree: asNodeArray(uploadTree),
+        taskTitles,
+        domainTitles,
+        settings: Array.isArray(nav?.settings) ? nav.settings : [],
+      });
+
+      setExplorerRoot(nextRoot);
+      setSelectedPath((prev) => (prev && resolveNodeByPath(nextRoot, prev) ? prev : nextRoot.path));
+    } catch (err) {
+      console.error('Failed to load explorer:', err);
+    } finally {
+      setFileTreeLoading(false);
+    }
+  }, []);
 
   // File-aware surface context for TP chat
   // When a file is selected, merge navigation context into the surface
-  const effectiveSurface = selectedFile
+  const selectedNode = explorerRoot && selectedPath ? resolveNodeByPath(explorerRoot, selectedPath) : null;
+  const breadcrumbs = explorerRoot && selectedNode ? buildBreadcrumbs(explorerRoot, selectedNode.path) : [];
+
+  const effectiveSurface = selectedNode
     ? {
         ...surface,
         type: 'workspace-explorer',
-        path: selectedFile.path,
-        navigation_type: selectedFile.type,
+        path: selectedNode.path,
+        navigation_type: selectedNode.type,
       }
     : surface;
 
@@ -711,57 +527,79 @@ export default function WorkfloorPage() {
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
   const refreshData = useCallback(() => {
-    api.agents.list().then(setAgents).catch(() => []);
     api.tasks.list().then(setTasks).catch(() => []);
   }, []);
 
   useEffect(() => {
-    api.agents.list().then(setAgents).catch(() => []).finally(() => setAgentsLoading(false));
-    api.tasks.list().then(setTasks).catch(() => []).finally(() => setTasksLoading(false));
-    const interval = setInterval(refreshData, 30000);
-    const onFocus = () => { if (document.visibilityState === 'visible') refreshData(); };
+    loadExplorer();
+  }, [loadExplorer]);
+
+  useEffect(() => {
+    api.tasks.list().then(setTasks).catch(() => []);
+    const interval = setInterval(() => {
+      refreshData();
+      loadExplorer();
+    }, 30000);
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+        loadExplorer();
+      }
+    };
     document.addEventListener('visibilitychange', onFocus);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
-  }, [refreshData]);
+  }, [loadExplorer, refreshData]);
 
   useEffect(() => {
     const provider = searchParams?.get('provider');
     if (provider && searchParams?.get('status') === 'connected') {
-      setBootstrapProvider(provider);
       router.replace(HOME_ROUTE, { scroll: false });
     }
   }, [searchParams, router]);
 
-  const activeAgents = agents.filter(a => a.status !== 'archived');
   const activeTasks = tasks.filter(t => t.status !== 'archived');
+
+  const handleExplorerOpen = useCallback((node: TreeNode) => {
+    const taskLaunchPath = getTaskLaunchPath(node.path);
+    if (taskLaunchPath) {
+      router.push(taskLaunchPath);
+      return;
+    }
+    setSelectedPath(node.path);
+  }, [router]);
 
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Left: Icon strip (collapsed) or Files panel (expanded) */}
+      {/* Left: Icon strip (collapsed) or Explorer panel (expanded) */}
       {panelOpen ? (
         <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-sm font-medium text-muted-foreground">yarnnn</span>
+            <div>
+              <p className="text-sm font-medium text-foreground">Explorer</p>
+              <p className="text-[11px] text-muted-foreground">Workspace files and task outputs</p>
+            </div>
             <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <WorkspaceNav
-              onSelectTask={(slug) => router.push(`/tasks/${slug}`)}
-              onSelectDomain={(domainKey) => {
-                setSelectedFile({ name: domainKey, path: `domain:${domainKey}`, type: 'folder' as const });
-              }}
-              onSelectFile={(path) => {
-                setSelectedFile({ name: path.split('/').pop() || path, path, type: 'file' as const });
-              }}
-              onCreateTask={() => {
-                setChatOpen(true);
-                sendMessage('Create a task');
-              }}
-              selectedItem={selectedFile?.path}
-            />
+            {fileTreeLoading && !explorerRoot ? (
+              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Loading explorer...
+              </div>
+            ) : explorerRoot ? (
+              <div className="p-2">
+                <WorkspaceTree
+                  nodes={explorerRoot.children || []}
+                  selectedPath={selectedPath || undefined}
+                  onSelect={handleExplorerOpen}
+                />
+              </div>
+            ) : (
+              <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
+            )}
           </div>
         </div>
       ) : (
@@ -776,34 +614,38 @@ export default function WorkfloorPage() {
         </div>
       )}
 
-      {/* Center: Dashboard, domain browser, or file content */}
+      {/* Center: Explorer content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {selectedFile?.path?.startsWith('domain:') ? (
-          // Domain browser — show entity cards
-          <DomainBrowser
-            domainKey={selectedFile.path.replace('domain:', '')}
-            onBack={() => setSelectedFile(null)}
-            onSelectEntity={(path) => setSelectedFile({ name: path.split('/').pop() || '', path, type: 'file' as const })}
-          />
-        ) : selectedFile ? (
+        {selectedNode ? (
           <div className="flex-1 overflow-auto bg-background flex flex-col">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
-              <button
-                onClick={() => setSelectedFile(null)}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-              >
-                ← Back
-              </button>
-              <span className="text-xs text-muted-foreground/50">·</span>
-              <span className="text-xs text-muted-foreground truncate">{selectedFile.name}</span>
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0 overflow-x-auto">
+              {breadcrumbs.map((crumb, index) => (
+                <div key={crumb.path} className="flex items-center gap-1 shrink-0">
+                  {index > 0 && <span className="text-xs text-muted-foreground/40">/</span>}
+                  <button
+                    onClick={() => setSelectedPath(crumb.path)}
+                    className={cn(
+                      'rounded px-1.5 py-0.5 text-xs hover:bg-muted/60',
+                      crumb.path === selectedNode.path ? 'text-foreground font-medium' : 'text-muted-foreground'
+                    )}
+                  >
+                    {crumb.name}
+                  </button>
+                </div>
+              ))}
+              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                {selectedNode.type === 'folder'
+                  ? `${selectedNode.children?.length || 0} items`
+                  : selectedNode.path.split('.').pop()?.toUpperCase() || 'FILE'}
+              </span>
             </div>
             <div className="flex-1 overflow-auto">
-              <ContentViewer selectedNode={selectedFile} onNavigate={(node) => setSelectedFile(node)} />
+              <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerOpen} />
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto">
-            <WorkspaceDashboard tasks={tasks} agents={agents} />
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            Select a file or folder from the explorer
           </div>
         )}
       </div>
@@ -816,9 +658,9 @@ export default function WorkfloorPage() {
             <div className="flex items-center gap-2">
               <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
               <span className="text-xs font-medium">TP</span>
-              {selectedFile && (
+              {selectedNode && (
                 <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
-                  · viewing {selectedFile.name}
+                  · viewing {selectedNode.name}
                 </span>
               )}
             </div>

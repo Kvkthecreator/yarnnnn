@@ -592,6 +592,8 @@ export interface WorkspaceFile {
   content?: string;
   summary?: string;
   updated_at?: string;
+  content_type?: string;
+  content_url?: string;
   metadata?: Record<string, any>;
 }
 

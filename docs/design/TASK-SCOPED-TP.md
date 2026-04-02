@@ -184,32 +184,53 @@ Your role on this page:
 
 ## Frontend Implementation
 
-### Task page layout (v3)
+### Task page layout (v4)
+
+Workfloor owns filesystem browsing. Opening a task from the explorer launches
+`/tasks/{slug}` as an app-style workspace rather than a second file browser.
 
 ```
-┌─ Left (flex-1, tabbed) ──────────┬─ Right (~40%, resizable) ──┐
-│                                   │                             │
-│  [Output] [Details] [History]     │  Task-Scoped TP Chat       │
-│                                   │                             │
-│  Output tab (default, full):      │  Messages (task session)   │
-│  Rendered HTML or markdown        │                             │
-│                                   │                             │
-│  Details tab:                     │                             │
-│  Status · Cadence · Delivery      │                             │
-│  Objective · Criteria · Agent     │                             │
-│                                   │                             │
-│  History tab:                     │  ┌──────────────────────┐  │
-│  Run trajectory + trend           │  │ Steer this task...   │  │
-│                                   │  └──────────────────────┘  │
-└───────────────────────────────────┴─────────────────────────────┘
+┌─ Left (hero) ────────────────────┬─ Right (inspector) ─────────┐
+│                                  │                             │
+│  Latest / selected output        │  Task Overview              │
+│  Rendered HTML or markdown       │  Status · cadence · agent   │
+│                                  │                             │
+│                                  │  Deliverable                │
+│                                  │  Objective · criteria       │
+│                                  │  DELIVERABLE.md preview     │
+│                                  │                             │
+│                                  │  Context                    │
+│                                  │  Reads · writes · run log   │
+│                                  │                             │
+│                                  │  Runs                       │
+│                                  │  History + run controls     │
+└──────────────────────────────────┴─────────────────────────────┘
+
+                                 ┌─ TP drawer ───────────────────┐
+                                 │ Task-scoped TP                │
+                                 │ Steer this task...            │
+                                 └───────────────────────────────┘
 ```
+
+### Explorer launch behavior
+
+`/tasks` remains visible as a directory in Workfloor so the task filesystem is
+legible, but task artifacts are launch points into the task app:
+
+- Click `/tasks/{slug}` → open `/tasks/{slug}`
+- Click `/tasks/{slug}/outputs/{date_folder}/...` → open `/tasks/{slug}?folder={date_folder}`
+- Click `/tasks/{slug}/DELIVERABLE.md` → open `/tasks/{slug}?section=deliverable`
+- Click `/tasks/{slug}/TASK.md` or `awareness.md` → open `/tasks/{slug}?section=context`
+
+This keeps one filesystem metaphor on Workfloor and one app metaphor on the
+task page instead of mixing folders and hardcoded tabs.
 
 ### Chat component
 
-Reuse the `ChatPanel` component from workfloor but with:
+Reuse the task-scoped drawer pattern with:
 - `surfaceContext: { type: 'task-detail', taskSlug }`
-- Different plus menu actions (task-scoped)
-- Different placeholder text ("Steer this task...")
+- Task-specific plus menu actions
+- Placeholder text: `Steer {taskTitle}...`
 
 ---
 
@@ -231,7 +252,7 @@ CREATE INDEX idx_chat_sessions_task_slug
 | `api/routes/chat.py` | Session routing by task_slug, context injection |
 | `api/services/working_memory.py` | `load_surface_content()` for task-detail |
 | `api/agents/tp_prompts/tools.py` | Document task-scoped primitive restrictions |
-| `web/app/(authenticated)/tasks/[slug]/page.tsx` | v3 layout: tabbed left + chat right |
+| `web/app/(authenticated)/tasks/[slug]/page.tsx` | v4 layout: output hero + inspector + chat drawer |
 | `web/components/desk/ChatDrawer.tsx` | Keep for task page (or inline ChatPanel variant) |
 | `api/prompts/CHANGELOG.md` | Version entry |
 | `supabase/migrations/XXX_task_slug_sessions.sql` | Add task_slug column |

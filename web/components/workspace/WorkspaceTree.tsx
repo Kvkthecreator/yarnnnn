@@ -8,9 +8,10 @@
  */
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, FileText, Bot, ListChecks } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
+import { FileIcon } from '@/components/workspace/FileIcon';
 
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
@@ -94,14 +95,21 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
 
 function getFileIcon(node: WorkspaceTreeNode) {
   const path = node.path.toLowerCase();
+  const name = node.name.toLowerCase();
 
   if (node.type === 'folder') {
+    if (path === '/explorer/tasks') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
+    if (path === '/explorer/domains') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
+    if (path === '/explorer/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
+    if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
     if (path.includes('/agents/')) return <Bot className="w-3.5 h-3.5 text-purple-500" />;
     if (path.includes('/tasks/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
     if (path.includes('/context/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
     if (path.includes('/outputs/')) return <Folder className="w-3.5 h-3.5 text-green-500" />;
+    if (name === 'uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
+    if (name === 'settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
     return <Folder className="w-3.5 h-3.5 text-muted-foreground" />;
   }
 
-  return <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
+  return <FileIcon filename={node.name} size="sm" />;
 }
