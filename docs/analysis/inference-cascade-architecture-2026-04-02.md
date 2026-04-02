@@ -102,64 +102,109 @@ This gives the bootstrap agent a clear scope: "fill in the [Unknown] sections" r
 - **With directive loop**: Subsequent runs follow agent-authored Next Cycle Directive
 - **Problem**: First run has no directive, no domain content — cold start
 
-## Proposed Cascade (to-be)
+## Proposed: Workspace-Wide Inference (to-be)
 
-### Step 1: Enrich UpdateSharedContext (L1 → L2 cascade)
+The cascade is NOT per-domain — it's workspace-wide. When the user provides identity context, the system should infer and scaffold ALL domains simultaneously. This is a major workflow, not a background side-effect.
 
-When `UpdateContext(target="identity")` writes IDENTITY.md, **also** assess what context domains this identity implies. This is a cheap inference — Haiku can do it.
+### The Magic Moment
 
-Example: IDENTITY.md mentions "developer tools" and "competing with Cursor":
-```
-Domain inferences:
-- competitors: [cursor, copilot, codeium, tabnine] (high confidence)
-- market: [ai-coding-tools, developer-productivity] (medium confidence)
-```
-
-This doesn't create entities yet — it creates an inference record that task creation can use.
-
-### Step 2: Domain Pre-Scaffolding at Task Creation (L2)
-
-When CreateTask scaffolds a `track-competitors` task, it reads the identity-derived inferences and pre-creates entity stubs:
+When someone says "I'm a founder of a dev tools startup competing with Cursor, we're raising Series A" — the entire workspace materializes:
 
 ```
-/workspace/context/competitors/cursor/profile.md     → stub with known facts
+/workspace/context/
+  competitors/    → cursor/, copilot/, codeium/ (inferred from industry)
+  market/         → ai-coding-tools/, developer-productivity/ (inferred from product)
+  relationships/  → investors/, advisors/ (inferred from "raising Series A")
+  projects/       → fundraise/ (inferred from stage)
+  content/        → pitch-deck/ (inferred from fundraising)
+```
+
+All at once. The user watches folders appear and stubs populate in real time. This IS the onboarding — not a form, not a wait, a live build.
+
+### UX Consideration: Building on the Fly
+
+The user is willing to wait for this — it's a feature, not a delay. The UI should show progressive scaffolding:
+- Folders appearing one by one with brief descriptions
+- Entity stubs populating with inferred content
+- Explicit `[Needs research]` markers showing what's known vs unknown
+- A summary: "I've set up 5 domains with 12 entities based on what you told me. Want to adjust?"
+
+This same pattern extends beyond onboarding:
+- User connects Slack → workspace re-assesses, scaffolds new structure from channel names/topics
+- User uploads a doc → workspace extracts entities and slots them into domains
+- User tells TP about a new initiative → new domain/entity structure materializes
+- Task modifications → directory structure evolves visually
+
+### Step 1: Workspace Inference Engine
+
+When `UpdateContext(target="identity")` writes IDENTITY.md, trigger a **workspace-wide inference** (Haiku, cheap):
+
+Input: IDENTITY.md + BRAND.md + any connected platforms
+Output: Full domain scaffolding plan across ALL domains
+
+```
+Inferred workspace structure:
+- competitors: [cursor, copilot, codeium, tabnine] (high confidence — user mentioned "competing with Cursor")
+- market: [ai-coding-tools, developer-productivity] (medium confidence — inferred from product description)
+- relationships: [investors, key-hires] (medium confidence — "raising Series A")
+- projects: [series-a-fundraise] (high confidence — explicitly mentioned)
+- content: [pitch-materials] (medium confidence — fundraising implies pitch deck needs)
+```
+
+**Cost**: ~$0.02-0.05 (single Haiku call with workspace context)
+
+### Step 2: Scaffold All Domains
+
+Execute the scaffolding plan — create entity stubs across all inferred domains:
+
+```
+/workspace/context/competitors/cursor/profile.md     → stub with conventional wisdom
 /workspace/context/competitors/copilot/profile.md    → stub with known facts
-/workspace/context/competitors/_landscape.md         → initial roster
-/workspace/context/competitors/_tracker.md           → entities listed
+/workspace/context/market/ai-coding-tools/analysis.md → stub with market framing
+/workspace/context/relationships/investors/tracker.md → empty, marked for population
 ```
 
 Stubs contain:
-- What the system inferred (company name, category, relation)
+- What the system inferred (entity name, category, relation to user)
 - Explicit `[Needs research]` markers on unknown sections
-- Source: `inferred from workspace identity`
+- Source tag: `source: inferred` vs `source: user_stated` vs `source: researched`
 
-**Cost**: ~$0.01-0.02 (Haiku inference on known identity)
+### Step 3: Directed Bootstrap
 
-### Step 3: Directed Bootstrap (L3)
-
-Bootstrap research now has context:
-- The domain isn't empty — it has 4 entity stubs
-- The awareness.md has a directive: "Validate inferred entities, fill [Needs research] sections"
+Bootstrap tasks now start warm:
+- Domains aren't empty — they have inferred entity stubs
+- awareness.md has directive: "Validate inferred entities, fill [Needs research] sections"
+- Bootstrap scope is "verify and deepen" not "discover from scratch"
 - Estimated rounds: 4-6 targeted searches (not 16 broad ones)
 
 **Cost**: ~$0.30-0.40 (vs $2.62 from cold start)
 
-### Step 4: AWARENESS.md at Workspace Level
+### Step 4: Continuous Re-Assessment
 
-AWARENESS.md already exists at workspace level — TP writes situational handoff notes. This should also carry **domain inference state**:
+Every significant new context triggers re-assessment:
+- New platform connection → scan channel names/topics → scaffold new entities
+- Document upload → extract entities mentioned → slot into domains
+- TP conversation → user mentions new competitor/initiative → scaffold
+- Task completion → domain health changes → assess gaps
+
+AWARENESS.md at workspace level carries the inference state:
 
 ```markdown
-## Domain Inferences
-- competitors: 4 entities inferred from identity (cursor, copilot, codeium, tabnine). 
-  Confidence: high. Source: IDENTITY.md mentions "competing with Cursor."
-- market: 2 segments inferred. Confidence: medium. Not yet validated.
+## Workspace Inference State
+Last inference: 2026-04-02 from IDENTITY.md update
 
-## Inference Gaps
-- relationships: no signals from identity — needs user input or platform data
-- projects: no signals — will emerge from task creation
+### Scaffolded Domains
+- competitors: 4 entities (cursor, copilot, codeium, tabnine) — source: inferred
+- market: 2 segments — source: inferred
+- relationships: investor category created — source: inferred
+
+### Inference Gaps
+- relationships: no specific investor names — needs user input or research
+- content: pitch-deck stub created but no format/audience context — needs brand info
+
+### Pending Validation
+- All inferred entities awaiting first research cycle for verification
 ```
-
-This gives the TP awareness of what's been inferred vs validated, so it can ask the user to confirm or correct before research begins.
 
 ## Cost Impact Model
 
