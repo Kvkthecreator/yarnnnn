@@ -599,6 +599,9 @@ export const api = {
     getDomainEntities: (domainKey: string) =>
       request<{
         domain_key: string; display_name: string; entity_type: string | null;
+        synthesis_files: Array<{
+          name: string; filename: string; path: string; updated_at: string | null; preview: string | null;
+        }>;
         entities: Array<{
           slug: string; name: string; last_updated: string | null;
           preview: string | null; files: Array<{ name: string; path: string; updated_at: string | null }>;

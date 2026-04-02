@@ -75,6 +75,9 @@ function DomainBrowser({
   const [data, setData] = useState<{
     display_name: string;
     entity_type: string | null;
+    synthesis_files: Array<{
+      name: string; filename: string; path: string; updated_at: string | null; preview: string | null;
+    }>;
     entities: Array<{
       slug: string; name: string; last_updated: string | null;
       preview: string | null;
@@ -117,6 +120,27 @@ function DomainBrowser({
         <span className="text-sm font-medium">{data.display_name}</span>
         <span className="text-xs text-muted-foreground">{data.entity_count} {data.entity_type || 'entities'}{data.entity_count !== 1 ? 's' : ''}</span>
       </div>
+
+      {/* Synthesis files — domain-level summaries */}
+      {data.synthesis_files && data.synthesis_files.length > 0 && (
+        <div className="px-4 pt-4 pb-2">
+          {data.synthesis_files.map((sf: { name: string; filename: string; path: string; preview: string | null }) => (
+            <button
+              key={sf.path}
+              onClick={() => onSelectEntity(sf.path)}
+              className="w-full text-left p-3 rounded-lg border border-dashed border-border hover:border-foreground/20 hover:bg-muted/30 transition-colors mb-2"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <FileIcon filename={sf.filename} size="sm" />
+                <span className="text-sm font-medium text-muted-foreground">{sf.name}</span>
+              </div>
+              {sf.preview && (
+                <p className="text-xs text-muted-foreground/70 line-clamp-2 ml-5">{sf.preview}</p>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {data.entities.length === 0 ? (
         <div className="py-12 text-center">

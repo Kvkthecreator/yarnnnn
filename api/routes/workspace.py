@@ -277,14 +277,28 @@ async def get_domain_entities(
         )
         rows = result.data or []
 
-        # Group files by entity (first path segment after domain)
+        # Separate synthesis files (domain-level) from entity files
+        synthesis_files = []
         entities: dict[str, dict] = {}
+
         for row in rows:
             rel = row["path"].replace(prefix, "")
             parts = rel.split("/")
 
-            # Skip system files (_prefixed)
-            if parts[0].startswith("_"):
+            # _tracker.md = hidden system file
+            if parts[0] == "_tracker.md":
+                continue
+
+            # Other _prefixed files at domain root = synthesis files (user-visible)
+            if len(parts) == 1 and parts[0].startswith("_"):
+                name = parts[0].replace("_", "").replace(".md", "").replace("-", " ").title()
+                synthesis_files.append({
+                    "name": name,
+                    "filename": parts[0],
+                    "path": row["path"],
+                    "updated_at": row.get("updated_at"),
+                    "preview": (row.get("content") or "")[:200].strip() if row.get("content") else None,
+                })
                 continue
 
             if len(parts) < 2:
@@ -336,6 +350,7 @@ async def get_domain_entities(
             "domain_key": domain_key,
             "display_name": directory.get("display_name", domain_key.title()),
             "entity_type": directory.get("entity_type"),
+            "synthesis_files": synthesis_files,
             "entities": list(entities.values()),
             "entity_count": len(entities),
         }
