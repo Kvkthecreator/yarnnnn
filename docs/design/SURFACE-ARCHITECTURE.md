@@ -109,11 +109,19 @@ The most recent outputs from all tasks, reverse-chronological. This is what the 
 
 Chat is a right-edge drawer that slides over the right panel when activated. Full-height, ~400px wide.
 
-- **Trigger**: persistent FAB button (bottom-right corner) or keyboard shortcut (⌘K)
+- **Trigger**: persistent FAB button (bottom-right corner) or keyboard shortcut
 - **Scope**: Global TP session (no task_slug)
 - **Can be pinned open** for chat-heavy interaction
 - **Surface context**: `{ type: "workfloor" }`
 - **Use cases**: "Create a new task", "Adjust the research agent's focus", "What happened with the briefing?", "Connect Slack"
+
+**FAB ambient awareness** (ADR-155 Phase 3): The FAB communicates system state beyond just "click to open chat":
+- **Idle**: static icon (default)
+- **Working**: pulse animation (tool executing — inference, task run)
+- **Notified**: badge count (side effects occurred while chat was closed)
+- **Attention**: subtle glow (TP generated text while closed)
+
+Tool results with user-visible side effects (workspace scaffolded, task created, etc.) render as inline action cards in the chat stream. When chat is closed, they queue and the FAB badge increments. Opening chat flushes the queue. See `docs/design/TP-NOTIFICATION-CHANNEL.md`.
 
 This keeps the two-panel layout clean (output feed + roster) and makes chat an explicit mode shift: "I'm now directing" vs "I'm now supervising."
 

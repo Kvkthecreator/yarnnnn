@@ -188,24 +188,37 @@ Invest ~$0.03 upstream to save ~$1.00+ downstream per task.
 
 ## Implementation Phases
 
-### Phase 1: Workspace Inference Engine
-- New: `api/services/workspace_inference.py` — Haiku call reads IDENTITY.md + BRAND.md → outputs domain scaffold plan
+### Phase 1: Workspace Inference Engine (Implemented)
+- `api/services/workspace_inference.py` — Haiku reads IDENTITY.md + BRAND.md → domain scaffold plan
 - Trigger: after successful `UpdateContext(target="identity")` in `update_context.py`
-- Output: scaffolding plan written to workspace (entity list per domain with confidence)
-- Scaffold execution: create entity stubs, trackers, landscape files
+- Scaffold execution: entity stubs with `<!-- source: inferred -->` + `[Needs research]` gaps
+- Tested: 36 files scaffolded from single identity input, ~$0.02 cost
 
-### Phase 2: Maturity-Based Routing
-- `context_readiness` extended: `inference_state` (empty|scaffolded|validated)
-- Home route logic: setup phase → `/context`, active phase → `/tasks`
-- Empty states on `/tasks` and activity during setup
-- TP prompt awareness of inference state
+### Phase 2: Maturity-Based Routing (Implemented)
+- `/workspace/nav` returns `readiness` object with phase (setup|scaffolded|active)
+- Route guard: `/tasks` redirects to `/context` during setup/scaffolded
+- Tasks empty state links to `/context`
 
-### Phase 3: Live Scaffolding UX
-- Frontend: progressive folder/file appearance on context page during inference
-- TP narrates scaffolding ("Setting up competitors... Found 4 entities")
-- Confirmation step: "Want to adjust before research begins?"
+### Phase 3: TP Notification Channel + FAB Ambient Awareness (Proposed)
+All system side effects surface through the TP chat — inline action cards in the stream when chat is open, FAB badge/pulse when closed.
 
-### Phase 4: Continuous Re-Assessment
+**Inline action cards**: When a tool result has visible side effects (workspace scaffolded, task created, task executed), render a styled card in the chat stream between text chunks. Same pattern as existing InlineActionCard (RUN_TASK_CARD, etc.).
+
+**FAB ambient states**:
+| State | Visual | Meaning |
+|-------|--------|---------|
+| Idle | Static icon | Nothing happening |
+| Working | Pulse/spinner | System doing something (inference, task execution) |
+| Done | Badge with count | Notifications while chat was closed |
+| Attention | Subtle dot | TP has something to say |
+
+**Notification queue**: Tool results with side effects → push to `pendingNotifications` queue in TPContext. Chat open → render inline immediately. Chat closed → increment FAB badge. User opens chat → queued cards render at bottom.
+
+**Reusable for all future side effects**: task completion, feedback needed, platform synced, document processed — everything goes through the same channel. One pattern, many uses.
+
+Design doc: `docs/design/TP-NOTIFICATION-CHANNEL.md`
+
+### Phase 4: Continuous Re-Assessment (Proposed)
 - Platform connection → re-inference trigger
 - Document upload → entity extraction → domain scaffolding
 - TP conversation entity mentions → scaffold
