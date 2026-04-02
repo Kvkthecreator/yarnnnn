@@ -753,13 +753,13 @@ async def export_full_report(admin: AdminAuth):
 # Admin Testing Endpoints
 # =============================================================================
 
-@router.post("/trigger-agent/{agent_id}")
-async def admin_trigger_agent(
-    agent_id: str,
+@router.post("/trigger-task/{task_slug}")
+async def admin_trigger_task(
+    task_slug: str,
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
-    """Trigger an agent run for testing."""
-    from services.task_pipeline import execute_agent_run
+    """Trigger a task execution for testing. Uses the full task pipeline."""
+    from services.task_pipeline import execute_task
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
     if not x_service_key or x_service_key != supabase_key:
@@ -772,26 +772,22 @@ async def admin_trigger_agent(
     from supabase import create_client
     client = create_client(supabase_url, supabase_key)
 
-    result = client.table("agents").select("*").eq("id", agent_id).single().execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    # Find task and user
+    task_result = client.table("tasks").select("user_id, slug, status").eq("slug", task_slug).limit(1).execute()
+    if not task_result.data:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_slug}")
 
-    agent = result.data
-    user_id = agent["user_id"]
+    task = task_result.data[0]
+    user_id = task["user_id"]
 
     try:
-        exec_result = await execute_agent_run(
-            client=client, user_id=user_id, agent=agent,
-            trigger_context={"type": "admin_test"},
-        )
+        result = await execute_task(client, user_id, task_slug)
         return {
-            "agent_id": agent_id,
-            "role": agent.get("role"),
-            "title": agent.get("title"),
-            "success": exec_result.get("success", False),
-            "run_id": exec_result.get("run_id"),
-            "status": exec_result.get("status"),
+            "task_slug": task_slug,
+            "success": result.get("success", False),
+            "message": result.get("message"),
+            "status": result.get("status"),
         }
     except Exception as e:
         import traceback
-        return {"agent_id": agent_id, "status": "error", "error": str(e), "traceback": traceback.format_exc()}
+        return {"task_slug": task_slug, "status": "error", "error": str(e), "traceback": traceback.format_exc()}
