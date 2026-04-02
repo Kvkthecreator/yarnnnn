@@ -154,7 +154,17 @@ This block consumes approximately 300 tokens of the 2,000 token working memory b
 
 ### Global activity page (`/activity`)
 
-`/api/memory/activity` returns up to 200 events from the last 30 days. Frontend groups by date and provides category filters (Agents, Projects, Memory, Sync, Chat, System). `EVENT_CONFIG` maps each event_type to label, icon, color, and category. Expandable metadata detail panel renders event-specific structured data.
+Temporal surface with three sections:
+
+1. **Now** — Factual task status counts (active, paused, completed). No subjective health judgments. Data from `api.tasks.list()`.
+
+2. **Next** — Upcoming scheduled task runs sorted by `next_run_at` ascending. Shows task title, schedule description, and time until next run. Clickable → navigates to task detail. Data from `api.tasks.list()` (active tasks with future `next_run_at`).
+
+3. **Past** — Chronological activity feed. `EVENT_CONFIG` maps each event_type to label, icon, color, and category. Date-grouped (Today, Yesterday, MMM d). Category filter chips (Tasks, Agents, Memory, Sync, Chat). Expandable metadata detail panel with navigation links to related resources. Failed events get a red border for visual triage.
+
+Data: fetches `api.activity.list()` (500 events, 30 days) and `api.tasks.list()` in parallel. No new backend endpoints.
+
+No TP chat panel — Activity is observational. Actions happen on the Tasks surface via navigation links.
 
 ### Project activity (`/api/projects/{slug}/activity`)
 
@@ -207,17 +217,13 @@ Typical: ~50-200 rows/day per active user (increased from ~20-40 due to pulse ev
 
 Master lookup in `web/app/(authenticated)/activity/page.tsx`. Maps each `event_type` to:
 - `label` — human-readable name
-- `icon` — Lucide icon component
+- `icon` — Lucide icon component (3.5x3.5)
 - `color` — Tailwind color class
-- `category` — filter group (Agents, Projects, Memory, Sync, Chat, System)
-
-### ACTIVITY_EVENT_CONFIG (project timeline)
-
-Project-specific config in `web/app/(authenticated)/projects/[slug]/page.tsx`. Uses personified labels (e.g., "Check-in" instead of "project_heartbeat"). `formatActivitySummary()` transforms raw metadata into narrative text per event type.
+- `category` — filter group (Tasks, Agents, Memory, Sync, Chat)
 
 ### FILTER_CATEGORIES / CATEGORY_EVENT_TYPES
 
-Category-based filtering on the global activity page. User selects a category chip -> events filtered to matching event_type array.
+Category-based filtering in the Past section. User selects a category chip → events filtered to matching event_type array.
 
 ---
 
