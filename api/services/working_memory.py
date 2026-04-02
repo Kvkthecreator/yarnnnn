@@ -140,7 +140,7 @@ async def build_working_memory(
             "documents": doc_count,
             "tasks": task_count,
             "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
-            "inference_state": _get_inference_state(awareness_content),
+            "inference_state": _get_inference_state(context_domains),
         },
     }
 
@@ -181,16 +181,16 @@ def _classify_richness(content: Optional[str]) -> str:
     return "rich"
 
 
-def _get_inference_state(awareness_content: Optional[str]) -> str:
-    """Classify workspace inference state from AWARENESS.md. ADR-155.
+def _get_inference_state(context_domains: list | None) -> str:
+    """Classify workspace inference state from context domain health. ADR-155 revised.
 
+    Derived from ground truth (do entity files exist?) not from persisted state.
     Returns: empty | scaffolded | validated
     """
-    if not awareness_content or "## Inference State" not in awareness_content:
+    if not context_domains:
         return "empty"
-    if "source: researched" in awareness_content:
-        return "validated"
-    if "Scaffolded Domains" in awareness_content:
+    domains_with_entities = [d for d in context_domains if d.get("file_count", 0) > 0]
+    if len(domains_with_entities) >= 2:
         return "scaffolded"
     return "empty"
 

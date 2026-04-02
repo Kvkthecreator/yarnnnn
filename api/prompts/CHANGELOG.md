@@ -6,7 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.02.3] - ADR-155 Phase 1: Workspace-wide inference engine
+## [2026.04.02.4] - ADR-155 revised: TP-driven scaffolding (no shadow inference)
+
+### Changed
+- `services/workspace_inference.py`: DELETED — shadow Haiku inference eliminated. TP decides what to scaffold.
+- `services/primitives/scaffold.py`: NEW — `ScaffoldDomains` primitive. TP calls it with structured entity list. Backend handles templates, files, trackers.
+- `services/primitives/update_context.py`: Removed backend inference cascade trigger. Removed awareness overwrite protection (no longer needed). UpdateContext is pure context write again.
+- `agents/tp_prompts/onboarding.py`: Added scaffolding guidance — TP scaffolds domains via ScaffoldDomains after processing identity. Instructions on what to infer (competitors, market, relationships, projects).
+- `services/working_memory.py`: `inference_state` now derived from filesystem (context domain health) not from AWARENESS.md section.
+- Expected behavior: TP processes identity → decides entities → calls ScaffoldDomains once → notification card → done. One intelligence layer, no shadow LLM.
+
+---
+
+## [2026.04.02.3] - ADR-155 Phase 1: Workspace-wide inference engine (SUPERSEDED by 2026.04.02.4)
 
 ### Added
 - `services/workspace_inference.py`: NEW — workspace-wide inference engine. Haiku reads IDENTITY.md + BRAND.md → outputs entity roster across all context domains → scaffolds entity stubs with `[Needs research]` gap markers and `<!-- source: inferred -->` tags.

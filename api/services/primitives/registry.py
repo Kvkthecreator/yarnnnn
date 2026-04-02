@@ -30,6 +30,7 @@ from .coordinator import CREATE_AGENT_TOOL, handle_create_agent
 from .task import CREATE_TASK_TOOL, handle_create_task
 from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
+from .scaffold import SCAFFOLD_DOMAINS_TOOL, handle_scaffold_domains
 from .workspace import (
     READ_WORKSPACE_TOOL, handle_read_workspace,
     WRITE_WORKSPACE_TOOL, handle_write_workspace,
@@ -167,6 +168,8 @@ CHAT_PRIMITIVES = [
     LIST_INTEGRATIONS_TOOL,
     # Context mutations — unified (1, was 4)
     UPDATE_CONTEXT_TOOL,
+    # ADR-155: Domain scaffolding (TP-driven)
+    SCAFFOLD_DOMAINS_TOOL,
     # Agent/Task lifecycle (3, was 6)
     CREATE_AGENT_TOOL,
     CREATE_TASK_TOOL,
@@ -228,6 +231,7 @@ HANDLERS: dict[str, Callable] = {
     "CreateTask": handle_create_task,
     "ManageTask": handle_manage_task,
     "UpdateContext": handle_update_context,
+    "ScaffoldDomains": handle_scaffold_domains,
     "ReadWorkspace": handle_read_workspace,
     "WriteWorkspace": handle_write_workspace,
     "SearchWorkspace": handle_search_workspace,

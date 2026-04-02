@@ -163,20 +163,8 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
 
         logger.info(f"[UPDATE_CONTEXT] Updated {filename} ({len(new_content)} chars)")
 
-        # ADR-155: Trigger workspace-wide inference after identity or brand update.
-        # Both can contain entity signals — identity is primary, brand supplements
-        # (e.g., "our audience is enterprise CFOs" implies relationship entities).
-        inference_result = None
-        if target in ("identity", "brand"):
-            try:
-                from services.workspace_inference import run_workspace_inference
-                inference_result = await run_workspace_inference(auth.client, auth.user_id)
-                if inference_result.get("success"):
-                    total = inference_result.get("total_files", 0)
-                    domains = len(inference_result.get("scaffolded", {}))
-                    logger.info(f"[UPDATE_CONTEXT] Workspace inference: {total} files across {domains} domains")
-            except Exception as e:
-                logger.warning(f"[UPDATE_CONTEXT] Workspace inference failed (non-fatal): {e}")
+        # ADR-155 revised: No backend inference cascade. TP decides what to scaffold
+        # via ScaffoldDomains primitive after processing identity/brand.
 
         return {
             "success": True,
@@ -184,7 +172,6 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
             "filename": filename,
             "content": new_content,
             "message": f"Updated {filename} successfully",
-            "inference": inference_result if inference_result and inference_result.get("success") else None,
         }
 
     except Exception as e:
@@ -244,13 +231,7 @@ async def _handle_memory(auth: Any, text: str) -> dict:
 
 
 async def _handle_awareness(auth: Any, text: str) -> dict:
-    """Direct write to AWARENESS.md — TP's situational notes. Full replacement.
-
-    Preserves the ## Inference State section (ADR-155) if it exists —
-    TP's awareness notes are the user-facing content, inference state
-    is system-managed and must survive TP rewrites.
-    """
-    import re
+    """Direct write to AWARENESS.md — TP's situational notes. Full replacement."""
     from services.workspace import UserMemory
 
     try:
@@ -260,15 +241,6 @@ async def _handle_awareness(auth: Any, text: str) -> dict:
         content = text.strip()
         if len(content) > 2000:
             content = content[:2000] + "\n\n(truncated — keep awareness notes concise)"
-
-        # ADR-155: Preserve ## Inference State section from prior content
-        existing = await um.read("AWARENESS.md") or ""
-        inference_match = re.search(r"\n## Inference State.*", existing, re.DOTALL)
-        if inference_match:
-            # Strip any inference state from TP's new content (shouldn't be there, but defensive)
-            content = re.sub(r"\n## Inference State.*", "", content, flags=re.DOTALL).rstrip()
-            # Re-append the preserved inference state
-            content = content + "\n" + inference_match.group(0)
 
         ok = await um.write("AWARENESS.md", content, summary="TP awareness updated")
         if not ok:

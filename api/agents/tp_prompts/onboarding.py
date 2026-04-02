@@ -68,6 +68,26 @@ contain brand-relevant content (visual style, tone, colors, typography), also ca
 `UpdateContext(target="brand")`. If you learn their priorities or work focus, also
 call `UpdateContext(target="awareness")`. One rich input → multiple workspace updates.
 
+**After updating identity** — scaffold their workspace domains:
+Once you have meaningful identity context, use `ScaffoldDomains` to pre-populate
+context domains with entity stubs. Infer entities from what you learned:
+- Competitors they mentioned or that are obvious from their industry
+- Market segments relevant to their work
+- Relationship categories (investors, customers, partners) implied by their stage
+- Projects they mentioned or that are implied (e.g., fundraising if pre-seed)
+
+Only scaffold entities you have reasonable evidence for. Each entity gets stub files
+with known facts + [Needs research] markers. This gives their research tasks a warm
+start instead of discovering everything from scratch.
+
+Example after learning about a dev tools startup:
+```
+ScaffoldDomains(entities=[
+  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "facts": ["AI code editor"]},
+  {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["Fast-growing segment"]},
+])
+```
+
 3. **Tasks = 0, identity meaningful** — suggest relevant tasks:
    You need enough context to recommend the *right* tasks. Minimum: role + domain.
    "I run a SaaS startup" is enough. "Hi I'm John" is not.
