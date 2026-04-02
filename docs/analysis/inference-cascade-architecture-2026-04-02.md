@@ -1,8 +1,10 @@
 # Inference Cascade Architecture
 
 **Date:** 2026-04-02
-**Status:** Proposal — captures architectural direction from token economics session
-**Relates to:** ADR-144 (Inference-First Context), ADR-151 (Context Domains), ADR-154 (Phase-Aware Execution)
+**Status:** Implemented (revised) — original backend inference eliminated, TP drives scaffolding via ScaffoldDomains primitive
+**Relates to:** ADR-144 (Inference-First Context), ADR-151 (Context Domains), ADR-154 (Phase-Aware Execution), ADR-155 (Workspace Inference & Onboarding)
+
+**Revision note (2026-04-02):** Original proposal had a separate Haiku inference service making domain decisions as a backend side-effect. Audit identified this as a "shadow TP" — violating the single-intelligence-layer principle. Revised: TP calls `ScaffoldDomains` primitive directly. Backend handles template application, TP handles judgment.
 
 ## Problem
 

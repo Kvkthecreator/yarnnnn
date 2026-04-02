@@ -188,46 +188,64 @@ Invest ~$0.03 upstream to save ~$1.00+ downstream per task.
 
 ## Implementation Phases
 
-### Phase 1: Workspace Inference Engine (Implemented)
-- `api/services/workspace_inference.py` — Haiku reads IDENTITY.md + BRAND.md → domain scaffold plan
-- Trigger: after successful `UpdateContext(target="identity")` in `update_context.py`
-- Scaffold execution: entity stubs with `<!-- source: inferred -->` + `[Needs research]` gaps
-- Tested: 36 files scaffolded from single identity input, ~$0.02 cost
+### Phase 1: TP-Driven Domain Scaffolding (Implemented, revised 2026-04-02)
 
-### Phase 2: Maturity-Based Routing (Implemented)
+**Original**: `workspace_inference.py` — shadow Haiku inference call triggered as backend side-effect after UpdateContext. Eliminated during audit — violated single-intelligence-layer principle.
+
+**Revised**: `ScaffoldDomains` primitive — TP decides WHAT entities to scaffold, backend handles HOW (templates, files, trackers). One tool call, no shadow LLM.
+
+Flow: TP processes identity → reasons about entities → calls `ScaffoldDomains({entities: [...]})` → backend creates stubs with `<!-- source: inferred -->` + `[Needs research]` gaps → TP narrates result.
+
+Key files:
+- `api/services/primitives/scaffold.py` — ScaffoldDomains handler
+- `api/services/directory_registry.py` — `get_entity_stub_content()` template enrichment
+- `api/agents/tp_prompts/onboarding.py` — scaffolding guidance for TP
+
+Deleted: `api/services/workspace_inference.py` (shadow inference), backend cascade trigger in `update_context.py`.
+
+### Phase 2: Maturity-Aware Surfaces (Implemented)
 - `/workspace/nav` returns `readiness` object with phase (setup|scaffolded|active)
-- Route guard: `/tasks` redirects to `/context` during setup/scaffolded
-- Tasks empty state links to `/context`
+- `/context` during setup phase: ContextSetup component as hero content (centered, no skip options)
+- `/tasks` during setup: empty state with "Set up workspace" link to `/context`
+- No auto-redirects — user navigates freely, maturity informs in-page UI
+- Post-purge: one-time redirect to `/context` (intentional)
 
-### Phase 3: TP Notification Channel + FAB Ambient Awareness (Proposed)
-All system side effects surface through the TP chat — inline action cards in the stream when chat is open, FAB badge/pulse when closed.
+### Phase 3: TP Notification Channel + FAB Ambient Awareness (Implemented)
+All system side effects surface through the TP chat — inline notification cards in the stream when chat is open, FAB badge when closed.
 
-**Inline action cards**: When a tool result has visible side effects (workspace scaffolded, task created, task executed), render a styled card in the chat stream between text chunks. Same pattern as existing InlineActionCard (RUN_TASK_CARD, etc.).
+Notification-worthy tools: UpdateContext, CreateTask, ScaffoldDomains, ManageTask (evaluate/complete).
 
-**FAB ambient states**:
-| State | Visual | Meaning |
-|-------|--------|---------|
-| Idle | Static icon | Nothing happening |
-| Working | Pulse/spinner | System doing something (inference, task execution) |
-| Done | Badge with count | Notifications while chat was closed |
-| Attention | Subtle dot | TP has something to say |
-
-**Notification queue**: Tool results with side effects → push to `pendingNotifications` queue in TPContext. Chat open → render inline immediately. Chat closed → increment FAB badge. User opens chat → queued cards render at bottom.
-
-**Reusable for all future side effects**: task completion, feedback needed, platform synced, document processed — everything goes through the same channel. One pattern, many uses.
+Key files:
+- `web/contexts/TPContext.tsx` — detection + queue + flush
+- `web/components/tp/NotificationCard.tsx` — inline card component
+- `web/components/desk/ChatDrawer.tsx` — FAB badge overlay
 
 Design doc: `docs/design/TP-NOTIFICATION-CHANNEL.md`
 
-### Phase 4: Re-Inference Refinement (Deferred — existing triggers sufficient)
+### Phase 4: Deferred — Existing Flow Sufficient
 
-**Original scope** proposed adding new triggers (platform connect, doc upload, TP conversation). After assessment, this is scope creep — the existing flow already handles continuous context evolution:
+No new triggers needed. The TP + UpdateContext + ScaffoldDomains path covers all context evolution:
 
-| Trigger | Why it's already covered |
-|---------|------------------------|
-| TP conversation ("we also compete with Notion") | TP calls `UpdateContext(target="identity")` → re-inference fires |
-| Document upload | TP extracts context → calls `UpdateContext` → re-inference fires |
-| Platform connection | Only landscape metadata (channel names), not entity-level signal. Not worth $0.02 |
-| Brand update | Brand is tone/style, doesn't change domain structure |
+| Event | How it's handled |
+|-------|-----------------|
+| User mentions new competitor | TP calls UpdateContext(identity) + ScaffoldDomains |
+| Document upload | TP extracts context → UpdateContext + ScaffoldDomains |
+| Platform connection | Landscape metadata only — not entity-level signal |
+| Re-scaffolding after identity change | TP calls ScaffoldDomains again (idempotent) |
+
+### Architectural Audit (2026-04-02)
+
+Audited all separate LLM calls for "shadow TP" pattern:
+
+| Service | Model | Verdict |
+|---------|-------|---------|
+| ~~workspace_inference.py~~ | ~~Haiku~~ | **Eliminated** — was shadow TP making domain decisions |
+| context_inference.py | Sonnet | **Legitimate** — TP's explicit tool for identity/brand merge |
+| composer.py | Haiku | **Legitimate** — periodic autonomous assessment (ADR-111), separate execution mode |
+| task_deliverable_inference.py | Sonnet | **Legitimate** — mechanical feedback→spec transformation |
+| memory.py | Haiku | **Legitimate** — nightly cron fact extraction |
+| session_continuity.py | Haiku | **Legitimate** — mechanical session summarization |
+| manage_task.py (evaluate) | Haiku | **Legitimate** — TP-initiated via primitive |
 
 **What "re-inference" actually means**: When the user updates identity (directly or via TP), `run_workspace_inference()` fires again. It's already idempotent:
 - Existing researched entities (`<!-- source: researched -->`) are NOT overwritten

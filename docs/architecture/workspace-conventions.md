@@ -115,6 +115,13 @@ A **domain registry** governs the structure. Each domain (competitors, market, r
 - **Entity folders within domains** — e.g., `/workspace/context/competitors/{company-slug}/` with standardized files (profile.md, signals.md, etc.)
 - **Cross-domain files** — `signals/` for temporal signal logs, `assets/` for shared binary/visual assets
 
+**Entity source tagging** (ADR-155): Entity files carry a source tag in an HTML comment on line 1:
+- `<!-- source: inferred | date: YYYY-MM-DD -->` — TP-inferred from identity, not yet researched. Sections marked `[Needs research]`.
+- `<!-- source: researched -->` — agent-validated via WebSearch/platform data. Full content.
+- No tag — manually created or pre-ADR-155 entity.
+
+Inferred stubs are created by the TP via `ScaffoldDomains` primitive during onboarding. Research tasks validate and upgrade them. Re-scaffolding is idempotent: researched entities are never overwritten, inferred stubs are replaced.
+
 ---
 
 ## `/platforms/` — DEPRECATED (ADR-153)
