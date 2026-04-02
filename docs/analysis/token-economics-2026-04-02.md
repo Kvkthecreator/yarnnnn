@@ -71,18 +71,24 @@ Modeled after Claude Code's approach:
 | v2 (pre-fix) | bootstrap | ? | 260K | 0 | $0.84 | 63:1 |
 | v3 (pre-fix) | bootstrap | ? | 840K | 0 | $2.62 | 131:1 |
 | Market (post-fix) | bootstrap | ? | 315K | 114K | $1.05 | 45:1 |
-| **v4 (post-fix)** | **steady** | **8** | **207K** | **57K** | **$0.65** | **111:1** |
+| v4 (infra fix) | steady | 8 | 207K | 57K | $0.65 | 111:1 |
+| v5 (directive written) | steady | 8 | 208K | 58K | $0.65 | 66:1 |
+| **v6 (directive followed)** | **steady** | **7** | **182K** | **58K** | **$0.57** | **57:1** |
+
+v6 was the first run following its own prior-cycle directive. WebSearches dropped from 7→4, WriteWorkspace increased 1→3 (more domain updates, less discovery). Duration dropped 188s→141s.
+
+The directive loop is converging: v6's directive for v7 specifies "2-3 searches," suggesting v7 will drop further toward $0.30-0.40.
 
 ## Unit Economics
 
-### Current state (post-fix)
+### Current state (post directive loop)
 
-| Metric | Bootstrap run | Steady-state run |
-|--------|-------------|-----------------|
-| Input tokens | ~315K | ~207K |
-| Output tokens | ~7K | ~2K |
-| Cost per run | ~$1.05 | ~$0.65 |
-| Tool rounds | 8-16 | 8 |
+| Metric | Bootstrap run | Steady-state (v4, no directive) | Steady-state (v6, with directive) |
+|--------|-------------|-------------------------------|----------------------------------|
+| Input tokens | ~315K | ~207K | ~182K |
+| Output tokens | ~7K | ~2K | ~3K |
+| Cost per run | ~$1.05 | ~$0.65 | ~$0.57 |
+| Tool rounds | 8-16 | 8 | 7 (4 WebSearch + 3 Write) |
 
 ### Per-user monthly cost model
 
