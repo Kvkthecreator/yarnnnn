@@ -39,6 +39,7 @@ import { api } from '@/lib/api/client';
 import { WorkspaceDashboard } from '@/components/workspace/WorkspaceDashboard';
 // IsometricRoom removed — dashboard activity feed replaces it
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
+import { WorkspaceNav } from '@/components/workspace/WorkspaceNav';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -55,6 +56,108 @@ import { ContextSetup } from '@/components/tp/ContextSetup';
 // =============================================================================
 // Tabs — Tasks & Context content
 // =============================================================================
+
+// =============================================================================
+// DomainBrowser — entity card listing for a context domain
+// =============================================================================
+
+function DomainBrowser({
+  domainKey,
+  onBack,
+  onSelectEntity,
+}: {
+  domainKey: string;
+  onBack: () => void;
+  onSelectEntity: (path: string) => void;
+}) {
+  const [data, setData] = useState<{
+    display_name: string;
+    entity_type: string | null;
+    entities: Array<{
+      slug: string; name: string; last_updated: string | null;
+      preview: string | null;
+      files: Array<{ name: string; path: string; updated_at: string | null }>;
+    }>;
+    entity_count: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.workspace.getDomainEntities(domainKey)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [domainKey]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="p-4">
+        <button onClick={onBack} className="text-xs text-muted-foreground hover:text-foreground mb-4">← Back</button>
+        <p className="text-sm text-muted-foreground">Domain not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto bg-background">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+        <button onClick={onBack} className="text-xs text-muted-foreground hover:text-foreground">← Back</button>
+        <span className="text-xs text-muted-foreground/50">·</span>
+        <span className="text-sm font-medium">{data.display_name}</span>
+        <span className="text-xs text-muted-foreground">{data.entity_count} {data.entity_type || 'entities'}{data.entity_count !== 1 ? 's' : ''}</span>
+      </div>
+
+      {data.entities.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm text-muted-foreground">No {data.entity_type || 'entities'} tracked yet</p>
+          <p className="text-xs text-muted-foreground/50 mt-1">Create a tracking task to start accumulating</p>
+        </div>
+      ) : (
+        <div className="p-4 grid gap-3">
+          {data.entities.map(entity => (
+            <button
+              key={entity.slug}
+              onClick={() => {
+                const profileFile = entity.files.find(f => f.name === 'profile.md');
+                if (profileFile) onSelectEntity(profileFile.path);
+              }}
+              className="text-left p-3 rounded-lg border border-border hover:border-foreground/20 hover:bg-muted/30 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-medium">{entity.name}</span>
+                {entity.last_updated && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {entity.last_updated.slice(0, 10)}
+                  </span>
+                )}
+              </div>
+              {entity.preview && (
+                <p className="text-xs text-muted-foreground line-clamp-2">{entity.preview}</p>
+              )}
+              <div className="flex gap-1 mt-2">
+                {entity.files.map(f => (
+                  <span key={f.name} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                    {f.name.replace('.md', '')}
+                  </span>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function TasksTab({ tasks }: { tasks: Task[] }) {
   const active = tasks.filter(t => t.status !== 'archived');
@@ -605,33 +708,26 @@ export default function WorkfloorPage() {
       {panelOpen ? (
         <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-xs font-medium text-muted-foreground">Files</span>
-            <div className="flex items-center gap-1">
-              {selectedFile && (
-                <button
-                  onClick={() => setSelectedFile(null)}
-                  className="text-[10px] text-muted-foreground/60 hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted"
-                >
-                  Close
-                </button>
-              )}
-              <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <span className="text-xs font-medium text-muted-foreground">yarnnn</span>
+            <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {fileTreeLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <WorkspaceTree
-                nodes={fileTree}
-                selectedPath={selectedFile?.path}
-                onSelect={(node) => setSelectedFile(node)}
-              />
-            )}
+            <WorkspaceNav
+              onSelectTask={(slug) => router.push(`/tasks/${slug}`)}
+              onSelectDomain={(domainKey) => {
+                setSelectedFile({ name: domainKey, path: `domain:${domainKey}`, type: 'folder' as const });
+              }}
+              onSelectFile={(path) => {
+                setSelectedFile({ name: path.split('/').pop() || path, path, type: 'file' as const });
+              }}
+              onCreateTask={() => {
+                setChatOpen(true);
+                sendMessage('Create a task');
+              }}
+              selectedItem={selectedFile?.path}
+            />
           </div>
         </div>
       ) : (
@@ -646,9 +742,16 @@ export default function WorkfloorPage() {
         </div>
       )}
 
-      {/* Center: Activity feed or file content */}
+      {/* Center: Dashboard, domain browser, or file content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {selectedFile ? (
+        {selectedFile?.path?.startsWith('domain:') ? (
+          // Domain browser — show entity cards
+          <DomainBrowser
+            domainKey={selectedFile.path.replace('domain:', '')}
+            onBack={() => setSelectedFile(null)}
+            onSelectEntity={(path) => setSelectedFile({ name: path.split('/').pop() || '', path, type: 'file' as const })}
+          />
+        ) : selectedFile ? (
           <div className="flex-1 overflow-auto bg-background flex flex-col">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
               <button

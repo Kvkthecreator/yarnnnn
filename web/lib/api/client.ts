@@ -572,6 +572,38 @@ export const api = {
 
   // Workspace Explorer (ADR-152)
   workspace: {
+    // ADR-154: Structured navigation for Agent OS workfloor
+    getNav: () =>
+      request<{
+        tasks: Array<{
+          slug: string; title: string; status: string;
+          mode: string | null; schedule: string | null;
+          next_run_at: string | null; last_run_at: string | null;
+        }>;
+        domains: Array<{
+          key: string; display_name: string; entity_count: number;
+          entity_type: string | null; path: string;
+        }>;
+        outputs: Array<{
+          key: string; display_name: string; file_count: number; path: string;
+        }>;
+        uploads: Array<{
+          name: string; path: string; updated_at: string | null;
+        }>;
+      }>(`/api/workspace/nav`),
+
+    // ADR-154: Domain entity listing for domain browser view
+    getDomainEntities: (domainKey: string) =>
+      request<{
+        domain_key: string; display_name: string; entity_type: string | null;
+        entities: Array<{
+          slug: string; name: string; last_updated: string | null;
+          preview: string | null; files: Array<{ name: string; path: string; updated_at: string | null }>;
+        }>;
+        entity_count: number;
+      }>(`/api/workspace/domain/${domainKey}`),
+
+    // Legacy tree (still used by raw file viewer)
     getTree: (root: string = "/workspace") =>
       request<WorkspaceTreeNode[]>(`/api/workspace/tree?root=${encodeURIComponent(root)}`),
 

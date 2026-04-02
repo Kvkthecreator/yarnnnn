@@ -1,13 +1,13 @@
 """
-Workspace API — File Explorer Endpoints
+Workspace API — File Explorer + Navigation Endpoints
 
-Provides the backend for the Workspace Explorer UI:
-  GET  /api/workspace/tree          — file/folder tree from workspace_files
-  GET  /api/workspace/file          — read file content by path
-  PATCH /api/workspace/file         — edit file content by path
+  GET  /api/workspace/nav            — structured nav for Agent OS (ADR-154)
+  GET  /api/workspace/domain/:key    — entity listing for a context domain
+  GET  /api/workspace/tree           — raw file/folder tree (legacy, still used by file viewer)
+  GET  /api/workspace/file           — read file content by path
+  PATCH /api/workspace/file          — edit file content by path
 
 All paths are relative to the user's workspace scope in workspace_files table.
-Supports: /workspace/*, /agents/*, /tasks/* paths.
 """
 
 import logging
@@ -50,7 +50,270 @@ class FileEditRequest(BaseModel):
 
 
 # =============================================================================
-# GET /workspace/tree — File/folder tree
+# GET /workspace/nav — Structured navigation (ADR-154: Agent OS model)
+# =============================================================================
+# Returns four sections: tasks, domains, outputs, uploads.
+# System files hidden. Entities counted from _tracker.md.
+
+@router.get("/workspace/nav")
+async def get_workspace_nav(auth: UserClient) -> dict:
+    """Structured navigation for the Agent OS workfloor.
+
+    Returns sections the user should see, with system files hidden.
+    Tasks come from the tasks table. Domains come from the directory
+    registry + _tracker.md entity counts. Outputs and uploads from
+    workspace_files.
+    """
+    try:
+        # ── Tasks (from DB) ──
+        tasks_result = (
+            auth.client.table("tasks")
+            .select("id, slug, status, mode, schedule, next_run_at, last_run_at")
+            .eq("user_id", auth.user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        tasks_rows = tasks_result.data or []
+
+        # Enrich with titles from TASK.md
+        tasks = []
+        for row in tasks_rows:
+            slug = row["slug"]
+            # Read title from TASK.md
+            title = slug  # fallback
+            try:
+                task_md_result = (
+                    auth.client.table("workspace_files")
+                    .select("content")
+                    .eq("user_id", auth.user_id)
+                    .eq("path", f"/tasks/{slug}/TASK.md")
+                    .limit(1)
+                    .execute()
+                )
+                if task_md_result.data:
+                    content = task_md_result.data[0].get("content", "")
+                    for line in content.split("\n"):
+                        if line.startswith("# "):
+                            title = line[2:].strip()
+                            break
+            except Exception:
+                pass
+
+            tasks.append({
+                "slug": slug,
+                "title": title,
+                "status": row.get("status", "active"),
+                "mode": row.get("mode"),
+                "schedule": row.get("schedule"),
+                "next_run_at": row.get("next_run_at"),
+                "last_run_at": row.get("last_run_at"),
+            })
+
+        # ── Domains (from directory registry + tracker entity counts) ──
+        from services.directory_registry import WORKSPACE_DIRECTORIES, get_tracker_path
+
+        domains = []
+        for key, d in WORKSPACE_DIRECTORIES.items():
+            if d.get("type") != "context":
+                continue
+            if key == "signals":
+                continue  # Temporal log, not browseable
+
+            entity_count = 0
+            tracker_path = get_tracker_path(key)
+            if tracker_path:
+                try:
+                    tracker_result = (
+                        auth.client.table("workspace_files")
+                        .select("content")
+                        .eq("user_id", auth.user_id)
+                        .eq("path", f"/workspace/{tracker_path}")
+                        .limit(1)
+                        .execute()
+                    )
+                    if tracker_result.data:
+                        tracker_content = tracker_result.data[0].get("content", "")
+                        # Count table rows (lines with | that aren't header/separator)
+                        for line in tracker_content.split("\n"):
+                            if line.startswith("|") and "Slug" not in line and "---" not in line and line.strip() != "|":
+                                entity_count += 1
+                except Exception:
+                    pass
+
+            domains.append({
+                "key": key,
+                "display_name": d.get("display_name", key.title()),
+                "entity_count": entity_count,
+                "entity_type": d.get("entity_type"),
+                "path": f"/workspace/{d['path']}",
+            })
+
+        # ── Outputs (from workspace_files, user-facing deliverables only) ──
+        outputs_sections = []
+        for key, d in WORKSPACE_DIRECTORIES.items():
+            if d.get("type") != "output":
+                continue
+            # Count files in this output category
+            output_path = f"/workspace/{d['path']}"
+            try:
+                count_result = (
+                    auth.client.table("workspace_files")
+                    .select("path")
+                    .eq("user_id", auth.user_id)
+                    .like("path", f"{output_path}/%")
+                    .execute()
+                )
+                file_count = len(count_result.data or [])
+            except Exception:
+                file_count = 0
+
+            if file_count > 0:
+                outputs_sections.append({
+                    "key": key,
+                    "display_name": d.get("display_name", key.title()),
+                    "file_count": file_count,
+                    "path": output_path,
+                })
+
+        # ── Uploads (user-contributed files) ──
+        uploads = []
+        try:
+            uploads_result = (
+                auth.client.table("workspace_files")
+                .select("path, updated_at, summary")
+                .eq("user_id", auth.user_id)
+                .like("path", "/workspace/uploads/%")
+                .order("updated_at", desc=True)
+                .limit(20)
+                .execute()
+            )
+            for row in (uploads_result.data or []):
+                name = row["path"].split("/")[-1]
+                uploads.append({
+                    "name": name,
+                    "path": row["path"],
+                    "updated_at": row.get("updated_at"),
+                })
+        except Exception:
+            pass
+
+        return {
+            "tasks": tasks,
+            "domains": domains,
+            "outputs": outputs_sections,
+            "uploads": uploads,
+        }
+
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Nav query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# GET /workspace/domain/:key — Entity listing for a context domain
+# =============================================================================
+
+@router.get("/workspace/domain/{domain_key}")
+async def get_domain_entities(
+    auth: UserClient,
+    domain_key: str,
+) -> dict:
+    """List entities in a context domain with their file details.
+
+    Returns entity cards for the domain browser view — each entity
+    with its files, last updated, and content preview.
+    """
+    from services.directory_registry import get_directory, get_directory_path
+
+    directory = get_directory(domain_key)
+    if not directory or directory.get("type") != "context":
+        raise HTTPException(status_code=404, detail=f"Domain not found: {domain_key}")
+
+    dir_path = get_directory_path(domain_key)
+    prefix = f"/workspace/{dir_path}/"
+
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("path, content, updated_at, summary")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{prefix}%")
+            .order("path")
+            .limit(200)
+            .execute()
+        )
+        rows = result.data or []
+
+        # Group files by entity (first path segment after domain)
+        entities: dict[str, dict] = {}
+        for row in rows:
+            rel = row["path"].replace(prefix, "")
+            parts = rel.split("/")
+
+            # Skip system files (_prefixed)
+            if parts[0].startswith("_"):
+                continue
+
+            if len(parts) < 2:
+                continue  # Top-level domain files
+
+            entity_slug = parts[0]
+            filename = parts[1]
+
+            if entity_slug not in entities:
+                entities[entity_slug] = {
+                    "slug": entity_slug,
+                    "name": entity_slug.replace("-", " ").title(),
+                    "files": [],
+                    "last_updated": None,
+                    "preview": None,
+                }
+
+            entities[entity_slug]["files"].append({
+                "name": filename,
+                "path": row["path"],
+                "updated_at": row.get("updated_at"),
+            })
+
+            # Track most recent update
+            updated = row.get("updated_at")
+            if updated and (not entities[entity_slug]["last_updated"] or updated > entities[entity_slug]["last_updated"]):
+                entities[entity_slug]["last_updated"] = updated
+
+            # Use profile.md content as preview (first 200 chars)
+            if filename == "profile.md" and row.get("content"):
+                # Strip markdown headers for clean preview
+                content = row["content"]
+                preview_lines = []
+                for line in content.split("\n"):
+                    if line.startswith("#"):
+                        continue
+                    if line.strip():
+                        preview_lines.append(line.strip())
+                    if len(" ".join(preview_lines)) > 200:
+                        break
+                entities[entity_slug]["preview"] = " ".join(preview_lines)[:200]
+                # Extract name from first H1
+                for line in content.split("\n"):
+                    if line.startswith("# "):
+                        entities[entity_slug]["name"] = line[2:].strip()
+                        break
+
+        return {
+            "domain_key": domain_key,
+            "display_name": directory.get("display_name", domain_key.title()),
+            "entity_type": directory.get("entity_type"),
+            "entities": list(entities.values()),
+            "entity_count": len(entities),
+        }
+
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Domain listing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# GET /workspace/tree — File/folder tree (legacy, used by file viewer)
 # =============================================================================
 
 @router.get("/workspace/tree")
