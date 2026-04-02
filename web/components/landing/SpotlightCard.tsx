@@ -38,8 +38,12 @@ export function SpotlightCard({
       ? "relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05]"
       : "relative overflow-hidden rounded-2xl border border-[#1a1a1a]/[0.06] bg-white/60 backdrop-blur-sm transition-all duration-300 hover:border-[#1a1a1a]/[0.12] hover:shadow-lg";
 
+  // Disable spotlight on touch devices — no hover, wastes cycles
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isTouchDevice) return;
       const card = cardRef.current;
       if (!card) return;
       const rect = card.getBoundingClientRect();
@@ -48,16 +52,16 @@ export function SpotlightCard({
         y: e.clientY - rect.top,
       });
     },
-    []
+    [isTouchDevice]
   );
 
   return (
     <div
       ref={cardRef}
       className={`${baseClasses} ${className}`}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseMove={isTouchDevice ? undefined : handleMouseMove}
+      onMouseEnter={isTouchDevice ? undefined : () => setIsHovered(true)}
+      onMouseLeave={isTouchDevice ? undefined : () => setIsHovered(false)}
     >
       {/* Spotlight gradient overlay */}
       <div
