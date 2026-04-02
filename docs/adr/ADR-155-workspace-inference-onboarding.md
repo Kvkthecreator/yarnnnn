@@ -218,11 +218,28 @@ All system side effects surface through the TP chat — inline action cards in t
 
 Design doc: `docs/design/TP-NOTIFICATION-CHANNEL.md`
 
-### Phase 4: Continuous Re-Assessment (Proposed)
-- Platform connection → re-inference trigger
-- Document upload → entity extraction → domain scaffolding
-- TP conversation entity mentions → scaffold
-- AWARENESS.md carries inference state for cross-session continuity
+### Phase 4: Re-Inference Refinement (Deferred — existing triggers sufficient)
+
+**Original scope** proposed adding new triggers (platform connect, doc upload, TP conversation). After assessment, this is scope creep — the existing flow already handles continuous context evolution:
+
+| Trigger | Why it's already covered |
+|---------|------------------------|
+| TP conversation ("we also compete with Notion") | TP calls `UpdateContext(target="identity")` → re-inference fires |
+| Document upload | TP extracts context → calls `UpdateContext` → re-inference fires |
+| Platform connection | Only landscape metadata (channel names), not entity-level signal. Not worth $0.02 |
+| Brand update | Brand is tone/style, doesn't change domain structure |
+
+**What "re-inference" actually means**: When the user updates identity (directly or via TP), `run_workspace_inference()` fires again. It's already idempotent:
+- Existing researched entities (`<!-- source: researched -->`) are NOT overwritten
+- Existing inferred stubs ARE replaced with fresh inference (may discover new entities)
+- New entities from updated identity get added as new stubs
+- Tracker rebuilds from filesystem scan (includes both old and new entities)
+
+**What's worth doing later** (not now):
+- **Post-research state upgrade**: When a bootstrap task validates inferred entities, the source tag should upgrade from `<!-- source: inferred -->` to `<!-- source: researched -->`. This lets re-inference know which entities are confirmed. Currently the agent would need to do this via WriteWorkspace — could be automated in the task pipeline post-run.
+- **Inference drift detection**: If identity changes significantly (user pivots), stale inferred entities that are no longer relevant should be flagged. Not deletd — flagged for user review.
+
+These are refinements to Phase 1 quality, not new trigger infrastructure.
 
 ## Impacted Files
 
