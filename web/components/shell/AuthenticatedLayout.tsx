@@ -15,14 +15,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Command, ChevronDown, Settings, Activity, FolderOpen, ListChecks, Users } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
-import { cn } from '@/lib/utils';
+import { ToggleBar } from './ToggleBar';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_LABEL, HOME_ROUTE, isHomeRoute } from '@/lib/routes';
+import { HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -88,65 +87,6 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   );
 }
 
-// =============================================================================
-// Navigation Types
-// =============================================================================
-
-interface RouteItem {
-  id: string;
-  label: string;
-  icon: typeof Command;
-  path: string;
-}
-
-// ADR-152: Tasks/Agents/Context now in workfloor left panel (Files tab).
-// Browse pages reduced — only Activity and Settings in nav dropdown.
-const BROWSE_PAGES: RouteItem[] = [];
-
-const SECONDARY_PAGES: RouteItem[] = [
-  { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
-  { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-];
-
-// Routes accessible via direct URL but not in nav dropdown
-const HIDDEN_ROUTES: RouteItem[] = [
-  { id: 'integrations', label: 'Integrations', icon: Settings, path: '/integrations' },
-];
-
-// All primary routes for pathname matching
-const PRIMARY_ROUTES: RouteItem[] = [];
-
-// Get route info from pathname
-function getRouteFromPathname(pathname: string): RouteItem | null {
-  for (const route of PRIMARY_ROUTES) {
-    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
-      return route;
-    }
-  }
-  for (const route of BROWSE_PAGES) {
-    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
-      return route;
-    }
-  }
-  for (const route of SECONDARY_PAGES) {
-    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
-      return route;
-    }
-  }
-  // Hidden routes: accessible via direct URL / cross-links
-  for (const route of HIDDEN_ROUTES) {
-    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
-      return route;
-    }
-  }
-  // Legacy routes redirect to settings
-  if (pathname.startsWith('/memory')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
-  if (pathname.startsWith('/system')) return { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' };
-  // Legacy /orchestrator → workfloor
-  if (pathname.startsWith('/orchestrator')) return { id: 'home', label: HOME_LABEL, icon: Command, path: HOME_ROUTE };
-  return null;
-}
-
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
   children,
@@ -157,49 +97,41 @@ function AuthenticatedLayoutInner({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { setSurface, setSurfaceWithHandoff } = useDesk();
 
-  // Determine navigation context
   const isOnHome = isHomeRoute(pathname);
-  const currentRoute = getRouteFromPathname(pathname);
 
-  // Handle surface change from TP tool results (with optional handoff message)
-  // ADR-037: For migrated entities, navigate to routes instead of surfaces
+  // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface, handoffMessage?: string) => {
-      // ADR-037: Route-first navigation for migrated entities
-      // ADR-039: Route-first navigation with unified Context page
       switch (newSurface.type) {
         case 'agent-list':
-          router.push('/workfloor');
+          router.push('/tasks');
           return;
         case 'agent-detail':
           router.push(`/agents/${newSurface.agentId}`);
           return;
         case 'document-list':
-          router.push('/context?section=documents');
+          router.push('/context');
           return;
         case 'document-viewer':
           router.push(`/docs/${newSurface.documentId}`);
           return;
         case 'platform-list':
-          router.push('/integrations');
+          router.push('/context');
           return;
         case 'platform-detail':
           router.push(`/context/${newSurface.platform}`);
           return;
         case 'context-browser':
-          router.push('/workfloor');
+          router.push('/context');
+          return;
+        case 'task-detail':
+          router.push(`/tasks/${newSurface.taskSlug}`);
           return;
       }
 
-      // For remaining surfaces (work, review, create, etc.), use surface system
-      // If not on orchestrator (home), navigate there first (surfaces live on the chat page)
-      if (!isHomeRoute(window.location.pathname)) {
-        router.push(HOME_ROUTE);
-      }
-      // Use handoff version if we have a message from TP
+      // For remaining surfaces, use surface system
       if (handoffMessage) {
         setSurfaceWithHandoff(newSurface, handoffMessage);
       } else {
@@ -209,39 +141,11 @@ function AuthenticatedLayoutInner({
     [setSurface, setSurfaceWithHandoff, router]
   );
 
-  // Navigate to home (orchestrator)
   const navigateToHome = useCallback(() => {
     if (!isOnHome) {
       router.push(HOME_ROUTE);
     }
   }, [isOnHome, router]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setDropdownOpen(false);
-    if (dropdownOpen) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [dropdownOpen]);
-
-  // Get current display info based on context
-  const getCurrentDisplay = () => {
-    if (currentRoute) {
-      return {
-        icon: currentRoute.icon,
-        label: currentRoute.label,
-      };
-    }
-    // On home route = Orchestrator
-    return {
-      icon: Command,
-      label: HOME_LABEL,
-    };
-  };
-
-  const display = getCurrentDisplay();
-  const CurrentIcon = display.icon;
 
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
@@ -258,93 +162,8 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: Current context with dropdown to navigate */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDropdownOpen(!dropdownOpen);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
-            >
-              <CurrentIcon className="w-4 h-4" />
-              <span>{display.label}</span>
-              <ChevronDown className={cn(
-                'w-3 h-3 opacity-50 transition-transform',
-                dropdownOpen && 'rotate-180'
-              )} />
-            </button>
-
-            {/* Dropdown: Navigation options */}
-            {dropdownOpen && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Primary: Orchestrator (home) */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isOnHome) {
-                      router.push(HOME_ROUTE);
-                    }
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    isOnHome && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Command className="w-4 h-4" />
-                  {HOME_LABEL}
-                </button>
-                {/* Browse pages — Tasks, Agents */}
-                <div className="border-t border-border my-1" />
-                {BROWSE_PAGES.map((route) => {
-                  const Icon = route.icon;
-                  const isActive = currentRoute?.id === route.id;
-                  return (
-                    <button
-                      key={route.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(route.path);
-                        setDropdownOpen(false);
-                      }}
-                      className={cn(
-                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                        isActive && 'bg-primary/5 text-primary'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {route.label}
-                    </button>
-                  );
-                })}
-
-                {/* System pages */}
-                <div className="border-t border-border my-1" />
-                {SECONDARY_PAGES.map((route) => {
-                  const Icon = route.icon;
-                  const isActive = currentRoute?.id === route.id;
-                  return (
-                    <button
-                      key={route.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(route.path);
-                        setDropdownOpen(false);
-                      }}
-                      className={cn(
-                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                        isActive && 'bg-primary/5 text-primary'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {route.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Center: Toggle bar */}
+          <ToggleBar />
 
           {/* Right: User menu only */}
           <UserMenu email={userEmail} />

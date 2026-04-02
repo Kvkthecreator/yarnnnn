@@ -25,6 +25,8 @@ export type DeskSurface =
   // Platforms (ADR-033)
   | { type: 'platform-list' }
   | { type: 'platform-detail'; platform: 'slack' | 'notion' }
+  // Workspace explorer (Context surface)
+  | { type: 'workspace-explorer'; path: string; navigation_type?: 'file' | 'folder' }
   // Idle state
   | { type: 'idle' };
 

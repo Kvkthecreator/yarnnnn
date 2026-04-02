@@ -206,13 +206,13 @@ export default function AgentsListPage() {
             <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground mb-1">No agents yet</p>
             <p className="text-xs text-muted-foreground/60 mb-4">
-              Go to the workfloor and describe what work you need.
+              Tell TP what work you need done.
             </p>
             <Link
-              href="/workfloor"
+              href="/tasks"
               className="inline-block px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Go to workfloor
+              Go to tasks
             </Link>
           </div>
         ) : (

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Legacy /orchestrator route — redirects to /workfloor (ADR-139)
+ * Legacy /orchestrator route — redirects to /tasks
  */
 
 import { useEffect } from 'react';
@@ -14,7 +14,7 @@ export default function OrchestratorRedirect() {
   useEffect(() => {
     // Preserve query params (e.g. ?provider=slack&status=connected)
     const params = searchParams?.toString();
-    router.replace(`/workfloor${params ? `?${params}` : ''}`);
+    router.replace(`/tasks${params ? `?${params}` : ''}`);
   }, [router, searchParams]);
 
   return null;

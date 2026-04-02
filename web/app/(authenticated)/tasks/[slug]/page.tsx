@@ -10,7 +10,7 @@
  * - Drawer panel: task-scoped TP chat
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -26,23 +26,18 @@ import {
   Pause,
   Play,
   RefreshCw,
-  Send,
   Target,
   X,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
-import { useFileAttachments } from '@/hooks/useFileAttachments';
 import type { TaskDetail, TaskOutput } from '@/types';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
-import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
-import { MessageBlocks } from '@/components/tp/InlineToolCall';
-import { ToolResultList } from '@/components/tp/ToolResultCard';
+import { type PlusMenuAction } from '@/components/tp/PlusMenu';
+import { ChatPanel } from '@/components/tp/ChatPanel';
 import {
-  InlineActionCard,
-  type ActionCardConfig,
   RUN_TASK_CARD,
   ADJUST_TASK_CARD,
   RESEARCH_TASK_CARD,
@@ -541,78 +536,8 @@ function TaskWorkspace({
 }
 
 function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: string }) {
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    status,
-    pendingClarification,
-    respondToClarification,
-    tokenUsage,
-  } = useTP();
-
-  const [input, setInput] = useState('');
-  const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleActionSelect = (message: string) => {
-    if (message.endsWith(' ')) {
-      setInput(message);
-      setActionCard(null);
-      textareaRef.current?.focus();
-    } else {
-      sendMessage(message, { surface: { type: 'task-detail', taskSlug } });
-      setActionCard(null);
-    }
-  };
-
-  const {
-    attachments,
-    attachmentPreviews,
-    error: fileError,
-    uploadedDocs,
-    handleFileSelect,
-    handlePaste,
-    removeAttachment,
-    clearAttachments,
-    getImagesForAPI,
-    fileInputRef,
-  } = useFileAttachments();
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, status]);
-
-  const adjustHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
-  }, []);
-
-  useEffect(() => {
-    adjustHeight();
-  }, [input, adjustHeight]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!input.trim() && attachments.length === 0) || isLoading) return;
-    const images = await getImagesForAPI();
-    sendMessage(input, {
-      surface: { type: 'task-detail', taskSlug },
-      images: images.length > 0 ? images : undefined,
-    });
-    setInput('');
-    clearAttachments();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e as unknown as React.FormEvent);
-    }
-  };
+  const taskSurface = { type: 'task-detail' as const, taskSlug };
+  const [actionCard, setActionCard] = useState<import('@/components/tp/InlineActionCard').ActionCardConfig | null>(null);
 
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => setActionCard(RUN_TASK_CARD) },
@@ -621,164 +546,22 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
     { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => setActionCard(RESEARCH_TASK_CARD) },
   ];
 
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
-        {messages.length === 0 && !isLoading && (
-          <div className="py-6 text-center">
-            <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
-            <p className="text-[11px] text-muted-foreground/40">Ask anything about this task</p>
-          </div>
-        )}
-
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              'max-w-[92%] rounded-2xl px-3 py-2 text-[13px]',
-              msg.role === 'user' ? 'ml-auto rounded-br-md bg-primary/10' : 'rounded-bl-md bg-muted'
-            )}
-          >
-            <span
-              className={cn(
-                'mb-1 block text-[9px] tracking-wider text-muted-foreground/50',
-                msg.role === 'user' ? 'font-medium uppercase' : 'font-brand text-[10px]'
-              )}
-            >
-              {msg.role === 'user' ? 'You' : 'yarnnn'}
-            </span>
-            {msg.blocks && msg.blocks.length > 0 ? (
-              <MessageBlocks blocks={msg.blocks} />
-            ) : msg.role === 'assistant' && !msg.content && isLoading ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Thinking...
-              </div>
-            ) : (
-              <>
-                {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={msg.content} compact />
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                )}
-                {msg.toolResults && msg.toolResults.length > 0 && <ToolResultList results={msg.toolResults} compact />}
-              </>
-            )}
-          </div>
-        ))}
-
-        {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Thinking...
-          </div>
-        )}
-
-        {status.type === 'clarify' && pendingClarification && (
-          <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
-            <p className="text-xs font-medium">{pendingClarification.question}</p>
-            {pendingClarification.options?.length ? (
-              <div className="flex flex-wrap gap-1.5">
-                {pendingClarification.options.map((option, index) => (
-                  <button
-                    key={index}
-                    onClick={() => respondToClarification(option)}
-                    className="rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15"
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[10px] text-muted-foreground">Type below</p>
-            )}
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="shrink-0 border-t border-border px-3 pb-3 pt-1">
-        {fileError && (
-          <div className="mb-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
-            {fileError}
-          </div>
-        )}
-
-        {uploadedDocs.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5">
-            {uploadedDocs.map((doc, index) => (
-              <div key={index} className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1 text-xs">
-                <span className="max-w-[120px] truncate">{doc.name}</span>
-                <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
-                  {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {attachmentPreviews.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            {attachmentPreviews.map((preview, index) => (
-              <div key={index} className="group relative">
-                <img src={preview} alt="" className="h-10 w-10 rounded border border-border object-cover" />
-                <button
-                  onClick={() => removeAttachment(index)}
-                  className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-background opacity-0 group-hover:opacity-100"
-                >
-                  <X className="h-2 w-2" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {actionCard && (
-          <div className="mb-2">
-            <InlineActionCard
-              config={actionCard}
-              onSelect={handleActionSelect}
-              onDismiss={() => setActionCard(null)}
-            />
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-1.5 rounded-xl border border-border bg-background focus-within:ring-2 focus-within:ring-primary/50">
-            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
-            <PlusMenu actions={plusMenuActions} disabled={isLoading} />
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              disabled={isLoading}
-              enterKeyHint="send"
-              placeholder={`Steer ${taskTitle}...`}
-              rows={1}
-              className="max-h-[150px] flex-1 resize-none bg-transparent py-2.5 pr-1 text-sm focus:outline-none disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || (!input.trim() && attachments.length === 0)}
-              className="shrink-0 p-2.5 text-primary transition-colors disabled:text-muted-foreground disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">
-            <span>Enter to send</span>
-            {tokenUsage && (
-              <span className="font-mono">
-                {tokenUsage.totalTokens >= 1000 ? `${(tokenUsage.totalTokens / 1000).toFixed(1)}k` : tokenUsage.totalTokens} tokens
-              </span>
-            )}
-          </div>
-        </form>
-      </div>
+  const emptyState = (
+    <div className="py-2 text-center">
+      <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
+      <p className="text-[11px] text-muted-foreground/40">Ask anything about this task</p>
     </div>
+  );
+
+  return (
+    <ChatPanel
+      surfaceOverride={taskSurface}
+      plusMenuActions={plusMenuActions}
+      placeholder={`Steer ${taskTitle}...`}
+      emptyState={emptyState}
+      showCommandPicker={false}
+      pendingActionConfig={actionCard}
+    />
   );
 }
 
@@ -928,7 +711,7 @@ export default function TaskPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center">
         <p className="text-sm text-muted-foreground">{error || 'Task not found'}</p>
-        <Link href="/workfloor" className="mt-2 text-xs text-primary hover:underline">Back to workfloor</Link>
+        <Link href="/tasks" className="mt-2 text-xs text-primary hover:underline">Back to tasks</Link>
       </div>
     );
   }
