@@ -141,7 +141,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["competitors"],
         "context_writes": ["competitors", "signals"],
-        "output_category": "",  # Context tasks — no output promotion
+        # ADR-154: output_category removed — tasks own their outputs
         "context_sources": ["web", "platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -189,7 +189,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["market"],
         "context_writes": ["market", "signals"],
-        "output_category": "",
         "context_sources": ["web", "platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -232,7 +231,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["relationships", "signals"],  # ADR-154: needs platform signals
         "context_writes": ["relationships", "signals"],
-        "output_category": "",
         "context_sources": ["platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -275,7 +273,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["projects", "signals"],  # ADR-154: needs platform signals
         "context_writes": ["projects", "signals"],
-        "output_category": "",
         "context_sources": ["platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -318,7 +315,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["content_research"],
         "context_writes": ["content_research"],
-        "output_category": "",
         "context_sources": ["web", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -359,7 +355,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["signals"],
         "context_writes": ["signals"],
-        "output_category": "briefs",  # Platform monitors produce daily digests
         "context_sources": ["platforms"],
         "requires_platform": "slack",
         "default_objective": {
@@ -398,7 +393,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["signals"],
         "context_writes": ["signals"],
-        "output_category": "briefs",
         "context_sources": ["platforms"],
         "requires_platform": "notion",
         "default_objective": {
@@ -442,7 +436,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["competitors", "signals"],
         "context_writes": [],  # Synthesis tasks don't write to context
-        "output_category": "briefs",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -486,7 +479,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["market", "competitors", "signals"],
         "context_writes": [],
-        "output_category": "reports",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -528,7 +520,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["relationships", "competitors", "signals"],
         "context_writes": [],
-        "output_category": "briefs",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -567,7 +558,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["competitors", "market", "projects", "relationships", "signals"],
         "context_writes": [],
-        "output_category": "reports",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -609,7 +599,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["projects", "signals"],
         "context_writes": [],
-        "output_category": "reports",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -648,7 +637,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["content_research", "competitors", "signals"],
         "context_writes": [],
-        "output_category": "content_output",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -687,7 +675,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["content_research", "competitors", "market", "signals"],
         "context_writes": [],
-        "output_category": "content_output",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -726,7 +713,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         ],
         "context_reads": ["competitors", "market", "signals"],
         "context_writes": [],
-        "output_category": "reports",
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -911,10 +897,9 @@ def build_task_md_from_type(
         agent_label = agent_slugs[i] if agent_slugs and i < len(agent_slugs) else step["agent_type"]
         process_lines.append(f"{i+1}. **{step['step'].title()}** ({agent_label}): {step['instruction']}")
 
-    # ADR-152: Serialize all runtime config into TASK.md
+    # ADR-154: Serialize runtime config into TASK.md (output_category removed)
     context_reads = task_type.get("context_reads", [])
     context_writes = task_type.get("context_writes", [])
-    output_category = task_type.get("output_category", "")
 
     effective_mode = task_type.get("default_mode", "recurring")
 
@@ -928,7 +913,6 @@ def build_task_md_from_type(
 **Delivery:** {delivery or 'none'}
 **Context Reads:** {', '.join(context_reads) if context_reads else 'none'}
 **Context Writes:** {', '.join(context_writes) if context_writes else 'none'}
-**Output Category:** {output_category or 'none'}
 
 ## Objective
 - **Deliverable:** {deliverable_text}

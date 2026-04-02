@@ -584,9 +584,6 @@ export const api = {
           key: string; display_name: string; entity_count: number;
           entity_type: string | null; path: string;
         }>;
-        outputs: Array<{
-          key: string; display_name: string; file_count: number; path: string;
-        }>;
         uploads: Array<{
           name: string; path: string; updated_at: string | null;
         }>;

@@ -706,7 +706,7 @@ export interface TaskDetail extends Task {
   output_spec?: string[];
   context_reads?: string[];    // context domains this task reads from
   context_writes?: string[];   // context domains this task writes to
-  output_category?: string;    // output category for promotion
+  // ADR-154: output_category removed — tasks own their outputs
 }
 
 export interface TaskCreate {

@@ -201,49 +201,9 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "shared_assets": [],
     },
 
-    # ── Output Categories (agent-produced deliverables) ──
-
-    "reports": {
-        "type": "output",
-        "path": "outputs/reports",
-        "display_name": "Reports",
-        "description": "Recurring reports, stakeholder updates, status summaries",
-        "managed_by": "agent",
-        "naming_convention": "{task_slug}-{date}.md",
-        "index_file": "_index.md",
-        "index_template": (
-            "# Reports\n\n"
-            "<!-- Auto-updated. Most recent first. -->\n"
-        ),
-    },
-
-    "briefs": {
-        "type": "output",
-        "path": "outputs/briefs",
-        "display_name": "Briefs",
-        "description": "Meeting prep, intel briefs, on-demand summaries",
-        "managed_by": "agent",
-        "naming_convention": "{task_slug}-{date}.md",
-        "index_file": "_index.md",
-        "index_template": (
-            "# Briefs\n\n"
-            "<!-- Auto-updated. Most recent first. -->\n"
-        ),
-    },
-
-    "content_output": {
-        "type": "output",
-        "path": "outputs/content",
-        "display_name": "Content",
-        "description": "Blog posts, launch materials, creative deliverables",
-        "managed_by": "agent",
-        "naming_convention": "{task_slug}-{date}.md",
-        "index_file": "_index.md",
-        "index_template": (
-            "# Content\n\n"
-            "<!-- Auto-updated. Most recent first. -->\n"
-        ),
-    },
+    # ADR-154: Output categories REMOVED. Tasks own their outputs directly
+    # at /tasks/{slug}/outputs/. No /workspace/outputs/ promotion layer.
+    # See ADR-154 "tasks own their outputs" decision.
 }
 
 
@@ -308,10 +268,7 @@ def get_synthesis_content(key: str) -> Optional[tuple[str, str]]:
 
 
 def get_output_category_path(category: str) -> Optional[str]:
-    """Get the workspace-relative path for an output category."""
-    d = WORKSPACE_DIRECTORIES.get(category)
-    if d and d.get("type") == "output":
-        return d["path"]
+    """DEPRECATED (ADR-154): Output categories removed. Tasks own their outputs."""
     return None
 
 

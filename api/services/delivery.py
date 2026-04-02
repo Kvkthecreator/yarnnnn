@@ -16,7 +16,9 @@ ADR-066: All agents auto-deliver immediately after generation.
 Governance was removed - delivery is always automatic when destination is set.
 """
 
+import html
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Any
@@ -771,6 +773,87 @@ async def deliver_from_output_folder(
 # deliver_from_assembly_folder — REMOVED (project assembly dissolved)
 
 
+def _build_email_assets_from_manifest(manifest: dict) -> list[dict]:
+    """Build compose asset refs from manifest-rendered files.
+
+    Email composition happens from markdown, so any local image/chart references
+    need manifest `content_url` resolution just like web composition.
+    """
+    assets: list[dict] = []
+    seen: set[str] = set()
+
+    for file_info in manifest.get("files", []) or []:
+        content_url = (file_info or {}).get("content_url")
+        path = ((file_info or {}).get("path") or "").strip()
+        if not content_url or not path or path == "output.md":
+            continue
+
+        refs = {path}
+        if "/" in path:
+            refs.add(path.rsplit("/", 1)[-1])
+
+        for ref in refs:
+            if ref and ref not in seen:
+                assets.append({"ref": ref, "url": content_url})
+                seen.add(ref)
+
+    return assets
+
+
+def _inject_into_body(html_doc: str, snippet: str) -> str:
+    """Insert a snippet before </body>, or append if no body tag is present."""
+    if not snippet:
+        return html_doc
+
+    match = re.search(r"</body\s*>", html_doc, flags=re.IGNORECASE)
+    if not match:
+        return f"{html_doc}{snippet}"
+    return f"{html_doc[:match.start()]}{snippet}{html_doc[match.start():]}"
+
+
+def _fallback_email_html(
+    *,
+    title: str,
+    text_content: str,
+    composed_html: Optional[str] = None,
+) -> str:
+    """Build the safest available HTML fallback for email delivery.
+
+    Order of preference:
+    1. Reuse already-composed HTML from the output folder, sanitized for email.
+    2. Minimal escaped markdown fallback.
+    """
+    if composed_html:
+        sanitized = re.sub(
+            r"<script\b[^>]*>.*?</script>",
+            "",
+            composed_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        sanitized = re.sub(
+            r"<iframe\b[^>]*src=['\"]([^'\"]+)['\"][^>]*>.*?</iframe>",
+            r'<p><a href="\1">Open embedded content</a></p>',
+            sanitized,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        sanitized = re.sub(
+            r"<iframe\b[^>]*>\s*</iframe>",
+            "",
+            sanitized,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if sanitized.strip():
+            return sanitized
+
+    return (
+        "<html><body><div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;"
+        "max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6'>"
+        f"<h1 style='margin:0 0 16px;font-size:22px'>{html.escape(title)}</h1>"
+        f"<pre style='white-space:pre-wrap;font-size:14px'>{html.escape(text_content)}</pre>"
+        "</div></body></html>"
+    )
+
+
 async def _deliver_email_from_manifest(
     destination: dict,
     text_content: str,
@@ -809,16 +892,17 @@ async def _deliver_email_from_manifest(
     subject = options.get("subject", default_subject)
 
     # ADR-148: Compose email-specific HTML via render service (layout_mode="email")
-    html_body = await _compose_email_html(text_content, title)
+    html_body = await _compose_email_html(
+        text_content,
+        title,
+        assets=_build_email_assets_from_manifest(manifest),
+    )
     if not html_body:
-        # Compose service unreachable — minimal inline fallback
-        logger.warning("[DELIVERY] Email compose failed — using minimal fallback")
-        html_body = (
-            f"<html><body><div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;"
-            f"max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6'>"
-            f"<h1 style='margin:0 0 16px;font-size:22px'>{title}</h1>"
-            f"<pre style='white-space:pre-wrap;font-size:14px'>{text_content}</pre>"
-            f"</div></body></html>"
+        logger.warning("[DELIVERY] Email compose failed — using HTML fallback")
+        html_body = _fallback_email_html(
+            title=title,
+            text_content=text_content,
+            composed_html=composed_html,
         )
 
     # Append email footer (feedback link + yarnnn branding)
@@ -842,7 +926,7 @@ async def _deliver_email_from_manifest(
         f'<a href="{app_url}/settings" style="color:#9ca3af;">Manage notifications</a></p>'
         '</div>'
     )
-    html_body = html_body.replace("</body>", f"{footer_html}</body>")
+    html_body = _inject_into_body(html_body, footer_html)
 
     # ADR-118 D.3: Include rendered binary attachments from manifest
     files = manifest.get("files", [])
@@ -864,7 +948,7 @@ async def _deliver_email_from_manifest(
             f'<ul style="margin:0;padding-left:20px;">{"".join(links)}</ul>'
             '</div>'
         )
-        html_body = html_body.replace("</body>", f"{attachment_html}</body>")
+        html_body = _inject_into_body(html_body, attachment_html)
 
     try:
         result = await send_email(
@@ -893,7 +977,11 @@ async def _deliver_email_from_manifest(
         )
 
 
-async def _compose_email_html(markdown: str, title: str) -> Optional[str]:
+async def _compose_email_html(
+    markdown: str,
+    title: str,
+    assets: Optional[list[dict]] = None,
+) -> Optional[str]:
     """Call render service compose endpoint with layout_mode=email."""
     import httpx
     import os
@@ -913,7 +1001,7 @@ async def _compose_email_html(markdown: str, title: str) -> Optional[str]:
                     "markdown": markdown,
                     "title": title,
                     "layout_mode": "email",
-                    "assets": [],
+                    "assets": assets or [],
                 },
                 headers=headers,
             )

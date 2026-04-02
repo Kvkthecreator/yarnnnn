@@ -95,14 +95,9 @@ When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:
 
 **Distinction from chat uploads:** Pasting/dropping files directly in the chat input creates ephemeral session attachments (inline images, temporary text extraction). These never persist to `/workspace/`. "Upload file" via the plus menu = permanent shared document. Paste in chat = ephemeral session context.
 
-### Promoted Outputs (`/workspace/outputs/`)
+### Outputs — Tasks Own Their Outputs (ADR-154)
 
-Agent-produced deliverables promoted from tasks. Organized by output category:
-- `reports/` — Reports, analyses, digests, intel briefs
-- `briefs/` — Summaries, prep docs, stakeholder updates
-- `content/` — Blog drafts, launch material, communications
-
-Output categories are defined in the directory registry (`WORKSPACE_DIRECTORIES` in `directory_registry.py`). Tasks declare their `output_category` — when outputs are promoted to workspace scope, they land in the corresponding subfolder.
+> **`/workspace/outputs/` directory REMOVED (ADR-154).** Tasks own their outputs directly at `/tasks/{slug}/outputs/`. No promotion layer, no output categories. Users access outputs by clicking tasks in the navigation. This eliminates the dual-location problem and the never-implemented promotion pipeline.
 
 ### Accumulated Context Domains (`/workspace/context/`) — ADR-151
 

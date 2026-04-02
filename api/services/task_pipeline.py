@@ -446,9 +446,7 @@ def parse_task_md(content: str) -> dict:
         elif line_stripped.startswith("**Context Writes:**"):
             raw = line_stripped.split("**Context Writes:**")[1].strip()
             result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
-        elif line_stripped.startswith("**Output Category:**"):
-            raw = line_stripped.split("**Output Category:**")[1].strip()
-            result["output_category"] = raw if raw != "none" else ""
+        # ADR-154: **Output Category:** parsing removed — tasks own their outputs
 
     # Parse sections
     current_section = None

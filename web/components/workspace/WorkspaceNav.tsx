@@ -29,9 +29,6 @@ interface NavData {
     key: string; display_name: string; entity_count: number;
     entity_type: string | null; path: string;
   }>;
-  outputs: Array<{
-    key: string; display_name: string; file_count: number; path: string;
-  }>;
   uploads: Array<{
     name: string; path: string; updated_at: string | null;
   }>;
@@ -161,31 +158,7 @@ export function WorkspaceNav({
           ))}
         </NavSection>
 
-        {/* ── Outputs ── */}
-        {nav.outputs.length > 0 && (
-          <NavSection
-            title="Outputs"
-            expanded={expanded.outputs}
-            onToggle={() => toggle('outputs')}
-          >
-            {nav.outputs.map(section => (
-              <button
-                key={section.key}
-                onClick={() => onSelectFile(section.path)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-sm",
-                  selectedItem === `output:${section.key}` && "bg-accent"
-                )}
-              >
-                <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <span className="truncate flex-1">{section.display_name}</span>
-                <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                  {section.file_count}
-                </span>
-              </button>
-            ))}
-          </NavSection>
-        )}
+        {/* ADR-154: Outputs section removed — tasks own their outputs */}
 
         {/* ── Uploads ── */}
         {nav.uploads.length > 0 && (

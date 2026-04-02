@@ -79,7 +79,6 @@ class TaskResponse(BaseModel):
     output_spec: Optional[list] = None
     context_reads: Optional[list] = None
     context_writes: Optional[list] = None
-    output_category: Optional[str] = None
     # ADR-154: Phase + bootstrap
     phase: Optional[str] = None  # bootstrap | steady | complete
     # Enriched from workspace (detail endpoint only)
@@ -315,11 +314,7 @@ def _parse_task_md(content: str) -> dict:
         if cw_match:
             raw = cw_match.group(1).strip()
             result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
-        oc_match = re.match(r"\*\*Output Category:\*\*\s*(.*)", line)
-        if oc_match:
-            raw = oc_match.group(1).strip()
-            if raw and raw != "none":
-                result["output_category"] = raw
+        # ADR-154: output_category parsing removed
 
     return result
 
@@ -362,7 +357,6 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         output_spec=task_md_parsed.get("output_spec") if task_md_parsed else None,
         context_reads=task_md_parsed.get("context_reads") if task_md_parsed else None,
         context_writes=task_md_parsed.get("context_writes") if task_md_parsed else None,
-        output_category=task_md_parsed.get("output_category") if task_md_parsed else None,
     )
 
 

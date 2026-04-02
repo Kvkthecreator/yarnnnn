@@ -67,17 +67,9 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **launch-material** | Launch Material | goal | on-demand | content_research, competitors, market, signals | content_output |
 | **gtm-report** | GTM Report | weekly | content | competitors, market, signals | reports |
 
-### Output Categories
+### Outputs — Tasks Own Their Outputs (ADR-154)
 
-Synthesis tasks declare an `output_category` that determines where promoted outputs land in `/workspace/outputs/`:
-
-| Category | Directory | Typical task types |
-|---|---|---|
-| **reports** | `/workspace/outputs/reports/` | market-report, stakeholder-update, project-status, gtm-report |
-| **briefs** | `/workspace/outputs/briefs/` | competitive-brief, meeting-prep |
-| **content_output** | `/workspace/outputs/content/` | content-brief, launch-material |
-
-Context tasks do NOT produce outputs — they write directly to `/workspace/context/{domain}/`.
+`/workspace/outputs/` directory and `output_category` field **REMOVED**. Tasks own their outputs directly at `/tasks/{slug}/outputs/`. Users access outputs by clicking tasks in the nav. Context tasks write to `/workspace/context/{domain}/`.
 
 ---
 
@@ -166,14 +158,10 @@ Context tasks do NOT produce outputs — they write directly to `/workspace/cont
 ├── playbook-orchestration.md       # TP methodology (HIDDEN — system file)
 ├── WORKSPACE.md                    # Init manifest (HIDDEN — system file)
 ├── uploads/                        # User-uploaded references
-├── outputs/                        # Promoted agent deliverables
-│   ├── reports/                    # Reports, analyses, digests
-│   ├── briefs/                     # Summaries, prep docs, updates
-│   └── content/                    # Blog drafts, comms, launch material
 ├── context/                        # ACCUMULATED CONTEXT (domains)
 │   ├── competitors/                # Managed by: track-competitors
 │   │   ├── _tracker.md             # Entity registry (HIDDEN — pipeline-maintained)
-│   │   ├── _landscape.md           # Cross-entity synthesis (HIDDEN — agent-written)
+│   │   ├── _landscape.md           # Cross-entity synthesis (VISIBLE — domain summary)
 │   │   └── {entity}/              # Per-entity files (VISIBLE)
 │   ├── market/                     # Managed by: track-market
 │   ├── relationships/              # Managed by: track-relationships

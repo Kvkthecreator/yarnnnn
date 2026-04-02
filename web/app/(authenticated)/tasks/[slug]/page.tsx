@@ -725,14 +725,6 @@ export default function TaskPage() {
                     </div>
                   </div>
                 )}
-                {task.output_category && (
-                  <div>
-                    <p className="text-[11px] text-muted-foreground mb-1">Output promoted to:</p>
-                    <span className="px-2 py-0.5 text-[11px] rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                      {task.output_category}
-                    </span>
-                  </div>
-                )}
                 {!task.context_reads?.length && !task.context_writes?.length && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No context domains configured for this task.

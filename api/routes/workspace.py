@@ -148,32 +148,8 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                 "path": f"/workspace/{d['path']}",
             })
 
-        # ── Outputs (from workspace_files, user-facing deliverables only) ──
-        outputs_sections = []
-        for key, d in WORKSPACE_DIRECTORIES.items():
-            if d.get("type") != "output":
-                continue
-            # Count files in this output category
-            output_path = f"/workspace/{d['path']}"
-            try:
-                count_result = (
-                    auth.client.table("workspace_files")
-                    .select("path")
-                    .eq("user_id", auth.user_id)
-                    .like("path", f"{output_path}/%")
-                    .execute()
-                )
-                file_count = len(count_result.data or [])
-            except Exception:
-                file_count = 0
-
-            if file_count > 0:
-                outputs_sections.append({
-                    "key": key,
-                    "display_name": d.get("display_name", key.title()),
-                    "file_count": file_count,
-                    "path": output_path,
-                })
+        # ADR-154: Outputs section removed — tasks own their outputs directly.
+        # Users see outputs by clicking tasks in the Tasks section.
 
         # ── Uploads (user-contributed files) ──
         uploads = []
@@ -232,7 +208,6 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         return {
             "tasks": tasks,
             "domains": domains,
-            "outputs": outputs_sections,
             "uploads": uploads,
             "settings": settings,
         }
