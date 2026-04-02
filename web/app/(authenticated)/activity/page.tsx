@@ -269,6 +269,7 @@ function getNavigationTarget(
       return null;
     case 'memory_written':
     case 'session_summary_written':
+      return null;
     case 'platform_synced':
     case 'content_cleanup': {
       const p = (metadata.provider || metadata.platform) as string | undefined;
@@ -505,6 +506,7 @@ function MetadataDetails({ item }: { item: ActivityItem }) {
 export default function ActivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -512,8 +514,8 @@ export default function ActivityPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (initial = false) => {
+    if (initial) setLoading(true);
     setError(null);
     try {
       const [activityResult, taskList] = await Promise.all([
@@ -526,11 +528,11 @@ export default function ActivityPage() {
       console.error('Failed to load activity:', err);
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
-      setLoading(false);
+      if (initial) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(true); }, [loadData]);
 
   // Polling — refresh every 30s and on tab focus
   useEffect(() => {
@@ -539,6 +541,12 @@ export default function ActivityPage() {
     document.addEventListener('visibilitychange', onFocus);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [loadData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   const handleFilterChange = (newFilter: FilterKey) => {
     setFilter(newFilter);
@@ -593,7 +601,7 @@ export default function ActivityPage() {
           <Activity className="w-10 h-10 mx-auto mb-3 text-muted-foreground/20" />
           <p className="text-sm text-red-500">{error}</p>
           <button
-            onClick={loadData}
+            onClick={() => loadData(true)}
             className="mt-3 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
           >
             Retry
@@ -611,12 +619,12 @@ export default function ActivityPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-lg font-semibold">Activity</h1>
           <button
-            onClick={loadData}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={refreshing}
             className="p-1.5 text-muted-foreground/50 hover:text-muted-foreground rounded-md hover:bg-muted transition-colors"
             title="Refresh"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+            <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
           </button>
         </div>
 
