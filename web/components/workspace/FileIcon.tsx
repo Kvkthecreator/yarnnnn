@@ -15,10 +15,9 @@ import {
   Presentation,
   File,
   FileType,
-  Globe,
-  Settings,
   BookOpen,
   BarChart3,
+  Clapperboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +33,9 @@ const ICON_MAP: Record<string, { icon: typeof FileText; color: string }> = {
   '.svg': { icon: Image, color: 'text-green-500' },
   '.gif': { icon: Image, color: 'text-green-500' },
   '.webp': { icon: Image, color: 'text-green-500' },
+  // Video / motion
+  '.mp4': { icon: Clapperboard, color: 'text-rose-500' },
+  '.webm': { icon: Clapperboard, color: 'text-rose-500' },
   // Documents
   '.pdf': { icon: BookOpen, color: 'text-red-500' },
   '.docx': { icon: FileType, color: 'text-blue-600' },

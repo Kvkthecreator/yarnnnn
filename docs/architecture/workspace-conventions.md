@@ -69,19 +69,23 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 
 ### Agent OS Visibility (ADR-154)
 
-The workfloor navigation (`GET /api/workspace/nav`) shows structured sections, not a raw file tree. Visibility rules:
+The workfloor explorer preserves structured visibility rules, but presents them as a single filesystem-style surface. The left pane synthesizes a root with four browseable folders: `Tasks`, `Domains`, `Uploads`, and `Settings`. Users navigate one hierarchy, not separate domain cards vs. upload lists vs. settings panels.
+
+Visibility rules:
 
 | File/Directory | Visible? | Where shown |
 |---|---|---|
-| Context domain entity files (`{entity}/profile.md`) | Yes | Domains section → entity cards |
-| Uploads (`/workspace/uploads/*`) | Yes | Uploads section |
-| Output categories (`/workspace/outputs/*`) | Yes | Outputs section |
-| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md, preferences.md | Yes | Settings section |
-| `_tracker.md`, `_landscape.md` (underscore-prefixed) | No | System infrastructure |
+| Task folders + task outputs (`/tasks/{slug}/...`) | Yes | `Tasks/` explorer subtree |
+| Context domain entity files (`{entity}/profile.md`, `signals.md`, etc.) | Yes | `Domains/` explorer subtree |
+| Domain synthesis files (`_landscape.md`, `_overview.md`, etc.) | Yes | Domain folder root |
+| Uploads (`/workspace/uploads/*`) | Yes | `Uploads/` explorer subtree |
+| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md, preferences.md | Yes | `Settings/` explorer subtree |
+| `_tracker.md` | No | Hidden infrastructure |
 | `playbook-orchestration.md`, `WORKSPACE.md` | No | System infrastructure |
 | `/agents/` (all files) | No | Agent identity = system |
-| `/tasks/` infrastructure (TASK.md, DELIVERABLE.md, awareness.md, memory/*) | No | Accessed via task UI |
-| `/context/signals/` | No | Temporal log, not user-browseable |
+| `/workspace/context/signals/` root | No | Temporal log, not user-browseable |
+
+**Clarification:** underscore-prefixed synthesis files at the domain root remain user-visible. Only `_tracker.md` stays hidden. This keeps domain overviews accessible while preserving the internal entity registry as infrastructure.
 
 ### User Uploads (`/workspace/uploads/`)
 
@@ -97,7 +101,7 @@ When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:
 
 ### Outputs — Tasks Own Their Outputs (ADR-154)
 
-> **`/workspace/outputs/` directory REMOVED (ADR-154).** Tasks own their outputs directly at `/tasks/{slug}/outputs/`. No promotion layer, no output categories. Users access outputs by clicking tasks in the navigation. This eliminates the dual-location problem and the never-implemented promotion pipeline.
+> **`/workspace/outputs/` directory REMOVED (ADR-154).** Tasks own their outputs directly at `/tasks/{slug}/outputs/`. No promotion layer, no output categories. Users access outputs by browsing task folders in the explorer. This eliminates the dual-location problem and the never-implemented promotion pipeline.
 
 ### Accumulated Context Domains (`/workspace/context/`) — ADR-151
 

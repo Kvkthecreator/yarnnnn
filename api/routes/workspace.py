@@ -40,6 +40,8 @@ class FileResponse(BaseModel):
     content: Optional[str] = None
     summary: Optional[str] = None
     updated_at: Optional[str] = None
+    content_type: Optional[str] = None
+    content_url: Optional[str] = None
     metadata: Optional[dict] = None
 
 
@@ -387,7 +389,7 @@ async def get_workspace_file(
     try:
         result = (
             auth.client.table("workspace_files")
-            .select("path, content, summary, updated_at, metadata")
+            .select("path, content, summary, updated_at, content_type, content_url, metadata")
             .eq("user_id", auth.user_id)
             .eq("path", path)
             .limit(1)
@@ -403,6 +405,8 @@ async def get_workspace_file(
             content=row.get("content"),
             summary=row.get("summary"),
             updated_at=row.get("updated_at"),
+            content_type=row.get("content_type"),
+            content_url=row.get("content_url"),
             metadata=row.get("metadata"),
         )
 
