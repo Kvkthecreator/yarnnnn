@@ -1,5 +1,7 @@
 # Shared Context Workflow — ADR-144
 
+**Extended by:** ADR-155 — identity writes now trigger workspace-wide inference cascade (domain scaffolding across all context domains).
+
 How users create and update workspace shared context (IDENTITY.md, BRAND.md).
 
 ## Principle

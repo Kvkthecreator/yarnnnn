@@ -1,7 +1,8 @@
 # Context
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
-> **Updated**: 2026-03-31 — ADR-153 platform_content sunset; context flows through tracking tasks
+> **Updated**: 2026-04-02 — ADR-155 workspace-wide inference; context page as onboarding surface
+> Previous: 2026-03-31 — ADR-153 platform_content sunset; context flows through tracking tasks
 
 ---
 
@@ -14,6 +15,23 @@ Context is the accumulated knowledge substrate that agents build up over time. I
 Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, via TP primitives (`Search`, `Read`, `GetSystemState`).
 
 **Analogy**: Context is the filesystem that Claude Code reads — source files exist on disk, but only the relevant ones are opened and read when needed. YARNNN's "disk" is the accumulated workspace context, enriched by agent execution over time.
+
+---
+
+## Context Page as Onboarding Surface (ADR-155)
+
+During workspace setup (identity empty/sparse, no tasks), the context page (`/context`) is the **landing surface**. The TP inference component is front and center — wide layout, no sidebar distractions.
+
+When the user provides identity context (text, URL, doc), workspace-wide inference triggers:
+- ALL context domains scaffold simultaneously (competitors, market, relationships, projects, content)
+- Entity stubs populate with inferred content + `[Needs research]` gaps
+- The user watches folders appear and stubs populate in real time
+- TP narrates: "Found 4 competitors and 2 market segments. Adjust?"
+
+Three workspace maturity phases determine routing:
+- **Setup** (identity empty) → `/context` is home, `/tasks` shows empty state
+- **Scaffolded** (identity rich, domains seeded) → `/context` is home, TP suggests tasks
+- **Active** (tasks exist) → `/tasks` is home (normal operation)
 
 ---
 

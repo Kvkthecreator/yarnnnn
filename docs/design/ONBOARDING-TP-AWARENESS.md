@@ -1,7 +1,8 @@
 # Onboarding & TP Singular Awareness — Design Brief
 
-**Status:** Next priority  
+**Status:** Superseded by ADR-155 (Workspace-Wide Inference & Onboarding)  
 **Date:** 2026-04-01  
+**Superseded:** ADR-155 replaces chip-based progression with inference-first context page. Identity input triggers workspace-wide domain scaffolding. Context page is the landing surface during setup phase.  
 **Depends on:** Workspace init (shipped), TP prompts (updated), context_readiness (working)
 
 ---
