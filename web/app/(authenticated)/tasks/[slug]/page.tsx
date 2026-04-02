@@ -620,6 +620,22 @@ export default function TaskPage() {
     { id: 'chat', label: 'Chat', content: <TaskChatPanel taskSlug={slug} taskTitle={displayTitle} /> },
   ];
 
+  // TP-style panel header — matches workfloor chat header
+  const tpPanelHeader = (
+    <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
+      <div className="flex items-center gap-2">
+        <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
+        <span className="text-xs font-medium">TP</span>
+        <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
+          · viewing {displayTitle}
+        </span>
+      </div>
+      <button onClick={() => router.back()} className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
   return (
     <WorkspaceLayout
       identity={{ icon: <FileText className="w-5 h-5" />, label: displayTitle }}
@@ -629,6 +645,7 @@ export default function TaskPage() {
         </button>
       }
       panelTabs={panelTabs}
+      panelHeader={tpPanelHeader}
       panelDefaultOpen={true}
       panelDefaultPct={33}
     >

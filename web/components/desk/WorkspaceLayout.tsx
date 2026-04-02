@@ -53,6 +53,8 @@ interface WorkspaceLayoutProps {
   children: React.ReactNode;
   /** Panel tabs. If empty, panel trigger is hidden. */
   panelTabs?: WorkspacePanelTab[];
+  /** Custom panel header — replaces the tab bar when provided */
+  panelHeader?: React.ReactNode;
   /** Default open state for the panel (default: true) */
   panelDefaultOpen?: boolean;
   /** Default panel width as percentage (default: 50, clamped 25-65) */
@@ -74,6 +76,7 @@ export function WorkspaceLayout({
   headerControls,
   children,
   panelTabs = [],
+  panelHeader,
   panelDefaultOpen = true,
   panelDefaultPct = DEFAULT_PANEL_PCT,
   activeTabId,
@@ -247,7 +250,7 @@ export function WorkspaceLayout({
             className="hidden lg:flex lg:flex-col border-l border-border bg-background shrink-0"
             style={{ width: `${panelPct}%` }}
           >
-            {panelTabBar}
+            {panelHeader || panelTabBar}
             <div className="flex-1 overflow-y-auto">
               {activePanelContent}
             </div>
@@ -273,7 +276,7 @@ export function WorkspaceLayout({
               panelOpen ? 'translate-x-0' : 'translate-x-full'
             )}
           >
-            {panelTabBar}
+            {panelHeader || panelTabBar}
             <div className="flex-1 overflow-y-auto">
               {activePanelContent}
             </div>
