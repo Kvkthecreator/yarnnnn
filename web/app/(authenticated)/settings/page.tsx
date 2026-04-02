@@ -224,7 +224,8 @@ export default function SettingsPage() {
           clearMessages();
           // ADR-140: Re-scaffold default roster after workspace purge
           await api.onboarding.getState().catch(() => null);
-          setTimeout(() => router.push(HOME_ROUTE), 1500);
+          // ADR-155: After purge, identity is empty → go to /context (setup phase)
+          setTimeout(() => router.push('/context'), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -236,7 +237,8 @@ export default function SettingsPage() {
           clearMessages();
           // ADR-140: Re-scaffold default roster after full reset
           await api.onboarding.getState().catch(() => null);
-          setTimeout(() => router.push(HOME_ROUTE), 1500);
+          // ADR-155: After reset, identity is empty → go to /context (setup phase)
+          setTimeout(() => router.push('/context'), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();
