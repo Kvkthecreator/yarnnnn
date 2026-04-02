@@ -10,7 +10,7 @@
  * Handles both /tasks (auto-selects first active) and /tasks/[slug].
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -81,8 +81,10 @@ export default function TaskSurface() {
   }, []);
 
   // ── Load task detail ──
+  const hasLoadedOnce = useRef(false);
   const loadTaskDetail = useCallback(async (slug: string) => {
-    setDetailLoading(true);
+    // Only show loading spinner on first load, not task switches
+    if (!hasLoadedOnce.current) setDetailLoading(true);
     try {
       const [taskData, outputsData, outputData, deliverableFile] = await Promise.all([
         api.tasks.get(slug),
@@ -94,6 +96,7 @@ export default function TaskSurface() {
       setOutputs(outputsData?.outputs || []);
       setSelectedOutput(outputData || null);
       setDeliverableMd(deliverableFile?.content || null);
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Failed to load task detail:', err);
       setTaskDetail(null);
@@ -158,10 +161,7 @@ export default function TaskSurface() {
     if (slug !== selectedSlug) {
       setSelectedSlug(slug);
       setSelectedView(view || 'output');
-      setTaskDetail(null);
-      setOutputs([]);
-      setSelectedOutput(null);
-      setDeliverableMd(null);
+      // Don't clear state — keep old content visible until new data arrives
       router.replace(`/tasks/${slug}`, { scroll: false });
     } else if (view) {
       setSelectedView(view);
