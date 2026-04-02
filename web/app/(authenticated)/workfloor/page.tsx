@@ -168,36 +168,6 @@ function buildExplorerRoot(input: {
   };
 }
 
-function getTaskLaunchPath(path: string): string | null {
-  const match = path.match(/^\/tasks\/([^/]+)(?:\/(.*))?$/);
-  if (!match) {
-    return null;
-  }
-
-  const slug = match[1];
-  const remainder = match[2] || '';
-
-  if (!remainder) {
-    return `/tasks/${slug}`;
-  }
-
-  if (remainder === 'DELIVERABLE.md') {
-    return `/tasks/${slug}?section=deliverable`;
-  }
-
-  if (remainder === 'TASK.md' || remainder === 'awareness.md') {
-    return `/tasks/${slug}?section=context`;
-  }
-
-  if (remainder === 'outputs' || remainder.startsWith('outputs/')) {
-    const parts = remainder.split('/');
-    const folder = parts.length >= 2 ? parts[1] : null;
-    return folder ? `/tasks/${slug}?folder=${encodeURIComponent(folder)}` : `/tasks/${slug}?section=runs`;
-  }
-
-  return `/tasks/${slug}`;
-}
-
 // =============================================================================
 // Floating Chat Panel
 // =============================================================================
@@ -559,14 +529,9 @@ export default function WorkfloorPage() {
 
   const activeTasks = tasks.filter(t => t.status !== 'archived');
 
-  const handleExplorerOpen = useCallback((node: TreeNode) => {
-    const taskLaunchPath = getTaskLaunchPath(node.path);
-    if (taskLaunchPath) {
-      router.push(taskLaunchPath);
-      return;
-    }
+  const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
-  }, [router]);
+  }, []);
 
 
   return (
@@ -594,7 +559,7 @@ export default function WorkfloorPage() {
                 <WorkspaceTree
                   nodes={explorerRoot.children || []}
                   selectedPath={selectedPath || undefined}
-                  onSelect={handleExplorerOpen}
+                  onSelect={handleExplorerSelect}
                 />
               </div>
             ) : (
@@ -640,7 +605,7 @@ export default function WorkfloorPage() {
               </span>
             </div>
             <div className="flex-1 overflow-auto">
-              <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerOpen} />
+              <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
             </div>
           </div>
         ) : (

@@ -184,10 +184,11 @@ Your role on this page:
 
 ## Frontend Implementation
 
-### Task page layout (v4)
+### Task page layout (v5)
 
-Workfloor owns filesystem browsing. Opening a task from the explorer launches
-`/tasks/{slug}` as an app-style workspace rather than a second file browser.
+Workfloor owns filesystem browsing, including `/tasks`. The task page is not
+the default renderer for task files; it is the dedicated task management
+surface for steering the task, reviewing status, and using task-scoped TP.
 
 ```
 ┌─ Left (hero) ────────────────────┬─ Right (inspector) ─────────┐
@@ -197,10 +198,12 @@ Workfloor owns filesystem browsing. Opening a task from the explorer launches
 │                                  │                             │
 │                                  │  Deliverable                │
 │                                  │  Objective · criteria       │
-│                                  │  DELIVERABLE.md preview     │
+│                                  │  Raw spec collapsed by      │
+│                                  │  default                    │
 │                                  │                             │
 │                                  │  Context                    │
-│                                  │  Reads · writes · run log   │
+│                                  │  Reads · writes             │
+│                                  │  Run log collapsed          │
 │                                  │                             │
 │                                  │  Runs                       │
 │                                  │  History + run controls     │
@@ -212,18 +215,17 @@ Workfloor owns filesystem browsing. Opening a task from the explorer launches
                                  └───────────────────────────────┘
 ```
 
-### Explorer launch behavior
+### Surface split
 
-`/tasks` remains visible as a directory in Workfloor so the task filesystem is
-legible, but task artifacts are launch points into the task app:
+The corrected split is:
 
-- Click `/tasks/{slug}` → open `/tasks/{slug}`
-- Click `/tasks/{slug}/outputs/{date_folder}/...` → open `/tasks/{slug}?folder={date_folder}`
-- Click `/tasks/{slug}/DELIVERABLE.md` → open `/tasks/{slug}?section=deliverable`
-- Click `/tasks/{slug}/TASK.md` or `awareness.md` → open `/tasks/{slug}?section=context`
+- Workfloor = browse task folders and files directly
+- Task page = manage the task as a work unit
 
-This keeps one filesystem metaphor on Workfloor and one app metaphor on the
-task page instead of mixing folders and hardcoded tabs.
+So clicking task artifacts in Workfloor should keep the user in the explorer.
+The task page remains reachable from task lists, activity links, delivery
+feedback links, and explicit "open task" navigation, but not from normal file
+selection inside Workfloor.
 
 ### Chat component
 
@@ -252,7 +254,7 @@ CREATE INDEX idx_chat_sessions_task_slug
 | `api/routes/chat.py` | Session routing by task_slug, context injection |
 | `api/services/working_memory.py` | `load_surface_content()` for task-detail |
 | `api/agents/tp_prompts/tools.py` | Document task-scoped primitive restrictions |
-| `web/app/(authenticated)/tasks/[slug]/page.tsx` | v4 layout: output hero + inspector + chat drawer |
+| `web/app/(authenticated)/tasks/[slug]/page.tsx` | v5 layout: compact task management surface + chat drawer |
 | `web/components/desk/ChatDrawer.tsx` | Keep for task page (or inline ChatPanel variant) |
 | `api/prompts/CHANGELOG.md` | Version entry |
 | `supabase/migrations/XXX_task_slug_sessions.sql` | Add task_slug column |

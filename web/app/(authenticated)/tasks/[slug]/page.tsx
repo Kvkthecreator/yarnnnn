@@ -1,21 +1,22 @@
 'use client';
 
 /**
- * Task Page — Output-first task workspace
+ * Task Page — Task management surface
  *
- * Workfloor owns filesystem browsing. Opening a task from the explorer launches
- * this page as an app-like workspace:
- * - Left: output hero
- * - Right: task inspector (meta, spec, context, runs)
+ * Workfloor owns filesystem browsing. This page is not the default document
+ * viewer for task files. It is the task management surface:
+ * - Left: current output
+ * - Right: compact task inspector (meta, spec, context, runs)
  * - Drawer panel: task-scoped TP chat
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
   Clock,
+  ChevronDown,
   FileSearch,
   FileText,
   Globe,
@@ -48,8 +49,6 @@ import {
   FEEDBACK_TASK_CARD,
 } from '@/components/tp/InlineActionCard';
 
-type TaskSection = 'output' | 'deliverable' | 'context' | 'runs';
-
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -80,38 +79,18 @@ function formatTimestamp(dateStr?: string | null, withTime: boolean = true): str
   });
 }
 
-function normalizeSection(value: string | null): TaskSection {
-  if (value === 'deliverable' || value === 'context' || value === 'runs') {
-    return value;
-  }
-  return 'output';
-}
-
-function buildTaskRoute(slug: string, options: { folder?: string | null; section?: TaskSection | null }) {
-  const params = new URLSearchParams();
-  if (options.folder) params.set('folder', options.folder);
-  if (options.section && options.section !== 'output') params.set('section', options.section);
-  const query = params.toString();
-  return query ? `/tasks/${slug}?${query}` : `/tasks/${slug}`;
-}
-
 function InspectorCard({
   title,
   icon,
-  highlighted = false,
   children,
 }: {
   title: string;
   icon: React.ReactNode;
-  highlighted?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section
-      className={cn(
-        'rounded-2xl border border-border bg-background/95 p-4 shadow-sm transition-colors',
-        highlighted && 'border-primary/40 ring-2 ring-primary/15'
-      )}
+      className="rounded-2xl border border-border bg-background/95 p-4 shadow-sm"
     >
       <div className="mb-3 flex items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
@@ -208,14 +187,12 @@ function TaskMetaCard({ task }: { task: TaskDetail }) {
 function DeliverableCard({
   task,
   deliverableMd,
-  highlighted,
 }: {
   task: TaskDetail;
   deliverableMd: string | null;
-  highlighted: boolean;
 }) {
   return (
-    <InspectorCard title="Deliverable" icon={<Target className="w-4 h-4" />} highlighted={highlighted}>
+    <InspectorCard title="Deliverable" icon={<Target className="w-4 h-4" />}>
       <div className="space-y-4">
         {task.objective && (
           <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -269,11 +246,17 @@ function DeliverableCard({
         <div>
           <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Spec file</p>
           {deliverableMd ? (
-            <div className="max-h-[320px] overflow-auto rounded-xl border border-border bg-muted/20 p-3">
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <MarkdownRenderer content={deliverableMd} />
+            <details className="group rounded-xl border border-border bg-muted/20">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium text-muted-foreground">
+                <span>Open DELIVERABLE.md</span>
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="max-h-[320px] overflow-auto border-t border-border/70 p-3">
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <MarkdownRenderer content={deliverableMd} />
+                </div>
               </div>
-            </div>
+            </details>
           ) : (
             <p className="text-sm text-muted-foreground">No `DELIVERABLE.md` found for this task.</p>
           )}
@@ -285,13 +268,11 @@ function DeliverableCard({
 
 function ContextCard({
   task,
-  highlighted,
 }: {
   task: TaskDetail;
-  highlighted: boolean;
 }) {
   return (
-    <InspectorCard title="Context" icon={<FileSearch className="w-4 h-4" />} highlighted={highlighted}>
+    <InspectorCard title="Context" icon={<FileSearch className="w-4 h-4" />}>
       <div className="space-y-4">
         <div>
           <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Reads from</p>
@@ -326,9 +307,15 @@ function ContextCard({
         {task.run_log && (
           <div>
             <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Recent run log</p>
-            <pre className="max-h-[220px] overflow-auto rounded-xl border border-border bg-muted/20 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
-              {task.run_log}
-            </pre>
+            <details className="group rounded-xl border border-border bg-muted/20">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium text-muted-foreground">
+                <span>Open run log</span>
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+              </summary>
+              <pre className="max-h-[220px] overflow-auto border-t border-border/70 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
+                {task.run_log}
+              </pre>
+            </details>
           </div>
         )}
       </div>
@@ -344,7 +331,6 @@ function RunsCard({
   onRunNow,
   onToggleStatus,
   busy,
-  highlighted,
 }: {
   task: TaskDetail;
   outputs: TaskOutput[];
@@ -353,12 +339,11 @@ function RunsCard({
   onRunNow: () => void;
   onToggleStatus: () => void;
   busy: boolean;
-  highlighted: boolean;
 }) {
   const isActive = task.status === 'active';
 
   return (
-    <InspectorCard title="Runs" icon={<Clock className="w-4 h-4" />} highlighted={highlighted}>
+    <InspectorCard title="Runs" icon={<Clock className="w-4 h-4" />}>
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
           <button
@@ -467,7 +452,6 @@ function OutputPane({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Current output</p>
-            <h1 className="mt-1 text-xl font-semibold">{task.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span className="rounded-full bg-muted px-2 py-0.5">
                 {output.date || selectedFolder || 'Latest run'}
@@ -514,7 +498,6 @@ function TaskWorkspace({
   output,
   deliverableMd,
   outputs,
-  highlightedSection,
   onSelectOutput,
   onRunNow,
   onToggleStatus,
@@ -524,7 +507,6 @@ function TaskWorkspace({
   output: TaskOutput | null;
   deliverableMd: string | null;
   outputs: TaskOutput[];
-  highlightedSection: TaskSection;
   onSelectOutput: (output: TaskOutput) => void;
   onRunNow: () => void;
   onToggleStatus: () => void;
@@ -541,8 +523,8 @@ function TaskWorkspace({
       <aside className="w-full shrink-0 overflow-y-auto bg-muted/10 lg:w-[380px]">
         <div className="space-y-4 p-4">
           <TaskMetaCard task={task} />
-          <DeliverableCard task={task} deliverableMd={deliverableMd} highlighted={highlightedSection === 'deliverable'} />
-          <ContextCard task={task} highlighted={highlightedSection === 'context'} />
+          <DeliverableCard task={task} deliverableMd={deliverableMd} />
+          <ContextCard task={task} />
           <RunsCard
             task={task}
             outputs={outputs}
@@ -551,7 +533,6 @@ function TaskWorkspace({
             onRunNow={onRunNow}
             onToggleStatus={onToggleStatus}
             busy={busy}
-            highlighted={highlightedSection === 'runs'}
           />
         </div>
       </aside>
@@ -804,7 +785,6 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const slug = params?.slug as string;
   const { loadScopedHistory } = useTP();
 
@@ -816,16 +796,13 @@ export default function TaskPage() {
   const [error, setError] = useState<string | null>(null);
   const [mutationPending, setMutationPending] = useState(false);
 
-  const selectedFolderParam = searchParams?.get('folder');
-  const highlightedSection = normalizeSection(searchParams?.get('section'));
-
   const refreshData = useCallback(async () => {
     if (!slug) return;
     try {
       const [taskData, outputsData, outputData, deliverableFile] = await Promise.all([
         api.tasks.get(slug),
         api.tasks.listOutputs(slug, 10),
-        selectedFolderParam ? api.tasks.getOutput(slug, selectedFolderParam) : api.tasks.getLatestOutput(slug),
+        api.tasks.getLatestOutput(slug),
         api.workspace.getFile(`/tasks/${slug}/DELIVERABLE.md`).catch(() => null),
       ]);
 
@@ -836,12 +813,7 @@ export default function TaskPage() {
     } catch (err) {
       console.error('Failed to refresh task workspace:', err);
     }
-  }, [selectedFolderParam, slug]);
-
-  const replaceRoute = useCallback((options: { folder?: string | null; section?: TaskSection | null }) => {
-    if (!slug) return;
-    router.replace(buildTaskRoute(slug, options), { scroll: false });
-  }, [router, slug]);
+  }, [slug]);
 
   useEffect(() => {
     if (slug) {
@@ -859,7 +831,7 @@ export default function TaskPage() {
     Promise.all([
       api.tasks.get(slug).catch(() => null),
       api.tasks.listOutputs(slug, 10).catch(() => ({ outputs: [], total: 0 })),
-      selectedFolderParam ? api.tasks.getOutput(slug, selectedFolderParam).catch(() => null) : api.tasks.getLatestOutput(slug).catch(() => null),
+      api.tasks.getLatestOutput(slug).catch(() => null),
       api.workspace.getFile(`/tasks/${slug}/DELIVERABLE.md`).catch(() => null),
     ])
       .then(([taskData, outputsData, outputData, deliverableFile]) => {
@@ -886,7 +858,7 @@ export default function TaskPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedFolderParam, slug]);
+  }, [slug]);
 
   useEffect(() => {
     if (!slug || loading) return;
@@ -912,11 +884,10 @@ export default function TaskPage() {
       return;
     }
 
-    replaceRoute({ folder, section: null });
     api.tasks.getOutput(slug, folder)
       .then((full) => setSelectedOutput(full || entry))
       .catch(() => setSelectedOutput(entry));
-  }, [replaceRoute, slug]);
+  }, [slug]);
 
   const handleRunNow = useCallback(async () => {
     if (!slug) return;
@@ -1006,7 +977,6 @@ export default function TaskPage() {
         output={selectedOutput}
         deliverableMd={deliverableMd}
         outputs={outputs}
-        highlightedSection={highlightedSection}
         onSelectOutput={handleSelectOutput}
         onRunNow={handleRunNow}
         onToggleStatus={handleToggleStatus}

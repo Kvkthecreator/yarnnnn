@@ -55,19 +55,16 @@ yarnnn
 - Context domains are relabeled from key → display name in the explorer
 - Left panel collapse/expand behavior is unchanged from the prior workfloor shell
 
-### Task launch behavior
+### Task folder behavior
 
-Task nodes are visible inside the explorer as filesystem context, but the task
-surface is still an app, not a raw browser:
+`/tasks` is treated like any other directory in the explorer:
 
-- Click `/tasks/{slug}` → launch `/tasks/{slug}`
-- Click task outputs → launch `/tasks/{slug}?folder={date_folder}`
-- Click `DELIVERABLE.md` → launch `/tasks/{slug}?section=deliverable`
-- Click `TASK.md` / `awareness.md` → launch `/tasks/{slug}?section=context`
+- Click a task folder → open that folder in the main panel
+- Click task files like `TASK.md`, `DELIVERABLE.md`, or output artifacts → preview those files inline
+- Task files are not special launch targets inside Workfloor
 
-This preserves one consistent split:
-- Workfloor = Explorer/Finder
-- Task page = opened task application
+This preserves one consistent rule:
+- Workfloor = Explorer/Finder for all surfaced files and folders
 
 ---
 
@@ -125,8 +122,8 @@ interface NavigationContext {
 | `/explorer` root | "User at explorer root" | Workspace overview, task suggestions |
 | `/explorer/domains` | "Browsing context domains" | Domain health, create tracking task |
 | `/workspace/context/competitors/anthropic/profile.md` | "Viewing Anthropic profile" | Update entity, research, compare |
-| `/tasks/track-competitors` | "Launching task app" | Run, steer, review output |
-| `/tasks/track-competitors/outputs/.../output.html` | "Launching task app on a specific run" | Evaluate, repurpose, export |
+| `/tasks/track-competitors` | "Viewing a task folder" | Browse task artifacts, inspect outputs |
+| `/tasks/track-competitors/outputs/.../output.html` | "Viewing a task output file" | Evaluate, repurpose, export |
 | `/workspace/IDENTITY.md` | "Viewing identity" | Update identity, inference |
 
 ### Prompt Injection
