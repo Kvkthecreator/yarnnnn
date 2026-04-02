@@ -590,6 +590,13 @@ export const api = {
         settings: Array<{
           name: string; filename: string; path: string; updated_at: string | null;
         }>;
+        readiness: {
+          identity: 'empty' | 'sparse' | 'rich';
+          inference_state: 'empty' | 'scaffolded' | 'validated';
+          has_domains: boolean;
+          has_tasks: boolean;
+          phase: 'setup' | 'scaffolded' | 'active';
+        };
       }>(`/api/workspace/nav`),
 
     // ADR-154: Domain entity listing for domain browser view

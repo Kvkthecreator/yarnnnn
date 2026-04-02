@@ -285,13 +285,13 @@ export default function TaskSurface() {
               <ListChecks className="w-10 h-10 text-muted-foreground/15 mx-auto mb-3" />
               <h2 className="text-lg font-medium mb-1">No tasks yet</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Tell TP what work you need done — "track my competitors" or "weekly market brief."
+                Set up your workspace first, then create tasks to automate your intelligence work.
               </p>
               <button
-                onClick={() => setChatOpen(true)}
+                onClick={() => router.push('/context')}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                Get started
+                Set up workspace
               </button>
             </div>
           </div>
