@@ -4,7 +4,7 @@ slug: the-agent-operating-system-is-a-filesystem
 description: "If individual agents store intelligence as files, what happens when you extend that pattern to shared knowledge across agents? The result looks less like a database and more like an operating system."
 metaTitle: "Filesystem Architecture for Persistent AI Agent Memory (Part 2)"
 metaDescription: "Persistent AI agent systems work better when structured like filesystems: agents act like processes, private memory lives in workspaces, and shared knowledge lives in navigable directories."
-category: opinion
+category: how-it-works
 format: reflection
 date: 2026-03-11
 author: kvk

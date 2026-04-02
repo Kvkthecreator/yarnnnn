@@ -2,7 +2,7 @@
 title: "Cloud Agents Are the Beginning, Not the Point"
 slug: cloud-agents-are-the-beginning-not-the-point
 description: "Everyone's arguing about where agents should run — local vs cloud. The real question isn't where. It's what happens after they're running."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-20
 author: kvk

@@ -2,7 +2,7 @@
 title: "Citrini's 2028 Crisis: A Builder's Response to AI Doomerism"
 slug: citrini-2028-crisis-a-builders-response
 description: "Citrini Research's viral '2028 Global Intelligence Crisis' spooked markets and predicted mass AI displacement. As someone actually building AI agents, here's what the doomer scenario gets wrong — and what it accidentally gets right."
-category: opinion
+category: what-were-seeing
 format: hot-take
 date: 2026-03-04
 author: kvk

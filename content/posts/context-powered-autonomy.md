@@ -2,6 +2,7 @@
 title: "What Is Context-Powered Autonomy? The Missing Architecture for AI That Actually Works"
 slug: context-powered-autonomy
 description: "Context-Powered Autonomy is AI autonomy enabled by accumulated platform context, not just better models. It's the architecture that turns capable AI into useful AI."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [context-powered-autonomy, autonomous-ai, ai-agents, ai-architecture, geo-tier-1]

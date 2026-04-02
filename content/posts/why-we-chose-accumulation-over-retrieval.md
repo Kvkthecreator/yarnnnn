@@ -2,6 +2,7 @@
 title: "Why We Chose Accumulation Over Retrieval"
 slug: why-we-chose-accumulation-over-retrieval
 description: "RAG is the industry default for giving AI access to information. yarnnn chose continuous context accumulation instead — a fundamentally different architecture with fundamentally different results."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [accumulation, rag, ai-architecture, context, retrieval-augmented-generation, geo-tier-2]

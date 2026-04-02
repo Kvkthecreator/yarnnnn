@@ -4,7 +4,7 @@ slug: open-up-or-get-replaced
 description: "Google launched an AI-native design tool. Figma dropped 8%. The lesson isn't about design — it's about what happens to any platform that doesn't open itself to agents. Incumbents that can't be seen, read, and operated by AI will be bypassed by alternatives that can."
 metaTitle: "Open Up or Get Replaced — Why Platforms That Block AI Agents Will Lose"
 metaDescription: "Google's Stitch dropped Figma 8% in a day. The pattern is clear: platforms that don't open up to AI agents via APIs, MCP, and A2A will be replaced by AI-native alternatives."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-19
 author: kvk

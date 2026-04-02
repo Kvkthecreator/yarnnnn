@@ -2,6 +2,7 @@
 title: "The Personalization Trap"
 slug: the-personalization-trap
 description: "The AI category is converging on 'personalization' as the answer to generic output. But there's a meaningful difference between AI that customizes its responses and AI that produces autonomous work. The industry is conflating two very different things."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [personalization, production, autonomy, ai-agents, context, work-agents, geo-tier-1]

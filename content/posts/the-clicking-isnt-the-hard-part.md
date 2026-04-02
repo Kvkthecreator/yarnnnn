@@ -2,7 +2,7 @@
 title: "The Clicking Isn't the Hard Part"
 slug: the-clicking-isnt-the-hard-part
 description: "Claude can now control your computer — opening apps, navigating browsers, filling spreadsheets. It's a genuine breakthrough in the interface layer. But the hard part of knowledge work was never the clicking. It was always the knowing."
-category: opinion
+category: how-it-works
 format: reflection
 date: 2026-03-24
 author: kvk

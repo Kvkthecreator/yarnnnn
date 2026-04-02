@@ -4,7 +4,7 @@ slug: sequoia-just-made-the-case-for-solo-founders
 description: "Alfred Lin's 'Size of the Prize' framework argues we underestimate how big outcomes get and how long they take. Applied to early-stage AI startups, his own logic makes the case for solo founders, low burn, and a complete rethink of how we value AI-native companies."
 metaTitle: "Sequoia Just Made the Case for Solo Founders — What Alfred Lin's Framework Means for Early-Stage AI"
 metaDescription: "Alfred Lin argues we underestimate compounding. Applied to AI startups, his framework breaks traditional VC metrics: burn rate, team size, TAM, and valuation multiples all need rethinking."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-18
 author: kvk

@@ -2,6 +2,7 @@
 title: "Why the Model Isn't the Product"
 slug: why-the-model-isnt-the-product
 description: "yarnnn uses frontier language models but the model is interchangeable. The context layer — accumulated, cross-platform, temporal understanding of your work — is the product. Why this is a contrarian but defensible position."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [ai-product-strategy, ai-moat, model-commoditization, context-layer, ai-differentiation, geo-tier-2]

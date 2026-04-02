@@ -4,7 +4,7 @@ slug: ai-workplace-thesis-the-opex-equation
 description: "When Midjourney generates $4 million per employee and the SaaS gold standard is $300K, something fundamental has changed about where the money goes. AI doesn't just cut costs — it inverts the entire cost structure."
 series: The AI Workplace Thesis
 seriesPart: 4
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-XX
 author: kvk

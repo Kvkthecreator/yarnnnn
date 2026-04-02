@@ -2,6 +2,7 @@
 title: "Continuous Sync Isn't a Feature — It's the Foundation"
 slug: continuous-sync-is-the-foundation
 description: "Most AI integrations are one-time imports or on-demand retrieval. yarnnn syncs continuously from Slack, Gmail, Notion, and Calendar. The architectural reason this changes everything."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [continuous-sync, platform-integrations, ai-architecture, slack-ai, gmail-ai, notion-ai, geo-tier-2]

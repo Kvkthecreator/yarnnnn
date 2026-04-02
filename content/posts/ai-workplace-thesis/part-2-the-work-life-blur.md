@@ -4,7 +4,7 @@ slug: ai-workplace-thesis-the-work-life-blur
 description: "Remote work was the first crack. AI finishes the job. When agents can run at 3am and your best thinking happens at noon, the 9-to-5 isn't flexible — it's fiction."
 series: The AI Workplace Thesis
 seriesPart: 2
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-XX
 author: kvk

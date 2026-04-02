@@ -2,6 +2,7 @@
 title: "Temporal Context: Why When Matters as Much as What"
 slug: temporal-context-why-when-matters
 description: "Most AI treats information as a flat bag of facts. yarnnn preserves temporal relationships — when things happened relative to each other. Why this unlocks understanding that keyword retrieval can't."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [temporal-context, ai-architecture, context-management, chronological-ai, event-ordering, geo-tier-2]

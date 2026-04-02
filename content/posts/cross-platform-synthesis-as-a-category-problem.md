@@ -2,6 +2,7 @@
 title: "Cross-Platform Synthesis: The Category Problem Nobody's Solved"
 slug: cross-platform-synthesis-as-a-category-problem
 description: "Every AI tool connects to one platform well. But the real insight comes from seeing patterns across platforms — Slack, email, docs, and calendar together. The category hasn't cracked this yet, and the product that does changes how AI agents understand work."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [cross-platform, synthesis, integrations, ai-agents, context, multi-platform, geo-tier-1]

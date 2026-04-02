@@ -2,7 +2,7 @@
 title: "AI Agent Protocols Are Converging. The Most Important Layer Is Still Missing."
 slug: agent-protocol-stack-the-missing-layer
 description: "MCP standardizes how agents talk to tools. A2A standardizes how agents talk to each other. But no protocol exists for how agents transfer understanding — accumulated context, inferred intent, structured knowledge. That's the layer that actually matters."
-category: opinion
+category: how-it-works
 format: series
 date: 2026-03-16
 author: kvk

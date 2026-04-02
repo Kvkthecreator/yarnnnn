@@ -2,7 +2,7 @@
 title: "The AI Workplace Thesis, Part 4: The OpEx Equation"
 slug: ai-workplace-thesis-the-opex-equation
 description: "When Midjourney generates $4 million per employee and the SaaS gold standard is $300K, the cost structure of organizations isn't changing incrementally. It's inverting."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-06
 author: kvk

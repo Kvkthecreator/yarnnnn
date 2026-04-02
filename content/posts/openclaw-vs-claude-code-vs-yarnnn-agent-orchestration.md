@@ -2,7 +2,7 @@
 title: "OpenClaw vs Claude Code vs YARNNN: Three Models of Agent Orchestration"
 slug: openclaw-vs-claude-code-vs-yarnnn-agent-orchestration
 description: "Claude Code treats AI as a tool. OpenClaw treats it as a colleague. YARNNN treats it as a network of sleeping specialists. Here's why the architecture you choose determines whether your AI actually gets smarter."
-category: opinion
+category: how-it-works
 format: essay
 date: 2026-03-04
 author: kvk

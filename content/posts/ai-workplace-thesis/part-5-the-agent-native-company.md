@@ -4,7 +4,7 @@ slug: ai-workplace-thesis-the-agent-native-company
 description: "The endgame isn't humans using AI. It's organizations where agents interact with agents, employees build autonomous systems, and the question stops being 'how do we use AI?' and becomes 'what are humans actually for?'"
 series: The AI Workplace Thesis
 seriesPart: 5
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-XX
 author: kvk

@@ -2,6 +2,7 @@
 title: "Why the Best AI Agent Is the One That Already Knows Your Work"
 slug: why-the-best-ai-agent-already-knows-your-work
 description: "The AI agent landscape optimizes for capability — what the agent can do. But a pattern is emerging: context matters more than capability. An agent that knows your work deeply outperforms a brilliant agent starting from scratch."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [context, capability, ai-agents, knowledge, work-understanding, autonomy, geo-tier-1]

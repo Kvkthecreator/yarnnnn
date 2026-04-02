@@ -2,6 +2,7 @@
 title: "Context vs. Memory: Why AI That Remembers Your Name Still Can't Do Your Work"
 slug: context-vs-memory
 description: "Memory stores facts. Context is the accumulated, cross-platform understanding of your work world. The distinction determines what AI can autonomously produce."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [context-vs-memory, ai-memory, chatgpt-memory, persistent-ai, geo-tier-1]

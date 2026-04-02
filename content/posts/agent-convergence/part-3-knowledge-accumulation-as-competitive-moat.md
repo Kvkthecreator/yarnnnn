@@ -2,7 +2,7 @@
 title: "The Agent Convergence, Part 3: Knowledge Accumulation as Competitive Moat"
 slug: agent-convergence-knowledge-accumulation-as-competitive-moat
 description: "Models get cheaper. UI gets copied. Distribution gets competed away. The only durable advantage in the agent era is what your agents know — and whether that knowledge compounds."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-10
 author: kvk

@@ -4,7 +4,7 @@ slug: the-budget-everyones-watching-is-the-wrong-budget
 description: "Wall Street is tracking AI eating SaaS budgets. But software-to-software reallocation is the surface story. The real disruption is AI agents replacing the labor that produces recurring knowledge work — and that's an HR/OpEx budget, not an IT budget."
 metaTitle: "The Budget Everyone's Watching Is the Wrong Budget — AI Disrupts Labor, Not Software"
 metaDescription: "OpenAI and Anthropic hit $44B ARR from SaaS budgets. But the real disruption isn't software reallocation — it's AI agents replacing knowledge work labor. The budget to watch is payroll, not IT."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-19
 author: kvk

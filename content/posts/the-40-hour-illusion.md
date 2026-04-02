@@ -2,7 +2,7 @@
 title: "The AI Workplace Thesis, Part 1: The 40-Hour Illusion"
 slug: the-40-hour-illusion
 description: "The 40-hour work week was designed for factory floors. AI doesn't just challenge it — it exposes how little we've updated our assumptions about what productive work actually looks like."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-05
 author: kvk

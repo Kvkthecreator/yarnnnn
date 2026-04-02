@@ -4,7 +4,7 @@ slug: agents-dont-kill-software-they-need-transparent-software
 description: "Jensen Huang says markets got it wrong — AI agents won't kill SaaS, they'll use it. He's right, but incomplete. Agents will gravitate toward transparent systems with open APIs and cross-platform context. The software that dies isn't all software. It's opaque software."
 metaTitle: "Why AI Agents Need Transparent Software — Not Less Software"
 metaDescription: "Jensen Huang says AI agents won't kill SaaS. He's right but incomplete. Agents gravitate toward transparent systems with open APIs and cross-platform context. The SaaSpocalypse is misdirected."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-13
 author: kvk

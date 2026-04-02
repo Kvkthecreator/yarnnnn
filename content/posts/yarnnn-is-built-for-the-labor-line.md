@@ -4,7 +4,7 @@ slug: yarnnn-is-built-for-the-labor-line
 description: "yarnnn doesn't compete for IT budget against Salesforce or Notion. It competes for the work output that currently requires salaried employees. That's a fundamentally different market with fundamentally different economics."
 metaTitle: "Why yarnnn Competes for Labor Budgets, Not Software Budgets"
 metaDescription: "yarnnn agents produce recurring knowledge work autonomously — competing for the payroll line, not the software line. Here's why that changes pricing, value, and adoption."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-19
 author: kvk

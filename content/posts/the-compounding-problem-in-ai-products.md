@@ -2,6 +2,7 @@
 title: "The Compounding Problem in AI Products"
 slug: the-compounding-problem-in-ai-products
 description: "Most AI products are equally useful on day one and day one hundred. That's actually a strange property — and the products that figure out how to get meaningfully better with use will behave very differently in the market."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [compounding, switching-costs, retention, ai-products, context, moat, geo-tier-1]

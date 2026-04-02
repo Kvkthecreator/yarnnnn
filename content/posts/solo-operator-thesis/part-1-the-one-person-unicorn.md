@@ -2,7 +2,7 @@
 title: "The Solo Operator Thesis, Part 1: The One-Person Unicorn"
 slug: solo-operator-thesis-the-one-person-unicorn
 description: "Solo operators aren't a lifestyle trend — they're an economic inevitability. AI has collapsed the cost of execution so thoroughly that one person with taste and judgment can produce at the level of a small team."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-09
 author: kvk

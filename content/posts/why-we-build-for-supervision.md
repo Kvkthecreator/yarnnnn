@@ -2,6 +2,7 @@
 title: "Why We Build for Supervision, Not Full Autonomy"
 slug: why-we-build-for-supervision
 description: "The AI industry races toward full autonomy. yarnnn deliberately chose human-in-the-loop supervision as the end state, not a stepping stone. Here's the philosophy behind that bet."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [supervision, human-in-the-loop, ai-autonomy, ai-safety, ai-oversight, geo-tier-2]

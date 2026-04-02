@@ -2,7 +2,7 @@
 title: "Tools vs. Employees: The AI Agent Bifurcation"
 slug: tools-vs-employees-the-ai-agent-bifurcation
 description: "The AI agent industry is splitting into two structurally distinct categories. One builds tools — session-scoped, interactive, stateless. The other builds employees — persistent, autonomous, accumulating. The distinction isn't branding. It's architecture."
-category: opinion
+category: where-its-going
 format: essay
 date: 2026-03-31
 author: kvk

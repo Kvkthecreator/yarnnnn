@@ -48,7 +48,7 @@ The system is designed so discoverability packaging is mostly automatic:
 | `metaTitle` | SEO title override without changing on-page title |
 | `metaDescription` | SEO description override |
 | `tags` | Keywords + related-post scoring |
-| `category` | `core` or `opinion` |
+| `category` | Reader-facing taxonomy: `how-it-works`, `where-its-going`, or `what-were-seeing` |
 | `author` | Byline + schema author |
 | `concept` | Related-post scoring signal |
 | `series` | Enables series navigation |
@@ -83,6 +83,12 @@ The system is designed so discoverability packaging is mostly automatic:
   - same series: +6
   - same concept: +4
   - same category: +2
+
+### Category guidance
+
+- `how-it-works`: explanatory posts about how the product, architecture, or AI-work mechanics function
+- `where-its-going`: forward-looking essays about the future of work, organizations, and economic change
+- `what-were-seeing`: timely commentary on current events, product launches, company moves, or market signals
   - shared tags: +2 each (capped)
 
 ---

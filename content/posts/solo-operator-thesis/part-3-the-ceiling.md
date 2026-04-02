@@ -2,7 +2,7 @@
 title: "The Solo Operator Thesis, Part 3: The Ceiling"
 slug: solo-operator-thesis-the-ceiling
 description: "Solo operators hit real ceilings — in sales, trust, compliance, and psychology. The honest version of the thesis has to name where it breaks, not just where it works."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-09
 author: kvk

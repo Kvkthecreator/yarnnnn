@@ -2,7 +2,7 @@
 title: "Why Every AI Agent Is Becoming a File System, Part 2: The Agent Operating System"
 slug: the-agent-operating-system-is-a-filesystem
 description: "If individual agents store intelligence as files, what happens when you extend that pattern to shared knowledge across agents? The result looks less like a database and more like an operating system — and the implications change how we think about agent infrastructure entirely."
-category: opinion
+category: how-it-works
 format: reflection
 date: 2026-03-11
 author: kvk

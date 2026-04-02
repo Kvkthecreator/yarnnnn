@@ -2,6 +2,7 @@
 title: "The Accumulation Thesis: Why the Future of AI Context Isn't Retrieval"
 slug: the-accumulation-thesis
 description: "The AI industry's default approach to context is retrieval — search for relevant information when the user asks. But a different pattern is emerging: continuous accumulation. The distinction might define the next era of AI agents."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [accumulation, retrieval, rag, ai-architecture, context, ai-agents, geo-tier-1]

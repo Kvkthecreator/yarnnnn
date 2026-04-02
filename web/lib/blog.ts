@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
 import readingTime from "reading-time";
+import { BlogCategory, normalizeBlogCategory } from "@/lib/blog-categories";
 import { BRAND } from "@/lib/metadata";
 
 const postsDirectory = path.join(process.cwd(), "..", "content", "posts");
@@ -13,7 +14,7 @@ export interface BlogPost {
   description: string;
   date: string;
   author: string;
-  category: "core" | "opinion";
+  category: BlogCategory;
   tags: string[];
   concept?: string;
   series?: string;
@@ -78,7 +79,7 @@ export function getPostBySlug(slug: string): BlogPost | null {
     description: data.description || "",
     date: data.date,
     author: data.author || "yarnnn",
-    category: data.category === "opinion" ? "opinion" : "core",
+    category: normalizeBlogCategory(data.category),
     tags: data.tags || [],
     concept: data.concept,
     series: data.series,
@@ -120,7 +121,7 @@ export function getAllPosts(): BlogPostMeta[] {
         description: data.description || "",
         date: data.date,
         author: data.author || "yarnnn",
-        category: (data.category === "opinion" ? "opinion" : "core") as BlogPost["category"],
+        category: normalizeBlogCategory(data.category),
         tags: data.tags || [],
         concept: data.concept,
         series: data.series,

@@ -2,6 +2,7 @@
 title: "The Statelessness Problem: Why ChatGPT Forgets Everything"
 slug: the-statelessness-problem
 description: "Every AI tool forgets everything between sessions. The real bottleneck in AI productivity isn't model capability — it's that your tools start from zero every time."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [statelessness-problem, ai-memory, chatgpt, persistent-ai, geo-tier-1]

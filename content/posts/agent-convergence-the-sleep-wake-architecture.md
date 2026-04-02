@@ -2,7 +2,7 @@
 title: "The Agent Convergence, Part 2: The Sleep-Wake Architecture"
 slug: agent-convergence-the-sleep-wake-architecture
 description: "Session-based agents forget everything when you close the tab. Always-on agents burn compute watching nothing happen. The right architecture is neither — it's agents that sleep between executions and wake fully informed."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-10
 author: kvk

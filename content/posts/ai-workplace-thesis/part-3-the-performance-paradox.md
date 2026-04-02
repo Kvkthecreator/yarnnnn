@@ -4,7 +4,7 @@ slug: ai-workplace-thesis-the-performance-paradox
 description: "When AI can produce a hundred drafts in the time it takes you to write one, measuring output is meaningless. The question becomes: what are we actually paying humans to do?"
 series: The AI Workplace Thesis
 seriesPart: 3
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-XX
 author: kvk

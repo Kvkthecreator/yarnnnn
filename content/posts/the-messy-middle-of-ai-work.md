@@ -2,7 +2,7 @@
 title: "The Messy Middle of AI Work: Why the Future Isn't Tools or Full Autonomy"
 slug: the-messy-middle-of-ai-work
 description: "AI work is splitting into three eras — human-driven, human+AI, and agent-to-agent. Everyone's debating Era 1 vs Era 3. Almost nobody is building for the messy middle where we'll actually live for the next decade."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-04
 author: kvk

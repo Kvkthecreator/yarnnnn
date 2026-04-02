@@ -2,6 +2,7 @@
 title: "Why AI Agents Will Need to Earn Trust"
 slug: why-ai-agents-will-need-to-earn-trust
 description: "The AI agent category's current approach — full autonomy from day one — creates a trust problem that limits adoption. The pattern emerging instead is graduated autonomy, where agents earn scope over time through demonstrated competence."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [trust, supervision, autonomy, ai-agents, graduated-autonomy, human-in-the-loop, geo-tier-1]

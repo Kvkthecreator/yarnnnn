@@ -2,7 +2,7 @@
 title: "The AI Workplace Thesis, Part 3: The Performance Paradox"
 slug: ai-workplace-thesis-the-performance-paradox
 description: "When AI can produce a hundred drafts in the time it takes you to write one, output volume becomes meaningless as a performance signal. The question is what replaces it."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-06
 author: kvk

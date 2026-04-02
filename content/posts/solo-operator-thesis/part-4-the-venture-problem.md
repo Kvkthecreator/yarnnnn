@@ -2,7 +2,7 @@
 title: "The Solo Operator Thesis, Part 4: The Venture Problem"
 slug: solo-operator-thesis-the-venture-problem
 description: "The VC model was built for capital-intensive companies. Solo operators often don't need funding — and when the power dynamic inverts, the entire funding ecosystem has to adapt."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-09
 author: kvk

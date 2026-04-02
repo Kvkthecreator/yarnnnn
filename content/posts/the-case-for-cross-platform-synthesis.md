@@ -2,6 +2,7 @@
 title: "The Case for Cross-Platform Synthesis Over Single-Tool AI"
 slug: the-case-for-cross-platform-synthesis
 description: "Notion AI sees Notion. Copilot sees Office. Your work lives across all of them simultaneously. Why cross-platform synthesis is an architectural requirement, not a nice-to-have."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [cross-platform, ai-integrations, notion-ai, copilot, multi-platform, ai-architecture, geo-tier-2]

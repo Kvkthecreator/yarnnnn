@@ -2,6 +2,7 @@
 title: "The Autonomy Spectrum: Why Most AI Assists, Some AI Operates, and Almost None Actually Works for You"
 slug: the-autonomy-spectrum
 description: "There are three levels of AI autonomy — assistant, operator, and autonomous worker. Understanding where tools fall on this spectrum explains why most AI disappoints."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [autonomy-spectrum, ai-agents, autogpt, autonomous-ai, geo-tier-1]

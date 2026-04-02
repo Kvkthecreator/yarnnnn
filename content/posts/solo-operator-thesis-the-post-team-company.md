@@ -2,7 +2,7 @@
 title: "The Solo Operator Thesis, Part 5: The Post-Team Company"
 slug: solo-operator-thesis-the-post-team-company
 description: "The endgame isn't everyone working alone. It's the default team size dropping from 50 to 5. The company doesn't disappear — it becomes something lighter, more intentional, and radically more productive."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-09
 author: kvk

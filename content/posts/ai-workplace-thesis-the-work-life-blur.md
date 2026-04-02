@@ -2,7 +2,7 @@
 title: "The AI Workplace Thesis, Part 2: The Work-Life Blur"
 slug: ai-workplace-thesis-the-work-life-blur
 description: "Remote work cracked the 9-to-5. AI finishes the job. When agents run at 3am and your best thinking happens at noon, the question isn't where you work — it's whether 'work' and 'life' are still separate concepts."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-06
 author: kvk

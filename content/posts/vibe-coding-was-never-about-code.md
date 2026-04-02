@@ -4,7 +4,7 @@ slug: vibe-coding-was-never-about-code
 description: "What got dismissed as vibe coding is actually the first signal of a much larger shift: conversation becoming the primary creation interface for everything — not just software. The real story isn't that non-coders can code. It's that intent expressed through conversation is replacing specialized expertise as the bottleneck to creation."
 metaTitle: "Vibe Coding Was Never About Code — Why Conversational AI Changes Everything"
 metaDescription: "Vibe coding isn't a shortcut. It's the first sign that conversation with AI is becoming the universal creation layer — replacing specialized tools across every domain, not just software."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-18
 author: kvk

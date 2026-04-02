@@ -2,6 +2,7 @@
 title: "The Platform Layer Is Becoming the Product"
 slug: the-platform-layer-is-becoming-the-product
 description: "Model capabilities are commoditizing fast. The differentiation in AI products is shifting to what sits around the model — the context layer, the integrations, the accumulated understanding. This structural shift changes what it means to build an AI product."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [platform-layer, ai-products, commoditization, context, model-capabilities, geo-tier-1]

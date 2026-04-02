@@ -8,6 +8,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ThemeShaderBackground } from "@/components/landing/ThemeShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getPostBySlug, getPostSlugs, getRelatedPosts, getSeriesPosts } from "@/lib/blog";
+import { getBlogCategoryLabel } from "@/lib/blog-categories";
 import { BRAND } from "@/lib/metadata";
 
 interface BlogPostPageProps {
@@ -15,7 +16,9 @@ interface BlogPostPageProps {
 }
 
 function getDisplayAuthor(author: string): string {
-  return author === "kvk" ? "Kevin Kim" : author;
+  if (author === "kvk") return "Kevin Kim";
+  if (author === "yarnnn") return "yarnnn";
+  return author;
 }
 
 function cleanHeadingText(value: string): string {
@@ -48,12 +51,13 @@ export function generateMetadata({ params }: BlogPostPageProps): Metadata {
   if (!post) return {};
   const authorName = getDisplayAuthor(post.author);
   const metadataTitle = post.metaTitle || post.title;
+  const categoryLabel = getBlogCategoryLabel(post.category);
 
   return {
     title: metadataTitle,
     description: post.metaDescription,
     keywords: post.tags,
-    category: post.category === "opinion" ? "Opinion" : "Core",
+    category: categoryLabel,
     authors: [{ name: authorName }],
     robots: {
       index: true,
@@ -93,6 +97,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
   const post = getPostBySlug(params.slug);
   if (!post) notFound();
   const authorName = getDisplayAuthor(post.author);
+  const categoryLabel = getBlogCategoryLabel(post.category);
   const sectionHeadings = extractSectionHeadings(post.content);
   const relatedPosts = getRelatedPosts(post.slug, 3);
   const seriesPosts = post.series ? getSeriesPosts(post.series) : [];
@@ -109,7 +114,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
     inLanguage: "en-US",
     image: [post.imageUrl],
     keywords: post.tags.join(", "),
-    articleSection: post.category === "opinion" ? "Opinion" : "Core",
+    articleSection: categoryLabel,
     about: post.tags.map((tag) => ({
       "@type": "Thing",
       name: tag,
@@ -124,7 +129,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
         }
       : undefined,
     author:
-      post.category === "opinion"
+      post.author === "kvk"
         ? {
             "@type": "Person",
             name: authorName,
@@ -203,12 +208,10 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                 </time>
                 <span>&middot;</span>
                 <span>{post.readingTime}</span>
-                {post.category === "opinion" && (
-                  <>
-                    <span>&middot;</span>
-                    <span>{authorName}</span>
-                  </>
-                )}
+                <span>&middot;</span>
+                <span>{categoryLabel}</span>
+                <span>&middot;</span>
+                <span>{authorName}</span>
               </div>
             </header>
 

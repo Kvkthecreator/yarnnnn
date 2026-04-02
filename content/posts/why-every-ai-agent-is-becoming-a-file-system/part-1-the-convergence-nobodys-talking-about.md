@@ -2,7 +2,7 @@
 title: "Why Every AI Agent Is Quietly Becoming a File System, Part 1: The Convergence Nobody's Talking About"
 slug: why-every-ai-agent-is-becoming-a-file-system
 description: "Claude Code stores context in CLAUDE.md. OpenClaw stores identity in SOUL.md. Google's A2A protocol describes agents as JSON cards. Quietly, the entire AI agent industry is converging on the oldest abstraction in computing — files in directories — as the universal interface for agent intelligence."
-category: opinion
+category: how-it-works
 format: reflection
 date: 2026-03-11
 author: kvk

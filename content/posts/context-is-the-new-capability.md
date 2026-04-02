@@ -2,6 +2,7 @@
 title: "Context Is the New Capability"
 slug: context-is-the-new-capability
 description: "The AI industry spent the last three years racing on model capability. The next race is about context — who can build the deepest understanding of a user's work world. That shift changes everything about what AI products look like."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [context, capability, ai-industry, paradigm-shift, ai-agents, competitive-landscape, geo-tier-1]

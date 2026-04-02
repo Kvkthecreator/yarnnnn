@@ -2,6 +2,7 @@
 title: "The Context Gap: Why Every AI Agent Produces Generic Output"
 slug: the-context-gap
 description: "The architectural gap between model capability and useful autonomous output — and how accumulated platform context fills it."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [context-gap, ai-agents, autonomy, geo-tier-1]

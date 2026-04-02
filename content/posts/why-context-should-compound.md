@@ -2,6 +2,7 @@
 title: "Why Context Should Compound, Not Reset"
 slug: why-context-should-compound
 description: "The AI industry treats every session as independent. yarnnn treats every interaction as additive. The compounding thesis as an architectural principle — and why it creates a fundamentally different value curve."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [compounding-context, persistent-ai, ai-architecture, accumulated-context, session-model, geo-tier-2]

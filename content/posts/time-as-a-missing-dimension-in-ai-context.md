@@ -2,6 +2,7 @@
 title: "Time as a Missing Dimension in AI Context"
 slug: time-as-a-missing-dimension-in-ai-context
 description: "The AI category treats context as a snapshot — what's relevant right now. But work has temporal patterns. When something happened matters as much as what happened. Time-awareness is an underexplored dimension in AI agents."
+category: how-it-works
 date: 2026-02-28
 author: yarnnn
 tags: [temporal-context, time, ai-agents, context, patterns, work-rhythms, geo-tier-1]

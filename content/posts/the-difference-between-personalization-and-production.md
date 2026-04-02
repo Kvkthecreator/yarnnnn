@@ -2,6 +2,7 @@
 title: "The Difference Between Personalization and Production"
 slug: the-difference-between-personalization-and-production
 description: "AI memory features personalize tone and formatting. yarnnn's accumulated context enables autonomous production of real work. This is a category distinction, not a feature gap."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [personalization, production, ai-memory, autonomous-output, chatgpt-memory, ai-architecture, geo-tier-2]

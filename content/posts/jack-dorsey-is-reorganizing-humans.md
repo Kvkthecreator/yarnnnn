@@ -2,7 +2,7 @@
 title: "Jack Dorsey Is Reorganizing Humans. The Real Shift Is When Agents Are the Workers."
 slug: jack-dorsey-is-reorganizing-humans
 description: "Jack Dorsey wants to replace middle management with AI coordination. But the deeper question isn't who coordinates the humans — it's what happens when AI agents are the primary workers and supervision becomes the actual job."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-04-02
 author: kvk

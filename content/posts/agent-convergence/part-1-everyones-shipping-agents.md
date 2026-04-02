@@ -2,7 +2,7 @@
 title: "The Agent Convergence, Part 1: Everyone's Shipping Agents — That's Not the Interesting Part"
 slug: agent-convergence-everyones-shipping-agents
 description: "Notion, Google, and Microsoft all shipped agents in the same week. The industry has converged on agents as the work abstraction. But convergence on the form doesn't mean convergence on the architecture — and the architecture is where it matters."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-10
 author: kvk

@@ -4,19 +4,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import type { BlogPostMeta } from "@/lib/blog";
+import {
+  BLOG_CATEGORIES,
+  getBlogCategoryLabel,
+  type BlogCategory,
+} from "@/lib/blog-categories";
 
 const TABS = [
   { key: "all", label: "All" },
-  { key: "core", label: "Core" },
-  { key: "opinion", label: "KVK Opinions" },
+  ...BLOG_CATEGORIES.map((category) => ({
+    key: category,
+    label: getBlogCategoryLabel(category),
+  })),
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
-
-function getDisplayAuthor(author: string): string {
-  if (author === "kvk") return "Kevin Kim";
-  return author.toUpperCase();
-}
 
 export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
@@ -24,7 +26,7 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
   const filtered =
     activeTab === "all"
       ? posts
-      : posts.filter((p) => p.category === activeTab);
+      : posts.filter((p) => p.category === activeTab as BlogCategory);
 
   return (
     <>
@@ -57,12 +59,10 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
                   </time>
                   <span>&middot;</span>
                   <span>{post.readingTime}</span>
-                  {post.category === "opinion" && (
-                    <>
-                      <span>&middot;</span>
-                      <span className="text-muted-foreground/70">Opinion</span>
-                    </>
-                  )}
+                  <span>&middot;</span>
+                  <span className="text-muted-foreground/70">
+                    {getBlogCategoryLabel(post.category)}
+                  </span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-medium group-hover:opacity-70 transition-colors mb-2">
                   {post.title}
@@ -70,11 +70,6 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
                 <p className="text-muted-foreground leading-relaxed">
                   {post.description}
                 </p>
-                {post.category === "opinion" && (
-                  <p className="text-sm text-muted-foreground/60 mt-2">
-                    {getDisplayAuthor(post.author)}
-                  </p>
-                )}
               </Link>
             </article>
           ))}

@@ -2,7 +2,7 @@
 title: "The Duality of Consciousness in the Age of AI"
 slug: the-duality-of-consciousness-in-the-age-of-ai
 description: "The greatest irony of artificial intelligence may be that building machines that reason forces us to confront what reasoning — and consciousness — actually means for humans."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-04
 author: kvk

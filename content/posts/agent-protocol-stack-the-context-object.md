@@ -2,7 +2,7 @@
 title: "The Context Object: A Git Commit for Agent Understanding"
 slug: agent-protocol-stack-the-context-object
 description: "The missing primitive in agent-to-agent communication isn't a better prompt or a bigger context window. It's a structured, versioned, portable unit of what an agent knows — a context object. Here's what it looks like and why it matters."
-category: opinion
+category: how-it-works
 format: series
 date: 2026-03-16
 author: kvk

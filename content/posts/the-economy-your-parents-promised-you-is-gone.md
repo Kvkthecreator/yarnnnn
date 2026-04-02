@@ -2,7 +2,7 @@
 title: "The Economy Your Parents Promised You Is Gone"
 slug: the-economy-your-parents-promised-you-is-gone
 description: "The playbook — degree, résumé, entry-level job, career ladder — was already cracking before AI. Now it's accelerating. The question isn't whether the old economy is coming back. It's what replaces it."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-04-02
 author: kvk

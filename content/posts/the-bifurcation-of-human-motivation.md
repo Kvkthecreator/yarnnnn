@@ -2,7 +2,7 @@
 title: "The Bifurcation of Human Motivation"
 slug: the-bifurcation-of-human-motivation
 description: "When AI handles the cognitive labor that defined careers, human motivation splits in two. Some people will amplify their ambition with AI tools. Others will pursue meaning outside of economic production entirely. Both paths are valid — and both are new."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-04-02
 author: kvk

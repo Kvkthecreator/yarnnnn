@@ -2,7 +2,7 @@
 title: "The Speciation Is Already Happening"
 slug: the-speciation-is-already-happening
 description: "LLMs are monolithic today — one model tries to do everything. But the jagged edges are showing. The domains nobody benchmarks are exactly where models fail hardest, and that's where speciation begins."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-27
 author: kvk

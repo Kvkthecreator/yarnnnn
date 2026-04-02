@@ -2,6 +2,7 @@
 title: "The Supervision Model: Why the Future of AI Isn't Better Prompts — It's Better Oversight"
 slug: the-supervision-model
 description: "The paradigm shift from operating AI (you do the work, AI assists) to supervising AI (AI produces, you review). Context is what makes this transition possible."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [supervision-model, human-in-the-loop, ai-agents, ai-oversight, geo-tier-1]

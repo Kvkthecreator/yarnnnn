@@ -4,7 +4,7 @@ slug: how-fast-can-software-die
 description: "Figma went from $20B acquisition target to existential crisis in 18 months. SaaS has no physical moat — no factories, no supply chains, nothing between the incumbent and the replacement except switching costs that AI is evaporating. But the disruption gradient isn't uniform across industries."
 metaTitle: "How Fast Can Software Die? — The Disruption Gradient from SaaS to the Physical World"
 metaDescription: "SaaS disruption happens faster than any other category because there's nothing physical protecting incumbents. Figma's 8% drop in a day shows the pattern. Here's where the wave goes next."
-category: opinion
+category: what-were-seeing
 format: reflection
 date: 2026-03-19
 author: kvk

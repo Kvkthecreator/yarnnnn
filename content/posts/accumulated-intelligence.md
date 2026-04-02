@@ -2,6 +2,7 @@
 title: "Accumulated Intelligence: What Happens When AI Actually Learns From Your Work"
 slug: accumulated-intelligence
 description: "Every sync cycle, every edit, every work-agent run deepens what the system knows. Accumulated intelligence is AI that gets smarter the longer you use it."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [accumulated-intelligence, compounding-ai, ai-that-learns, cross-platform-ai, geo-tier-1]

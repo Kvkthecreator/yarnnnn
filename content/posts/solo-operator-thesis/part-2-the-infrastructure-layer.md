@@ -2,7 +2,7 @@
 title: "The Solo Operator Thesis, Part 2: The Infrastructure Layer"
 slug: solo-operator-thesis-the-infrastructure-layer
 description: "Solo operators don't succeed through heroic effort. They succeed because an infrastructure layer has emerged that handles what teams used to handle. But the missing piece isn't another tool — it's context."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-03-09
 author: kvk

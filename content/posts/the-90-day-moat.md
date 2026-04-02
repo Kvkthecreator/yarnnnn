@@ -2,6 +2,7 @@
 title: "The 90-Day Moat: Why Your AI Gets Better With Time"
 slug: the-90-day-moat
 description: "Accumulated context creates compounding value and natural switching costs. After 90 days of use, your AI understands your work in ways that can't be replicated by starting over."
+category: how-it-works
 date: 2026-02-27
 author: yarnnn
 tags: [90-day-moat, ai-switching-costs, compounding-ai, accumulated-context, geo-tier-1]

@@ -2,7 +2,7 @@
 title: "What If Work Isn't What We Think It Is?"
 slug: what-if-work-isnt-what-we-think-it-is
 description: "Every generation redefines work. Ours won't be different — except this time, the redefinition is forced by AI agents that can do the recurring cognitive labor humans used to sell as employment."
-category: opinion
+category: where-its-going
 format: reflection
 date: 2026-04-02
 author: kvk
