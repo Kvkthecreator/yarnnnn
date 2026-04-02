@@ -363,10 +363,18 @@ async def update_inference_state(
 # Orchestrator
 # =============================================================================
 
+# Debounce: skip inference if it ran within this window (same chat turn)
+_DEBOUNCE_SECONDS = 60
+_last_inference: dict[str, float] = {}  # user_id → timestamp
+
+
 async def run_workspace_inference(client: Any, user_id: str) -> dict:
     """Full workspace inference pipeline: infer → scaffold → persist state.
 
     Called after UpdateContext(target="identity"|"brand") succeeds.
+    Debounced: skips if inference ran within 60s for same user (prevents
+    double inference when TP updates identity then brand in same turn).
+
     Reads all workspace-level files that may contain entity signals:
     - IDENTITY.md (primary — required, gates execution)
     - BRAND.md (supplementary — audience, positioning)
@@ -374,7 +382,16 @@ async def run_workspace_inference(client: Any, user_id: str) -> dict:
 
     Non-fatal: failure returns {"success": False} but never raises.
     """
+    import time
     from services.workspace import UserMemory
+
+    # Debounce: skip if inference ran within 60s for this user
+    now = time.time()
+    last = _last_inference.get(user_id, 0)
+    if now - last < _DEBOUNCE_SECONDS:
+        logger.info(f"[WORKSPACE_INFERENCE] Debounced — ran {now - last:.0f}s ago for user {user_id[:8]}")
+        return {"success": False, "reason": "debounced"}
+    _last_inference[user_id] = now
 
     try:
         um = UserMemory(client, user_id)

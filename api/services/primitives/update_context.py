@@ -244,7 +244,13 @@ async def _handle_memory(auth: Any, text: str) -> dict:
 
 
 async def _handle_awareness(auth: Any, text: str) -> dict:
-    """Direct write to AWARENESS.md — TP's situational notes. Full replacement."""
+    """Direct write to AWARENESS.md — TP's situational notes. Full replacement.
+
+    Preserves the ## Inference State section (ADR-155) if it exists —
+    TP's awareness notes are the user-facing content, inference state
+    is system-managed and must survive TP rewrites.
+    """
+    import re
     from services.workspace import UserMemory
 
     try:
@@ -254,6 +260,15 @@ async def _handle_awareness(auth: Any, text: str) -> dict:
         content = text.strip()
         if len(content) > 2000:
             content = content[:2000] + "\n\n(truncated — keep awareness notes concise)"
+
+        # ADR-155: Preserve ## Inference State section from prior content
+        existing = await um.read("AWARENESS.md") or ""
+        inference_match = re.search(r"\n## Inference State.*", existing, re.DOTALL)
+        if inference_match:
+            # Strip any inference state from TP's new content (shouldn't be there, but defensive)
+            content = re.sub(r"\n## Inference State.*", "", content, flags=re.DOTALL).rstrip()
+            # Re-append the preserved inference state
+            content = content + "\n" + inference_match.group(0)
 
         ok = await um.write("AWARENESS.md", content, summary="TP awareness updated")
         if not ok:
