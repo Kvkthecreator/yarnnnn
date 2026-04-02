@@ -34,6 +34,9 @@ interface NavData {
   uploads: Array<{
     name: string; path: string; updated_at: string | null;
   }>;
+  settings: Array<{
+    name: string; filename: string; path: string; updated_at: string | null;
+  }>;
 }
 
 interface WorkspaceNavProps {
@@ -41,7 +44,6 @@ interface WorkspaceNavProps {
   onSelectDomain: (domainKey: string) => void;
   onSelectFile: (path: string) => void;
   onCreateTask?: () => void;
-  onOpenSettings?: () => void;
   selectedItem?: string;
 }
 
@@ -50,7 +52,6 @@ export function WorkspaceNav({
   onSelectDomain,
   onSelectFile,
   onCreateTask,
-  onOpenSettings,
   selectedItem,
 }: WorkspaceNavProps) {
   const [nav, setNav] = useState<NavData | null>(null);
@@ -209,18 +210,28 @@ export function WorkspaceNav({
         )}
       </div>
 
-      {/* ── Settings ── */}
-      {onOpenSettings && (
-        <div className="border-t px-2 py-2">
-          <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs text-muted-foreground"
+        {/* ── Settings (user config files) ── */}
+        {nav.settings && nav.settings.length > 0 && (
+          <NavSection
+            title="Settings"
+            expanded={expanded.settings ?? false}
+            onToggle={() => toggle('settings')}
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span>Settings</span>
-          </button>
-        </div>
-      )}
+            {nav.settings.map(file => (
+              <button
+                key={file.path}
+                onClick={() => onSelectFile(file.path)}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-accent rounded-sm text-xs",
+                  selectedItem === file.path && "bg-accent"
+                )}
+              >
+                <Settings className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="truncate flex-1">{file.name}</span>
+              </button>
+            ))}
+          </NavSection>
+        )}
     </div>
   );
 }

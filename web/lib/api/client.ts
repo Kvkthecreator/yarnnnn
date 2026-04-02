@@ -590,6 +590,9 @@ export const api = {
         uploads: Array<{
           name: string; path: string; updated_at: string | null;
         }>;
+        settings: Array<{
+          name: string; filename: string; path: string; updated_at: string | null;
+        }>;
       }>(`/api/workspace/nav`),
 
     // ADR-154: Domain entity listing for domain browser view

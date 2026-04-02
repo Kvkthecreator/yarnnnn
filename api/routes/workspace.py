@@ -197,11 +197,44 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         except Exception:
             pass
 
+        # ── Settings (user config files at workspace root) ──
+        # These are user-visible and editable: Identity, Brand, Awareness, etc.
+        # System files (playbook-orchestration.md, WORKSPACE.md) are hidden.
+        SETTINGS_FILES = [
+            ("IDENTITY.md", "Identity"),
+            ("BRAND.md", "Brand"),
+            ("AWARENESS.md", "Awareness"),
+            ("notes.md", "Notes"),
+            ("preferences.md", "Preferences"),
+        ]
+        settings = []
+        for filename, label in SETTINGS_FILES:
+            path = f"/workspace/{filename}"
+            try:
+                check = (
+                    auth.client.table("workspace_files")
+                    .select("path, updated_at")
+                    .eq("user_id", auth.user_id)
+                    .eq("path", path)
+                    .limit(1)
+                    .execute()
+                )
+                if check.data:
+                    settings.append({
+                        "name": label,
+                        "filename": filename,
+                        "path": path,
+                        "updated_at": check.data[0].get("updated_at"),
+                    })
+            except Exception:
+                pass
+
         return {
             "tasks": tasks,
             "domains": domains,
             "outputs": outputs_sections,
             "uploads": uploads,
+            "settings": settings,
         }
 
     except Exception as e:

@@ -67,6 +67,22 @@ Everything the workspace "knows" — user identity, learned preferences, referen
     └── assets/                    # Cross-domain shared assets
 ```
 
+### Agent OS Visibility (ADR-154)
+
+The workfloor navigation (`GET /api/workspace/nav`) shows structured sections, not a raw file tree. Visibility rules:
+
+| File/Directory | Visible? | Where shown |
+|---|---|---|
+| Context domain entity files (`{entity}/profile.md`) | Yes | Domains section → entity cards |
+| Uploads (`/workspace/uploads/*`) | Yes | Uploads section |
+| Output categories (`/workspace/outputs/*`) | Yes | Outputs section |
+| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md, preferences.md | Yes | Settings section |
+| `_tracker.md`, `_landscape.md` (underscore-prefixed) | No | System infrastructure |
+| `playbook-orchestration.md`, `WORKSPACE.md` | No | System infrastructure |
+| `/agents/` (all files) | No | Agent identity = system |
+| `/tasks/` infrastructure (TASK.md, DELIVERABLE.md, awareness.md, memory/*) | No | Accessed via task UI |
+| `/context/signals/` | No | Temporal log, not user-browseable |
+
 ### User Uploads (`/workspace/uploads/`)
 
 When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:

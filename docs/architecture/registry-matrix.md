@@ -157,30 +157,34 @@ Context tasks do NOT produce outputs — they write directly to `/workspace/cont
 ## File System Summary
 
 ```
-/workspace/
-├── IDENTITY.md, BRAND.md          # User context
-├── uploads/                        # User-uploaded references (was: documents/)
-├── outputs/                        # Promoted agent deliverables (directory registry)
+/workspace/                          # User workspace
+├── IDENTITY.md                     # User profile (visible in Settings)
+├── BRAND.md                        # Output style (visible in Settings)
+├── AWARENESS.md                    # TP situational notes (visible in Settings)
+├── notes.md                        # Standing instructions (visible in Settings)
+├── preferences.md                  # Learned preferences (visible in Settings)
+├── playbook-orchestration.md       # TP methodology (HIDDEN — system file)
+├── WORKSPACE.md                    # Init manifest (HIDDEN — system file)
+├── uploads/                        # User-uploaded references
+├── outputs/                        # Promoted agent deliverables
 │   ├── reports/                    # Reports, analyses, digests
 │   ├── briefs/                     # Summaries, prep docs, updates
 │   └── content/                    # Blog drafts, comms, launch material
-├── context/                        # ACCUMULATED CONTEXT (directory registry)
+├── context/                        # ACCUMULATED CONTEXT (domains)
 │   ├── competitors/                # Managed by: track-competitors
-│   │   ├── _tracker.md             # Entity registry (pipeline-maintained, ADR-154)
-│   │   ├── _landscape.md           # Cross-entity synthesis (agent-written)
-│   │   └── {entity}/              # Per-entity files
+│   │   ├── _tracker.md             # Entity registry (HIDDEN — pipeline-maintained)
+│   │   ├── _landscape.md           # Cross-entity synthesis (HIDDEN — agent-written)
+│   │   └── {entity}/              # Per-entity files (VISIBLE)
 │   ├── market/                     # Managed by: track-market
 │   ├── relationships/              # Managed by: track-relationships
 │   ├── projects/                   # Managed by: track-projects
 │   ├── content_research/           # Managed by: research-topics
-│   ├── signals/                    # Managed by: ALL tasks (temporal signal log, no tracker)
-│   └── assets/                     # Cross-domain shared assets
-├── notes.md, preferences.md       # TP observations
+│   └── signals/                    # Temporal signal log (HIDDEN — no user browse)
 
-/agents/{slug}/                     # WHO — identity only (ADR-154)
+/agents/{slug}/                     # WHO — identity only (HIDDEN — all of it)
 ├── AGENT.md                        # Identity + behavioral instructions
 └── playbook-*.md                   # Type-seeded methodology
 
-/tasks/{slug}/                      # HOW — work order + execution state + output
+/tasks/{slug}/                      # HOW — task infrastructure (HIDDEN — accessed via task UI)
 ├── TASK.md, DELIVERABLE.md, awareness.md, memory/, outputs/
 ```
