@@ -107,25 +107,35 @@ export default function TaskSurface() {
     await loadTaskDetail(selectedSlug);
   }, [selectedSlug, loadTaskDetail]);
 
-  // ── Initial load ──
+  // ── Initial load — parallel: task list + detail (if slug known) ──
   useEffect(() => {
-    loadTasks().then(list => {
-      // Auto-select first active task if no slug in URL
-      if (!slugFromUrl && list.length > 0) {
-        const firstActive = list.find(t => t.status === 'active') || list[0];
-        setSelectedSlug(firstActive.slug);
-        router.replace(`/tasks/${firstActive.slug}`, { scroll: false });
+    const init = async () => {
+      // If we have a slug from URL, load list and detail in parallel
+      if (slugFromUrl) {
+        loadTasks();
+        loadTaskDetail(slugFromUrl);
+        loadScopedHistory(undefined, slugFromUrl);
+      } else {
+        // No slug — load list first, then auto-select
+        const list = await loadTasks();
+        if (list.length > 0) {
+          const firstActive = list.find(t => t.status === 'active') || list[0];
+          setSelectedSlug(firstActive.slug);
+          router.replace(`/tasks/${firstActive.slug}`, { scroll: false });
+        }
       }
-    });
-  }, [loadTasks, slugFromUrl, router]);
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Load detail when slug changes ──
+  // ── Load detail when user switches task (after initial load) ──
   useEffect(() => {
-    if (selectedSlug) {
+    if (selectedSlug && selectedSlug !== slugFromUrl) {
       loadTaskDetail(selectedSlug);
       loadScopedHistory(undefined, selectedSlug);
     }
-  }, [selectedSlug, loadTaskDetail, loadScopedHistory]);
+  }, [selectedSlug, slugFromUrl, loadTaskDetail, loadScopedHistory]);
 
   // ── Polling ──
   useEffect(() => {

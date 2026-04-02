@@ -79,12 +79,12 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
   return trail;
 }
 
-function buildContextRoot(input: {
+function buildContextNodes(input: {
   domainTree?: TreeNode[];
   uploadTree?: TreeNode[];
   domainTitles: Record<string, string>;
   settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
-}): TreeNode {
+}): TreeNode[] {
   const domainChildren = relabelTopLevelNodes(
     filterNodes(input.domainTree, (node) => {
       const lower = node.path.toLowerCase();
@@ -95,40 +95,35 @@ function buildContextRoot(input: {
   const uploadChildren = asNodeArray(input.uploadTree);
   const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
-  return {
-    name: 'Context',
-    path: EXPLORER_ROOT_PATH,
-    type: 'folder',
-    children: [
-      {
-        name: 'Domains',
-        path: `${EXPLORER_ROOT_PATH}/domains`,
-        type: 'folder',
-        summary: domainChildren.length ? `${domainChildren.length} context domains` : 'No domains yet',
-        children: domainChildren,
-      },
-      {
-        name: 'Uploads',
-        path: `${EXPLORER_ROOT_PATH}/uploads`,
-        type: 'folder',
-        summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
-        children: uploadChildren,
-      },
-      {
-        name: 'Settings',
-        path: `${EXPLORER_ROOT_PATH}/settings`,
-        type: 'folder',
-        summary: settingsFiles.length ? `${settingsFiles.length} files` : 'No settings files yet',
-        children: settingsFiles.map((file) => ({
-          name: file.filename,
-          path: file.path,
-          type: 'file' as const,
-          updated_at: file.updated_at || undefined,
-          summary: file.name,
-        })),
-      },
-    ],
-  };
+  return [
+    {
+      name: 'Context',
+      path: `${EXPLORER_ROOT_PATH}/context`,
+      type: 'folder' as const,
+      summary: domainChildren.length ? `${domainChildren.length} domains` : 'No domains yet',
+      children: domainChildren,
+    },
+    {
+      name: 'Uploads',
+      path: `${EXPLORER_ROOT_PATH}/uploads`,
+      type: 'folder' as const,
+      summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
+      children: uploadChildren,
+    },
+    {
+      name: 'Settings',
+      path: `${EXPLORER_ROOT_PATH}/settings`,
+      type: 'folder' as const,
+      summary: settingsFiles.length ? `${settingsFiles.length} files` : 'No settings files yet',
+      children: settingsFiles.map((file) => ({
+        name: file.filename,
+        path: file.path,
+        type: 'file' as const,
+        updated_at: file.updated_at || undefined,
+        summary: file.name,
+      })),
+    },
+  ];
 }
 
 // =============================================================================
@@ -139,9 +134,12 @@ export default function ContextPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { surface } = useDesk();
 
-  const [explorerRoot, setExplorerRoot] = useState<TreeNode | null>(null);
+  const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
+
+  // Virtual root for resolveNodeByPath/buildBreadcrumbs (not displayed)
+  const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
@@ -154,15 +152,22 @@ export default function ContextPage() {
 
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
       const domainTitles = Object.fromEntries(navDomains.map((domain: any) => [domain.key, domain.display_name]));
-      const nextRoot = buildContextRoot({
+      const nodes = buildContextNodes({
         domainTree: asNodeArray(domainTree),
         uploadTree: asNodeArray(uploadTree),
         domainTitles,
         settings: Array.isArray(nav?.settings) ? nav.settings : [],
       });
 
-      setExplorerRoot(nextRoot);
-      setSelectedPath((prev) => (prev && resolveNodeByPath(nextRoot, prev) ? prev : nextRoot.path));
+      setTreeNodes(nodes);
+      // Don't auto-select root — let user pick from tree
+      setSelectedPath((prev) => {
+        if (prev) {
+          const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
+          if (resolveNodeByPath(root, prev)) return prev;
+        }
+        return null;
+      });
     } catch (err) {
       console.error('Failed to load explorer:', err);
     } finally {
@@ -170,8 +175,8 @@ export default function ContextPage() {
     }
   }, []);
 
-  const selectedNode = explorerRoot && selectedPath ? resolveNodeByPath(explorerRoot, selectedPath) : null;
-  const breadcrumbs = explorerRoot && selectedNode ? buildBreadcrumbs(explorerRoot, selectedNode.path) : [];
+  const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
+  const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
   const effectiveSurface = selectedNode
     ? {
@@ -244,15 +249,15 @@ export default function ContextPage() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {fileTreeLoading && !explorerRoot ? (
+            {fileTreeLoading && treeNodes.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Loading...
               </div>
-            ) : explorerRoot ? (
+            ) : treeNodes.length > 0 ? (
               <div className="p-2">
                 <WorkspaceTree
-                  nodes={explorerRoot.children || []}
+                  nodes={treeNodes}
                   selectedPath={selectedPath || undefined}
                   onSelect={handleExplorerSelect}
                 />
@@ -304,8 +309,11 @@ export default function ContextPage() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            Select a file or folder from the explorer
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center max-w-xs">
+              <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
+            </div>
           </div>
         )}
       </div>
