@@ -3,33 +3,29 @@
 /**
  * TaskContentView — Class-aware center content dispatcher.
  *
- * Dispatches by task class AND view:
- * - Context tasks: domain-status (default), run-summary, run-history
- * - Synthesis tasks: output/report (default), deliverable spec, run-history
- *
- * Always shows a compact status bar above content with task metadata + actions.
+ * Context tasks: embedded file explorer scoped to context_writes domains
+ * Synthesis tasks: composed HTML/markdown deliverable
+ * Both: deliverable spec, run history as secondary views
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Play,
-  Pause,
   Loader2,
-  RefreshCw,
-  Clock,
   CheckCircle2,
   ChevronRight,
-  Mail,
   Layers,
-  FolderOpen,
-  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
+import { ContentViewer } from '@/components/workspace/ContentViewer';
 import type { TaskDetail, TaskOutput } from '@/types';
 import type { TaskView } from './TaskTreeNav';
+
+type TreeNode = import('@/types').WorkspaceTreeNode;
 
 interface TaskContentViewProps {
   task: TaskDetail;
@@ -42,79 +38,6 @@ interface TaskContentViewProps {
   onRunNow: () => void;
   onToggleStatus: () => void;
   busy: boolean;
-}
-
-// ─── Compact Status Bar (always visible) ───
-function TaskStatusBar({
-  task,
-  onRunNow,
-  onToggleStatus,
-  busy,
-}: {
-  task: TaskDetail;
-  onRunNow: () => void;
-  onToggleStatus: () => void;
-  busy: boolean;
-}) {
-  const statusColor =
-    task.status === 'active' ? 'bg-green-500' :
-    task.status === 'paused' ? 'bg-amber-500' :
-    task.status === 'completed' ? 'bg-blue-500' : 'bg-gray-400';
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 shrink-0 text-xs overflow-x-auto">
-      {/* Status + mode + schedule */}
-      <div className="flex items-center gap-1.5">
-        <span className={cn('w-1.5 h-1.5 rounded-full', statusColor)} />
-        <span className="capitalize font-medium">{task.status}</span>
-      </div>
-      {task.mode && (
-        <span className="text-muted-foreground capitalize">{task.mode}</span>
-      )}
-      {task.schedule && (
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="w-3 h-3" />
-          {task.schedule}
-        </span>
-      )}
-
-      {/* Delivery */}
-      {task.delivery && task.delivery !== 'none' && (
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <Mail className="w-3 h-3" />
-          {task.delivery}
-        </span>
-      )}
-
-      {/* Next run */}
-      {task.next_run_at && (
-        <span className="text-muted-foreground/60">
-          Next: {formatRelativeTime(task.next_run_at)}
-        </span>
-      )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Actions */}
-      <button
-        onClick={onRunNow}
-        disabled={busy}
-        className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-primary hover:bg-primary/20 disabled:opacity-50 font-medium"
-      >
-        <Play className="w-3 h-3" />
-        Run
-      </button>
-      <button
-        onClick={onToggleStatus}
-        disabled={busy}
-        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
-      >
-        {task.status === 'active' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-        {task.status === 'active' ? 'Pause' : 'Resume'}
-      </button>
-    </div>
-  );
 }
 
 // ─── Export Button ───
@@ -203,38 +126,52 @@ function OutputView({ task, output, onRunNow }: { task: TaskDetail; output: Task
   );
 }
 
-// ─── Domain Status View (Context tasks: what knowledge is accumulated) ───
-function DomainStatusView({ task }: { task: TaskDetail }) {
-  const [domains, setDomains] = useState<Record<string, any[]>>({});
+// ─── Domain Explorer View (Context tasks: browse the actual files) ───
+function DomainExplorerView({ task }: { task: TaskDetail }) {
+  const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
+  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!task.context_writes?.length) { setLoading(false); return; }
+  const loadTree = useCallback(async () => {
+    const writesDomains = task.context_writes || [];
+    if (writesDomains.length === 0) { setLoading(false); return; }
 
-    const loadDomains = async () => {
-      setLoading(true);
-      const results: Record<string, any[]> = {};
-      for (const domain of task.context_writes!) {
-        try {
-          const tree = await api.workspace.getTree(`/workspace/context/${domain}`);
-          results[domain] = Array.isArray(tree) ? tree : [];
-        } catch {
-          results[domain] = [];
-        }
+    setLoading(true);
+    const nodes: TreeNode[] = [];
+    for (const domain of writesDomains) {
+      try {
+        const tree = await api.workspace.getTree(`/workspace/context/${domain}`);
+        const children = Array.isArray(tree) ? tree : [];
+        nodes.push({
+          name: domain.charAt(0).toUpperCase() + domain.slice(1),
+          path: `/workspace/context/${domain}`,
+          type: 'folder',
+          children,
+        });
+      } catch {
+        nodes.push({
+          name: domain.charAt(0).toUpperCase() + domain.slice(1),
+          path: `/workspace/context/${domain}`,
+          type: 'folder',
+          children: [],
+        });
       }
-      setDomains(results);
-      setLoading(false);
-    };
-    loadDomains();
+    }
+    setTreeNodes(nodes);
+    setLoading(false);
   }, [task.slug, task.context_writes]);
+
+  useEffect(() => { loadTree(); }, [loadTree]);
+
+  const handleSelect = useCallback((node: TreeNode) => {
+    setSelectedNode(node);
+  }, []);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   }
 
-  const writesDomains = task.context_writes || [];
-
-  if (writesDomains.length === 0) {
+  if (treeNodes.length === 0) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center max-w-sm">
@@ -246,84 +183,28 @@ function DomainStatusView({ task }: { task: TaskDetail }) {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-auto">
-      {writesDomains.map(domain => {
-        const entries = domains[domain] || [];
-        // Filter to entity folders (not underscore-prefixed synthesis files)
-        const entities = entries.filter(e => e.type === 'folder' && !e.name.startsWith('_'));
-        const synthFiles = entries.filter(e => e.type === 'file' && e.name.startsWith('_'));
-        const regularFiles = entries.filter(e => e.type === 'file' && !e.name.startsWith('_'));
-
-        return (
-          <div key={domain}>
-            <div className="flex items-center gap-2 mb-3">
-              <FolderOpen className="w-4 h-4 text-muted-foreground" />
-              <h3 className="text-sm font-medium capitalize">{domain}</h3>
-              <span className="text-[11px] text-muted-foreground/60">{entities.length} entities</span>
-            </div>
-
-            {entities.length > 0 ? (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {entities.map(entity => {
-                  const fileCount = entity.children?.length || 0;
-                  return (
-                    <div
-                      key={entity.path}
-                      className="rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors"
-                    >
-                      <p className="text-sm font-medium truncate">{entity.name}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {fileCount} {fileCount === 1 ? 'file' : 'files'}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                <AlertCircle className="w-5 h-5 text-muted-foreground/30 mx-auto mb-1" />
-                <p className="text-sm text-muted-foreground">No entities yet — run the task to populate</p>
-              </div>
-            )}
-
-            {/* Synthesis files (tracker, landscape, etc.) */}
-            {synthFiles.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {synthFiles.map(f => (
-                  <span key={f.path} className="text-[11px] text-muted-foreground/60 px-2 py-0.5 rounded-full bg-muted">
-                    {f.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Regular files at domain root */}
-            {regularFiles.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {regularFiles.map(f => (
-                  <span key={f.path} className="text-[11px] text-muted-foreground/60 px-2 py-0.5 rounded-full bg-muted">
-                    {f.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Also show read domains */}
-      {task.context_reads && task.context_reads.length > 0 && (
-        <div className="pt-4 border-t border-border">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Also reads from</p>
-          <div className="flex flex-wrap gap-1.5">
-            {task.context_reads.filter(d => !writesDomains.includes(d)).map(domain => (
-              <span key={domain} className="px-2.5 py-1 text-xs rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 capitalize">
-                {domain}
-              </span>
-            ))}
-          </div>
+    <div className="flex h-full">
+      {/* Mini tree nav — scoped to this task's domains */}
+      <div className="w-[200px] shrink-0 border-r border-border overflow-y-auto bg-muted/10">
+        <div className="p-2">
+          <WorkspaceTree
+            nodes={treeNodes}
+            selectedPath={selectedNode?.path}
+            onSelect={handleSelect}
+          />
         </div>
-      )}
+      </div>
+
+      {/* Content viewer */}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        {selectedNode ? (
+          <ContentViewer selectedNode={selectedNode} onNavigate={handleSelect} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            Select a file to view
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -331,7 +212,7 @@ function DomainStatusView({ task }: { task: TaskDetail }) {
 // ─── Deliverable View ───
 function DeliverableView({ task, deliverableMd }: { task: TaskDetail; deliverableMd: string | null }) {
   return (
-    <div className="p-6 space-y-6 overflow-auto">
+    <div className="p-6 space-y-6 overflow-auto h-full">
       {task.objective && (
         <div>
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Objective</h3>
@@ -392,20 +273,18 @@ function DeliverableView({ task, deliverableMd }: { task: TaskDetail; deliverabl
 
 // ─── Run History View ───
 function RunHistoryView({
-  task,
   outputs,
   selectedFolder,
   onSelectOutput,
   onSwitchToOutput,
 }: {
-  task: TaskDetail;
   outputs: TaskOutput[];
   selectedFolder: string | null;
   onSelectOutput: (output: TaskOutput) => void;
   onSwitchToOutput: () => void;
 }) {
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 overflow-auto h-full">
       {outputs.length > 0 ? (
         <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
           {outputs.map((entry) => {
@@ -441,56 +320,6 @@ function RunHistoryView({
   );
 }
 
-// ─── Main Dispatcher ───
-export function TaskContentView({
-  task,
-  view,
-  output,
-  outputs,
-  deliverableMd,
-  onSelectOutput,
-  onSwitchView,
-  onRunNow,
-  onToggleStatus,
-  busy,
-}: TaskContentViewProps) {
-  const selectedFolder = output?.folder || output?.date || null;
-
-  const renderContent = () => {
-    switch (view) {
-      case 'output':
-        return <OutputView task={task} output={output} onRunNow={onRunNow} />;
-      case 'domain-status':
-        return <DomainStatusView task={task} />;
-      case 'task-definition':
-        return <TaskDefinitionView task={task} />;
-      case 'deliverable':
-        return <DeliverableView task={task} deliverableMd={deliverableMd} />;
-      case 'run-history':
-        return (
-          <RunHistoryView
-            task={task}
-            outputs={outputs}
-            selectedFolder={selectedFolder}
-            onSelectOutput={onSelectOutput}
-            onSwitchToOutput={() => onSwitchView('output')}
-          />
-        );
-      default:
-        return <OutputView task={task} output={output} onRunNow={onRunNow} />;
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <TaskStatusBar task={task} onRunNow={onRunNow} onToggleStatus={onToggleStatus} busy={busy} />
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {renderContent()}
-      </div>
-    </div>
-  );
-}
-
 // ─── Task Definition View ───
 function TaskDefinitionView({ task }: { task: TaskDetail }) {
   const [content, setContent] = useState<string | null>(null);
@@ -519,6 +348,44 @@ function TaskDefinitionView({ task }: { task: TaskDetail }) {
       </div>
     </div>
   );
+}
+
+// ─── Main Dispatcher ───
+export function TaskContentView({
+  task,
+  view,
+  output,
+  outputs,
+  deliverableMd,
+  onSelectOutput,
+  onSwitchView,
+  onRunNow,
+  onToggleStatus,
+  busy,
+}: TaskContentViewProps) {
+  const selectedFolder = output?.folder || output?.date || null;
+
+  switch (view) {
+    case 'output':
+      return <OutputView task={task} output={output} onRunNow={onRunNow} />;
+    case 'domain-status':
+      return <DomainExplorerView task={task} />;
+    case 'task-definition':
+      return <TaskDefinitionView task={task} />;
+    case 'deliverable':
+      return <DeliverableView task={task} deliverableMd={deliverableMd} />;
+    case 'run-history':
+      return (
+        <RunHistoryView
+          outputs={outputs}
+          selectedFolder={selectedFolder}
+          onSelectOutput={onSelectOutput}
+          onSwitchToOutput={() => onSwitchView('output')}
+        />
+      );
+    default:
+      return <OutputView task={task} output={output} onRunNow={onRunNow} />;
+  }
 }
 
 // ─── Helpers ───

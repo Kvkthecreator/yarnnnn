@@ -265,6 +265,10 @@ export default function TaskSurface() {
               onSelectTask={handleSelectTask}
               onSelectView={setSelectedView}
               onCreateTask={handleCreateTask}
+              onRunNow={handleRunNow}
+              onToggleStatus={handleToggleStatus}
+              busy={mutationPending}
+              selectedTask={taskDetail}
             />
           )}
         </div>

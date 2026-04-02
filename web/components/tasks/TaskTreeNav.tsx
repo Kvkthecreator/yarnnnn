@@ -19,6 +19,9 @@ import {
   ListChecks,
   Layers,
   Activity,
+  Play,
+  Pause,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
@@ -34,6 +37,11 @@ interface TaskTreeNavProps {
   onSelectTask: (slug: string, view?: TaskView) => void;
   onSelectView: (view: TaskView) => void;
   onCreateTask?: () => void;
+  onRunNow?: () => void;
+  onToggleStatus?: () => void;
+  busy?: boolean;
+  /** The full task detail for the selected task (for metadata display) */
+  selectedTask?: Task | null;
 }
 
 type ViewItem = { id: TaskView; label: string; icon: typeof FileText };
@@ -69,6 +77,10 @@ export function TaskTreeNav({
   onSelectTask,
   onSelectView,
   onCreateTask,
+  onRunNow,
+  onToggleStatus,
+  busy,
+  selectedTask,
 }: TaskTreeNavProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     // Auto-expand selected task
@@ -186,6 +198,51 @@ export function TaskTreeNav({
                       </button>
                     );
                   })}
+
+                  {/* Task metadata + actions (only for selected task) */}
+                  {isSelected && (
+                    <div className="mt-2 mb-1 mx-2 px-2 py-2 rounded-lg bg-muted/30 space-y-2">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                        {task.mode && <span className="capitalize">{task.mode}</span>}
+                        {task.schedule && (
+                          <span className="flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" />
+                            {task.schedule}
+                          </span>
+                        )}
+                        {task.delivery && task.delivery !== 'none' && (
+                          <span className="flex items-center gap-0.5">
+                            <Mail className="w-2.5 h-2.5" />
+                            {task.delivery}
+                          </span>
+                        )}
+                      </div>
+                      {(onRunNow || onToggleStatus) && (
+                        <div className="flex gap-1.5">
+                          {onRunNow && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onRunNow(); }}
+                              disabled={busy}
+                              className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+                            >
+                              <Play className="w-2.5 h-2.5" />
+                              Run
+                            </button>
+                          )}
+                          {onToggleStatus && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onToggleStatus(); }}
+                              disabled={busy}
+                              className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                            >
+                              {task.status === 'active' ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                              {task.status === 'active' ? 'Pause' : 'Resume'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
