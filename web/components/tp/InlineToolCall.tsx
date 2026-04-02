@@ -35,6 +35,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { NotificationCard } from '@/components/tp/NotificationCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
 
@@ -264,6 +265,8 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
           case 'clarify':
             // Clarify is handled separately in the chat UI
             return null;
+          case 'notification':
+            return <NotificationCard key={i} title={block.title} description={block.description} toolName={block.toolName} />;
           default:
             return null;
         }

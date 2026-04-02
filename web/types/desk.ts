@@ -62,7 +62,8 @@ export type MessageBlock =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'tool_call'; id: string; tool: string; input?: Record<string, unknown>; status: 'pending' | 'success' | 'failed'; result?: TPToolResult }
-  | { type: 'clarify'; question: string; options?: string[] };
+  | { type: 'clarify'; question: string; options?: string[] }
+  | { type: 'notification'; title: string; description?: string; toolName: string };
 
 export interface TPMessage {
   id: string;
@@ -98,6 +99,15 @@ export interface TPUIAction {
 // =============================================================================
 // Todo Tracking (ADR-025 Claude Code Alignment)
 // =============================================================================
+
+/** ADR-155: Notification from tool side effects */
+export interface TPNotification {
+  id: string;
+  toolName: string;
+  title: string;
+  description?: string;
+  timestamp: Date;
+}
 
 /** A single todo item in TP's work progress */
 export interface Todo {
@@ -148,6 +158,8 @@ export interface TPState {
   activeCommand: string | null;
   /** ADR-025: Whether work panel is expanded */
   workPanelExpanded: boolean;
+  /** ADR-155: Notifications from tool side effects (queued when chat closed) */
+  pendingNotifications: TPNotification[];
 }
 
 export type TPAction =
@@ -163,7 +175,10 @@ export type TPAction =
   | { type: 'SET_TODOS'; todos: Todo[] }
   | { type: 'SET_ACTIVE_COMMAND'; command: string | null }
   | { type: 'SET_WORK_PANEL_EXPANDED'; expanded: boolean }
-  | { type: 'CLEAR_WORK_STATE' };
+  | { type: 'CLEAR_WORK_STATE' }
+  // ADR-155: Notification channel
+  | { type: 'ADD_NOTIFICATION'; notification: TPNotification }
+  | { type: 'FLUSH_NOTIFICATIONS' };
 
 // =============================================================================
 // Utility functions

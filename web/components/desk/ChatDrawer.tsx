@@ -52,8 +52,17 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
     pendingClarification,
     respondToClarification,
     tokenUsage,
+    pendingNotifications,
+    flushNotifications,
   } = useTP();
   const { surface } = useDesk();
+
+  // ADR-155: Flush notifications when chat drawer opens
+  useEffect(() => {
+    if (open && pendingNotifications.length > 0) {
+      flushNotifications();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
@@ -152,7 +161,7 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          'fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all',
+          'fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all relative',
           open
             ? 'bg-muted text-muted-foreground hover:bg-muted/80'
             : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105'
@@ -160,6 +169,12 @@ export function ChatDrawer({ surfaceOverride, isOpen: controlledOpen, onOpenChan
         title={open ? 'Close chat (Esc)' : 'Open chat (⌘K)'}
       >
         {open ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+        {/* ADR-155: Notification badge */}
+        {!open && pendingNotifications.length > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+            {pendingNotifications.length}
+          </span>
+        )}
       </button>
 
       {/* Backdrop */}

@@ -9,7 +9,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
@@ -27,6 +27,8 @@ const initialState: TPState = {
   todos: [],
   activeCommand: null,
   workPanelExpanded: false,
+  // ADR-155: Notification queue for tool side effects
+  pendingNotifications: [],
 };
 
 // =============================================================================
@@ -86,6 +88,12 @@ function tpReducer(state: TPState, action: TPAction): TPState {
     case 'CLEAR_WORK_STATE':
       return { ...state, todos: [], activeCommand: null, workPanelExpanded: false };
 
+    // ADR-155: Notification channel
+    case 'ADD_NOTIFICATION':
+      return { ...state, pendingNotifications: [...state.pendingNotifications, action.notification] };
+    case 'FLUSH_NOTIFICATIONS':
+      return { ...state, pendingNotifications: [] };
+
     default:
       return state;
   }
@@ -133,6 +141,10 @@ interface TPContextValue {
   activeCommand: string | null;
   workPanelExpanded: boolean;
   setWorkPanelExpanded: (expanded: boolean) => void;
+
+  // ADR-155: Notification channel
+  pendingNotifications: TPNotification[];
+  flushNotifications: () => void;
 
   // Actions
   sendMessage: (
@@ -569,6 +581,40 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     }
                   }
                 }
+
+                // ADR-155: Notification-worthy tool results → inline card + FAB badge
+                const toolName = event.tool_result.name;
+                const resultData = toolResult;
+                let notifTitle = '';
+                let notifDesc = '';
+
+                if (toolName === 'UpdateContext' && resultData.inference?.success) {
+                  const scaffolded = resultData.inference.scaffolded || {};
+                  const domains = Object.keys(scaffolded);
+                  const total = Object.values(scaffolded).reduce((sum: number, arr: unknown) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+                  notifTitle = 'Workspace scaffolded';
+                  notifDesc = `${total} entities across ${domains.length} domains`;
+                } else if (toolName === 'CreateTask' && resultData.success) {
+                  notifTitle = 'Task created';
+                  notifDesc = (resultData.message as string) || (resultData.slug as string) || '';
+                } else if (toolName === 'ManageTask' && resultData.success) {
+                  const mtAction = resultData.action as string;
+                  if (mtAction === 'evaluate' || mtAction === 'complete') {
+                    notifTitle = mtAction === 'evaluate' ? 'Task evaluated' : 'Task completed';
+                    notifDesc = (resultData.message as string) || '';
+                  }
+                }
+
+                if (notifTitle) {
+                  // Inline card in chat stream (persists in history)
+                  blocks.push({ type: 'notification', title: notifTitle, description: notifDesc, toolName });
+                  updateStreamingMessage();
+                  // FAB badge (for when chat is closed)
+                  dispatch({
+                    type: 'ADD_NOTIFICATION',
+                    notification: { id: crypto.randomUUID(), toolName, title: notifTitle, description: notifDesc, timestamp: new Date() },
+                  });
+                }
               } else if (event.usage) {
                 // Track token usage from API
                 setTokenUsage({
@@ -709,6 +755,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded });
   }, []);
 
+  // ADR-155: Flush notifications when chat is opened
+  const flushNotifications = useCallback(() => {
+    dispatch({ type: 'FLUSH_NOTIFICATIONS' });
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
@@ -726,6 +777,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     activeCommand: state.activeCommand,
     workPanelExpanded: state.workPanelExpanded,
     setWorkPanelExpanded,
+    // ADR-155: Notification channel
+    pendingNotifications: state.pendingNotifications,
+    flushNotifications,
     // Actions
     sendMessage,
     clearMessages,
