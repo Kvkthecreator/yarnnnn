@@ -1062,9 +1062,13 @@ async def execute_task(
         version_metadata = {
             "input_tokens": _total_input_tokens(usage),
             "output_tokens": usage.get("output_tokens", 0),
+            "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+            "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
             "model": SONNET_MODEL,
             "task_slug": task_slug,
             "trigger_type": "scheduled",
+            "tool_rounds": _tool_rounds,
+            "tools_used": _tools_used,
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
@@ -1652,6 +1656,8 @@ async def _execute_pipeline(
     version_metadata = {
         "input_tokens": total_usage["input_tokens"],
         "output_tokens": total_usage["output_tokens"],
+        "cache_read_input_tokens": total_usage.get("cache_read_input_tokens", 0),
+        "cache_creation_input_tokens": total_usage.get("cache_creation_input_tokens", 0),
         "model": SONNET_MODEL,
         "task_slug": task_slug,
         "type_key": task_info.get("type_key"),
@@ -1927,6 +1933,8 @@ async def _generate(
     tools_used = []
     total_input_tokens = 0
     total_output_tokens = 0
+    total_cache_read = 0
+    total_cache_create = 0
     draft = ""
 
     for round_num in range(max_tool_rounds + 1):
@@ -1941,6 +1949,8 @@ async def _generate(
         if response.usage:
             total_input_tokens += _total_input_tokens(response.usage)
             total_output_tokens += response.usage.get("output_tokens", 0)
+            total_cache_read += response.usage.get("cache_read_input_tokens", 0)
+            total_cache_create += response.usage.get("cache_creation_input_tokens", 0)
 
         # Agent finished
         if response.stop_reason in ("end_turn", "max_tokens") or not response.tool_uses:
@@ -1990,10 +2000,17 @@ async def _generate(
             tools_used.append(tu.name)
             logger.info(f"[TASK_EXEC] Tool: {tu.name}({str(tu.input)[:100]})")
             result = await executor(tu.name, tu.input)
+            # Truncate tool results to prevent context blowup across rounds.
+            # Without truncation, 13 WebSearch rounds accumulate ~800K+ tokens
+            # because each round re-sends all prior results in full.
+            from services.anthropic import _truncate_tool_result
+            truncated = _truncate_tool_result(
+                result, max_items=10, max_content_len=2000, max_depth=4
+            )
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tu.id,
-                "content": json.dumps(result) if isinstance(result, dict) else str(result),
+                "content": truncated,
             })
         messages.append({"role": "user", "content": tool_results})
     else:
@@ -2022,7 +2039,12 @@ async def _generate(
         if len(retry_draft.split()) > len(draft.split()):
             draft = retry_draft
 
-    usage = {"input_tokens": total_input_tokens, "output_tokens": total_output_tokens}
+    usage = {
+        "input_tokens": total_input_tokens,
+        "output_tokens": total_output_tokens,
+        "cache_read_input_tokens": total_cache_read,
+        "cache_creation_input_tokens": total_cache_create,
+    }
 
     # Collect rendered files from RuntimeDispatch
     pending_renders = getattr(executor, "auth", None)

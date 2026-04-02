@@ -167,7 +167,7 @@ def _extract_text_from_html(html: str) -> tuple[str, str]:
 # URL fetch
 # ---------------------------------------------------------------------------
 
-_MAX_CONTENT_LENGTH = 200_000  # ~200KB of text — plenty for a webpage
+_MAX_CONTENT_LENGTH = 12_000  # ~3K tokens — enough to extract key facts from a page
 _FETCH_TIMEOUT = 15  # seconds
 
 async def _fetch_url(url: str) -> URLFetchResult:
