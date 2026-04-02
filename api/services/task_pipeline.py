@@ -334,8 +334,14 @@ async def _post_run_domain_scan(
                                 if slug:
                                     stale_entities.append(f"{slug} ({domain_key})")
 
-        awareness_lines.append(f"\n## Next Cycle Focus")
-        if task_phase == "bootstrap":
+        # Next cycle focus — prefer agent-authored directive over generic staleness logic.
+        # The agent writes this at end of run while context is hot (journalist's notes).
+        agent_directive = (agent_reflection or {}).get("next_cycle_directive")
+        awareness_lines.append(f"\n## Next Cycle Directive")
+        if agent_directive:
+            # Agent wrote specific marching orders — use them directly
+            awareness_lines.append(agent_directive)
+        elif task_phase == "bootstrap":
             awareness_lines.append("- **BOOTSTRAP PRIORITY:** Discover and profile new entities to meet minimum criteria.")
             if stale_entities:
                 for se in stale_entities:

@@ -49,11 +49,18 @@ from services.agent_framework import AGENT_TYPES
 STEP_INSTRUCTIONS = {
     "update-context": (
         "Read the existing context files in your assigned context domains. "
-        "These contain accumulated intelligence from prior cycles. "
-        "Research new signals via web search and platform context. "
+        "These contain accumulated intelligence from prior cycles.\n\n"
+        "IMPORTANT: Check your Execution Awareness (injected in context) for a "
+        "## Next Cycle Directive. If one exists, it contains your own prior-cycle notes "
+        "on what specifically to research, what to skip, and how many tool rounds to use. "
+        "FOLLOW IT as your primary guidance — it was written by you while the context was fresh. "
+        "Only deviate if something urgent emerged.\n\n"
+        "If no directive exists (first run or system-generated focus), research broadly: "
+        "web search for new signals, update entity files with findings, "
+        "create new entity files for newly discovered items.\n\n"
         "UPDATE entity files with new findings — add dated entries to signal sections, "
-        "update assessments if your view has changed. Create new entity files for "
-        "newly discovered items. Update synthesis files with cross-entity pattern changes.\n\n"
+        "update assessments if your view has changed. "
+        "Update synthesis files with cross-entity pattern changes.\n\n"
         "Append to the cross-domain signal log with dated entries for this cycle.\n\n"
         "Your output for this step: a CHANGELOG of what you added, updated, or discovered."
     ),

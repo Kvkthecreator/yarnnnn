@@ -601,6 +601,20 @@ def _extract_agent_reflection(draft: str) -> tuple[str, Optional[dict]]:
     if criteria_match:
         result["criteria_met"] = criteria_match.group(1).strip()
 
+    # Extract Next Cycle Directive if present (self-improving execution loop)
+    directive_match = re.search(
+        r"## Next Cycle Directive\s*\n(.+?)(?:\n## |\Z)",
+        reflection_text, re.DOTALL,
+    )
+    if not directive_match:
+        # Might be in the portion after the reflection block was cut
+        directive_match = re.search(
+            r"## Next Cycle Directive\s*\n(.+?)(?:\n## |\Z)",
+            draft[match.start():], re.DOTALL,
+        )
+    if directive_match:
+        result["next_cycle_directive"] = directive_match.group(1).strip()
+
     return clean_draft, result
 
 

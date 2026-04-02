@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.02.2] - Self-directing execution loop (Next Cycle Directive)
+
+### Changed
+- `services/agent_pipeline.py`: Reflection postamble now requests `## Next Cycle Directive` block — agent writes specific marching orders (scope, skip, investigate, estimated rounds) while context is hot. Journalist's-notes model: each run briefs the next.
+- `services/agent_execution.py`: `_extract_agent_reflection()` now extracts `next_cycle_directive` field from the reflection block.
+- `services/task_pipeline.py`: `_post_run_domain_scan()` writes agent-authored directive to awareness.md `## Next Cycle Directive` instead of generic staleness-based focus.
+- `services/task_types.py`: `update-context` step instruction now tells agent to check for and follow its own prior directive as primary guidance. Only research broadly if no directive exists.
+- Expected behavior: Steady-state runs follow agent's own prior-cycle notes → 2-3 targeted searches instead of 8 broad ones → ~60% token reduction on steady-state runs. Bootstrap runs unaffected (no prior directive exists).
+
+---
+
 ## [2026.04.02.1] - Fix prompt caching + token observability
 
 ### Changed

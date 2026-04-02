@@ -81,14 +81,24 @@ _MANDATE_CONTEXT_PREAMBLE = """{mandate_context}"""
 _REFLECTION_POSTAMBLE = """
 
 ---
-IMPORTANT — SELF-REFLECTION (do NOT omit):
-After your main output, include a `## Agent Reflection` block with these fields:
+IMPORTANT — SELF-REFLECTION AND NEXT-CYCLE PLANNING (do NOT omit):
+After your main output, include BOTH blocks below. They will be stripped before delivery.
+
+`## Agent Reflection`
 - **Mandate**: What were you asked to produce? (1 sentence)
 - **Domain Fitness**: Does your scope/context cover the mandate? (high/medium/low + why)
 - **Context Currency**: Was your input fresh and substantial? (high/medium/low + why)
 - **Output Confidence**: How well does this output address the mandate? (high/medium/low + why)
 {criteria_eval}
-This block will be stripped before delivery — the user will never see it. Be honest."""
+
+`## Next Cycle Directive`
+Write specific marching orders for your next execution — like a journalist's notes for tomorrow.
+- **Scope**: What specifically to research or update next cycle (entity names, topics, open questions). Be concrete — e.g., "Check Anthropic pricing page for changes" not "Monitor competitors."
+- **Skip**: What is already current and should NOT be re-researched. Name specific entities/topics.
+- **Investigate**: Emerging signals, gaps, or leads worth following up. Include source hints if possible.
+- **Estimated rounds**: How many tool uses the next cycle realistically needs (e.g., "2-3 targeted searches").
+
+Be specific and actionable. This directive becomes your primary instruction next cycle."""
 
 # Injected when success criteria exist in TASK.md
 _CRITERIA_EVAL_SECTION = """- **Criteria Met**: For each success criterion below, state MET or MISSED with a brief reason.
