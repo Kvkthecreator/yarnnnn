@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Thinking Partner Prompt Modules (ADR-059: Modular Prompt Architecture)
 

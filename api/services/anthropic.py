@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Anthropic client for Claude API calls
 
@@ -6,7 +7,7 @@ ADR-007: Tool infrastructure for agent authority
 
 import os
 import logging
-from typing import AsyncGenerator, Optional, Any
+from typing import AsyncGenerator, Optional, Any, Union
 from dataclasses import dataclass
 from anthropic import AsyncAnthropic
 

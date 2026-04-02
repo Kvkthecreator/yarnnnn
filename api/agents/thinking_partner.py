@@ -8,6 +8,7 @@ ADR-036/037: Primitive-based architecture (Read, Write, Edit, etc.)
 ADR-059: Modular prompt architecture (tp_prompts/)
 """
 
+from __future__ import annotations
 import json
 from typing import AsyncGenerator, Optional, Any
 from dataclasses import dataclass

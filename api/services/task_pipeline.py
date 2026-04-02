@@ -19,6 +19,7 @@ Multi-step flow:
 Replaces: agent_pulse.py, trigger_dispatch.py, execution_strategies.py,
           agent_execution.py (execute_agent_generation).
 """
+from __future__ import annotations
 
 import json
 import logging
