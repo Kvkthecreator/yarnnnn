@@ -11,8 +11,10 @@ Track changes to design documentation structure and active principles.
 - **Domain browser removed from workfloor** — context domains now open as normal folders/files instead of bespoke entity cards, eliminating the dual navigation model.
 - **Details-style directory listing** — folder view now shows `Name`, `Kind`, and `Modified` columns rather than card stacks.
 - **Mixed file previews** — file viewer now supports markdown, HTML reports, images/SVG, PDF, CSV, and download-first binary files. `output.html` is previewed inline rather than treated like markdown.
+- **Task artifacts now launch the task app** — clicking a task folder or task-owned output from Workfloor routes into `/tasks/{slug}` rather than keeping the user in a raw file browser. `DELIVERABLE.md`, `TASK.md`, and output runs map into focused task-page states via query params.
+- **Task page refactored away from hardcoded tabs** — `/tasks/{slug}` now presents one output-first workspace: output hero on the left, task inspector on the right, and task-scoped TP as a drawer. Deliverable, context, and runs are inspector sections, not parallel navigation modes.
 - **Show/hide behavior preserved** — left explorer collapse and right TP drawer collapse remain intact; the refactor changes navigation semantics, not the panel affordances.
-- Updated: `WORKSPACE-EXPLORER-UI.md`, `workspace-conventions.md`.
+- Updated: `WORKSPACE-EXPLORER-UI.md`, `TASK-SCOPED-TP.md`, `workspace-conventions.md`.
 
 ---
 

@@ -1,39 +1,37 @@
 'use client';
 
 /**
- * Task Page — v3: Tabbed Left + Task-Scoped Chat Right
+ * Task Page — Output-first task workspace
  *
- * Left: [Output] [Task] [Schedule] [Agents] tabs
- * Right: Task-scoped TP chat (always visible, resizable)
- * Same WorkspaceLayout pattern as workfloor.
- *
- * Chat is task-scoped: different plus menu, different context injection,
- * session keyed by task_slug. See docs/design/TASK-SCOPED-TP.md.
+ * Workfloor owns filesystem browsing. Opening a task from the explorer launches
+ * this page as an app-like workspace:
+ * - Left: output hero
+ * - Right: task inspector (meta, spec, context, runs)
+ * - Drawer panel: task-scoped TP chat
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  Loader2,
-  Play,
-  FileText,
-  Mail,
   Clock,
-  Send,
+  FileSearch,
+  FileText,
   Globe,
-  RefreshCw,
-  X,
-  ListChecks,
-  Target,
+  Loader2,
+  Mail,
   MessageCircle,
-  // Presentation removed — repurpose bar simplified
+  Pause,
+  Play,
+  RefreshCw,
+  Send,
+  Target,
+  X,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
-import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import type { TaskDetail, TaskOutput, Agent } from '@/types';
+import type { TaskDetail, TaskOutput } from '@/types';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
@@ -41,7 +39,6 @@ import { WorkspaceLayout, type WorkspacePanelTab } from '@/components/desk/Works
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import { ProcessTab } from '@/components/tasks/ProcessTab';
 import {
   InlineActionCard,
   type ActionCardConfig,
@@ -50,6 +47,8 @@ import {
   RESEARCH_TASK_CARD,
   FEEDBACK_TASK_CARD,
 } from '@/components/tp/InlineActionCard';
+
+type TaskSection = 'output' | 'deliverable' | 'context' | 'runs';
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -64,17 +63,72 @@ function formatRelativeTime(dateStr: string): string {
   return `${days}d ago`;
 }
 
-// =============================================================================
-// Left Panel: Output Tab
-// =============================================================================
+function formatTimestamp(dateStr?: string | null, withTime: boolean = true): string {
+  if (!dateStr) return 'Not scheduled';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleString('en-US', withTime ? {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  } : {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
-function ExportButton({ slug }: { slug: string }) {
+function normalizeSection(value: string | null): TaskSection {
+  if (value === 'deliverable' || value === 'context' || value === 'runs') {
+    return value;
+  }
+  return 'output';
+}
+
+function buildTaskRoute(slug: string, options: { folder?: string | null; section?: TaskSection | null }) {
+  const params = new URLSearchParams();
+  if (options.folder) params.set('folder', options.folder);
+  if (options.section && options.section !== 'output') params.set('section', options.section);
+  const query = params.toString();
+  return query ? `/tasks/${slug}?${query}` : `/tasks/${slug}`;
+}
+
+function InspectorCard({
+  title,
+  icon,
+  highlighted = false,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  highlighted?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        'rounded-2xl border border-border bg-background/95 p-4 shadow-sm transition-colors',
+        highlighted && 'border-primary/40 ring-2 ring-primary/15'
+      )}
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-muted-foreground">{icon}</span>
+        <h2 className="text-sm font-medium">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ExportButton({ slug, folder }: { slug: string; folder?: string | null }) {
   const [active, setActive] = useState<string | null>(null);
 
   const handleExport = async (format: string) => {
     setActive(format);
     try {
-      const res = await api.tasks.export(slug, format);
+      const res = await api.tasks.export(slug, format, folder || undefined);
       if (res.url) window.open(res.url, '_blank');
     } catch (e) {
       console.error(`Export ${format} failed:`, e);
@@ -84,270 +138,426 @@ function ExportButton({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="flex items-center gap-1.5">
-      {['pdf'].map((fmt) => (
-        <button
-          key={fmt}
-          onClick={() => handleExport(fmt)}
-          disabled={active !== null}
-          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-border/50 bg-background hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          {active === fmt ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-          {fmt.toUpperCase()}
-        </button>
-      ))}
-    </div>
+    <button
+      onClick={() => handleExport('pdf')}
+      disabled={active !== null}
+      className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+    >
+      {active === 'pdf' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+      Export PDF
+    </button>
   );
 }
 
-function OutputTab({ task, output }: { task: TaskDetail; output: TaskOutput | null }) {
+function TaskMetaCard({ task }: { task: TaskDetail }) {
+  const statusColor =
+    task.status === 'active'
+      ? 'bg-green-500'
+      : task.status === 'paused'
+        ? 'bg-amber-500'
+        : task.status === 'completed'
+          ? 'bg-blue-500'
+          : 'bg-gray-400';
+
+  return (
+    <InspectorCard title="Task Overview" icon={<FileText className="w-4 h-4" />}>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-2.5 py-1">
+            <span className={cn('h-2 w-2 rounded-full', statusColor)} />
+            <span className="capitalize">{task.status}</span>
+          </span>
+          {task.mode && (
+            <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs capitalize text-muted-foreground">
+              {task.mode}
+            </span>
+          )}
+          {task.schedule && (
+            <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+              {task.schedule}
+            </span>
+          )}
+        </div>
+
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Next run</p>
+            <p className="font-medium">{formatTimestamp(task.next_run_at)}</p>
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Last run</p>
+            <p className="font-medium">{task.last_run_at ? formatRelativeTime(task.last_run_at) : 'No runs yet'}</p>
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Delivery</p>
+            <p className="flex items-center gap-2 font-medium">
+              <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+              {task.delivery || 'No delivery configured'}
+            </p>
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Assigned agent</p>
+            <p className="font-medium">{task.agent_slugs?.join(', ') || 'Unassigned'}</p>
+          </div>
+        </div>
+      </div>
+    </InspectorCard>
+  );
+}
+
+function DeliverableCard({
+  task,
+  deliverableMd,
+  highlighted,
+}: {
+  task: TaskDetail;
+  deliverableMd: string | null;
+  highlighted: boolean;
+}) {
+  return (
+    <InspectorCard title="Deliverable" icon={<Target className="w-4 h-4" />} highlighted={highlighted}>
+      <div className="space-y-4">
+        {task.objective && (
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Deliverable</p>
+              <p>{task.objective.deliverable || 'Not set'}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Audience</p>
+              <p>{task.objective.audience || 'Not set'}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Purpose</p>
+              <p>{task.objective.purpose || 'Not set'}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Format</p>
+              <p>{task.objective.format || 'Not set'}</p>
+            </div>
+          </div>
+        )}
+
+        {task.success_criteria && task.success_criteria.length > 0 && (
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Success criteria</p>
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              {task.success_criteria.map((criterion, index) => (
+                <li key={index} className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60" />
+                  <span>{criterion}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {task.output_spec && task.output_spec.length > 0 && (
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Output spec</p>
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              {task.output_spec.map((item, index) => (
+                <li key={index} className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Spec file</p>
+          {deliverableMd ? (
+            <div className="max-h-[320px] overflow-auto rounded-xl border border-border bg-muted/20 p-3">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={deliverableMd} />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No `DELIVERABLE.md` found for this task.</p>
+          )}
+        </div>
+      </div>
+    </InspectorCard>
+  );
+}
+
+function ContextCard({
+  task,
+  highlighted,
+}: {
+  task: TaskDetail;
+  highlighted: boolean;
+}) {
+  return (
+    <InspectorCard title="Context" icon={<FileSearch className="w-4 h-4" />} highlighted={highlighted}>
+      <div className="space-y-4">
+        <div>
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Reads from</p>
+          {task.context_reads && task.context_reads.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {task.context_reads.map((domain) => (
+                <span key={domain} className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs text-blue-700 dark:text-blue-300">
+                  {domain}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No read domains configured.</p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Writes to</p>
+          {task.context_writes && task.context_writes.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {task.context_writes.map((domain) => (
+                <span key={domain} className="rounded-full bg-green-500/10 px-2.5 py-1 text-xs text-green-700 dark:text-green-300">
+                  {domain}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No write domains configured.</p>
+          )}
+        </div>
+
+        {task.run_log && (
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Recent run log</p>
+            <pre className="max-h-[220px] overflow-auto rounded-xl border border-border bg-muted/20 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
+              {task.run_log}
+            </pre>
+          </div>
+        )}
+      </div>
+    </InspectorCard>
+  );
+}
+
+function RunsCard({
+  task,
+  outputs,
+  selectedFolder,
+  onSelectOutput,
+  onRunNow,
+  onToggleStatus,
+  busy,
+  highlighted,
+}: {
+  task: TaskDetail;
+  outputs: TaskOutput[];
+  selectedFolder: string | null;
+  onSelectOutput: (output: TaskOutput) => void;
+  onRunNow: () => void;
+  onToggleStatus: () => void;
+  busy: boolean;
+  highlighted: boolean;
+}) {
+  const isActive = task.status === 'active';
+
+  return (
+    <InspectorCard title="Runs" icon={<Clock className="w-4 h-4" />} highlighted={highlighted}>
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onRunNow}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            Run now
+          </button>
+          <button
+            onClick={onToggleStatus}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+          >
+            <Pause className="w-3.5 h-3.5" />
+            {isActive ? 'Pause task' : 'Resume task'}
+          </button>
+        </div>
+
+        <div className="space-y-1">
+          {outputs.length > 0 ? (
+            outputs.map((output) => {
+              const folder = output.folder || output.date;
+              const selected = folder === selectedFolder;
+              const outputStatusColor =
+                output.status === 'delivered'
+                  ? 'bg-green-500'
+                  : output.status === 'failed'
+                    ? 'bg-red-500'
+                    : 'bg-amber-500';
+
+              return (
+                <button
+                  key={folder}
+                  onClick={() => onSelectOutput(output)}
+                  className={cn(
+                    'w-full rounded-xl border px-3 py-3 text-left transition-colors',
+                    selected ? 'border-primary/30 bg-primary/5' : 'border-border bg-background hover:bg-muted/40'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-2 w-2 rounded-full', outputStatusColor)} />
+                        <p className="text-sm font-medium">{output.date || folder}</p>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {selected ? 'Currently open in output view' : 'Open this run'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                      {output.status}
+                    </span>
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className="rounded-xl border border-dashed border-border p-4 text-center">
+              <p className="text-sm text-muted-foreground">No runs yet</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </InspectorCard>
+  );
+}
+
+function OutputPane({
+  task,
+  output,
+  onRunNow,
+}: {
+  task: TaskDetail;
+  output: TaskOutput | null;
+  onRunNow: () => void;
+}) {
+  const selectedFolder = output?.folder || output?.date || null;
+
   if (!output) {
     return (
-      <div className="text-center py-16">
-        <FileText className="w-10 h-10 text-muted-foreground/15 mx-auto mb-4" />
-        <p className="text-sm text-muted-foreground">No output yet</p>
-        {task.next_run_at && (
-          <p className="text-xs text-muted-foreground/60 mt-1 flex items-center justify-center gap-1">
-            <Clock className="w-3 h-3" /> Next run: {formatRelativeTime(task.next_run_at)}
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="max-w-sm text-center">
+          <FileText className="mx-auto mb-4 h-12 w-12 text-muted-foreground/20" />
+          <h2 className="text-lg font-medium">No output yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This task has not produced a deliverable yet.
+            {task.next_run_at ? ` Next run ${formatRelativeTime(task.next_run_at)}.` : ''}
           </p>
-        )}
-        <button
-          onClick={() => api.tasks.run(task.slug).catch(console.error)}
-          className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Play className="w-3.5 h-3.5" /> Run Now
-        </button>
+          <button
+            onClick={onRunNow}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Play className="w-4 h-4" />
+            Run now
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Export — only PDF, compact, only when content exists */}
-      {(output.html_content || output.md_content) && (
-        <div className="flex items-center justify-end px-4 py-1.5 border-b border-border/30">
-          <ExportButton slug={task.slug} />
+    <div className="flex h-full flex-col bg-background">
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Current output</p>
+            <h1 className="mt-1 text-xl font-semibold">{task.title}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5">
+                {output.date || selectedFolder || 'Latest run'}
+              </span>
+              <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{output.status}</span>
+            </div>
+          </div>
+          {(output.html_content || output.md_content || output.content) && (
+            <ExportButton slug={task.slug} folder={selectedFolder} />
+          )}
         </div>
-      )}
-      <div className="flex-1 min-h-0">
+      </div>
+
+      <div className="flex-1 overflow-auto">
         {output.html_content ? (
           <iframe
             srcDoc={output.html_content}
-            className="w-full h-full min-h-[500px] border-0 bg-white"
+            className="h-full min-h-[720px] w-full border-0 bg-white"
             sandbox="allow-same-origin allow-scripts"
-            title="Task output"
+            title={`${task.title} output`}
           />
-        ) : (output as any).content || output.md_content ? (
-          <div className="p-4">
-            <div className="text-xs text-muted-foreground/50 mb-3 flex items-center gap-1.5">
-              <RefreshCw className="w-3 h-3" />
-              <span>Markdown preview — composed view loading</span>
+        ) : output.content || output.md_content ? (
+          <div className="p-5">
+            <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground/60">
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Markdown preview</span>
             </div>
-            <MarkdownRenderer content={(output as any).content || output.md_content || ''} />
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              <MarkdownRenderer content={output.content || output.md_content || ''} />
+            </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">Output available but content not loaded</p>
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            Output available but preview content is not currently loaded.
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// =============================================================================
-// Left Panel: Task Tab (definition — objective, criteria, output spec)
-// =============================================================================
-
-function TaskDefinitionTab({ task, onChatMessage }: { task: TaskDetail; onChatMessage?: (msg: string) => void }) {
-  return (
-    <div className="p-5 space-y-6">
-      {task.objective && (
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Objective</p>
-          <div className="space-y-2">
-            {task.objective.deliverable && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Deliverable</span> {task.objective.deliverable}</p>}
-            {task.objective.audience && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Audience</span> {task.objective.audience}</p>}
-            {task.objective.purpose && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Purpose</span> {task.objective.purpose}</p>}
-            {task.objective.format && <p className="text-sm"><span className="text-muted-foreground text-xs mr-1.5">Format</span> {task.objective.format}</p>}
-          </div>
-        </div>
-      )}
-
-      {task.success_criteria && task.success_criteria.length > 0 && (
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Success Criteria</p>
-          <ul className="text-sm space-y-1.5 list-disc list-inside text-muted-foreground">
-            {task.success_criteria.map((c, i) => <li key={i}>{c}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {task.output_spec && task.output_spec.length > 0 && (
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Output Spec</p>
-          <ul className="text-sm space-y-1.5 list-disc list-inside text-muted-foreground">
-            {task.output_spec.map((s, i) => <li key={i}>{s}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {task.delivery && (
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Delivery</p>
-          <p className="text-sm flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-muted-foreground" />{task.delivery}</p>
-        </div>
-      )}
-
-      {!task.objective && !task.success_criteria?.length && !task.output_spec?.length && (
-        <div className="py-6 space-y-3">
-          <p className="text-sm text-muted-foreground">This task needs a definition. Tell the chat what you want:</p>
-          {onChatMessage && (
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: 'Define objective', msg: 'Define the objective for this task' },
-                { label: 'Set audience', msg: 'Set the audience for this task' },
-                { label: 'Add criteria', msg: 'Add success criteria for this task' },
-              ].map((a, i) => (
-                <button
-                  key={i}
-                  onClick={() => onChatMessage(a.msg)}
-                  className="px-2.5 py-1 text-[11px] rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 font-medium transition-colors"
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// Left Panel: Schedule Tab (controls + run trajectory)
-// =============================================================================
-
-function ScheduleTab({
+function TaskWorkspace({
   task,
+  output,
+  deliverableMd,
   outputs,
-  selectedFolder,
+  highlightedSection,
   onSelectOutput,
-  onRefresh,
+  onRunNow,
+  onToggleStatus,
+  busy,
 }: {
   task: TaskDetail;
+  output: TaskOutput | null;
+  deliverableMd: string | null;
   outputs: TaskOutput[];
-  selectedFolder: string | null;
-  onSelectOutput: (o: TaskOutput) => void;
-  onRefresh?: () => void;
+  highlightedSection: TaskSection;
+  onSelectOutput: (output: TaskOutput) => void;
+  onRunNow: () => void;
+  onToggleStatus: () => void;
+  busy: boolean;
 }) {
-  const [pausing, setPausing] = useState(false);
-  const [resuming, setResuming] = useState(false);
-  const statusColor = task.status === 'active' ? 'bg-green-500' : task.status === 'paused' ? 'bg-amber-500' : task.status === 'completed' ? 'bg-blue-500' : 'bg-gray-400';
-
-  const handlePauseResume = async () => {
-    try {
-      if (task.status === 'active') {
-        setPausing(true);
-        await api.tasks.update(task.slug, { status: 'paused' });
-      } else {
-        setResuming(true);
-        await api.tasks.update(task.slug, { status: 'active' });
-      }
-      onRefresh?.();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setPausing(false);
-      setResuming(false);
-    }
-  };
+  const selectedFolder = output?.folder || output?.date || null;
 
   return (
-    <div className="p-5 space-y-4">
-      {/* Controls */}
-      <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={cn('w-2 h-2 rounded-full', statusColor)} />
-            <span className="text-sm font-medium capitalize">{task.status}</span>
-            {task.schedule && <span className="text-sm text-muted-foreground">· {task.schedule}</span>}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handlePauseResume}
-              disabled={pausing || resuming}
-              className={cn(
-                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                task.status === 'active'
-                  ? "border border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                  : "border border-green-300 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
-              )}
-            >
-              {pausing ? '...' : resuming ? '...' : task.status === 'active' ? 'Pause' : 'Resume'}
-            </button>
-            <button
-              onClick={() => api.tasks.run(task.slug).then(() => onRefresh?.()).catch(console.error)}
-              className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Play className="w-3 h-3 inline mr-1" />Run Now
-            </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          {task.next_run_at && (
-            <div>
-              <span className="text-muted-foreground block mb-0.5">Next run</span>
-              <span className="font-medium">{new Date(task.next_run_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
-            </div>
-          )}
-          {task.last_run_at && (
-            <div>
-              <span className="text-muted-foreground block mb-0.5">Last run</span>
-              <span className="font-medium">{formatRelativeTime(task.last_run_at)}</span>
-            </div>
-          )}
-        </div>
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+      <div className="min-h-0 flex-1 overflow-hidden border-b border-border lg:border-b-0 lg:border-r">
+        <OutputPane task={task} output={output} onRunNow={onRunNow} />
       </div>
 
-      {/* Run trajectory */}
-      <div>
-        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
-          Runs {outputs.length > 0 && `(${outputs.length})`}
-        </p>
-        {outputs.length > 0 ? (
-          <div className="space-y-1">
-            {outputs.map(output => (
-              <button
-                key={output.folder}
-                onClick={() => onSelectOutput(output)}
-                className={cn(
-                  'w-full flex items-center justify-between p-3 rounded-lg text-sm transition-colors',
-                  selectedFolder === output.folder ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
-                )}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className={cn('w-2 h-2 rounded-full', output.status === 'delivered' ? 'bg-green-500' : output.status === 'failed' ? 'bg-red-500' : 'bg-amber-500')} />
-                  <span>{output.date}</span>
-                </div>
-                <span className="text-xs text-muted-foreground/50">{output.status === 'delivered' ? '✓' : output.status}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="py-6 text-center border border-dashed border-border/40 rounded-lg">
-            <p className="text-xs text-muted-foreground/40">No runs yet</p>
-          </div>
-        )}
-      </div>
+      <aside className="w-full shrink-0 overflow-y-auto bg-muted/10 lg:w-[380px]">
+        <div className="space-y-4 p-4">
+          <TaskMetaCard task={task} />
+          <DeliverableCard task={task} deliverableMd={deliverableMd} highlighted={highlightedSection === 'deliverable'} />
+          <ContextCard task={task} highlighted={highlightedSection === 'context'} />
+          <RunsCard
+            task={task}
+            outputs={outputs}
+            selectedFolder={selectedFolder}
+            onSelectOutput={onSelectOutput}
+            onRunNow={onRunNow}
+            onToggleStatus={onToggleStatus}
+            busy={busy}
+            highlighted={highlightedSection === 'runs'}
+          />
+        </div>
+      </aside>
     </div>
   );
 }
-
-// AgentsTab removed — replaced by ProcessTab (ADR-145 Gate 3)
-
-// =============================================================================
-// Right Panel: Task-Scoped Chat
-// =============================================================================
 
 function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: string }) {
   const {
@@ -375,21 +585,39 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
       setActionCard(null);
     }
   };
-  const { attachments, attachmentPreviews, error: fileError, uploadedDocs, handleFileSelect, handlePaste, removeAttachment, clearAttachments, getImagesForAPI, fileInputRef } = useFileAttachments();
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, status]);
+  const {
+    attachments,
+    attachmentPreviews,
+    error: fileError,
+    uploadedDocs,
+    handleFileSelect,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+    getImagesForAPI,
+    fileInputRef,
+  } = useFileAttachments();
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, status]);
 
   const adjustHeight = useCallback(() => {
-    const ta = textareaRef.current;
-    if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; }
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
   }, []);
-  useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [input, adjustHeight]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && attachments.length === 0) || isLoading) return;
     const images = await getImagesForAPI();
-    // Send with task surface context
     sendMessage(input, {
       surface: { type: 'task-detail', taskSlug },
       images: images.length > 0 ? images : undefined,
@@ -399,10 +627,12 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
   };
 
-  // Task-scoped plus menu — pre-LLM action cards
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => setActionCard(RUN_TASK_CARD) },
     { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => setActionCard(ADJUST_TASK_CARD) },
@@ -411,24 +641,38 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   ];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
         {messages.length === 0 && !isLoading && (
-          <div className="text-center py-6">
-            <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
+          <div className="py-6 text-center">
+            <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
             <p className="text-[11px] text-muted-foreground/40">Ask anything about this task</p>
           </div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
-            <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={cn(
+              'max-w-[92%] rounded-2xl px-3 py-2 text-[13px]',
+              msg.role === 'user' ? 'ml-auto rounded-br-md bg-primary/10' : 'rounded-bl-md bg-muted'
+            )}
+          >
+            <span
+              className={cn(
+                'mb-1 block text-[9px] tracking-wider text-muted-foreground/50',
+                msg.role === 'user' ? 'font-medium uppercase' : 'font-brand text-[10px]'
+              )}
+            >
               {msg.role === 'user' ? 'You' : 'yarnnn'}
             </span>
             {msg.blocks && msg.blocks.length > 0 ? (
               <MessageBlocks blocks={msg.blocks} />
             ) : msg.role === 'assistant' && !msg.content && isLoading ? (
-              <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Thinking...
+              </div>
             ) : (
               <>
                 {msg.role === 'assistant' ? (
@@ -443,40 +687,67 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
         ))}
 
         {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Thinking...
+          </div>
         )}
 
         {status.type === 'clarify' && pendingClarification && (
-          <div className="space-y-2 bg-muted/50 rounded-lg p-3 border border-border">
+          <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
             <p className="text-xs font-medium">{pendingClarification.question}</p>
             {pendingClarification.options?.length ? (
               <div className="flex flex-wrap gap-1.5">
-                {pendingClarification.options.map((opt, i) => (
-                  <button key={i} onClick={() => respondToClarification(opt)} className="px-2.5 py-1 text-[11px] rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 font-medium">{opt}</button>
+                {pendingClarification.options.map((option, index) => (
+                  <button
+                    key={index}
+                    onClick={() => respondToClarification(option)}
+                    className="rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15"
+                  >
+                    {option}
+                  </button>
                 ))}
               </div>
-            ) : <p className="text-[10px] text-muted-foreground">Type below</p>}
+            ) : (
+              <p className="text-[10px] text-muted-foreground">Type below</p>
+            )}
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
+      <div className="shrink-0 border-t border-border px-3 pb-3 pt-1">
         {fileError && (
-          <div className="mb-2 p-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+          <div className="mb-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
             {fileError}
           </div>
         )}
 
         {uploadedDocs.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
-            {uploadedDocs.map((doc, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-background border border-border">
-                <span className="truncate max-w-[120px]">{doc.name}</span>
+          <div className="mb-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5">
+            {uploadedDocs.map((doc, index) => (
+              <div key={index} className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1 text-xs">
+                <span className="max-w-[120px] truncate">{doc.name}</span>
                 <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
                   {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {attachmentPreviews.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachmentPreviews.map((preview, index) => (
+              <div key={index} className="group relative">
+                <img src={preview} alt="" className="h-10 w-10 rounded border border-border object-cover" />
+                <button
+                  onClick={() => removeAttachment(index)}
+                  className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-background opacity-0 group-hover:opacity-100"
+                >
+                  <X className="h-2 w-2" />
+                </button>
               </div>
             ))}
           </div>
@@ -493,26 +764,36 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
+          <div className="flex items-end gap-1.5 rounded-xl border border-border bg-background focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
             <PlusMenu actions={plusMenuActions} disabled={isLoading} />
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               disabled={isLoading}
               enterKeyHint="send"
-              placeholder="Ask anything or type / ..."
+              placeholder={`Steer ${taskTitle}...`}
               rows={1}
-              className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+              className="max-h-[150px] flex-1 resize-none bg-transparent py-2.5 pr-1 text-sm focus:outline-none disabled:opacity-50"
             />
-            <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
+            <button
+              type="submit"
+              disabled={isLoading || (!input.trim() && attachments.length === 0)}
+              className="shrink-0 p-2.5 text-primary transition-colors disabled:text-muted-foreground disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+            </button>
           </div>
           <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">
             <span>Enter to send</span>
-            {tokenUsage && <span className="font-mono">{tokenUsage.totalTokens >= 1000 ? `${(tokenUsage.totalTokens / 1000).toFixed(1)}k` : tokenUsage.totalTokens} tokens</span>}
+            {tokenUsage && (
+              <span className="font-mono">
+                {tokenUsage.totalTokens >= 1000 ? `${(tokenUsage.totalTokens / 1000).toFixed(1)}k` : tokenUsage.totalTokens} tokens
+              </span>
+            )}
           </div>
         </form>
       </div>
@@ -520,240 +801,217 @@ function TaskChatPanel({ taskSlug, taskTitle }: { taskSlug: string; taskTitle: s
   );
 }
 
-// =============================================================================
-// Main Task Page
-// =============================================================================
-
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params?.slug as string;
-  const { loadScopedHistory, sendMessage } = useTP();
+  const { loadScopedHistory } = useTP();
 
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [outputs, setOutputs] = useState<TaskOutput[]>([]);
   const [selectedOutput, setSelectedOutput] = useState<TaskOutput | null>(null);
+  const [deliverableMd, setDeliverableMd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leftTab, setLeftTab] = useState<'output' | 'deliverable' | 'schedule' | 'context'>('output');
-  const [deliverableMd, setDeliverableMd] = useState<string | null>(null);
+  const [mutationPending, setMutationPending] = useState(false);
 
-  const refreshData = useCallback(() => {
+  const selectedFolderParam = searchParams?.get('folder');
+  const highlightedSection = normalizeSection(searchParams?.get('section'));
+
+  const refreshData = useCallback(async () => {
     if (!slug) return;
-    api.tasks.get(slug).then(setTask).catch(console.error);
-    api.tasks.listOutputs(slug, 10)
-      .then(data => setOutputs(data?.outputs || []))
-      .catch(() => {});
-    // Refresh latest output only if we're viewing the most recent
-    api.tasks.getLatestOutput(slug)
-      .then(latest => {
-        if (latest) setSelectedOutput(prev => {
-          // Only auto-update if viewing latest or no selection
-          if (!prev || prev.date === latest.date) return latest;
-          return prev;
-        });
-      })
-      .catch(() => {});
-  }, [slug]);
+    try {
+      const [taskData, outputsData, outputData, deliverableFile] = await Promise.all([
+        api.tasks.get(slug),
+        api.tasks.listOutputs(slug, 10),
+        selectedFolderParam ? api.tasks.getOutput(slug, selectedFolderParam) : api.tasks.getLatestOutput(slug),
+        api.workspace.getFile(`/tasks/${slug}/DELIVERABLE.md`).catch(() => null),
+      ]);
 
-  // Load task-scoped chat history (not global)
-  useEffect(() => { if (slug) loadScopedHistory(undefined, slug); }, [slug, loadScopedHistory]);
+      setTask(taskData);
+      setOutputs(outputsData?.outputs || []);
+      setSelectedOutput(outputData || null);
+      setDeliverableMd(deliverableFile?.content || null);
+    } catch (err) {
+      console.error('Failed to refresh task workspace:', err);
+    }
+  }, [selectedFolderParam, slug]);
 
-  // Initial load
+  const replaceRoute = useCallback((options: { folder?: string | null; section?: TaskSection | null }) => {
+    if (!slug) return;
+    router.replace(buildTaskRoute(slug, options), { scroll: false });
+  }, [router, slug]);
+
+  useEffect(() => {
+    if (slug) {
+      loadScopedHistory(undefined, slug);
+    }
+  }, [slug, loadScopedHistory]);
+
   useEffect(() => {
     if (!slug) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
     Promise.all([
       api.tasks.get(slug).catch(() => null),
       api.tasks.listOutputs(slug, 10).catch(() => ({ outputs: [], total: 0 })),
-      api.tasks.getLatestOutput(slug).catch(() => null),
+      selectedFolderParam ? api.tasks.getOutput(slug, selectedFolderParam).catch(() => null) : api.tasks.getLatestOutput(slug).catch(() => null),
       api.workspace.getFile(`/tasks/${slug}/DELIVERABLE.md`).catch(() => null),
-    ]).then(([taskData, outputsData, latestOutput, deliverableFile]) => {
-      if (!taskData) { setError('Task not found'); setLoading(false); return; }
-      setTask(taskData);
-      setOutputs(outputsData?.outputs || []);
-      setSelectedOutput(latestOutput || null);
-      if (deliverableFile?.content) setDeliverableMd(deliverableFile.content);
-      setLoading(false);
-    }).catch(() => { setError('Failed to load task'); setLoading(false); });
-  }, [slug]);
+    ])
+      .then(([taskData, outputsData, outputData, deliverableFile]) => {
+        if (cancelled) return;
+        if (!taskData) {
+          setError('Task not found');
+          setLoading(false);
+          return;
+        }
 
-  // Polling + visibility refresh (matches workfloor pattern)
+        setTask(taskData);
+        setOutputs(outputsData?.outputs || []);
+        setSelectedOutput(outputData || null);
+        setDeliverableMd(deliverableFile?.content || null);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load task workspace:', err);
+        if (cancelled) return;
+        setError('Failed to load task');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFolderParam, slug]);
+
   useEffect(() => {
     if (!slug || loading) return;
-    const interval = setInterval(refreshData, 30000);
-    const onFocus = () => { if (document.visibilityState === 'visible') refreshData(); };
+    const interval = setInterval(() => {
+      refreshData();
+    }, 30000);
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
     document.addEventListener('visibilitychange', onFocus);
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [slug, loading, refreshData]);
 
-  // Fetch full output content when selecting a historical run from ScheduleTab
   const handleSelectOutput = useCallback((entry: TaskOutput) => {
-    if (!slug) return;
-    // If entry already has content, use it directly
-    if (entry.content || entry.html_content) {
+    const folder = entry.folder || entry.date;
+    if (!folder || !slug) {
       setSelectedOutput(entry);
-      setLeftTab('output');
       return;
     }
-    // Fetch the specific output by date folder
-    const dateFolder = entry.folder || entry.date;
-    if (!dateFolder) { setSelectedOutput(entry); setLeftTab('output'); return; }
-    api.tasks.getOutput(slug, dateFolder)
-      .then(full => { setSelectedOutput(full || entry); setLeftTab('output'); })
-      .catch(() => { setSelectedOutput(entry); setLeftTab('output'); });
-  }, [slug]);
 
-  if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
+    replaceRoute({ folder, section: null });
+    api.tasks.getOutput(slug, folder)
+      .then((full) => setSelectedOutput(full || entry))
+      .catch(() => setSelectedOutput(entry));
+  }, [replaceRoute, slug]);
+
+  const handleRunNow = useCallback(async () => {
+    if (!slug) return;
+    setMutationPending(true);
+    try {
+      await api.tasks.run(slug);
+      await refreshData();
+    } catch (err) {
+      console.error('Run now failed:', err);
+    } finally {
+      setMutationPending(false);
+    }
+  }, [refreshData, slug]);
+
+  const handleToggleStatus = useCallback(async () => {
+    if (!task) return;
+    setMutationPending(true);
+    try {
+      await api.tasks.update(task.slug, { status: task.status === 'active' ? 'paused' : 'active' });
+      await refreshData();
+    } catch (err) {
+      console.error('Status update failed:', err);
+    } finally {
+      setMutationPending(false);
+    }
+  }, [refreshData, task]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (error || !task) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
+      <div className="flex h-full flex-col items-center justify-center">
         <p className="text-sm text-muted-foreground">{error || 'Task not found'}</p>
-        <Link href="/workfloor" className="text-xs text-primary mt-2 hover:underline">Back to workfloor</Link>
+        <Link href="/workfloor" className="mt-2 text-xs text-primary hover:underline">Back to workfloor</Link>
       </div>
     );
   }
 
   const displayTitle = task.title || task.slug;
 
-  // Right panel = Task-scoped chat
   const panelTabs: WorkspacePanelTab[] = [
     { id: 'chat', label: 'Chat', content: <TaskChatPanel taskSlug={slug} taskTitle={displayTitle} /> },
   ];
 
-  // TP-style panel header — matches workfloor chat header
   const tpPanelHeader = (
-    <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
+    <div className="z-10 flex shrink-0 items-center justify-between border-b border-border bg-background px-3 py-2.5">
       <div className="flex items-center gap-2">
-        <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
+        <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="h-5 w-5" />
         <span className="text-xs font-medium">TP</span>
-        <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
+        <span className="max-w-[160px] truncate text-[10px] text-muted-foreground/50">
           · viewing {displayTitle}
         </span>
       </div>
-      <button onClick={() => router.back()} className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors">
-        <X className="w-4 h-4" />
+      <button
+        onClick={() => router.back()}
+        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <X className="h-4 w-4" />
       </button>
     </div>
   );
 
   return (
     <WorkspaceLayout
-      identity={{ icon: <FileText className="w-5 h-5" />, label: displayTitle }}
+      identity={{ icon: <FileText className="h-5 w-5" />, label: displayTitle }}
       breadcrumb={
-        <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" />
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
         </button>
       }
       panelTabs={panelTabs}
       panelHeader={tpPanelHeader}
       panelDefaultOpen={true}
-      panelDefaultPct={33}
+      panelDefaultPct={32}
     >
-      {/* Left: Tabbed content */}
-      <div className="flex flex-col flex-1 min-h-0">
-        {/* Tab bar */}
-        <div className="flex border-b border-border shrink-0 px-5">
-          {([
-            { key: 'output', label: 'Output' },
-            { key: 'deliverable', label: 'Deliverable' },
-            { key: 'schedule', label: 'Schedule' },
-            { key: 'context', label: 'Context' },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setLeftTab(tab.key)}
-              className={cn(
-                'px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
-                leftTab === tab.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/40 hover:text-muted-foreground'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto">
-          {leftTab === 'output' && <OutputTab task={task} output={selectedOutput} />}
-          {leftTab === 'deliverable' && (
-            <div className="p-5 space-y-4">
-              {deliverableMd ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <MarkdownRenderer content={deliverableMd} />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No deliverable spec yet. Ask TP to set one up.
-                </p>
-              )}
-            </div>
-          )}
-          {leftTab === 'schedule' && (
-            <ScheduleTab
-              task={task}
-              outputs={outputs}
-              selectedFolder={selectedOutput?.folder || selectedOutput?.date || null}
-              onSelectOutput={handleSelectOutput}
-              onRefresh={refreshData}
-            />
-          )}
-          {leftTab === 'context' && (
-            <div className="p-5 space-y-4">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context Domains</h3>
-              <div className="space-y-3">
-                {(task.context_reads?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="text-[11px] text-muted-foreground mb-1">Reads from:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {task.context_reads!.map(d => (
-                        <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          {d}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {(task.context_writes?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="text-[11px] text-muted-foreground mb-1">Writes to:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {task.context_writes!.map(d => (
-                        <span key={d} className="px-2 py-0.5 text-[11px] rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
-                          {d}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {!task.context_reads?.length && !task.context_writes?.length && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No context domains configured for this task.
-                  </p>
-                )}
-              </div>
-              {task.agent_slugs && task.agent_slugs.length > 0 && (
-                <div className="pt-3 border-t border-border/50">
-                  <p className="text-[11px] text-muted-foreground mb-1">Assigned agent:</p>
-                  <p className="text-sm font-medium">{task.agent_slugs.join(', ')}</p>
-                </div>
-              )}
-              {task.mode && (
-                <div>
-                  <p className="text-[11px] text-muted-foreground mb-1">Mode:</p>
-                  <span className={cn(
-                    "px-2 py-0.5 text-[11px] rounded-full",
-                    task.mode === 'recurring' && "bg-blue-500/10 text-blue-600",
-                    task.mode === 'goal' && "bg-amber-500/10 text-amber-600",
-                    task.mode === 'reactive' && "bg-gray-500/10 text-gray-600",
-                  )}>
-                    {task.mode}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      <TaskWorkspace
+        task={task}
+        output={selectedOutput}
+        deliverableMd={deliverableMd}
+        outputs={outputs}
+        highlightedSection={highlightedSection}
+        onSelectOutput={handleSelectOutput}
+        onRunNow={handleRunNow}
+        onToggleStatus={handleToggleStatus}
+        busy={mutationPending}
+      />
     </WorkspaceLayout>
   );
 }

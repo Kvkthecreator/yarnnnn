@@ -46,15 +46,19 @@ type TreeNode = import('@/types').WorkspaceTreeNode;
 
 const EXPLORER_ROOT_PATH = '/explorer';
 
-function relabelTopLevelNodes(nodes: TreeNode[], labelMap: Record<string, string>): TreeNode[] {
-  return nodes.map((node) => ({
+function asNodeArray(value: unknown): TreeNode[] {
+  return Array.isArray(value) ? value as TreeNode[] : [];
+}
+
+function relabelTopLevelNodes(nodes: TreeNode[] | undefined, labelMap: Record<string, string>): TreeNode[] {
+  return asNodeArray(nodes).map((node) => ({
     ...node,
     name: labelMap[node.name] || node.name,
   }));
 }
 
-function filterNodes(nodes: TreeNode[], predicate: (node: TreeNode) => boolean): TreeNode[] {
-  return nodes
+function filterNodes(nodes: TreeNode[] | undefined, predicate: (node: TreeNode) => boolean): TreeNode[] {
+  return asNodeArray(nodes)
     .filter(predicate)
     .map((node) => ({
       ...node,
@@ -99,12 +103,12 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
 }
 
 function buildExplorerRoot(input: {
-  tasksTree: TreeNode[];
-  domainTree: TreeNode[];
-  uploadTree: TreeNode[];
+  tasksTree?: TreeNode[];
+  domainTree?: TreeNode[];
+  uploadTree?: TreeNode[];
   taskTitles: Record<string, string>;
   domainTitles: Record<string, string>;
-  settings: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
+  settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
 }): TreeNode {
   const tasksChildren = relabelTopLevelNodes(input.tasksTree, input.taskTitles);
   const domainChildren = relabelTopLevelNodes(
@@ -114,21 +118,23 @@ function buildExplorerRoot(input: {
     }),
     input.domainTitles
   );
+  const uploadChildren = asNodeArray(input.uploadTree);
+  const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
   const uploadsFolder: TreeNode = {
     name: 'Uploads',
     path: `${EXPLORER_ROOT_PATH}/uploads`,
     type: 'folder',
-    summary: input.uploadTree.length ? `${input.uploadTree.length} items` : 'No uploads yet',
-    children: input.uploadTree,
+    summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
+    children: uploadChildren,
   };
 
   const settingsFolder: TreeNode = {
     name: 'Settings',
     path: `${EXPLORER_ROOT_PATH}/settings`,
     type: 'folder',
-    summary: input.settings.length ? `${input.settings.length} files` : 'No settings files yet',
-    children: input.settings.map((file) => ({
+    summary: settingsFiles.length ? `${settingsFiles.length} files` : 'No settings files yet',
+    children: settingsFiles.map((file) => ({
       name: file.filename,
       path: file.path,
       type: 'file' as const,
@@ -160,6 +166,36 @@ function buildExplorerRoot(input: {
       settingsFolder,
     ],
   };
+}
+
+function getTaskLaunchPath(path: string): string | null {
+  const match = path.match(/^\/tasks\/([^/]+)(?:\/(.*))?$/);
+  if (!match) {
+    return null;
+  }
+
+  const slug = match[1];
+  const remainder = match[2] || '';
+
+  if (!remainder) {
+    return `/tasks/${slug}`;
+  }
+
+  if (remainder === 'DELIVERABLE.md') {
+    return `/tasks/${slug}?section=deliverable`;
+  }
+
+  if (remainder === 'TASK.md' || remainder === 'awareness.md') {
+    return `/tasks/${slug}?section=context`;
+  }
+
+  if (remainder === 'outputs' || remainder.startsWith('outputs/')) {
+    const parts = remainder.split('/');
+    const folder = parts.length >= 2 ? parts[1] : null;
+    return folder ? `/tasks/${slug}?folder=${encodeURIComponent(folder)}` : `/tasks/${slug}?section=runs`;
+  }
+
+  return `/tasks/${slug}`;
 }
 
 // =============================================================================
@@ -439,15 +475,17 @@ export default function WorkfloorPage() {
         api.workspace.getTree('/workspace/uploads'),
       ]);
 
-      const taskTitles = Object.fromEntries(nav.tasks.map((task) => [task.slug, task.title]));
-      const domainTitles = Object.fromEntries(nav.domains.map((domain) => [domain.key, domain.display_name]));
+      const navTasks = Array.isArray(nav?.tasks) ? nav.tasks : [];
+      const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
+      const taskTitles = Object.fromEntries(navTasks.map((task) => [task.slug, task.title]));
+      const domainTitles = Object.fromEntries(navDomains.map((domain) => [domain.key, domain.display_name]));
       const nextRoot = buildExplorerRoot({
-        tasksTree,
-        domainTree,
-        uploadTree,
+        tasksTree: asNodeArray(tasksTree),
+        domainTree: asNodeArray(domainTree),
+        uploadTree: asNodeArray(uploadTree),
         taskTitles,
         domainTitles,
-        settings: nav.settings,
+        settings: Array.isArray(nav?.settings) ? nav.settings : [],
       });
 
       setExplorerRoot(nextRoot);
@@ -521,6 +559,15 @@ export default function WorkfloorPage() {
 
   const activeTasks = tasks.filter(t => t.status !== 'archived');
 
+  const handleExplorerOpen = useCallback((node: TreeNode) => {
+    const taskLaunchPath = getTaskLaunchPath(node.path);
+    if (taskLaunchPath) {
+      router.push(taskLaunchPath);
+      return;
+    }
+    setSelectedPath(node.path);
+  }, [router]);
+
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -547,7 +594,7 @@ export default function WorkfloorPage() {
                 <WorkspaceTree
                   nodes={explorerRoot.children || []}
                   selectedPath={selectedPath || undefined}
-                  onSelect={(node) => setSelectedPath(node.path)}
+                  onSelect={handleExplorerOpen}
                 />
               </div>
             ) : (
@@ -593,7 +640,7 @@ export default function WorkfloorPage() {
               </span>
             </div>
             <div className="flex-1 overflow-auto">
-              <ContentViewer selectedNode={selectedNode} onNavigate={(node) => setSelectedPath(node.path)} />
+              <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerOpen} />
             </div>
           </div>
         ) : (
