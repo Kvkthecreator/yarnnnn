@@ -216,7 +216,14 @@ export default function ContextPage() {
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => { } },
   ];
 
-  const emptyState = (
+  const emptyState = phase === 'setup' ? (
+    // Setup phase: minimal chat empty state — ContextSetup is the hero
+    <div className="text-center py-4">
+      <p className="text-[11px] text-muted-foreground/30">
+        Use the setup form to get started
+      </p>
+    </div>
+  ) : (
     <div className="space-y-3">
       <div className="text-center">
         <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
@@ -323,11 +330,8 @@ export default function ContextPage() {
                   setChatOpen(true);
                   // Refresh tree after inference completes (~4s)
                   setTimeout(loadExplorer, 5000);
-                }}
-                showSkipOptions
-                onSkipAction={(msg) => {
-                  sendMessage(msg, { surface: effectiveSurface });
-                  setChatOpen(true);
+                  // Phase will update on next nav fetch
+                  setTimeout(() => setPhase('scaffolded'), 6000);
                 }}
               />
             </div>
