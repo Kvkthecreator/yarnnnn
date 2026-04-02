@@ -256,6 +256,30 @@ async def chat_completion_stream(
             yield text
 
 
+def _microcompact_tool_history(messages: list[dict], keep_recent: int = 3) -> None:
+    """Clear old tool results from message history to prevent geometric growth.
+
+    CC-style microcompact: replaces tool_result content older than the last N
+    results with a stub. The model retains tool_use_id linkage but doesn't
+    re-process full content on subsequent rounds.
+
+    Mutates messages in place.
+    """
+    positions = []  # (msg_idx, block_idx)
+    for i, msg in enumerate(messages):
+        if msg.get("role") != "user" or not isinstance(msg.get("content"), list):
+            continue
+        for j, block in enumerate(msg["content"]):
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                positions.append((i, j))
+
+    to_clear = positions[:-keep_recent] if len(positions) > keep_recent else []
+    for msg_idx, block_idx in to_clear:
+        block = messages[msg_idx]["content"][block_idx]
+        if block.get("content") != "[Prior tool result cleared]":
+            block["content"] = "[Prior tool result cleared]"
+
+
 @dataclass
 class StreamEvent:
     """Event from streaming chat with tools."""
@@ -303,6 +327,11 @@ async def chat_completion_stream_with_tools(
     total_output_tokens = 0
 
     for round_num in range(max_tool_rounds):
+        # Microcompact: clear old tool results to prevent geometric context growth.
+        # Keeps the N most recent tool results, replaces older ones with stubs.
+        if round_num >= 2:
+            _microcompact_tool_history(working_messages, keep_recent=3)
+
         # Accumulate the full response for this round
         full_response = None
 

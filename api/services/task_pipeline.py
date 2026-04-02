@@ -1875,6 +1875,35 @@ async def _execute_pipeline(
 # Generation (reuses headless agent loop from agent_execution)
 # =============================================================================
 
+
+def _microcompact_tool_history(messages: list[dict], keep_recent: int = 3) -> None:
+    """Clear old tool results from message history to prevent geometric growth.
+
+    CC-style microcompact: walks the message history and replaces tool_result
+    content older than the last N results with a stub. The model retains the
+    tool_use_id linkage (so it knows a tool was called) but doesn't re-process
+    the full content on subsequent rounds.
+
+    Mutates messages in place. Only touches tool_result blocks in user messages.
+    """
+    # Collect all tool_result positions (in order, oldest first)
+    positions = []  # (msg_idx, block_idx)
+    for i, msg in enumerate(messages):
+        if msg.get("role") != "user" or not isinstance(msg.get("content"), list):
+            continue
+        for j, block in enumerate(msg["content"]):
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                positions.append((i, j))
+
+    # Clear all except the most recent N
+    to_clear = positions[:-keep_recent] if len(positions) > keep_recent else []
+    for msg_idx, block_idx in to_clear:
+        block = messages[msg_idx]["content"][block_idx]
+        # Only clear if not already cleared
+        if block.get("content") != "[Prior tool result cleared]":
+            block["content"] = "[Prior tool result cleared]"
+
+
 # Scope → max tool rounds (steady state)
 _TOOL_ROUNDS = {
     "platform": 5,
@@ -1938,6 +1967,14 @@ async def _generate(
     draft = ""
 
     for round_num in range(max_tool_rounds + 1):
+        # Microcompact: clear old tool results from history before each call.
+        # Without this, 13 rounds of WebSearch accumulate geometrically —
+        # each round re-sends ALL prior results. With microcompact, only
+        # the most recent results are kept; older ones become stubs.
+        # CC uses the same pattern (maybeTimeBasedMicrocompact).
+        if round_num >= 2:
+            _microcompact_tool_history(messages, keep_recent=3)
+
         response = await chat_completion_with_tools(
             messages=messages,
             system=system_prompt,

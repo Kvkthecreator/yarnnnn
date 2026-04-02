@@ -263,17 +263,26 @@ async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int
             failed += 1
             continue
 
-        # Belt-and-suspenders: skip if last_run_at is within 3 minutes
-        # (execution lock bumps next_run_at, but this catches edge cases)
-        last_run = task.get("last_run_at")
-        if last_run:
-            try:
-                last_run_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
-                if (datetime.now(timezone.utc) - last_run_dt) < timedelta(minutes=3):
-                    logger.info(f"[TASKS] Skipping {slug} — last_run_at too recent ({last_run})")
-                    continue
-            except (ValueError, TypeError):
-                pass
+        # Atomic claim: bump next_run_at to sentinel (+2h) only if it still
+        # matches what we queried. If another scheduler instance already
+        # claimed this task, the update affects 0 rows and we skip.
+        # This prevents duplicate execution from concurrent cron instances.
+        original_next_run = task.get("next_run_at")
+        sentinel = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+        try:
+            claim_result = (
+                supabase_client.table("tasks")
+                .update({"next_run_at": sentinel})
+                .eq("id", task["id"])
+                .eq("next_run_at", original_next_run)  # CAS — only if unchanged
+                .execute()
+            )
+            if not claim_result.data:
+                logger.info(f"[TASKS] Skipping {slug} — already claimed by another instance")
+                continue
+        except Exception as e:
+            logger.warning(f"[TASKS] Claim failed for {slug}: {e}")
+            continue
 
         try:
             result = await execute_task(supabase_client, user_id, slug)
