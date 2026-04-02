@@ -27,7 +27,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import type { Task, TaskDetail, TaskOutput } from '@/types';
 import { api } from '@/lib/api/client';
-import { TaskTreeNav, type TaskView } from '@/components/tasks/TaskTreeNav';
+import { TaskTreeNav, getDefaultView, type TaskView } from '@/components/tasks/TaskTreeNav';
 import { TaskContentView } from '@/components/tasks/TaskContentView';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { ContextSetup } from '@/components/tp/ContextSetup';
@@ -124,6 +124,7 @@ export default function TaskSurface() {
         if (list.length > 0) {
           const firstActive = list.find(t => t.status === 'active') || list[0];
           setSelectedSlug(firstActive.slug);
+          setSelectedView(getDefaultView(firstActive));
           router.replace(`/tasks/${firstActive.slug}`, { scroll: false });
         }
       }
@@ -160,13 +161,15 @@ export default function TaskSurface() {
   const handleSelectTask = useCallback((slug: string, view?: TaskView) => {
     if (slug !== selectedSlug) {
       setSelectedSlug(slug);
-      setSelectedView(view || 'output');
+      // Use provided view, or determine default from task class
+      const task = tasks.find(t => t.slug === slug);
+      setSelectedView(view || (task ? getDefaultView(task) : 'output'));
       // Don't clear state — keep old content visible until new data arrives
       router.replace(`/tasks/${slug}`, { scroll: false });
     } else if (view) {
       setSelectedView(view);
     }
-  }, [selectedSlug, router]);
+  }, [selectedSlug, router, tasks]);
 
   const handleSelectOutput = useCallback((entry: TaskOutput) => {
     const folder = entry.folder || entry.date;

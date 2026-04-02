@@ -700,6 +700,8 @@ export interface Task {
   };
   agent_slugs?: string[];      // assigned agents (from TASK.md ## Process)
   delivery?: string;           // delivery channel summary
+  type_key?: string;           // task type key (e.g., "track-competitors", "competitive-brief")
+  task_class?: string;         // "context" | "synthesis" — determines UI treatment
 }
 
 export interface TaskDetail extends Task {

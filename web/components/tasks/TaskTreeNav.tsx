@@ -17,11 +17,13 @@ import {
   Clock,
   Plus,
   ListChecks,
+  Layers,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
 
-export type TaskView = 'output' | 'task-definition' | 'deliverable' | 'run-history';
+export type TaskView = 'output' | 'domain-status' | 'task-definition' | 'deliverable' | 'run-history';
 
 interface TaskTreeNavProps {
   tasks: Task[];
@@ -34,12 +36,29 @@ interface TaskTreeNavProps {
   onCreateTask?: () => void;
 }
 
-const VIEW_ITEMS: { id: TaskView; label: string; icon: typeof FileText }[] = [
-  { id: 'output', label: 'Output', icon: FileText },
-  { id: 'task-definition', label: 'Task Definition', icon: ListChecks },
+type ViewItem = { id: TaskView; label: string; icon: typeof FileText };
+
+// Synthesis tasks: deliverable-focused
+const SYNTHESIS_VIEWS: ViewItem[] = [
+  { id: 'output', label: 'Report', icon: FileText },
   { id: 'deliverable', label: 'Deliverable Spec', icon: Target },
   { id: 'run-history', label: 'Run History', icon: Clock },
 ];
+
+// Context tasks: domain-focused
+const CONTEXT_VIEWS: ViewItem[] = [
+  { id: 'domain-status', label: 'Domain Status', icon: Layers },
+  { id: 'output', label: 'Run Summary', icon: Activity },
+  { id: 'run-history', label: 'Run History', icon: Clock },
+];
+
+function getViewsForTask(task: Task): ViewItem[] {
+  return task.task_class === 'context' ? CONTEXT_VIEWS : SYNTHESIS_VIEWS;
+}
+
+export function getDefaultView(task: Task): TaskView {
+  return task.task_class === 'context' ? 'domain-status' : 'output';
+}
 
 export function TaskTreeNav({
   tasks,
@@ -63,10 +82,10 @@ export function TaskTreeNav({
     setExpanded(prev => ({ ...prev, [slug]: !prev[slug] }));
   };
 
-  const handleTaskClick = (slug: string) => {
-    // Expand and select output view
-    setExpanded(prev => ({ ...prev, [slug]: true }));
-    onSelectTask(slug, 'output');
+  const handleTaskClick = (task: Task) => {
+    // Expand and select default view based on task class
+    setExpanded(prev => ({ ...prev, [task.slug]: true }));
+    onSelectTask(task.slug, getDefaultView(task));
   };
 
   const statusCounts = {
@@ -120,7 +139,7 @@ export function TaskTreeNav({
             <div key={task.slug}>
               {/* Task row */}
               <button
-                onClick={() => handleTaskClick(task.slug)}
+                onClick={() => handleTaskClick(task)}
                 className={cn(
                   'w-full flex items-center gap-1.5 px-2 py-1.5 text-left hover:bg-accent rounded-sm',
                   isSelected && 'bg-accent/50'
@@ -142,10 +161,10 @@ export function TaskTreeNav({
                 )}
               </button>
 
-              {/* Virtual children */}
+              {/* Virtual children — class-aware */}
               {isExpanded && (
                 <div className="ml-4">
-                  {VIEW_ITEMS.map(item => {
+                  {getViewsForTask(task).map(item => {
                     const Icon = item.icon;
                     const isViewSelected = isSelected && selectedView === item.id;
                     return (
