@@ -21,8 +21,7 @@ import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { ToggleBar } from './ToggleBar';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_ROUTE, CONTEXT_ROUTE, isHomeRoute } from '@/lib/routes';
-import { api } from '@/lib/api/client';
+import { HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -101,24 +100,6 @@ function AuthenticatedLayoutInner({
   const { setSurface, setSurfaceWithHandoff } = useDesk();
 
   const isOnHome = isHomeRoute(pathname);
-
-  // ADR-155: Maturity-based routing — redirect to /context during setup phase
-  useEffect(() => {
-    // Only redirect if user navigated to /tasks (home) directly
-    if (!isOnHome) return;
-
-    let cancelled = false;
-    api.workspace.getNav().then((nav) => {
-      if (cancelled) return;
-      const phase = nav.readiness?.phase;
-      if (phase && phase !== 'active' && pathname === HOME_ROUTE) {
-        router.replace(CONTEXT_ROUTE);
-      }
-    }).catch(() => {
-      // Readiness check failed — stay on current page
-    });
-    return () => { cancelled = true; };
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
