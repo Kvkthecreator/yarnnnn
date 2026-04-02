@@ -72,12 +72,14 @@ Only include domains that have at least one entity. Omit empty domains."""
 async def infer_workspace_entities(
     identity_content: str,
     brand_content: str = "",
+    notes_content: str = "",
 ) -> dict:
     """Haiku call to infer entity roster across all context domains.
 
     Args:
-        identity_content: IDENTITY.md content
-        brand_content: BRAND.md content (optional, enriches inference)
+        identity_content: IDENTITY.md content (required)
+        brand_content: BRAND.md content (optional — audience, positioning signals)
+        notes_content: notes.md content (optional — user-stated facts about their work)
 
     Returns:
         {"domains": {domain_key: [{slug, name, confidence, known_facts}]}}
@@ -92,6 +94,14 @@ async def infer_workspace_entities(
     source_parts = [f"## IDENTITY.md\n{identity_content.strip()}"]
     if brand_content and brand_content.strip():
         source_parts.append(f"\n\n## BRAND.md\n{brand_content.strip()}")
+    if notes_content and notes_content.strip():
+        # Only include facts/instructions, not preferences (they don't inform entities)
+        relevant_notes = "\n".join(
+            line for line in notes_content.strip().split("\n")
+            if line.strip() and not line.strip().startswith("preference:")
+        )
+        if relevant_notes:
+            source_parts.append(f"\n\n## User Notes\n{relevant_notes}")
 
     user_message = (
         "Based on the workspace identity below, infer what entities should exist "
@@ -356,7 +366,12 @@ async def update_inference_state(
 async def run_workspace_inference(client: Any, user_id: str) -> dict:
     """Full workspace inference pipeline: infer → scaffold → persist state.
 
-    Called after UpdateContext(target="identity") succeeds.
+    Called after UpdateContext(target="identity"|"brand") succeeds.
+    Reads all workspace-level files that may contain entity signals:
+    - IDENTITY.md (primary — required, gates execution)
+    - BRAND.md (supplementary — audience, positioning)
+    - notes.md (supplementary — user-stated facts about their work)
+
     Non-fatal: failure returns {"success": False} but never raises.
     """
     from services.workspace import UserMemory
@@ -368,9 +383,10 @@ async def run_workspace_inference(client: Any, user_id: str) -> dict:
             return {"success": False, "reason": "identity_too_sparse"}
 
         brand = await um.read("BRAND.md") or ""
+        notes = await um.read("notes.md") or ""
 
-        # Step 1: Infer entities from identity + brand
-        inference = await infer_workspace_entities(identity, brand)
+        # Step 1: Infer entities from workspace context files
+        inference = await infer_workspace_entities(identity, brand, notes)
         if not inference or not inference.get("domains"):
             return {"success": False, "reason": "no_entities_inferred"}
 

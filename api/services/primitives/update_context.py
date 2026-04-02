@@ -163,10 +163,11 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
 
         logger.info(f"[UPDATE_CONTEXT] Updated {filename} ({len(new_content)} chars)")
 
-        # ADR-155: Trigger workspace-wide inference after identity update.
-        # Scaffolds entity stubs across all context domains from identity.
+        # ADR-155: Trigger workspace-wide inference after identity or brand update.
+        # Both can contain entity signals — identity is primary, brand supplements
+        # (e.g., "our audience is enterprise CFOs" implies relationship entities).
         inference_result = None
-        if target == "identity":
+        if target in ("identity", "brand"):
             try:
                 from services.workspace_inference import run_workspace_inference
                 inference_result = await run_workspace_inference(auth.client, auth.user_id)
