@@ -126,6 +126,11 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    "I run a SaaS startup" is enough. "Hi I'm John" is not.
    Curate 2-3 tasks from the catalog that match their work.
 
+   **When suggesting tasks, name what they'll track.** Don't just say "set up competitor
+   tracking" — say "track Cursor, Copilot, and Codeium weekly." This lets the user
+   correct bad inferences BEFORE automation begins. The scaffolded entities are cheap
+   stubs; the tasks that run against them are recurring commitments.
+
 ### Behaviors
 
 - **One suggestion at a time** — don't list multiple gaps
